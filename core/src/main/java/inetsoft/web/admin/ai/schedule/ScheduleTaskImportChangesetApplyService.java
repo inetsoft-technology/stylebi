@@ -108,7 +108,7 @@ public class ScheduleTaskImportChangesetApplyService {
       APPLY_LOCK.lock();
 
       try {
-         ResolvedPlan plan = planService.resolve(req, user);
+         ResolvedPlan plan = planService.resolve(req, user, linkURI);
 
          if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(plan);
@@ -213,23 +213,8 @@ public class ScheduleTaskImportChangesetApplyService {
       throws Exception
    {
       String taskId = original.getTaskId();
-      // Deep-copy before mutating -- requireStagedTask returns the SAME cached object every call
-      // (ScheduleTaskTransferService's own staging cache holds one instance per stagingToken for
-      // its whole 30-minute lifetime, deliberately shared across every preview/apply against that
-      // token, per its own "Parses (never mutates)" contract). Mutating it in place here (via
-      // updateTaskLinkUri/sanitizeConditions/sanitizeAction below) would permanently corrupt that
-      // cached instance for every LATER preview_schedule_task_import/apply_schedule_task_import
-      // call against the same stagingToken -- live-confirmed: a second preview after a first apply
-      // showed the first apply's own linkURI rewrite already baked into "proposedValue", which a
-      // preview must never do. A plain ScheduleTask.clone() is NOT enough here: it Vector.clone()s
-      // conds/acts, which only copies the Vector, not the ScheduleCondition/ScheduleAction objects
-      // inside it, so sanitizeConditions/sanitizeAction/updateTaskLinkUri below -- which mutate
-      // those objects' OWN fields in place -- would still corrupt the shared cached instance one
-      // level down. deepCopy() below round-trips the whole task through writeXML/parseXML (the
-      // same idiom ScheduleTask.copyScheduleAction already uses per-action, applied to the whole
-      // task so conditions are isolated too, which copyScheduleTask's own clone()-plus-per-action-
-      // copy does not do) to guarantee every condition and action is a fresh instance.
-      ScheduleTask staged = deepCopy(transferService.requireStagedTask(stagingToken, taskId));
+      // The shared transform deep-copies, so the staging cache instance is never mutated.
+      ScheduleTask raw = transferService.requireStagedTask(stagingToken, taskId);
       // Re-resolve fresh AT APPLY TIME -- never trust anything computed at preview.
       ScheduleTask existing = scheduleManager.getScheduleTask(taskId);
       boolean overwrite = Boolean.TRUE.equals(original.getOverwrite());
@@ -243,16 +228,8 @@ public class ScheduleTaskImportChangesetApplyService {
       String before = existing == null ? null : ScheduleXmlProjection.project(existing);
       ScheduleTask capturedOriginal = existing == null ? null : existing.clone();
 
-      updateTaskLinkUri(staged, linkURI);
-
-      ScheduleTask sanitizeBaseline = existing == null ? new ScheduleTask() : existing;
-      scheduleTaskService.sanitizeConditions(staged, sanitizeBaseline, user);
-
-      for(int i = 0; i < staged.getActionCount(); i++) {
-         ScheduleAction pairedOld = sanitizeBaseline.getActionCount() > i ?
-            sanitizeBaseline.getAction(i) : null;
-         scheduleTaskService.sanitizeAction(staged.getAction(i), pairedOld, user);
-      }
+      ScheduleTask staged =
+         ScheduleTaskImportTransform.transform(raw, existing, linkURI, user, scheduleTaskService);
 
       mutationEntered.set(true);
       // Bug #78592, an overwrite keeps the task in the folder it is stored in, a save without a
@@ -272,41 +249,6 @@ public class ScheduleTaskImportChangesetApplyService {
          undoable.add(capturedOriginal == null ? Undo.create(key, taskId, staged) :
             Undo.overwrite(key, taskId, capturedOriginal));
       }
-   }
-
-   /**
-    * Deep-copies {@code task}, isolating every condition/action from the source instance, via an
-    * XML round-trip through {@code ScheduleTask.writeXML}/{@code parseXML} -- the same pair
-    * {@code ScheduleTaskTransferService.stage} already uses to build a {@code ScheduleTask} from
-    * an uploaded export file's {@code <Task>} element, and the same per-object round-trip idiom
-    * {@code ScheduleTask.copyScheduleAction} uses for a single action. {@code
-    * ScheduleTask.copyScheduleTask} is not used here: besides being {@code protected static} and
-    * unreachable from this package, it only round-trips ACTIONS after a shallow {@code clone()},
-    * leaving conditions shared with the source -- insufficient for this call site, which also
-    * mutates conditions (via {@code ScheduleTaskService.sanitizeConditions}).
-    */
-   private static ScheduleTask deepCopy(ScheduleTask task) throws Exception {
-      StringWriter buffer = new StringWriter();
-
-      try(PrintWriter writer = new PrintWriter(buffer)) {
-         task.writeXML(writer);
-      }
-
-      Document document = Tool.parseXML(new StringReader(buffer.toString()));
-      ScheduleTask copy = new ScheduleTask();
-      copy.parseXML(document.getDocumentElement());
-      return copy;
-   }
-
-   /** Mirrors {@code ImportTaskController.updateTaskInfo} exactly: rewrite every action's own
-    * {@code linkURI} to the CURRENT server's, so a task imported from a different environment's
-    * export doesn't keep pointing hyperlinks/viewer links at the source server. */
-   private static void updateTaskLinkUri(ScheduleTask task, String linkURI) {
-      task.getActionStream().forEach(action -> {
-         if(action instanceof inetsoft.sree.schedule.AbstractAction abstractAction) {
-            abstractAction.setLinkURI(Tool.replaceLocalhost(linkURI));
-         }
-      });
    }
 
    // ---------------------------------------------------------------- rollback

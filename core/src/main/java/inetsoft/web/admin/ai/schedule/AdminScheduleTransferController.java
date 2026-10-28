@@ -105,11 +105,12 @@ public class AdminScheduleTransferController {
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
       actions = ResourceAction.ACCESS))
    @PostMapping("/api/wiz/v1/admin/schedule/transfer/preview")
-   public ResolvedPlan preview(@RequestBody ScheduleTaskImportPlanRequest req, Principal user)
+   public ResolvedPlan preview(@RequestBody ScheduleTaskImportPlanRequest req, @LinkUri String linkURI,
+                               Principal user)
       throws Exception
    {
       requireSiteAdmin(user);
-      return planService.resolve(req, user);
+      return planService.resolve(req, user, linkURI);
    }
 
    /**

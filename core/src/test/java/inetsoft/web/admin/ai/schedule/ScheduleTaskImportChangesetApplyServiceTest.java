@@ -79,7 +79,8 @@ class ScheduleTaskImportChangesetApplyServiceTest {
 
    @BeforeEach void setUp() {
       transferService = new ScheduleTaskTransferService(scheduleManager, scheduleService);
-      planService = new ScheduleTaskImportChangePlanService(transferService, scheduleManager);
+      planService = new ScheduleTaskImportChangePlanService(transferService, scheduleManager,
+                                                       scheduleTaskService);
       applyService = new ScheduleTaskImportChangesetApplyService(planService, transferService,
          scheduleManager, scheduleGateway, scheduleTaskService, backupService);
 
@@ -136,7 +137,7 @@ class ScheduleTaskImportChangesetApplyServiceTest {
       // Preview #1, before apply.
       ScheduleTaskImportPlanRequest preview1Req =
          planRequest(stagingToken, "preview before apply", importChange(taskId, false));
-      ResolvedPlan preview1 = planService.resolve(preview1Req, user);
+      ResolvedPlan preview1 = planService.resolve(preview1Req, user, "http://different-server/");
       String proposedBeforeApply = preview1.changes().get(0).proposedValue();
 
       // Apply from a DIFFERENT server, so updateTaskLinkUri has something to rewrite.
@@ -164,7 +165,7 @@ class ScheduleTaskImportChangesetApplyServiceTest {
       // same proposedValue as the first preview, not the apply's own rewrite baked in.
       ScheduleTaskImportPlanRequest preview2Req =
          planRequest(stagingToken, "preview after apply", importChange(taskId, true));
-      ResolvedPlan preview2 = planService.resolve(preview2Req, user);
+      ResolvedPlan preview2 = planService.resolve(preview2Req, user, "http://different-server/");
       String proposedAfterApply = preview2.changes().get(0).proposedValue();
 
       assertEquals(proposedBeforeApply, proposedAfterApply,
@@ -200,7 +201,7 @@ class ScheduleTaskImportChangesetApplyServiceTest {
       // apply time" contract.
       ScheduleTaskImportPlanRequest planReq =
          planRequest(stagingToken, "apply", importChange(taskId, false));
-      ResolvedPlan plan = planService.resolve(planReq, user);
+      ResolvedPlan plan = planService.resolve(planReq, user, "http://source-server/");
       ScheduleTaskImportApplyRequest applyReq = applyRequest(planReq, plan);
 
       when(scheduleManager.getScheduleTask(taskId))
@@ -221,6 +222,71 @@ class ScheduleTaskImportChangesetApplyServiceTest {
       TimeCondition cachedCondition = (TimeCondition) stillCached.getCondition(0);
       assertEquals(originalHour, cachedCondition.getHour(),
          "apply must not mutate the condition instance shared by the staging cache");
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79576: the plan must show the task as apply will store it
+   // -------------------------------------------------------------------------
+
+   @Test void planProposedValueCarriesTheRewrittenLinkAndMatchesApplyAfter() throws Exception {
+      ScheduleTask sourceTask = taskWithViewsheetAction("t3", "http://old-test-server:8080/sree");
+      String taskId = sourceTask.getTaskId();
+      String stagingToken = stage(sourceTask);
+      ScheduleTaskImportPlanRequest req =
+         planRequest(stagingToken, "link", importChange(taskId, false));
+
+      ResolvedPlan plan = planService.resolve(req, user, "http://new-server:8080/");
+      String proposed = plan.changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("http://new-server:8080/"), proposed);
+      assertFalse(proposed.contains("old-test-server"), proposed);
+
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null).thenReturn(null).thenReturn(sreeTask("t3", "admin"));
+      ScheduleTaskImportApplyResult result = applyService.apply(
+         applyRequest(req, plan), user, "http://new-server:8080/");
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(proposed, result.results().get(0).after());
+   }
+
+   @Test void planReflectsSanitizedConditionsAndPlanHashDependsOnLinkUri() throws Exception {
+      ScheduleTask sourceTask = taskWithViewsheetAction("t4", "http://old-test-server:8080/sree");
+      String taskId = sourceTask.getTaskId();
+      String stagingToken = stage(sourceTask);
+      ScheduleTaskImportPlanRequest req =
+         planRequest(stagingToken, "sanitize", importChange(taskId, false));
+      String unsanitized =
+         planService.resolve(req, user, "http://a/").changes().get(0).proposedValue();
+
+      doAnswer(invocation -> {
+         ScheduleTask stagedArg = invocation.getArgument(0);
+         ((TimeCondition) stagedArg.getCondition(0)).setHour(1);
+         return null;
+      }).when(scheduleTaskService).sanitizeConditions(any(ScheduleTask.class), any(ScheduleTask.class), eq(user));
+
+      ResolvedPlan a1 = planService.resolve(req, user, "http://a/");
+      ResolvedPlan a2 = planService.resolve(req, user, "http://a/");
+      ResolvedPlan b = planService.resolve(req, user, "http://b/");
+
+      assertEquals(a1.planHash(), a2.planHash());
+      assertNotEquals(a1.planHash(), b.planHash());
+      assertNotEquals(unsanitized, a1.changes().get(0).proposedValue());
+   }
+
+   @Test void planRefusesFieldNamedWhenActionSanitizeRejectsTheTask() throws Exception {
+      ScheduleTask sourceTask = taskWithViewsheetAction("t5", "http://x/");
+      String taskId = sourceTask.getTaskId();
+      String stagingToken = stage(sourceTask);
+      doThrow(new inetsoft.util.MessageException("secret id not permitted"))
+         .when(scheduleTaskService).sanitizeAction(any(), any(), eq(user));
+      ScheduleTaskImportPlanRequest req =
+         planRequest(stagingToken, "reject", importChange(taskId, false));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(req, user, "http://x/"));
+      assertTrue(e.getMessage().startsWith("changes[0].taskId"), e.getMessage());
+      assertTrue(e.getMessage().contains("secret id not permitted"), e.getMessage());
    }
 
    // -------------------------------------------------------------------------

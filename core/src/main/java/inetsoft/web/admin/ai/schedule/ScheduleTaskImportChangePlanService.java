@@ -23,6 +23,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.schedule.ScheduleTaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -44,13 +45,19 @@ import java.util.*;
 public class ScheduleTaskImportChangePlanService {
    @Autowired
    public ScheduleTaskImportChangePlanService(ScheduleTaskTransferService transferService,
-                                              ScheduleManager scheduleManager)
+                                              ScheduleManager scheduleManager,
+                                              ScheduleTaskService scheduleTaskService)
    {
+      this.scheduleTaskService = scheduleTaskService;
       this.transferService = transferService;
       this.scheduleManager = scheduleManager;
    }
 
    /**
+    * The projected {@code after} is the task AS APPLY WILL STORE IT: link rewritten to
+    * {@code linkURI}, conditions/actions sanitized for {@code user}. Preview and apply must pass
+    * the same {@code linkURI}, else the plan hash differs.
+    *
     * @throws IllegalArgumentException with a field-named message on a blank task, a blank
     *                                 stagingToken, an empty change list, a blank/duplicate taskId,
     *                                 or a taskId that collides with an existing task without
@@ -58,7 +65,9 @@ public class ScheduleTaskImportChangePlanService {
     * @throws inetsoft.web.security.auth.MissingResourceException if {@code stagingToken} is
     *         unknown/expired, or a {@code taskId} does not name a task staged under it.
     */
-   public ResolvedPlan resolve(ScheduleTaskImportPlanRequest req, Principal user) throws Exception {
+   public ResolvedPlan resolve(ScheduleTaskImportPlanRequest req, Principal user, String linkURI)
+      throws Exception
+   {
       if(req == null || req.getTask() == null || req.getTask().trim().isEmpty()) {
          throw new IllegalArgumentException("task: a non-empty description is required");
       }
@@ -80,7 +89,7 @@ public class ScheduleTaskImportChangePlanService {
 
       for(ScheduleTaskImportChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, stagingToken, change, seenKeys));
+         changes.add(resolveOne(label, stagingToken, change, seenKeys, user, linkURI));
       }
 
       String task = req.getTask().trim();
@@ -92,7 +101,8 @@ public class ScheduleTaskImportChangePlanService {
    }
 
    private PlanChange resolveOne(String label, String stagingToken,
-                                 ScheduleTaskImportChangeRequest change, Set<String> seenKeys)
+                                 ScheduleTaskImportChangeRequest change, Set<String> seenKeys,
+                                 Principal user, String linkURI)
       throws Exception
    {
       if(change == null) {
@@ -117,7 +127,9 @@ public class ScheduleTaskImportChangePlanService {
       }
 
       String before = existing == null ? null : ScheduleXmlProjection.project(existing);
-      String after = ScheduleXmlProjection.project(staged);
+      String after = ScheduleXmlProjection.project(
+         ScheduleTaskImportTransform.transformForPlan(label, staged, existing, linkURI, user,
+                                                      scheduleTaskService));
       String risk = existing == null ? AdminChangeRecord.RISK_LOW : AdminChangeRecord.RISK_HIGH;
       String description = existing == null ?
          "import schedule task \"" + taskId + "\" as a new task" :
@@ -176,4 +188,5 @@ public class ScheduleTaskImportChangePlanService {
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final ScheduleTaskTransferService transferService;
    private final ScheduleManager scheduleManager;
+   private final ScheduleTaskService scheduleTaskService;
 }
