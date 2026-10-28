@@ -43,6 +43,10 @@ import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
+import inetsoft.web.composer.model.vs.SizePositionPaneModel;
+import inetsoft.web.composer.model.vs.RectanglePropertyDialogModel;
+import inetsoft.web.composer.model.vs.OvalPropertyDialogModel;
+import inetsoft.web.composer.model.vs.LinePropertyDialogModel;
 import inetsoft.web.composer.model.vs.GroupContainerPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ImageAdvancedPaneModel;
 import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
@@ -2086,6 +2090,9 @@ class AssemblyPropertyServiceTest {
    private static DataOutputService lastDataOutput;
    /** The chart/table/text/crosstab dialog-service mocks the last {@code serviceWith} built. */
    private static List<Object> lastDialogServices;
+   private static LinePropertyDialogService lastLine;
+   private static OvalPropertyDialogService lastOval;
+   private static RectanglePropertyDialogService lastRectangle;
    private static SelectionListPropertyDialogService lastSelectionList;
    private static SelectionTreePropertyDialogService lastSelectionTree;
    private static RangeSliderPropertyDialogService lastRangeSlider;
@@ -5253,6 +5260,9 @@ class AssemblyPropertyServiceTest {
       }
 
       lastDialogServices = List.of(chart, table, text, crosstab);
+      lastLine = mock(LinePropertyDialogService.class);
+      lastOval = mock(OvalPropertyDialogService.class);
+      lastRectangle = mock(RectanglePropertyDialogService.class);
 
       return new AssemblyPropertyService(
          sessions, gauge, imageService,
@@ -5266,8 +5276,7 @@ class AssemblyPropertyServiceTest {
          calendar, mock(TabPropertyDialogService.class),
          calcTable,
          groupContainer,
-         mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
-         mock(RectanglePropertyDialogService.class),
+         lastLine, lastOval, lastRectangle,
          selectionContainer,
          mock(SubmitPropertyDialogService.class),
          outputService, columnHandler, lastDataOutput);
@@ -6133,5 +6142,159 @@ class AssemblyPropertyServiceTest {
       serviceWith(mock(GroupContainerVSAssembly.class), model)
          .set("tok", principal(), "Group1", patch, "");
       assertEquals(10, model.getImageScalePane().top());
+   }
+
+   // ── #79615: a locked Image/Line/Oval/Rectangle's geometry is read-only (LockedGeometryGuard) ──
+
+   private static final String SHAPE_POSITION = "shapeGeneralPaneModel.sizePositionPaneModel.";
+   private static final String IMAGE_POSITION = "imageGeneralPaneModel.sizePositionPaneModel.";
+   private static final String[] LOCKABLE_TYPES = { "image", "rectangle", "oval", "line" };
+
+   private static SizePositionPaneModel position(boolean locked) {
+      SizePositionPaneModel pane = new SizePositionPaneModel();
+      pane.setTop(40);
+      pane.setLeft(50);
+      pane.setWidth(200);
+      pane.setHeight(150);
+      pane.setLocked(locked);
+      return pane;
+   }
+
+   /** One lockable assembly: its service, the pane the model holds and the native setter mock. */
+   private record Lockable(String name, String prefix, AssemblyPropertyService service,
+                           SizePositionPaneModel pane, Object writer)
+   {
+   }
+
+   private static Lockable lockable(String type, boolean locked) throws Exception {
+      SizePositionPaneModel pane = position(locked);
+
+      switch(type) {
+      case "image": {
+         ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+         ImagePropertyDialogModel model = ImagePropertyDialogModel.builder()
+            .imageGeneralPaneModel(
+               ImageGeneralPaneModel.builder().sizePositionPaneModel(pane).build())
+            .build();
+         AssemblyPropertyService service =
+            serviceWithImage(mock(ImageVSAssembly.class), model, imageService);
+         return new Lockable("Image1", IMAGE_POSITION, service, pane, imageService);
+      }
+      case "rectangle": {
+         RectanglePropertyDialogModel model = new RectanglePropertyDialogModel();
+         model.getShapeGeneralPaneModel().setSizePositionPaneModel(pane);
+         AssemblyPropertyService service = serviceWith(mock(RectangleVSAssembly.class), model);
+         when(lastRectangle.getRectanglePropertyDialogModel(anyString(), anyString(),
+                                                            any(Principal.class)))
+            .thenReturn(model);
+         return new Lockable("Rectangle1", SHAPE_POSITION, service, pane, lastRectangle);
+      }
+      case "oval": {
+         OvalPropertyDialogModel model = new OvalPropertyDialogModel();
+         model.getShapeGeneralPaneModel().setSizePositionPaneModel(pane);
+         AssemblyPropertyService service = serviceWith(mock(OvalVSAssembly.class), model);
+         when(lastOval.getOvalPropertyDialogModel(anyString(), anyString(),
+                                                  any(Principal.class)))
+            .thenReturn(model);
+         return new Lockable("Oval1", SHAPE_POSITION, service, pane, lastOval);
+      }
+      default: {
+         LinePropertyDialogModel model = new LinePropertyDialogModel();
+         model.getShapeGeneralPaneModel().setSizePositionPaneModel(pane);
+         AssemblyPropertyService service = serviceWith(mock(LineVSAssembly.class), model);
+         when(lastLine.getLinePropertyDialogModel(anyString(), anyString(),
+                                                  any(Principal.class)))
+            .thenReturn(model);
+         return new Lockable("Line1", SHAPE_POSITION, service, pane, lastLine);
+      }
+      }
+   }
+
+   private static void setOn(Lockable target, Map<String, Object> patch) throws Exception {
+      target.service().set("tok", principal(), target.name(), patch, "");
+   }
+
+   private static void assertGeometryRefused(Lockable target, String key, Object value) {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setOn(target, Map.of(key, value)), key);
+
+      assertTrue(e.getMessage().contains("'" + key + "'"), e.getMessage());
+      assertTrue(e.getMessage().contains(target.name()), e.getMessage());
+      assertTrue(e.getMessage().contains("locked"), e.getMessage());
+      assertTrue(e.getMessage().contains("set_lock"), e.getMessage());
+      // the model is the read copy PropertyPath mutates in place; what is stored is what the
+      // native setter received, and it received nothing
+      assertNothingWrittenBy(List.of(target.writer()));
+   }
+
+   @Test
+   void refusesGeometryOnALockedAssemblyByAliasAndByRawPath() throws Exception {
+      for(String type : LOCKABLE_TYPES) {
+         for(String leaf : new String[] { "top", "left", "width", "height" }) {
+            assertGeometryRefused(lockable(type, true), leaf, 300);
+            Lockable target = lockable(type, true);
+            assertGeometryRefused(target, target.prefix() + leaf, 300);
+         }
+      }
+   }
+
+   @Test
+   void refusesGeometryOnALockedAssemblyUnderACapitalizedLeaf() throws Exception {
+      for(String type : LOCKABLE_TYPES) {
+         Lockable target = lockable(type, true);
+         assertGeometryRefused(target, target.prefix() + "Top", 300);
+      }
+   }
+
+   @Test
+   void refusesAMixedPatchWithoutWritingItsOtherFields() throws Exception {
+      Lockable target = lockable("line", true);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("shadow", true);
+      patch.put("top", 99);
+
+      assertThrows(IllegalArgumentException.class, () -> setOn(target, patch));
+      assertNothingWrittenBy(List.of(target.writer()));
+   }
+
+   @Test
+   void appliesGeometryOnAnUnlockedAssembly() throws Exception {
+      for(String type : LOCKABLE_TYPES) {
+         Lockable target = lockable(type, false);
+         setOn(target, Map.of("top", 300, "width", 80));
+         assertEquals(300, target.pane().getTop(), type);
+         assertEquals(80, target.pane().getWidth(), type);
+      }
+   }
+
+   @Test
+   void appliesANonGeometryPatchOnALockedAssembly() throws Exception {
+      Lockable target = lockable("line", true);
+      assertDoesNotThrow(() -> setOn(target, Map.of("shadow", true)));
+      assertEquals(40, target.pane().getTop());
+   }
+
+   /** An echo of the current geometry is not a change, with or without a real change beside it. */
+   @Test
+   void doesNotRefuseAnUnchangedEchoOfALockedGeometry() throws Exception {
+      for(String type : LOCKABLE_TYPES) {
+         Lockable target = lockable(type, true);
+         assertDoesNotThrow(
+            () -> setOn(target, Map.of("top", 40, "left", 50, "width", 200, "height", 150)),
+            type);
+         assertDoesNotThrow(() -> setOn(target, Map.of("top", "40", "left", 50.0)), type);
+      }
+
+      Lockable line = lockable("line", true);
+      assertDoesNotThrow(() -> setOn(line, Map.of("top", 40, "shadow", true)));
+   }
+
+   @Test
+   void keepsLockedReadOnlyThroughThePropertyPath() throws Exception {
+      Lockable target = lockable("rectangle", true);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setOn(target, Map.of("locked", false)));
+      assertTrue(e.getMessage().contains("read-only"), e.getMessage());
+      assertTrue(target.pane().isLocked());
    }
 }

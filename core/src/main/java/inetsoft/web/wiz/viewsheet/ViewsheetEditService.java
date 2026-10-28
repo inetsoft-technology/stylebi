@@ -1214,8 +1214,7 @@ public class ViewsheetEditService {
          for(AssemblyNode node : targets) {
             VSAssembly assembly = vs == null ? null : vs.getAssembly(node.name());
 
-            boolean locked = assembly instanceof LockableVSAssembly lockable &&
-               Boolean.TRUE.equals(lockable.islocked());
+            boolean locked = isLocked(assembly);
             boolean inContainer = assembly != null && assembly.getContainer() != null;
 
             if(!locked && !inContainer) {
@@ -1452,13 +1451,17 @@ public class ViewsheetEditService {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(request.assembly());
 
-      if(assembly instanceof LockableVSAssembly lockable &&
-         Boolean.TRUE.equals(lockable.islocked()))
-      {
+      if(isLocked(assembly)) {
          throw new IllegalArgumentException(
             "Edit op '" + request.op() + "' cannot be applied to '" + request.assembly() +
             "' — it is locked. Use edit(op:'set_lock', locked:false) first.");
       }
+   }
+
+   /** Whether the assembly is a lockable one (image, line, oval, rectangle) that is locked. */
+   static boolean isLocked(VSAssembly assembly) {
+      return assembly instanceof LockableVSAssembly lockable &&
+         Boolean.TRUE.equals(lockable.islocked());
    }
 
    private AssemblyNode requireExisting(RuntimeViewsheet rvs, String name) {

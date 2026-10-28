@@ -319,6 +319,7 @@ public class AssemblyPropertyService {
          // Copied, not referenced: PropertyPath.set mutates the list-input editor in place.
          ListInputEditorGuard.Snapshot listEditorBefore =
             ListInputEditorGuard.snapshot(type, model);
+         LockedGeometryGuard.Snapshot lockedBefore = LockedGeometryGuard.snapshot(type, model);
          Map<String, Object> patchGuardsBefore =
             PatchGuards.snapshot(type, model, resolved.values());
 
@@ -358,6 +359,7 @@ public class AssemblyPropertyService {
          // patch is about to be refused for.
          SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
          PatchGuards.require(type, patchGuardsBefore, model);
+         LockedGeometryGuard.require(lockedBefore, assemblyName, resolved, model);
          model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                               measureBefore);
          model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
