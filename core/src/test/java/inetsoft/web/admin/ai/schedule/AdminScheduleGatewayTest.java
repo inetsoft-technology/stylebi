@@ -739,6 +739,35 @@ class AdminScheduleGatewayTest {
       assertNull(captor.getValue().getEndDate());
    }
 
+   // Bug #79432: a create request without startDate has 0, which must not be stored as a start
+   // date in 1970
+   @Test
+   void addScheduleTask_omittedStartDateMeansNoStartDate() throws Exception {
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, 0, 0, null, null, null,
+         Collections.emptyList(), Collections.emptyList(), null, "", user);
+
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+      assertNull(captor.getValue().getStartDate());
+   }
+
+   @Test
+   void addScheduleTask_keepsAnExplicitStartDate() throws Exception {
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, 1_800_000_000_000L, 0, null, null, null,
+         Collections.emptyList(), Collections.emptyList(), null, "", user);
+
+      org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+      verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), eq(user));
+      assertEquals(1_800_000_000_000L, captor.getValue().getStartDate().getTime());
+   }
    // Bug #77531: an internal task may only be the target of a batch action of a site admin
    @Test
    void addScheduleTask_rejectsBatchActionTargetingInternalTaskForNonSiteAdmin() throws Exception {
