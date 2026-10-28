@@ -109,6 +109,27 @@ final class ScheduleConditionConverter {
    }
 
    /**
+    * Refuses a run-once (AT) condition on any condition of a list. Enterprise Manager offers only
+    * Daily/Weekly/Monthly/Hourly for a scheduled cycle, so an AT one set through the API would be a
+    * state the editor cannot produce. {@link #convertCondition(TimeCondition)} deliberately stays
+    * lenient (cycle rollback feeds it stored conditions, and schedule tasks share it), so user
+    * input must be checked here, at plan time.
+    *
+    * @param conditionsLabel the path of the list, e.g. {@code changes[0].spec.conditions}.
+    */
+   static void refuseRunOnce(String conditionsLabel, List<TimeCondition> conditions) {
+      for(int i = 0; i < conditions.size(); i++) {
+         if(conditions.get(i).getType() == TimeCondition.Type.AT) {
+            throw new IllegalArgumentException(
+               conditionsLabel + "[" + i + "].type: \"AT\" -- a run-once (AT) condition is not " +
+               "supported on a scheduled cycle (Enterprise Manager offers only " +
+               "Daily/Weekly/Monthly/Hourly for cycles); use EVERY_DAY, EVERY_WEEK, EVERY_MONTH " +
+               "or EVERY_HOUR");
+         }
+      }
+   }
+
+   /**
     * Refuses a time zone id the JVM cannot resolve. {@link TimeZone#getTimeZone(String)} silently
     * answers GMT for such an id, so a typo would otherwise be stored as GMT. A null or blank id
     * means "no time zone given" and is accepted, as is a case variant of "UTC"/"GMT" (the zero
