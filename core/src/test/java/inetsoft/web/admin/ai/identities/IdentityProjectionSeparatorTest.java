@@ -81,6 +81,8 @@ class IdentityProjectionSeparatorTest {
          .thenReturn(mock(Group.class));
       lenient().when(editableAuthentication.getRole(any(IdentityID.class)))
          .thenReturn(mock(Role.class));
+      lenient().when(editableAuthentication.getAllRoles(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[0]);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);

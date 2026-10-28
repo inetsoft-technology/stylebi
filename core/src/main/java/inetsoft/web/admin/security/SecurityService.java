@@ -2720,7 +2720,9 @@ public class SecurityService {
     * must not be able to bypass the filter by supplying a spoofed or foreign organization
     * id on the role (e.g. {Administrator, host-org}).
     */
-   private boolean isSystemAdminRoleAssignment(AuthenticationProvider provider, IdentityID role) {
+   public static boolean isSystemAdminRoleAssignment(AuthenticationProvider provider,
+                                                     IdentityID role)
+   {
       if(role == null) {
          return false;
       }
@@ -3959,7 +3961,7 @@ public class SecurityService {
          Arrays.asList(securityProvider.getOrganizationIDs()).contains(orgID);
    }
 
-   private String getIdentityRootResorucePath() {
+   public static String getIdentityRootResorucePath() {
       return new IdentityID("*", OrganizationManager.getInstance().getCurrentOrgID()).convertToKey();
    }
 

@@ -104,6 +104,8 @@ class IdentityChangesetApplyServiceTest {
          .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Group.class) : null);
       lenient().when(editableAuthentication.getRole(any(IdentityID.class)))
          .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Role.class) : null);
+      lenient().when(editableAuthentication.getAllRoles(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[0]);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);

@@ -821,6 +821,19 @@ public class IdentityChangePlanService {
       IdentitySpec spec = request.getSpec();
       Object existing = create ? null : loadExisting(unitType, self, user);
 
+      if(create && unitType != IdentityUnitType.ROLE && spec.getRoles() != null &&
+         !spec.getRoles().isEmpty() &&
+         !securityEngine.getSecurityProvider().checkPermission(
+            user, ResourceType.SECURITY_ROLE, SecurityService.getIdentityRootResorucePath(),
+            ResourceAction.ADMIN))
+      {
+         throw new IllegalArgumentException(
+            label + ".spec.roles: the calling user lacks the root role-administration permission, " +
+            "so apply ignores the whole roles list when creating a " + unitType.name().toLowerCase() +
+            " (only the default roles are assigned); drop spec.roles or have a role administrator " +
+            "make this change");
+      }
+
       switch(unitType) {
       case USER:
          checkRefs(label, "groups", spec.getGroups(), AdminIdentityRefs.Kind.GROUP, self,
@@ -834,11 +847,14 @@ public class IdentityChangePlanService {
                    self, g == null ? null : g.getParentGroups(), user, state);
          checkRefs(label, "memberUsers", spec.getMemberUsers(), AdminIdentityRefs.Kind.USER,
                    self, g == null ? null : g.getMemberUsers(), user, state);
+         // Apply resolves create-group memberGroups in the CALLER's organization, not the
+         // group's own (SecurityService.filterMemberGroups); mirror exactly that lookup.
          checkRefs(label, "memberGroups", spec.getMemberGroups(), AdminIdentityRefs.Kind.GROUP,
-                   self, g == null ? null : g.getMemberGroups(), user, state);
+                   create ? callerOrgOr(user, self) : self,
+                   g == null ? null : g.getMemberGroups(), user, state);
          checkRefs(label, "roles", spec.getRoles(), AdminIdentityRefs.Kind.ROLE, self, null,
                    user, state);
-         checkCircular(label, spec, self, g);
+         checkCircular(label, spec, self, g, create ? callerOrgOr(user, self) : self);
          break;
       default:
          SecurityRole r = (SecurityRole) existing;
@@ -853,6 +869,19 @@ public class IdentityChangePlanService {
 
       if(create) {
          state.createdSoFar.add(property);
+      }
+   }
+
+   /** {@code self} re-homed to the calling principal's organization, or {@code self}. */
+   private static IdentityID callerOrgOr(Principal user, IdentityID self) {
+      try {
+         String name = user == null ? null : user.getName();
+         IdentityID caller = name == null ? null : IdentityID.getIdentityIDFromKey(name);
+         return caller == null || caller.getOrgID() == null ? self :
+            new IdentityID(self.getName(), caller.getOrgID());
+      }
+      catch(RuntimeException e) {
+         return self;
       }
    }
 
@@ -926,10 +955,10 @@ public class IdentityChangePlanService {
 
          if(kind == AdminIdentityRefs.Kind.ROLE) {
             if(!OrganizationManager.getInstance().isSiteAdmin(user) &&
-               provider.getAuthenticationProvider().isSystemAdministratorRole(ref))
+               SecurityService.isSystemAdminRoleAssignment(provider.getAuthenticationProvider(), ref))
             {
                throw new IllegalArgumentException(
-                  field + ": " + what + " is a system administrator role, which only a site " +
+                  field + ": " + what + " is (or inherits) a system administrator role, which only a site " +
                   "administrator may assign; apply would silently drop it from " + fieldName);
             }
 
@@ -953,7 +982,9 @@ public class IdentityChangePlanService {
 
    /** Mirrors the circular-membership drops of SecurityService.filterMemberGroups and
     * updateParentGroups. */
-   private void checkCircular(String label, IdentitySpec spec, IdentityID self, SecurityGroup g) {
+   private void checkCircular(String label, IdentitySpec spec, IdentityID self, SecurityGroup g,
+                              IdentityID memberLookup)
+   {
       AuthenticationProvider auth = securityEngine.getSecurityProvider().getAuthenticationProvider();
       List<String> parents = spec.getParentGroups() != null ? spec.getParentGroups() :
          g == null ? null : g.getParentGroups();
@@ -978,7 +1009,7 @@ public class IdentityChangePlanService {
                continue;
             }
 
-            IdentityID memberId = new IdentityID(member.trim(), self.getOrgID());
+            IdentityID memberId = new IdentityID(member.trim(), memberLookup.getOrgID());
 
             for(String parent : parents) {
                if(parent != null && reaches(auth, memberId, parent, new HashSet<>())) {

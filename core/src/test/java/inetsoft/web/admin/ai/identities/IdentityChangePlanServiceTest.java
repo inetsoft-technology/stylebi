@@ -83,6 +83,8 @@ class IdentityChangePlanServiceTest {
          .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Group.class) : null);
       lenient().when(editableAuthentication.getRole(any(IdentityID.class)))
          .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Role.class) : null);
+      lenient().when(editableAuthentication.getAllRoles(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[0]);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
@@ -1483,5 +1485,87 @@ class IdentityChangePlanServiceTest {
 
       String msg = refusal(updateGroup("team", memberUsers("bob", "carol"))).getMessage();
       assertTrue(msg.contains("memberUsers[1]") && msg.contains("carol"), msg);
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79562 review r1: inherited sysadmin role, root ROLE gate, caller-org lookup
+   // -------------------------------------------------------------------------
+
+   @Test void roleThatInheritsASystemAdministratorRoleIsRefusedForANonSiteAdmin() throws Exception {
+      creatable();
+      IdentityID admin = new IdentityID("Administrator", null);
+      when(editableAuthentication.getAllRoles(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[] { admin });
+      when(editableAuthentication.isSystemAdministratorRole(any(IdentityID.class)))
+         .thenAnswer(inv -> admin.equals(inv.getArgument(0)));
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setRoles(new java.util.ArrayList<>(List.of("powerRole")));
+
+      String msg = refusal(u).getMessage();
+      assertTrue(msg.contains("changes[0].spec.roles[0]") && msg.contains("system administrator"), msg);
+
+      when(orgManager.isSiteAdmin(user)).thenReturn(true);
+      assertEquals(1, service.resolve(request("task", List.of(u)), user).changes().size());
+   }
+
+   @Test void createUserAndGroupRefuseExplicitRolesWithoutRootRolePermission() throws Exception {
+      creatable();
+      deniedResources.add(SecurityService.getIdentityRootResorucePath());
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setRoles(new java.util.ArrayList<>(List.of("r")));
+      String msg = refusal(u).getMessage();
+      assertTrue(msg.contains("changes[0].spec.roles") && msg.contains("role-administration"), msg);
+
+      IdentityChangeRequest g = createGroup("team");
+      g.getSpec().setRoles(new java.util.ArrayList<>(List.of("r")));
+      assertTrue(refusal(g).getMessage().contains("role-administration"));
+
+      // no explicit roles: nothing is dropped, so the plan is accepted
+      assertEquals(1, service.resolve(request("task", List.of(createUser("amy"))), user)
+                      .changes().size());
+   }
+
+   @Test void createGroupCircularMemberGroupIsRefused() throws Exception {
+      creatable();
+      Group parent = mock(Group.class);
+      when(parent.getGroups()).thenReturn(new String[] { "m" });
+      when(editableAuthentication.getGroup(eq(hostId("p")))).thenReturn(parent);
+      IdentityChangeRequest g = createGroup("newg");
+      g.getSpec().setParentGroups(new java.util.ArrayList<>(List.of("p")));
+      g.getSpec().setMemberGroups(new java.util.ArrayList<>(List.of("m")));
+
+      String msg = refusal(g).getMessage();
+      assertTrue(msg.contains("changes[0].spec.memberGroups[0]") && msg.contains("circular"), msg);
+   }
+
+   @Test void updateUserKeepsAStoredGroupButRefusesANewUnadministrableOne() throws Exception {
+      IdentityID bob = hostId("bob");
+      SecurityUser stored = existingUser(bob);
+      stored.setGroups(List.of("old"));
+      when(securityService.getUser(eq(bob), eq(user))).thenReturn(stored);
+      deniedResources.add(hostId("old").convertToKey());
+      deniedResources.add(hostId("new").convertToKey());
+
+      IdentitySpec keep = new IdentitySpec();
+      keep.setGroups(new java.util.ArrayList<>(List.of("old")));
+      assertEquals(1, service.resolve(request("task", List.of(updateUser("bob", keep))), user)
+                      .changes().size());
+
+      IdentitySpec add = new IdentitySpec();
+      add.setGroups(new java.util.ArrayList<>(List.of("old", "new")));
+      String msg = refusal(updateUser("bob", add)).getMessage();
+      assertTrue(msg.contains("changes[0].spec.groups[1]") && msg.contains("not administrable"), msg);
+   }
+
+   @Test void createGroupMemberGroupsAreLookedUpInTheCallersOrganization() throws Exception {
+      creatable();
+      when(user.getName()).thenReturn(new IdentityID("caller", "other-org").convertToKey());
+      IdentityChangeRequest g = createGroup("team");
+      // "m" exists in host-org (the group's org) but not in other-org (the caller's, as apply
+      // resolves it), so apply would drop it
+      g.getSpec().setMemberGroups(new java.util.ArrayList<>(List.of("m")));
+
+      String msg = refusal(g).getMessage();
+      assertTrue(msg.contains("changes[0].spec.memberGroups[0]") && msg.contains("other-org"), msg);
    }
 }
