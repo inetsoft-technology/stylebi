@@ -520,6 +520,77 @@ class ScheduleCycleChangePlanServiceTest {
          .startsWith("changes[0].spec.conditions[0].timeZone: \"Mars/Olympus\""));
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #79525: a rename target is part of the "name used in this submission" namespace
+   // -------------------------------------------------------------------------
+
+   private void liveCycles(String... names) throws Exception {
+      lenient().when(cycleGateway.cycleExists(anyString(), eq(user))).thenReturn(false);
+
+      for(String name : names) {
+         lenient().when(cycleGateway.cycleExists(name, user)).thenReturn(true);
+         lenient().when(cycleGateway.currentAsset(name, "host-org")).thenReturn(asset(name));
+      }
+   }
+
+   @Test void resolveRefusesRenameThenCreateOfSameName() throws Exception {
+      liveCycles("A");
+      ScheduleCycleChangePlanRequest req = request("task", List.of(
+         updateChange("A", "B", null), createChange("B", List.of(everyDay()))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("\"B\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("duplicate"), ex.getMessage());
+   }
+
+   @Test void resolveRefusesCreateThenRenameToSameName() throws Exception {
+      liveCycles("A");
+      ScheduleCycleChangePlanRequest req = request("task", List.of(
+         createChange("B", List.of(everyDay())), updateChange("A", "B", null)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("\"B\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("duplicate"), ex.getMessage());
+   }
+
+   @Test void resolveRefusesTwoRenamesToSameName() throws Exception {
+      liveCycles("A", "C");
+      ScheduleCycleChangePlanRequest req = request("task", List.of(
+         updateChange("A", "B", null), updateChange("C", "B", null)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("\"B\""), ex.getMessage());
+   }
+
+   @Test void resolveAcceptsRenameAloneAndCreateAlone() throws Exception {
+      liveCycles("A");
+      assertEquals(1, service.resolve(
+         request("task", List.of(updateChange("A", "B", null))), user).changes().size());
+      assertEquals(1, service.resolve(
+         request("task", List.of(createChange("B", List.of(everyDay())))), user).changes().size());
+   }
+
+   @Test void resolveRefusesNoOpRenameAlongsideCreateOfSameName() throws Exception {
+      liveCycles("A");
+      ScheduleCycleChangePlanRequest req = request("task", List.of(
+         updateChange("A", "A", List.of(everyDay())), createChange("A", List.of(everyDay()))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("\"A\""), ex.getMessage());
+   }
+
+   @Test void resolveTreatsNamesCaseSensitively() throws Exception {
+      liveCycles("A");
+      ScheduleCycleChangePlanRequest req = request("task", List.of(
+         updateChange("A", "a", null), createChange("b", List.of(everyDay()))));
+
+      assertEquals(2, service.resolve(req, user).changes().size());
+   }
+
    private static MockedStatic<TimeRange> noRanges() {
       MockedStatic<TimeRange> ranges = mockStatic(TimeRange.class);
       ranges.when(TimeRange::getTimeRanges).thenReturn(List.of());

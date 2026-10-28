@@ -204,6 +204,9 @@ public class ScheduleCycleChangePlanService {
       String newName = isBlank(spec.name()) ? currentName : spec.name().trim();
 
       if(!newName.equals(currentName)) {
+         // a rename target is a name used by this submission too (Bug #79525)
+         requireUnseen(label + ".spec.name", newName, seenNames);
+
          if(cycleGateway.cycleExists(newName, user)) {
             throw new IllegalArgumentException(
                label + ".spec.name: a scheduled cycle named \"" + newName + "\" already exists");
