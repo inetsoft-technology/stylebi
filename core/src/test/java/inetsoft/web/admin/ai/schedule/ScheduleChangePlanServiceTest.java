@@ -776,6 +776,27 @@ class ScheduleChangePlanServiceTest {
       }
    }
 
+   // Bug #79424: the permission-based sanitize resets a value the caller may not set (e.g. a
+   // timeRange after switch_organization), so the plan must refuse it instead of showing it.
+   @Test void conditionValueThePermissionSanitizeWouldResetIsRefusedNamingTheField() {
+      when(scheduleGateway.previewConditionResets(anyList(), eq(user)))
+         .thenReturn(java.util.Collections.singletonList("timeRange: it would be reset to none"));
+      CreateScheduleTaskRequest spec = specWith(timeCondition(9, 0));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateOf(spec));
+
+      assertTrue(ex.getMessage().startsWith(
+         "changes[0].spec.conditions[0].timeRange: "), ex.getMessage());
+   }
+
+   @Test void conditionNothingResetsIsAccepted() throws Exception {
+      when(scheduleGateway.previewConditionResets(anyList(), eq(user)))
+         .thenReturn(java.util.Collections.singletonList(null));
+
+      assertEquals(1, resolveCreateOf(specWith(timeCondition(9, 0))).changes().size());
+   }
+
    private static ScheduleChangePlanRequest request(String task, List<ScheduleChangeRequest> changes) {
       ScheduleChangePlanRequest req = new ScheduleChangePlanRequest();
       req.setTask(task);

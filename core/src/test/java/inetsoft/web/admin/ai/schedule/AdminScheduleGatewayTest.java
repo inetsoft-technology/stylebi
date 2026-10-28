@@ -905,6 +905,75 @@ class AdminScheduleGatewayTest {
       }
    }
 
+   // -------------------------------------------------------------------------
+   // previewConditionResets -- what the permission-based sanitize would not store (Bug #79424)
+   // -------------------------------------------------------------------------
+
+   @Test
+   void previewConditionResets_reportsTimeRangeThatSanitizeResets() {
+      doAnswer(inv -> {
+         inetsoft.sree.schedule.ScheduleTask scratch = inv.getArgument(0);
+         ((inetsoft.sree.schedule.TimeCondition) scratch.getCondition(0)).setTimeRange(
+            new TimeRange("Morning", "06:00:00", "12:00:00", false));
+         return null;
+      }).when(scheduleTaskService).sanitizeConditions(
+         any(inetsoft.sree.schedule.ScheduleTask.class),
+         any(inetsoft.sree.schedule.ScheduleTask.class), any());
+      // the sanitize above only simulates a reset by changing the value, which is what the
+      // gateway compares; the real rule is exercised through ScheduleTaskService's own tests
+      List<String> resets = gateway.previewConditionResets(List.of(everyDay()), user);
+
+      assertEquals(1, resets.size());
+      assertTrue(resets.get(0).startsWith("timeRange:"), resets.get(0));
+   }
+
+   @Test
+   void previewConditionResets_reportsConditionThatSanitizeDrops() {
+      doAnswer(inv -> {
+         inetsoft.sree.schedule.ScheduleTask scratch = inv.getArgument(0);
+         scratch.removeCondition(0);
+         return null;
+      }).when(scheduleTaskService).sanitizeConditions(
+         any(inetsoft.sree.schedule.ScheduleTask.class),
+         any(inetsoft.sree.schedule.ScheduleTask.class), any());
+
+      List<String> resets = gateway.previewConditionResets(List.of(everyDay()), user);
+
+      assertTrue(resets.get(0).startsWith("type:"), resets.get(0));
+   }
+
+   @Test
+   void previewConditionResets_reportsResetTimeOfDay() {
+      doAnswer(inv -> {
+         inetsoft.sree.schedule.ScheduleTask scratch = inv.getArgument(0);
+         ((inetsoft.sree.schedule.TimeCondition) scratch.getCondition(0)).setHour(1);
+         return null;
+      }).when(scheduleTaskService).sanitizeConditions(
+         any(inetsoft.sree.schedule.ScheduleTask.class),
+         any(inetsoft.sree.schedule.ScheduleTask.class), any());
+
+      List<String> resets = gateway.previewConditionResets(List.of(everyDay()), user);
+
+      assertTrue(resets.get(0).startsWith("hour/minute/second:"), resets.get(0));
+   }
+
+   @Test
+   void previewConditionResets_isNullWhenNothingIsReset() {
+      List<String> resets = gateway.previewConditionResets(List.of(everyDay()), user);
+
+      assertEquals(Collections.singletonList(null), resets);
+   }
+
+   private static TimeCondition everyDay() {
+      TimeCondition condition = new TimeCondition();
+      condition.setType(TimeCondition.Type.EVERY_DAY);
+      condition.setHour(3);
+      condition.setMinute(0);
+      condition.setSecond(0);
+      condition.setInterval(1);
+      return condition;
+   }
+
    private static SRPrincipal createPrincipal(String name, String orgId) {
       return new SRPrincipal(
          new IdentityID(name, orgId), new IdentityID[0], new String[0], orgId, 1L);
