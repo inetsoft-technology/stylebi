@@ -51,6 +51,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class IdentityChangePlanServiceTest {
    @Mock private SecurityService securityService;
+   private static boolean existsByDefault(IdentityID id) {
+      return "host-org".equals(id.getOrgID()) && !id.getName().contains("^");
+   }
+
+   private final java.util.Set<String> deniedResources = new java.util.HashSet<>();
    @Mock private SecurityEngine securityEngine;
    @Mock private Principal user;
    @Mock private OrganizationManager orgManager;
@@ -68,6 +73,18 @@ class IdentityChangePlanServiceTest {
       SecurityProvider writable =
          new TestSecurityProvider(editableAuthentication, authorizationProvider);
       lenient().when(securityEngine.getSecurityProvider()).thenReturn(writable);
+      // Bug #79562: member references must resolve at preview; by default every one exists and
+      // is administrable, tests override per case.
+      ((AbstractSecurityProvider) writable).setCheckPermissionStrategy(
+         (principal, type, resource, action) -> !deniedResources.contains(resource));
+      lenient().when(editableAuthentication.getUser(any(IdentityID.class)))
+         .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(User.class) : null);
+      lenient().when(editableAuthentication.getGroup(any(IdentityID.class)))
+         .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Group.class) : null);
+      lenient().when(editableAuthentication.getRole(any(IdentityID.class)))
+         .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Role.class) : null);
+      lenient().when(editableAuthentication.getAllRoles(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[0]);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
@@ -1369,5 +1386,256 @@ class IdentityChangePlanServiceTest {
             updateGroup("team", memberUsers("admin:other-org")))), user));
 
       assertTrue(ex.getMessage().contains("memberUsers"), ex.getMessage());
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79562: member references apply would silently drop are refused at preview
+   // -------------------------------------------------------------------------
+
+   private static IdentityID hostId(String name) {
+      return new IdentityID(name, "host-org");
+   }
+
+   private void noSuch(String kind, String name) {
+      IdentityID id = hostId(name);
+
+      if("group".equals(kind)) {
+         lenient().when(editableAuthentication.getGroup(eq(id))).thenReturn(null);
+      }
+      else if("user".equals(kind)) {
+         lenient().when(editableAuthentication.getUser(eq(id))).thenReturn(null);
+      }
+      else {
+         lenient().when(editableAuthentication.getRole(eq(id))).thenReturn(null);
+      }
+   }
+
+   private IllegalArgumentException refusal(IdentityChangeRequest... changes) {
+      return assertThrows(IllegalArgumentException.class,
+                          () -> service.resolve(request("task", List.of(changes)), user));
+   }
+
+   private void creatable() throws Exception {
+      lenient().when(securityService.getUser(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      lenient().when(securityService.getGroup(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such group"));
+      lenient().when(securityService.getRole(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"));
+   }
+
+   @Test void userGroupsNonexistentIsRefusedNamingFieldAndValue() throws Exception {
+      creatable();
+      noSuch("group", "nosuch");
+      IdentityChangeRequest c = createUser("bob");
+      c.getSpec().setGroups(new java.util.ArrayList<>(List.of("ok", "nosuch")));
+
+      String msg = refusal(c).getMessage();
+      assertTrue(msg.contains("changes[0].spec.groups[1]"), msg);
+      assertTrue(msg.contains("nosuch"), msg);
+   }
+
+   @Test void everyMemberFieldRefusesANonexistentReference() throws Exception {
+      creatable();
+      noSuch("user", "ghost");
+      noSuch("group", "ghost");
+      noSuch("role", "ghost");
+
+      IdentityChangeRequest ur = createUser("bob");
+      ur.getSpec().setRoles(new java.util.ArrayList<>(List.of("ghost")));
+      assertTrue(refusal(ur).getMessage().contains("changes[0].spec.roles[0]"));
+
+      IdentityChangeRequest g1 = createGroup("t1");
+      g1.getSpec().setParentGroups(new java.util.ArrayList<>(List.of("ghost")));
+      assertTrue(refusal(g1).getMessage().contains("spec.parentGroups[0]"));
+      IdentityChangeRequest g2 = createGroup("t2");
+      g2.getSpec().setMemberUsers(new java.util.ArrayList<>(List.of("ghost")));
+      assertTrue(refusal(g2).getMessage().contains("spec.memberUsers[0]"));
+      IdentityChangeRequest g3 = createGroup("t3");
+      g3.getSpec().setMemberGroups(new java.util.ArrayList<>(List.of("ghost")));
+      assertTrue(refusal(g3).getMessage().contains("spec.memberGroups[0]"));
+
+      IdentityChangeRequest r1 = createRole("r1");
+      r1.getSpec().setInheritedRoles(new java.util.ArrayList<>(List.of("ghost")));
+      assertTrue(refusal(r1).getMessage().contains("spec.inheritedRoles[0]"));
+      IdentityChangeRequest r2 = createRole("r2");
+      r2.getSpec().setAssignedUsers(new java.util.ArrayList<>(List.of("ghost")));
+      assertTrue(refusal(r2).getMessage().contains("spec.assignedUsers[0]"));
+      IdentityChangeRequest r3 = createRole("r3");
+      r3.getSpec().setAssignedGroups(new java.util.ArrayList<>(List.of("ghost")));
+      assertTrue(refusal(r3).getMessage().contains("spec.assignedGroups[0]"));
+   }
+
+   @Test void referenceToAGroupCreatedLaterInThePlanIsRefusedWithAnOrderingHint() throws Exception {
+      creatable();
+      noSuch("group", "G");
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setGroups(new java.util.ArrayList<>(List.of("G")));
+
+      String msg = refusal(u, createGroup("G")).getMessage();
+      assertTrue(msg.contains("changes[0].spec.groups[0]"), msg);
+      assertTrue(msg.contains("created later"), msg);
+   }
+
+   @Test void referenceToAGroupCreatedEarlierInThePlanIsAccepted() throws Exception {
+      creatable();
+      noSuch("group", "G");
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setGroups(new java.util.ArrayList<>(List.of("G")));
+
+      assertEquals(2, service.resolve(request("task", List.of(createGroup("G"), u)), user)
+                      .changes().size());
+   }
+
+   @Test void referenceToAnIdentityDeletedEarlierInThePlanIsRefused() throws Exception {
+      creatable();
+      when(securityService.getGroup(eq(hostId("G")), eq(user)))
+         .thenReturn(existingGroup(hostId("G")));
+      IdentityChangeRequest del = new IdentityChangeRequest();
+      del.setVerb("delete");
+      del.setUnitType("group");
+      del.setId("G");
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setGroups(new java.util.ArrayList<>(List.of("G")));
+
+      assertTrue(refusal(del, u).getMessage().contains("deleted earlier"));
+   }
+
+   @Test void referenceTheCallerCannotAdministerIsRefused() throws Exception {
+      creatable();
+      deniedResources.add(hostId("locked").convertToKey());
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setGroups(new java.util.ArrayList<>(List.of("locked")));
+
+      String msg = refusal(u).getMessage();
+      assertTrue(msg.contains("changes[0].spec.groups[0]") && msg.contains("not administrable"), msg);
+
+      IdentityChangeRequest r = createRole("r1");
+      r.getSpec().setAssignedUsers(new java.util.ArrayList<>(List.of("locked")));
+      assertTrue(refusal(r).getMessage().contains("not administrable"));
+   }
+
+   @Test void roleReferencesAreNotAdminChecked() throws Exception {
+      creatable();
+      deniedResources.add(hostId("somerole").convertToKey());
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setRoles(new java.util.ArrayList<>(List.of("somerole")));
+
+      assertEquals(1, service.resolve(request("task", List.of(u)), user).changes().size());
+   }
+
+   @Test void circularParentGroupIsRefused() throws Exception {
+      IdentityID team = hostId("team");
+      when(securityService.getGroup(eq(team), eq(user))).thenReturn(existingGroup(team));
+      Group child = mock(Group.class);
+      when(child.getGroups()).thenReturn(new String[] { "team" });
+      when(editableAuthentication.getGroup(eq(hostId("child")))).thenReturn(child);
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setParentGroups(new java.util.ArrayList<>(List.of("child")));
+
+      String msg = refusal(updateGroup("team", spec)).getMessage();
+      assertTrue(msg.contains("changes[0].spec.parentGroups[0]") && msg.contains("circular"), msg);
+
+      IdentitySpec self = new IdentitySpec();
+      self.setParentGroups(new java.util.ArrayList<>(List.of("team")));
+      assertTrue(refusal(updateGroup("team", self)).getMessage().contains("circular"));
+   }
+
+   @Test void updateKeepsAStoredNonAdministrableMemberButRefusesANewOne() throws Exception {
+      IdentityID team = hostId("team");
+      SecurityGroup stored = existingGroup(team);
+      stored.setMemberUsers(List.of("bob"));
+      when(securityService.getGroup(eq(team), eq(user))).thenReturn(stored);
+      deniedResources.add(hostId("bob").convertToKey());
+      deniedResources.add(hostId("carol").convertToKey());
+
+      assertEquals(1, service.resolve(request("task",
+         List.of(updateGroup("team", memberUsers("bob")))), user).changes().size());
+
+      String msg = refusal(updateGroup("team", memberUsers("bob", "carol"))).getMessage();
+      assertTrue(msg.contains("memberUsers[1]") && msg.contains("carol"), msg);
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79562 review r1: inherited sysadmin role, root ROLE gate, caller-org lookup
+   // -------------------------------------------------------------------------
+
+   @Test void roleThatInheritsASystemAdministratorRoleIsRefusedForANonSiteAdmin() throws Exception {
+      creatable();
+      IdentityID admin = new IdentityID("Administrator", null);
+      when(editableAuthentication.getAllRoles(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[] { admin });
+      when(editableAuthentication.isSystemAdministratorRole(any(IdentityID.class)))
+         .thenAnswer(inv -> admin.equals(inv.getArgument(0)));
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setRoles(new java.util.ArrayList<>(List.of("powerRole")));
+
+      String msg = refusal(u).getMessage();
+      assertTrue(msg.contains("changes[0].spec.roles[0]") && msg.contains("system administrator"), msg);
+
+      when(orgManager.isSiteAdmin(user)).thenReturn(true);
+      assertEquals(1, service.resolve(request("task", List.of(u)), user).changes().size());
+   }
+
+   @Test void createUserAndGroupRefuseExplicitRolesWithoutRootRolePermission() throws Exception {
+      creatable();
+      deniedResources.add(SecurityService.getIdentityRootResorucePath());
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setRoles(new java.util.ArrayList<>(List.of("r")));
+      String msg = refusal(u).getMessage();
+      assertTrue(msg.contains("changes[0].spec.roles") && msg.contains("role-administration"), msg);
+
+      IdentityChangeRequest g = createGroup("team");
+      g.getSpec().setRoles(new java.util.ArrayList<>(List.of("r")));
+      assertTrue(refusal(g).getMessage().contains("role-administration"));
+
+      // no explicit roles: nothing is dropped, so the plan is accepted
+      assertEquals(1, service.resolve(request("task", List.of(createUser("amy"))), user)
+                      .changes().size());
+   }
+
+   @Test void createGroupCircularMemberGroupIsRefused() throws Exception {
+      creatable();
+      Group parent = mock(Group.class);
+      when(parent.getGroups()).thenReturn(new String[] { "m" });
+      when(editableAuthentication.getGroup(eq(hostId("p")))).thenReturn(parent);
+      IdentityChangeRequest g = createGroup("newg");
+      g.getSpec().setParentGroups(new java.util.ArrayList<>(List.of("p")));
+      g.getSpec().setMemberGroups(new java.util.ArrayList<>(List.of("m")));
+
+      String msg = refusal(g).getMessage();
+      assertTrue(msg.contains("changes[0].spec.memberGroups[0]") && msg.contains("circular"), msg);
+   }
+
+   @Test void updateUserKeepsAStoredGroupButRefusesANewUnadministrableOne() throws Exception {
+      IdentityID bob = hostId("bob");
+      SecurityUser stored = existingUser(bob);
+      stored.setGroups(List.of("old"));
+      when(securityService.getUser(eq(bob), eq(user))).thenReturn(stored);
+      deniedResources.add(hostId("old").convertToKey());
+      deniedResources.add(hostId("new").convertToKey());
+
+      IdentitySpec keep = new IdentitySpec();
+      keep.setGroups(new java.util.ArrayList<>(List.of("old")));
+      assertEquals(1, service.resolve(request("task", List.of(updateUser("bob", keep))), user)
+                      .changes().size());
+
+      IdentitySpec add = new IdentitySpec();
+      add.setGroups(new java.util.ArrayList<>(List.of("old", "new")));
+      String msg = refusal(updateUser("bob", add)).getMessage();
+      assertTrue(msg.contains("changes[0].spec.groups[1]") && msg.contains("not administrable"), msg);
+   }
+
+   @Test void createGroupMemberGroupsAreLookedUpInTheCallersOrganization() throws Exception {
+      creatable();
+      when(user.getName()).thenReturn(new IdentityID("caller", "other-org").convertToKey());
+      IdentityChangeRequest g = createGroup("team");
+      // "m" exists in host-org (the group's org) but not in other-org (the caller's, as apply
+      // resolves it), so apply would drop it
+      g.getSpec().setMemberGroups(new java.util.ArrayList<>(List.of("m")));
+
+      String msg = refusal(g).getMessage();
+      assertTrue(msg.contains("changes[0].spec.memberGroups[0]") && msg.contains("other-org"), msg);
    }
 }

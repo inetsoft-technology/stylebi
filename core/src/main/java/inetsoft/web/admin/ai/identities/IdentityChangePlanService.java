@@ -21,7 +21,12 @@ import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.AuthenticationProvider;
+import inetsoft.sree.security.Group;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
@@ -90,11 +95,15 @@ public class IdentityChangePlanService {
       Set<String> seenKeys = new HashSet<>();
       // Bug #79016: hidden per-change hash input for a supplied user password (see hash()).
       Map<String, String> hiddenInputs = new LinkedHashMap<>();
+      MemberState members = new MemberState(plannedCreates(req, currentOrgId));
       int index = 0;
 
       for(IdentityChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, currentOrgId, seenKeys, hiddenInputs));
+         PlanChange resolved =
+            resolveOne(label, change, user, currentOrgId, seenKeys, hiddenInputs);
+         requireMembersResolvable(label, change, resolved, user, members);
+         changes.add(resolved);
       }
 
       // Every verb is risk:high, snapshotScope:storage, unconditionally (spec section 4/7).
@@ -759,6 +768,308 @@ public class IdentityChangePlanService {
          throw new IllegalArgumentException(label + ".spec: at least one field is required for " +
             "verb=\"update\" -- an update with nothing to change is refused, not treated as a no-op");
       }
+   }
+
+
+   // ---------------------------------------------------------------- member resolvability
+
+   /** Identities the plan creates/deletes so far, and every create the plan lists (Bug #79562). */
+   private static final class MemberState {
+      MemberState(Set<String> allCreates) {
+         this.allCreates = allCreates;
+      }
+
+      final Set<String> allCreates;
+      final Set<String> createdSoFar = new HashSet<>();
+      final Set<String> deletedSoFar = new HashSet<>();
+   }
+
+   private Set<String> plannedCreates(IdentityChangePlanRequest req, String currentOrgId) {
+      Set<String> result = new HashSet<>();
+
+      for(IdentityChangeRequest change : req.getChanges()) {
+         if(change == null || change.getSpec() == null ||
+            !IdentityChangeRequest.VERB_CREATE.equals(change.getVerb()))
+         {
+            continue;
+         }
+
+         try {
+            IdentityUnitType type = requireUnitType("changes", change.getUnitType());
+            String name = change.getSpec().getName();
+
+            if(type != IdentityUnitType.ORGANIZATION && name != null && !name.trim().isEmpty()) {
+               String org = blankToDefault(change.getSpec().getOrgId(), currentOrgId);
+               result.add(key(type, new IdentityID(name.trim(), org).convertToKey()));
+            }
+         }
+         catch(RuntimeException e) {
+            // reported by resolveOne with the right label
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Bug #79562: apply hands membership lists to SecurityService, which silently drops every
+    * reference it cannot honour (nonexistent, not administrable by the caller, a system
+    * administrator role for a non-site-admin, a circular group). Refuse those at preview, naming
+    * the field, so the plan never shows a membership the apply cannot grant. Apply runs the
+    * changes in request order, so a reference to an identity created earlier in the plan is
+    * accepted and one created later is refused. On update only NEW references are checked for
+    * administrability, as apply keeps stored members the caller cannot administer. Roles are not
+    * ADMIN-checked by apply and are not here.
+    */
+   private void requireMembersResolvable(String label, IdentityChangeRequest request,
+                                         PlanChange resolved, Principal user, MemberState state)
+   {
+      IdentityUnitType unitType = requireUnitType(label, request.getUnitType());
+
+      if(unitType == IdentityUnitType.ORGANIZATION) {
+         return;
+      }
+
+      String property = resolved.property();
+      String verb = request.getVerb();
+      IdentityID self = IdentityID.getIdentityIDFromKey(property.substring(property.indexOf('|') + 1));
+
+      if(IdentityChangeRequest.VERB_DELETE.equals(verb)) {
+         state.deletedSoFar.add(property);
+         return;
+      }
+
+      boolean create = IdentityChangeRequest.VERB_CREATE.equals(verb);
+      IdentitySpec spec = request.getSpec();
+      Object existing = create ? null : loadExisting(unitType, self, user);
+
+      if(create && unitType != IdentityUnitType.ROLE && spec.getRoles() != null &&
+         !spec.getRoles().isEmpty() &&
+         !securityEngine.getSecurityProvider().checkPermission(
+            user, ResourceType.SECURITY_ROLE, SecurityService.getIdentityRootResorucePath(),
+            ResourceAction.ADMIN))
+      {
+         throw new IllegalArgumentException(
+            label + ".spec.roles: the calling user lacks the root role-administration permission, " +
+            "so apply ignores the whole roles list when creating a " + unitType.name().toLowerCase() +
+            " (only the default roles are assigned); drop spec.roles or have a role administrator " +
+            "make this change");
+      }
+
+      switch(unitType) {
+      case USER:
+         checkRefs(label, "groups", spec.getGroups(), AdminIdentityRefs.Kind.GROUP, self,
+                   existing == null ? null : ((SecurityUser) existing).getGroups(), user, state);
+         checkRefs(label, "roles", spec.getRoles(), AdminIdentityRefs.Kind.ROLE, self, null,
+                   user, state);
+         break;
+      case GROUP:
+         SecurityGroup g = (SecurityGroup) existing;
+         checkRefs(label, "parentGroups", spec.getParentGroups(), AdminIdentityRefs.Kind.GROUP,
+                   self, g == null ? null : g.getParentGroups(), user, state);
+         checkRefs(label, "memberUsers", spec.getMemberUsers(), AdminIdentityRefs.Kind.USER,
+                   self, g == null ? null : g.getMemberUsers(), user, state);
+         // Apply resolves create-group memberGroups in the CALLER's organization, not the
+         // group's own (SecurityService.filterMemberGroups); mirror exactly that lookup.
+         checkRefs(label, "memberGroups", spec.getMemberGroups(), AdminIdentityRefs.Kind.GROUP,
+                   create ? callerOrgOr(user, self) : self,
+                   g == null ? null : g.getMemberGroups(), user, state);
+         checkRefs(label, "roles", spec.getRoles(), AdminIdentityRefs.Kind.ROLE, self, null,
+                   user, state);
+         checkCircular(label, spec, self, g, create ? callerOrgOr(user, self) : self);
+         break;
+      default:
+         SecurityRole r = (SecurityRole) existing;
+         checkRefs(label, "inheritedRoles", spec.getInheritedRoles(), AdminIdentityRefs.Kind.ROLE,
+                   self, null, user, state);
+         checkRefs(label, "assignedUsers", spec.getAssignedUsers(), AdminIdentityRefs.Kind.USER,
+                   self, r == null ? null : r.getAssignedUsers(), user, state);
+         checkRefs(label, "assignedGroups", spec.getAssignedGroups(), AdminIdentityRefs.Kind.GROUP,
+                   self, r == null ? null : r.getAssignedGroups(), user, state);
+         break;
+      }
+
+      if(create) {
+         state.createdSoFar.add(property);
+      }
+   }
+
+   /** {@code self} re-homed to the calling principal's organization, or {@code self}. */
+   private static IdentityID callerOrgOr(Principal user, IdentityID self) {
+      try {
+         String name = user == null ? null : user.getName();
+         IdentityID caller = name == null ? null : IdentityID.getIdentityIDFromKey(name);
+         return caller == null || caller.getOrgID() == null ? self :
+            new IdentityID(self.getName(), caller.getOrgID());
+      }
+      catch(RuntimeException e) {
+         return self;
+      }
+   }
+
+   private Object loadExisting(IdentityUnitType unitType, IdentityID id, Principal user) {
+      try {
+         switch(unitType) {
+         case USER:
+            return securityService.getUser(id, user);
+         case GROUP:
+            return securityService.getGroup(id, user);
+         default:
+            return securityService.getRole(id, user);
+         }
+      }
+      catch(Exception e) {
+         return null;
+      }
+   }
+
+   private void checkRefs(String label, String fieldName, List<String> values,
+                          AdminIdentityRefs.Kind kind, IdentityID self, List<String> stored,
+                          Principal user, MemberState state)
+   {
+      if(values == null) {
+         return;
+      }
+
+      IdentityUnitType type = IdentityUnitType.valueOf(kind.name());
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+
+      for(int i = 0; i < values.size(); i++) {
+         String value = values.get(i);
+
+         if(value == null || value.trim().isEmpty()) {
+            continue;
+         }
+
+         String field = label + ".spec." + fieldName + "[" + i + "]";
+         IdentityID ref = new IdentityID(value.trim(), self.getOrgID());
+         String refKey = key(type, ref.convertToKey());
+         String what = "\"" + value.trim() + "\"";
+
+         if(state.deletedSoFar.contains(refKey)) {
+            throw new IllegalArgumentException(
+               field + ": " + what + " is deleted earlier in this plan, so apply cannot add it to " +
+               fieldName + "; reference an identity that will exist");
+         }
+
+         if(state.createdSoFar.contains(refKey)) {
+            continue;
+         }
+
+         // inheritedRoles is applied with an organization-scoped lookup (no global-role fallback).
+         boolean exists = "inheritedRoles".equals(fieldName) ?
+            provider.getAuthenticationProvider().getRole(ref) != null :
+            directory().exists(kind, ref);
+
+         if(!exists) {
+            if(state.allCreates.contains(refKey)) {
+               throw new IllegalArgumentException(
+                  field + ": " + what + " is created later in this plan, so it does not exist yet " +
+                  "when this change is applied (changes apply in the order listed) -- list the " +
+                  "create of " + what + " before this change");
+            }
+
+            throw new IllegalArgumentException(
+               field + ": " + what + " does not exist in organization \"" + self.getOrgID() +
+               "\"; apply would silently drop it from " + fieldName + " -- reference an existing " +
+               kind.name().toLowerCase() + " or create it earlier in this plan");
+         }
+
+         if(kind == AdminIdentityRefs.Kind.ROLE) {
+            if(!OrganizationManager.getInstance().isSiteAdmin(user) &&
+               SecurityService.isSystemAdminRoleAssignment(provider.getAuthenticationProvider(), ref))
+            {
+               throw new IllegalArgumentException(
+                  field + ": " + what + " is (or inherits) a system administrator role, which only a site " +
+                  "administrator may assign; apply would silently drop it from " + fieldName);
+            }
+
+            continue;
+         }
+
+         if(stored != null && stored.contains(ref.getName())) {
+            continue;
+         }
+
+         ResourceType resourceType = kind == AdminIdentityRefs.Kind.USER ?
+            ResourceType.SECURITY_USER : ResourceType.SECURITY_GROUP;
+
+         if(!provider.checkPermission(user, resourceType, ref.convertToKey(), ResourceAction.ADMIN)) {
+            throw new IllegalArgumentException(
+               field + ": " + what + " is not administrable by the calling user; apply would " +
+               "silently drop it from " + fieldName);
+         }
+      }
+   }
+
+   /** Mirrors the circular-membership drops of SecurityService.filterMemberGroups and
+    * updateParentGroups. */
+   private void checkCircular(String label, IdentitySpec spec, IdentityID self, SecurityGroup g,
+                              IdentityID memberLookup)
+   {
+      AuthenticationProvider auth = securityEngine.getSecurityProvider().getAuthenticationProvider();
+      List<String> parents = spec.getParentGroups() != null ? spec.getParentGroups() :
+         g == null ? null : g.getParentGroups();
+
+      if(spec.getParentGroups() != null) {
+         for(int i = 0; i < spec.getParentGroups().size(); i++) {
+            String parent = spec.getParentGroups().get(i);
+
+            if(parent != null && reaches(auth, self, parent.trim(), new HashSet<>())) {
+               throw new IllegalArgumentException(
+                  label + ".spec.parentGroups[" + i + "]: \"" + parent.trim() + "\" would make " +
+                  "the group a member of itself (circular); apply would silently drop it");
+            }
+         }
+      }
+
+      if(spec.getMemberGroups() != null && parents != null) {
+         for(int i = 0; i < spec.getMemberGroups().size(); i++) {
+            String member = spec.getMemberGroups().get(i);
+
+            if(member == null) {
+               continue;
+            }
+
+            IdentityID memberId = new IdentityID(member.trim(), memberLookup.getOrgID());
+
+            for(String parent : parents) {
+               if(parent != null && reaches(auth, memberId, parent, new HashSet<>())) {
+                  throw new IllegalArgumentException(
+                     label + ".spec.memberGroups[" + i + "]: \"" + member.trim() + "\" is " +
+                     "already an ancestor of \"" + parent + "\" (circular); apply would " +
+                     "silently drop it");
+               }
+            }
+         }
+      }
+   }
+
+   /** True when {@code target} is {@code start} itself or one of its ancestors. */
+   private static boolean reaches(AuthenticationProvider auth, IdentityID target, String start,
+                                  Set<String> visited)
+   {
+      if(start.equals(target.getName())) {
+         return true;
+      }
+
+      if(!visited.add(start)) {
+         return false;
+      }
+
+      Group group = auth.getGroup(new IdentityID(start, target.getOrgID()));
+
+      if(group == null || group.getGroups() == null) {
+         return false;
+      }
+
+      for(String parent : group.getGroups()) {
+         if(reaches(auth, target, parent, visited)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    // ---------------------------------------------------------------- member/list references
