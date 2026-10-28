@@ -154,7 +154,9 @@ public class LoadRenameQueueTask extends LoadKeyValueTask<RenameTransformObject>
       for(RenameDependencyInfo info : replay) {
          LOG.info("Replaying rename transform task left in the queue: {}",
                   RenameTransformTask.describe(info));
-         cluster.submit("renameTransform", new RenameTransformTask.Rename(info));
+         // marked as replayed, so that it is skipped if it no longer applies (the flag is not
+         // part of the queued task, every replay sets it again)
+         cluster.submit("renameTransform", new RenameTransformTask.Rename(info, true));
       }
    }
 

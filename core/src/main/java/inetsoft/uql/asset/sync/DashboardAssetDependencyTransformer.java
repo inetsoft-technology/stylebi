@@ -90,6 +90,7 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
       }
       catch(Exception e) {
          LOG.warn("Failed to rename dependency assets: ", e);
+         assetFailed();
       }
 
       return null;
