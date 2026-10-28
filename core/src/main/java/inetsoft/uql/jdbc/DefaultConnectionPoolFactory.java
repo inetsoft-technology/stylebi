@@ -113,17 +113,35 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
 
       List<Predicate<DataSource>> filters = entry.finish(pool);
 
-      // a close was requested while the pool was being built, so apply it now instead of
-      // leaving a pool that was meant to be closed in the cache
-      for(Predicate<DataSource> filter : filters) {
-         if(filter.test(pool)) {
-            dataSources.remove(key, entry);
-            pool.close();
-            break;
+      try {
+         // a close was requested while the pool was being built, so apply it now instead of
+         // leaving a pool that was meant to be closed in the cache. The builder and its
+         // waiters then receive the closed pool, as callers did when the close queued behind
+         // the old lock; they fail on getConnection and a retry builds a new pool.
+         for(Predicate<DataSource> filter : filters) {
+            boolean match;
+
+            try {
+               match = filter.test(pool);
+            }
+            catch(Throwable e) {
+               // a filter that cannot be evaluated must not leave the entry stuck. Treat the
+               // pool as matched, since the close it was queued for cannot be ruled out.
+               LOG.warn("Connection pool close filter failed, closing the pool", e);
+               match = true;
+            }
+
+            if(match) {
+               dataSources.remove(key, entry);
+               pool.close();
+               break;
+            }
          }
       }
-
-      entry.complete(pool);
+      finally {
+         // always release the waiters, whatever happened above
+         entry.complete(pool);
+      }
    }
 
    private HikariConfig createDataSourceConfig(JDBCDataSource jdbcDataSource) {

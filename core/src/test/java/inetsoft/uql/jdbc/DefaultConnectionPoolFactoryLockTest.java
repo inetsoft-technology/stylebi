@@ -187,7 +187,30 @@ class DefaultConnectionPoolFactoryLockTest {
    }
 
    @Test
-   void failedBuildIsNotCached() throws Exception {
+   void throwingCloseFilterDuringABuildDoesNotHangWaiters() throws Exception {
+      JDBCDataSource slow = source("slow", "jdbc:stub:slow");
+
+      Future<DataSource> build = executor.submit(() -> factory.getConnectionPool(slow, null));
+      assertTrue(StubDriver.awaitBlocked());
+      Future<DataSource> joiner = executor.submit(() -> factory.getConnectionPool(slow, null));
+
+      factory.closeConnectionPools(ds -> {
+         throw new IllegalStateException("filter failed");
+      });
+
+      StubDriver.release();
+      HikariDataSource built = (HikariDataSource) build.get(PROMPT * 4, TimeUnit.SECONDS);
+      assertSame(built, joiner.get(PROMPT * 4, TimeUnit.SECONDS));
+      assertTrue(built.isClosed());
+
+      // the key is usable again
+      HikariDataSource next = (HikariDataSource) factory.getConnectionPool(slow, null);
+      assertNotSame(built, next);
+      assertFalse(next.isClosed());
+   }
+
+   @Test
+   void failedBuildIsNotCached()throws Exception {
       JDBCDataSource bad = source("bad", "jdbc:stub:bad");
 
       assertThrows(RuntimeException.class, () -> factory.getConnectionPool(bad, null));
