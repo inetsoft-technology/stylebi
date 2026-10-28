@@ -45,6 +45,7 @@ import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.DataInputPaneModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
+import inetsoft.web.composer.model.vs.NumberRangePaneModel;
 import inetsoft.web.composer.model.vs.NumericRangePaneModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
@@ -394,6 +395,12 @@ public class AssemblyPropertyService {
             requireValidNumericRange(model, resolved);
          }
 
+         if("gauge".equals(type) && resolved.values().stream()
+            .anyMatch(path -> path.contains(NUMBER_RANGE_PANE)))
+         {
+            requireValidGaugeNumberRange(model, resolved);
+         }
+
          if(PropertyAliases.derivesVariableFlagFromTable(type) &&
             resolved.containsValue("dataInputPaneModel.variable"))
          {
@@ -543,6 +550,93 @@ public class AssemblyPropertyService {
             (minName != null ? minName : maxName) + ": min must be less than max (got min=" +
             pane.getMinimum() + ", max=" + pane.getMaximum() + "). The Composer refuses a " +
             "range whose min is not below its max.");
+      }
+   }
+
+   private static final String NUMBER_RANGE_PANE = ".numberRangePaneModel.";
+
+   /**
+    * The gauge's Number Range pane has its own model, so {@link #requireValidNumericRange} never
+    * saw it: a max below the min, a 0 or negative increment, a major increment not above the
+    * minor and a non-numeric bound all reported success and were stored (bug-79539). The pane
+    * requires min and max, a max above the min, and increments that are blank or above 0 with the
+    * major above the minor. Dynamic values are exempt and an order is judged only when both
+    * sides are plain numbers on the post-patch model, so an unset counterpart never blocks, and
+    * only when the patch wrote a number-range field.
+    */
+   static void requireValidGaugeNumberRange(Object model, Map<String, String> resolved) {
+      NumberRangePaneModel pane = null;
+      String minName = null;
+      String maxName = null;
+      String minorName = null;
+      String majorName = null;
+
+      for(Map.Entry<String, String> entry : resolved.entrySet()) {
+         String path = entry.getValue();
+         int dot = path.lastIndexOf('.');
+
+         if(dot < 0 || !path.substring(0, dot + 1).endsWith(NUMBER_RANGE_PANE)) {
+            continue;
+         }
+
+         if(!(PropertyPath.get(model, path.substring(0, dot)) instanceof NumberRangePaneModel p)) {
+            continue;
+         }
+
+         pane = p;
+         String leaf = path.substring(dot + 1);
+         String name = entry.getKey().equalsIgnoreCase(path) ? leaf : entry.getKey();
+
+         if("min".equalsIgnoreCase(leaf)) {
+            requireNumericBound(name, pane.getMin());
+            minName = name;
+         }
+         else if("max".equalsIgnoreCase(leaf)) {
+            requireNumericBound(name, pane.getMax());
+            maxName = name;
+         }
+         else if("minorIncrement".equalsIgnoreCase(leaf)) {
+            requireBlankOrPositiveIncrement(name, pane.getMinorIncrement());
+            minorName = name;
+         }
+         else if("majorIncrement".equalsIgnoreCase(leaf)) {
+            requireBlankOrPositiveIncrement(name, pane.getMajorIncrement());
+            majorName = name;
+         }
+      }
+
+      if(pane == null) {
+         return;
+      }
+
+      Double min = plainNumber(pane.getMin());
+      Double max = plainNumber(pane.getMax());
+
+      if((minName != null || maxName != null) && min != null && max != null && min >= max) {
+         throw new IllegalArgumentException(
+            (minName != null ? minName : maxName) + ": min must be less than max (got min=" +
+            pane.getMin() + ", max=" + pane.getMax() + "). The Composer refuses a range " +
+            "whose min is not below its max.");
+      }
+
+      Double minor = plainNumber(pane.getMinorIncrement());
+      Double major = plainNumber(pane.getMajorIncrement());
+
+      if((minorName != null || majorName != null) && minor != null && major != null &&
+         major <= minor)
+      {
+         throw new IllegalArgumentException(
+            (majorName != null ? majorName : minorName) + ": majorIncrement must be greater " +
+            "than minorIncrement (got majorIncrement=" + pane.getMajorIncrement() +
+            ", minorIncrement=" + pane.getMinorIncrement() + "). The Composer refuses a major " +
+            "increment that is not above the minor one.");
+      }
+   }
+
+   /** The gauge's increments may be left blank, as in the Composer; a value must be above 0. */
+   private static void requireBlankOrPositiveIncrement(String name, String value) {
+      if(value != null && !value.isBlank()) {
+         requirePositiveIncrement(name, value);
       }
    }
 
