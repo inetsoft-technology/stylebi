@@ -25,12 +25,19 @@ import inetsoft.storage.KeyValueEngine;
 import inetsoft.storage.KeyValueTask;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -171,18 +178,149 @@ public class RenameTransformTask
       return null;
    }
 
+   /**
+    * Gets a rename of a replayed task that no longer applies: the asset with the old name exists
+    * again, for example because it was renamed back, or re-created or imported under the old name,
+    * after the task was queued. Replaying such a task would bind the dependents to the new name
+    * again.
+    * <p>
+    * Only whole repository assets (worksheets, viewsheets, folders and the like, named by their
+    * identifiers) are judged. Other renames, a rename whose names differ only in case, and an
+    * asset that can't be looked up count as still applying, so the task is never dropped on a
+    * guess.
+    *
+    * @return the old name of the rename that no longer applies, or {@code null} if the task
+    *         applies.
+    */
+   static String getStaleRename(RenameDependencyInfo info) {
+      return getStaleRename(info, RenameTransformTask::assetExists);
+   }
+
+   static String getStaleRename(RenameDependencyInfo info, Predicate<AssetEntry> exists) {
+      if(info.getRenameInfos() == null) {
+         return null;
+      }
+
+      for(RenameInfo rinfo : info.getRenameInfos()) {
+         AssetEntry oldEntry = rinfo == null ? null : getRenamedAsset(rinfo);
+
+         try {
+            if(oldEntry != null && exists.test(oldEntry)) {
+               return rinfo.getOldName();
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to look up {}, transforming the rename anyway", oldEntry, e);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Gets the asset that a rename renamed, if it is a whole repository asset.
+    *
+    * @return the asset with the old name, or {@code null} if the rename can't be judged.
+    */
+   private static AssetEntry getRenamedAsset(RenameInfo rinfo) {
+      String oname = rinfo.getOldName();
+      String nname = rinfo.getNewName();
+
+      if(rinfo.isTable() || rinfo.isColumn() || oname == null || nname == null ||
+         oname.equalsIgnoreCase(nname) || oname.indexOf('^') < 0 || nname.indexOf('^') < 0)
+      {
+         return null;
+      }
+
+      try {
+         // the identifier carries the organization; the rename's is used if it doesn't
+         AssetEntry oentry = AssetEntry.createAssetEntry(oname, rinfo.getOrganizationId());
+         AssetEntry nentry = AssetEntry.createAssetEntry(nname, rinfo.getOrganizationId());
+
+         if(oentry == null || nentry == null || oentry.getType() == null ||
+            oentry.isRoot() || oentry.getOrgID() == null || !isRepositoryScope(oentry) ||
+            !isRepositoryScope(nentry))
+         {
+            return null;
+         }
+
+         return oentry;
+      }
+      catch(Exception e) {
+         return null;
+      }
+   }
+
+   private static boolean isRepositoryScope(AssetEntry entry) {
+      return entry.getScope() == AssetRepository.GLOBAL_SCOPE ||
+         entry.getScope() == AssetRepository.USER_SCOPE;
+   }
+
+   private static boolean assetExists(AssetEntry entry) {
+      try {
+         AssetRepository repository = AssetUtil.getAssetRepository(false);
+         return repository != null && repository.containsEntry(entry);
+      }
+      catch(Exception e) {
+         // can't tell, so the rename is transformed
+         LOG.debug("Failed to look up {}, transforming the rename anyway", entry, e);
+         return false;
+      }
+   }
+
+   /**
+    * Determines if this node is stopping: the thread was interrupted (the cluster service is being
+    * cancelled) or the Spring context is closing. A context is marked closed before any of its
+    * beans, such as the storage, is destroyed.
+    */
+   static boolean isNodeStopping() {
+      if(Thread.currentThread().isInterrupted()) {
+         return true;
+      }
+
+      try {
+         ApplicationContext context = ConfigurationContext.getContext().getApplicationContext();
+         return context == null ||
+            context instanceof ConfigurableApplicationContext configurable &&
+               configurable.isClosed();
+      }
+      catch(Exception e) {
+         return true;
+      }
+   }
+
    private final RenameDependencyInfo info;
    private boolean waitDone = false;
    private static final Logger LOG = LoggerFactory.getLogger(RenameTransformTask.class);
 
    public static final class Rename implements SingletonRunnableTask {
       public Rename(RenameDependencyInfo info) {
+         this(info, false);
+      }
+
+      /**
+       * @param replayed {@code true} if the task is replayed from the queue that an earlier
+       *                 cluster run left. Such a task is skipped if it no longer applies.
+       */
+      public Rename(RenameDependencyInfo info, boolean replayed) {
          this.info = info;
+         this.replayed = replayed;
       }
 
       @Override
       public void run() {
+         run(DependencyTransformer::renameDep, RenameTransformTask::isNodeStopping);
+      }
+
+      /**
+       * Runs the task.
+       *
+       * @param transform rewrites the dependents, returns {@code true} if all were rewritten.
+       * @param stopping  tells if this node is stopping.
+       */
+      void run(Predicate<RenameDependencyInfo> transform, BooleanSupplier stopping) {
          LOG.debug("Rename transform task started: {}", info.getTaskId());
+         boolean done = false;
 
          try {
             String removedOrg = getRemovedOrganization(info);
@@ -190,28 +328,56 @@ public class RenameTransformTask
             if(removedOrg != null) {
                LOG.warn("Skipping a rename transform task of organization {}, which no " +
                            "longer exists: {}", removedOrg, describe(info));
+               done = true;
                return;
             }
 
-            DependencyTransformer.renameDep(info);
+            String stale = replayed ? getStaleRename(info) : null;
 
+            if(stale != null) {
+               LOG.warn("Skipping a replayed rename transform task, {} exists again (renamed " +
+                           "back, re-created or imported after the task was queued): {}",
+                        stale, describe(info));
+               done = true;
+               return;
+            }
+
+            // The index moves first, so that the dependents rewritten before a failure or stop
+            // are found under the new name by a later rename. The rewrite works from the task's
+            // own list of dependents and changes only the values equal to the old name, so a
+            // replay finishes it, and its index move finds nothing to move.
             if(info.isUpdateStorage()) {
                for(RenameInfo rinfo : info.getRenameInfos()) {
                   DependencyTransformer.renameDepStorage(rinfo);
                }
             }
+
+            done = transform.test(info);
          }
          finally {
-            // Dequeued after the transform, so that a server stopping in the middle of it leaves
-            // the task in the queue, to be replayed at the next cluster start. An exception from
-            // the transform still dequeues it.
-            getServiceBean(Cluster.class)
-               .submit(DependencyStorageService.QUEUE_STORE, new Remove(info));
-            LOG.debug("Rename transform task finished: {}", info.getTaskId());
+            // A task that did not finish because this node is stopping stays in the queue, to be
+            // replayed at the next cluster start. On a running node it is dequeued even if the
+            // transform failed, so that it neither waits for the next start nor keeps
+            // waitUntilRenameFinished() waiting.
+            if(done || !stopping.getAsBoolean()) {
+               if(!done) {
+                  LOG.warn("Rename transform task did not finish, repeat the rename if " +
+                              "references to the old name remain: {}", describe(info));
+               }
+
+               getServiceBean(Cluster.class)
+                  .submit(DependencyStorageService.QUEUE_STORE, new Remove(info));
+               LOG.debug("Rename transform task finished: {}", info.getTaskId());
+            }
+            else {
+               LOG.warn("Rename transform task stopped before it finished, it stays in the " +
+                           "queue to be replayed at the next cluster start: {}", describe(info));
+            }
          }
       }
 
       private final RenameDependencyInfo info;
+      private final boolean replayed;
    }
 
    public static final class Remove

@@ -41,6 +41,7 @@ import java.io.*;
 import java.rmi.RemoteException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * DependencyTransformer is a class to process rename dependencies. Its children classes is as this:
@@ -65,9 +66,12 @@ public abstract class DependencyTransformer {
     (ReportQueryDependencyTransformer and AssetQueryDependencyTransformer)
     * 2. rename ws table name and ws column names.
     (ReportWSDependencyTransformer and AssetWSDependencyTransformer)
+    *
+    * @return {@code true} if every dependent was transformed, {@code false} if the wait was
+    *         interrupted, timed out, or a dependent failed.
     */
-   public static void renameDep(RenameDependencyInfo dinfo) {
-      renameDep(dinfo, true);
+   public static boolean renameDep(RenameDependencyInfo dinfo) {
+      return renameDep(dinfo, true);
    }
 
    /**
@@ -77,16 +81,30 @@ public abstract class DependencyTransformer {
     (ReportQueryDependencyTransformer and AssetQueryDependencyTransformer)
     * 2. rename ws table name and ws column names.
     (ReportWSDependencyTransformer and AssetWSDependencyTransformer)
+    *
+    * @return {@code true} if every dependent was transformed, {@code false} if the wait was
+    *         interrupted (the interrupt flag is restored), timed out while the transform threads
+    *         still run, or a dependent failed.
     */
-   public static void renameDep(RenameDependencyInfo dinfo, boolean syncProcess) {
+   public static boolean renameDep(RenameDependencyInfo dinfo, boolean syncProcess) {
+      return renameDep(dinfo, syncProcess, 50L, TimeUnit.SECONDS);
+   }
+
+   /**
+    * Runs the transform, waiting for the transform threads at most for the given time.
+    */
+   static boolean renameDep(RenameDependencyInfo dinfo, boolean syncProcess, long timeout,
+                            TimeUnit unit)
+   {
       long start = System.currentTimeMillis();
       LOG.debug("Rename transformation start: " + start);
 
       if(dinfo == null || dinfo.getDependencyMap().isEmpty()) {
-         return;
+         return true;
       }
 
       AssetObject[] entries = dinfo.getAssetObjects();
+      AtomicBoolean failed = new AtomicBoolean();
 
       if(syncProcess) {
          int nthread = DependencyTool.getThreadNumber(entries.length);
@@ -112,24 +130,71 @@ public abstract class DependencyTransformer {
                @Override
                protected void doRun() {
                   setPriority(pri);
-                  transformAssets(list, dinfo);
+                  TRANSFORM_FAILED.set(failed);
+
+                  try {
+                     transformAssets(list, dinfo, true);
+                  }
+                  catch(RuntimeException | Error e) {
+                     failed.set(true);
+                     throw e;
+                  }
+                  finally {
+                     TRANSFORM_FAILED.remove();
+                  }
                }
             }));
          }
 
          executors.shutdown();
+         boolean finished;
 
          try {
-            executors.awaitTermination(50, TimeUnit.SECONDS);
+            finished = executors.awaitTermination(timeout, unit);
+
+            if(!finished) {
+               LOG.warn("Rename transformation did not finish in {} {} and goes on in the " +
+                           "background: task {}", timeout, unit, dinfo.getTaskId());
+            }
          }
-         catch(InterruptedException ignore) {
+         catch(InterruptedException e) {
+            // the server is stopping: stop the transform threads instead of leaving them
+            // running against storage that is being closed, and report the interrupt
+            finished = false;
+            executors.shutdownNow();
+
+            try {
+               executors.awaitTermination(5, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException ignore) {
+               // the interrupt is restored below
+            }
+
+            Thread.currentThread().interrupt();
+            LOG.warn("Rename transformation interrupted: task {}", dinfo.getTaskId());
          }
 
          long end = System.currentTimeMillis();
          LOG.debug("Rename transformation end, cost: " + (end - start));
+         return finished && !failed.get();
       }
       else {
-         transformAssets(Arrays.asList(entries), dinfo);
+         AtomicBoolean previous = TRANSFORM_FAILED.get();
+         TRANSFORM_FAILED.set(failed);
+
+         try {
+            transformAssets(Arrays.asList(entries), dinfo, false);
+         }
+         finally {
+            if(previous == null) {
+               TRANSFORM_FAILED.remove();
+            }
+            else {
+               TRANSFORM_FAILED.set(previous);
+            }
+         }
+
+         return !failed.get();
       }
    }
 
@@ -137,10 +202,32 @@ public abstract class DependencyTransformer {
     * Transform the assets.
     * @param list     the assets list need to transform.
     * @param dinfo    the RenameDependencyInfo which keeps the rename information.
+    * @param stopOnInterrupt {@code true} to stop before the next asset once the thread is
+    *                        interrupted, and report the rest as failed.
     */
-   private static void transformAssets(List<AssetObject> list, RenameDependencyInfo dinfo) {
+   private static void transformAssets(List<AssetObject> list, RenameDependencyInfo dinfo,
+                                       boolean stopOnInterrupt)
+   {
       for(AssetObject entry : list) {
+         if(stopOnInterrupt && Thread.currentThread().isInterrupted()) {
+            assetFailed();
+            return;
+         }
+
          transformAsset(entry, dinfo);
+      }
+   }
+
+   /**
+    * Reports that a dependent asset could not be transformed, so that the
+    * {@link #renameDep(RenameDependencyInfo, boolean)} running it reports the transform as
+    * incomplete. Called by the transformers that log and swallow a failure of one asset.
+    */
+   static void assetFailed() {
+      AtomicBoolean failed = TRANSFORM_FAILED.get();
+
+      if(failed != null) {
+         failed.set(true);
       }
    }
 
@@ -176,8 +263,8 @@ public abstract class DependencyTransformer {
                   continue;
                }
 
-               if(dinfo.isRecursive()) {
-                  renameDep(causeRenameDepsInfo);
+               if(dinfo.isRecursive() && !renameDep(causeRenameDepsInfo)) {
+                  assetFailed();
                }
             }
          }
@@ -1712,4 +1799,6 @@ public abstract class DependencyTransformer {
 
    protected static final XPath xpath = XPathFactory.newInstance().newXPath();
    private static final Logger LOG = LoggerFactory.getLogger(DependencyTransformer.class);
+   // the failure flag of the renameDep run that the current thread transforms assets for
+   private static final ThreadLocal<AtomicBoolean> TRANSFORM_FAILED = new ThreadLocal<>();
 }
