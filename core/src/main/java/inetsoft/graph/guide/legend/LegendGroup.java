@@ -75,7 +75,9 @@ public class LegendGroup extends BoundedContainer {
     */
    @Override
    protected double getMinWidth0() {
-      return minW;
+      // the legends are laid out in the group size minus the gap
+      boolean gapped = layout == GraphConstants.LEFT || layout == GraphConstants.RIGHT;
+      return minW + (gapped ? getLegendGap() : 0);
    }
 
    /**
@@ -84,7 +86,9 @@ public class LegendGroup extends BoundedContainer {
     */
    @Override
    protected double getMinHeight0() {
-      return minH;
+      // the legends are laid out in the group size minus the gap
+      boolean gapped = layout == GraphConstants.TOP || layout == GraphConstants.BOTTOM;
+      return minH + (gapped ? getLegendGap() : 0);
    }
 
    /**

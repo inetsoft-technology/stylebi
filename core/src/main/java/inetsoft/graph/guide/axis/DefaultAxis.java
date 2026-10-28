@@ -1025,7 +1025,7 @@ public class DefaultAxis extends Axis {
          return;
       }
 
-      final double L_GAP = getLabelGap();
+      final double L_GAP = getLayoutLabelGap(hor);
       double width;
       double height;
 
@@ -2112,6 +2112,30 @@ public class DefaultAxis extends Axis {
       int gap = getScale().getAxisSpec().getLabelGap();
       // use 2 since it was the hardcoded value before we added label-gap to axisSpec
       return gap == 0 ? 2 : gap;
+   }
+
+   /**
+    * Get the label gap used in layout. If a fixed or squeezed axis size can't hold the
+    * gap and the labels, the gap is reduced (down to the legacy 2px) so the labels are
+    * not pushed out of the axis.
+    */
+   private double getLayoutLabelGap(boolean hor) {
+      double gap = getLabelGap();
+
+      if(!containsLabel()) {
+         return gap;
+      }
+
+      double asize = getAxisSize();
+
+      if(asize == 0) {
+         asize = hor ? getPreferredHeight() : getPreferredWidth();
+      }
+
+      double lineSize = isLineVisible() ? line.getHeight() : 0;
+      // layout() takes L_GAP - 1 off a horizontal axis
+      double room = asize - lineSize - getMaxLabelSize(!hor) + (hor ? 1 : 0);
+      return Math.min(gap, Math.max(Math.min(gap, 2), room));
    }
 
    /**
