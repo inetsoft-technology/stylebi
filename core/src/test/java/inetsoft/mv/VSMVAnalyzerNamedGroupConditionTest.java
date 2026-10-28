@@ -21,6 +21,7 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.UserVariable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +50,13 @@ class VSMVAnalyzerNamedGroupConditionTest {
    @Test
    void variableEqualOnNamedGroupColumnIsRefused() throws Exception {
       assertTrue(refused(table(true, "ORDER_ID", "ORDER_ID", "$(aaa)", false)));
+   }
+
+   @Test
+   void userVariableObjectOnNamedGroupColumnIsRefused() throws Exception {
+      // the worksheet XML of the reporter stores the value as a UserVariable (isvariable)
+      UserVariable var = new UserVariable("aaa");
+      assertTrue(refused(table(true, "ORDER_ID", "ORDER_ID", var, true)));
    }
 
    @Test
