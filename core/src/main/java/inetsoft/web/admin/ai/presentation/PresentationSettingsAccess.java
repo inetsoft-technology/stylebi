@@ -180,20 +180,50 @@ public class PresentationSettingsAccess {
 
    /** Writes a fully-resolved (never partial) sub-model value -- callers must merge a partial
     * {@code spec} onto a fresh {@link #read} result themselves before calling this (the real
-    * {@code setModel} methods all expect a complete object, none accept a patch). */
-   public void write(PresentationSubModel subModel, Object model, Principal principal, boolean global)
+    * {@code setModel} methods all expect a complete object, none accept a patch).
+    *
+    * <p>At organization scope, also unpins (see {@link #unpinOrgKeys}) the org keys THIS write
+    * created, in a {@code finally} so a write that throws after partially pinning leaves no pin
+    * behind (removal is projection-checked, so it is harmless on a partial write).
+    *
+    * @return the organization keys this write created and that were kept because they carry the
+    *         written change; empty at global scope. A caller that later undoes the write passes
+    *         exactly this set to {@link #unpinOrgKeys}, so it never touches keys another write
+    *         created. */
+   public Set<String> write(PresentationSubModel subModel, Object model, Principal principal,
+                            boolean global)
       throws Exception
    {
-      Set<String> baseline = snapshotOrgKeys(global);
-      adapters.get(subModel).writer.write(model, principal, global);
-      unpinOrgKeysSince(subModel, principal, global, baseline);
+      Set<String> baseline = global ? Set.of() : new HashSet<>(orgStore.keys());
+      Set<String> kept = Set.of();
+      boolean written = false;
+
+      try {
+         adapters.get(subModel).writer.write(model, principal, global);
+         written = true;
+      }
+      finally {
+         try {
+            kept = unpinOrgKeys(subModel, principal, global, createdSince(baseline, global));
+         }
+         catch(Exception e) {
+            if(written) {
+               throw e;
+            }
+         }
+      }
+
+      return kept;
    }
 
-   /** The organization-level property keys ({@code inetsoft.org.<org>.<name>}) that exist right now
-    * for the current organization; empty at global scope. Taken before an organization-scope write
-    * so {@link #unpinOrgKeysSince} can tell which keys the write created. */
-   public Set<String> snapshotOrgKeys(boolean global) {
-      return global ? Set.of() : new HashSet<>(orgStore.keys());
+   private Set<String> createdSince(Set<String> baseline, boolean global) {
+      if(global) {
+         return Set.of();
+      }
+
+      Set<String> created = new TreeSet<>(orgStore.keys());
+      created.removeAll(baseline);
+      return created;
    }
 
    /**
@@ -202,28 +232,36 @@ public class PresentationSettingsAccess {
     * every other property of the sub-model, which then stops inheriting later global changes (and a
     * rollback re-writes the pre-image through the same {@code setModel}, re-creating them).
     *
-    * <p>Removes each organization key that did not exist in {@code baseline}, but only when
+    * <p>Removes each of {@code candidates} (and only those) that still exists, but only when
     * removing it leaves the sub-model's read projection unchanged -- a key that actually carries the
-    * written change is kept (it is restored if its removal moves the projection). Does nothing at
-    * global scope. A key the spec itself named that merely equals the inherited value is dropped
-    * too, which is a semantic no-op: the organization reads the same value either way.
+    * written change is kept (restored if its removal moves the projection). Does nothing at global
+    * scope. Callers pass the keys one write created, never a changeset-wide set, so unpinning one
+    * entry cannot delete a key another entry created.
+    *
+    * <p>A candidate the spec itself named whose value merely equals the inherited value is removed
+    * too. The organization reads the same value now, but it then FOLLOWS later global changes
+    * instead of staying at the value the admin set, so this is not a no-op over time.
+    *
+    * @return the candidates that were kept
     */
-   public void unpinOrgKeysSince(PresentationSubModel subModel, Principal principal, boolean global,
-                                 Set<String> baseline) throws Exception
+   public Set<String> unpinOrgKeys(PresentationSubModel subModel, Principal principal,
+                                   boolean global, Set<String> candidates) throws Exception
    {
-      if(global) {
-         return;
+      if(global || candidates == null || candidates.isEmpty()) {
+         return Set.of();
       }
 
-      Set<String> created = new TreeSet<>(orgStore.keys());
-      created.removeAll(baseline);
+      Set<String> existing = orgStore.keys();
+      Set<String> created = new TreeSet<>(candidates);
+      created.retainAll(existing);
 
       if(created.isEmpty()) {
-         return;
+         return Set.of();
       }
 
       String written = projection(subModel, principal, global);
       boolean removedAny = false;
+      Set<String> kept = new TreeSet<>();
 
       for(String key : created) {
          String value = orgStore.get(key);
@@ -231,7 +269,7 @@ public class PresentationSettingsAccess {
          boolean unchanged;
 
          try {
-            unchanged = written.equals(projection(subModel, principal, global));
+            unchanged = value != null && written.equals(projection(subModel, principal, global));
          }
          catch(Exception e) {
             unchanged = false;
@@ -240,14 +278,20 @@ public class PresentationSettingsAccess {
          if(unchanged) {
             removedAny = true;
          }
-         else if(value != null) {
-            orgStore.put(key, value);
+         else {
+            if(value != null) {
+               orgStore.put(key, value);
+            }
+
+            kept.add(key);
          }
       }
 
       if(removedAny) {
          orgStore.save();
       }
+
+      return kept;
    }
 
    private String projection(PresentationSubModel subModel, Principal principal, boolean global)
@@ -295,7 +339,7 @@ public class PresentationSettingsAccess {
 
       @Override
       public String get(String key) {
-         return SreeEnv.getProperty(key, false, false);
+         return SreeEnv.getProperties().getProperty(key);
       }
 
       @Override

@@ -706,27 +706,52 @@ class PresentationChangesetApplyServiceTest {
    // ---------------------------------------------------------------- Bug #79434: org key unpinning on rollback
 
    @Test
-   void rollbackUnpinsOrgKeysCreatedSinceBeforeTheApply() throws Exception {
+   void rollbackUnpinsOnlyTheKeysTheRolledBackEntryCreatedNotALaterEntrysKey() throws Exception {
       seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+      seed(PresentationSubModel.LOOK_AND_FEEL, false, cleanLookAndFeel().build());
       seed(PresentationSubModel.DASHBOARD, false, dashboard(true));
-      Set<String> beforeApply = Set.of("inetsoft.org.o.already.there");
-      when(access.snapshotOrgKeys(false)).thenReturn(beforeApply);
 
-      PresentationApplyRequest req = applyRequest("t", "ok", null,
+      // org keys as the real store would hold them
+      Set<String> orgKeys = new java.util.HashSet<>();
+      String formatsKey = "inetsoft.org.o.format.date";
+      String sortKey = "inetsoft.org.o.repository.tree.sort";
+
+      // each write creates and keeps its own key; unpinOrgKeys removes exactly the candidates it gets
+      doAnswer(inv -> {
+         state.put(stateKey(PresentationSubModel.FORMATS, false), inv.getArgument(1));
+         orgKeys.add(formatsKey);
+         return Set.of(formatsKey);
+      }).when(access).write(eq(PresentationSubModel.FORMATS), any(), any(), eq(false));
+      doAnswer(inv -> {
+         state.put(stateKey(PresentationSubModel.LOOK_AND_FEEL, false), inv.getArgument(1));
+         orgKeys.add(sortKey);
+         return Set.of(sortKey);
+      }).when(access).write(eq(PresentationSubModel.LOOK_AND_FEEL), any(), any(), eq(false));
+      // the third entry fails verification (write does nothing)
+      doAnswer(inv -> Set.of())
+         .when(access).write(eq(PresentationSubModel.DASHBOARD), any(), any(), eq(false));
+      doAnswer(inv -> {
+         orgKeys.removeAll(inv.<Set<String>>getArgument(3));
+         return Set.of();
+      }).when(access).unpinOrgKeys(any(), any(), eq(false), any());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
          change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd")),
+         change("lookAndFeel", "organization", obj().put("ascending", false)),
          change("dashboard", "organization", obj().put("enabled", false)));
-
-      // the second change fails cleanly (read-back mismatch), forcing a rollback of the first
-      doAnswer(inv -> null)
-         .when(access).write(eq(PresentationSubModel.DASHBOARD), any(), any(), anyBoolean());
 
       var result = service.apply(req, user);
 
-      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
-      // the pre-image re-write pins properties, so the keys created since the apply started are
-      // dropped, measured against the snapshot taken before the apply wrote anything
-      verify(access).unpinOrgKeysSince(eq(PresentationSubModel.FORMATS), any(), eq(false),
-                                       eq(beforeApply));
+      // lookAndFeel (storage scope) is reported as not rolled back; formats is rolled back
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals("MM/dd/yyyy", ((PresentationFormatsSettingsModel)
+         state.get(stateKey(PresentationSubModel.FORMATS, false))).dateFormat());
+      // rolling formats back removed only formats' own key; lookAndFeel's key survives
+      verify(access).unpinOrgKeys(eq(PresentationSubModel.FORMATS), any(), eq(false),
+                                  eq(Set.of(formatsKey)));
+      verify(access, never()).unpinOrgKeys(eq(PresentationSubModel.LOOK_AND_FEEL), any(),
+                                           anyBoolean(), any());
+      assertEquals(Set.of(sortKey), orgKeys);
    }
 
    // ---------------------------------------------------------------- Bug #79434: organization CSS upload read-back

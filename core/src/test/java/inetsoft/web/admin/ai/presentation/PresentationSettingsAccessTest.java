@@ -181,26 +181,58 @@ class PresentationSettingsAccessTest {
       PresentationSettingsAccess access = timeAccess(store);
       lenient().doNothing().when(time).setModel(any(), eq(true));
 
-      access.write(PresentationSubModel.TIME, timeModel("Sunday", true), PRINCIPAL, true);
+      assertTrue(access.write(PresentationSubModel.TIME, timeModel("Sunday", true), PRINCIPAL, true)
+                    .isEmpty());
 
       assertEquals(Map.of(WEEK, "Monday"), store.props);
       assertEquals(0, store.saves);
-      assertTrue(access.snapshotOrgKeys(true).isEmpty());
    }
 
    @Test
    void rollbackPreImageWriteDropsKeysThatDidNotExistBeforeTheApply() throws Exception {
       FakeOrgStore store = new FakeOrgStore();
       PresentationSettingsAccess access = timeAccess(store);
-      Set<String> beforeApply = access.snapshotOrgKeys(false);
-
       // apply: the change is kept as a pin
-      access.write(PresentationSubModel.TIME, timeModel("Monday", false), PRINCIPAL, false);
+      Set<String> kept =
+         access.write(PresentationSubModel.TIME, timeModel("Monday", false), PRINCIPAL, false);
       assertEquals(Map.of(WEEK, "Monday", HOURS, "false"), store.props);
+      assertEquals(Set.of(WEEK, HOURS), kept);
 
       // rollback re-writes the pre-image (inherited values), which re-pins both keys
       access.write(PresentationSubModel.TIME, timeModel("Sunday", true), PRINCIPAL, false);
-      access.unpinOrgKeysSince(PresentationSubModel.TIME, PRINCIPAL, false, beforeApply);
+      access.unpinOrgKeys(PresentationSubModel.TIME, PRINCIPAL, false, kept);
+
+      assertTrue(store.props.isEmpty(), store.props.toString());
+   }
+
+   @Test
+   void unpinOnlyTouchesTheCandidateKeysNotKeysAnotherWriteCreated() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+      Set<String> kept =
+         access.write(PresentationSubModel.TIME, timeModel("Sunday", false), PRINCIPAL, false);
+      // a later, unrelated write (another entry or a native save) created this key
+      store.props.put("inetsoft.org.o.repository.tree.sort", "false");
+
+      access.unpinOrgKeys(PresentationSubModel.TIME, PRINCIPAL, false, kept);
+
+      assertEquals("false", store.props.get("inetsoft.org.o.repository.tree.sort"));
+      assertEquals(Set.of(HOURS), kept);
+   }
+
+   @Test
+   void aWriteThatThrowsAfterPinningStillUnpinsKeysThatCarryNoChange() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+      doAnswer(inv -> {
+         store.props.put(WEEK, "Sunday");
+         store.props.put(HOURS, "true");
+         throw new IllegalStateException("boom");
+      }).when(time).setModel(any(), eq(false));
+
+      assertThrows(IllegalStateException.class,
+                   () -> access.write(PresentationSubModel.TIME, timeModel("Sunday", true),
+                                      PRINCIPAL, false));
 
       assertTrue(store.props.isEmpty(), store.props.toString());
    }
@@ -212,7 +244,9 @@ class PresentationSettingsAccessTest {
       store.props.put(WEEK, "Monday");
       store.props.put(HOURS, "false");
 
-      access.unpinOrgKeysSince(PresentationSubModel.TIME, PRINCIPAL, false, Set.of());
+      Set<String> kept = access.unpinOrgKeys(PresentationSubModel.TIME, PRINCIPAL, false,
+                                             Set.of(WEEK, HOURS));
+      assertEquals(Set.of(WEEK, HOURS), kept);
 
       // both carry a non-inherited value, so neither can be dropped
       assertEquals(Map.of(WEEK, "Monday", HOURS, "false"), store.props);
