@@ -19,6 +19,8 @@ package inetsoft.web.admin.ai.schedule;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.internal.Util;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -183,7 +185,7 @@ public class ScheduleConfigChangePlanService {
                String.valueOf(unitType));
          }
 
-         entries.add(new EntryInfo(unitType, verb, deriveAfterKey(unitType, verb, change), null));
+         entries.add(new EntryInfo(unitType, verb, deriveAfterKey(label, unitType, verb, change), null));
          index++;
       }
 
@@ -227,17 +229,24 @@ public class ScheduleConfigChangePlanService {
       return new Resolution(plan, before, after, Collections.unmodifiableList(entries));
    }
 
-   /** The entry's key AFTER this change -- {@code null} for a delete. Read directly off the raw
-    * {@code spec} map (already validated non-blank by {@code convertServerLocation}/{@code
-    * convertTimeRange} for every non-delete verb by the time this is called). */
-   private static String deriveAfterKey(String unitType, String verb, ScheduleConfigChangeRequest change) {
+   /** The entry's key AFTER this change -- {@code null} for a delete. A server location's key is
+    * the converted (credential-split) path, i.e. the path the write stores and the re-read
+    * returns; a time range's is read off the raw {@code spec} map. Both are already validated
+    * non-blank by {@code convertServerLocation}/{@code convertTimeRange} for every non-delete
+    * verb by the time this is called. */
+   private static String deriveAfterKey(
+      String label, String unitType, String verb, ScheduleConfigChangeRequest change)
+   {
       if(ScheduleConfigChangeRequest.VERB_DELETE.equals(verb)) {
          return null;
       }
 
+      if(ScheduleConfigChangeRequest.UNIT_SERVER_LOCATION.equals(unitType)) {
+         return convertServerLocation(label, change.getSpec()).path();
+      }
+
       Map<String, Object> spec = change.getSpec();
-      String field = ScheduleConfigChangeRequest.UNIT_SERVER_LOCATION.equals(unitType) ? "path" : "name";
-      Object v = spec == null ? null : spec.get(field);
+      Object v = spec == null ? null : spec.get("name");
       return v == null ? null : String.valueOf(v);
    }
 
@@ -267,7 +276,8 @@ public class ScheduleConfigChangePlanService {
                                "create server location" + written.noteSuffix());
       }
 
-      String key = requireKey(label, change.getKey());
+      // a key that carries a password names the stored (split) path, and is never echoed with it
+      String key = splitKeyPassword(requireKey(label, change.getKey()));
       requireUnseen(label, key, seen);
       int existingIndex = findServerLocationIndex(locations, key);
 
@@ -596,7 +606,9 @@ public class ScheduleConfigChangePlanService {
             "password is only ever persisted alongside a username");
       }
 
-      return canonicalizeServerLocation(location);
+      // split AFTER canonicalizing, on the canonical model, with the exact arguments the write
+      // uses, so the plan names and shows what the write stores (Bug #79546)
+      return SchedulerConfigurationService.splitPathPassword(canonicalizeServerLocation(location));
    }
 
    /**
@@ -725,6 +737,13 @@ public class ScheduleConfigChangePlanService {
 
    private static IllegalArgumentException unknownVerb(String label, String verb) {
       return new IllegalArgumentException(label + ".verb: unrecognized verb \"" + verb + "\"");
+   }
+
+   /** The key without a password embedded in it; gated like the write, so only an ftp path is
+    * split. */
+   private static String splitKeyPassword(String key) {
+      FTPUtil.PathPassword split = SUtil.splitServerLocationPassword(key, false, null, null);
+      return split == null ? key : split.path();
    }
 
    private static String requireKey(String label, String key) {

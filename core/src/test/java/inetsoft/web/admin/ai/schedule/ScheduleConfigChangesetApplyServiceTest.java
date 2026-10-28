@@ -136,6 +136,59 @@ class ScheduleConfigChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bug #79546: a password embedded in the path used to leave the plan keyed by the credentialed
+   // path, so the post-write lookup missed the stored (split) path and the apply rolled back
+   // -------------------------------------------------------------------------
+
+   private static final String PATH_PW = "QaProbeSecret123";
+
+   private static void assertNoSecret(Object result) {
+      assertFalse(String.valueOf(result).contains(PATH_PW), String.valueOf(result));
+   }
+
+   @Test void appliesACreateWithPasswordInThePath() throws Exception {
+      ScheduleConfigApplyResult result = apply(createLocation(
+         locationSpec("ftp://qauser:" + PATH_PW + "@127.0.0.1/qa-probe", "Embedded")));
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNoSecret(result);
+      ServerLocation stored = readBack().serverLocations().get(0);
+      assertEquals("ftp://qauser@127.0.0.1/qa-probe", stored.path());
+      assertEquals("qauser", stored.pathInfoModel().username());
+      assertEquals(Util.PLACEHOLDER_PASSWORD, stored.pathInfoModel().password());
+   }
+
+   @Test void planAfterKeyEqualsThePathTheReadBackReturns() throws Exception {
+      ScheduleConfigChangeRequest change = createLocation(
+         locationSpec("sftp://qauser:" + PATH_PW + "@host/dir", "Embedded"));
+      String afterKey = planService.resolveFull(planRequest(change), user).entries().get(0).afterKey();
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, apply(change).status());
+      assertEquals(readBack().serverLocations().get(0).path(), afterKey);
+   }
+
+   @Test void appliesAnUpdateAndDeleteKeyedByAPathWithPassword() throws Exception {
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, apply(createLocation(
+         locationSpec("ftp://qauser:" + PATH_PW + "@host/old", "Embedded"))).status());
+
+      ScheduleConfigChangeRequest update = updateLocation("ftp://qauser:" + PATH_PW + "@host/old",
+         locationSpec("ftp://qauser:" + PATH_PW + "@host/new", "Embedded"));
+      ScheduleConfigApplyResult updated = apply(update);
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, updated.status());
+      assertNoSecret(updated);
+      assertEquals("ftp://qauser@host/new", readBack().serverLocations().get(0).path());
+
+      ScheduleConfigChangeRequest delete = new ScheduleConfigChangeRequest();
+      delete.setUnitType(ScheduleConfigChangeRequest.UNIT_SERVER_LOCATION);
+      delete.setVerb(ScheduleConfigChangeRequest.VERB_DELETE);
+      delete.setKey("ftp://qauser:" + PATH_PW + "@host/new");
+      ScheduleConfigApplyResult deleted = apply(delete);
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, deleted.status());
+      assertNoSecret(deleted);
+      assertTrue(readBack().serverLocations().isEmpty());
+   }
+
+   // -------------------------------------------------------------------------
    // time ranges -- both documented time formats must survive the round trip
    // -------------------------------------------------------------------------
 
