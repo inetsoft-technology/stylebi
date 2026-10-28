@@ -1504,6 +1504,126 @@ class ViewsheetEditServiceTest {
       verifyNoInteractions(groups);
    }
 
+   /** Bug #79619: ungroup on an assembly that is not a group used to report ok and do nothing. */
+   @Test
+   void ungroupOnAPlainAssemblyFailsLoudInsteadOfSilentlyDoingNothing() {
+      ComposerGroupService groups = mock(ComposerGroupService.class);
+      RuntimeViewsheet rvs = runtimeWith("Text1", mock(VSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(new AssemblyNode(
+         "Text1", "Text", 0, 0, 100, 20, 0, null, true)), mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request("ungroup", "Text1"), ""));
+
+      assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("not a Group"), thrown.getMessage());
+      verifyNoInteractions(groups);
+   }
+
+   /** A child of a Tab is not in a group either; the message points at move_from_container. */
+   @Test
+   void ungroupOnAChildOfATabPointsAtMoveFromContainer() {
+      VSAssembly tab = mock(TabVSAssembly.class);
+      when(tab.getName()).thenReturn("Tab1");
+      VSAssembly child = mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(tab);
+      RuntimeViewsheet rvs = runtimeWith("Text1", child);
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(new AssemblyNode(
+         "Text1", "Text", 0, 0, 100, 20, 0, "Tab1", true)), mock(ComposerObjectService.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request("ungroup", "Text1"), ""));
+
+      assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("move_from_container"), thrown.getMessage());
+   }
+
+   /** Control: a real group, and a child of a group (which ungroups its parent), still succeed. */
+   @Test
+   void ungroupStillSucceedsForAGroupAndForAChildOfAGroup() throws Exception {
+      ComposerGroupService groups = mock(ComposerGroupService.class);
+      VSAssembly group = mock(GroupContainerVSAssembly.class);
+      VSAssembly child = mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(group);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Group1")).thenReturn(group);
+      when(vs.getAssembly("Text1")).thenReturn(child);
+      ViewsheetEditService service = serviceWithRuntimeAndGroups(rvs, readerReturning(
+         new AssemblyNode("Group1", "GroupContainer", 0, 0, 200, 200, 0, null, true),
+         new AssemblyNode("Text1", "Text", 0, 0, 100, 20, 0, "Group1", true)), groups);
+
+      service.apply("tok", principal(), request("ungroup", "Group1"), "");
+      service.apply("tok", principal(), request("ungroup", "Text1"), "");
+
+      verify(groups).ungroup(eq("rt1"), eq("Group1"), anyString(), any(Principal.class), any());
+      verify(groups).ungroup(eq("rt1"), eq("Text1"), anyString(), any(Principal.class), any());
+   }
+
+   /** Bug #79619: a negative x/y is refused by add (sized or not), paste and move_from_container. */
+   @Test
+   void addWithANegativePositionIsRefusedBeforeCreatingAnything() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects);
+
+      for(Integer[] size : new Integer[][]{ { null, null }, { 100, 30 } }) {
+         EditRequest request = new EditRequest("add", null, -50, -40, size[0], size[1], null,
+                                               null, null, null, null, null, 111, null);
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.apply("tok", principal(), request, ""));
+
+         assertTrue(thrown.getMessage().contains("'x'") && thrown.getMessage().contains("'y'"),
+                    thrown.getMessage());
+      }
+
+      verify(objects, never()).addNewObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+      verify(objects, never()).resizeObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+   }
+
+   @Test
+   void addAtANonNegativePositionStillWorks() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects);
+      EditRequest request = new EditRequest("add", null, 10, 20, null, null, null, null, null,
+                                            null, null, null, 111, null);
+
+      service.apply("tok", principal(), request, "");
+
+      verify(objects).addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void pasteWithANegativePositionIsRefusedAndPastesNothing() throws Exception {
+      ClipboardControllerService clipboard = mock(ClipboardControllerService.class);
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), clipboard);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), edit("paste", null, -70, -60), ""));
+
+      assertTrue(thrown.getMessage().contains("'x'"), thrown.getMessage());
+      verifyNoInteractions(clipboard);
+   }
+
+   @Test
+   void moveFromContainerWithANegativePositionIsRefusedAndMovesNothing() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Text1", "Text", 10, 10, 100, 20, 0, "Group1", true)));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), edit("move_from_container", "Text1", -30, -20),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("'x'"), thrown.getMessage());
+      verify(objects, never()).moveFromContainer(anyString(), any(), any(Principal.class), any(),
+                                                 anyString());
+   }
+
    @Test
    void groupAsTabRejectsFewerThanTwoAssemblies() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
@@ -2317,6 +2437,31 @@ class ViewsheetEditServiceTest {
                                       mock(ComposerGroupService.class),
                                       mock(GroupingService.class),
                                       mock(VSRefreshService.class),
+                                      mock(CoreLifecycleService.class));
+   }
+
+   /** Runs the mutation against a supplied runtime with a supplied (verifiable) group service. */
+   private static ViewsheetEditService serviceWithRuntimeAndGroups(RuntimeViewsheet rvs,
+                                                                   ViewsheetReadService reader,
+                                                                   ComposerGroupService groups)
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new ViewsheetEditService(sessions, mock(ComposerObjectService.class),
+                                      mock(ClipboardControllerService.class),
+                                      mock(VSObjectPropertyService.class), reader, groups,
+                                      mock(GroupingService.class), mock(VSRefreshService.class),
                                       mock(CoreLifecycleService.class));
    }
 

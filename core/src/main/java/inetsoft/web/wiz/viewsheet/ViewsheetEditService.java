@@ -311,6 +311,7 @@ public class ViewsheetEditService {
       }
 
       requireValues(request.op(), "x", request.x(), "y", request.y());
+      requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
       boolean resizeRequested = request.width() != null || request.height() != null;
 
@@ -570,6 +571,7 @@ public class ViewsheetEditService {
       throws Exception
    {
       requireValues(request.op(), "x", request.x(), "y", request.y());
+      requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
          clipboard.pasteObject(runtimeId, request.x(), request.y(), user, dispatcher, linkUri));
@@ -1074,6 +1076,22 @@ public class ViewsheetEditService {
                "down to one member; remove it explicitly with edit(op:'remove') once empty.");
          }
 
+         // ComposerGroupService.ungroup unwraps the assembly itself when it is a group, or its
+         // container when that is a group (a child of a group), and silently no-ops otherwise.
+         VSAssembly container = assembly == null ? null : assembly.getContainer();
+
+         if(assembly != null && !(assembly instanceof GroupContainerVSAssembly) &&
+            !(container instanceof GroupContainerVSAssembly))
+         {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is not a Group and is not inside one, so there is " +
+               "nothing to ungroup -- edit(op:'ungroup') only reverses the GroupContainer that " +
+               "group creates." +
+               (container == null ? "" :
+                  " It is inside '" + container.getName() + "'; to take it out of that " +
+                  "container, use edit(op:'move_from_container') on it instead."));
+         }
+
          groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher);
       });
    }
@@ -1130,6 +1148,7 @@ public class ViewsheetEditService {
    {
       requireAssembly(request);
       requireValues(request.op(), "x", request.x(), "y", request.y());
+      requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
