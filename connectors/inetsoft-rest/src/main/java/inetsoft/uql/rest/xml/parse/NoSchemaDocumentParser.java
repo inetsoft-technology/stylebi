@@ -18,8 +18,12 @@
 package inetsoft.uql.rest.xml.parse;
 
 import org.apache.commons.lang3.math.NumberUtils;
+import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Parser for a document with no schema.
@@ -31,6 +35,12 @@ public class NoSchemaDocumentParser implements DocumentParser {
    }
 
    private void append(Node node, EditableNode parent) {
+      if(node.getNodeType() == Node.ATTRIBUTE_NODE) {
+         parent.appendNode(ATTRIBUTE_PREFIX + node.getNodeName(),
+                           new ValueNode(parseValue(node.getNodeValue())));
+         return;
+      }
+
       final EditableNode editNode = new EditableNode();
       String nodeName = node.getNodeName();
 
@@ -47,7 +57,54 @@ public class NoSchemaDocumentParser implements DocumentParser {
          }
       }
 
-      parent.appendNode(nodeName, editNode.toParsedNode());
+      final List<Node> attributes = getAttributes(node);
+
+      if(editNode.hasChildren()) {
+         // the element is a map, so its attributes join its own entries, after the children
+         for(final Node attribute : attributes) {
+            editNode.appendNode(ATTRIBUTE_PREFIX + attribute.getNodeName(), attributeValue(attribute));
+         }
+
+         parent.appendNode(nodeName, editNode.toParsedNode());
+      }
+      else {
+         // a text-only element stays a plain value so its column name does not change; its
+         // attributes become sibling entries named <element>@<attribute>
+         parent.appendNode(nodeName, editNode.toParsedNode());
+
+         for(final Node attribute : attributes) {
+            parent.appendAttribute(nodeName, nodeName + ATTRIBUTE_PREFIX + attribute.getNodeName(),
+                                   attributeValue(attribute));
+         }
+      }
+   }
+
+   private ParsedNode attributeValue(Node attribute) {
+      return new ValueNode(parseValue(attribute.getNodeValue()));
+   }
+
+   private boolean isNamespaceDeclaration(Node attribute) {
+      // a non namespace-aware DOM reports no namespace URI for xmlns attributes
+      final String name = attribute.getNodeName();
+      return XMLNS_URI.equals(attribute.getNamespaceURI()) || "xmlns".equals(name) ||
+         name.startsWith("xmlns:");
+   }
+
+   private List<Node> getAttributes(Node node) {
+      final List<Node> attributes = new ArrayList<>();
+      final NamedNodeMap map = node.getAttributes();
+
+      if(map != null) {
+         for(int i = 0; i < map.getLength(); i++) {
+            final Node attribute = map.item(i);
+
+            if(!isNamespaceDeclaration(attribute)) {
+               attributes.add(attribute);
+            }
+         }
+      }
+
+      return attributes;
    }
 
    private void appendChildNodes(Node node, EditableNode editNode) {
@@ -104,5 +161,7 @@ public class NoSchemaDocumentParser implements DocumentParser {
       root = new EditableNode();
    }
 
+   private static final String ATTRIBUTE_PREFIX = "@";
+   private static final String XMLNS_URI = "http://www.w3.org/2000/xmlns/";
    private EditableNode root = new EditableNode();
 }

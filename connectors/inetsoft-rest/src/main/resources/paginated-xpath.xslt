@@ -43,4 +43,11 @@
   <xsl:template match ="$pageCountXpath" mode="pageCount">
     <xsl:value-of select="is:setPageCount(., $transformer)"/>
   </xsl:template>
+
+  <!-- Attributes are not children, so the built-in element rule never visits them. Visit them
+       explicitly so an xpath ending in @attr can match. Priority -1 keeps a bare * or node()
+       xpath bound to the user template. -->
+  <xsl:template match="*" priority="-1" mode="xpath">
+    <xsl:apply-templates select="@*|node()" mode="xpath"/>
+  </xsl:template>
 </xsl:stylesheet>
