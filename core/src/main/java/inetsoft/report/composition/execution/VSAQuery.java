@@ -1546,6 +1546,24 @@ public abstract class VSAQuery {
    public static String checkConditionExpression(String exp, ViewsheetSandbox vbox)
       throws ScriptException
    {
+      return evaluateConditionExpression(exp, vbox).error();
+   }
+
+   /**
+    * The outcome of evaluating a condition or highlight expression at set time: the script error
+    * (null when it evaluated) and the value it evaluated to, as {@code ConditionGroup} sees it.
+    */
+   public record ExpressionResult(String error, Object value) {
+   }
+
+   /**
+    * {@link #checkConditionExpression}, but also returns the evaluated value so the caller can
+    * tell whether it is a list, which a single-valued operator would silently cut to its first
+    * element.
+    */
+   public static ExpressionResult evaluateConditionExpression(String exp, ViewsheetSandbox vbox)
+      throws ScriptException
+   {
       AssetQuerySandbox box = vbox.getAssetQuerySandbox();
       ScriptEnv senv = box.getScriptEnv();
       checkSyntax(senv, exp);
@@ -1561,11 +1579,11 @@ public abstract class VSAQuery {
       try {
          ScriptScope scope = box.isScriptPoolMode() ?
             box.getScope().queryView(box.getVariableTable(), 0) : box.getScope();
-         senv.exec(compiled, scope, null, vbox.getViewsheet());
-         return null;
+         return new ExpressionResult(null, senv.exec(compiled, scope, null, vbox.getViewsheet()));
       }
       catch(Exception ex) {
-         return ex.getMessage() == null ? ex.toString() : ex.getMessage();
+         return new ExpressionResult(ex.getMessage() == null ? ex.toString() : ex.getMessage(),
+                                     null);
       }
    }
 
@@ -1582,6 +1600,14 @@ public abstract class VSAQuery {
     * @throws ScriptException if the expression has a syntax error, which is never transient.
     */
    public static String checkHighlightExpression(String exp, boolean sql, ViewsheetSandbox vbox)
+      throws ScriptException
+   {
+      return evaluateHighlightExpression(exp, sql, vbox).error();
+   }
+
+   /** {@link #checkHighlightExpression}, but also returns the evaluated value. */
+   public static ExpressionResult evaluateHighlightExpression(String exp, boolean sql,
+                                                              ViewsheetSandbox vbox)
       throws ScriptException
    {
       AssetQuerySandbox box = vbox.getConditionAssetQuerySandbox(vbox.getViewsheet());
@@ -1635,18 +1661,19 @@ public abstract class VSAQuery {
 
       if(varName != null && vval == null) {
          // the renderer does not run the script until the variable has a value
-         return null;
+         return new ExpressionResult(null, null);
       }
 
       boolean restricted = FormulaContext.isRestricted();
 
       try {
          FormulaContext.setRestricted(true);
-         senv.exec(compiled, box.createAssetQueryScope(), null, vbox.getViewsheet());
-         return null;
+         return new ExpressionResult(
+            null, senv.exec(compiled, box.createAssetQueryScope(), null, vbox.getViewsheet()));
       }
       catch(Exception ex) {
-         return ex.getMessage() == null ? ex.toString() : ex.getMessage();
+         return new ExpressionResult(ex.getMessage() == null ? ex.toString() : ex.getMessage(),
+                                     null);
       }
       finally {
          FormulaContext.setRestricted(restricted);

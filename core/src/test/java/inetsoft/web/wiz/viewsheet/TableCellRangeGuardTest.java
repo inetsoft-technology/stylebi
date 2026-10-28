@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
@@ -379,7 +380,7 @@ class TableCellRangeGuardTest {
                                                       HighlightDialogService highlights)
       throws Exception
    {
-      return new AssemblyHighlightService(sessions(f), highlights, (text, sql, box) -> null);
+      return new AssemblyHighlightService(sessions(f), highlights, (text, sql, box) -> new VSAQuery.ExpressionResult(null, null));
    }
 
    private static HighlightDialogService highlightDialog() throws Exception {

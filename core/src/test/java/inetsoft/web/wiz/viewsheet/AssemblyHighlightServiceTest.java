@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
 import inetsoft.test.*;
@@ -1460,7 +1461,7 @@ class AssemblyHighlightServiceTest {
    @Test
    void aThrowingExpressionIsCommittedWithAWarning() throws Exception {
       Harness h = harness(model());
-      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> "boom is not defined");
+      AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> new VSAQuery.ExpressionResult("boom is not defined", null));
 
       AssemblyHighlightService.SetResult result =
          service.set("tok", principal(), "Table1", null, expressionHighlight("js", "boom()"),
@@ -1470,6 +1471,46 @@ class AssemblyHighlightServiceTest {
       assertTrue(result.warnings().get(0).contains("boom()"));
       assertTrue(result.warnings().get(0).contains("boom is not defined"));
       assertEquals(1, capture(h.highlights).getHighlights().length, "still committed");
+   }
+
+   private static AssemblyHighlightService.Highlight operatorHighlight(String operator)
+   {
+      return new AssemblyHighlightService.Highlight(
+         "Expr", null, "#ff0000", null,
+         List.of(new ConditionVocabulary.Clause(
+            "Revenue", operator,
+            List.of(Map.of("type", "expression", "expression", "['CA','NY']", "language", "js")),
+            null, false, false, 0)),
+         false);
+   }
+
+   @Test
+   void aListExpressionUnderASingleValuedOperatorIsRefusedAndNothingIsWritten() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(
+         h, (exp, sql, box) -> new VSAQuery.ExpressionResult(null, new Object[] { "CA", "NY" }));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         service.set("tok", principal(), "Table1", null, operatorHighlight("="), false, ""));
+
+      assertTrue(e.getMessage().contains("one_of"), e.getMessage());
+      assertTrue(e.getMessage().contains("Revenue"), e.getMessage());
+      assertTrue(e.getMessage().contains("Nothing was changed"), e.getMessage());
+      verify(h.highlights(), never()).setHighlightDialogModel(any(), any(), any(), any(), any(),
+                                                              any());
+   }
+
+   @Test
+   void aListExpressionUnderOneOfIsCommitted() throws Exception {
+      Harness h = harness(model());
+      AssemblyHighlightService service = withChecker(
+         h, (exp, sql, box) -> new VSAQuery.ExpressionResult(null, new Object[] { "CA", "NY" }));
+
+      AssemblyHighlightService.SetResult result =
+         service.set("tok", principal(), "Table1", null, operatorHighlight("one_of"), false, "");
+
+      assertTrue(result.warnings().isEmpty());
+      assertEquals(1, capture(h.highlights).getHighlights().length);
    }
 
    @Test
@@ -1494,7 +1535,7 @@ class AssemblyHighlightServiceTest {
       Harness h = harness(model());
       AssemblyHighlightService service = withChecker(h, (exp, sql, box) -> {
          assertTrue(sql, "the language is passed through so the check can rewrite $(var)");
-         return null;
+         return new VSAQuery.ExpressionResult(null, null);
       });
 
       AssemblyHighlightService.SetResult result =

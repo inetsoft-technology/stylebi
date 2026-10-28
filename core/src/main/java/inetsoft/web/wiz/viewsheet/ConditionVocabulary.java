@@ -271,6 +271,41 @@ public final class ConditionVocabulary {
       }
    }
 
+   /**
+    * An expression that evaluates to a list only works under one_of: every other operator reads
+    * just the first element (Condition.normalizeValue), so the condition silently compares
+    * against one value. The list is detected the way ConditionGroup does at refresh time, as an
+    * {@code Object[]}. An empty list is refused too, since it matches nothing under those
+    * operators; a one-element list is the same as its element and passes. This checks the value
+    * the expression has now, so an expression that is a list only later is not caught.
+    *
+    * @param value the value the expression evaluated to at set time.
+    * @throws IllegalArgumentException when the operator would use only part of the list.
+    */
+   public static void requireScalarExpressionResult(ConditionModel condition, String expression,
+                                                    Object value)
+   {
+      int operation = condition.getOperation();
+
+      if(!(value instanceof Object[] list) || list.length == 1 ||
+         !SINGLE_VALUED.contains(operation) && operation != XCondition.BETWEEN)
+      {
+         return;
+      }
+
+      String field = condition.getField() == null ? "" : " on field '" +
+         condition.getField().getName() + "'";
+      String operator = operatorToken(operation);
+
+      throw new IllegalArgumentException(
+         "The expression '" + expression + "'" + field + " currently evaluates to " +
+         (list.length == 0 ? "an empty list" : "a list of " + list.length + " values " +
+            Arrays.toString(list)) + ", but '" + operator + "' uses only the first value of a " +
+         "list, so the condition would silently compare against one value. Use operator " +
+         "one_of to match every value, or make the expression return a single value. " +
+         "Nothing was changed.");
+   }
+
    private static final String DATE_FORMS_HINT =
       "Pass a date string such as '2024-01-01', '2024-01-01 00:00:00', {d '2024-01-01'}, " +
       "{ts '2024-01-01 00:00:00'} or {t '12:30:00'}.";
