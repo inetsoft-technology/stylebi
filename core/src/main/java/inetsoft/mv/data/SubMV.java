@@ -433,9 +433,37 @@ public class SubMV implements Cloneable {
 
          // Pass the IncludeNullCompare flag down to the XDimIndex
          rtdims[idx].setIncludeNullCompare(getIncludeNullCompare());
-         return rtdims[idx].getRows(op, getCondValue(val, rtdims[idx], cnull),
-                                    cond.isIsNot(), cnull);
+         BitSet rows = rtdims[idx].getRows(op, getCondValue(val, rtdims[idx], cnull),
+                                           cond.isIsNot(), cnull);
+
+         // 'not equal' is evaluated as the two ranges around the value, which never contain
+         // null. Without a null comparison value, null is not equal to it (as Condition does).
+         // Handled here, not in XDimIndex, since 'not in' reuses the '=' + not branch and
+         // must keep dropping null.
+         if("=".equals(op) && cond.isIsNot() && val != null && !"".equals(val)) {
+            rows = addNullRows(rtdims[idx], rows, cnull);
+         }
+
+         return rows;
       }
+   }
+
+   /**
+    * Add the rows containing null to the rows of a 'not equal' condition.
+    * @param cnull true if the dimension column contains null.
+    */
+   static BitSet addNullRows(XDimIndex dim, BitSet rows, boolean cnull) {
+      BitSet nulls = null;
+
+      if(dim instanceof MVMeasureColumn) {
+         nulls = dim.getRows("null", Double.doubleToLongBits(Tool.NULL_DOUBLE), false, cnull);
+      }
+      else if(cnull) {
+         nulls = dim.getRows("null", 0, false, true);
+      }
+
+      // BitSet.or returns a new set, the (possibly cached) sets are not modified
+      return nulls == null ? rows : rows == null ? nulls : rows.or(nulls);
    }
 
    /**
