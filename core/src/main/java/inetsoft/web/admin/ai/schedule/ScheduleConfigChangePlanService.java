@@ -22,6 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.TimeRange;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
@@ -33,6 +34,7 @@ import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
 import inetsoft.web.admin.schedule.model.ServerLocation;
 import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import inetsoft.web.admin.security.ResourcePermissionTableModel;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -170,7 +172,8 @@ public class ScheduleConfigChangePlanService {
                hiddenInputs, changes.size()));
          }
          else if(ScheduleConfigChangeRequest.UNIT_TIME_RANGE.equals(unitType)) {
-            TimeRangeResolution r = resolveTimeRangeChange(label, change, ranges, seenRangeKeys);
+            TimeRangeResolution r = resolveTimeRangeChange(
+               label, change, ranges, seenRangeKeys, hiddenInputs, changes.size());
             changes.add(r.planChange);
 
             if(r.dependencyCheckRangeName != null) {
@@ -407,7 +410,8 @@ public class ScheduleConfigChangePlanService {
    }
 
    private TimeRangeResolution resolveTimeRangeChange(
-      String label, ScheduleConfigChangeRequest change, List<TimeRangeModel> ranges, Set<String> seen)
+      String label, ScheduleConfigChangeRequest change, List<TimeRangeModel> ranges, Set<String> seen,
+      Map<String, String> hiddenInputs, int changeIndex)
    {
       String verb = requireVerb(label, change.getVerb());
 
@@ -426,9 +430,11 @@ public class ScheduleConfigChangePlanService {
 
          ranges.add(spec);
          requireNoDuplicateNamesOrDefaults(label, ranges);
+         addPermissionHashInputs(hiddenInputs, changeIndex, spec);
          return new TimeRangeResolution(
             new PlanChange(spec.name(), null, null, projectTimeRange(spec), AdminChangeRecord.RISK_HIGH,
-                           AdminChangeRecord.SCOPE_VALUE, true, "create time range"),
+                           AdminChangeRecord.SCOPE_VALUE, true,
+                           "create time range" + permissionNote(spec)),
             null);
       }
 
@@ -457,8 +463,11 @@ public class ScheduleConfigChangePlanService {
             clearOtherDefaults(ranges, existingIndex);
          }
 
-         ranges.set(existingIndex, carryPermissionsOnRename(existing, spec));
+         // hash the spec that is actually stored: a rename may carry permissions into it
+         TimeRangeModel stored = carryPermissionsOnRename(existing, spec);
+         ranges.set(existingIndex, stored);
          requireNoDuplicateNamesOrDefaults(label, ranges);
+         addPermissionHashInputs(hiddenInputs, changeIndex, stored);
 
          boolean identityChanged = !existing.name().equals(spec.name()) ||
             !LocalTime.parse(existing.startTime()).equals(LocalTime.parse(spec.startTime())) ||
@@ -467,7 +476,7 @@ public class ScheduleConfigChangePlanService {
          return new TimeRangeResolution(
             new PlanChange(key, null, projectTimeRange(existing), projectTimeRange(spec),
                            AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_VALUE, true,
-                           "update time range"),
+                           "update time range" + permissionNote(stored)),
             identityChanged ? existing.name() : null);
       }
 
@@ -875,6 +884,74 @@ public class ScheduleConfigChangePlanService {
          ";password=" + (info == null || info.password() == null ? "(none)" : "(set)");
    }
 
+   /**
+    * Bug #79544: the apply side writes a time range's permission grant whenever {@code modified}
+    * is non-null (see {@code SchedulerConfigurationService#setTimeRanges}), but the projection
+    * carries neither field and apply's read-back check compares only the projection. So a
+    * grant added or changed between preview and apply rode through the reviewed planHash. A digest
+    * of {@code modified} and the canonical, order-independent permissions goes into the plan hash
+    * only (the projection stays as the read-back shape); preview and apply must then carry the
+    * same grant. {@code permissions} is ignored when {@code modified} is null, because nothing is
+    * written then (a read record echoed back carries permissions but no {@code modified}).
+    */
+   private static void addPermissionHashInputs(Map<String, String> hiddenInputs, int changeIndex,
+                                               TimeRangeModel range)
+   {
+      if(range.modified() == null) {
+         return;
+      }
+
+      PlanHashInputs.addHidden(
+         hiddenInputs, String.valueOf(changeIndex), "perm",
+         PlanHashInputs.digest(PERMISSION_DIGEST_DOMAIN, canonicalPermissions(range)));
+   }
+
+   /** One-line reviewer-visible note; not part of the hashed or verified projection. */
+   private static String permissionNote(TimeRangeModel range) {
+      if(range.modified() == null) {
+         return "";
+      }
+
+      ResourcePermissionModel perm = range.permissions();
+      int entries = perm == null || perm.permissions() == null ? 0 : perm.permissions().size();
+      return " -- ALSO WRITES this time range's permissions (modified=" + range.modified() + ", " +
+         entries + " grant entries; bound into the plan hash, not shown in the projection)";
+   }
+
+   static String canonicalPermissions(TimeRangeModel range) {
+      StringBuilder out = new StringBuilder("modified=").append(range.modified());
+      ResourcePermissionModel perm = range.permissions();
+
+      if(perm == null) {
+         return out.append(";permissions=null").toString();
+      }
+
+      out.append(";securityEnabled=").append(perm.securityEnabled())
+         .append(";requiresBoth=").append(perm.requiresBoth())
+         .append(";grantReadToAll=").append(perm.grantReadToAll())
+         .append(";hasOrgEdited=").append(perm.hasOrgEdited())
+         .append(";changed=").append(perm.changed());
+
+      if(perm.permissions() == null) {
+         return out.append(";entries=null").toString();
+      }
+
+      List<String> entries = new ArrayList<>();
+
+      for(ResourcePermissionTableModel entry : perm.permissions()) {
+         List<String> actions = new ArrayList<>();
+         entry.actions().forEach(a -> actions.add(a.name()));
+         Collections.sort(actions);
+         IdentityID id = entry.identityID();
+         entries.add("id=" + PlanHashInputs.escape(id == null ? null : id.getName()) + "|" +
+                     PlanHashInputs.escape(id == null ? null : id.getOrgID()) +
+                     ";type=" + entry.type() + ";actions=" + String.join(",", actions));
+      }
+
+      Collections.sort(entries);
+      return out.append(";entries=[").append(String.join("],[", entries)).append("]").toString();
+   }
+
    static String projectTimeRange(TimeRangeModel range) {
       return "name=" + PlanHashInputs.escape(range.name()) + ";startTime=" + range.startTime() + ";endTime=" +
          range.endTime() + ";defaultRange=" + range.defaultRange();
@@ -926,6 +1003,8 @@ public class ScheduleConfigChangePlanService {
    private static final char SEP = (char) 0x1f;
    private static final String PASSWORD_DIGEST_DOMAIN =
       "inetsoft.admin.ai.schedule.serverLocation.password\u0000";
+   private static final String PERMISSION_DIGEST_DOMAIN =
+      "inetsoft.admin.ai.schedule.timeRange.permissions ";
    private static final String SECRET_ID_DIGEST_DOMAIN =
       "inetsoft.admin.ai.schedule.serverLocation.secretId\u0000";
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
