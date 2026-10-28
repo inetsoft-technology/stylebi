@@ -142,7 +142,9 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.INT:
          return Integer.class;
       case ProtocolConstants.DataType.VARINT:
-         return BigInteger.class;
+         // varint is arbitrary precision; BigInteger columns are narrowed to long by the core
+         // table lens, so it is exposed as text to stay exact.
+         return String.class;
       case ProtocolConstants.DataType.DECIMAL:
          return BigDecimal.class;
       case ProtocolConstants.DataType.DOUBLE:
@@ -190,7 +192,8 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.INT:
          return curr.getInt(col);
       case ProtocolConstants.DataType.VARINT:
-         return curr.getBigInteger(col);
+         BigInteger varint = curr.getBigInteger(col);
+         return varint == null ? null : varint.toString();
       case ProtocolConstants.DataType.DECIMAL:
       case ProtocolConstants.DataType.DOUBLE:
          return curr.getDouble(col);
