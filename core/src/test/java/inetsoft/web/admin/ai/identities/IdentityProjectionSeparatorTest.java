@@ -72,6 +72,15 @@ class IdentityProjectionSeparatorTest {
       SecurityProvider writable =
          new TestSecurityProvider(editableAuthentication, authorizationProvider);
       lenient().when(securityEngine.getSecurityProvider()).thenReturn(writable);
+      ((AbstractSecurityProvider) writable).setCheckPermissionStrategy(
+         (principal, type, resource, action) -> true);
+      // Bug #79562: member references must resolve at preview.
+      lenient().when(editableAuthentication.getUser(any(IdentityID.class)))
+         .thenReturn(mock(User.class));
+      lenient().when(editableAuthentication.getGroup(any(IdentityID.class)))
+         .thenReturn(mock(Group.class));
+      lenient().when(editableAuthentication.getRole(any(IdentityID.class)))
+         .thenReturn(mock(Role.class));
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
