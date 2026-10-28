@@ -25,6 +25,10 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -724,6 +728,14 @@ public class WizardViewsheetService {
       else if(assembly.getAssemblyType() == Viewsheet.SLIDER_ASSET ||
               assembly.getAssemblyType() == Viewsheet.TIME_SLIDER_ASSET )
       {
+         VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+         // a marked (modern) range slider carries a card padding, so it needs the density box
+         // (padding + 50px content); the legacy 200x40 would clip its labels
+         if(info instanceof TimeSliderVSAssemblyInfo && info.getVizMark() != null) {
+            return VSDensityDefaults.rangeSliderSize(VizContext.of(info));
+         }
+
          return new Dimension(10 * GRID_CELL_WIDTH, 2 * GRID_CELL_HEIGHT);
       }
       else if(assembly.getAssemblyType() == Viewsheet.CALENDAR_ASSET) {
