@@ -77,15 +77,16 @@ public class AssemblyHighlightService {
    /** Evaluates a highlight expression the way the renderer will. */
    @FunctionalInterface
    interface ExpressionChecker {
-      /** @return null when it evaluates, else the script error; throws if it does not compile. */
-      String check(String expression, boolean sql, ViewsheetSandbox box) throws Exception;
+      /** @return the script error (null if it evaluates) and the value; throws if it does not compile. */
+      VSAQuery.ExpressionResult check(String expression, boolean sql, ViewsheetSandbox box)
+         throws Exception;
    }
 
    @Autowired
    public AssemblyHighlightService(ViewsheetSessionService sessions,
                                    HighlightDialogService highlightService)
    {
-      this(sessions, highlightService, VSAQuery::checkHighlightExpression);
+      this(sessions, highlightService, VSAQuery::evaluateHighlightExpression);
    }
 
    AssemblyHighlightService(ViewsheetSessionService sessions,
@@ -324,10 +325,10 @@ public class AssemblyHighlightService {
 
             boolean sql = expression.getType() == ExpressionValueModel.SQL;
             String text = expression.getExpression();
-            String error;
+            VSAQuery.ExpressionResult result;
 
             try {
-               error = checker.check(text, sql, box);
+               result = checker.check(text, sql, box);
             }
             catch(Exception e) {
                throw new IllegalArgumentException(
@@ -335,7 +336,12 @@ public class AssemblyHighlightService {
                   e.getMessage() + " Nothing was changed.");
             }
 
-            if(error != null) {
+            String error = result.error();
+
+            if(error == null) {
+               ConditionVocabulary.requireScalarExpressionResult(condition, text, result.value());
+            }
+            else {
                warnings.add("The expression '" + text + "' threw: " + error +
                             "; the highlight never applies until it evaluates.");
             }

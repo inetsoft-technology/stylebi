@@ -66,8 +66,8 @@ public class AssemblyConditionService {
    /** Evaluates a condition expression the way the viewsheet refresh will. */
    @FunctionalInterface
    interface ExpressionChecker {
-      /** @return null when it evaluates, else the script error; throws if it does not compile. */
-      String check(String expression, ViewsheetSandbox box) throws Exception;
+      /** @return the script error (null if it evaluates) and the value; throws if it does not compile. */
+      VSAQuery.ExpressionResult check(String expression, ViewsheetSandbox box) throws Exception;
    }
 
    @Autowired
@@ -75,7 +75,7 @@ public class AssemblyConditionService {
                                    VSConditionDialogService conditionService,
                                    VSRefreshService refreshService)
    {
-      this(sessions, conditionService, refreshService, VSAQuery::checkConditionExpression);
+      this(sessions, conditionService, refreshService, VSAQuery::evaluateConditionExpression);
    }
 
    AssemblyConditionService(ViewsheetSessionService sessions,
@@ -346,10 +346,10 @@ public class AssemblyConditionService {
 
             boolean sql = expression.getType() == ExpressionValueModel.SQL;
             String text = expression.getExpression();
-            String error;
+            VSAQuery.ExpressionResult result;
 
             try {
-               error = checker.check(text, box);
+               result = checker.check(text, box);
             }
             catch(Exception e) {
                throw new IllegalArgumentException(
@@ -357,7 +357,10 @@ public class AssemblyConditionService {
                   e.getMessage() + (sql ? SQL_NOTE : "") + " Nothing was changed.");
             }
 
+            String error = result.error();
+
             if(error == null) {
+               ConditionVocabulary.requireScalarExpressionResult(condition, text, result.value());
                continue;
             }
 

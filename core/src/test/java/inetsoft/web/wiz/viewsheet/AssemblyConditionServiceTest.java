@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -381,7 +382,7 @@ class AssemblyConditionServiceTest {
    /** Not rejected: the same expression is valid once, say, a selection list has a selection. */
    @Test
    void acceptsAnExpressionThatThrowsAtRuntimeButWarns() throws Exception {
-      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult("ReferenceError: undefinedFn is not defined", null));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
          "tok", principal(), "Table1", List.of(expression("undefinedFn(1)", "js")), "");
@@ -393,9 +394,71 @@ class AssemblyConditionServiceTest {
       assertEquals(1, capture(h.conditions).getConditionList().length);
    }
 
+   private static ConditionVocabulary.Clause listExpression(String operator) {
+      return clause("Revenue", operator,
+                    List.of(Map.of("type", "expression", "expression", "['CA','NY']",
+                                   "language", "js")), null);
+   }
+
+   private static VSAQuery.ExpressionResult value(Object value) {
+      return new VSAQuery.ExpressionResult(null, value);
+   }
+
+   @Test
+   void refusesAListExpressionUnderASingleValuedOperatorAndCommitsNothing() throws Exception {
+      for(String operator : List.of("=", "<", ">", "starts_with", "contains", "like")) {
+         Harness h = harness(model(), (exp, box) -> value(new Object[] { "CA", "NY" }));
+
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> h.service.set("tok", principal(), "Table1", List.of(listExpression(operator)),
+                                ""), operator);
+
+         assertTrue(e.getMessage().contains("one_of"), e.getMessage());
+         assertTrue(e.getMessage().contains("Revenue"), e.getMessage());
+         assertTrue(e.getMessage().contains("Nothing was changed"), e.getMessage());
+         verify(h.conditions, never()).setModel(anyString(), anyString(), any(), anyString(),
+                                                any(Principal.class), any());
+      }
+   }
+
+   @Test
+   void refusesAnEmptyListExpressionUnderASingleValuedOperator() throws Exception {
+      Harness h = harness(model(), (exp, box) -> value(new Object[0]));
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", List.of(listExpression("=")), ""));
+
+      assertTrue(e.getMessage().contains("empty list"), e.getMessage());
+   }
+
+   @Test
+   void acceptsAListExpressionUnderOneOf() throws Exception {
+      Harness h = harness(model(), (exp, box) -> value(new Object[] { "CA", "NY" }));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(listExpression("one_of")), "");
+
+      assertEquals(1, result.applied());
+      assertTrue(result.warnings().isEmpty());
+   }
+
+   @Test
+   void acceptsAScalarOrOneElementListExpressionUnderASingleValuedOperator() throws Exception {
+      for(Object evaluated : new Object[] { "NY", 7, new Object[] { "NY" } }) {
+         Harness h = harness(model(), (exp, box) -> value(evaluated));
+
+         AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+            "tok", principal(), "Table1", List.of(listExpression("=")), "");
+
+         assertEquals(1, result.applied());
+      }
+   }
+
    @Test
    void acceptsAnSqlExpressionThatEvaluates() throws Exception {
-      Harness h = harness(model(), (exp, box) -> null);
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult(null, null));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
          "tok", principal(), "Table1", List.of(expression("10 + 1", "sql")), "");
@@ -406,7 +469,7 @@ class AssemblyConditionServiceTest {
 
    @Test
    void refusesAnSqlExpressionThatFailsWithTheJavaScriptNote() throws Exception {
-      Harness h = harness(model(), (exp, box) -> "ReferenceError: NOSUCHFN is not defined");
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult("ReferenceError: NOSUCHFN is not defined", null));
 
       Exception thrown = assertThrows(
          Exception.class,
@@ -425,7 +488,7 @@ class AssemblyConditionServiceTest {
       Object[] before = ConditionVocabulary.toConditionList(
          List.of(clause("Region", "equals", List.of("East"), null)), existing.getFields());
       existing.setConditionList(before);
-      Harness h = harness(existing, (exp, box) -> null);
+      Harness h = harness(existing, (exp, box) -> new VSAQuery.ExpressionResult(null, null));
       doThrow(new RuntimeException("refresh failed")).doNothing().when(h.conditions)
          .setModel(anyString(), anyString(), any(), anyString(), any(Principal.class), any());
 
@@ -446,7 +509,7 @@ class AssemblyConditionServiceTest {
     */
    @Test
    void aChartWarningReplacesTheTableWordedPreCheckWarning() throws Exception {
-      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult("ReferenceError: undefinedFn is not defined", null));
       String chartWarning = "Chart 'Chart1' cannot be generated: Script error: ReferenceError: " +
          "undefinedFn is not defined (line 1)";
       runMutationThenReturn(h.sessions, List.of(chartWarning));
@@ -460,7 +523,7 @@ class AssemblyConditionServiceTest {
    /** Without a chart warning (the chart still builds) the pre-check warning stays. */
    @Test
    void thePreCheckWarningStaysWhenTheChartDidNotFail() throws Exception {
-      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult("ReferenceError: undefinedFn is not defined", null));
       runMutationThenReturn(h.sessions, List.of());
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
@@ -540,7 +603,7 @@ class AssemblyConditionServiceTest {
       }
 
       AssemblyConditionService service = checker == null
-         ? new AssemblyConditionService(sessions, conditions, refresh, (exp, box) -> null)
+         ? new AssemblyConditionService(sessions, conditions, refresh, (exp, box) -> new VSAQuery.ExpressionResult(null, null))
          : new AssemblyConditionService(sessions, conditions, refresh, checker);
       return new Harness(service, sessions, conditions);
    }
@@ -555,7 +618,7 @@ class AssemblyConditionServiceTest {
     */
    @Test
    void doesNotReportTheSameExpressionFailureTwice() throws Exception {
-      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult("ReferenceError: undefinedFn is not defined", null));
       runMutationThenReturn(h.sessions, List.of(failure("Table1")));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
@@ -568,7 +631,7 @@ class AssemblyConditionServiceTest {
    /** Another assembly's script failure is not the pre-check's, so it is kept. */
    @Test
    void keepsAScriptFailureOnAnotherAssembly() throws Exception {
-      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult("ReferenceError: undefinedFn is not defined", null));
       runMutationThenReturn(h.sessions, List.of(failure("Table10")));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
@@ -580,7 +643,7 @@ class AssemblyConditionServiceTest {
    /** A failure the pre-check did not see (no expression thrown) is relayed as is. */
    @Test
    void relaysAScriptFailureWhenThePreCheckFoundNothing() throws Exception {
-      Harness h = harness(model(), (exp, box) -> null);
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult(null, null));
       runMutationThenReturn(h.sessions, List.of(failure("Table1")));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
@@ -592,7 +655,7 @@ class AssemblyConditionServiceTest {
    /** An earlier warning must not make the guard drop this assembly's own failure. */
    @Test
    void keepsTheOwnFailureAfterAnEarlierWarningWhenThePreCheckFoundNothing() throws Exception {
-      Harness h = harness(model(), (exp, box) -> null);
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult(null, null));
       runMutationThenReturn(h.sessions, List.of("plain warning", failure("Table1")));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
