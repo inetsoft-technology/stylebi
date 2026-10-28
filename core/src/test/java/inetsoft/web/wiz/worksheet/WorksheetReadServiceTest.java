@@ -2144,6 +2144,78 @@ class WorksheetReadServiceTest {
          .anyMatch(j -> "A".equals(j.leftTable()) && "C".equals(j.rightTable())));
    }
 
+   @Test
+   void joinKeysAreReportedByTheirVisibleColumnName() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "ID", "QUANTITY");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "ID", "QUANTITY");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      TableAssemblyOperator top = innerJoinOperator("A", "B");
+      TableAssemblyOperator.Operator op = top.getOperators()[0];
+      op.setLeftAttribute(aliased("QUANTITY", "PRODUCT_QTY"));
+      op.setRightAttribute(aliased("QUANTITY", "B_QTY"));
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, "J", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      // the constructor re-validates attributes; re-apply the post-validation (aliased) refs
+      TableAssemblyOperator.Operator stored = join.getOperator("A", "B").getOperators()[0];
+      stored.setLeftAttribute(aliased("QUANTITY", "PRODUCT_QTY"));
+      stored.setRightAttribute(aliased("QUANTITY", "B_QTY"));
+      ws.addAssembly(join);
+
+      WorksheetModel.JoinModel jm = tableNamed(read(ws), "J").joins().get(0);
+      assertEquals("PRODUCT_QTY", jm.leftKey());
+      assertEquals("B_QTY", jm.rightKey());
+   }
+
+   @Test
+   void joinKeysFallBackToTheAttributeWhenThereIsNoAlias() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "ID", "QUANTITY");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "ID", "QUANTITY");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, "J", new TableAssembly[]{ a, b },
+         new TableAssemblyOperator[]{ innerJoinOperator("A", "B") });
+      TableAssemblyOperator.Operator stored = join.getOperator("A", "B").getOperators()[0];
+      stored.setLeftAttribute(new AttributeRef(null, "ID"));
+      stored.setRightAttribute(new ColumnRef(new AttributeRef(null, "QUANTITY")));
+      ws.addAssembly(join);
+
+      WorksheetModel.JoinModel jm = tableNamed(read(ws), "J").joins().get(0);
+      assertEquals("ID", jm.leftKey());
+      assertEquals("QUANTITY", jm.rightKey());
+   }
+
+   @Test
+   void sortsAreReportedByTheirVisibleColumnName() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY", "ID");
+      SortInfo si = new SortInfo();
+      SortRef renamed = new SortRef(aliased("QUANTITY", "PRODUCT_QTY"));
+      renamed.setOrder(XConstants.SORT_DESC);
+      si.addSort(renamed);
+      SortRef plain = new SortRef(new ColumnRef(new AttributeRef(null, "ID")));
+      plain.setOrder(XConstants.SORT_ASC);
+      si.addSort(plain);
+      t.setSortInfo(si);
+      ws.addAssembly(t);
+
+      List<WorksheetModel.SortModel> sorts = tableNamed(read(ws), "T").sorts();
+      assertEquals("PRODUCT_QTY", sorts.get(0).field());
+      assertEquals("DESC", sorts.get(0).order());
+      assertEquals("ID", sorts.get(1).field());
+   }
+
+   private static ColumnRef aliased(String attribute, String alias) {
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, attribute));
+      ref.setAlias(alias);
+      return ref;
+   }
+
    private static TableAssemblyOperator innerJoinOperator(String left, String right) {
       TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
       op.setLeftTable(left);

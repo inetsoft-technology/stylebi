@@ -777,9 +777,9 @@ public class WorksheetReadService {
             }
 
             String leftKey = op.getLeftAttribute() != null
-               ? op.getLeftAttribute().getAttribute() : null;
+               ? outputName(op.getLeftAttribute()) : null;
             String rightKey = op.getRightAttribute() != null
-               ? op.getRightAttribute().getAttribute() : null;
+               ? outputName(op.getRightAttribute()) : null;
             String opName = op.getName();
 
             joins.add(new WorksheetModel.JoinModel(leftTable, leftKey, rightTable, rightKey, opName));
@@ -828,7 +828,7 @@ public class WorksheetReadService {
             }
 
             DataRef dataRef = item.getAttribute();
-            String field = dataRef != null ? dataRef.getAttribute() : null;
+            String field = dataRef != null ? outputName(dataRef) : null;
 
             XCondition xc = item.getXCondition();
             String operation = xc != null ? operationName(xc) : null;
@@ -1138,7 +1138,8 @@ public class WorksheetReadService {
       List<WorksheetModel.SortModel> sorts = new ArrayList<>(sortRefs.length);
 
       for(SortRef sr : sortRefs) {
-         String field = sr.getAttribute();
+         DataRef sortRef = sr.getDataRef();
+         String field = sortRef != null ? outputName(sortRef) : sr.getAttribute();
          String order = sr.getOrder() == XConstants.SORT_ASC ? "ASC" : "DESC";
          sorts.add(new WorksheetModel.SortModel(field, order));
       }
