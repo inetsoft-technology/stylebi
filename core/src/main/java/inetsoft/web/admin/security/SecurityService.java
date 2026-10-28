@@ -245,24 +245,7 @@ public class SecurityService {
          boolean active = request.getActive() == null || request.getActive();
          List<String> emails = request.getEmails() == null ?
             new ArrayList<>() : request.getEmails();
-         Set<IdentityID> roles = Arrays.stream(provider.getRoles())
-            .filter(role -> provider.getRole(role).isDefaultRole())
-            .filter(role -> role.getOrgID() == null || role.getOrgID().equalsIgnoreCase(id.orgID))
-            .collect(Collectors.toSet());
-         // the defaults are not an explicit assignment, so drop only the administrator ones the
-         // caller could never assign, and never fail the creation over them (Bug #76486)
-         roles = new HashSet<>(identityService.filterAssignableDefaultRoles(roles, principal));
-
-         // Only add roles if api user has root role permission
-         if(securityProvider.checkPermission(
-            principal, ResourceType.SECURITY_ROLE, getIdentityRootResorucePath(), ResourceAction.ADMIN))
-         {
-            if(request.getRoles() != null) {
-               roles = resolveRoleReferencesOrThrow(
-                  filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider);
-               checkAssignableRoles(roles, principal);
-            }
-         }
+         Set<IdentityID> roles = newUserRoles(id, request.getRoles(), principal, true);
 
          IdentityService.validatePasswordStrength(request.getPassword());
 
@@ -2559,6 +2542,58 @@ public class SecurityService {
       }
 
       return id;
+   }
+
+   /**
+    * The roles {@link #createUser} will give a new user: the default roles the caller may assign,
+    * replaced by the requested roles only when the caller holds ADMIN on the root role resource
+    * (null keeps the defaults, an empty list clears them). Meant for a plan that must show the
+    * roles before the user exists. It never throws for a requested role that does not resolve or
+    * that the caller may not assign (such a role is kept as requested, because {@link #createUser}
+    * would fail the create), and it cannot see identities created earlier in the same plan.
+    */
+   public List<IdentityID> projectNewUserRoles(IdentityID id, List<IdentityID> requested,
+                                               Principal principal)
+      throws Exception
+   {
+      return new ArrayList<>(newUserRoles(id, requested, principal, false));
+   }
+
+   private Set<IdentityID> newUserRoles(IdentityID id, List<IdentityID> requested,
+                                        Principal principal, boolean strict)
+      throws Exception
+   {
+      SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
+      EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
+      Set<IdentityID> roles = Arrays.stream(provider.getRoles())
+         .filter(role -> provider.getRole(role).isDefaultRole())
+         .filter(role -> role.getOrgID() == null || role.getOrgID().equalsIgnoreCase(id.orgID))
+         .collect(Collectors.toSet());
+      // the defaults are not an explicit assignment, so drop only the administrator ones the
+      // caller could never assign, and never fail the creation over them (Bug #76486)
+      roles = new HashSet<>(identityService.filterAssignableDefaultRoles(roles, principal));
+
+      // Only add roles if api user has root role permission
+      if(requested != null && securityProvider.checkPermission(
+         principal, ResourceType.SECURITY_ROLE, getIdentityRootResorucePath(), ResourceAction.ADMIN))
+      {
+         List<IdentityID> filtered = filterSystemAdminRoles(requested, securityProvider, principal);
+
+         if(strict) {
+            roles = resolveRoleReferencesOrThrow(filtered, provider);
+            checkAssignableRoles(roles, principal);
+         }
+         else {
+            roles = new HashSet<>();
+
+            for(IdentityID role : filtered) {
+               IdentityID resolved = resolveRoleReference(provider, role);
+               roles.add(resolved == null ? role : resolved);
+            }
+         }
+      }
+
+      return roles;
    }
 
    /**

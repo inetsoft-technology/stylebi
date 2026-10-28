@@ -103,7 +103,8 @@ class IdentityProjectionSeparatorTest {
    @Test void ordinaryUserProjectionsAreUnchanged() {
       IdentityID id = new IdentityID("bob", "host-org");
       assertEquals(PIN_USER_LIVE, IdentityProjection.projectUser(liveUser(id)));
-      assertEquals(PIN_USER_SPEC, IdentityProjection.projectUserSpec(id, userSpec()));
+      assertEquals(PIN_USER_SPEC, IdentityProjection.projectUserSpec(
+         id, userSpec(), IdentityMerge.toIdentityIds(userSpec().getRoles(), "host-org")));
    }
 
    @Test void ordinaryGroupProjectionsAreUnchanged() {
@@ -138,6 +139,8 @@ class IdentityProjectionSeparatorTest {
          .thenReturn(liveGroup(analysts));
       lenient().when(securityService.getRole(eq(viewer), eq(user)))
          .thenThrow(new MissingResourceException("no such role"));
+      lenient().when(securityService.projectNewUserRoles(any(), any(), eq(user)))
+         .thenAnswer(inv -> inv.getArgument(1));
       lenient().when(securityService.getOrganization(eq("org1"), eq(user)))
          .thenThrow(new MissingResourceException("no such organization"));
 
@@ -201,8 +204,8 @@ class IdentityProjectionSeparatorTest {
       b.setAlias("A");
       b.setLocale("en;locale=");
 
-      assertNotEquals(IdentityProjection.projectUserSpec(id, a),
-                      IdentityProjection.projectUserSpec(id, b));
+      assertNotEquals(IdentityProjection.projectUserSpec(id, a, List.of()),
+                      IdentityProjection.projectUserSpec(id, b, List.of()));
    }
 
    @Test void organizationPropertySeparatorsDiffer() {
@@ -520,7 +523,7 @@ class IdentityProjectionSeparatorTest {
    private static final String PIN_USER_LIVE =
       "id=bob~;~host-org;alias=Bob Smith;locale=en_US;theme=;active=true;password=pw:set;emails=b.smith@example.com,bob@example.com;groups=Analysts,Sales;roles=Designer~;~__GLOBAL__,Viewer~;~host-org;";
    private static final String PIN_USER_SPEC =
-      "id=bob~;~host-org;alias=Bob Smith;locale=en_US;theme=;active=true;password=pw:set;emails=b.smith@example.com,bob@example.com;groups=Analysts,Sales;roles=Designer,Viewer;";
+      "id=bob~;~host-org;alias=Bob Smith;locale=en_US;theme=;active=true;password=pw:set;emails=b.smith@example.com,bob@example.com;groups=Analysts,Sales;roles=Designer~;~host-org,Viewer~;~host-org;";
    private static final String PIN_GROUP_LIVE =
       "id=Analysts~;~host-org;theme=;parentGroups=Employees;memberUsers=alice,bob;memberGroups=SubGroup;roles=Viewer~;~host-org;";
    private static final String PIN_GROUP_SPEC =
@@ -539,8 +542,9 @@ class IdentityProjectionSeparatorTest {
       "id=Analysts~;~host-org;theme=;parentGroups=Contractors,Employees;memberUsers=alice,bob;memberGroups=SubGroup;roles=Designer~;~host-org,Viewer~;~host-org;";
    // Bug #79016: a user create that supplies a password now folds a digest of it into the hash, so
    // this one pin moved (from 69f70438...); every plan without a supplied password is unchanged.
+   // Bug #79563: the user create now projects roles in id form (Designer~;~host-org), moving it again.
    private static final String PIN_HASH_CREATE_USER =
-      "1f2d0e727929a437b5a8635b194307389188be31046ca98c2b496348d9821d70";
+      "a44efe2f9d97e6cfb30fa0fd313110424aadd9596c3287c906034679fee78269";
    private static final String PIN_HASH_UPDATE_GROUP =
       "b4054e4d653adc055c1cb5838687a27f8b8d630dc7609abdc79982d9e25a6076";
    private static final String PIN_HASH_CREATE_ROLE =

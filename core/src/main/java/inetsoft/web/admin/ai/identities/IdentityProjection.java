@@ -71,7 +71,7 @@ final class IdentityProjection {
     * yet) -- used for the {@code proposedValue} half of a create's {@link
     * inetsoft.web.admin.ai.PlanChange}, mirroring {@link #projectUser} field-for-field so the hash
     * is comparable across preview and apply. */
-   static String projectUserSpec(IdentityID id, IdentitySpec spec) {
+   static String projectUserSpec(IdentityID id, IdentitySpec spec, List<IdentityID> roles) {
       StringBuilder sb = new StringBuilder();
       appendId(sb, id);
       append(sb, "alias", spec.getAlias());
@@ -81,7 +81,7 @@ final class IdentityProjection {
       append(sb, "password", isBlank(spec.getPassword()) ? "pw:unset" : "pw:set");
       appendSorted(sb, "emails", spec.getEmails());
       appendSorted(sb, "groups", spec.getGroups());
-      appendSorted(sb, "roles", spec.getRoles());
+      appendSortedIds(sb, "roles", roles);
       return sb.toString();
    }
 

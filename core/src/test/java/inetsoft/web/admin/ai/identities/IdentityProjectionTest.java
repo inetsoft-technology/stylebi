@@ -70,8 +70,8 @@ class IdentityProjectionTest {
 
       // Different literal values, same presence -- the projection intentionally cannot see the
       // difference (spec section 9), so the plan hash does not perturb on password VALUE alone.
-      assertEquals(IdentityProjection.projectUserSpec(id, a),
-                   IdentityProjection.projectUserSpec(id, b));
+      assertEquals(IdentityProjection.projectUserSpec(id, a, List.of()),
+                   IdentityProjection.projectUserSpec(id, b, List.of()));
    }
 
    @Test void projectUserSpecChangesWhenPasswordPresenceChanges() {
@@ -80,8 +80,8 @@ class IdentityProjectionTest {
       withPw.setPassword("Password1!AAA");
       IdentitySpec withoutPw = new IdentitySpec();
 
-      assertNotEquals(IdentityProjection.projectUserSpec(id, withPw),
-                      IdentityProjection.projectUserSpec(id, withoutPw));
+      assertNotEquals(IdentityProjection.projectUserSpec(id, withPw, List.of()),
+                      IdentityProjection.projectUserSpec(id, withoutPw, List.of()));
    }
 
    @Test void projectUserSpecNeverContainsTheLiteralPasswordValue() {
@@ -89,14 +89,14 @@ class IdentityProjectionTest {
       IdentitySpec spec = new IdentitySpec();
       spec.setPassword("SuperSecret123!");
 
-      assertFalse(IdentityProjection.projectUserSpec(id, spec).contains("SuperSecret123!"));
+      assertFalse(IdentityProjection.projectUserSpec(id, spec, List.of()).contains("SuperSecret123!"));
    }
 
    @Test void projectUserSpecDefaultsOmittedActiveToTrue() {
       IdentityID id = new IdentityID("bob", "host-org");
       IdentitySpec spec = new IdentitySpec(); // active left unset (null)
 
-      assertTrue(IdentityProjection.projectUserSpec(id, spec).contains("active=true;"));
+      assertTrue(IdentityProjection.projectUserSpec(id, spec, List.of()).contains("active=true;"));
    }
 
    @Test void projectNullDtoIsNull() {
