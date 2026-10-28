@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
@@ -131,6 +132,34 @@ class AssemblyConditionServiceTest {
 
       assertTrue(thrown.getMessage().contains("Text1"));
       assertTrue(thrown.getMessage().contains("filtered"));
+   }
+
+   // Bug #79509: an embedded table ignores its condition list, so a write must be refused.
+   @Test
+   void refusesConditionsOnAnEmbeddedTableAndCommitsNothing() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Emb1")).thenReturn(mock(EmbeddedTableVSAssembly.class));
+      Harness h = harness(model(), null, vs);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Emb1",
+                             List.of(clause("Region", "equals", List.of("East"), null)), ""));
+
+      assertTrue(thrown.getMessage().contains("Emb1"));
+      assertTrue(thrown.getMessage().contains("Embedded Table"));
+      assertTrue(thrown.getMessage().contains("do not support conditions"));
+      verify(h.conditions, never()).setModel(anyString(), anyString(), any(), anyString(),
+                                             any(Principal.class), any());
+   }
+
+   @Test
+   void stillClearsAnEmbeddedTableWithAnEmptyList() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Emb1")).thenReturn(mock(EmbeddedTableVSAssembly.class));
+      Harness h = harness(model(), null, vs);
+
+      assertEquals(0, h.service.set("tok", principal(), "Emb1", List.of(), ""));
    }
 
    // ── the read side ─────────────────────────────────────────────────────────
@@ -356,9 +385,16 @@ class AssemblyConditionServiceTest {
    private static Harness harness(VSConditionDialogModel model,
                                   AssemblyConditionService.ExpressionChecker checker)
    {
+      return harness(model, checker, mock(Viewsheet.class));
+   }
+
+   private static Harness harness(VSConditionDialogModel model,
+                                  AssemblyConditionService.ExpressionChecker checker,
+                                  Viewsheet vs)
+   {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
-      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("rt1");
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
