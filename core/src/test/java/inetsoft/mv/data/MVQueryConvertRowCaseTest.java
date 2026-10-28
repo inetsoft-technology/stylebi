@@ -87,6 +87,65 @@ class MVQueryConvertRowCaseTest {
       });
    }
 
+   @Test
+   void detailQueryKeepsStoredRowOrder() throws Exception {
+      withCaseSensitive(false, () -> {
+         // stored (dictionary index) order of the sub block is the case sensitive order
+         List<String> rows = runDetail(new String[] { "NY", "Northwest", "FL", "Fast Transportation" });
+         assertEquals(Arrays.asList("FL", "Fast Transportation", "NY", "Northwest"), rows);
+      });
+   }
+
+   /**
+    * Run one block through a detail MVQuery and return the converted rows of the block, which
+    * must stay in the stored order.
+    */
+   private static List<String> runDetail(String[] values) throws Exception {
+      GroupRef group = new GroupRef(new ColumnRef(new AttributeRef(null, "City")));
+      MV mv = mock(MV.class);
+      mv.types = new Class[] { String.class };
+      when(mv.getDef()).thenReturn(mock(MVDef.class));
+      when(mv.indexOfHeader(anyString(), anyInt())).thenAnswer(
+         inv -> MVDef.getMVHeader(group.getDataRef()).equals(inv.getArgument(0)) ? 0 : -1);
+      XDimDictionary dict = new XDimDictionary();
+      dict.setDataType(String.class);
+
+      for(String v : values) {
+         dict.addValue(v);
+      }
+
+      dict.complete();
+      when(mv.getDictionary(0, 0)).thenReturn(dict);
+      MVQuery query = new MVQuery(mv, new GroupRef[] { group }, new boolean[] { true },
+                                  new AggregateRef[0], new AggregateRef[0], null);
+      query.setDetail(true);
+      XSwappableObjectList<MVRow> rows = new XSwappableObjectList<>(MVRow.class);
+
+      for(int i = 0; i < dict.size(); i++) {
+         rows.add(new MVRow(new long[] { i }, new double[0]));
+      }
+
+      rows.complete();
+      SubTableBlock block = mock(SubTableBlock.class);
+      XSwappableObjectList<MVRow>[] holder = new XSwappableObjectList[] { rows };
+      when(block.getBlockIndex()).thenReturn(0);
+      when(block.getRowCount()).thenAnswer(inv -> holder[0].size());
+      when(block.getRow(anyInt())).thenAnswer(inv -> holder[0].get(inv.getArgument(0)));
+      org.mockito.Mockito.doAnswer(inv -> {
+         holder[0] = inv.getArgument(0);
+         return null;
+      }).when(block).setRows(org.mockito.ArgumentMatchers.any());
+      // the detail merge itself is not under test, convertRow runs before it
+      query.add("block0", block);
+      List<String> result = new ArrayList<>();
+
+      for(int r = 0; r < holder[0].size(); r++) {
+         result.add((String) ((MVRow2) holder[0].get(r)).groups2[0]);
+      }
+
+      return result;
+   }
+
    /**
     * Run the given blocks (each one the distinct values of one sub block) through a group only
     * MVQuery and return the merged group values in order.

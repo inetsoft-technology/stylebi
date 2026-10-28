@@ -328,7 +328,8 @@ public final class MVQuery {
          rowList.add(nrow);
       }
 
-      if(resort && !Tool.isCaseSensitive()) {
+      // only the grouped merge assumes comparator order; detail rows keep the stored order
+      if(resort && !detail && !Tool.isCaseSensitive()) {
          rowList.sort(new MVRow2.RowComparator(order));
       }
 
