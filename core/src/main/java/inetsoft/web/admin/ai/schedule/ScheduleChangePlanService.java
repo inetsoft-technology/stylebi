@@ -147,6 +147,7 @@ public class ScheduleChangePlanService {
       }
 
       requireSupportedConditions(label, spec.getConditions());
+      requireNoPermissionResets(label, spec.getConditions(), user);
       requireSupportedActions(label, spec.getActions());
       requireExistingViewsheets(label, spec.getActions());
 
@@ -266,6 +267,26 @@ public class ScheduleChangePlanService {
       }
    }
 
+   /**
+    * Refuses a condition whose value the apply would silently reset or drop. {@link
+    * AdminScheduleGateway#addScheduleTask} runs the permission-based sanitize (the same rule
+    * Enterprise Manager applies) after the conditions are built, so a time range or start time the
+    * caller may not set is not stored; without this check the plan the reviewer signs would show
+    * the value and the apply would still report verified.
+    */
+   private void requireNoPermissionResets(String label, List<ScheduleCondition> conditions,
+                                          Principal user)
+   {
+      List<String> resets = scheduleGateway.previewConditionResets(conditions, user);
+
+      for(int i = 0; i < resets.size(); i++) {
+         if(resets.get(i) != null) {
+            throw new IllegalArgumentException(
+               label + ".spec.conditions[" + i + "]." + resets.get(i) +
+               " -- remove it from the plan so the signed plan matches what is stored");
+         }
+      }
+   }
    private static void requireSupportedActions(String label, List<ScheduleAction> actions) {
       if(actions == null) {
          return;

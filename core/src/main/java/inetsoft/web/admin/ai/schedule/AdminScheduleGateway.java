@@ -388,6 +388,75 @@ public class AdminScheduleGateway {
    }
 
    /**
+    * Reports, per condition, what {@link ScheduleTaskService#sanitizeConditions} would reset or
+    * drop when {@link #addScheduleTask} stores these conditions as a NEW task for {@code user}.
+    * It runs that same sanitize on scratch copies (nothing is stored and the request objects are
+    * not touched), so the answer can never drift from the real rule. The result has one entry per
+    * input condition: {@code null} when the condition is stored as given, otherwise a message
+    * starting with the field name, e.g. {@code "timeRange: ..."}.
+    */
+   public List<String> previewConditionResets(List<ScheduleCondition> conditions, Principal user) {
+      inetsoft.sree.schedule.ScheduleTask scratch = new inetsoft.sree.schedule.ScheduleTask();
+      List<inetsoft.sree.schedule.TimeCondition> converted = new ArrayList<>();
+
+      for(ScheduleCondition condition : conditions) {
+         inetsoft.sree.schedule.TimeCondition tc = condition instanceof TimeCondition dto ?
+            ScheduleConditionConverter.convertCondition(dto) : null;
+         converted.add(tc);
+
+         if(tc != null) {
+            scratch.addCondition(tc);
+         }
+      }
+
+      List<inetsoft.sree.schedule.TimeRange> ranges = new ArrayList<>();
+      List<int[]> times = new ArrayList<>();
+
+      for(inetsoft.sree.schedule.TimeCondition tc : converted) {
+         ranges.add(tc == null ? null : tc.getTimeRange());
+         times.add(tc == null ? null : new int[]{ tc.getHour(), tc.getMinute(), tc.getSecond() });
+      }
+
+      scheduleTaskService.sanitizeConditions(scratch, new inetsoft.sree.schedule.ScheduleTask(), user);
+      Set<inetsoft.sree.schedule.ScheduleCondition> kept = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(int i = 0; i < scratch.getConditionCount(); i++) {
+         kept.add(scratch.getCondition(i));
+      }
+
+      List<String> resets = new ArrayList<>();
+
+      for(int i = 0; i < converted.size(); i++) {
+         inetsoft.sree.schedule.TimeCondition tc = converted.get(i);
+
+         if(tc == null) {
+            resets.add(null);
+         }
+         else if(!kept.contains(tc)) {
+            resets.add("type: this condition type needs the startTime schedule option, which " +
+               "the caller does not hold, so the condition would be dropped from the task");
+         }
+         else if(!Objects.equals(ranges.get(i), tc.getTimeRange())) {
+            resets.add("timeRange: the caller may not set a time range here (it needs the " +
+               "timeRange schedule option and, on a multi-tenant deployment, a site admin " +
+               "working in their own organization), so it would be reset to none");
+         }
+         else if(times.get(i)[0] != tc.getHour() || times.get(i)[1] != tc.getMinute() ||
+                 times.get(i)[2] != tc.getSecond())
+         {
+            resets.add("hour/minute/second: the caller does not hold the startTime schedule " +
+               "option, so the time would be reset to the default " + tc.getHour() + ":" +
+               tc.getMinute() + ":" + tc.getSecond());
+         }
+         else {
+            resets.add(null);
+         }
+      }
+
+      return resets;
+   }
+
+   /**
     * Reports whether {@code user} holds {@code DELETE} on {@code taskId}, without requiring the
     * task to actually exist and without throwing on a "no" answer. Mirrors {@code
     * ScheduleApiService#hasDeletePermission} -- delegates to the same {@code
