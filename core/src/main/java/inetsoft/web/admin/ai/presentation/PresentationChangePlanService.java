@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.presentation;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.PlanChange;
@@ -165,6 +166,9 @@ public class PresentationChangePlanService {
             requireNoGlobalOnlyPortalChange(label, spec, currentNode,
                                             PresentationJson.toNode(proposedModel));
          }
+
+         requireWritableFields(label, subModel, global, spec, currentNode,
+                               PresentationJson.toNode(proposedModel));
 
          String orgId = global ? null :
             OrganizationManager.getInstance().getCurrentOrgID();
@@ -477,6 +481,77 @@ public class PresentationChangePlanService {
       }
    }
 
+   /** Bug #79434: refuses a spec that names a field the real {@code setModel} never stores (or stores
+    * under a different scope than {@code getModel} reads), because such a change is planned, then
+    * never reads back, and apply reports a rollback outcome for a write that never happened.
+    * <ul>
+    * <li>{@link PresentationSubModel#readOnlyFields()} at every scope: refused when the value differs
+    * from the current read (echoing the current value stays accepted).</li>
+    * <li>{@link PresentationSubModel#orgScopeGlobalOnlyFields()} at organization scope: refused when
+    * the value differs from the current read.</li>
+    * <li>{@link PresentationSubModel#orgScopeNeverWritableFields()} at organization scope: refused
+    * whenever present and non-null, because these project to the same value before and after any
+    * write, so apply would verify as applied while nothing was written.</li>
+    * <li>{@code exportMenu.vsOptions} with every option disabled: {@code saveExportMenuSettings}
+    * turns "none selected" into "all selected", so the read-back never matches.</li>
+    * </ul> */
+   private static void requireWritableFields(String label, PresentationSubModel subModel,
+                                             boolean global, JsonNode spec, JsonNode current,
+                                             JsonNode proposed)
+   {
+      for(String field : subModel.readOnlyFields()) {
+         if(spec.has(field) && !Objects.equals(current.get(field), proposed.get(field))) {
+            throw new IllegalArgumentException(
+               label + ".spec." + field + ": " + subModel.key() + "." + field + " is read-only -- " +
+               "the server derives it and never stores a written value, so this change would not " +
+               "be written at any scope. Omit the field.");
+         }
+      }
+
+      if(!global) {
+         for(String field : subModel.orgScopeGlobalOnlyFields()) {
+            if(spec.has(field) && !Objects.equals(current.get(field), proposed.get(field))) {
+               throw new IllegalArgumentException(
+                  label + ".spec." + field + ": " + subModel.key() + "." + field + " is " +
+                  "global-only -- it is written only by a global save, so at scope " +
+                  "\"organization\" this change would not be written at all. Use scope " +
+                  "\"global\" (it applies to every organization).");
+            }
+         }
+
+         for(String field : subModel.orgScopeNeverWritableFields()) {
+            JsonNode value = spec.get(field);
+
+            if(value != null && !value.isNull()) {
+               throw new IllegalArgumentException(
+                  label + ".spec." + field + ": " + subModel.key() + "." + field + " is " +
+                  "global-only -- it is written only by a global save, so at scope " +
+                  "\"organization\" it would be silently ignored. Use scope \"global\" (it " +
+                  "applies to every organization).");
+            }
+         }
+      }
+
+      if(subModel == PresentationSubModel.EXPORT_MENU && spec.has("vsOptions")) {
+         JsonNode options = proposed.get("vsOptions");
+
+         if(options != null && options.isArray() && options.size() > 0) {
+            boolean anyEnabled = false;
+
+            for(JsonNode option : options) {
+               anyEnabled |= option.path("value").asBoolean(false);
+            }
+
+            if(!anyEnabled) {
+               throw new IllegalArgumentException(
+                  label + ".spec.vsOptions: at least one export option must be enabled -- the " +
+                  "server turns a list with no option enabled into every option enabled, so the " +
+                  "value would not read back as written.");
+            }
+         }
+      }
+   }
+
    /** The {@code portalIntegration} fields {@code setModel} writes only when {@code globalSettings}. */
    private static final List<String> PORTAL_GLOBAL_ONLY_FIELDS =
       List.of("tabs", "help", "preference", "logout", "search", "home");
@@ -554,6 +629,57 @@ public class PresentationChangePlanService {
       return node;
    }
 
+   /** Bug #79434: {@code viewsheetCSSEntries} comes from a {@code ConcurrentHashMap}, so its read order
+    * is bucket order, not insertion order. Projections of this sub-model order the entries by
+    * {@code identityName} so that the plan's expected value and the apply read-back compare equal
+    * whatever order the server returns them in. */
+   private static void sortCssEntries(JsonNode node) {
+      JsonNode entries = node.get("viewsheetCSSEntries");
+
+      if(entries == null || !entries.isArray() || !(node instanceof ObjectNode)) {
+         return;
+      }
+
+      List<JsonNode> sorted = new ArrayList<>();
+      entries.forEach(sorted::add);
+      sorted.sort(Comparator.comparing(e -> e.path("identityName").asText("")));
+      ArrayNode array = PresentationJson.MAPPER.createArrayNode();
+      sorted.forEach(array::add);
+      ((ObjectNode) node).set("viewsheetCSSEntries", array);
+   }
+
+   /** Mirrors {@code LookAndFeelService.setViewsheet}'s org-scope entry bookkeeping: an upload adds
+    * (or replaces) the org's own {@code {orgId, orgId/name}} entry, {@code defaultViewsheet} removes
+    * it, other orgs' entries are left alone, and global scope never changes the entries. */
+   private static void applyCssEntryReadback(ObjectNode node, boolean global, String orgId,
+                                             boolean isDefault, boolean hasContent, String name)
+   {
+      if(global || orgId == null || (!isDefault && !hasContent)) {
+         return;
+      }
+
+      JsonNode existing = node.get("viewsheetCSSEntries");
+      ArrayNode updated = PresentationJson.MAPPER.createArrayNode();
+
+      if(existing != null && existing.isArray()) {
+         for(JsonNode entry : existing) {
+            if(!orgId.equals(entry.path("identityName").asText(null))) {
+               updated.add(entry);
+            }
+         }
+      }
+
+      if(!isDefault) {
+         ObjectNode entry = PresentationJson.MAPPER.createObjectNode();
+         entry.put("identityName", orgId);
+         entry.put("fileName", orgId + "/" + name);
+         entry.putNull("file");
+         updated.add(entry);
+      }
+
+      node.set("viewsheetCSSEntries", updated);
+   }
+
    /** Shared shape of {@code logoFile}/{@code faviconFile}: cleared to {@code ""} when the
     * corresponding {@code default*} flag is set, else renamed to the server-derived
     * "portal/[org/]<baseName><ext>" only when a real file with content was submitted (matching
@@ -602,6 +728,8 @@ public class PresentationChangePlanService {
          node.put("viewsheetName", "");
       }
 
+      applyCssEntryReadback(node, global, orgId, isDefault, hasContent,
+                            file == null ? "" : file.path("name").asText(""));
       node.putNull("viewsheetFile");
    }
 
@@ -716,7 +844,14 @@ public class PresentationChangePlanService {
    /** Package-visible so {@link PresentationChangesetApplyService} can compute the identical
     * before/after projection when verifying a write's read-back, instead of re-deriving its own. */
    static String projectedValue(PresentationSubModel subModel, JsonNode node) {
-      return PresentationJson.writeString(PresentationJson.maskSecrets(subModel, node));
+      JsonNode masked = PresentationJson.maskSecrets(subModel, node);
+
+      if(subModel == PresentationSubModel.LOOK_AND_FEEL && masked != null && masked.isObject()) {
+         masked = masked.deepCopy();
+         sortCssEntries(masked);
+      }
+
+      return PresentationJson.writeString(masked);
    }
 
    // ---------------------------------------------------------------- hash

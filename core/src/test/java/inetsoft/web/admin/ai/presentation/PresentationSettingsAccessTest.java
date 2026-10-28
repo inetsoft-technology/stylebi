@@ -27,10 +27,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Pins the ai/fontMapping org-scope read asymmetry (Redmine #76639): an organization-scoped read
@@ -77,6 +77,179 @@ class PresentationSettingsAccessTest {
 
       assertSame(model, access().read(PresentationSubModel.AI, PRINCIPAL, true));
       assertNull(access().read(PresentationSubModel.AI, PRINCIPAL, false));
+   }
+
+   // ---------------------------------------------------------------- Bug #79434: org key unpinning
+
+   /** In-memory stand-in for the organization's property overrides plus a time sub-model whose
+    * read falls back to the inherited global values (Sunday / true) for every key that is not
+    * overridden -- the shape of every value-scope sub-model. */
+   private static final class FakeOrgStore implements PresentationSettingsAccess.OrgPropertyStore {
+      final Map<String, String> props = new HashMap<>();
+      int saves;
+
+      @Override
+      public Set<String> keys() {
+         return new HashSet<>(props.keySet());
+      }
+
+      @Override
+      public String get(String key) {
+         return props.get(key);
+      }
+
+      @Override
+      public void put(String key, String value) {
+         props.put(key, value);
+      }
+
+      @Override
+      public void remove(String key) {
+         props.remove(key);
+      }
+
+      @Override
+      public void save() {
+         saves++;
+      }
+   }
+
+   private static final String WEEK = "inetsoft.org.o.week.start";
+   private static final String HOURS = "inetsoft.org.o.schedule.time.12hours";
+
+   private PresentationSettingsAccess timeAccess(FakeOrgStore store) throws Exception {
+      lenient().when(time.getModel(false)).thenAnswer(inv -> PresentationTimeSettingsModel.builder()
+         .weekStart(store.props.getOrDefault(WEEK, "Sunday"))
+         .scheduleTime12Hours(Boolean.parseBoolean(store.props.getOrDefault(HOURS, "true")))
+         .build());
+      // like the real setModel, write every property whatever the model changed
+      lenient().doAnswer(inv -> {
+         PresentationTimeSettingsModel m = inv.getArgument(0);
+         store.props.put(WEEK, m.weekStart());
+         store.props.put(HOURS, String.valueOf(m.scheduleTime12Hours()));
+         return null;
+      }).when(time).setModel(any(), eq(false));
+
+      PresentationSettingsAccess access = access();
+      access.setOrgStore(store);
+      return access;
+   }
+
+   private static PresentationTimeSettingsModel timeModel(String weekStart, boolean hours12) {
+      return PresentationTimeSettingsModel.builder().weekStart(weekStart)
+         .scheduleTime12Hours(hours12).build();
+   }
+
+   @Test
+   void orgWriteDropsTheKeysTheWriteCreatedThatCarryNoChange() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+
+      access.write(PresentationSubModel.TIME, timeModel("Monday", true), PRINCIPAL, false);
+
+      // week.start carries the change and stays; the 12-hour pin merely froze the inherited value
+      assertEquals(Map.of(WEEK, "Monday"), store.props);
+      assertEquals(1, store.saves);
+   }
+
+   @Test
+   void orgWriteOfUnchangedValuesLeavesNoPins() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+
+      access.write(PresentationSubModel.TIME, timeModel("Sunday", true), PRINCIPAL, false);
+
+      assertTrue(store.props.isEmpty(), store.props.toString());
+   }
+
+   @Test
+   void orgWriteKeepsKeysThatAlreadyExisted() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put(HOURS, "true");
+      PresentationSettingsAccess access = timeAccess(store);
+
+      access.write(PresentationSubModel.TIME, timeModel("Sunday", true), PRINCIPAL, false);
+
+      assertEquals(Map.of(HOURS, "true"), store.props);
+   }
+
+   @Test
+   void globalWriteNeverTouchesOrgKeys() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put(WEEK, "Monday");
+      PresentationSettingsAccess access = timeAccess(store);
+      lenient().doNothing().when(time).setModel(any(), eq(true));
+
+      assertTrue(access.write(PresentationSubModel.TIME, timeModel("Sunday", true), PRINCIPAL, true)
+                    .isEmpty());
+
+      assertEquals(Map.of(WEEK, "Monday"), store.props);
+      assertEquals(0, store.saves);
+   }
+
+   @Test
+   void rollbackPreImageWriteDropsKeysThatDidNotExistBeforeTheApply() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+      // apply: the change is kept as a pin
+      Set<String> kept =
+         access.write(PresentationSubModel.TIME, timeModel("Monday", false), PRINCIPAL, false);
+      assertEquals(Map.of(WEEK, "Monday", HOURS, "false"), store.props);
+      assertEquals(Set.of(WEEK, HOURS), kept);
+
+      // rollback re-writes the pre-image (inherited values), which re-pins both keys
+      access.write(PresentationSubModel.TIME, timeModel("Sunday", true), PRINCIPAL, false);
+      access.unpinOrgKeys(PresentationSubModel.TIME, PRINCIPAL, false, kept);
+
+      assertTrue(store.props.isEmpty(), store.props.toString());
+   }
+
+   @Test
+   void unpinOnlyTouchesTheCandidateKeysNotKeysAnotherWriteCreated() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+      Set<String> kept =
+         access.write(PresentationSubModel.TIME, timeModel("Sunday", false), PRINCIPAL, false);
+      // a later, unrelated write (another entry or a native save) created this key
+      store.props.put("inetsoft.org.o.repository.tree.sort", "false");
+
+      access.unpinOrgKeys(PresentationSubModel.TIME, PRINCIPAL, false, kept);
+
+      assertEquals("false", store.props.get("inetsoft.org.o.repository.tree.sort"));
+      assertEquals(Set.of(HOURS), kept);
+   }
+
+   @Test
+   void aWriteThatThrowsAfterPinningStillUnpinsKeysThatCarryNoChange() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+      doAnswer(inv -> {
+         store.props.put(WEEK, "Sunday");
+         store.props.put(HOURS, "true");
+         throw new IllegalStateException("boom");
+      }).when(time).setModel(any(), eq(false));
+
+      assertThrows(IllegalStateException.class,
+                   () -> access.write(PresentationSubModel.TIME, timeModel("Sunday", true),
+                                      PRINCIPAL, false));
+
+      assertTrue(store.props.isEmpty(), store.props.toString());
+   }
+
+   @Test
+   void unpinRestoresAKeyWhoseRemovalWouldChangeTheRead() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = timeAccess(store);
+      store.props.put(WEEK, "Monday");
+      store.props.put(HOURS, "false");
+
+      Set<String> kept = access.unpinOrgKeys(PresentationSubModel.TIME, PRINCIPAL, false,
+                                             Set.of(WEEK, HOURS));
+      assertEquals(Set.of(WEEK, HOURS), kept);
+
+      // both carry a non-inherited value, so neither can be dropped
+      assertEquals(Map.of(WEEK, "Monday", HOURS, "false"), store.props);
+      assertEquals(0, store.saves);
    }
 
    @Test

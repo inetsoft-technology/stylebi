@@ -47,7 +47,7 @@ public class PresentationLoginBannerSettingsService {
 
       return PresentationLoginBannerSettingsModel.builder()
          .bannerType(welcomePage.getBannerType() + "")
-         .loginBanner(welcomePage.getBanner())
+         .loginBanner(welcomePage.getBanner() == null ? "" : welcomePage.getBanner())
          .build();
    }
 

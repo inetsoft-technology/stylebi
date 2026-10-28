@@ -190,7 +190,7 @@ class PresentationChangePlanServiceTest {
          ArrayNode options = spec.putArray("options");
          options.addObject().put("id", "save").put("visible", false).put("enabled", true);
       }
-      case LOOK_AND_FEEL -> spec.put("expand", true);
+      case LOOK_AND_FEEL -> spec.put("ascending", false);
       case WELCOME_PAGE -> spec.put("type", 1).put("source", "http://x");
       case LOGIN_BANNER -> spec.put("bannerType", "1");
       // not a button: the buttons are global-only and refused at organization scope (Bug #78867)
@@ -807,6 +807,204 @@ class PresentationChangePlanServiceTest {
       assertEquals(planA.planHash(), planB.planHash());
    }
 
+   // ---------------------------------------------------------------- Bug #79434: unwritable fields / normalization
+
+   private IllegalArgumentException refusedSpec(String subModel, String scope, ObjectNode spec) {
+      PresentationChangePlanRequest req = request("t", change(subModel, scope, spec));
+      return assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+   }
+
+   private void acceptedSpec(String subModel, String scope, ObjectNode spec) throws Exception {
+      PresentationChangePlanRequest req = request("t", change(subModel, scope, spec));
+      assertEquals(1, service.resolve(req, PRINCIPAL).changes().size());
+   }
+
+   @Test
+   void vsEnabledChangeIsRefusedAtEveryScopeButEchoingTheCurrentValueIsAccepted() throws Exception {
+      for(PresentationSubModel subModel :
+         List.of(PresentationSubModel.EXPORT_MENU, PresentationSubModel.LOOK_AND_FEEL))
+      {
+         stub(subModel, currentFor(subModel));
+
+         for(String scope : List.of("global", "organization")) {
+            IllegalArgumentException ex =
+               refusedSpec(subModel.key(), scope, obj().put("vsEnabled", false));
+            assertTrue(ex.getMessage().contains("spec.vsEnabled"), ex.getMessage());
+            acceptedSpec(subModel.key(), scope, obj().put("vsEnabled", true));
+         }
+      }
+   }
+
+   @Test
+   void organizationScopeExpandAndRepositoryTreeChangesAreRefusedButUnchangedAndGlobalAreAccepted()
+      throws Exception
+   {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+
+      // current: expand=false, repositoryTree=true
+      IllegalArgumentException expand =
+         refusedSpec("lookAndFeel", "organization", obj().put("expand", true));
+      assertTrue(expand.getMessage().contains("spec.expand"), expand.getMessage());
+      IllegalArgumentException tree =
+         refusedSpec("lookAndFeel", "organization", obj().put("repositoryTree", false));
+      assertTrue(tree.getMessage().contains("spec.repositoryTree"), tree.getMessage());
+
+      acceptedSpec("lookAndFeel", "organization", obj().put("expand", false));
+      acceptedSpec("lookAndFeel", "organization", obj().put("repositoryTree", true));
+      acceptedSpec("lookAndFeel", "global", obj().put("expand", true));
+      // ascending is written at organization scope (repository.tree.sort) and stays writable
+      acceptedSpec("lookAndFeel", "organization", obj().put("ascending", false));
+   }
+
+   @Test
+   void organizationScopeFontAndUserformatFieldsAreRefusedWheneverPresent() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+
+      ObjectNode userformat = obj();
+      userformat.putObject("userformatFile").put("name", "userformat.xml").put("content", "YWJj");
+      assertTrue(refusedSpec("lookAndFeel", "organization", userformat).getMessage()
+                    .contains("spec.userformatFile"));
+
+      // equal to the current value (defaultFont is currently true) is still refused: the value
+      // projects the same before and after, so apply could never tell it was not written
+      assertTrue(refusedSpec("lookAndFeel", "organization", obj().put("defaultFont", true))
+                    .getMessage().contains("spec.defaultFont"));
+
+      for(String field : List.of("userFonts", "fontFaces", "deleteFontFaces", "newFontFaces")) {
+         ObjectNode spec = obj();
+         spec.putArray(field);
+         assertTrue(refusedSpec("lookAndFeel", "organization", spec).getMessage()
+                       .contains("spec." + field), field);
+      }
+
+      // an explicit null names nothing
+      ObjectNode nullFile = obj();
+      nullFile.putNull("userformatFile");
+      acceptedSpec("lookAndFeel", "organization", nullFile);
+
+      // global scope writes them
+      acceptedSpec("lookAndFeel", "global", userformat);
+      acceptedSpec("lookAndFeel", "global", obj().put("defaultFont", false));
+   }
+
+   @Test
+   void exportMenuWithEveryOptionDisabledIsRefused() throws Exception {
+      stub(PresentationSubModel.EXPORT_MENU, currentFor(PresentationSubModel.EXPORT_MENU));
+
+      ObjectNode allOff = obj();
+      allOff.putArray("vsOptions").addObject().put("name", "PDF").put("description", "PDF")
+         .put("value", false);
+      IllegalArgumentException ex = refusedSpec("exportMenu", "organization", allOff);
+      assertTrue(ex.getMessage().contains("at least one export option must be enabled"),
+                 ex.getMessage());
+
+      ObjectNode oneOn = obj();
+      ArrayNode options = oneOn.putArray("vsOptions");
+      options.addObject().put("name", "PDF").put("description", "PDF").put("value", false);
+      options.addObject().put("name", "Excel").put("description", "Excel").put("value", true);
+      acceptedSpec("exportMenu", "organization", oneOn);
+   }
+
+   @Test
+   void loginBannerWithNoCurrentWelcomePageStillMerges() throws Exception {
+      stub(PresentationSubModel.LOGIN_BANNER, null);
+
+      PresentationChangePlanRequest req = request("t", change("loginBanner", "global",
+         obj().put("bannerType", "0").put("loginBanner", "")));
+      var plan = service.resolve(req, PRINCIPAL);
+
+      assertEquals("null", plan.changes().get(0).currentValue());
+      assertTrue(plan.changes().get(0).proposedValue().contains("\"loginBanner\":\"\""));
+   }
+
+   private static LookAndFeelSettingsModel lookAndFeelWithEntries(ViewsheetCSSEntry... entries) {
+      return LookAndFeelSettingsModel.builder()
+         .ascending(true).repositoryTree(true).expand(false)
+         .defaultLogo(true).logoName("").defaultFavicon(true).faviconName("")
+         .defaultViewsheet(true).viewsheetName("").defaultFont(true)
+         .viewsheetCSSEntries(List.of(entries)).vsEnabled(true).build();
+   }
+
+   private static ViewsheetCSSEntry cssEntry(String identity, String file) {
+      return ViewsheetCSSEntry.builder().identityName(identity).fileName(file).build();
+   }
+
+   private static ObjectNode cssUpload(String name) {
+      ObjectNode spec = obj();
+      spec.putObject("viewsheetFile").put("name", name).put("content", "YWJj");
+      spec.put("defaultViewsheet", false);
+      return spec;
+   }
+
+   private com.fasterxml.jackson.databind.JsonNode proposedOf(String scope, ObjectNode spec)
+      throws Exception
+   {
+      PresentationChangePlanRequest req = request("t", change("lookAndFeel", scope, spec));
+      return MAPPER.readTree(service.resolve(req, PRINCIPAL).changes().get(0).proposedValue());
+   }
+
+   @Test
+   void organizationCssUploadAddsOnlyTheOwnOrgEntryAndLeavesOthersAlone() throws Exception {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      stub(PresentationSubModel.LOOK_AND_FEEL,
+           lookAndFeelWithEntries(cssEntry("zzz-other", "zzz-other/z.css"),
+                                  cssEntry(orgId, orgId + "/old.css"),
+                                  cssEntry("aaa-other", "aaa-other/a.css")));
+
+      var entries = proposedOf("organization", cssUpload("new.css")).get("viewsheetCSSEntries");
+
+      assertEquals(3, entries.size());
+      // ordered by identityName whatever order the read returned them in
+      assertEquals("aaa-other", entries.get(0).get("identityName").asText());
+      assertEquals("zzz-other", entries.get(2).get("identityName").asText());
+      var own = entries.get(1);
+      assertEquals(orgId, own.get("identityName").asText());
+      assertEquals(orgId + "/new.css", own.get("fileName").asText());
+      assertTrue(own.has("file") && own.get("file").isNull(), own.toString());
+   }
+
+   @Test
+   void organizationDefaultViewsheetRemovesOnlyTheOwnOrgEntry() throws Exception {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      stub(PresentationSubModel.LOOK_AND_FEEL,
+           lookAndFeelWithEntries(cssEntry("other", "other/o.css"),
+                                  cssEntry(orgId, orgId + "/old.css")));
+
+      var entries =
+         proposedOf("organization", obj().put("defaultViewsheet", true)).get("viewsheetCSSEntries");
+
+      assertEquals(1, entries.size());
+      assertEquals("other", entries.get(0).get("identityName").asText());
+   }
+
+   @Test
+   void globalCssUploadLeavesTheEntriesUnchanged() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL,
+           lookAndFeelWithEntries(cssEntry("b", "b/b.css"), cssEntry("a", "a/a.css")));
+
+      var entries = proposedOf("global", cssUpload("new.css")).get("viewsheetCSSEntries");
+
+      assertEquals(2, entries.size());
+      assertEquals("a", entries.get(0).get("identityName").asText());
+      assertEquals("b", entries.get(1).get("identityName").asText());
+   }
+
+   @Test
+   void currentAndProposedProjectTheEntriesInTheSameOrder() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL,
+           lookAndFeelWithEntries(cssEntry("b", "b/b.css"), cssEntry("a", "a/a.css")));
+
+      PresentationChangePlanRequest req =
+         request("t", change("lookAndFeel", "global", obj().put("ascending", false)));
+      var change = service.resolve(req, PRINCIPAL).changes().get(0);
+      String current = change.currentValue();
+
+      assertTrue(current.indexOf("\"a\"") < current.indexOf("\"b\""), current);
+      assertEquals(current.substring(current.indexOf("viewsheetCSSEntries")),
+                   change.proposedValue().substring(change.proposedValue().indexOf(
+                      "viewsheetCSSEntries")));
+   }
+
    // ---------------------------------------------------------------- secretFields is per sub-model
 
    @Test
@@ -878,14 +1076,16 @@ class PresentationChangePlanServiceTest {
    }
 
    @Test
-   void lookAndFeelUserformatIsNotWrittenAtOrganizationScopeSoItIsNotHashed() throws Exception {
-      // Pinned decision (Bug #79429): the write gate is global-scope only, so at organization scope
-      // the digest is "none" and two contents hash alike -- nothing would be written for either.
-      assertEquals(
-         lafHash("organization", obj().set("userformatFile",
-            obj().put("name", "u.xml").put("content", "QUJD"))),
-         lafHash("organization", obj().set("userformatFile",
-            obj().put("name", "u.xml").put("content", "REVG"))));
+   void lookAndFeelUserformatIsRefusedAtOrganizationScopeSoItIsNeverHashed() throws Exception {
+      // Bug #79434 supersedes the #79429 pin: the write gate is global-scope only, so an
+      // organization-scope userformatFile projects the same before and after and apply would verify
+      // a write that never happened; the plan refuses it instead of hashing nothing.
+      for(String content : List.of("QUJD", "REVG")) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> lafHash("organization", obj().set("userformatFile",
+               obj().put("name", "u.xml").put("content", content))));
+         assertTrue(ex.getMessage().contains("spec.userformatFile"), ex.getMessage());
+      }
    }
 
    @Test

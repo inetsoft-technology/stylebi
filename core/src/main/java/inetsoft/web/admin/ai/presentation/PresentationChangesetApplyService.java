@@ -135,6 +135,9 @@ public class PresentationChangesetApplyService {
          List<PresentationChangePlanService.ResolvedChange> undoableValue = new ArrayList<>();
          List<PresentationChangePlanService.ResolvedChange> appliedStorage = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
+         // per entry: the org keys that entry's own write created and kept (Bug #79434)
+         Map<PresentationChangePlanService.ResolvedChange, Set<String>> createdOrgKeys =
+            new IdentityHashMap<>();
          boolean failed = false;
 
          for(PresentationChangePlanService.ResolvedChange entry : resolved) {
@@ -143,7 +146,9 @@ public class PresentationChangesetApplyService {
             String expectedAfter = entry.planChange().proposedValue();
 
             try {
-               access.write(entry.subModel(), entry.proposedModel(), user, entry.global());
+               Set<String> created =
+                  access.write(entry.subModel(), entry.proposedModel(), user, entry.global());
+               createdOrgKeys.put(entry, created == null ? Set.of() : created);
                String actualAfter = PresentationChangePlanService.projectedValue(
                   entry.subModel(), PresentationJson.toNode(
                      access.read(entry.subModel(), user, entry.global())));
@@ -242,7 +247,8 @@ public class PresentationChangesetApplyService {
                txId + " (backupRef: " + backupRef + ")"));
          }
 
-         failures.addAll(rollback(txId, reviewedTask, undoableValue, backupRef, reviewOutcome, user));
+         failures.addAll(rollback(txId, reviewedTask, undoableValue, createdOrgKeys, backupRef,
+                                  reviewOutcome, user));
 
          String status = failures.isEmpty()
             ? AdminChangesetApplyService.STATUS_ROLLED_BACK
@@ -266,6 +272,8 @@ public class PresentationChangesetApplyService {
     * failures -- never called for a storage-scope entry (see {@link #apply}). */
    private List<RollbackFailure> rollback(String txId, String task,
                                           List<PresentationChangePlanService.ResolvedChange> undoable,
+                                          Map<PresentationChangePlanService.ResolvedChange,
+                                             Set<String>> createdOrgKeys,
                                           String backupRef, String reviewOutcome, Principal user)
    {
       List<RollbackFailure> failures = new ArrayList<>();
@@ -277,6 +285,15 @@ public class PresentationChangesetApplyService {
 
          try {
             access.write(entry.subModel(), entry.currentModel(), user, entry.global());
+            // the pre-image is a model projection and cannot say "no override", so re-writing it pins
+            // every property; drop only the keys this entry's own apply write created, never keys
+            // another entry created (Bug #79434)
+            Set<String> created = createdOrgKeys.get(entry);
+
+            if(created != null && !created.isEmpty()) {
+               access.unpinOrgKeys(entry.subModel(), user, entry.global(), created);
+            }
+
             String restoredValue = PresentationChangePlanService.projectedValue(
                entry.subModel(), PresentationJson.toNode(
                   access.read(entry.subModel(), user, entry.global())));

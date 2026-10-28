@@ -33,6 +33,7 @@ import inetsoft.web.admin.presentation.model.PresentationDashboardSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationFormatsSettingsModel;
 import inetsoft.web.admin.presentation.model.PortalIntegrationSettingsModel;
 import inetsoft.web.admin.presentation.model.PortalTabModel;
+import inetsoft.web.admin.presentation.model.ViewsheetCSSEntry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
@@ -42,9 +43,12 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -465,11 +469,28 @@ class PresentationChangesetApplyServiceTest {
             ? (global ? "portal/format.css" : orgId + "/" + proposed.viewsheetFile().name())
             : proposed.viewsheetName();
 
+      // LookAndFeelService.setViewsheet: at organization scope an upload adds the org's own entry and
+      // the default removes it; the real list comes from a ConcurrentHashMap, so its order is
+      // arbitrary -- reversed here so a comparison that depends on order cannot pass by luck
+      List<ViewsheetCSSEntry> entries = new ArrayList<>(proposed.viewsheetCSSEntries());
+
+      if(!global && (proposed.defaultViewsheet() || proposed.viewsheetFile() != null)) {
+         entries.removeIf(e -> orgId.equals(e.identityName()));
+
+         if(!proposed.defaultViewsheet()) {
+            entries.add(ViewsheetCSSEntry.builder().identityName(orgId)
+                           .fileName(orgId + "/" + proposed.viewsheetFile().name()).build());
+         }
+      }
+
+      Collections.reverse(entries);
+
       return LookAndFeelSettingsModel.builder().from(proposed)
          .logoName(logoName).logoFile(null)
          .faviconName(faviconName).faviconFile(null)
          .viewsheetName(viewsheetName).viewsheetFile(null)
          .userformatFile(null)
+         .viewsheetCSSEntries(entries)
          .build();
    }
 
@@ -681,6 +702,111 @@ class PresentationChangesetApplyServiceTest {
       Object restored = state.get(stateKey(PresentationSubModel.FORMATS, false));
       assertEquals("MM/dd/yyyy", ((PresentationFormatsSettingsModel) restored).dateFormat());
    }
+
+   // ---------------------------------------------------------------- Bug #79434: org key unpinning on rollback
+
+   @Test
+   void rollbackUnpinsOnlyTheKeysTheRolledBackEntryCreatedNotALaterEntrysKey() throws Exception {
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+      seed(PresentationSubModel.LOOK_AND_FEEL, false, cleanLookAndFeel().build());
+      seed(PresentationSubModel.DASHBOARD, false, dashboard(true));
+
+      // org keys as the real store would hold them
+      Set<String> orgKeys = new java.util.HashSet<>();
+      String formatsKey = "inetsoft.org.o.format.date";
+      String sortKey = "inetsoft.org.o.repository.tree.sort";
+
+      // each write creates and keeps its own key; unpinOrgKeys removes exactly the candidates it gets
+      doAnswer(inv -> {
+         state.put(stateKey(PresentationSubModel.FORMATS, false), inv.getArgument(1));
+         orgKeys.add(formatsKey);
+         return Set.of(formatsKey);
+      }).when(access).write(eq(PresentationSubModel.FORMATS), any(), any(), eq(false));
+      doAnswer(inv -> {
+         state.put(stateKey(PresentationSubModel.LOOK_AND_FEEL, false), inv.getArgument(1));
+         orgKeys.add(sortKey);
+         return Set.of(sortKey);
+      }).when(access).write(eq(PresentationSubModel.LOOK_AND_FEEL), any(), any(), eq(false));
+      // the third entry fails verification (write does nothing)
+      doAnswer(inv -> Set.of())
+         .when(access).write(eq(PresentationSubModel.DASHBOARD), any(), any(), eq(false));
+      doAnswer(inv -> {
+         orgKeys.removeAll(inv.<Set<String>>getArgument(3));
+         return Set.of();
+      }).when(access).unpinOrgKeys(any(), any(), eq(false), any());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd")),
+         change("lookAndFeel", "organization", obj().put("ascending", false)),
+         change("dashboard", "organization", obj().put("enabled", false)));
+
+      var result = service.apply(req, user);
+
+      // lookAndFeel (storage scope) is reported as not rolled back; formats is rolled back
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals("MM/dd/yyyy", ((PresentationFormatsSettingsModel)
+         state.get(stateKey(PresentationSubModel.FORMATS, false))).dateFormat());
+      // rolling formats back removed only formats' own key; lookAndFeel's key survives
+      verify(access).unpinOrgKeys(eq(PresentationSubModel.FORMATS), any(), eq(false),
+                                  eq(Set.of(formatsKey)));
+      verify(access, never()).unpinOrgKeys(eq(PresentationSubModel.LOOK_AND_FEEL), any(),
+                                           anyBoolean(), any());
+      assertEquals(Set.of(sortKey), orgKeys);
+   }
+
+   // ---------------------------------------------------------------- Bug #79434: organization CSS upload read-back
+
+   @Test
+   void applyVerifiesAnOrganizationViewsheetFileUploadAlongsideOtherOrgEntries() throws Exception {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      seed(PresentationSubModel.LOOK_AND_FEEL, false, cleanLookAndFeel()
+         .viewsheetCSSEntries(List.of(
+            ViewsheetCSSEntry.builder().identityName("zzz-other").fileName("zzz-other/z.css").build(),
+            ViewsheetCSSEntry.builder().identityName("aaa-other").fileName("aaa-other/a.css").build()))
+         .build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode spec = obj().put("defaultViewsheet", false);
+      spec.set("viewsheetFile", obj().put("name", "qa-test.css")
+         .put("content", Base64.getEncoder().encodeToString("body { color: red; }".getBytes())));
+
+      var result = service.apply(applyRequest("t", "ok", true,
+         change("lookAndFeel", "organization", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      assertEquals("verified", result.results().get(0).status());
+      var entries = MAPPER.readTree(result.results().get(0).after()).get("viewsheetCSSEntries");
+      assertEquals(3, entries.size());
+      assertEquals("aaa-other", entries.get(0).get("identityName").asText());
+      assertEquals(orgId, entries.get(1).get("identityName").asText());
+      assertEquals(orgId + "/qa-test.css", entries.get(1).get("fileName").asText());
+      assertEquals("zzz-other", entries.get(2).get("identityName").asText());
+   }
+
+   @Test
+   void applyVerifiesAnOrganizationRevertToTheDefaultViewsheetRemovingOnlyItsOwnEntry()
+      throws Exception
+   {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      seed(PresentationSubModel.LOOK_AND_FEEL, false, cleanLookAndFeel()
+         .defaultViewsheet(false).viewsheetName(orgId + "/old.css")
+         .viewsheetCSSEntries(List.of(
+            ViewsheetCSSEntry.builder().identityName("other").fileName("other/o.css").build(),
+            ViewsheetCSSEntry.builder().identityName(orgId).fileName(orgId + "/old.css").build()))
+         .build());
+      mockLookAndFeelRealWrite();
+
+      var result = service.apply(applyRequest("t", "ok", true,
+         change("lookAndFeel", "organization", obj().put("defaultViewsheet", true))), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("verified", result.results().get(0).status());
+      var entries = MAPPER.readTree(result.results().get(0).after()).get("viewsheetCSSEntries");
+      assertEquals(1, entries.size());
+      assertEquals("other", entries.get(0).get("identityName").asText());
+   }
+
 
    // ---------------------------------------------------------------- rollback: storage-scope non-compensable
 
