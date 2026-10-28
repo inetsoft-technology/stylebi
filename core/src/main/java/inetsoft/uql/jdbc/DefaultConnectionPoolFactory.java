@@ -35,6 +35,7 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Predicate;
 
 /**
@@ -48,7 +49,7 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
     * Creates a new instance of <tt>DefaultConnectionPoolFactory</tt>.
     */
    public DefaultConnectionPoolFactory() {
-      dataSources = new HashMap<>();
+      dataSources = new ConcurrentHashMap<>();
    }
 
    @Override
@@ -58,10 +59,23 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       DataSource result;
       final DataSourceKey key = DataSourceKey.Builder.from(jdbcDataSource).build();
 
-      synchronized(dataSources) {
-         result = dataSources.computeIfAbsent(
-            key, k -> new HikariDataSource(createDataSourceConfig(jdbcDataSource)));
+      // No map-wide lock is held while a pool is built. Building a pool opens physical
+      // connections, which can block for a long time on an unreachable database, and
+      // must not stall lookups or builds of other data sources (bug #79612). Requests
+      // for the same key share a single build.
+      PoolEntry entry = dataSources.get(key);
+
+      if(entry == null) {
+         PoolEntry created = new PoolEntry();
+         entry = dataSources.putIfAbsent(key, created);
+
+         if(entry == null) {
+            entry = created;
+            build(key, created, jdbcDataSource);
+         }
       }
+
+      result = entry.await();
 
       if(jdbcDataSource.getDatabaseType() == JDBCDataSource.JDBC_ACCESS &&
          result instanceof HikariDataSource)
@@ -70,6 +84,64 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       }
 
       return result;
+   }
+
+   /**
+    * Builds the pool for an entry this thread has just registered, outside of any lock, and
+    * publishes the result to the threads waiting on the entry.
+    */
+   private void build(DataSourceKey key, PoolEntry entry, JDBCDataSource jdbcDataSource) {
+      HikariDataSource pool;
+
+      try {
+         pool = new HikariDataSource(createDataSourceConfig(jdbcDataSource));
+      }
+      catch(Throwable e) {
+         dataSources.remove(key, entry);
+         entry.fail(e);
+
+         if(e instanceof RuntimeException) {
+            throw (RuntimeException) e;
+         }
+
+         if(e instanceof Error) {
+            throw (Error) e;
+         }
+
+         throw new RuntimeException(e);
+      }
+
+      List<Predicate<DataSource>> filters = entry.finish(pool);
+
+      try {
+         // a close was requested while the pool was being built, so apply it now instead of
+         // leaving a pool that was meant to be closed in the cache. The builder and its
+         // waiters then receive the closed pool, as callers did when the close queued behind
+         // the old lock; they fail on getConnection and a retry builds a new pool.
+         for(Predicate<DataSource> filter : filters) {
+            boolean match;
+
+            try {
+               match = filter.test(pool);
+            }
+            catch(Throwable e) {
+               // a filter that cannot be evaluated must not leave the entry stuck. Treat the
+               // pool as matched, since the close it was queued for cannot be ruled out.
+               LOG.warn("Connection pool close filter failed, closing the pool", e);
+               match = true;
+            }
+
+            if(match) {
+               dataSources.remove(key, entry);
+               pool.close();
+               break;
+            }
+         }
+      }
+      finally {
+         // always release the waiters, whatever happened above
+         entry.complete(pool);
+      }
    }
 
    private HikariConfig createDataSourceConfig(JDBCDataSource jdbcDataSource) {
@@ -287,12 +359,11 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
 
    @Override
    public void closeConnectionPool(DataSource dataSource) {
-      synchronized(dataSources) {
-         for(Iterator<DataSource> i = dataSources.values().iterator(); i.hasNext();) {
-            if(i.next() == dataSource) {
-               i.remove();
-               break;
-            }
+      // a pool that is still being built cannot be the caller's pool
+      for(Map.Entry<DataSourceKey, PoolEntry> e : dataSources.entrySet()) {
+         if(e.getValue().getPool() == dataSource) {
+            dataSources.remove(e.getKey(), e.getValue());
+            break;
          }
       }
 
@@ -303,14 +374,13 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
    public void closeConnectionPools(Predicate<DataSource> filter) {
       Set<DataSource> closed = new HashSet<>();
 
-      synchronized(dataSources) {
-         for(Iterator<DataSource> i = dataSources.values().iterator(); i.hasNext();) {
-            DataSource ds = i.next();
+      for(Map.Entry<DataSourceKey, PoolEntry> e : dataSources.entrySet()) {
+         PoolEntry entry = e.getValue();
+         DataSource ds = entry.closeIfMatches(filter);
 
-            if(filter.test(ds)) {
-               i.remove();
-               closed.add(ds);
-            }
+         if(ds != null) {
+            dataSources.remove(e.getKey(), entry);
+            closed.add(ds);
          }
       }
 
@@ -321,14 +391,7 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
 
    @Override
    public void closeAllConnectionsPools() {
-      synchronized(dataSources) {
-         for(Iterator<DataSource> i = dataSources.values().iterator();
-             i.hasNext();)
-         {
-            ((HikariDataSource) i.next()).close();
-            i.remove();
-         }
-      }
+      closeConnectionPools(ds -> true);
    }
 
    @Override
@@ -352,9 +415,87 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
       return false;
    }
 
-   private final Map<DataSourceKey, DataSource> dataSources;
+   private final ConcurrentMap<DataSourceKey, PoolEntry> dataSources;
    private static final Logger LOG =
       LoggerFactory.getLogger(DefaultConnectionPoolFactory.class);
+
+   /**
+    * A cache slot for one data source key. It is registered before the pool is built so that
+    * concurrent requests for the key wait for the one build, while other keys are unaffected.
+    */
+   private static final class PoolEntry {
+      /**
+       * Waits for the build of this entry to finish.
+       */
+      DataSource await() {
+         try {
+            return future.join();
+         }
+         catch(CompletionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+
+            if(cause instanceof RuntimeException) {
+               throw (RuntimeException) cause;
+            }
+
+            if(cause instanceof Error) {
+               throw (Error) cause;
+            }
+
+            throw new RuntimeException(cause);
+         }
+      }
+
+      /**
+       * Gets the built pool.
+       *
+       * @return the pool, or {@code null} if it has not been built (yet).
+       */
+      DataSource getPool() {
+         return pool;
+      }
+
+      /**
+       * Records the built pool.
+       *
+       * @return the close filters that were requested while the pool was being built.
+       */
+      synchronized List<Predicate<DataSource>> finish(DataSource pool) {
+         this.pool = pool;
+         done = true;
+         List<Predicate<DataSource>> result = pendingFilters;
+         pendingFilters = new ArrayList<>();
+         return result;
+      }
+
+      void complete(DataSource pool) {
+         future.complete(pool);
+      }
+
+      void fail(Throwable e) {
+         future.completeExceptionally(e);
+      }
+
+      /**
+       * Tests the filter against the pool. If the pool is still being built, the filter is
+       * remembered and applied by the builder when the pool is ready.
+       *
+       * @return the pool if it is built and matches the filter, otherwise {@code null}.
+       */
+      synchronized DataSource closeIfMatches(Predicate<DataSource> filter) {
+         if(!done) {
+            pendingFilters.add(filter);
+            return null;
+         }
+
+         return filter.test(pool) ? pool : null;
+      }
+
+      private final CompletableFuture<DataSource> future = new CompletableFuture<>();
+      private volatile DataSource pool;
+      private boolean done;
+      private List<Predicate<DataSource>> pendingFilters = new ArrayList<>();
+   }
 
    /**
     * Data source implementation that gets the JDBC driver from JDBC handler.
