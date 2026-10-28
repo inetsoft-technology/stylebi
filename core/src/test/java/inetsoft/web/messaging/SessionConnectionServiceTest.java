@@ -19,10 +19,9 @@ package inetsoft.web.messaging;
 
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.security.AuthenticationService;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.util.Identity;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.AbstractLogoutFilter;
 import inetsoft.web.session.IgniteSessionRepository;
@@ -33,13 +32,13 @@ import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.MapSession;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -54,15 +53,23 @@ class SessionConnectionServiceTest {
    @BeforeEach
    void setUp() {
       cluster = mock(Cluster.class);
+      sessionRepository = mock(IgniteSessionRepository.class);
+      authenticationService = mock(AuthenticationService.class);
+      SecurityEngine engine = mock(SecurityEngine.class);
       service = new SessionConnectionService(
-         mock(IgniteSessionRepository.class), mock(AuthenticationService.class),
+         sessionRepository, authenticationService,
          mock(ApplicationEventPublisher.class), mock(NodeProtectionService.class),
-         mock(SecurityEngine.class), cluster);
+         engine, cluster);
       service.addSessionListener();
 
       ArgumentCaptor<MessageListener> captor = ArgumentCaptor.forClass(MessageListener.class);
       verify(cluster).addMessageListener(captor.capture());
       listener = captor.getValue();
+
+      ArgumentCaptor<AuthenticationChangeListener> authCaptor =
+         ArgumentCaptor.forClass(AuthenticationChangeListener.class);
+      verify(engine).addAuthenticationChangeListener(authCaptor.capture());
+      authListener = authCaptor.getValue();
 
       security = mock(SecurityEngine.class);
       securityStatic = mockStatic(SecurityEngine.class);
@@ -126,6 +133,80 @@ class SessionConnectionServiceTest {
       assertEquals(CloseStatus.NORMAL, closeStatusFor(expired(null, false)));
    }
 
+   // Bug #79536: the sessions of a deleted organization, or of one whose id changed, are logged
+   // out by organization id; the organization's display name may differ from its id.
+   @Test
+   void deletingOrgWhoseNameDiffersFromIdLogsOutItsUsers() {
+      SRPrincipal user = orgSession("u1", "orgx");
+      SRPrincipal other = orgSession("u2", "other-org");
+      authListener.authenticationChanged(new AuthenticationChangeEvent(
+         this, new IdentityID("Org X Name", "orgx"), null, "orgx", null,
+         Identity.ORGANIZATION, true));
+
+      verify(authenticationService).logout(user, "host", "", false);
+      verify(authenticationService, never()).logout(eq(other), any(), any(), anyBoolean());
+   }
+
+   @Test
+   void changingIdOfOrgWhoseNameDiffersFromIdLogsOutItsUsers() {
+      SRPrincipal user = orgSession("u1", "orgx");
+      authListener.authenticationChanged(new AuthenticationChangeEvent(
+         this, new IdentityID("Org X Name", "orgx"), new IdentityID("Org X Name", "orgx2"),
+         "orgx", "orgx2", Identity.ORGANIZATION, false));
+
+      verify(authenticationService).logout(user, "host", "", false);
+   }
+
+   @Test
+   void deletingOrgWhoseNameEqualsIdLogsOutItsUsers() {
+      SRPrincipal user = orgSession("u1", "orgy");
+      authListener.authenticationChanged(new AuthenticationChangeEvent(
+         this, new IdentityID("orgy", "orgy"), null, "orgy", null,
+         Identity.ORGANIZATION, true));
+
+      verify(authenticationService).logout(user, "host", "", false);
+   }
+
+   @Test
+   void renamingOrgDisplayNameOnlyDoesNotLogOutItsUsers() {
+      orgSession("u1", "orgx");
+      authListener.authenticationChanged(new AuthenticationChangeEvent(
+         this, new IdentityID("Org X Name", "orgx"), new IdentityID("Org X Renamed", "orgx"),
+         "orgx", "orgx", Identity.ORGANIZATION, false));
+
+      verify(authenticationService, never()).logout(any(), any(), any(), anyBoolean());
+   }
+
+   @Test
+   void siteAdminViewingDeletedOrgIsNotLoggedOut() {
+      // a host-org user whose org id points at the deleted organization (e.g. switched org)
+      SRPrincipal admin = orgSession("admin", "host-org");
+      when(admin.getOrgId()).thenReturn("orgx");
+      authListener.authenticationChanged(new AuthenticationChangeEvent(
+         this, new IdentityID("Org X Name", "orgx"), null, "orgx", null,
+         Identity.ORGANIZATION, true));
+
+      verify(authenticationService, never()).logout(any(), any(), any(), anyBoolean());
+   }
+
+   private SRPrincipal orgSession(String user, String orgID) {
+      IdentityID identity = new IdentityID(user, orgID);
+      SRPrincipal principal = mock(SRPrincipal.class);
+      when(principal.getIdentityID()).thenReturn(identity);
+      when(principal.getOrgId()).thenReturn(orgID);
+      when(principal.getName()).thenReturn(identity.convertToKey());
+      when(principal.getHost()).thenReturn("host");
+      activeSessions.add(principal);
+      when(sessionRepository.getActiveSessions()).thenReturn(activeSessions);
+
+      IgniteSessionRepository.IgniteSession session = mock(IgniteSessionRepository.IgniteSession.class);
+      when(session.getAttribute(RepletRepository.PRINCIPAL_COOKIE)).thenReturn(principal);
+      when(sessionRepository.findByIndexNameAndIndexValue(
+         FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, identity.convertToKey()))
+         .thenReturn(Map.of("http-" + user, session));
+      return principal;
+   }
+
    private CloseStatus closeStatusFor(SessionEvent event) throws Exception {
       WebSocketSession wsSession = mock(WebSocketSession.class);
       Map<String, Object> attributes = new HashMap<>();
@@ -173,8 +254,12 @@ class SessionConnectionServiceTest {
    }
 
    private Cluster cluster;
+   private IgniteSessionRepository sessionRepository;
+   private AuthenticationService authenticationService;
+   private final List<SRPrincipal> activeSessions = new ArrayList<>();
    private SessionConnectionService service;
    private MessageListener listener;
+   private AuthenticationChangeListener authListener;
    private SecurityEngine security;
    private MockedStatic<SecurityEngine> securityStatic;
    private static int sessionCount = 0;
