@@ -505,6 +505,24 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    /**
+    * Get the welcome page object of an organization, creating it when the organization
+    * does not have its own yet. The welcome page and the login banner share one object, so
+    * the new object starts as a copy of the global one (blank if there is none); otherwise
+    * the first write of one half would drop the value the organization inherits for the
+    * other half.
+    *
+    * @param orgId the organization id.
+    */
+   public PortalWelcomePage getOrCreateOrgWelcomePage(String orgId) {
+      return welcomePageEntries.computeIfAbsent(orgId, id -> {
+         PortalWelcomePage global = welcomePage;
+         Object copy = global == null ? null : global.clone();
+         return copy instanceof PortalWelcomePage ?
+            (PortalWelcomePage) copy : new PortalWelcomePage();
+      });
+   }
+
+   /**
     * Remove the welcome page for the special organization.
     *
     * @param orgId the organization id.

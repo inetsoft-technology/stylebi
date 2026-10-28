@@ -47,7 +47,7 @@ public class PresentationLoginBannerSettingsService {
 
       return PresentationLoginBannerSettingsModel.builder()
          .bannerType(welcomePage.getBannerType() + "")
-         .loginBanner(welcomePage.getBanner())
+         .loginBanner(welcomePage.getBanner() == null ? "" : welcomePage.getBanner())
          .build();
    }
 
@@ -63,20 +63,14 @@ public class PresentationLoginBannerSettingsService {
 
       if(global) {
          welcomePage = manager.getWelcomePage();
-      }
-      else {
-         welcomePage = manager.getWelcomePage(orgId);
-      }
 
-      if(welcomePage == null) {
-         welcomePage = new PortalWelcomePage();
-
-         if(global) {
+         if(welcomePage == null) {
+            welcomePage = new PortalWelcomePage();
             manager.setWelcomePage(welcomePage);
          }
-         else {
-            manager.setWelcomePage(orgId, welcomePage);
-         }
+      }
+      else {
+         welcomePage = manager.getOrCreateOrgWelcomePage(orgId);
       }
 
       String loginBanner = model.loginBanner() == null ? "" : model.loginBanner();

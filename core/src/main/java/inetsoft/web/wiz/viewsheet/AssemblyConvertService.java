@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.PercentCalc;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
@@ -326,6 +327,18 @@ public class AssemblyConvertService {
          !tableInfo.getHyperlinkAttr().isNull())
       {
          cleared.add("hyperlinks");
+      }
+
+      // A Table's hidden columns live outside its column selection, so the layout built from the
+      // rendered lens has no cell for them. A Crosstab's hidden columns stay as width-0 columns.
+      if(tableInfo instanceof TableVSAssemblyInfo tableOnly &&
+         tableOnly.getHiddenColumns() != null)
+      {
+         ColumnSelection hidden = tableOnly.getHiddenColumns();
+
+         for(int i = 0; i < hidden.getAttributeCount(); i++) {
+            cleared.add("hidden column " + hidden.getAttribute(i).getName());
+         }
       }
 
       if(!(assembly instanceof CrosstabVSAssembly crosstab)) {

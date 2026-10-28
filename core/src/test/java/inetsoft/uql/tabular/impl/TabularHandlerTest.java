@@ -21,13 +21,18 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.util.Drivers;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.XTableNode;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularRuntime;
 import inetsoft.util.credential.CredentialType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -37,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Bug #75751: two organizations with independently-scoped tabular data sources that happen to
@@ -46,7 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * its result served to another user from the process wide cache.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                      TabularHandlerTest.DriversConfig.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -187,9 +194,77 @@ class TabularHandlerTest {
       assertNull(original.getResponseShape(), "the original must not see the clone's execution");
    }
 
+   /**
+    * Bug #79438: the timeout a REST runner reports lands on the executed clone and is copied back
+    * by {@link TabularHandler#execute}, so the same two-sided invariant as the response shape holds:
+    * a clone must not arrive reporting the original's earlier timeout, and recording one on the
+    * clone must not reach the original before the copy-back.
+    */
+   @Test
+   void cloneDoesNotInheritTheOriginalsTimeoutAndRecordsItsOwn() {
+      TestTabularQuery original = new TestTabularQuery();
+      original.setTimedOutSeconds(7);
+
+      TabularQuery copy = original.clone();
+
+      assertEquals(0, copy.getTimedOutSeconds(), "a clone must not report a timeout it did not hit");
+      assertEquals(7, original.getTimedOutSeconds());
+
+      copy.setTimedOutSeconds(2);
+      assertEquals(7, original.getTimedOutSeconds(), "the original must not see the clone's run");
+   }
+
+   /**
+    * Bug #79438: the copy-back itself. A runner records the timeout on the CLONE that
+    * {@link TabularHandler#execute} runs; only the copy-back reaches the caller's query, and a rerun
+    * that reports nothing must reset it rather than leave the earlier run's value standing.
+    */
+   @Test
+   void executeCopiesTheRunnersTimeoutBackAndResetsItOnARerunThatReportsNone() throws Exception {
+      int[] reported = { 4 };
+      TabularHandler handler = new TabularHandler() {
+         @Override
+         public TabularRuntime getRuntime(String type) {
+            return new TabularRuntime() {
+               @Override
+               public XTableNode runQuery(TabularQuery query, VariableTable params) {
+                  query.setTimedOutSeconds(reported[0]);
+                  return null;
+               }
+
+               @Override
+               public void testDataSource(TabularDataSource<?> ds, VariableTable params) {
+               }
+            };
+         }
+      };
+
+      TestTabularQuery original = newQuery();
+
+      handler.execute(original, newVars(), principal("admin", "orgA"), null);
+      assertEquals(4, original.getTimedOutSeconds(),
+                   "the timeout recorded on the executed clone must reach the caller's query");
+
+      reported[0] = 0;
+      handler.execute(original, newVars(), principal("admin", "orgA"), null);
+      assertEquals(0, original.getTimedOutSeconds(),
+                   "a rerun that reports no timeout must clear the earlier run's value");
+   }
+
    private static Principal principal(String name, String orgID) {
       return new SRPrincipal(
          new IdentityID(name, orgID), new IdentityID[0], new String[0], orgID, 0L);
+   }
+
+   /**
+    * {@code execute} asks {@code Drivers} for a custom executor; a mock answers null, i.e. none.
+    */
+   @Configuration
+   static class DriversConfig {
+      @Bean
+      Drivers drivers() {
+         return mock(Drivers.class);
+      }
    }
 
    private static final class TestTabularDataSource extends TabularDataSource<TestTabularDataSource> {

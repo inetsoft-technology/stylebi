@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet;
 
 import inetsoft.report.Hyperlink;
+import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.binding.BaseField;
@@ -922,6 +923,42 @@ public class ChartVSAssembly extends DataVSAssembly
             VSUtil.renameHyperlinkRef(hlink, oname, nname);
          }
       }
+
+      // sync target lines, which are bound by the aggregate-wrapped measure name
+      ChartDescriptor desc = getChartDescriptor();
+
+      if(desc != null) {
+         for(int i = 0; i < desc.getTargetCount(); i++) {
+            GraphTarget target = desc.getTarget(i);
+            target.setField(renameTargetMeasure(target.getField(), oname, nname));
+            target.setFieldLabel(renameTargetMeasure(target.getFieldLabel(), oname, nname));
+            target.setLocalizedMeasure(
+               renameTargetMeasure(target.getLocalizedMeasure(), oname, nname));
+         }
+      }
+   }
+
+   /**
+    * Rename the column in a measure name such as "Sum(col)" or "Change of Sum(col)", keeping
+    * the formula prefix. Matches on the trailing "(col)" so column names that contain
+    * parentheses or that also appear in the prefix are handled.
+    */
+   private static String renameTargetMeasure(String measure, String oname, String nname) {
+      if(measure == null) {
+         return null;
+      }
+
+      if(measure.equals(oname)) {
+         return nname;
+      }
+
+      String suffix = "(" + oname + ")";
+
+      if(measure.endsWith(suffix)) {
+         return measure.substring(0, measure.length() - suffix.length()) + "(" + nname + ")";
+      }
+
+      return measure;
    }
 
    // For some chart styles, change calc type can works well, it can support binding both detail

@@ -52,9 +52,7 @@ import inetsoft.uql.tabular.TabularUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import inetsoft.util.Catalog;
-import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
-import inetsoft.util.UserMessage;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
@@ -1623,9 +1621,9 @@ public class WorksheetTableService {
 
       // Clear any user-message residue from an earlier table in this same batch. createTables loops
       // over every requested table on ONE thread and nothing clears CoreTool's per-thread message
-      // list between iterations (see recoveredExceptionDetail) — without this, a message left behind
+      // list between iterations (see TabularProbeCause) — without this, a message left behind
       // by an earlier table's connector could be read below and misattributed to THIS table's probe.
-      CoreTool.clearUserMessage();
+      TabularProbeCause.beginProbe();
 
       // A null QueryManager, matching what TabularTableAssembly.dependencyChanged passes and what
       // buildSqlTable uses for its own column resolution. Taking an AssetQuerySandbox instead would
@@ -1654,13 +1652,13 @@ public class WorksheetTableService {
     * non-null iff the request returned a parseable body (see {@link #applyResponseShape}, which
     * reads the same slot on the success path — the copy-back in {@code TabularHandler.execute} that
     * fills it runs unconditionally, before the success/failure branch). Both branches may carry an
-    * appended exception detail when the connector recovered one — see {@link #recoveredExceptionDetail}.
+    * appended exception detail when the connector recovered one — see {@link TabularProbeCause}.
     * The no-shape branch may also carry a {@code wizLoadColumnsError} clause (added by #5137,
     * {@code TabularTableAssembly.loadColumnSelection}'s own catch) — a disjoint third source: it
-    * fires when {@code loadOutputColumns} THROWS, {@code recoveredExceptionDetail}'s source fires
+    * fires when {@code loadOutputColumns} THROWS, {@code TabularProbeCause}'s source fires
     * when the REST runner's own fetch loop caught the exception internally and returned normally,
     * and the shape-present branch fires when nothing failed at all. All three are kept; see
-    * {@link #recoveredExceptionDetail}'s doc for what happens when the first two name the same
+    * {@link TabularProbeCause}'s doc for what happens when the first two name the same
     * underlying exception.
     *
     * <p>Sanitized ONCE, at this single return point, rather than ingredient-by-ingredient: every
@@ -1681,7 +1679,7 @@ public class WorksheetTableService {
       // so non-null here means loadOutputColumns actually threw during THIS probe, not a stale
       // value from an earlier call on a reused query instance.
       Object loadError = query.getProperty("wizLoadColumnsError");
-      String detail = recoveredExceptionDetail(loadError);
+      String detail = TabularProbeCause.read(query, loadError).detail();
       String message;
 
       if(shape == null) {
@@ -1773,40 +1771,6 @@ public class WorksheetTableService {
 
       String candidate = "$." + onlyArrayField + "[*]";
       return candidate.equals(rowPath) ? null : candidate;
-   }
-
-   /**
-    * The connector's own exception detail, if it recovered and reported one during the probe just
-    * run — see {@code AbstractQueryRunner.logException}, relayed onto this thread by
-    * {@code AbstractRestRuntime.runQuery}'s worker-thread handoff. {@code UserMessage.merge()} joins
-    * multiple recovered messages with '\n', so this can itself carry an embedded newline — left
-    * un-sanitized HERE deliberately: {@link #emptyColumnsMessage} sanitizes the whole assembled
-    * message exactly once, at its single return point, rather than each ingredient sanitizing
-    * itself.
-    *
-    * @param alreadyReported the {@code wizLoadColumnsError} value already folded into the message
-    *                        being assembled, or null. Both sources ultimately read
-    *                        {@code Throwable.getMessage()} off the same exception when {@code
-    *                        loadOutputColumns} itself throws (as opposed to the runner's own fetch
-    *                        loop swallowing it internally, which is the case this source exists
-    *                        for) — when {@code alreadyReported}'s text is already present in what
-    *                        this source recovered, the suffix is omitted so the same sentence is
-    *                        not printed twice.
-    */
-   private String recoveredExceptionDetail(Object alreadyReported) {
-      UserMessage msg = CoreTool.getUserMessage();
-
-      if(msg == null || msg.getMessage() == null || msg.getMessage().isBlank()) {
-         return "";
-      }
-
-      String oneLine = msg.getMessage().trim();
-
-      if(alreadyReported != null && oneLine.contains(String.valueOf(alreadyReported).trim())) {
-         return "";
-      }
-
-      return " The connector reported: " + oneLine;
    }
 
    /**

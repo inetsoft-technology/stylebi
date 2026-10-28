@@ -31,6 +31,12 @@ class SchemaDocumentParser implements DocumentParser {
    }
 
    public void append(Node node) {
+      if(node.getNodeType() == Node.ATTRIBUTE_NODE) {
+         throw new IllegalStateException(String.format(
+            "An xpath selecting an attribute (%s) is not supported when an XML schema is used",
+            node.getNodeName()));
+      }
+
       final ArrayDeque<String> path = new ArrayDeque<>();
       final XTypeNode nodeType = finder.find(node, rootType);
       append(node, nodeType, path, root);

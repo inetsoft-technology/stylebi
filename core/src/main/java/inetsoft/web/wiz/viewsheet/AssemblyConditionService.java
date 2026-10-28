@@ -20,6 +20,8 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.ConditionValueModel;
@@ -138,6 +140,22 @@ public class AssemblyConditionService {
 
       List<String> sessionWarnings = sessions.mutate(sessionToken, user,
                                                      (rvs, runtimeId, dispatcher) -> {
+         Viewsheet vs = rvs.getViewsheet();
+
+         // An embedded table never applies a condition list: EmbeddedTableVSAQuery resets the
+         // pre-condition list on every run, and the Composer UI hides Conditions for it. Accepting
+         // the write would report a narrowing filter that has no effect (bug #79509). Clearing
+         // (an empty list) is harmless and still allowed.
+         if(clauses != null && !clauses.isEmpty() && vs != null &&
+            vs.getAssembly(assemblyName) instanceof EmbeddedTableVSAssembly)
+         {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is an Embedded Table, and Embedded Tables do not support " +
+               "conditions -- they are ignored on every run, so the filter would never change " +
+               "the rows. Nothing was stored. Filter the data with a worksheet condition or a " +
+               "selection component instead.");
+         }
+
          VSConditionDialogModel model = conditionService.getModel(runtimeId, assemblyName, user);
 
          if(model == null) {

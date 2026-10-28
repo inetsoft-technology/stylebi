@@ -71,6 +71,26 @@ class CalcTableHeaderRowRekeyTest {
       assertRekeyed(run(4, 1, 0, 2, 0, 1, D), 1, H);
    }
 
+   /**
+    * Bug #79336: row 0 of a from-scratch calc table's TableLayout is always statically typed
+    * HEADER (the layout's sample CalcTableLens defaults to a 1-row header), independent of the
+    * live headerRowCount, which may legitimately be 0. Raising headerRowCount from 0 must still
+    * re-key row 0's format/hyperlink/highlight from DETAIL to HEADER.
+    */
+   @Test
+   void headerRaiseFromZeroRekeysRow0DetailToHeader() throws Exception {
+      assertRekeyed(run(4, 0, 0, 1, 0, 0, D), 0, H);
+   }
+
+   /**
+    * Same as above but raising headerRowCount from 0 to 2 (row 0 still needs a DETAIL->HEADER
+    * re-key; the result should not depend on the specific new header count).
+    */
+   @Test
+   void headerRaiseFromZeroOverTwoRowsRekeysRow0() throws Exception {
+      assertRekeyed(run(4, 0, 0, 2, 0, 0, D), 0, H);
+   }
+
    @Test
    void headerLowerRekeysHeaderToDetail() throws Exception {
       assertRekeyed(run(4, 2, 0, 1, 0, 1, H), 1, D);

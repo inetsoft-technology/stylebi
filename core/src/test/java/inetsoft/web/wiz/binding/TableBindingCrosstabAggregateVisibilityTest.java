@@ -298,4 +298,29 @@ class TableBindingCrosstabAggregateVisibilityTest {
       assertNull(aggregates(read).get(0).visible());
       assertNull(aggregates(read).get(1).visible());
    }
+
+   /** Bug #79331: a label on only some of a measure's rendered header paths is disclosed. */
+   @Test
+   void readNotesAMeasureLabelThatCoversOnlySomeOfItsHeaderPaths() throws Exception {
+      Fixture f = sideBySide(true);
+      FormatInfo formatInfo = f.sessions().resolve("tok", principal()).getViewsheet()
+         .getAssembly("Crosstab1").getFormatInfo();
+      inetsoft.web.binding.handler.SetTableHeaderAliasHandler.setAlias(
+         path("Year", "2025", SUM), formatInfo, "Total T");
+      inetsoft.web.binding.handler.SetTableHeaderAliasHandler.setAlias(
+         path("Year", "2026", SUM), formatInfo, "Total T");
+
+      Map<String, Object> read = f.service().read("tok", principal(), "Crosstab1");
+
+      assertEquals("Total T", aggregates(read).get(0).label());
+      assertNotNull(read.get("visibilityNote"));
+      assertTrue(read.get("visibilityNote").toString().contains("covers 2 of 3"),
+                 read.get("visibilityNote").toString());
+
+      inetsoft.web.binding.handler.SetTableHeaderAliasHandler.setAlias(
+         path("COL_GRAND_TOTAL", SUM), formatInfo, "Total T");
+
+      assertNull(f.service().read("tok", principal(), "Crosstab1").get("visibilityNote"),
+                 "a label on every rendered path needs no note");
+   }
 }

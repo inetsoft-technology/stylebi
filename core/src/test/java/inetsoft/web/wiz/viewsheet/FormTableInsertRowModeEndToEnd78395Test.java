@@ -249,6 +249,6 @@ class FormTableInsertRowModeEndToEnd78395Test {
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class),
                                           mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(ViewsheetPropertyDialogService.class));
+                                          mock(ViewsheetPropertyDialogService.class), null);
    }
 }

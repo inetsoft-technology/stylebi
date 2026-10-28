@@ -162,6 +162,81 @@ class WorksheetRenameEntityCollisionTest {
       assertEquals("Leaf['V']", column.getExpression());
    }
 
+   /**
+    * Bug #79340: the dot form worksheet.Cats / parameter.V names the assembly, so it follows the
+    * rename; a name that is not an identifier is written as a quoted key, and a dot on any other
+    * object is a property access that must stay untouched.
+    */
+   @Test
+   void renamingTableRewritesDotFormAndQuotesNonIdentifierNames() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly cats = boundTable(ws, "Cats");
+      BoundTableAssembly leaf = boundTable(ws, "Leaf");
+      ExpressionRef dot = addExpression(leaf, "Dot", "worksheet.Cats['c'][0]");
+      ExpressionRef other = addExpression(leaf, "Other", "obj.Cats['c'][0]");
+      ExpressionRef literal = addExpression(leaf, "Lit", "'worksheet.Cats[0]'");
+      ExpressionRef bare = addExpression(leaf, "Bare", "Cats['c'][0]");
+      ws.addAssembly(cats);
+      ws.addAssembly(leaf);
+
+      assertTrue(ws.renameAssembly("Cats", "Cats2", true));
+
+      assertEquals("worksheet.Cats2['c'][0]", dot.getExpression());
+      assertEquals("obj.Cats['c'][0]", other.getExpression());
+      assertEquals("'worksheet.Cats[0]'", literal.getExpression());
+
+      assertTrue(ws.renameAssembly("Cats2", "Cat Names", true));
+
+      assertEquals("worksheet['Cat Names']['c'][0]", dot.getExpression());
+      assertEquals("worksheet['Cat Names']['c'][0]", bare.getExpression());
+   }
+
+   @Test
+   void renamingTableRewritesJavascriptConditionValue() {
+      ExpressionValue js = new ExpressionValue();
+      js.setType(ExpressionValue.JAVASCRIPT);
+      js.setExpression("worksheet.Cats['id'][1] + Cats['id'][0]");
+      ExpressionValue sql = new ExpressionValue();
+      sql.setType(ExpressionValue.SQL);
+      sql.setExpression("Cats");
+      AssetCondition cond = new AssetCondition();
+      cond.addValue(js);
+      cond.addValue(sql);
+
+      cond.renameDepended("Cats", "Cat Names", new Worksheet());
+
+      assertEquals("worksheet['Cat Names']['id'][1] + worksheet['Cat Names']['id'][0]",
+                   js.getExpression());
+      assertEquals("Cats", sql.getExpression());
+   }
+
+   /**
+    * Bug #79340: a name holding a single quote is written as a double-quoted key, a further
+    * rename still finds it, and whitespace after the dot is handled.
+    */
+   @Test
+   void renamingTableToNameWithSingleQuoteUsesDoubleQuotedKey() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly cats = boundTable(ws, "Cats");
+      BoundTableAssembly leaf = boundTable(ws, "Leaf");
+      ExpressionRef bare = addExpression(leaf, "Bare", "Cats['c'][0]");
+      ExpressionRef dot = addExpression(leaf, "Dot", "worksheet. Cats['c'][0]");
+      ExpressionRef key = addExpression(leaf, "Key", "worksheet['Cats']['c'][0]");
+      ws.addAssembly(cats);
+      ws.addAssembly(leaf);
+
+      assertTrue(ws.renameAssembly("Cats", "Bob's", true));
+
+      assertEquals("worksheet[\"Bob's\"]['c'][0]", bare.getExpression());
+      assertEquals("worksheet[\"Bob's\"]['c'][0]", dot.getExpression());
+      assertEquals("worksheet[\"Bob's\"]['c'][0]", key.getExpression());
+
+      assertTrue(ws.renameAssembly("Bob's", "Cat-Names", true));
+
+      assertEquals("worksheet[\"Cat-Names\"]['c'][0]", bare.getExpression());
+      assertEquals("worksheet[\"Cat-Names\"]['c'][0]", key.getExpression());
+   }
+
    private static BoundTableAssembly boundTable(Worksheet ws, String name) {
       BoundTableAssembly table = new BoundTableAssembly(ws, name);
       ColumnSelection columns = new ColumnSelection();

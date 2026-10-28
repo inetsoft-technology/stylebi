@@ -20,7 +20,10 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.util.script.ScriptException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -379,6 +382,53 @@ class AssemblyConvertServiceTest {
       verify(h.selectionList).convertToRangeSlider(
          anyString(), any(ConvertToRangeSliderEvent.class), any(Principal.class), any(),
          anyString());
+   }
+
+   // ── hidden columns (bug #79015) ───────────────────────────────────────────
+
+   private static TableVSAssembly tableWithHidden(String... hiddenNames) {
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
+      ColumnSelection hidden = new ColumnSelection();
+
+      for(String name : hiddenNames) {
+         hidden.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      when(info.isEmbedded()).thenReturn(false);
+      when(info.getHiddenColumns()).thenReturn(hidden);
+      doReturn(info).when(table).getInfo();
+      when(table.getTableDataVSAssemblyInfo()).thenReturn(info);
+      return table;
+   }
+
+   @Test
+   void namesATableHiddenColumnTheFreehandTableDrops() throws Exception {
+      assertEquals(List.of("hidden column Total"),
+                   clearedOf(tableWithHidden("Total"), "Table1", "freehand_table"));
+   }
+
+   @Test
+   void namesEachHiddenColumnInOrder() throws Exception {
+      assertEquals(List.of("hidden column Total", "hidden column Region"),
+                   clearedOf(tableWithHidden("Total", "Region"), "Table1", "freehand_table"));
+   }
+
+   @Test
+   void namesNoHiddenColumnWhenTheTableHasNone() throws Exception {
+      assertEquals(List.of(), clearedOf(tableWithHidden(), "Table1", "freehand_table"));
+   }
+
+   /** A crosstab's hidden columns survive as width-0 columns, so they are not a loss. */
+   @Test
+   void doesNotNameACrosstabHiddenColumn() throws Exception {
+      CrosstabVSAssembly crosstab = boundCrosstab("Xt1", true);
+      when(crosstab.getCrosstabInfo().hasHiddenColumn()).thenReturn(true);
+
+      List<String> cleared = clearedOf(crosstab, "Xt1", "freehand_table");
+
+      assertTrue(cleared.stream().noneMatch(c -> c.startsWith("hidden column")),
+                 "cleared: " + cleared);
    }
 
    // ── the unrendered-table refusal (bug #78406 round 3) ─────────────────────

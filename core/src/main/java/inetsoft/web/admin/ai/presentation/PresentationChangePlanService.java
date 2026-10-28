@@ -18,12 +18,16 @@
 package inetsoft.web.admin.ai.presentation;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.PlanChange;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.presentation.model.PresentationTimeSettingsModel;
+import inetsoft.web.admin.presentation.model.WelcomePageSettingsModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -89,7 +93,7 @@ public class PresentationChangePlanService {
 
       String task = req.getTask().trim();
       List<PlanChange> immutableChanges = Collections.unmodifiableList(changes);
-      String planHash = hash(immutableChanges);
+      String planHash = hash(immutableChanges, hiddenInputs(resolved));
       return new ResolvedPlan(task, immutableChanges, true, true,
                               planHash, TaskAuditToken.issue(planHash, task));
    }
@@ -158,10 +162,15 @@ public class PresentationChangePlanService {
                e.getMessage() + ")", e);
          }
 
+         requireValidMergedValue(label, subModel, spec, currentNode, proposedModel);
+
          if(subModel == PresentationSubModel.PORTAL_INTEGRATION && !global) {
             requireNoGlobalOnlyPortalChange(label, spec, currentNode,
                                             PresentationJson.toNode(proposedModel));
          }
+
+         requireWritableFields(label, subModel, global, spec, currentNode,
+                               PresentationJson.toNode(proposedModel));
 
          String orgId = global ? null :
             OrganizationManager.getInstance().getCurrentOrgID();
@@ -172,12 +181,19 @@ public class PresentationChangePlanService {
          JsonNode readbackNode = subModel == PresentationSubModel.LOOK_AND_FEEL
             ? simulateLookAndFeelReadback(mergedNode, global, orgId) : mergedNode;
 
+         Map<String, String> hidden = new LinkedHashMap<>();
+
+         if(subModel == PresentationSubModel.LOOK_AND_FEEL) {
+            addLookAndFeelFileDigests(hidden, property, mergedNode, global);
+         }
+
          PlanChange planChange = new PlanChange(
             property, orgId, projectedValue(subModel, currentNode),
             projectedValue(subModel, readbackNode), subModel.risk(), subModel.scope(), true,
             "update " + subModel.key() + " (" + scopeLabel + " scope)");
 
-         result.add(new ResolvedChange(subModel, global, currentModel, proposedModel, planChange));
+         result.add(new ResolvedChange(subModel, global, currentModel, proposedModel, planChange,
+                                       hidden));
       }
 
       return result;
@@ -250,6 +266,74 @@ public class PresentationChangePlanService {
       }
 
       return global;
+   }
+
+   /** The seven weekday names the Enterprise Manager "week start" select offers. */
+   private static final List<String> WEEK_DAYS = List.of(
+      "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday");
+
+   /**
+    * Refuses the {@code welcomePage} and {@code time} values the Enterprise Manager editors forbid
+    * (Bug #79430): neither the services nor the legacy REST endpoints validate them, so without this a
+    * type-1 welcome page with a blank source or a week start of "Funday" would be previewed and
+    * written. Judged on the TYPED merged model, so a Jackson coercion is judged by its final value,
+    * and only when that value differs from the current one: an unchanged echo of a read-back value
+    * (null week start at organization scope, a stored invalid value) is not a new edit.
+    */
+   private static void requireValidMergedValue(String label, PresentationSubModel subModel,
+                                               JsonNode spec, JsonNode currentNode, Object proposed)
+   {
+      if(subModel == PresentationSubModel.WELCOME_PAGE) {
+         WelcomePageSettingsModel model = (WelcomePageSettingsModel) proposed;
+         int curType = currentNode.path("type").asInt(0);
+         JsonNode curSourceNode = currentNode.get("source");
+         String curSource = curSourceNode == null || curSourceNode.isNull() ? null :
+            curSourceNode.asText();
+
+         if(spec.has("type")) {
+            if(spec.get("type").isNull()) {
+               throw new IllegalArgumentException(
+                  label + ".spec.type: null is not allowed; use 0 for no welcome page");
+            }
+
+            if((model.type() < 0 || model.type() > 2) && model.type() != curType) {
+               throw new IllegalArgumentException(
+                  label + ".spec.type: must be 0 (none), 1 (URI) or 2 (resource), got " +
+                  model.type());
+            }
+         }
+
+         boolean changed = model.type() != curType || !Objects.equals(model.source(), curSource);
+         String source = model.source();
+
+         if(changed && (model.type() == 1 || model.type() == 2) &&
+            (source == null || source.trim().isEmpty()))
+         {
+            if(spec.has("source")) {
+               throw new IllegalArgumentException(
+                  label + ".spec.source: required (non-blank) for type " + model.type() +
+                  (model.type() == 1 ? " (URI)" : " (resource)"));
+            }
+
+            throw new IllegalArgumentException(
+               label + ".spec.type: type " + model.type() + (model.type() == 1 ? " (URI)" : " (resource)") +
+               " requires a non-blank source and the live source is blank; send spec.source too");
+         }
+      }
+      else if(subModel == PresentationSubModel.TIME && spec.has("weekStart")) {
+         String weekStart = ((PresentationTimeSettingsModel) proposed).weekStart();
+         JsonNode curNode = currentNode.get("weekStart");
+         String cur = curNode == null || curNode.isNull() ? null : curNode.asText();
+
+         if(!Objects.equals(weekStart, cur) &&
+            (weekStart == null || !weekStart.isEmpty() &&
+             !WEEK_DAYS.contains(weekStart.toLowerCase(Locale.ROOT))))
+         {
+            throw new IllegalArgumentException(
+               label + ".spec.weekStart: must be one of Sunday..Saturday (case-insensitive) or \"\" " +
+               "for the default, got " + (weekStart == null ? "null" : "\"" + weekStart + "\""));
+         }
+      }
    }
 
    private static void requireUnseen(String label, PresentationSubModel subModel, boolean global,
@@ -414,6 +498,77 @@ public class PresentationChangePlanService {
       }
    }
 
+   /** Bug #79434: refuses a spec that names a field the real {@code setModel} never stores (or stores
+    * under a different scope than {@code getModel} reads), because such a change is planned, then
+    * never reads back, and apply reports a rollback outcome for a write that never happened.
+    * <ul>
+    * <li>{@link PresentationSubModel#readOnlyFields()} at every scope: refused when the value differs
+    * from the current read (echoing the current value stays accepted).</li>
+    * <li>{@link PresentationSubModel#orgScopeGlobalOnlyFields()} at organization scope: refused when
+    * the value differs from the current read.</li>
+    * <li>{@link PresentationSubModel#orgScopeNeverWritableFields()} at organization scope: refused
+    * whenever present and non-null, because these project to the same value before and after any
+    * write, so apply would verify as applied while nothing was written.</li>
+    * <li>{@code exportMenu.vsOptions} with every option disabled: {@code saveExportMenuSettings}
+    * turns "none selected" into "all selected", so the read-back never matches.</li>
+    * </ul> */
+   private static void requireWritableFields(String label, PresentationSubModel subModel,
+                                             boolean global, JsonNode spec, JsonNode current,
+                                             JsonNode proposed)
+   {
+      for(String field : subModel.readOnlyFields()) {
+         if(spec.has(field) && !Objects.equals(current.get(field), proposed.get(field))) {
+            throw new IllegalArgumentException(
+               label + ".spec." + field + ": " + subModel.key() + "." + field + " is read-only -- " +
+               "the server derives it and never stores a written value, so this change would not " +
+               "be written at any scope. Omit the field.");
+         }
+      }
+
+      if(!global) {
+         for(String field : subModel.orgScopeGlobalOnlyFields()) {
+            if(spec.has(field) && !Objects.equals(current.get(field), proposed.get(field))) {
+               throw new IllegalArgumentException(
+                  label + ".spec." + field + ": " + subModel.key() + "." + field + " is " +
+                  "global-only -- it is written only by a global save, so at scope " +
+                  "\"organization\" this change would not be written at all. Use scope " +
+                  "\"global\" (it applies to every organization).");
+            }
+         }
+
+         for(String field : subModel.orgScopeNeverWritableFields()) {
+            JsonNode value = spec.get(field);
+
+            if(value != null && !value.isNull()) {
+               throw new IllegalArgumentException(
+                  label + ".spec." + field + ": " + subModel.key() + "." + field + " is " +
+                  "global-only -- it is written only by a global save, so at scope " +
+                  "\"organization\" it would be silently ignored. Use scope \"global\" (it " +
+                  "applies to every organization).");
+            }
+         }
+      }
+
+      if(subModel == PresentationSubModel.EXPORT_MENU && spec.has("vsOptions")) {
+         JsonNode options = proposed.get("vsOptions");
+
+         if(options != null && options.isArray() && options.size() > 0) {
+            boolean anyEnabled = false;
+
+            for(JsonNode option : options) {
+               anyEnabled |= option.path("value").asBoolean(false);
+            }
+
+            if(!anyEnabled) {
+               throw new IllegalArgumentException(
+                  label + ".spec.vsOptions: at least one export option must be enabled -- the " +
+                  "server turns a list with no option enabled into every option enabled, so the " +
+                  "value would not read back as written.");
+            }
+         }
+      }
+   }
+
    /** The {@code portalIntegration} fields {@code setModel} writes only when {@code globalSettings}. */
    private static final List<String> PORTAL_GLOBAL_ONLY_FIELDS =
       List.of("tabs", "help", "preference", "logout", "search", "home");
@@ -491,6 +646,57 @@ public class PresentationChangePlanService {
       return node;
    }
 
+   /** Bug #79434: {@code viewsheetCSSEntries} comes from a {@code ConcurrentHashMap}, so its read order
+    * is bucket order, not insertion order. Projections of this sub-model order the entries by
+    * {@code identityName} so that the plan's expected value and the apply read-back compare equal
+    * whatever order the server returns them in. */
+   private static void sortCssEntries(JsonNode node) {
+      JsonNode entries = node.get("viewsheetCSSEntries");
+
+      if(entries == null || !entries.isArray() || !(node instanceof ObjectNode)) {
+         return;
+      }
+
+      List<JsonNode> sorted = new ArrayList<>();
+      entries.forEach(sorted::add);
+      sorted.sort(Comparator.comparing(e -> e.path("identityName").asText("")));
+      ArrayNode array = PresentationJson.MAPPER.createArrayNode();
+      sorted.forEach(array::add);
+      ((ObjectNode) node).set("viewsheetCSSEntries", array);
+   }
+
+   /** Mirrors {@code LookAndFeelService.setViewsheet}'s org-scope entry bookkeeping: an upload adds
+    * (or replaces) the org's own {@code {orgId, orgId/name}} entry, {@code defaultViewsheet} removes
+    * it, other orgs' entries are left alone, and global scope never changes the entries. */
+   private static void applyCssEntryReadback(ObjectNode node, boolean global, String orgId,
+                                             boolean isDefault, boolean hasContent, String name)
+   {
+      if(global || orgId == null || (!isDefault && !hasContent)) {
+         return;
+      }
+
+      JsonNode existing = node.get("viewsheetCSSEntries");
+      ArrayNode updated = PresentationJson.MAPPER.createArrayNode();
+
+      if(existing != null && existing.isArray()) {
+         for(JsonNode entry : existing) {
+            if(!orgId.equals(entry.path("identityName").asText(null))) {
+               updated.add(entry);
+            }
+         }
+      }
+
+      if(!isDefault) {
+         ObjectNode entry = PresentationJson.MAPPER.createObjectNode();
+         entry.put("identityName", orgId);
+         entry.put("fileName", orgId + "/" + name);
+         entry.putNull("file");
+         updated.add(entry);
+      }
+
+      node.set("viewsheetCSSEntries", updated);
+   }
+
    /** Shared shape of {@code logoFile}/{@code faviconFile}: cleared to {@code ""} when the
     * corresponding {@code default*} flag is set, else renamed to the server-derived
     * "portal/[org/]<baseName><ext>" only when a real file with content was submitted (matching
@@ -539,7 +745,74 @@ public class PresentationChangePlanService {
          node.put("viewsheetName", "");
       }
 
+      applyCssEntryReadback(node, global, orgId, isDefault, hasContent,
+                            file == null ? "" : file.path("name").asText(""));
       node.putNull("viewsheetFile");
+   }
+
+   /** Bug #79429: {@link #simulateLookAndFeelReadback} nulls the four {@code FileData} fields, so
+    * the projection (and the hash computed from it) is blind to the uploaded bytes -- and apply
+    * re-resolves from its own request, so the bytes could be swapped between preview and apply.
+    * Folds one hidden digest per field that the write would really apply into the plan hash,
+    * leaving the visible projection untouched (the #76729 read-back compare needs it content-free).
+    * Computed from the sanitized merged node, before the read-back simulation, in a fixed field
+    * order. Gates mirror {@code LookAndFeelService.setModel}: logo/favicon/viewsheet only when the
+    * {@code default*} flag is off, userformat only at global scope; the gate is {@code content != null}
+    * (an empty file is written). Per field, only what the write uses is hashed: the extension
+    * ({@code .gif} if none) for logo/favicon, the name for viewsheet at organization scope only,
+    * nothing but the content for userformat. A field that is not applied adds nothing, so a plan
+    * with no effective file hashes exactly as before. */
+   private static void addLookAndFeelFileDigests(Map<String, String> hidden, String key,
+                                                 JsonNode merged, boolean global)
+   {
+      for(String[] f : new String[][] {{"logo", "logoFile", "defaultLogo"},
+                                       {"favicon", "faviconFile", "defaultFavicon"}})
+      {
+         String content = fileContent(merged, f[1]);
+
+         if(content != null && !merged.path(f[2]).asBoolean(false)) {
+            String name = merged.path(f[1]).path("name").asText("");
+            int dot = name.lastIndexOf('.');
+            addFileDigest(hidden, key, f[0], dot >= 0 ? name.substring(dot) : ".gif", content);
+         }
+      }
+
+      String vsContent = fileContent(merged, "viewsheetFile");
+
+      if(vsContent != null && !merged.path("defaultViewsheet").asBoolean(false)) {
+         addFileDigest(hidden, key, "viewsheet",
+                       global ? "" : merged.path("viewsheetFile").path("name").asText(""), vsContent);
+      }
+
+      String formatContent = fileContent(merged, "userformatFile");
+
+      if(global && formatContent != null) {
+         addFileDigest(hidden, key, "userformat", "", formatContent);
+      }
+   }
+
+   private static String fileContent(JsonNode merged, String field) {
+      JsonNode file = merged.get(field);
+      return file != null && file.isObject() && file.hasNonNull("content")
+         ? file.get("content").asText() : null;
+   }
+
+   private static void addFileDigest(Map<String, String> hidden, String key, String field,
+                                     String name, String content)
+   {
+      PlanHashInputs.addHidden(hidden, key, field, PlanHashInputs.digest(
+         "presentation.lookAndFeel." + field + ".", name + SEP + content));
+   }
+
+   /** The hidden hash inputs of every resolved change, keyed by the change's property. */
+   static Map<String, String> hiddenInputs(List<ResolvedChange> resolved) {
+      Map<String, String> all = new LinkedHashMap<>();
+
+      for(ResolvedChange entry : resolved) {
+         all.putAll(entry.hidden());
+      }
+
+      return all;
    }
 
    private static String sanitizeBaseName(String label, String raw) {
@@ -588,7 +861,14 @@ public class PresentationChangePlanService {
    /** Package-visible so {@link PresentationChangesetApplyService} can compute the identical
     * before/after projection when verifying a write's read-back, instead of re-deriving its own. */
    static String projectedValue(PresentationSubModel subModel, JsonNode node) {
-      return PresentationJson.writeString(PresentationJson.maskSecrets(subModel, node));
+      JsonNode masked = PresentationJson.maskSecrets(subModel, node);
+
+      if(subModel == PresentationSubModel.LOOK_AND_FEEL && masked != null && masked.isObject()) {
+         masked = masked.deepCopy();
+         sortCssEntries(masked);
+      }
+
+      return PresentationJson.writeString(masked);
    }
 
    // ---------------------------------------------------------------- hash
@@ -605,8 +885,11 @@ public class PresentationChangePlanService {
     * and apply. {@code task} is write-only downstream -- it flows into
     * {@link PresentationChangesetApplyService#writeAudit} as
     * {@code AdminChangeRecord.setTaskDescription}, a plain audit label that is never read back or
-    * compared -- so excluding it from the hash does not weaken the gate against a changed plan. */
-   static String hash(List<PlanChange> changes) {
+    * compared -- so excluding it from the hash does not weaken the gate against a changed plan.
+    *
+    * <p>{@code hidden} (Bug #79429) holds per-change inputs that must bind the plan but never appear
+    * in a projection (lookAndFeel upload digests), keyed by {@link PlanChange#property()}. */
+   static String hash(List<PlanChange> changes, Map<String, String> hidden) {
       StringBuilder canonical = new StringBuilder();
 
       for(PlanChange change : changes) {
@@ -616,6 +899,7 @@ public class PresentationChangePlanService {
             .append(canonicalValue(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
+         PlanHashInputs.appendHidden(canonical, SEP, hidden, change.property());
       }
 
       try {
@@ -648,7 +932,8 @@ public class PresentationChangePlanService {
     * {@link #proposedModel()} (and, on rollback, write {@link #currentModel()} back) directly instead
     * of re-deriving either from JSON a second time. */
    record ResolvedChange(PresentationSubModel subModel, boolean global, Object currentModel,
-                         Object proposedModel, PlanChange planChange)
+                         Object proposedModel, PlanChange planChange,
+                         Map<String, String> hidden)
    {
    }
 }

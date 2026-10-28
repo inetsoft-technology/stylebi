@@ -24,6 +24,7 @@ import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -252,6 +253,40 @@ class ScheduleChangePlanServiceTest {
       IllegalArgumentException ex =
          assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
       assertTrue(ex.getMessage().contains("DELETE"));
+   }
+
+   // Bug #79426, an execute-as identity that doesn't resolve is refused by apply; the plan must
+   // refuse it too, naming the field, instead of planning a change apply can only throw on.
+   @Test void resolveCreateThrowsWhenExecuteAsIdentityDoesNotResolve() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      ScheduleTask.ExecuteAsID executeAs = new ScheduleTask.ExecuteAsID(
+         ScheduleTask.ExecuteAsID.Type.USER, new IdentityID("nouser", "host-org"));
+      spec.setExecuteAsID(executeAs);
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      doThrow(new MessageException("The execute-as user nouser does not exist"))
+         .when(scheduleGateway).requireExecuteAsResolves(spec.getOwner(), executeAs);
+      ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("spec.executeAsID"));
+      assertTrue(ex.getMessage().contains("does not exist"));
+   }
+
+   @Test void resolveCreateSucceedsWhenExecuteAsIdentityResolves() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      ScheduleTask.ExecuteAsID executeAs = new ScheduleTask.ExecuteAsID(
+         ScheduleTask.ExecuteAsID.Type.USER, new IdentityID("someone", "host-org"));
+      spec.setExecuteAsID(executeAs);
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+
+      service.resolve(request("task", List.of(createChange(spec))), user);
+
+      verify(scheduleGateway).requireExecuteAsResolves(spec.getOwner(), executeAs);
    }
 
    @Test void resolveCreateSucceedsWithNullCurrentAndNonNullProposed() throws Exception {
@@ -774,6 +809,27 @@ class ScheduleChangePlanServiceTest {
          condition.setTimeZone(zone);
          assertEquals(1, resolveCreateOf(specWith(condition)).changes().size(), zone);
       }
+   }
+
+   // Bug #79424: the permission-based sanitize resets a value the caller may not set (e.g. a
+   // timeRange after switch_organization), so the plan must refuse it instead of showing it.
+   @Test void conditionValueThePermissionSanitizeWouldResetIsRefusedNamingTheField() {
+      when(scheduleGateway.previewConditionResets(anyList(), eq(user)))
+         .thenReturn(java.util.Collections.singletonList("timeRange: it would be reset to none"));
+      CreateScheduleTaskRequest spec = specWith(timeCondition(9, 0));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateOf(spec));
+
+      assertTrue(ex.getMessage().startsWith(
+         "changes[0].spec.conditions[0].timeRange: "), ex.getMessage());
+   }
+
+   @Test void conditionNothingResetsIsAccepted() throws Exception {
+      when(scheduleGateway.previewConditionResets(anyList(), eq(user)))
+         .thenReturn(java.util.Collections.singletonList(null));
+
+      assertEquals(1, resolveCreateOf(specWith(timeCondition(9, 0))).changes().size());
    }
 
    private static ScheduleChangePlanRequest request(String task, List<ScheduleChangeRequest> changes) {

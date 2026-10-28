@@ -275,6 +275,43 @@ class NamedGroupSource79137Test {
    }
 
    @Test
+   void retargetConflictIsFoundThroughAHiddenGroupedColumn() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embedded(ws, "Other");
+      physicalGroup(ws, "SalesRegion", "SA.REGIONS", "STATE");
+      groupBy(t, "STATE", "SalesRegion");
+      hide(t, "STATE");
+
+      WorksheetMutationSupport.NamedGroupRetargetConflict conflict = retarget(
+         ws, "SalesRegion", "SA.CUSTOMERS", "STATE");
+
+      assertNotNull(conflict);
+      assertEquals("Other", conflict.table());
+   }
+
+   @Test
+   void retargetConflictIsFoundThroughAVisibleGroupedColumn() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embedded(ws, "Other");
+      physicalGroup(ws, "SalesRegion", "SA.REGIONS", "STATE");
+      groupBy(t, "STATE", "SalesRegion");
+
+      assertNotNull(retarget(ws, "SalesRegion", "SA.CUSTOMERS", "STATE"));
+   }
+
+   @Test
+   void retargetToTheSourceOfAHiddenGroupedColumnPasses() {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly t = physical(ws, "CUSTOMERS", "SA.CUSTOMERS", "STATE");
+      physicalGroup(ws, "SalesRegion", "SA.REGIONS", "STATE");
+      groupBy(t, "STATE", "SalesRegion");
+      hide(t, "STATE");
+
+      assertNull(retarget(ws, "SalesRegion", "SA.CUSTOMERS", "STATE"));
+      assertNotNull(retarget(ws, "SalesRegion", "SA.SUPPLIERS", "STATE"));
+   }
+
+   @Test
    void retargetToTheSourceAMirrorTracesToPasses() {
       Worksheet ws = new Worksheet();
       PhysicalBoundTableAssembly t = physical(ws, "CUSTOMERS", "SA.CUSTOMERS", "STATE");
@@ -343,6 +380,12 @@ class NamedGroupSource79137Test {
       AggregateInfo ainfo = new AggregateInfo();
       ainfo.addGroup(group);
       t.setAggregateInfo(ainfo);
+   }
+
+   private static void hide(TableAssembly t, String column) {
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute(column)).setVisible(false);
+      t.setColumnSelection(cs, false);
    }
 
    private static boolean applies(TableAssembly t, String column, NamedGroupAssembly group) {

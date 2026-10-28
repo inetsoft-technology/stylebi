@@ -2935,6 +2935,97 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().contains("Category (hidden)"), thrown.getMessage());
    }
 
+   // ── remove_table_field index on a hidden column (bug-79493) ────────────────
+
+   private static TableVSAssembly tableWithTwoHidden() {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "E");
+      inetsoft.uql.ColumnSelection hidden = columnRefSelectionOf("B", "D");
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(0)).setHiddenPosition(1);
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(1)).setHiddenPosition(3);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hidden);
+      return table;
+   }
+
+   @Test
+   void removeFieldRefusesAWrongIndexForAHiddenColumnAndKeepsItBound() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      // full order A,B,C,D,E: B sits at 1, so 3 is not its position
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "B", 3));
+
+      assertTrue(e.getMessage().contains("'index' 3 is not a position of 'B'"), e.getMessage());
+      assertTrue(e.getMessage().contains("[1] B"), e.getMessage());
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      assertNotNull(info.getHiddenColumns().getAttribute("B"), "B must stay bound");
+      assertEquals(1, hiddenPositionOf(table, "B"));
+      assertEquals(3, hiddenPositionOf(table, "D"));
+   }
+
+   @Test
+   void removeFieldRefusesAnOutOfRangeIndexForAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "B", 9));
+      assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "B", -1));
+      assertNotNull(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+                       .getAttribute("B"));
+   }
+
+   @Test
+   void removeFieldRemovesAHiddenColumnAtItsFullOrderIndex() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.removeField("tok", principal(), "TableView2", "details", "B", 1);
+
+      assertNull(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+                    .getAttribute("B"));
+   }
+
+   @Test
+   void removeFieldRemovesAHiddenColumnWithNoIndex() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.removeField("tok", principal(), "TableView2", "details", "D");
+
+      assertNull(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+                    .getAttribute("D"));
+      assertEquals(1, hiddenPositionOf(table, "B"), "B is before D, so its slot is unchanged");
+   }
+
+   @Test
+   void removeFieldOfAHiddenColumnRestampsTheOtherHiddenColumns() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.removeField("tok", principal(), "TableView2", "details", "B", 1);
+
+      // full order A,B,C,D,E becomes A,C,D,E: D moves from slot 3 to slot 2
+      assertEquals(2, hiddenPositionOf(table, "D"));
+   }
+
+   /** Bug #79493: the shown path takes the same full-order index, so a hidden neighbour's slot is refused. */
+   @Test
+   void removeFieldRefusesTheShownPositionOfAShownColumnWhenAHiddenOneIsBeforeIt()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      // full order A,B,C,D: C is at 2; 1 is only its position among the shown columns
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "C", 1));
+
+      assertTrue(e.getMessage().contains("[2] C"), e.getMessage());
+   }
+
    /**
     * Bug #79208: a hidden column's label must land on the live {@code ColumnRef} in {@code
     * getHiddenColumns()} directly -- merging it into {@code model.getDetails()} to resolve/alias
@@ -3181,6 +3272,115 @@ class TableBindingServiceTest {
                   "a shown rename that collides with nothing -- shown or hidden -- must still " +
                   "be applied");
       assertEquals(List.of("Region -> Sales Region"), result.applied());
+   }
+
+   // ── set_table_source on a Table with hidden columns (bug-79331) ───
+
+   /**
+    * Bug #79331: a forced repoint discarded only the shown fields; a hidden column the new source
+    * lacks stayed in getHiddenColumns(), so the factory's removeUnboundSorts kept its sort too.
+    */
+   @Test
+   void forcedSetSourceDropsAHiddenColumnTheNewSourceLacksAndItsSort() throws Exception {
+      TableVSAssembly table = tableWithColumns("Vtb103", "Region", "State", "City", "Category");
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      info.setHiddenColumns(columnRefSelectionOf("Company"));
+      info.setSortInfo(sortsOn(info, "Company", "Category"));
+      TableBindingService service = repointService(table);
+
+      service.setSource("tok", principal(), "Vtb103", "PrbSrc", true);
+
+      assertNull(info.getHiddenColumns().getAttribute("Company"),
+                 "hidden 'Company' does not exist in PrbSrc, so it must be discarded");
+      assertNull(orderOf(info.getSortInfo(), "Company"),
+                 "the discarded hidden column must not keep its sort");
+      assertNotNull(orderOf(info.getSortInfo(), "Category"),
+                    "a column the new source has keeps its sort");
+   }
+
+   /** Bug #79331: matched by column, not by alias -- a relabelled hidden column that exists stays. */
+   @Test
+   void forcedSetSourceKeepsAnAliasedHiddenColumnTheNewSourceHas() throws Exception {
+      TableVSAssembly table = tableWithColumns("Vtb103", "Region", "State");
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      inetsoft.uql.asset.ColumnRef aliased =
+         new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, "Category"));
+      aliased.setAlias("Product Line");
+      inetsoft.uql.ColumnSelection hidden = new inetsoft.uql.ColumnSelection();
+      hidden.addAttribute(aliased);
+      info.setHiddenColumns(hidden);
+      TableBindingService service = repointService(table);
+
+      service.setSource("tok", principal(), "Vtb103", "PrbSrc", true);
+
+      assertEquals(1, info.getHiddenColumns().getAttributeCount(),
+                   "'Category' (aliased 'Product Line') exists in PrbSrc and must survive");
+   }
+
+   /** Bug #79331: a Table bound only through hidden columns is still refused without force. */
+   @Test
+   void unforcedSetSourceRefusesATableWhoseOnlyBoundColumnsAreHidden() throws Exception {
+      TableVSAssembly table = tableWithColumns("Vtb103");
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      info.setHiddenColumns(columnRefSelectionOf("Company"));
+      TableBindingService service = repointService(table);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setSource("tok", principal(), "Vtb103", "PrbSrc", false));
+
+      assertTrue(thrown.getMessage().contains("1 hidden"), thrown.getMessage());
+      assertNotNull(info.getHiddenColumns().getAttribute("Company"));
+   }
+
+   private static inetsoft.uql.asset.SortInfo sortsOn(TableVSAssemblyInfo info, String asc,
+                                                      String desc)
+   {
+      inetsoft.uql.asset.SortInfo sinfo = new inetsoft.uql.asset.SortInfo();
+      inetsoft.uql.asset.SortRef a =
+         new inetsoft.uql.asset.SortRef(new inetsoft.uql.erm.AttributeRef(null, asc));
+      a.setOrder(inetsoft.uql.XConstants.SORT_ASC);
+      inetsoft.uql.asset.SortRef d =
+         new inetsoft.uql.asset.SortRef(new inetsoft.uql.erm.AttributeRef(null, desc));
+      d.setOrder(inetsoft.uql.XConstants.SORT_DESC);
+      sinfo.addSort(a);
+      sinfo.addSort(d);
+      return sinfo;
+   }
+
+   /**
+    * A real TableBindingModel on Prb7b (with Company) next to PrbSrc (without it); setBinding runs
+    * the real VSTableBindingFactory.updateTableAssembly, setBinding's first step for a Table.
+    */
+   private static TableBindingService repointService(TableVSAssembly table) throws Exception {
+      inetsoft.web.binding.service.DataRefModelFactoryService refModelService =
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenAnswer(
+         invocation -> new inetsoft.web.binding.drm.ColumnRefModel(invocation.getArgument(0)));
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenAnswer(invocation -> {
+         TableBindingModel created =
+            new TableBindingModel(refModelService, (TableVSAssembly) invocation.getArgument(0));
+         created.setSource(new inetsoft.web.binding.model.SourceInfo());
+         created.getSource().setSource("Prb7b");
+         created.setTables(withTablesAndColumns(Map.of(
+            "Prb7b", List.of("Region", "State", "City", "Category", "Company"),
+            "PrbSrc", List.of("Region", "State", "Category"))).getTables());
+         return created;
+      });
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      doAnswer(invocation -> {
+         ApplyVSAssemblyInfoEvent event = invocation.getArgument(1);
+         inetsoft.web.binding.service.VSTableBindingFactory.updateTableAssembly(
+            (TableBindingModel) event.getBinding(), table);
+         return null;
+      }).when(bindings).setBinding(anyString(), any(), any(), any());
+
+      return new TableBindingService(
+         sessionsFor(table), binding, bindings, refModelService,
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class),
+         committingAssemblyInfoHandler());
    }
 
    private static TableVSAssembly tableWithHiddenB() {
@@ -3676,10 +3876,12 @@ class TableBindingServiceTest {
    void relaysTheDegeneratePercentWarningFromAShapeChangingWrite() throws Exception {
       CrosstabBindingModel existing = new CrosstabBindingModel();
       TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("Year")));
+      // built by the real read-back ctor, which pairs the legacy percentage with a PercentCalcInfo
+      inetsoft.uql.viewsheet.VSAggregateRef ref = new inetsoft.uql.viewsheet.VSAggregateRef();
+      ref.setColumnValue("Total");
+      ref.setPercentageOptionValue("1");
       inetsoft.web.binding.model.BAggregateRefModel agg =
-         new inetsoft.web.binding.model.BAggregateRefModel();
-      agg.setColumnValue("Total");
-      agg.setPercentage("1");
+         new inetsoft.web.binding.model.BAggregateRefModel(ref);
       existing.setAggregates(List.of(agg));
 
       Viewsheet vs = mock(Viewsheet.class);

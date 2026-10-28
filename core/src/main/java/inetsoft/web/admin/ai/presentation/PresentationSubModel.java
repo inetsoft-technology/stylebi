@@ -144,6 +144,37 @@ public enum PresentationSubModel {
       };
    }
 
+   /** Fields the real getModel derives (a constant or server-computed value) and the real setModel
+    * never reads, at every scope. A spec may echo the current value but never change it, because
+    * the change would be planned and then never read back (Bug #79434). */
+   public Set<String> readOnlyFields() {
+      return switch(this) {
+         case EXPORT_MENU, LOOK_AND_FEEL -> Set.of("vsEnabled");
+         default -> Set.of();
+      };
+   }
+
+   /** Fields the real setModel writes only on a global save while getModel reads the global value for
+    * either scope. At organization scope a change would be planned and never stored. Refused only
+    * when the proposed value differs from the current read (Bug #79434). */
+   public Set<String> orgScopeGlobalOnlyFields() {
+      return switch(this) {
+         case LOOK_AND_FEEL -> Set.of("expand", "repositoryTree");
+         default -> Set.of();
+      };
+   }
+
+   /** Fields that are global-only AND project to the same value before and after any write (an
+    * upload trigger or a font edit list), so an equality check cannot catch them: at organization
+    * scope a spec naming one of them is refused whenever it is present and non-null (Bug #79434). */
+   public Set<String> orgScopeNeverWritableFields() {
+      return switch(this) {
+         case LOOK_AND_FEEL -> Set.of("userformatFile", "newFontFaces", "deleteFontFaces",
+                                      "defaultFont", "userFonts", "fontFaces");
+         default -> Set.of();
+      };
+   }
+
    /** Exact, case-sensitive match against the 16 names (01-spec.md section 11) -- no fuzzy/prefix
     * matching, since a wrong guess here would silently target the wrong sub-model.
     *

@@ -248,6 +248,11 @@ public class ScheduleCycleService {
                "em.scheduler.emptyCycleName"));
          }
 
+         // Bug #79236, the conditions are built, and so range checked, before anything is
+         // removed or moved, so a refused condition leaves the stored cycle untouched
+         List<ScheduleCondition> conditions =
+            getCycleConditions(model.conditionPaneModel().conditions());
+
          if(!oldName.equals(newName) && dataCycleManager.hasPregeneratedDependency(oldName)) {
             throw new Exception(catalog.getString("em.scheduler.renameCycleError"));
          }
@@ -275,7 +280,7 @@ public class ScheduleCycleService {
          }
 
          boolean enabled = dataCycleManager.isEnable(oldName, orgId);
-         dataCycleManager.setConditions(newName, orgId, getCycleConditions(model.conditionPaneModel().conditions()));
+         dataCycleManager.setConditions(newName, orgId, conditions);
          dataCycleManager.setEnable(newName, orgId, enabled);
          DataCycleManager.CycleInfo cycleInfo = model.cycleInfo();
 

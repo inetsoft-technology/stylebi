@@ -300,6 +300,13 @@ public class DataCycleManager
             }
 
             DataCycleId cycle = new DataCycleId(asset.getName(), asset.getOrgId());
+
+            // the cycle was deleted after the key listing; skip it rather than build a task
+            // for a cycle that no longer exists (Bug #79265)
+            if(!storage.contains(assetId, orgId)) {
+               continue;
+            }
+
             IdentityID identityID = new IdentityID(XPrincipal.SYSTEM, orgId);
             ScheduleTask task = new ScheduleTask(
                TASK_PREFIX + cycle.name, ScheduleTask.Type.CYCLE_TASK);
@@ -307,10 +314,18 @@ public class DataCycleManager
             task.setRemovable(false);
             task.setEnabled(asset.isEnabled());
             task.setOwner(identityID);
-            task.setCycleInfo(getCycleInfo(cycle.name, cycle.orgId));
 
-            for(int i = 0; i < getConditionCount(cycle.name, cycle.orgId); i++) {
-               task.addCondition(getCondition(cycle.name, cycle.orgId, i));
+            // Take the cycle info and conditions from the asset read above. Re-reading them
+            // per call (getCycleInfo/getConditionCount/getCondition each hit storage) lets a
+            // concurrent removeDataCycle empty the conditions between the count and the
+            // indexed read, which threw ArrayIndexOutOfBoundsException "0 >= 0" and aborted
+            // the whole regeneration (Bug #79265).
+            task.setCycleInfo(asset.getInfo());
+
+            if(asset.getConditions() != null) {
+               for(ScheduleCondition condition : asset.getConditions()) {
+                  task.addCondition(condition);
+               }
             }
 
             generateMVActions(task, cycle.name, tasks, orgId);

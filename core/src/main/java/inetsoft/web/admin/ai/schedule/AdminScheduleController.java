@@ -25,6 +25,7 @@ import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.schedule.model.TaskListModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
+import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -116,9 +117,11 @@ public class AdminScheduleController {
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
       actions = ResourceAction.ACCESS))
    @PostMapping("/api/wiz/v1/admin/schedule/apply")
-   public ApplyResult apply(@RequestBody ScheduleApplyRequest req, Principal user) throws Exception {
+   public ApplyResult apply(@RequestBody ScheduleApplyRequest req, @LinkUri String linkURI,
+                            Principal user) throws Exception
+   {
       requireSiteAdmin(user);
-      return applyService.apply(req, user);
+      return applyService.apply(req, user, linkURI);
    }
 
    /**

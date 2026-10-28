@@ -21,6 +21,7 @@ import inetsoft.web.api.schedule.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -123,7 +124,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("snap-ref", result.backupRef());
@@ -145,7 +146,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(scheduleGateway).removeScheduleTask(eq("t1"), any(), eq(user));
@@ -167,7 +168,7 @@ class ScheduleChangesetApplyServiceTest {
       ScheduleApplyRequest req = requestWithDivergentApplyTask(
          "reviewed: create t1", "totally different apply-time text", createChange(spec));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
@@ -190,7 +191,7 @@ class ScheduleChangesetApplyServiceTest {
       ScheduleApplyRequest req = requestWithDivergentApplyTask(
          "reviewed: delete t1", "totally different apply-time text", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
@@ -213,7 +214,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setPlanHash("stale-hash");
 
       assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
-                  () -> service.apply(req, user));
+                  () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
                           any(), any(), any(), any(), any(), eq(user));
@@ -229,7 +230,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setReviewOutcome(null);
 
       IllegalArgumentException ex =
-         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user, null));
       assertTrue(ex.getMessage().contains("reviewOutcome"));
    }
 
@@ -244,7 +245,7 @@ class ScheduleChangesetApplyServiceTest {
 
       AdminChangesetApplyService.TaskTokenMismatchException ex = assertThrows(
          AdminChangesetApplyService.TaskTokenMismatchException.class,
-         () -> service.apply(req, user));
+         () -> service.apply(req, user, null));
       assertTrue(ex.getMessage().startsWith("taskToken:"));
       assertNotNull(ex.current());
       verify(scheduleGateway, never())
@@ -262,7 +263,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setTaskToken("   ");
 
       assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
-         () -> service.apply(req, user));
+         () -> service.apply(req, user, null));
    }
 
    @Test void rejectsATaskTokenIssuedForADifferentPlan() throws Exception {
@@ -281,7 +282,7 @@ class ScheduleChangesetApplyServiceTest {
       req.setTaskToken(otherPlan.getTaskToken());
 
       assertThrows(AdminChangesetApplyService.TaskTokenMismatchException.class,
-         () -> service.apply(req, user));
+         () -> service.apply(req, user, null));
       verify(scheduleGateway, never())
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
                           any(), any(), any(), any(), any(), eq(user));
@@ -305,12 +306,32 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
       assertNotNull(result.rollbackFailures());
       assertEquals(1, result.rollbackFailures().size());
       assertEquals(taskId, result.rollbackFailures().get(0).property());
+   }
+
+   // Bug #79426, addScheduleTask refuses an owner/execute-as it can't accept before it writes
+   // anything; that refusal wrote nothing, so it is rolled back, never rollback-failed.
+   @Test void createRefusedBeforeAnyWriteIsRolledBackNotRollbackFailed() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      doThrow(new MessageException("The execute-as user nouser does not exist"))
+         .when(scheduleGateway).checkAddScheduleTaskAllowed(any(), any(), eq(user));
+
+      ApplyResult result =
+         service.apply(applyRequest("create a task", createChange(spec)), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
    }
 
    // The before-state capture (the deep copy of the stored task and its permission, bug #78420)
@@ -330,7 +351,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
@@ -354,7 +375,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
@@ -381,7 +402,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
@@ -416,7 +437,7 @@ class ScheduleChangesetApplyServiceTest {
          "reviewed: two changes", "totally different apply-time text",
          createChange(spec), deleteChange("t2"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       verify(scheduleGateway).removeScheduleTask(eq(createdId), any(), eq(user));
@@ -453,7 +474,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("two changes", createChange(spec), deleteChange("t2"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       verify(scheduleGateway).removeScheduleTask(eq(createdId), any(), eq(user));
@@ -479,7 +500,7 @@ class ScheduleChangesetApplyServiceTest {
 
       ScheduleApplyRequest req = applyRequest("two changes", createChange(spec), deleteChange("t2"));
 
-      ApplyResult result = service.apply(req, user);
+      ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
       assertEquals(1, result.rollbackFailures().size());

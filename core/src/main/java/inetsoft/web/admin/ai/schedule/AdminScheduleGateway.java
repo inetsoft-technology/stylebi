@@ -388,6 +388,75 @@ public class AdminScheduleGateway {
    }
 
    /**
+    * Reports, per condition, what {@link ScheduleTaskService#sanitizeConditions} would reset or
+    * drop when {@link #addScheduleTask} stores these conditions as a NEW task for {@code user}.
+    * It runs that same sanitize on scratch copies (nothing is stored and the request objects are
+    * not touched), so the answer can never drift from the real rule. The result has one entry per
+    * input condition: {@code null} when the condition is stored as given, otherwise a message
+    * starting with the field name, e.g. {@code "timeRange: ..."}.
+    */
+   public List<String> previewConditionResets(List<ScheduleCondition> conditions, Principal user) {
+      inetsoft.sree.schedule.ScheduleTask scratch = new inetsoft.sree.schedule.ScheduleTask();
+      List<inetsoft.sree.schedule.TimeCondition> converted = new ArrayList<>();
+
+      for(ScheduleCondition condition : conditions) {
+         inetsoft.sree.schedule.TimeCondition tc = condition instanceof TimeCondition dto ?
+            ScheduleConditionConverter.convertCondition(dto) : null;
+         converted.add(tc);
+
+         if(tc != null) {
+            scratch.addCondition(tc);
+         }
+      }
+
+      List<inetsoft.sree.schedule.TimeRange> ranges = new ArrayList<>();
+      List<int[]> times = new ArrayList<>();
+
+      for(inetsoft.sree.schedule.TimeCondition tc : converted) {
+         ranges.add(tc == null ? null : tc.getTimeRange());
+         times.add(tc == null ? null : new int[]{ tc.getHour(), tc.getMinute(), tc.getSecond() });
+      }
+
+      scheduleTaskService.sanitizeConditions(scratch, new inetsoft.sree.schedule.ScheduleTask(), user);
+      Set<inetsoft.sree.schedule.ScheduleCondition> kept = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(int i = 0; i < scratch.getConditionCount(); i++) {
+         kept.add(scratch.getCondition(i));
+      }
+
+      List<String> resets = new ArrayList<>();
+
+      for(int i = 0; i < converted.size(); i++) {
+         inetsoft.sree.schedule.TimeCondition tc = converted.get(i);
+
+         if(tc == null) {
+            resets.add(null);
+         }
+         else if(!kept.contains(tc)) {
+            resets.add("type: this condition type needs the startTime schedule option, which " +
+               "the caller does not hold, so the condition would be dropped from the task");
+         }
+         else if(!Objects.equals(ranges.get(i), tc.getTimeRange())) {
+            resets.add("timeRange: the caller may not set a time range here (it needs the " +
+               "timeRange schedule option and, on a multi-tenant deployment, a site admin " +
+               "working in their own organization), so it would be reset to none");
+         }
+         else if(times.get(i)[0] != tc.getHour() || times.get(i)[1] != tc.getMinute() ||
+                 times.get(i)[2] != tc.getSecond())
+         {
+            resets.add("hour/minute/second: the caller does not hold the startTime schedule " +
+               "option, so the time would be reset to the default " + tc.getHour() + ":" +
+               tc.getMinute() + ":" + tc.getSecond());
+         }
+         else {
+            resets.add(null);
+         }
+      }
+
+      return resets;
+   }
+
+   /**
     * Reports whether {@code user} holds {@code DELETE} on {@code taskId}, without requiring the
     * task to actually exist and without throwing on a "no" answer. Mirrors {@code
     * ScheduleApiService#hasDeletePermission} -- delegates to the same {@code
@@ -553,23 +622,63 @@ public class AdminScheduleGateway {
             throw new UnauthorizedAccessException();
          }
 
-         // Bug #78125, an execute-as identity that doesn't resolve is refused instead of being
-         // stored as no identity, which would make the task run as its owner. The owner itself
-         // is accepted, a task without an execute-as identity runs as its owner.
-         if(identity == null && !(executeAsID.getType() == ScheduleTask.ExecuteAsID.Type.USER &&
-            Tool.equals(owner, executeAsID.getIdentityID())))
-         {
-            String type = executeAsID.getType() == ScheduleTask.ExecuteAsID.Type.USER ?
-               "user" : "group";
-            String reason = scheduleService.isSecurityEnabled() ?
-               "does not exist in the security provider" :
-               "cannot be validated while security is disabled";
-            throw new MessageException(
-               "The execute-as " + type + " " + executeAsID.getIdentityID() + " " + reason);
-         }
+         requireExecuteAsResolved(owner, executeAsID, identity);
       }
 
       return identity;
+   }
+
+   /**
+    * Refuses an execute-as identity that doesn't resolve, without checking any permission, so a
+    * change plan can reject it at preview instead of at apply (Bug #79426). No-op for a null
+    * {@code executeAsID}.
+    *
+    * @throws MessageException if the identity doesn't resolve.
+    */
+   public void requireExecuteAsResolves(IdentityID owner, ScheduleTask.ExecuteAsID executeAsID)
+      throws Exception
+   {
+      if(executeAsID != null) {
+         requireExecuteAsResolved(owner, executeAsID,
+            SUtil.getIdentity(executeAsID.getIdentityID(), getIdentityType(executeAsID)));
+      }
+   }
+
+   /**
+    * Runs every check {@link #addScheduleTask} makes on the owner and execute-as identity before it
+    * changes anything, so a caller can tell a refusal that wrote nothing apart from a failure of
+    * the write itself (Bug #79426).
+    *
+    * @throws UnauthorizedAccessException if the caller lacks a required right.
+    * @throws MessageException if the execute-as identity doesn't resolve.
+    */
+   public void checkAddScheduleTaskAllowed(IdentityID owner, ScheduleTask.ExecuteAsID executeAsID,
+                                           Principal user)
+      throws Exception
+   {
+      checkPermission(user);
+      checkOwnerPermission(user, owner, executeAsID);
+   }
+
+   /**
+    * Bug #78125, an execute-as identity that doesn't resolve is refused instead of being stored as
+    * no identity, which would make the task run as its owner. The owner itself is accepted, a task
+    * without an execute-as identity runs as its owner.
+    */
+   private void requireExecuteAsResolved(IdentityID owner, ScheduleTask.ExecuteAsID executeAsID,
+                                         Identity identity)
+   {
+      if(identity == null && !(executeAsID.getType() == ScheduleTask.ExecuteAsID.Type.USER &&
+         Tool.equals(owner, executeAsID.getIdentityID())))
+      {
+         String type = executeAsID.getType() == ScheduleTask.ExecuteAsID.Type.USER ?
+            "user" : "group";
+         String reason = scheduleService.isSecurityEnabled() ?
+            "does not exist in the security provider" :
+            "cannot be validated while security is disabled";
+         throw new MessageException(
+            "The execute-as " + type + " " + executeAsID.getIdentityID() + " " + reason);
+      }
    }
 
    /**
@@ -692,7 +801,9 @@ public class AdminScheduleGateway {
          output.setEndDate(new Date(task.getEndDate()));
       }
 
-      if(task.getStartDate() >= 0) {
+      // Bug #79432, same for an omitted start date: 0 is no start date, as in EM, rather than a
+      // start in 1970 stored on the task
+      if(task.getStartDate() > 0) {
          output.setStartDate(new Date(task.getStartDate()));
       }
 

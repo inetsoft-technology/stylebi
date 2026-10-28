@@ -179,14 +179,60 @@ class PermissionChangePlanServiceTest {
    }
 
    @Test void resolveAcceptsOrganizationIdentityTypeOnCreate() throws Exception {
+      // Bug #79362: an ORGANIZATION identityId names an organization, so only the caller's own
+      // org ("host-org", per setUp's orgManager stub) is a legal bare reference -- a *different*
+      // org here would be the bug, not the case this test is for (see the two tests below).
       stubRawPermission("ASSET", "Examples/Census", null);
-      when(securityService.getPermissionGrant("Examples/Census", "ASSET", "other-org",
+      when(securityService.getPermissionGrant("Examples/Census", "ASSET", "host-org",
          "ORGANIZATION", user)).thenReturn(null);
+      PermissionChangeRequest change = grantChange("ASSET", "Examples/Census", "ORGANIZATION",
+         "host-org", List.of("READ"));
+      PermissionChangePlanRequest req = request("task", List.of(change));
+
+      assertDoesNotThrow(() -> service.resolve(req, user));
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79362: a bare ORGANIZATION identityId names the organization itself, not an
+   // identity inside the caller's own org -- naming a different real org is refused the same
+   // way the already-qualified form ("other-org:other-org") was.
+   // -------------------------------------------------------------------------
+
+   @Test void resolveCreateRefusesABareOrganizationIdentityIdNamingAnotherOrg() {
       PermissionChangeRequest change = grantChange("ASSET", "Examples/Census", "ORGANIZATION",
          "other-org", List.of("READ"));
       PermissionChangePlanRequest req = request("task", List.of(change));
 
-      assertDoesNotThrow(() -> service.resolve(req, user));
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("targets org \"other-org\""), ex.getMessage());
+   }
+
+   @Test void resolveCreateRefusesAQualifiedOrganizationIdentityIdWithAMismatchedPair() {
+      // "other-org:host-org" -- org component equals the caller's current org while the name
+      // names a different real org; this is the shape round 1 of the fix missed.
+      PermissionChangeRequest change = grantChange("ASSET", "Examples/Census", "ORGANIZATION",
+         "other-org:host-org", List.of("READ"));
+      PermissionChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("org and name must agree"), ex.getMessage());
+   }
+
+   @Test void resolveCreateAcceptedOrganizationGrantIsAlwaysSelfReferential() throws Exception {
+      stubRawPermission("ASSET", "Examples/Census", null);
+      when(securityService.getPermissionGrant("Examples/Census", "ASSET", "host-org",
+         "ORGANIZATION", user)).thenReturn(null);
+      PermissionChangeRequest change = grantChange("ASSET", "Examples/Census", "ORGANIZATION",
+         "host-org", List.of("READ"));
+      PermissionChangePlanRequest req = request("task", List.of(change));
+
+      var pc = service.resolve(req, user).changes().get(0);
+
+      assertEquals("ASSET|Examples/Census|ORGANIZATION|host-org~;~host-org", pc.property());
+      assertTrue(pc.proposedValue().contains("ORGANIZATION|host-org|host-org=READ"),
+                 pc.proposedValue());
    }
 
    @Test void resolveThrowsOnDuplicateEntry() throws Exception {

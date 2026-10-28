@@ -109,7 +109,10 @@ final class PresentationJson {
     * tabs}), which 01-spec.md section 5 and 03-reconcile.md Addition 2 both require to be replaced as
     * a whole, never patched element-by-element. */
    static JsonNode merge(JsonNode current, JsonNode spec) {
-      ObjectNode merged = current.deepCopy();
+      // a sub-model whose read is null (e.g. loginBanner with no welcome page object) merges onto an
+      // empty object instead of failing on the cast below
+      ObjectNode merged = current == null || !current.isObject()
+         ? MAPPER.createObjectNode() : (ObjectNode) current.deepCopy();
       Iterator<Map.Entry<String, JsonNode>> fields = spec.fields();
 
       while(fields.hasNext()) {

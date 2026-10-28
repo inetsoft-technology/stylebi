@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.util.filereader.TextUtil;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.controller.table.VSFormTableService;
@@ -37,7 +38,11 @@ import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.text.ParsePosition;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Form Table row-level runtime edits: insert row, delete row(s), set a cell's value, and apply
@@ -197,14 +202,13 @@ public class FormTableRowService {
    {
       Map<String, Object> result = new LinkedHashMap<>();
 
-      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireForm(rvs, assemblyName);
-         requireFormLens(rvs, assemblyName);
-         requireCellInRange(rvs, assemblyName, row, col);
+      // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
+      // Checked again inside the mutation in case the table changed in between.
+      checkSetCell(sessions.resolve(sessionToken, user), assemblyName, row, col, value);
 
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          int nativeRow = row + headerRowOffset(rvs, assemblyName);
-         requireEditableCell(rvs, assemblyName, nativeRow, row, col);
-         String data = requireStrictNumber(rvs, assemblyName, col, value);
+         String data = checkSetCell(rvs, assemblyName, row, col, value);
 
          ChangeFormTableCellInputEvent event = ChangeFormTableCellInputEvent.builder()
             .assemblyName(assemblyName)
@@ -222,6 +226,22 @@ public class FormTableRowService {
       result.put("col", col);
       putWarnings(result, warnings);
       return result;
+   }
+
+   /**
+    * Every refusal {@link #setCell} can make without touching the table, in the order it applies
+    * them; returns the text to hand to {@code changeFormInput}.
+    */
+   private static String checkSetCell(RuntimeViewsheet rvs, String assemblyName, int row, int col,
+                                      String value) throws Exception
+   {
+      requireForm(rvs, assemblyName);
+      requireFormLens(rvs, assemblyName);
+      requireCellInRange(rvs, assemblyName, row, col);
+
+      int nativeRow = row + headerRowOffset(rvs, assemblyName);
+      requireEditableCell(rvs, assemblyName, nativeRow, row, col);
+      return requireStrictValue(rvs, assemblyName, col, value);
    }
 
    /**
@@ -552,18 +572,29 @@ public class FormTableRowService {
     * {@link WizStrictValueParser}, and forwards the canonical text ({@code "2.0"} becomes
     * {@code "2"}) so the pending cell equals what apply writes.
     *
+    * <p>Bug #79324: the same holds for a date. {@code changeFormInput} parses the text with a
+    * lenient format, so {@code "2026-02-30"} is stored as 2026-02-28 and {@code "2026-13-01"} as
+    * 2027-01-01, and text that is no date at all is refused with the option's message unreplaced
+    * ({@code {0}} is filled from the parsed value, which is {@code null}). A temporal cell is
+    * therefore checked here too, and the entered text (trimmed) is what is forwarded, so the
+    * engine converts exactly what the caller wrote. A date in a form other than {@code yyyy-M-d}
+    * that the engine already reads correctly ({@code 01/02/2026}, {@code Mar 05, 2026}) is still
+    * accepted when it is a real calendar date ({@link #isEngineReadDate}); other text is refused.
+    *
     * <p>The strict type comes from both the lens column class and the option type: an Integer option
     * is always {@code integer} (the option range-checks through int even on a Long column), else an
     * integral/floating lens column class decides (this covers a Text or Float option on an integer
-    * column), else a Float option means {@code double}. Anything else (string, date, boolean,
-    * ComboBox labels, an unresolvable lens) is passed through unchanged.
+    * column), else a Float option means {@code double}. A temporal type is the lens column's
+    * ({@code Tool.getDataType}, the same mapping {@code changeFormInput} uses), or {@code date}
+    * for a Date option on any other column. Anything else (string, boolean, ComboBox labels, an
+    * unresolvable lens) is passed through unchanged.
     *
     * <p>{@code null} and the empty string are passed through unchanged. Note an empty string does
     * not clear a numeric cell at apply ({@code XEmbeddedTable.setObject} keeps the old value); only
     * {@code null} clears it.
     */
-   private static String requireStrictNumber(RuntimeViewsheet rvs, String assemblyName, int col,
-                                             String value) throws Exception
+   private static String requireStrictValue(RuntimeViewsheet rvs, String assemblyName, int col,
+                                            String value) throws Exception
    {
       if(value == null || value.isEmpty()) {
          return value;
@@ -589,22 +620,73 @@ public class FormTableRowService {
          return value;
       }
 
+      boolean temporal = isTemporal(type);
       Object parsed;
 
       try {
          parsed = WizStrictValueParser.parse(value, type);
       }
       catch(IllegalArgumentException ex) {
+         if(temporal && !Tool.TIME.equals(type) && isEngineReadDate(value.trim(), type)) {
+            return value.trim();
+         }
+
          String message = option == null ? null : option.getErrorMessage(value);
          throw new IllegalArgumentException(
             message == null || message.isEmpty() ? ex.getMessage() : message, ex);
       }
 
-      if(parsed instanceof Double || parsed instanceof Float) {
+      if(temporal || parsed instanceof Double || parsed instanceof Float) {
          return value.trim();
       }
 
       return parsed == null ? value : String.valueOf(parsed);
+   }
+
+   private static boolean isTemporal(String type) {
+      return Tool.DATE.equals(type) || Tool.TIME_INSTANT.equals(type) || Tool.TIME.equals(type);
+   }
+
+   /**
+    * Whether {@code text}, which {@link WizStrictValueParser} did not take as {@code yyyy-M-d},
+    * is a date {@code changeFormInput} reads correctly and not one it would roll over or clamp.
+    * A numeric form ({@code 01/02/2026}, {@code 2026.3.15}) is read through the format
+    * {@code TextUtil.getDateType} derives for it, so it must be a real date under that format.
+    * Any other form ({@code Mar 05, 2026}) goes through {@code Tool.getData}, so the day and year
+    * written in the text must be the ones it produced (it clamps {@code Feb 30} to the 28th).
+    */
+   private static boolean isEngineReadDate(String text, String type) {
+      TextUtil.TypeFormat typeFormat = TextUtil.getDateType(text);
+
+      if(typeFormat != null) {
+         if(typeFormat.getFormat() == null) {
+            return false;
+         }
+
+         SimpleDateFormat format = Tool.createGregorianDateFormat(typeFormat.getFormat());
+         format.setLenient(false);
+         ParsePosition pos = new ParsePosition(0);
+
+         return format.parse(text, pos) != null && pos.getIndex() == text.length();
+      }
+
+      if(!(Tool.getData(type, text) instanceof java.util.Date date)) {
+         return false;
+      }
+
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(date);
+      Set<Integer> written = new HashSet<>();
+      Matcher numbers = Pattern.compile("[0-9]+").matcher(text);
+
+      while(numbers.find()) {
+         written.add(Integer.parseInt(numbers.group()));
+      }
+
+      int year = cal.get(Calendar.YEAR);
+
+      return written.contains(cal.get(Calendar.DAY_OF_MONTH)) &&
+         (written.contains(year) || written.contains(year % 100));
    }
 
    private static String strictType(String optionType, Class<?> colClass) {
@@ -628,6 +710,10 @@ public class FormTableRowService {
       else if(colClass == Float.class || colClass == float.class) {
          colType = Tool.FLOAT;
       }
+      else if(colClass != null && colClass != String.class) {
+         String dtype = Tool.getDataType(colClass);
+         colType = isTemporal(dtype) ? dtype : null;
+      }
 
       if(ColumnOption.INTEGER.equals(optionType)) {
          return Tool.INTEGER;
@@ -635,6 +721,10 @@ public class FormTableRowService {
 
       if(colType != null) {
          return colType;
+      }
+
+      if(ColumnOption.DATE.equals(optionType)) {
+         return Tool.DATE;
       }
 
       return ColumnOption.FLOAT.equals(optionType) ? Tool.DOUBLE : null;

@@ -46,6 +46,14 @@ import java.security.Principal;
  * recently via bug #76545) before being formally decided and closed as intended; this javadoc
  * exists so it is not rediscovered a 9th time. Do not narrow, gate, or "fix" this bypass without
  * a new, explicit product/security decision superseding #76630.
+ * <p>
+ * <b>Narrow carve-out (Redmine bug #79486, product decision 2026-10-28, supersedes #76630 for
+ * these two resources only).</b> The user-facing {@code VIEWSHEET_ACTION} permissions
+ * {@code ShareBookmark} and {@code ShareToAll} are evaluated against the real user's grants even
+ * for wiz principals, so an admin-configured deny is honored when a user shares a bookmark through
+ * the plugin. This strategy itself is unchanged: {@code ViewsheetAssemblyAgentController} asks for
+ * those two checks on a copy of the principal with the "wiz" tag removed. Every other permission
+ * check keeps the bypass above.
  */
 public class WizDelegatingCheckPermissionStrategy implements CheckPermissionStrategy {
    public WizDelegatingCheckPermissionStrategy(CheckPermissionStrategy delegate) {

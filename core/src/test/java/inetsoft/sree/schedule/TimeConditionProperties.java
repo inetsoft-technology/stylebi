@@ -75,7 +75,28 @@ public final class TimeConditionProperties {
          return false; // rejected
       }
 
-      if(isTimeOutOfRange(condition)) {
+      // validateRanges refuses exactly the start fields out of range, and for an hourly condition
+      // the end fields too (Bug #79236)
+      boolean outOfRange = isTimeOutOfRange(condition);
+      boolean expectRefused = condition.getType() != TimeCondition.AT &&
+         (isStartOutOfRange(condition) ||
+          condition.getType() == TimeCondition.EVERY_HOUR && isEndOutOfRange(condition));
+      boolean refused;
+
+      try {
+         condition.validateRanges();
+         refused = false;
+      }
+      catch(IllegalArgumentException ex) {
+         refused = true;
+      }
+
+      if(refused != expectRefused) {
+         throw new AssertionError(input + (refused ? " is refused" : " is accepted") +
+                                  " by validateRanges, expected the opposite");
+      }
+
+      if(outOfRange) {
          return false;
       }
 
@@ -118,18 +139,27 @@ public final class TimeConditionProperties {
    }
 
    /**
-    * An hour, minute or second outside its range, which no layer refuses: it can repeat a fire,
-    * and writing the XML changes it (Bug #79236). Skipped so that the fuzzer looks for other
-    * defects; remove this check with the fix.
+    * An hour, minute or second outside its range (Bug #79236). The REST API and the imports refuse
+    * it ({@link TimeCondition#validateRanges()}), but a stored condition still loads, and a daily
+    * condition every N days with a start far before midnight can repeat a fire, and writing the
+    * XML changes the hour. Skipped, after the check above, so that the fuzzer looks for other
+    * defects.
     */
    private static boolean isTimeOutOfRange(TimeCondition condition) {
       return condition.getType() != TimeCondition.AT &&
-         (outOfRange(condition.getHour(), 23, false) ||
-          outOfRange(condition.getMinute(), 59, false) ||
-          outOfRange(condition.getSecond(), 59, false) ||
-          outOfRange(condition.getHourEnd(), 23, true) ||
-          outOfRange(condition.getMinuteEnd(), 59, true) ||
-          outOfRange(condition.getSecondEnd(), 59, true));
+         (isStartOutOfRange(condition) || isEndOutOfRange(condition));
+   }
+
+   private static boolean isStartOutOfRange(TimeCondition condition) {
+      return outOfRange(condition.getHour(), 23, false) ||
+         outOfRange(condition.getMinute(), 59, false) ||
+         outOfRange(condition.getSecond(), 59, false);
+   }
+
+   private static boolean isEndOutOfRange(TimeCondition condition) {
+      return outOfRange(condition.getHourEnd(), 23, true) ||
+         outOfRange(condition.getMinuteEnd(), 59, true) ||
+         outOfRange(condition.getSecondEnd(), 59, true);
    }
 
    // an end time field is -1 when the condition has no end time

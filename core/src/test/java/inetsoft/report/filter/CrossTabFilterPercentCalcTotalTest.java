@@ -311,6 +311,28 @@ class CrossTabFilterPercentCalcTotalTest {
       return dim;
    }
 
+   /**
+    * Bug #79450: rows [Year, month-of-year] with a Previous Month calc on the inner dimension.
+    * The month-of-year member is a number, not a Date, so the calc used to throw, the filter
+    * swallowed it and getRowCount() hit a NullPointerException. The filter must now build and
+    * every cell of the calc column is blank.
+    */
+   @Test
+   void previousMonthOnNonDateInnerRowIsBlankNotAnError() {
+      ChangeColumn column = new ChangeColumn(SUM, CALC);
+      column.setChangeType(ValueOfCalc.PREVIOUS_MONTH);
+      column.setAsPercent(true);
+      column.setDim(AbstractCalc.ROW_INNER);
+      CrossTabFilter f = build("MOY", column, false, true, true, false);
+      List<Cell> details = assertDoesNotThrow(() -> calcCells(f, false));
+
+      assertFalse(details.isEmpty());
+
+      for(Cell cell : details) {
+         assertNull(cell.value, cell.toString());
+      }
+   }
+
    private static Stream<Arguments> layouts() {
       List<Arguments> list = new ArrayList<>();
 

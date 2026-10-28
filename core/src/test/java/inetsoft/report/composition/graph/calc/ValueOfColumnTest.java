@@ -961,6 +961,95 @@ public class ValueOfColumnTest {
       assertNull(result);
    }
 
+   /**
+    * Bug #79450: a crosstab Previous Year/Quarter/Week/Month calculator whose target
+    * dimension is not a full date (e.g. month_of_year) used to throw in getPreviousDate
+    * (swallowed by CrossTabFilter.process, leaving the filter data null). It must blank
+    * the cell like the chart branch.
+    */
+   @Test
+   void testCrosstabPreviousNonDateTargetIsInvalidNotThrown() {
+      for(int ctype : new int[] { ValueOfCalc.PREVIOUS_YEAR, ValueOfCalc.PREVIOUS_QUARTER,
+                                  ValueOfCalc.PREVIOUS_WEEK, ValueOfCalc.PREVIOUS_MONTH })
+      {
+         for(Object member : new Object[] { Integer.valueOf(1), "Jan" }) {
+            Object result = crosstabPreviousResult(ctype, member);
+            assertSame(CalcColumn.INVALID, result, "ctype " + ctype + " member " + member);
+         }
+      }
+   }
+
+   /**
+    * Bug #79450: the cases that worked before must not change: a null or empty member
+    * still reaches getPreviousDate (null previous date, no throw), a Date and its
+    * java.sql subclasses still compute the previous value, and PREVIOUS_RANGE is
+    * untouched by the guard.
+    */
+   @Test
+   void testCrosstabPreviousUnchangedCases() {
+      // null/empty members go through getPreviousDate (null previous date) exactly as
+      // before the fix; the cell has no previous cell, so it is blank without a throw
+      assertSame(CalcColumn.INVALID,
+                 assertDoesNotThrow(() -> crosstabPreviousResult(ValueOfCalc.PREVIOUS_MONTH, null)));
+      assertSame(CalcColumn.INVALID,
+                 assertDoesNotThrow(() -> crosstabPreviousResult(ValueOfCalc.PREVIOUS_MONTH, "")));
+
+      Object d = crosstabPreviousResult(ValueOfCalc.PREVIOUS_MONTH, toDate("2021-01-01"));
+      assertEquals(2, d);
+      Object sqlDate = crosstabPreviousResult(ValueOfCalc.PREVIOUS_MONTH,
+         new java.sql.Date(toDate("2021-01-01").getTime()));
+      assertEquals(2, sqlDate);
+      Object ts = crosstabPreviousResult(ValueOfCalc.PREVIOUS_MONTH,
+         new java.sql.Timestamp(toDate("2021-01-01").getTime()));
+      assertEquals(2, ts);
+
+      // PREVIOUS_RANGE with a non-date String member is the Date Comparison path
+      assertEquals(12, crosstabPreviousRangeResult());
+   }
+
+   /**
+    * Calculate a crosstab Previous* cell whose row-dimension member is {@code member}.
+    * The lookup of the previous cell (2020-12-01, value 2) only exists for the Date case.
+    */
+   private Object crosstabPreviousResult(int ctype, Object member) {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      CrossTabFilter.CrosstabDataContext mockContext =
+         mock(CrossTabFilter.CrosstabDataContext.class);
+      when(mockContext.getRowHeaders()).thenReturn(List.of(new String[]{"date1", "sum(id)"}));
+      valueOfColumn.setDim("date1");
+      valueOfColumn.setChangeType(ctype);
+
+      List<Object> values = Arrays.asList(toDate("2020-12-01"), toDate("2021-01-01"));
+      CrossFilter.Tuple rowTuple = new CrossFilter.Tuple(new Object[] { member });
+      when(mockContext.getValues(rowTuple, "", 0, true)).thenReturn(values);
+
+      CrossTabFilter.PairN npairN = createCrosstabFilterPairN(toDate("2020-12-01"), null);
+      when(mockContext.isPairExist(npairN)).thenReturn(true);
+      when(mockContext.getValue(npairN)).thenReturn(2);
+
+      return valueOfColumn.calculate(mockContext, createCrosstabFilterPairN(member, null));
+   }
+
+   private Object crosstabPreviousRangeResult() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      CrossTabFilter.CrosstabDataContext mockContext =
+         mock(CrossTabFilter.CrosstabDataContext.class);
+      when(mockContext.getRowHeaders()).thenReturn(List.of(new String[]{"date2", "sum(id)"}));
+      valueOfColumn.setDim("date2");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_RANGE);
+      valueOfColumn.setDcPeriods(Arrays.asList(
+         new DatePeriod(toDate("2020-01-01"), toDate("2021-01-01")),
+         new DatePeriod(toDate("2022-01-01"), toDate("2023-01-01"))));
+      CrossFilter.Tuple rowTuple = new CrossFilter.Tuple(new Object[] { "2022:2023" });
+      when(mockContext.getValues(rowTuple, "", 0, true))
+         .thenReturn(Arrays.asList("2020:2021", "2022:2023"));
+      CrossTabFilter.PairN pairN2 = createCrosstabFilterPairN("2020:2021", null);
+      when(mockContext.isPairExist(pairN2)).thenReturn(true);
+      when(mockContext.getValue(pairN2)).thenReturn(12);
+
+      return valueOfColumn.calculate(mockContext, createCrosstabFilterPairN("2022:2023", null));
+   }
+
    private CrossTabFilter.PairN createCrosstabFilterPairN(Object rowValue, Object colValue) {
       CrossFilter.Tuple rowTuple = new CrossFilter.Tuple(new Object[] { rowValue });
       CrossFilter.Tuple colTuple = new CrossFilter.Tuple(new Object[] { colValue });

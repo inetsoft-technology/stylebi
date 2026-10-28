@@ -79,8 +79,9 @@ public class ApplyVSAssemblyInfoEvent {
    /**
     * Whether the apply clears the header alias left on a crosstab header path that no longer
     * has a dimension -- the same {@code ClearTableHeaderAliasHandler.processClearAliasFormat}
-    * the Composer's own drag-and-drop passes. Off by default, so the native setbinding event is
-    * unchanged; the wiz table tools turn it on (bug #78530).
+    * the Composer's own drag-and-drop passes, except that a crosstab keeps the label of a still
+    * bound measure's summary header path (bug #79331). Off by default, so the native setbinding
+    * event is unchanged; the wiz table tools turn it on (bug #78530).
     * @return true to clear the aliases of vacated header paths.
     */
    public boolean isClearVacatedAliases() {

@@ -192,15 +192,37 @@ class CalcCellVocabularyTest {
 
    /**
     * Bug #79251: a formula group cell is ordered only by its script's toList options, so its
-    * stored sort is not reported; topn, dateLevel and namedGroup still feed dependent cells and
-    * stay. A column group cell is the control and still reports its sort.
+    * stored sort is not reported. Bug #79330: its stored topn limits neither its list nor
+    * dependent summary cells, so it is not reported either (this also covers layouts stored
+    * before the write side cleared it). dateLevel and namedGroup stay. A column group cell is the
+    * control and still reports its sort and topn.
     */
    @Test
-   void aFormulaGroupCellOmitsItsInertSortButKeepsTopnAndDateLevel() {
+   void aFormulaGroupCellOmitsItsInertSortAndTopnButKeepsDateLevelAndNamedGroup() {
+      NamedGroupInfoModel info = new NamedGroupInfoModel();
+      info.setType(XNamedGroupInfo.ASSET_NAMEDGROUP_INFO);
+      info.setName("Tiers");
       CellBindingInfo cell = new CellBindingInfo();
       cell.setType(CellBinding.BIND_FORMULA);
       cell.setBtype(CellBinding.GROUP);
       cell.setValue("toList(data['Region'])");
+      cell.getOrder().setType(XConstants.SORT_DESC);
+      cell.getOrder().setOption(XConstants.NONE_DATE_GROUP);
+      cell.getOrder().setInfo(info);
+      cell.getTopn().setType(XCondition.TOP_N);
+      cell.getTopn().setTopn(3);
+
+      Map<String, Object> described = CalcCellVocabulary.describe(cell);
+
+      assertFalse(described.containsKey("sort"));
+      assertFalse(described.containsKey("topn"));
+      assertEquals("none", described.get("dateLevel"));
+      assertEquals("Tiers", described.get("namedGroup"));
+   }
+
+   @Test
+   void aColumnGroupCellStillReportsItsSortAndTopn() {
+      CellBindingInfo cell = groupCell(null, false);
       cell.getOrder().setType(XConstants.SORT_DESC);
       cell.getOrder().setOption(XConstants.NONE_DATE_GROUP);
       cell.getTopn().setType(XCondition.TOP_N);
@@ -208,22 +230,10 @@ class CalcCellVocabularyTest {
 
       Map<String, Object> described = CalcCellVocabulary.describe(cell);
 
-      assertFalse(described.containsKey("sort"));
+      assertEquals("desc", ((Map<?, ?>) described.get("sort")).get("direction"));
       assertEquals("none", described.get("dateLevel"));
       assertEquals("top", ((Map<?, ?>) described.get("topn")).get("mode"));
       assertEquals(3, ((Map<?, ?>) described.get("topn")).get("n"));
-   }
-
-   @Test
-   void aColumnGroupCellStillReportsItsSort() {
-      CellBindingInfo cell = groupCell(null, false);
-      cell.getOrder().setType(XConstants.SORT_DESC);
-      cell.getOrder().setOption(XConstants.NONE_DATE_GROUP);
-
-      Map<String, Object> described = CalcCellVocabulary.describe(cell);
-
-      assertEquals("desc", ((Map<?, ?>) described.get("sort")).get("direction"));
-      assertEquals("none", described.get("dateLevel"));
    }
 
    // -- bug #76814: the named group a group cell carries is read back in the write vocabulary --
