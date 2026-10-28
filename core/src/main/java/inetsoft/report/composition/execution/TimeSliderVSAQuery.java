@@ -689,6 +689,12 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
             }
          }
 
+         // the db decides where nulls go in an ORDER BY (e.g. DB2 puts them last), while
+         // the MV and compareRow() below treat null as the lowest value (Bug #79506)
+         if(lens != null) {
+            lens = sortNullFirst(lens);
+         }
+
          Object[] minarr = (min instanceof Object[]) ? (Object[]) min : null;
          Object[] maxarr = (max instanceof Object[]) ? (Object[]) max : null;
 
@@ -775,6 +781,60 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       checkMaxRowLimit(lens);
 
       return lens;
+   }
+
+   /**
+    * Make sure the data rows are in ascending order with null as the lowest value, which is
+    * the order used by the MV and {@link Tool#compare(Object, Object)}. A table that is
+    * already in that order is returned as is.
+    */
+   static TableLens sortNullFirst(TableLens lens) {
+      int hrow = Math.max(1, lens.getHeaderRowCount());
+      int ncol = lens.getColCount();
+      List<Object[]> rows = new ArrayList<>();
+
+      for(int r = hrow; lens.moreRows(r); r++) {
+         Object[] row = new Object[ncol];
+
+         for(int c = 0; c < ncol; c++) {
+            row[c] = lens.getObject(r, c);
+         }
+
+         rows.add(row);
+      }
+
+      Comparator<Object[]> comp = (r1, r2) -> {
+         for(int c = 0; c < ncol; c++) {
+            int rc = Tool.compare(r1[c], r2[c]);
+
+            if(rc != 0) {
+               return rc;
+            }
+         }
+
+         return 0;
+      };
+
+      boolean sorted = true;
+
+      for(int i = 1; i < rows.size() && sorted; i++) {
+         sorted = comp.compare(rows.get(i - 1), rows.get(i)) <= 0;
+      }
+
+      if(sorted) {
+         return lens;
+      }
+
+      rows.sort(comp);
+      DefaultTableLens sortedLens = new DefaultTableLens(lens);
+
+      for(int i = 0; i < rows.size(); i++) {
+         for(int c = 0; c < ncol; c++) {
+            sortedLens.setObject(hrow + i, c, rows.get(i)[c]);
+         }
+      }
+
+      return sortedLens;
    }
 
    /**
