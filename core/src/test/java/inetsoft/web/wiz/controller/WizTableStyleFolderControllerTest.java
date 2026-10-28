@@ -264,6 +264,53 @@ class WizTableStyleFolderControllerTest {
       verify(lib).renameTableStyleFolder("A~B", "X~A~B");
    }
 
+
+   @Test
+   void blankParentVariantsAreRefusedNamingTheField() {
+      Fixture f = new Fixture();
+      f.folders(null, "Sales");
+
+      for(String parent : new String[] { "  ", " / ", "\t" }) {
+         Exception thrown = assertThrows(IllegalArgumentException.class, () -> f.controller.create(
+            new WizTableStyleFolderController.CreateFolderRequest("Q1", parent), f.principal));
+         assertTrue(thrown.getMessage().contains("'parent'"), thrown.getMessage());
+      }
+
+      verify(f.lib, never()).addTableStyleFolder(anyString());
+   }
+
+   @Test
+   void blankNewParentVariantsAreRefusedNamingTheFieldAndEmptyStillMeansRoot() throws Exception {
+      Fixture f = new Fixture();
+      f.folders(null, "Sales");
+      f.folders("Sales", "Sales~Q1");
+
+      for(String newParent : new String[] { "  ", " / " }) {
+         Exception thrown = assertThrows(IllegalArgumentException.class, () -> f.controller.update(
+            new WizTableStyleFolderController.UpdateFolderRequest("Sales/Q1", null, newParent),
+            f.principal));
+         assertTrue(thrown.getMessage().contains("'newParent'"), thrown.getMessage());
+      }
+
+      verify(f.lib, never()).renameTableStyleFolder(anyString(), anyString());
+
+      f.controller.update(
+         new WizTableStyleFolderController.UpdateFolderRequest("Sales/Q1", null, ""), f.principal);
+      verify(f.lib).renameTableStyleFolder("Sales~Q1", "Q1");
+   }
+
+   @Test
+   void emptySegmentAndBlankPathErrorsNameThePathField() {
+      Fixture f = new Fixture();
+      f.folders(null, "Sales");
+
+      for(String path : new String[] { "/ ", "Sales//Q1" }) {
+         Exception thrown = assertThrows(IllegalArgumentException.class, () -> f.controller.update(
+            new WizTableStyleFolderController.UpdateFolderRequest(path, "X", null), f.principal));
+         assertTrue(thrown.getMessage().contains("'path'"), thrown.getMessage());
+      }
+   }
+
    private static XTableStyle style(String id, String name) {
       XTableStyle style = new XTableStyle(new DefaultTableLens());
       style.setID(id);

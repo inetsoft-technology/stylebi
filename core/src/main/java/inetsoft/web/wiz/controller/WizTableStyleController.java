@@ -20,6 +20,7 @@ package inetsoft.web.wiz.controller;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -252,7 +253,7 @@ public class WizTableStyleController {
             "(e.g. 'User Defined/Sales').");
       }
 
-      String folder = request.folder() == null ? null : normalizeFolder(request.folder());
+      String folder = request.folder() == null ? null : normalizeFolder(request.folder(), "folder");
       String internalFolder = toInternalFolder(folder);
       LibManager lib = libManagerProvider.getManager(principal);
       List<String> missingFolders =
@@ -266,6 +267,9 @@ public class WizTableStyleController {
             (folder != null && !folder.isEmpty() ? " in folder '" + folder + "'" : "") +
             ". Use update_table_style to change it, or pick a different name/folder.");
       }
+
+      requireNameFree(lib, tableStyleService, styleName, request.name(), null);
+      requireRegistrable(lib, tableStyleService, missingFolders, null);
 
       XTableStyle style = new XTableStyle(tableStyleService.getTableModel());
       tableStyleService.initTableStyle(style);
@@ -323,7 +327,7 @@ public class WizTableStyleController {
                "(e.g. 'User Defined/Sales').");
          }
 
-         String folder = request.folder() == null ? null : normalizeFolder(request.folder());
+         String folder = request.folder() == null ? null : normalizeFolder(request.folder(), "folder");
          String oldInternalFolder = internalFolderOf(oldFullName);
          String newLeaf = request.name() != null ? request.name() : leafName(oldFullName);
          String newInternalFolder = folder != null ?
@@ -344,12 +348,14 @@ public class WizTableStyleController {
                   ". Pick a different name/folder.");
             }
 
+            requireNameFree(lib, tableStyleService, newFullName, newLeaf, oldFullName);
             requirePermission(principal, newFullName, ResourceAction.WRITE);
             List<String> missingFolders = List.of();
 
             if(!Objects.equals(newInternalFolder, oldInternalFolder)) {
                missingFolders = requireFoldersAllowed(
                   lib, newInternalFolder, request.createFolders(), folder);
+               requireRegistrable(lib, tableStyleService, missingFolders, oldFullName);
                requireFolderWritePermission(principal, newInternalFolder);
             }
 
@@ -512,7 +518,7 @@ public class WizTableStyleController {
       return style;
    }
 
-   private String leafName(String name) {
+   private static String leafName(String name) {
       int sep = name.lastIndexOf(LibManager.SEPARATOR);
       return sep < 0 ? name : name.substring(sep + LibManager.SEPARATOR.length());
    }
@@ -536,27 +542,110 @@ public class WizTableStyleController {
     * {@code "Bands"} and a lone {@code "/"} is the root, {@code ""}). Any empty segment left
     * after that ({@code "/X"}, {@code "Bands//X"}, {@code "Bands//"}, {@code "//"}) is ambiguous
     * and refused, so it can never be stored as an unlistable {@code "Bands~"}-style parent or
-    * registered as an empty-named folder.
+    * registered as an empty-named folder. Only {@code ""} and {@code "/"} mean the root: a value
+    * that merely normalizes to empty ({@code "  "}, {@code " / "}, a control character) is refused
+    * rather than silently read as the root. Segments are NOT trimmed here -- this is also the
+    * lookup canonicalizer, and an existing folder may legitimately carry edge whitespace.
+    *
+    * @param field the request field the value came from, named in the errors.
     */
-   static String normalizeFolder(String folder) {
+   static String normalizeFolder(String folder, String field) {
       String f = folder.trim();
 
       if(f.endsWith("/")) {
          f = f.substring(0, f.length() - 1);
       }
 
+      if(f.isEmpty() && !folder.isEmpty() && !folder.equals("/")) {
+         throw new IllegalArgumentException(
+            "'" + field + "' is blank -- pass '' (or omit it) for the library root, or a real " +
+            "folder path such as 'User Defined/Sales'.");
+      }
+
       if(!f.isEmpty()) {
          for(String segment : f.split("/", -1)) {
             if(segment.isEmpty()) {
                throw new IllegalArgumentException(
-                  "'folder' '" + folder + "' contains an empty path segment -- join folder " +
-                  "names with a single '/' (e.g. 'User Defined/Sales'), with no leading or " +
-                  "doubled '/'; omit it or pass '' for the library root.");
+                  "'" + field + "' '" + folder + "' contains an empty path segment -- join " +
+                  "folder names with a single '/' (e.g. 'User Defined/Sales'), with no leading " +
+                  "or doubled '/'; omit it or pass '' for the library root.");
             }
          }
       }
 
       return f;
+   }
+
+   /**
+    * Table styles and folders share one full-name namespace in {@code LibManager} (and the same
+    * TABLE_STYLE permission key), so a name taken by either blocks the other.
+    *
+    * @param exceptStyleFullName a style full name to ignore (the style being moved/renamed), or null.
+    * @return {@code "folder"}, {@code "table style"}, or null when {@code full} is free.
+    */
+   static String nameClash(LibManager lib, TableStyleService svc, String full,
+                           String exceptStyleFullName)
+   {
+      if(lib.containsFolder(full)) {
+         return "folder";
+      }
+
+      if(!full.equals(exceptStyleFullName) && svc.containsTableStyle(full)) {
+         return "table style";
+      }
+
+      return null;
+   }
+
+   private static void requireNameFree(LibManager lib, TableStyleService svc, String full,
+                                       String leaf, String exceptStyleFullName)
+   {
+      String kind = nameClash(lib, svc, full, exceptStyleFullName);
+
+      if(kind != null) {
+         throw new IllegalArgumentException(
+            "'" + leaf + "' already exists as a " + kind + " at '" + toDisplayFolder(full) +
+            "' -- table styles and folders share one name space. Pick a different name.");
+      }
+   }
+
+   /**
+    * Checks every folder {@link #registerFolders} is about to register, before anything is
+    * written: its name must be free (intermediate folders included) and its leaf segment must have
+    * no edge whitespace or control characters, matching what the folder tool itself would create.
+    * Already registered folders are looked up verbatim and never checked here.
+    */
+   private static void requireRegistrable(LibManager lib, TableStyleService svc,
+                                          List<String> missing, String exceptStyleFullName)
+   {
+      for(String path : missing) {
+         if(lib.containsFolder(path)) {
+            continue;
+         }
+
+         String leaf = leafName(path);
+         requireNameFree(lib, svc, path, leaf, exceptStyleFullName);
+
+         if(!isCleanFolderSegment(leaf)) {
+            throw new IllegalArgumentException(
+               "'folder' segment '" + leaf.replaceAll("\\p{Cntrl}", "?") + "' would be created " +
+               "as a new folder name with leading/trailing whitespace, a control character or no " +
+               "text; use a plain name such as '" +
+               SUtil.removeControlChars(leaf).strip() + "'.");
+         }
+      }
+   }
+
+   private static boolean isCleanFolderSegment(String segment) {
+      if(segment.isEmpty() || !segment.equals(SUtil.removeControlChars(segment))) {
+         return false;
+      }
+
+      return !isEdgeSpace(segment.charAt(0)) && !isEdgeSpace(segment.charAt(segment.length() - 1));
+   }
+
+   private static boolean isEdgeSpace(char c) {
+      return Character.isWhitespace(c) || Character.isSpaceChar(c);
    }
 
    /** {@code null}/blank means the library root, {@code LibManager}'s own root sentinel. */

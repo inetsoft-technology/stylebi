@@ -100,7 +100,7 @@ public class WizTableStyleFolderController {
                                          Principal principal) throws Exception
    {
       String name = requireFolderName(request.name(), "name");
-      String parent = request.parent() == null ? "" : WizTableStyleController.normalizeFolder(request.parent());
+      String parent = request.parent() == null ? "" : WizTableStyleController.normalizeFolder(request.parent(), "parent");
       String internalParent = WizTableStyleController.toInternalFolder(parent);
       LibManager lib = libManagerProvider.getManager(principal);
       requireParentExists(lib, internalParent, parent);
@@ -131,7 +131,7 @@ public class WizTableStyleFolderController {
       String newParent = oldParent;
 
       if(request.newParent() != null) {
-         String display = WizTableStyleController.normalizeFolder(request.newParent());
+         String display = WizTableStyleController.normalizeFolder(request.newParent(), "newParent");
          newParent = WizTableStyleController.toInternalFolder(display);
          requireParentExists(lib, newParent, display);
       }
@@ -264,7 +264,7 @@ public class WizTableStyleFolderController {
          throw new IllegalArgumentException("'path' is required: the table style folder to change.");
       }
 
-      String display = WizTableStyleController.normalizeFolder(path);
+      String display = WizTableStyleController.normalizeFolder(path, "path");
       String internal = WizTableStyleController.toInternalFolder(display);
 
       if(internal == null) {
@@ -299,7 +299,7 @@ public class WizTableStyleFolderController {
 
    /** The library overwrites on add/rename, so a duplicate must be refused before mutating. */
    private void requireNoDuplicate(LibManager lib, String full, String name) {
-      if(lib.containsFolder(full) || tableStyleService.containsTableStyle(full)) {
+      if(WizTableStyleController.nameClash(lib, tableStyleService, full, null) != null) {
          throw new IllegalArgumentException(
             "'" + name + "' already exists here as a folder or a table style. Pick a different name.");
       }
