@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.sree.schedule.BatchAction;
+import inetsoft.sree.schedule.CompletionCondition;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -85,11 +87,20 @@ public class ScheduleTaskImportChangePlanService {
 
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenKeys = new HashSet<>();
+      Set<String> selectedIds = new HashSet<>();
+
+      for(ScheduleTaskImportChangeRequest change : req.getChanges()) {
+         if(change != null && change.getTaskId() != null) {
+            selectedIds.add(change.getTaskId().trim());
+         }
+      }
+
       int index = 0;
 
       for(ScheduleTaskImportChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, stagingToken, change, seenKeys, user, linkURI));
+         changes.add(resolveOne(label, stagingToken, change, seenKeys, selectedIds, user,
+                                linkURI));
       }
 
       String task = req.getTask().trim();
@@ -102,7 +113,7 @@ public class ScheduleTaskImportChangePlanService {
 
    private PlanChange resolveOne(String label, String stagingToken,
                                  ScheduleTaskImportChangeRequest change, Set<String> seenKeys,
-                                 Principal user, String linkURI)
+                                 Set<String> selectedIds, Principal user, String linkURI)
       throws Exception
    {
       if(change == null) {
@@ -127,16 +138,85 @@ public class ScheduleTaskImportChangePlanService {
       }
 
       String before = existing == null ? null : ScheduleXmlProjection.project(existing);
-      String after = ScheduleXmlProjection.project(
-         ScheduleTaskImportTransform.transformForPlan(label, staged, existing, linkURI, user,
-                                                      scheduleTaskService));
+      ScheduleTask transformed = ScheduleTaskImportTransform.transformForPlan(
+         label, staged, existing, linkURI, user, scheduleTaskService);
+      String after = ScheduleXmlProjection.project(transformed);
       String risk = existing == null ? AdminChangeRecord.RISK_LOW : AdminChangeRecord.RISK_HIGH;
       String description = existing == null ?
          "import schedule task \"" + taskId + "\" as a new task" :
          "import schedule task \"" + taskId + "\" (overwrite: true -- replaces the existing task's " +
             "conditions/actions entirely)";
+      description += missingDependencyNote(transformed, selectedIds);
       return new PlanChange("schedule-import:" + taskId, null, before, after, risk,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
+   }
+
+   /**
+    * Advisory text naming every dependency of the staged task that neither exists on this server
+    * (looked up the same way as the task's own collision check, i.e. in the caller's current
+    * organization) nor is one of the tasks selected in this same import. Never throws: the
+    * import is allowed (EM's own import does not check dependencies either, and the legitimate
+    * "import the child now, the parent later" flow must keep working). The text is only a
+    * description, which the plan hash does not cover, so apply's re-resolve is unaffected.
+    */
+   private String missingDependencyNote(ScheduleTask staged, Set<String> selectedIds) {
+      Set<String> completionParents = new LinkedHashSet<>();
+      Set<String> batchTargets = new LinkedHashSet<>();
+
+      for(int i = 0; i < staged.getConditionCount(); i++) {
+         if(staged.getCondition(i) instanceof CompletionCondition) {
+            completionParents.add(((CompletionCondition) staged.getCondition(i)).getTaskName());
+         }
+      }
+
+      for(int i = 0; i < staged.getActionCount(); i++) {
+         if(staged.getAction(i) instanceof BatchAction) {
+            batchTargets.add(((BatchAction) staged.getAction(i)).getTaskId());
+         }
+      }
+
+      Set<String> missing = new LinkedHashSet<>();
+      Enumeration<String> deps = staged.getDependency();
+
+      while(deps.hasMoreElements()) {
+         String dep = deps.nextElement();
+
+         if(dep != null && !selectedIds.contains(dep) && scheduleManager.getScheduleTask(dep) == null) {
+            missing.add(dep);
+         }
+      }
+
+      if(missing.isEmpty()) {
+         return "";
+      }
+
+      StringBuilder note = new StringBuilder(
+         " -- WARNING: depends on task(s) that exist neither on this server nor in this import: ");
+      boolean first = true;
+
+      for(String dep : missing) {
+         StringBuilder kinds = new StringBuilder();
+
+         if(completionParents.contains(dep)) {
+            kinds.append("completion condition: this task will not be triggered by \"")
+               .append(dep).append("\"; it still runs on its other conditions, if any");
+         }
+
+         if(batchTargets.contains(dep)) {
+            if(kinds.length() > 0) {
+               kinds.append("; ");
+            }
+
+            kinds.append("batch action: running this task will fail to start \"")
+               .append(dep).append("\"");
+         }
+
+         note.append(first ? "" : "; ").append('"').append(dep).append("\" (")
+            .append(kinds.length() == 0 ? "dependency" : kinds).append(')');
+         first = false;
+      }
+
+      return note.toString();
    }
 
    private static String requireNonBlank(String label, String value) {
