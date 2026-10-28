@@ -742,6 +742,12 @@ public class WorksheetAgentController {
          return;
       }
 
+      // Bug #79526: a saved viewsheet/worksheet that uses the column must be confirmed first.
+      if("remove_column".equals(req.op()) && !Boolean.TRUE.equals(req.confirmed())) {
+         RemoveColumnDependentsGuard.requireNoSavedDependents(
+            editService.resolve(sessionToken, user), req.table(), req.column());
+      }
+
       RuntimeWorksheet before = editService.resolve(sessionToken, user);
       java.util.Set<String> declaredBefore =
          declaredVariableNames(before == null ? null : before.getWorksheet());

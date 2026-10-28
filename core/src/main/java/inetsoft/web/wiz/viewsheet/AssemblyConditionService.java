@@ -22,7 +22,12 @@ import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.drm.AggregateRefModel;
+import inetsoft.web.binding.drm.CalculateRefModel;
+import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.model.DateRangeRefModel;
+import inetsoft.web.binding.model.ExpressionRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
@@ -102,7 +107,76 @@ public class AssemblyConditionService {
       out.put("conditions", conditions);
       out.put("conditionCount", conditions.size());
       out.put("fields", fieldNames(model.getFields()));
+      List<String> warnings = staleConditionWarnings(model);
+
+      if(!warnings.isEmpty()) {
+         out.put("warnings", warnings);
+      }
+
       return out;
+   }
+
+   /**
+    * Bug #79526: a condition on a column the assembly no longer offers (removed from the source
+    * worksheet) stays stored and is listed, but is not applied, so the assembly shows unfiltered
+    * data without any sign of it. Names each such condition's field.
+    *
+    * <p>Resolved through {@link ConditionVocabulary#find}, the resolver {@code set_condition}
+    * writes use, so a relabelled column and a calc field are not reported. Only a plain column
+    * reference is judged: an aggregate, expression, range or calculated reference is not named
+    * in {@code fields} the same way. Empty {@code fields} means unknown (an unbound assembly or a
+    * failed source query), not "everything is stale", and a label shared by several columns is
+    * ambiguous, not stale.</p>
+    */
+   private static List<String> staleConditionWarnings(VSConditionDialogModel model) {
+      DataRefModel[] fields = model.getFields();
+      List<String> warnings = new ArrayList<>();
+
+      if(fields == null || fields.length == 0 || model.getConditionList() == null) {
+         return warnings;
+      }
+
+      Set<String> seen = new HashSet<>();
+
+      for(Object item : model.getConditionList()) {
+         if(!(item instanceof ConditionModel condition) || !isPlainColumn(condition.getField())) {
+            continue;
+         }
+
+         String name = condition.getField().getName();
+
+         if(name == null || name.isBlank() || !seen.add(name.trim().toLowerCase())) {
+            continue;
+         }
+
+         try {
+            if(ConditionVocabulary.find(fields, name) == null) {
+               warnings.add("Condition on '" + name + "' is not applied: this assembly's " +
+                  "current fields do not include it (column removed from the source " +
+                  "worksheet?), so the assembly shows unfiltered data for it. Drop or rewrite " +
+                  "the condition with set_condition.");
+            }
+         }
+         catch(IllegalArgumentException ambiguous) {
+            // a label shared by several columns resolves to none of them, but it is not stale
+         }
+      }
+
+      return warnings;
+   }
+
+   private static boolean isPlainColumn(DataRefModel field) {
+      for(DataRefModel ref = field; ref != null;
+          ref = ref instanceof ColumnRefModel column ? column.getDataRefModel() : null)
+      {
+         if(ref instanceof AggregateRefModel || ref instanceof ExpressionRefModel ||
+            ref instanceof DateRangeRefModel || ref instanceof CalculateRefModel)
+         {
+            return false;
+         }
+      }
+
+      return field != null;
    }
 
    /**
