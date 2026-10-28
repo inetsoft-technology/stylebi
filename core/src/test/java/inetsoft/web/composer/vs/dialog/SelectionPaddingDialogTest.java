@@ -230,8 +230,8 @@ class SelectionPaddingDialogTest {
       assertEquals(6, listed.getListHeight());
    }
 
-   // a typed height refits the rows as a drag does: 300 - 30 - 32 holds eight whole 28px rows, so
-   // the box comes back from Dropdown at 30 + 8 x 28 + 32 = 286, not the 300 typed
+   // a typed height refits the rows as a drag does: 300 - 30 holds nine whole 28px rows (an author-sized box takes no vertical inset, #79565), so
+   // the box comes back from Dropdown at 30 + 9 x 28 = 282, not the 300 typed
    @Test
    void aHeightTypedInSizeAndPositionRefitsTheRows() throws Exception {
       SelectionListVSAssemblyInfo info = seededList("comfortable");
@@ -244,14 +244,14 @@ class SelectionPaddingDialogTest {
 
       assertTrue(saved.isUserSize());
       assertEquals(new Dimension(132, 300), saved.getPixelSize());
-      assertEquals(8, saved.getListHeight());
+      assertEquals(9, saved.getListHeight());
 
       Mockito.reset(dialogService, viewsheet);
       clearInvocations(vsObjectPropertyService);
       SelectionListVSAssemblyInfo listed = switchedToList(saved);
 
-      assertEquals(286, listed.getPixelSize().height);
-      assertEquals(8, listed.getListHeight());
+      assertEquals(282, listed.getPixelSize().height);
+      assertEquals(9, listed.getListHeight());
    }
 
    // unmarked: the dialog never refit the rows, and still does not

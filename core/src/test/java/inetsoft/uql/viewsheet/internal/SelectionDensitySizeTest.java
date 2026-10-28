@@ -198,8 +198,8 @@ class SelectionDensitySizeTest {
       assertEquals(136, info.getContainedListHeight());
    }
 
-   // a density change moves pixels, not rows: an author's box keeps its size and its row count,
-   // and rebuilds them at the new tier: 20 + 6 x 20 + 8 + 8
+   // a density change moves pixels, not rows: an author's box keeps its size and its row count.
+   // It takes no top or bottom inset (#79565), so the contained height is 20 + 6 x 20
    @Test
    void aDensityChangeLeavesAnAuthorSizedListsRows() {
       SelectionListVSAssemblyInfo info = created("comfortable", VizMark.MODERN_LIGHT);
@@ -212,7 +212,7 @@ class SelectionDensitySizeTest {
 
       assertEquals(new Dimension(132, 230), info.getPixelSize());
       assertEquals(6, info.getListHeight());
-      assertEquals(156, info.getContainedListHeight());
+      assertEquals(140, info.getContainedListHeight());
    }
 
    // a dropdown's rows are the author's, even when its box still carries a seeded size
