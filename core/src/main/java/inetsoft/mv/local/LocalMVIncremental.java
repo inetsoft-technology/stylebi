@@ -27,6 +27,7 @@ import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.jdbc.XFilterNode;
@@ -105,6 +106,8 @@ public class LocalMVIncremental extends MVIncremental {
       }
 
       MVConditionListHandler handler = new MVConditionListHandler(assembly, mv, vars, mvdef);
+      handler.setLikeCaseSensitive(MVConditionListHandler.getLikeCaseSensitivity(
+         assembly, AssetUtil.getSQLHelper(assembly)));
 
       // 2. fix delete condition
       List<XNode> filter = fixCondition(wrapper, handler, vars);

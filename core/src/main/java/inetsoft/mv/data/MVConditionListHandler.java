@@ -35,7 +35,11 @@ import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * MVConditionListHandler translates a selection from a data model into
@@ -46,6 +50,12 @@ import java.util.Map;
  * @see XFilterNode
  */
 public class MVConditionListHandler extends ConditionListHandler {
+   /**
+    * The condition node attribute telling XDimDictionary to match contains/starts
+    * with/like conditions case sensitively, as the source database does.
+    */
+   public static final String LIKE_CASE_SENSITIVE = "likeCaseSensitive";
+
    public MVConditionListHandler(TableAssembly table, MV mv, VariableTable vars,
       MVDef def)
    {
@@ -129,7 +139,74 @@ public class MVConditionListHandler extends ConditionListHandler {
       XExpression exp = new XExpression(val, XExpression.VALUE);
       condnode = new XBinaryCondition(field, exp, op);
       condnode.setIsNot(cond.isNegated());
+
+      if(likeCaseSensitive != null) {
+         condnode.setAttribute(LIKE_CASE_SENSITIVE, likeCaseSensitive.toString());
+      }
+
       return condnode;
+   }
+
+   /**
+    * Set whether the LIKE of the source database is case sensitive. If set, the
+    * contains/starts with/like conditions are matched in the MV the same way. If null
+    * (default), the global string comparison setting applies.
+    */
+   public void setLikeCaseSensitive(Boolean likeCaseSensitive) {
+      this.likeCaseSensitive = likeCaseSensitive;
+   }
+
+   /**
+    * Get the LIKE case sensitivity of the data source of a table to be applied to the
+    * conditions on the MV of the table.
+    *
+    * @param table  the table the MV is queried for.
+    * @param helper the sql helper of the table, may be null.
+    *
+    * @return TRUE if the table reads a single data source whose LIKE is case
+    * sensitive, null if unknown or the source can't be determined.
+    */
+   public static Boolean getLikeCaseSensitivity(TableAssembly table, SQLHelper helper) {
+      try {
+         if(helper == null || !Boolean.TRUE.equals(helper.getLikeCaseSensitivity())) {
+            return null;
+         }
+
+         Set<String> sources = new HashSet<>();
+
+         // a table that reads several sources (or any non-database source) is joined
+         // or filtered in memory without the database's semantics
+         if(!collectSources(table, sources) || sources.size() != 1) {
+            return null;
+         }
+
+         return Boolean.TRUE;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to get the LIKE case sensitivity of table {}", table, ex);
+         return null;
+      }
+   }
+
+   private static boolean collectSources(TableAssembly table, Set<String> sources) {
+      if(table instanceof BoundTableAssembly) {
+         sources.add(((BoundTableAssembly) table).getSource());
+         return true;
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         TableAssembly[] tables = ((ComposedTableAssembly) table).getTableAssemblies(false);
+
+         for(int i = 0; tables != null && i < tables.length; i++) {
+            if(!collectSources(tables[i], sources)) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+
+      return false;
    }
 
    /**
@@ -289,7 +366,9 @@ public class MVConditionListHandler extends ConditionListHandler {
    // column name in mirror mapping to sub-table (with formula rewrite)
    private Map<String, String> colmap = new HashMap<>();
    private MVDef mvdef;
+   private static final Logger LOG = LoggerFactory.getLogger(MVConditionListHandler.class);
    private MVColumn mvcol;
+   private Boolean likeCaseSensitive;
    private MV mv;
    private VariableTable vars;
    private AssetQuerySandbox box;

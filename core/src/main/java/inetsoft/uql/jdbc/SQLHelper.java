@@ -4791,6 +4791,22 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if the LIKE operator of the database is case sensitive by default. This is
+    * used by the materialized view to match contains/starts with/like conditions the
+    * same way as the database would. The answer is per product, not per database: a
+    * case-insensitive collation or column type (e.g. H2 IGNORECASE/varchar_ignorecase,
+    * Oracle NLS_COMP, PostgreSQL citext) can make a particular database differ from
+    * the product default, so only products with a well-known case-sensitive default
+    * answer TRUE.
+    *
+    * @return TRUE if LIKE is case sensitive, null if unknown or collation dependent,
+    * in which case the global string comparison setting applies.
+    */
+   public Boolean getLikeCaseSensitivity() {
+      return null;
+   }
+
+   /**
     * Check if is case sensitive when quote table or column.
     */
    @Override

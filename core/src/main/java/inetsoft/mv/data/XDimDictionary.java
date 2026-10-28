@@ -533,6 +533,10 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          cond.setAttribute("containsNull", "true");
       }
 
+      // the source database's LIKE case sensitivity, if known, overrides the global setting
+      String likeCs = (String) cond.getAttribute(MVConditionListHandler.LIKE_CASE_SENSITIVE);
+      boolean likeCaseSensitive = likeCs != null ? Boolean.parseBoolean(likeCs) : caseSensitive;
+
       if("=".equals(op)) {
          val = "" + indexOf(convert(val), -1);
       }
@@ -623,7 +627,7 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          // number always used as measure, see MVDef.fixMVColumn
          if(cls == String.class || cls == Character.class) {
             cond.setOp("IN");
-            val = getPatternVals(val, (a, b) -> a.startsWith(b));
+            val = getPatternVals(val, likeCaseSensitive, (a, b) -> a.startsWith(b));
          }
       }
       else if("CONTAINS".equals(op)) {
@@ -637,7 +641,7 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          // number will be done in file system
          if(cls == String.class || cls == Character.class) {
             cond.setOp("IN");
-            val = getPatternVals(val, (a, b) -> a.contains(b));
+            val = getPatternVals(val, likeCaseSensitive, (a, b) -> a.contains(b));
          }
       }
       else if("LIKE".equals(op)) {
@@ -651,8 +655,8 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          // number will be done in file system
          if(cls == String.class || cls == Character.class) {
             cond.setOp("IN");
-            Pattern pattern = Condition.getLikePattern(val + "", caseSensitive);
-            val = getPatternVals(val, (a, b) -> pattern.matcher(a).find());
+            Pattern pattern = Condition.getLikePattern(val + "", likeCaseSensitive);
+            val = getPatternVals(val, likeCaseSensitive, (a, b) -> pattern.matcher(a).find());
          }
       }
       else {
@@ -1041,16 +1045,18 @@ public class XDimDictionary extends XSwappable implements Cloneable {
    /**
     * Get all values which starts with the specified value.
     */
-   private Object[] getPatternVals(Object obj, BiFunction<String, String, Boolean> matcher) {
+   private Object[] getPatternVals(Object obj, boolean caseSensitive,
+                                   BiFunction<String, String, Boolean> matcher)
+   {
       if(obj == null) {
          return new String[0];
       }
 
-      String value = toString(obj);
+      String value = toString(obj, caseSensitive);
       List<Integer> vals = new ArrayList<>();
 
       for(int i = 0; i < size(); i++) {
-         String val = toString(getValue(i));
+         String val = toString(getValue(i), caseSensitive);
 
          if(val != null && matcher.apply(val, value)) {
             vals.add(i);
@@ -1069,7 +1075,7 @@ public class XDimDictionary extends XSwappable implements Cloneable {
       return rvals;
    }
 
-   private String toString(Object obj) {
+   private String toString(Object obj, boolean caseSensitive) {
       if(obj == null) {
          return null;
       }
