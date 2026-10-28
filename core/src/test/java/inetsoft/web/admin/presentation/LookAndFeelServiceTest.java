@@ -55,6 +55,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -163,6 +165,41 @@ class LookAndFeelServiceTest {
       verify(dataSpace).delete("/home/portal/font", "GlobalFont.ttf");
       verify(dataSpace).withOutputStream(isNull(), eq("userformat.xml"), any());
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("repository.tree.sort", "Ascending", false));
+   }
+
+   @Test
+   void orgScopedReadListsOnlyCurrentOrgCssEntry() {
+      Map<String, String> entries = new LinkedHashMap<>();
+      entries.put("orgA", "orgA/a.css");
+      entries.put("orgB", "orgB/b.css");
+      when(manager.getCssEntries()).thenReturn(entries);
+
+      LookAndFeelSettingsModel result = service.getModel(principal, false);
+
+      assertEquals(1, result.viewsheetCSSEntries().size());
+      assertEquals("orgA", result.viewsheetCSSEntries().get(0).identityName());
+      assertEquals("orgA/a.css", result.viewsheetCSSEntries().get(0).fileName());
+   }
+
+   @Test
+   void orgScopedReadWithoutOwnCssEntryListsNothing() {
+      when(manager.getCssEntries()).thenReturn(Map.of("orgB", "orgB/b.css"));
+
+      LookAndFeelSettingsModel result = service.getModel(principal, false);
+
+      assertTrue(result.viewsheetCSSEntries().isEmpty());
+   }
+
+   @Test
+   void globalReadStillListsAllCssEntries() {
+      Map<String, String> entries = new LinkedHashMap<>();
+      entries.put("orgA", "orgA/a.css");
+      entries.put("orgB", "orgB/b.css");
+      when(manager.getCssEntries()).thenReturn(entries);
+
+      LookAndFeelSettingsModel result = service.getModel(principal, true);
+
+      assertEquals(2, result.viewsheetCSSEntries().size());
    }
 
    private LookAndFeelSettingsModel model(boolean defaultFont) {
