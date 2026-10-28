@@ -71,6 +71,7 @@ class CassandraTableNullCellTest {
       when(row.getLong(0)).thenReturn(42L);
       when(row.getInt(0)).thenReturn(7);
       when(row.getDouble(0)).thenReturn(2.5D);
+      when(row.getBigDecimal(0)).thenReturn(new java.math.BigDecimal("2.5"));
       when(row.getFloat(0)).thenReturn(1.5F);
       when(row.getBoolean(0)).thenReturn(true);
 
