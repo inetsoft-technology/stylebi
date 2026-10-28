@@ -1147,7 +1147,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                   pathBuilder.append(Tool.normalizeFileName(suffix.trim()));
                }
 
-               pathBuilder.append('.').append(getFileExtend(format));
+               pathBuilder.append('.')
+                  .append(getSaveFileExtension(getFileExtend(format), excelToCSV));
                String str = pathBuilder.toString();
 
                try {
@@ -1167,24 +1168,22 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                String uuid =  UUID.randomUUID().toString();
                String dir = fileSystemService.getCacheDirectory() + File.separator + uuid;
                tmpDir = fileSystemService.getFile(dir);
-               int index = Tool.replaceAll(str, "\\", "/").lastIndexOf("/");
-               String fileName = str.substring(index + 1);
+               String fileName = getTargetFileName(str);
 
                if(!tmpDir.mkdir()) {
                   LOG.warn(
                      "Failed to create temporary directory: " + tmpDir);
                }
 
-               file = fileSystemService.getFile(dir, fileName);
-
                if(excelToCSV) {
-                  zipFile = fileSystemService.getFile(dir,
-                     fileName.replace(".xlsx", ".zip"));
+                  // the target is a zip of the CSV files and the Excel file, both are built in
+                  // the temp dir and only the zip is uploaded
+                  zipFile = fileSystemService.getFile(dir, fileName);
+                  file = fileSystemService.getFile(
+                     dir, getExcelToCSVExcelFileName(fileName, getFileExtend(format)));
                }
-
-               if(excelToCSV) {
-                  zipFile = fileSystemService.getFile(
-                     str.replace(".xlsx", ".zip"));
+               else {
+                  file = fileSystemService.getFile(dir, fileName);
                }
 
                tmpFile = FileSystemService.getInstance().getCacheTempFile("taskExport", "zip");
@@ -1222,21 +1221,24 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                }
 
                if(excelToCSV) {
-                  OutputStream zout = new FileOutputStream(zipFile);
-                  VSExporter csv = getVSExporter(FileFormatInfo.EXPORT_TYPE_CSV, zout, getSaveCSVConfig());
-                  csv.setMatchLayout(false);
-                  csv.setExpandSelections(false);
-                  csv.setOnlyDataComponents(isOnlyDataComponents());
-                  csv.setAssetEntry(rvs.getEntry());
+                  try(OutputStream zout = new FileOutputStream(zipFile)) {
+                     VSExporter csv = getVSExporter(FileFormatInfo.EXPORT_TYPE_CSV, zout,
+                                                    getSaveCSVConfig());
+                     csv.setMatchLayout(false);
+                     csv.setExpandSelections(false);
+                     csv.setOnlyDataComponents(isOnlyDataComponents());
+                     csv.setAssetEntry(rvs.getEntry());
 
-                  if(csv instanceof CSVVSExporter) {
-                     ((CSVVSExporter) csv).setExcelFile(file);
+                     if(csv instanceof CSVVSExporter) {
+                        ((CSVVSExporter) csv).setExcelFile(file);
+                     }
+
+                     exportBookmarksAndWrite(csv, rvs, box.getVariableTable(), bookmarks,
+                                             alertTriggeredBookmarks);
                   }
 
-                  exportBookmarksAndWrite(csv, rvs, box.getVariableTable(), bookmarks,
-                                          alertTriggeredBookmarks);
-                  file = fileSystemService.getFile(Tool.convertUserFileName(zipFile.getName()));
-                  zout.close();
+                  // upload the zip from its full temp path
+                  file = zipFile;
                }
 
                if(isCanceled()) {
@@ -1649,6 +1651,39 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
     */
    protected String getFileExtend(int format) throws RuntimeException {
       return ExportUtil.getSuffix(format);
+   }
+
+   /**
+    * Gets the extension of a save-to-server target. An Excel export of a dashboard with a
+    * large table is saved as a zip of CSV files (plus the Excel file), so it gets the zip
+    * extension.
+    *
+    * @param extension  the extension of the export format.
+    * @param excelToCSV {@code true} if the Excel export is converted to a zip of CSV files.
+    */
+   static String getSaveFileExtension(String extension, boolean excelToCSV) {
+      return excelToCSV ? "zip" : extension;
+   }
+
+   /**
+    * Gets the file name part of a save-to-server target (storage key or remote path).
+    */
+   static String getTargetFileName(String target) {
+      int index = target.replace('\\', '/').lastIndexOf('/');
+      return target.substring(index + 1);
+   }
+
+   /**
+    * Gets the name of the temporary Excel file that is bundled into the zip of an Excel
+    * export converted to CSV files.
+    *
+    * @param zipFileName the name of the zip file.
+    * @param extension   the extension of the Excel format.
+    */
+   static String getExcelToCSVExcelFileName(String zipFileName, String extension) {
+      String base = zipFileName.toLowerCase().endsWith(".zip") ?
+         zipFileName.substring(0, zipFileName.length() - 4) : zipFileName;
+      return base + "." + extension;
    }
 
    /**
