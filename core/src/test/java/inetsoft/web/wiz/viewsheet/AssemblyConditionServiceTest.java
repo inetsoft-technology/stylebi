@@ -183,6 +183,19 @@ class AssemblyConditionServiceTest {
       verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
    }
 
+   @Test
+   @SuppressWarnings("unchecked")
+   void readsARelabelledColumnConditionByTheColumnNameInFields() throws Exception {
+      ColumnRefModel label = relabelled("Product:Total", "Sales Amount");
+      VSConditionDialogModel model = modelWith(new DataRefModel[]{ label }, label);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "T");
+      List<Map<String, Object>> conditions = (List<Map<String, Object>>) read.get("conditions");
+
+      assertEquals("Product:Total", conditions.get(0).get("field"));
+      assertTrue(((List<?>) read.get("fields")).contains(conditions.get(0).get("field")));
+   }
+
    // ── Bug #79526: a stored condition on a column the assembly no longer offers ──────────
 
    private static ConditionModel conditionOn(DataRefModel field) {

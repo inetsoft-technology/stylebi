@@ -102,7 +102,7 @@ public class AssemblyConditionService {
       }
 
       List<Map<String, Object>> conditions =
-         ConditionVocabulary.describe(model.getConditionList());
+         ConditionVocabulary.describe(model.getConditionList(), true);
       out.put("tableName", model.getTableName());
       out.put("conditions", conditions);
       out.put("conditionCount", conditions.size());
