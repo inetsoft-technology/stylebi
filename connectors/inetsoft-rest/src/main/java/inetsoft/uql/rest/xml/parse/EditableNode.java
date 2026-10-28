@@ -44,6 +44,30 @@ class EditableNode {
       return !singleChildren.isEmpty() || !multiChildren.isEmpty();
    }
 
+   /**
+    * Appends an attribute of the text-only element {@code elementName}, which has just been
+    * appended, as the sibling entry {@code name}. Elements lacking the attribute are filled with
+    * null values so the attribute list stays index-aligned with the element list.
+    */
+   void appendAttribute(String elementName, String name, ParsedNode node) {
+      final int index = count(elementName) - 1;
+
+      while(count(name) < index) {
+         appendNode(name, new ValueNode(null));
+      }
+
+      appendNode(name, node);
+      attributeElements.put(name, elementName);
+   }
+
+   private int count(String name) {
+      if(multiChildren.containsKey(name)) {
+         return multiChildren.get(name).size();
+      }
+
+      return singleChildren.containsKey(name) ? 1 : 0;
+   }
+
    void setValue(Object value) {
       this.value = value;
    }
@@ -67,13 +91,19 @@ class EditableNode {
       for(final Map.Entry<String, ParsedNode> entry : singleChildren.entrySet()) {
          final String name = entry.getKey();
          final ParsedNode value = entry.getValue();
-         map.put(name, value);
+
+         if(attributeElements.containsKey(name) && count(attributeElements.get(name)) > 1) {
+            map.put(name, padAttribute(name, Collections.singletonList(value)));
+         }
+         else {
+            map.put(name, value);
+         }
       }
 
       for(final Map.Entry<String, List<ParsedNode>> entry : multiChildren.entrySet()) {
          final String name = entry.getKey();
          final List<ParsedNode> value = entry.getValue();
-         map.put(name, value);
+         map.put(name, attributeElements.containsKey(name) ? padAttribute(name, value) : value);
       }
 
       if(value != null) {
@@ -83,6 +113,19 @@ class EditableNode {
       return map;
    }
 
+   // right-pads an attribute list with nulls for trailing elements that lack the attribute
+   private List<ParsedNode> padAttribute(String name, List<ParsedNode> values) {
+      final List<ParsedNode> padded = new ArrayList<>(values);
+
+      while(padded.size() < count(attributeElements.get(name))) {
+         padded.add(new ValueNode(null));
+      }
+
+      return padded;
+   }
+
+   // attribute entry name -> name of the text-only element it belongs to
+   private final Map<String, String> attributeElements = new HashMap<>(0);
    // LinkedHashMap to preserve insertion order
    private final Map<String, ParsedNode> singleChildren = new LinkedHashMap<>(0);
    private final Map<String, List<ParsedNode>> multiChildren = new LinkedHashMap<>(0);

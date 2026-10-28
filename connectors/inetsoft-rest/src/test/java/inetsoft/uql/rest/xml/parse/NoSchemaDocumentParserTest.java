@@ -90,5 +90,41 @@ class NoSchemaDocumentParserTest {
       assertEquals(new ValueNode(296), ((MapNode) parser.getRoot()).get("@total"));
    }
 
+   @Test
+   void optionalAttributeOnRepeatedLeafStaysIndexAligned() throws Exception {
+      final MapNode x = parseRoot(
+         "<x><y a=\"1\">p</y><y>q</y><y a=\"3\">r</y><y>s</y></x>", "x");
+
+      assertEquals(java.util.Arrays.asList(new ValueNode("p"), new ValueNode("q"),
+         new ValueNode("r"), new ValueNode("s")), x.get("y"));
+      assertEquals(java.util.Arrays.asList(new ValueNode(1), new ValueNode(null),
+         new ValueNode(3), new ValueNode(null)), x.get("y@a"));
+   }
+
+   @Test
+   void attributeFirstSeenOnLaterRepeatedLeafIsLeftPadded() throws Exception {
+      final MapNode x = parseRoot("<x><y>p</y><y a=\"2\">q</y></x>", "x");
+
+      assertEquals(java.util.Arrays.asList(new ValueNode(null), new ValueNode(2)), x.get("y@a"));
+   }
+
+   @Test
+   void optionalAttributeOnRepeatedMapElementsKeepsOwnMaps() throws Exception {
+      final MapNode x = parseRoot(
+         "<x><c><n>1</n></c><c b=\"B\"><n>2</n></c></x>", "x");
+      final java.util.List<?> cs = (java.util.List<?>) x.get("c");
+
+      assertEquals(false, ((MapNode) cs.get(0)).containsKey("@b"));
+      assertEquals(new ValueNode("B"), ((MapNode) cs.get(1)).get("@b"));
+   }
+
+   private MapNode parseRoot(String xml, String name) throws Exception {
+      final Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new org.xml.sax.InputSource(new java.io.StringReader(xml)));
+      final NoSchemaDocumentParser parser = new NoSchemaDocumentParser();
+      parser.append(document.getDocumentElement());
+      return (MapNode) ((MapNode) parser.getRoot()).get(name);
+   }
+
    private final ClassLoader loader = getClass().getClassLoader();
 }

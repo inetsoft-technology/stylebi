@@ -111,6 +111,28 @@ public class XmlAttributeColumnsTest {
       assertTrue(columns(table).contains("wb:country.wb:name"), columns(table).toString());
    }
 
+   @Test
+   void unpagedOptionalAttributesOnRepeatedElementsStayRowAligned() throws Exception {
+      final XTableNode table = runUnpaged("/r/c", "<r><c><n>1</n></c>" +
+         "<c b=\"B\"><n>2</n><t k=\"K\">x</t></c><c><n>3</n></c></r>");
+
+      assertNotNull(table);
+      final List<String> cols = columns(table);
+      assertTrue(cols.contains("c.@b"), cols.toString());
+      final int n = cols.indexOf("c.n");
+      final int b = cols.indexOf("c.@b");
+      final int tk = cols.indexOf("c.t@k");
+      assertTrue(tk >= 0, cols.toString());
+      final Object[][] expected = { { 1, null, null }, { 2, "B", "K" }, { 3, null, null } };
+
+      for(final Object[] row : expected) {
+         assertTrue(table.next());
+         assertEquals(row[0], ((Number) table.getObject(n)).intValue());
+         assertEquals(row[1], table.getObject(b));
+         assertEquals(row[2], table.getObject(tk));
+      }
+   }
+
    // ---- PAGE_COUNT ----
 
    @Test
@@ -204,6 +226,10 @@ public class XmlAttributeColumnsTest {
    }
 
    private XTableNode runUnpaged(String xpath) throws Exception {
+      return runUnpaged(xpath, fixture(""));
+   }
+
+   private XTableNode runUnpaged(String xpath, String xml) throws Exception {
       final RestXMLQuery query = new RestXMLQuery();
       final RestXMLDataSource dataSource = new RestXMLDataSource();
       dataSource.setURL("http://worldbank.example/v2/country");
@@ -211,7 +237,7 @@ public class XmlAttributeColumnsTest {
       query.setXpath(xpath);
       final List<RequestResponse> rr = new ArrayList<>();
       rr.add(new RequestResponse(RestRequest.fromQuery(query),
-         new TestHttpResponse(fixture(""))));
+         new TestHttpResponse(xml)));
       return new RestXMLQueryRunner(query,
          new XMLRestDataIteratorStrategyFactory(new TestHttpHandler(rr))).run();
    }

@@ -73,8 +73,8 @@ public class NoSchemaDocumentParser implements DocumentParser {
          parent.appendNode(nodeName, editNode.toParsedNode());
 
          for(final Node attribute : attributes) {
-            parent.appendNode(nodeName + ATTRIBUTE_PREFIX + attribute.getNodeName(),
-                              attributeValue(attribute));
+            parent.appendAttribute(nodeName, nodeName + ATTRIBUTE_PREFIX + attribute.getNodeName(),
+                                   attributeValue(attribute));
          }
       }
    }
