@@ -145,6 +145,24 @@ class ScheduleFolderChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("folderName"));
    }
 
+   @Test void resolveCreateThrowsOnCharactersOutsideTheEmWhitelist() {
+      for(String name : List.of("QA-FD2\\x", "QA-FD2\"q%<", "a<b", "a%b", "a\"b", "a\\b")) {
+         ScheduleFolderChangePlanRequest req = request("task", List.of(createChange(null, name)));
+
+         IllegalArgumentException ex =
+            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user), name);
+         assertTrue(ex.getMessage().contains("folderName"), name);
+         assertTrue(ex.getMessage().contains("not allowed"), name);
+      }
+   }
+
+   @Test void resolveCreateAcceptsEveryEmWhitelistedCharacter() throws Exception {
+      String name = "Ab 1$&?#!*`;>|~={}()@+_:.,'-[]中";
+      ScheduleFolderChangePlanRequest req = request("task", List.of(createChange(null, name)));
+
+      assertEquals(name, service.resolve(req, user).changes().get(0).property());
+   }
+
    @Test void resolveCreateThrowsWhenFolderAlreadyExists() throws Exception {
       when(folderGateway.folderExists("NewFolder")).thenReturn(true);
       ScheduleFolderChangePlanRequest req = request("task", List.of(createChange(null, "NewFolder")));
@@ -225,6 +243,17 @@ class ScheduleFolderChangePlanServiceTest {
       IllegalArgumentException ex =
          assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
       assertTrue(ex.getMessage().contains("root"));
+   }
+
+   @Test void resolveRenameThrowsOnLeafOutsideTheEmWhitelist() {
+      for(String newPath : List.of("QA-FD2\\x", "Parent/QA-FD2\"q%<", "B%")) {
+         ScheduleFolderChangePlanRequest req = request("task", List.of(renameChange("A", newPath)));
+
+         IllegalArgumentException ex =
+            assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user), newPath);
+         assertTrue(ex.getMessage().contains("newPath"), newPath);
+         assertTrue(ex.getMessage().contains("not allowed"), newPath);
+      }
    }
 
    @Test void resolveRenameThrowsWhenSourceDoesNotExist() throws Exception {

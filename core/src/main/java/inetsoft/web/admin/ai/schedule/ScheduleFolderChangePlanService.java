@@ -30,6 +30,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Resolves a requested list of schedule-task FOLDER changes into a {@link ResolvedPlan} and hashes
@@ -157,6 +158,8 @@ public class ScheduleFolderChangePlanService {
             "\") -- use parentPath for the containing folder");
       }
 
+      requireValidFolderName(label + ".folderName", change.getFolderName().trim());
+
       String parentPath = AdminScheduleFolderGateway.normalizePath(change.getParentPath());
       String fullPath = AdminScheduleFolderGateway.joinPath(parentPath, change.getFolderName().trim());
 
@@ -195,6 +198,7 @@ public class ScheduleFolderChangePlanService {
       // §6.2: a rename's newPath resolving to root is refused too -- a folder cannot rename
       // itself into becoming root.
       requireNotRoot(label, "newPath", newPath);
+      requireValidFolderName(label + ".newPath", AdminScheduleFolderGateway.leafOf(newPath));
       requireUnseen(label, oldPath, seenPaths);
 
       AssetFolder folder = folderGateway.findFolder(oldPath);
@@ -397,6 +401,20 @@ public class ScheduleFolderChangePlanService {
       }
    }
 
+   /**
+    * Bug #79427: the Enterprise Manager folder dialog only accepts letters, digits, space and
+    * {@code $&?#!*`;>|~={}()@+_:.,'-[]}; any other name (backslash, double quote, percent, ...) is
+    * refused here too so a plan cannot create a folder the EM UI would never allow. Only the leaf
+    * name is checked; the ancestors already exist.
+    */
+   private static void requireValidFolderName(String field, String name) {
+      if(!FOLDER_NAME_ALLOWED.matcher(name).matches()) {
+         throw new IllegalArgumentException(
+            field + ": folder name \"" + name + "\" contains characters that are not allowed -- " +
+            "use only letters, digits, spaces and $&?#!*`;>|~={}()@+_:.,'-[]");
+      }
+   }
+
    private static void requireUnseen(String label, String path, Set<String> seenPaths) {
       if(!seenPaths.add(path)) {
          throw new IllegalArgumentException(
@@ -462,7 +480,9 @@ public class ScheduleFolderChangePlanService {
       return value == null ? NULL_MARKER : value;
    }
 
-   private static final char SEP = (char) 0x1f;
+   private static final Pattern FOLDER_NAME_ALLOWED =
+      Pattern.compile("[\\p{L}\\p{N} $&?#!*`;>|~={}()@+_:.,'\\-\\[\\]]+");
+   private static final char SEP =(char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final AdminScheduleFolderGateway folderGateway;
 }
