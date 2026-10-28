@@ -1742,7 +1742,8 @@ public class WorksheetAgentController {
             ws, liveAssembly, liveAssembly.getColumnSelection(false), newColumns,
             "Editing this table would change the type of",
             breaks -> JoinKeyTypeGuard.tabularRemedy(),
-            "Editing table '" + tableName + "'", TABULAR_EDIT_LOSS_REMEDY);
+            "Editing table '" + tableName + "'", TABULAR_EDIT_LOSS_REMEDY,
+            ColumnLossReport.Scope.TABULAR_EDIT);
 
          // Commit: only now does the live assembly's own query/columns actually change.
          liveInfo.setQuery(scratchQuery);
@@ -4816,6 +4817,23 @@ public class WorksheetAgentController {
       String lossLead, String lossRemedy)
       throws PairingException
    {
+      assertSqlEditAllowsColumnRemoval(
+         ws, assembly, oldColumns, newColumns, lead, remedy, lossLead, lossRemedy,
+         ColumnLossReport.Scope.QUERY_EDIT);
+   }
+
+   /**
+    * Same as above, checking the dependents in {@code scope}: edit_table passes
+    * {@link ColumnLossReport.Scope#TABULAR_EDIT}, which also refuses a downstream aggregate or
+    * group-by (Bug #79594).
+    */
+   static void assertSqlEditAllowsColumnRemoval(
+      Worksheet ws, TableAssembly assembly, ColumnSelection oldColumns,
+      ColumnSelection newColumns, String lead,
+      java.util.function.Function<List<JoinKeyTypeGuard.Break>, String> remedy,
+      String lossLead, String lossRemedy, ColumnLossReport.Scope scope)
+      throws PairingException
+   {
       if(oldColumns == null) {
          return;
       }
@@ -4846,7 +4864,7 @@ public class WorksheetAgentController {
 
       ColumnLossReport.requireNoDependentLoss(
          ws, assembly, assembly.getName(), dataColumns, keptNames,
-         ColumnLossReport.Scope.QUERY_EDIT, lossLead, lossRemedy);
+         scope, lossLead, lossRemedy);
    }
 
    // ---------------------------------------------------------------------------
