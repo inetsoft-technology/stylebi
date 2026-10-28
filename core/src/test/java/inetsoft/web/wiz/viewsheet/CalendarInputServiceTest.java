@@ -257,6 +257,19 @@ class CalendarInputServiceTest {
    }
 
    @Test
+   void refusesDatesOnACalendarWithNoColumnBound() {
+      // getDataRef() is null on a fresh mock: the calendar is unbound, so the dates would filter nothing.
+      CalendarHarness h = calendarWith(mock(CalendarVSAssembly.class));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setDates("tok", principal(), "Cal1", List.of("d2026-3-1"), ""));
+
+      assertTrue(e.getMessage().contains("no column bound"), e.getMessage());
+      assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
+      verifyNoInteractions(h.calendars);
+   }
+
+   @Test
    void refusesAnUnknownCalendarForDates() {
       CalendarHarness h = calendarWith(null);
 
