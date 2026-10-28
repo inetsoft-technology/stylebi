@@ -33,9 +33,12 @@ public class CassandraQuery extends TabularQuery {
       super(CassandraDataSource.TYPE);
    }
 
-   // CQL literals escape a quote only by doubling it (Bug #78594)
+   // CQL literals escape a quote only by doubling it (Bug #78594); a uuid or
+   // timeuuid value in an unquoted placeholder is a bare token, so a uuid for
+   // a text column must be written quoted, '$(v)' (Bug #79597)
    @Property(label="Enter Query", required=true, sql=true,
-             literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL)
+             literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL,
+             rawUuidStrings=true)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;

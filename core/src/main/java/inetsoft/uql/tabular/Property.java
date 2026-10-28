@@ -119,6 +119,17 @@ public @interface Property {
    boolean backtickIdentifiers() default false;
 
    /**
+    * True if a bare UUID is a valid literal in the dialect of a {@link #sql()}
+    * property with a non-JSON {@link #literalEscapeStyle()} (CQL uuid and
+    * timeuuid columns): an unquoted placeholder whose String value is exactly
+    * a UUID is then emitted as a bare token instead of a quoted literal. For
+    * a text column a UUID-shaped value must be written quoted,
+    * {@code '$(v)'}. Other bare-only types (boolean, blob) are not covered
+    * (Bug #79597).
+    */
+   boolean rawUuidStrings() default false;
+
+   /**
     * The comment syntax of the language of a {@link #sql()} property, so
     * quotes and placeholders inside comments are ignored: {@code SQL}
     * ({@code --} and <code>/* *&#47;</code>, the default), {@code HASH}

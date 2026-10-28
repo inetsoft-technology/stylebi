@@ -103,6 +103,12 @@ class AerospikeQueryVariableEscapeTest {
       assertEquals("SELECT * FROM t LIMIT  -2.5", replace("SELECT * FROM t LIMIT $(p)", "-2.5"));
    }
 
+   @Test
+   void unquotedUuid_staysQuoted() {
+      assertEquals("SELECT * FROM t WHERE id =  '11111111-2222-3333-4444-555555555555'",
+                   replace("SELECT * FROM t WHERE id = $(p)", "11111111-2222-3333-4444-555555555555"));
+   }
+
    private static String replace(String template, Object value) {
       AerospikeQuery query = new AerospikeQuery();
       query.setQueryString(template);
