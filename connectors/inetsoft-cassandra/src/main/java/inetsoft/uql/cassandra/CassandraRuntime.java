@@ -39,7 +39,9 @@ public class CassandraRuntime extends TabularRuntime implements TabularCatalogPr
       CqlSession session = null;
 
       try {
-         session = getSession(ds);
+         // Bug #79589: the connector is read-only; refuse before any session is opened
+         requireReadOnlyQuery(qstr);
+         session = openSession(ds);
          SimpleStatement statement = SimpleStatement.newInstance(qstr);
          ResultSet result = session.execute(statement);
          int maxrows = TabularUtil.getMaxRows(query, params);
@@ -62,6 +64,115 @@ public class CassandraRuntime extends TabularRuntime implements TabularCatalogPr
       }
 
       return null;
+   }
+
+   /**
+    * Opens the session used to run a user query. Seam so tests can prove a rejected statement
+    * never reaches a session.
+    */
+   CqlSession openSession(CassandraDataSource ds) throws Exception {
+      return getSession(ds);
+   }
+
+   /**
+    * Bug #79589: only a single SELECT statement is allowed. Leading whitespace and comments
+    * (--, //, block) and keyword case are tolerated; a trailing semicolon is tolerated; any other
+    * statement, or anything after the first statement terminator, is rejected. Applied to the
+    * final query text (after variable substitution).
+    *
+    * @throws IllegalArgumentException if the text is not a single SELECT statement.
+    */
+   static void requireReadOnlyQuery(String cql) {
+      String msg = "Only a single SELECT statement is allowed; the Cassandra connector is read-only.";
+
+      if(cql == null) {
+         throw new IllegalArgumentException(msg);
+      }
+
+      int n = cql.length();
+      int i = 0;
+      boolean selectSeen = false;
+      boolean terminated = false;
+
+      while(i < n) {
+         char c = cql.charAt(i);
+         char c2 = i + 1 < n ? cql.charAt(i + 1) : '\0';
+
+         if(Character.isWhitespace(c)) {
+            i++;
+         }
+         else if((c == '-' && c2 == '-') || (c == '/' && c2 == '/')) {
+            while(i < n && cql.charAt(i) != '\n' && cql.charAt(i) != '\r') {
+               i++;
+            }
+         }
+         else if(c == '/' && c2 == '*') {
+            int end = cql.indexOf("*/", i + 2);
+
+            if(end < 0) {
+               throw new IllegalArgumentException(msg);
+            }
+
+            i = end + 2;
+         }
+         else if(terminated) {
+            // content after the statement terminator
+            throw new IllegalArgumentException(msg);
+         }
+         else if(!selectSeen) {
+            if(!cql.regionMatches(true, i, "select", 0, 6) ||
+               (i + 6 < n && (Character.isLetterOrDigit(cql.charAt(i + 6)) ||
+                              cql.charAt(i + 6) == '_')))
+            {
+               throw new IllegalArgumentException(msg);
+            }
+
+            selectSeen = true;
+            i += 6;
+         }
+         else if(c == ';') {
+            terminated = true;
+            i++;
+         }
+         else if(c == '\'' || c == '"') {
+            // string literal / quoted identifier; a doubled quote is an escaped quote
+            i++;
+
+            while(true) {
+               if(i >= n) {
+                  throw new IllegalArgumentException(msg);
+               }
+
+               if(cql.charAt(i) == c) {
+                  if(i + 1 < n && cql.charAt(i + 1) == c) {
+                     i += 2;
+                     continue;
+                  }
+
+                  i++;
+                  break;
+               }
+
+               i++;
+            }
+         }
+         else if(c == '$' && c2 == '$') {
+            int end = cql.indexOf("$$", i + 2);
+
+            if(end < 0) {
+               throw new IllegalArgumentException(msg);
+            }
+
+            i = end + 2;
+         }
+         else {
+            i++;
+         }
+      }
+
+      if(!selectSeen) {
+         throw new IllegalArgumentException(msg);
+      }
    }
 
    public void testDataSource(TabularDataSource ds0, VariableTable params) throws Exception {
