@@ -845,6 +845,66 @@ class CalcTableServiceCopyMergeTest {
       assertEquals(1, topnCol());
    }
 
+   // ── modifyLayout bounds (Bug #79517) ──────────────────────────────────────
+
+   private void assertLayoutRefused(String op, int row, int col, Integer rows, Integer cols,
+                                    Integer n, String mentions)
+   {
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.modifyLayout("tok", principal(), "Calc1", op, row, col, rows, cols, n));
+      assertTrue(thrown.getMessage().contains(mentions), thrown.getMessage());
+      assertEquals(4, layout().getRowCount());
+      assertEquals(4, layout().getColCount());
+   }
+
+   @Test
+   void refusesMergeWithNonPositiveSpan() {
+      assertLayoutRefused("mergeCells", 0, 0, 0, 2, null, "'rows'");
+      assertLayoutRefused("mergeCells", 1, 0, -1, 2, null, "'rows'");
+      assertLayoutRefused("mergeCells", 0, 0, 2, 0, null, "'cols'");
+   }
+
+   @Test
+   void refusesMergeExtendingPastTheGrid() {
+      assertLayoutRefused("mergeCells", 3, 0, 3, 2, null, "extends past the grid");
+      assertLayoutRefused("mergeCells", 0, 3, 2, 3, null, "extends past the grid");
+   }
+
+   @Test
+   void allowsMergeEndingExactlyAtTheGridEdge() throws Exception {
+      service.modifyLayout("tok", principal(), "Calc1", "mergeCells", 2, 2, 2, 2, null);
+      assertEquals(2, layout().getSpan(2, 2).width);
+   }
+
+   @Test
+   void refusesDeleteCountBeyondRemainingRowsOrColumns() {
+      assertLayoutRefused("deleteRow", 0, 0, null, null, 5000, "'n'");
+      assertLayoutRefused("deleteRow", 3, 0, null, null, 2, "'n'");
+      assertLayoutRefused("deleteCol", 0, 1, null, null, 4, "'n'");
+   }
+
+   @Test
+   void allowsDeleteCountEqualToRemaining() throws Exception {
+      service.modifyLayout("tok", principal(), "Calc1", "deleteRow", 2, 0, null, null, 2);
+      assertEquals(2, layout().getRowCount());
+   }
+
+   @Test
+   void refusesAppendSpanOutsideTheGrid() {
+      assertLayoutRefused("appendRow", 0, 0, 0, null, 1, "'rows'");
+      assertLayoutRefused("appendRow", 0, 0, -1, null, 1, "'rows'");
+      assertLayoutRefused("appendRow", 2, 0, 3, null, 1, "'rows'");
+      assertLayoutRefused("appendCol", 0, 0, null, 0, 1, "'cols'");
+      assertLayoutRefused("appendCol", 0, 3, null, 2, 1, "'cols'");
+   }
+
+   @Test
+   void allowsAppendSpanEndingAtTheGridEdge() throws Exception {
+      service.modifyLayout("tok", principal(), "Calc1", "appendRow", 2, 0, 2, null, 1);
+      assertEquals(5, layout().getRowCount());
+   }
+
    // ── helpers ───────────────────────────────────────────────────────────────
 
    private TableLayout layout() {
