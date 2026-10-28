@@ -733,11 +733,19 @@ public class TableBindingService {
             // selection directly instead, the same way setFieldVisibility operates on it.
             if(table != null && isHidden(table, column)) {
                TableBindingMutator.requireShelf(model, shelf);
+               // Bug #79493: validate index against the full order before touching anything.
+               List<String> hiddenFull = fullDetailsOrder(table, null);
+               requireFullOrderIndex(hiddenFull, index, column, shelf);
                removeHiddenColumn(table, column);
+               // The other hidden columns' recorded positions are absolute slots in the full
+               // order, so they shift down by one when this column leaves it.
+               hiddenFull.removeIf(n -> n.equalsIgnoreCase(column));
+               restampHiddenPositions(table, hiddenFull);
                return;
             }
 
             List<String> full = table == null ? null : fullDetailsOrder(table, null);
+            requireFullOrderIndex(full, index, column, shelf);
 
             Integer shownIndex = index;
 
@@ -767,6 +775,36 @@ public class TableBindingService {
                restampHiddenPositions(table, full);
             }
          });
+   }
+
+   /**
+    * Refuses an {@code index} that is not the position of {@code column} in {@code full}, the
+    * full (shown and hidden) order {@code get_table_binding} reports -- a details column is bound
+    * once, so that position is the only valid index. Bug #79493. A no-op when there is no hidden
+    * column ({@code full == null}; the mutator validates the shown-only index), when no index is
+    * given, or when {@code column} is not in {@code full} (the caller's own not-found error).
+    */
+   private static void requireFullOrderIndex(List<String> full, Integer index, String column,
+                                             String shelf)
+   {
+      if(full == null || index == null) {
+         return;
+      }
+
+      int position = -1;
+
+      for(int i = 0; i < full.size(); i++) {
+         if(full.get(i).equalsIgnoreCase(column)) {
+            position = i;
+            break;
+         }
+      }
+
+      if(position >= 0 && index != position) {
+         throw new IllegalArgumentException(
+            "'index' " + index + " is not a position of '" + column + "' on the " + shelf +
+            " shelf. It is bound at: [" + position + "] " + column + ".");
+      }
    }
 
    /**
