@@ -23,6 +23,7 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.util.ContextInitializer;
 import ch.qos.logback.core.read.ListAppender;
+import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.InMemoryKeyValueStorage;
@@ -33,6 +34,8 @@ import inetsoft.util.log.*;
 import inetsoft.util.log.logback.LogbackContextFilter;
 import inetsoft.util.stall.StallWatchdog;
 import inetsoft.web.admin.properties.PropertiesController;
+import inetsoft.web.admin.logviewer.LogSettingService;
+import inetsoft.web.admin.logviewer.LogSettingsModel;
 import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -526,6 +529,268 @@ class PropertiesEngineLogLevelResetTest {
       engine.init(true);
       assertNull(contextLevel(LogContext.USER, user + "^" + org));
       assertNull(logManager.getLevel(logger + "^" + org));
+   }
+
+   /**
+    * Bug #79561: renaming an org must not re-attribute the levels of an org whose ID only ends
+    * with the renamed org's ID.
+    */
+   @Test
+   void orgRenameDoesNotReattributeSiblingLevels() throws Exception {
+      String org = "cl-sfx";
+      String sibling = "b-cl-sfx";
+      logManager.setContextLevel(LogContext.ORGANIZATION, org, LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.ORGANIZATION, sibling, LogLevel.INFO);
+      logManager.setContextLevel(LogContext.USER, "u1^" + sibling, LogLevel.WARN);
+      logManager.setContextLevel(LogContext.USER, "u2^" + org, LogLevel.ERROR);
+      logManager.setContextLevel(LogContext.GROUP, "g1^" + sibling, LogLevel.INFO);
+
+      logManager.renameOrgLogLevels(org, "z");
+
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.ORGANIZATION, sibling));
+      assertEquals(LogLevel.WARN, contextLevel(LogContext.USER, "u1^" + sibling));
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.GROUP, "g1^" + sibling));
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.ORGANIZATION, "z"));
+      assertEquals(LogLevel.ERROR, contextLevel(LogContext.USER, "u2^z"));
+      assertNull(contextLevel(LogContext.ORGANIZATION, org));
+      assertNull(contextLevel(LogContext.USER, "u2^" + org));
+      assertNull(contextLevel(LogContext.USER, "u1^z"), "a sibling level was re-attributed");
+   }
+
+   /**
+    * Bug #79561: deleting an org must not remove the levels of an org whose ID only ends with
+    * the deleted org's ID.
+    */
+   @Test
+   void orgDeleteKeepsSiblingLevelsInMemory() throws Exception {
+      String org = "cl-sfx";
+      String sibling = "b-cl-sfx";
+      logManager.setContextLevel(LogContext.ORGANIZATION, org, LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.ORGANIZATION, sibling, LogLevel.INFO);
+      logManager.setContextLevel(LogContext.USER, "u1^" + org, LogLevel.WARN);
+      logManager.setContextLevel(LogContext.USER, "u1^" + sibling, LogLevel.WARN);
+      logManager.setContextLevel(LogContext.ROLE, "r1^" + sibling, LogLevel.ERROR);
+
+      logManager.removeOrgLogLevels(org);
+
+      assertNull(contextLevel(LogContext.ORGANIZATION, org));
+      assertNull(contextLevel(LogContext.USER, "u1^" + org));
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.ORGANIZATION, sibling));
+      assertEquals(LogLevel.WARN, contextLevel(LogContext.USER, "u1^" + sibling));
+      assertEquals(LogLevel.ERROR, contextLevel(LogContext.ROLE, "r1^" + sibling));
+   }
+
+   /**
+    * Bug #79561: a key without an org (a community user name) is not attributed to the default
+    * org, so clearing the non-default orgs removes it, as it always did.
+    */
+   @Test
+   void clearNonDefaultKeepsDefaultRemovesOthersAndCaretLessKeys() throws Exception {
+      String def = Organization.getDefaultOrganizationID();
+      logManager.setContextLevel(LogContext.ORGANIZATION, def, LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.ORGANIZATION, "x-" + def, LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.ORGANIZATION, "o2", LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.USER, "u^" + def, LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.USER, "u^o2", LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.USER, "bob", LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.CATEGORY, logger, LogLevel.DEBUG);
+
+      logManager.clearNonDefaultOrgLogLevels();
+
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.ORGANIZATION, def));
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.USER, "u^" + def));
+      assertNull(contextLevel(LogContext.ORGANIZATION, "x-" + def));
+      assertNull(contextLevel(LogContext.ORGANIZATION, "o2"));
+      assertNull(contextLevel(LogContext.USER, "u^o2"));
+      assertNull(contextLevel(LogContext.USER, "bob"), "a caret-less key was kept");
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.CATEGORY, logger));
+   }
+
+   /**
+    * Bug #79561: a community key has no caret, so it can never belong to an org and renaming
+    * an org whose ID the name ends with must neither fail nor touch it.
+    */
+   @Test
+   void renameIgnoresCaretLessKeys() throws Exception {
+      logManager.setContextLevel(LogContext.USER, "bob-old", LogLevel.DEBUG);
+      logManager.setContextLevel(LogContext.GROUP, "old", LogLevel.INFO);
+
+      assertDoesNotThrow(() -> logManager.renameOrgLogLevels("old", "new"));
+
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.USER, "bob-old"));
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.GROUP, "old"));
+      assertNull(contextLevel(LogContext.USER, "bob-new"));
+   }
+
+   @Test
+   void orgLogPropertyPredicateIsShapeAware() {
+      assertTrue(LogManager.isOrgLogProperty("log.ORGANIZATION.level.org1", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("log.ORGANIZATION.level.b-org1", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("log.ORGANIZATION.level.org1-2", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("log.ORGANIZATION.level.u^org1", "org1"));
+      assertTrue(LogManager.isOrgLogProperty("log.USER.level.bob^org1", "org1"));
+      assertTrue(LogManager.isOrgLogProperty("log.ROLE.level.r^org1", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("log.USER.level.bob^b-org1", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("log.USER.level.org1", "org1"));
+      assertTrue(LogManager.isOrgLogProperty("log.level.some.logger^org1", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("log.level.some.logger", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("log.BOGUS.level.x^org1", "org1"));
+      assertFalse(LogManager.isOrgLogProperty("inetsoft.org.org1.x", "org1"));
+   }
+
+   /**
+    * Bug #79560: the organization level property has no caret, so it was left behind.
+    */
+   @Test
+   void orgDeleteClearsOrganizationContextLevel() throws Exception {
+      String org = "org79560del";
+      String sibling = "b-" + org;
+      initEngine();
+      engine.setProperty("log.ORGANIZATION.level." + org, "debug");
+      engine.setProperty("log.ORGANIZATION.level." + sibling, "info");
+      engine.setProperty("log.ORGANIZATION.level." + org + "-2", "warn");
+      engine.setProperty("log.USER.level.u1^" + org, "debug");
+      engine.setProperty("log.USER.level.u1^" + sibling, "error");
+      engine.save();
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.ORGANIZATION, org));
+
+      createIdentityService().removeOrgProperties(org);
+      logManager.removeOrgLogLevels(org);
+
+      assertNull(engine.getProperty("log.ORGANIZATION.level." + org));
+      assertNull(contextLevel(LogContext.ORGANIZATION, org));
+      assertNull(engine.getProperty("log.USER.level.u1^" + org));
+      assertNull(contextLevel(LogContext.USER, "u1^" + org));
+      assertEquals("info", engine.getProperty("log.ORGANIZATION.level." + sibling));
+      assertEquals("warn", engine.getProperty("log.ORGANIZATION.level." + org + "-2"));
+      assertEquals("error", engine.getProperty("log.USER.level.u1^" + sibling));
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.ORGANIZATION, sibling));
+      assertEquals(LogLevel.ERROR, contextLevel(LogContext.USER, "u1^" + sibling));
+
+      engine.init(true);
+      assertNull(contextLevel(LogContext.ORGANIZATION, org));
+      assertNull(contextLevel(LogContext.USER, "u1^" + org));
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.ORGANIZATION, sibling));
+      assertEquals(LogLevel.ERROR, contextLevel(LogContext.USER, "u1^" + sibling));
+   }
+
+   /**
+    * Bug #79560: removing the org's properties must reach the shared storage by itself, since
+    * only a stored removal reaches the other nodes.
+    */
+   @Test
+   void orgDeleteReachesSharedStorageWithoutExplicitSave() throws Exception {
+      String org = "org79560sto";
+      initEngine();
+      engine.setProperty("log.ORGANIZATION.level." + org, "debug");
+      engine.setProperty("log.USER.level.u1^" + org, "debug");
+      engine.setProperty("log.ORGANIZATION.level.b-" + org, "info");
+      engine.save();
+      assertTrue(storage.contains("log.ORGANIZATION.level." + org));
+
+      createIdentityService().removeOrgProperties(org);
+
+      assertFalse(storage.contains("log.ORGANIZATION.level." + org),
+                  "the removal was not stored, so the other nodes keep the level");
+      assertFalse(storage.contains("log.USER.level.u1^" + org));
+      assertTrue(storage.contains("log.ORGANIZATION.level.b-" + org));
+   }
+
+   /**
+    * Bug #79560: the organization level follows the org to its new ID, also in the storage.
+    */
+   @Test
+   void orgRenameMovesOrganizationContextLevel() throws Exception {
+      String oldOrg = "org79560old";
+      String newOrg = "org79560new";
+      String sibling = "b-" + oldOrg;
+      initEngine();
+      engine.setProperty("log.ORGANIZATION.level." + oldOrg, "debug");
+      engine.setProperty("log.ORGANIZATION.level." + sibling, "info");
+      engine.save();
+
+      IdentityService identityService = createIdentityService();
+      identityService.updateOrgProperties(oldOrg, newOrg);
+
+      // stored without an explicit save
+      assertTrue(storage.contains("log.ORGANIZATION.level." + newOrg));
+      assertFalse(storage.contains("log.ORGANIZATION.level." + oldOrg));
+      assertTrue(storage.contains("log.ORGANIZATION.level." + sibling));
+
+      identityService.removeOrgProperties(oldOrg);
+      logManager.renameOrgLogLevels(oldOrg, newOrg);
+
+      assertEquals("debug", engine.getProperty("log.ORGANIZATION.level." + newOrg));
+      assertNull(engine.getProperty("log.ORGANIZATION.level." + oldOrg));
+      assertEquals("info", engine.getProperty("log.ORGANIZATION.level." + sibling));
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.ORGANIZATION, newOrg));
+      assertNull(contextLevel(LogContext.ORGANIZATION, oldOrg));
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.ORGANIZATION, sibling));
+
+      engine.init(true);
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.ORGANIZATION, newOrg));
+      assertNull(contextLevel(LogContext.ORGANIZATION, oldOrg));
+      assertEquals(LogLevel.INFO, contextLevel(LogContext.ORGANIZATION, sibling));
+   }
+
+   /**
+    * Bug #79560: a rename that only changes the case of the ID keeps the level.
+    */
+   @Test
+   void orgCaseOnlyRenameKeepsOrganizationContextLevel() throws Exception {
+      initEngine();
+      engine.setProperty("log.ORGANIZATION.level.Org79560case", "debug");
+      engine.save();
+
+      createIdentityService().updateOrgProperties("Org79560case", "org79560case");
+
+      assertEquals("debug", engine.getProperty("log.ORGANIZATION.level.org79560case"));
+      assertNull(engine.getProperty("log.ORGANIZATION.level.Org79560case"));
+   }
+
+   /**
+    * Bug #79560: a level left behind for an organization that no longer exists must not stop
+    * the Logging page from listing the other levels, and must not be touched by a page save.
+    */
+   @Test
+   void unresolvedOrganizationLevelIsSkippedByThePage() throws Exception {
+      String deadOrg = "org79560dead";
+      String liveOrg = "org79560live";
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(provider.getOrgNameFromID(liveOrg)).thenReturn("Live");
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.getSecurityProvider()).thenReturn(provider);
+      ObjectProvider<SecurityEngine> securityEngineProvider =
+         new StaticListableBeanFactory(Map.of("securityEngine", securityEngine))
+            .getBeanProvider(SecurityEngine.class);
+      LogManager manager = new LogManager(securityEngineProvider, null, null);
+      manager.setContextLevel(LogContext.ORGANIZATION, deadOrg, LogLevel.DEBUG);
+      manager.setContextLevel(LogContext.ORGANIZATION, liveOrg, LogLevel.INFO);
+      manager.setContextLevel(LogContext.USER, "u1^" + liveOrg, LogLevel.WARN);
+
+      List<LogLevelSetting> levels = manager.getContextLevels();
+
+      assertEquals(2, levels.size());
+      assertTrue(levels.stream().anyMatch(
+         s -> s.getContext() == LogContext.ORGANIZATION && "Live".equals(s.getName())));
+      assertTrue(levels.stream().anyMatch(
+         s -> s.getContext() == LogContext.USER && "u1".equals(s.getName())));
+
+      // the level is skipped, not deleted
+      Field field = LogManager.class.getDeclaredField("contextLevels");
+      field.setAccessible(true);
+      @SuppressWarnings("unchecked")
+      Map<LogContext, Map<String, LogLevel>> contextLevels =
+         (Map<LogContext, Map<String, LogLevel>>) field.get(manager);
+      assertEquals(LogLevel.DEBUG, contextLevels.get(LogContext.ORGANIZATION).get(deadOrg));
+
+      // the page model is built from the listing, which used to fail on the null name
+      LogManager spied = spy(manager);
+      doReturn("inetsoft.log").when(spied).getBaseLogFile(false);
+      LogSettingService service = new LogSettingService(securityEngine, spied);
+      LogSettingsModel model = service.getConfiguration();
+      assertNotNull(model, "the Logging page could not be built");
+      assertEquals(2, model.logLevels().size());
    }
 
    private void assertOrgLogLevels(String user, String group, String oldOrg, String newOrg)
