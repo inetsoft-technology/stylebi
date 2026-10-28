@@ -2935,6 +2935,97 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().contains("Category (hidden)"), thrown.getMessage());
    }
 
+   // ── remove_table_field index on a hidden column (bug-79493) ────────────────
+
+   private static TableVSAssembly tableWithTwoHidden() {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "E");
+      inetsoft.uql.ColumnSelection hidden = columnRefSelectionOf("B", "D");
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(0)).setHiddenPosition(1);
+      ((inetsoft.uql.asset.ColumnRef) hidden.getAttribute(1)).setHiddenPosition(3);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hidden);
+      return table;
+   }
+
+   @Test
+   void removeFieldRefusesAWrongIndexForAHiddenColumnAndKeepsItBound() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      // full order A,B,C,D,E: B sits at 1, so 3 is not its position
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "B", 3));
+
+      assertTrue(e.getMessage().contains("'index' 3 is not a position of 'B'"), e.getMessage());
+      assertTrue(e.getMessage().contains("[1] B"), e.getMessage());
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      assertNotNull(info.getHiddenColumns().getAttribute("B"), "B must stay bound");
+      assertEquals(1, hiddenPositionOf(table, "B"));
+      assertEquals(3, hiddenPositionOf(table, "D"));
+   }
+
+   @Test
+   void removeFieldRefusesAnOutOfRangeIndexForAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "B", 9));
+      assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "B", -1));
+      assertNotNull(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+                       .getAttribute("B"));
+   }
+
+   @Test
+   void removeFieldRemovesAHiddenColumnAtItsFullOrderIndex() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.removeField("tok", principal(), "TableView2", "details", "B", 1);
+
+      assertNull(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+                    .getAttribute("B"));
+   }
+
+   @Test
+   void removeFieldRemovesAHiddenColumnWithNoIndex() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.removeField("tok", principal(), "TableView2", "details", "D");
+
+      assertNull(((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+                    .getAttribute("D"));
+      assertEquals(1, hiddenPositionOf(table, "B"), "B is before D, so its slot is unchanged");
+   }
+
+   @Test
+   void removeFieldOfAHiddenColumnRestampsTheOtherHiddenColumns() throws Exception {
+      TableVSAssembly table = tableWithTwoHidden();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.removeField("tok", principal(), "TableView2", "details", "B", 1);
+
+      // full order A,B,C,D,E becomes A,C,D,E: D moves from slot 3 to slot 2
+      assertEquals(2, hiddenPositionOf(table, "D"));
+   }
+
+   /** Bug #79493: the shown path takes the same full-order index, so a hidden neighbour's slot is refused. */
+   @Test
+   void removeFieldRefusesTheShownPositionOfAShownColumnWhenAHiddenOneIsBeforeIt()
+      throws Exception
+   {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C", "D");
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setHiddenColumns(hiddenAt(1, "B"));
+      TableBindingService service = hiddenColumnService(table, null);
+
+      // full order A,B,C,D: C is at 2; 1 is only its position among the shown columns
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.removeField("tok", principal(), "TableView2", "details", "C", 1));
+
+      assertTrue(e.getMessage().contains("[2] C"), e.getMessage());
+   }
+
    /**
     * Bug #79208: a hidden column's label must land on the live {@code ColumnRef} in {@code
     * getHiddenColumns()} directly -- merging it into {@code model.getDetails()} to resolve/alias
