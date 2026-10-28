@@ -1696,4 +1696,154 @@ class IdentityChangePlanServiceTest {
       String msg = refusal(g).getMessage();
       assertTrue(msg.contains("changes[0].spec.memberGroups[0]") && msg.contains("other-org"), msg);
    }
+
+   /** Bug #79575: names, aliases and org fields EM's editors refuse are refused at preview. */
+   @Nested
+   class EmCharacterRules {
+      private static final String USER_BAD = "~`!#%^*=[]\\;,/{}|\":<>?()";
+      private static final String GROUP_BAD = "~`!#%^*=[]\\;,/{}|\":<>?";
+
+      private IllegalArgumentException refused(IdentityChangeRequest change) {
+         return assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", List.of(change)), user));
+      }
+
+      @Test void createUserRefusesEveryUserNameCharacter() {
+         for(char c : USER_BAD.toCharArray()) {
+            String msg = refused(createUser("qa" + c + "x")).getMessage();
+            assertTrue(msg.contains("spec.name") && msg.contains(String.valueOf(c)), msg);
+         }
+      }
+
+      @Test void createGroupAndRoleRefuseEveryGroupNameCharacter() {
+         for(char c : GROUP_BAD.toCharArray()) {
+            for(IdentityChangeRequest change :
+               List.of(createGroup("qa" + c + "x"), createRole("qa" + c + "x")))
+            {
+               String msg = refused(change).getMessage();
+               assertTrue(msg.contains("spec.name") && msg.contains(String.valueOf(c)), msg);
+            }
+         }
+      }
+
+      @Test void createWithTheReportedNamesAndAliasIsRefused() {
+         assertTrue(refused(createUser("qa,d#probe")).getMessage().contains("spec.name"));
+         assertTrue(refused(createGroup("qa;d/probe-group")).getMessage().contains("spec.name"));
+         IdentityChangeRequest change = createUser("qa-alias-probe");
+         change.getSpec().setAlias("qa<d>probe");
+         assertTrue(refused(change).getMessage().contains("spec.alias"));
+      }
+
+      @Test void aliasRefusesAPeriodButAUserNameAllowsIt() throws Exception {
+         when(securityService.getUser(any(), eq(user)))
+            .thenThrow(new MissingResourceException("no such user"));
+         IdentityChangeRequest change = createUser("jo.smith");
+         change.getSpec().setAlias("J. Smith");
+         assertTrue(refused(change).getMessage().contains("spec.alias"));
+         change.getSpec().setAlias("J Smith");
+         assertEquals("USER|jo.smith~;~host-org",
+            service.resolve(request("task", List.of(change)), user).changes().get(0).property());
+      }
+
+      @Test void legalGroupAndRoleNamesWithParenthesesAndPeriodPass() throws Exception {
+         when(securityService.getGroup(any(), eq(user)))
+            .thenThrow(new MissingResourceException("no such group"));
+         when(securityService.getRole(any(), eq(user)))
+            .thenThrow(new MissingResourceException("no such role"));
+         assertDoesNotThrow(
+            () -> service.resolve(request("task", List.of(createGroup("Sales (EU) v1.2"))), user));
+         assertDoesNotThrow(
+            () -> service.resolve(request("task", List.of(createRole("Analyst (Sr)"))), user));
+      }
+
+      @Test void renameToABadNameIsRefused() {
+         for(IdentityChangeRequest change : List.of(
+            updateUser("bob", specWithName("bob,x#y")),
+            updateGroup("team", specWithName("team;x")),
+            updateRole("analyst", specWithName("an/alyst"))))
+         {
+            assertTrue(refused(change).getMessage().contains("spec.name"));
+         }
+      }
+
+      @Test void aliasChangeToABadAliasIsRefused() throws Exception {
+         IdentityID id = new IdentityID("bob", "host-org");
+         when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+         IdentitySpec spec = new IdentitySpec();
+         spec.setAlias("a<b>");
+         assertTrue(refused(updateUser("bob", spec)).getMessage().contains("spec.alias"));
+      }
+
+      @Test void existingBadNameAndAliasStayUpdatableWhenUnchanged() throws Exception {
+         IdentityID id = new IdentityID("j,smith#1", "host-org");
+         SecurityUser existing = existingUser(id);
+         existing.setAlias("J<S>");
+         lenient().when(editableAuthentication.getUser(eq(id))).thenReturn(mock(User.class));
+         lenient().when(securityService.getUser(eq(id), eq(user))).thenReturn(existing);
+         IdentitySpec spec = new IdentitySpec();
+         spec.setName("j,smith#1");
+         spec.setAlias("J<S>");
+         spec.setActive(false);
+
+         assertDoesNotThrow(() -> service.resolve(
+            request("task", List.of(updateUser("j,smith#1", spec))), user));
+      }
+
+      @Test void deleteOfABadNameIsUnaffected() throws Exception {
+         IdentityID id = new IdentityID("j,smith#1", "host-org");
+         lenient().when(editableAuthentication.getUser(eq(id))).thenReturn(mock(User.class));
+         lenient().when(securityService.getUser(eq(id), eq(user))).thenReturn(existingUser(id));
+         assertDoesNotThrow(() -> service.resolve(
+            request("task", List.of(deleteUser("j,smith#1"))), user));
+      }
+
+      @Test void organizationCreateRefusesABadIdAndABadName() {
+         assertTrue(refused(createOrganization("qa/d#org", "Org")).getMessage()
+                       .contains("spec.id"));
+         assertTrue(refused(createOrganization("qa-org", "qa<d>org")).getMessage()
+                       .contains("spec.orgName"));
+         assertTrue(refused(createOrganization("qa-org", "Org.One")).getMessage()
+                       .contains("spec.orgName"));
+      }
+
+      @Test void organizationChangeRefusesABadIdAndABadName() throws Exception {
+         lenient().when(securityService.getOrganization(eq("org1"), eq(user)))
+            .thenReturn(existingOrganization("org1"));
+         lenient().when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1"));
+         IdentitySpec badId = new IdentitySpec();
+         badId.setId("org_2");
+         assertTrue(refused(updateOrganization("org1", badId)).getMessage().contains("spec.id"));
+         IdentitySpec badName = new IdentitySpec();
+         badName.setOrgName("Org (2)");
+         assertTrue(refused(updateOrganization("org1", badName)).getMessage()
+                       .contains("spec.orgName"));
+      }
+
+      @Test void existingBadOrganizationNameStaysUpdatableWhenUnchanged() throws Exception {
+         SecurityOrganization existing = existingOrganization("org1");
+         existing.setName("Org (One).");
+         when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(existing);
+         IdentitySpec spec = new IdentitySpec();
+         spec.setOrgName("Org (One).");
+         assertDoesNotThrow(() -> service.resolve(
+            request("task", List.of(updateOrganization("org1", spec))), user));
+      }
+
+      @Test void ordinaryNamesAndOrganizationIdsPass() throws Exception {
+         when(securityService.getUser(any(), eq(user)))
+            .thenThrow(new MissingResourceException("no such user"));
+         when(securityService.getOrganization(anyString(), eq(user)))
+            .thenThrow(new MissingResourceException("no such org"));
+         assertDoesNotThrow(() -> service.resolve(
+            request("task", List.of(createUser("qa-name-ok-probe"))), user));
+         assertDoesNotThrow(() -> service.resolve(
+            request("task", List.of(createOrganization("qa-org-1", "Org One"))), user));
+      }
+
+      private IdentitySpec specWithName(String name) {
+         IdentitySpec spec = new IdentitySpec();
+         spec.setName(name);
+         return spec;
+      }
+   }
 }
