@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.presentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
@@ -78,6 +79,7 @@ class PresentationChangesetApplyServiceTest {
    private PresentationChangePlanService planService;
    private PresentationChangesetApplyService service;
    private MockedStatic<Tool> tool;
+   private MockedStatic<SUtil> sutil;
 
    private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -102,6 +104,12 @@ class PresentationChangesetApplyServiceTest {
             return s.substring(4);
          });
 
+      // organization scope needs a multi-tenant deployment (bug 79440); SUtil.isMultiTenant() would
+      // otherwise reach the Spring context
+      sutil = mockStatic(SUtil.class, withSettings().strictness(Strictness.LENIENT)
+         .defaultAnswer(Answers.CALLS_REAL_METHODS));
+      sutil.when(SUtil::isMultiTenant).thenReturn(true);
+
       lenient().when(access.read(any(), any(), anyBoolean())).thenAnswer(inv -> {
          PresentationSubModel subModel = inv.getArgument(0);
          boolean global = inv.getArgument(2);
@@ -120,6 +128,7 @@ class PresentationChangesetApplyServiceTest {
    @AfterEach
    void tearDown() {
       tool.close();
+      sutil.close();
    }
 
    private static String stateKey(PresentationSubModel subModel, boolean global) {
