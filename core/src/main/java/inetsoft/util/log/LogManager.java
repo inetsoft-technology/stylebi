@@ -229,16 +229,85 @@ public final class LogManager implements AutoCloseable, MessageListener {
       removeOrgLogLevels(null);
    }
 
+   /**
+    * Determines whether a context log level belongs to an organization. The key of an
+    * organization level is the organization ID itself, while the key of a user, group or role
+    * level is {@code name^orgId}. Level keys of any other organization, including one whose ID
+    * merely ends with the given ID, do not belong to it.
+    *
+    * @param context the type of log context.
+    * @param key     the name of the log context.
+    * @param orgId   the organization ID.
+    *
+    * @return {@code true} if the level belongs to the organization.
+    */
+   public static boolean belongsToOrg(LogContext context, String key, String orgId) {
+      if(context == null || key == null || Tool.isEmptyString(orgId)) {
+         return false;
+      }
+
+      switch(context) {
+      case ORGANIZATION:
+         return key.equals(orgId);
+      case USER:
+      case GROUP:
+      case ROLE:
+         return key.endsWith("^" + orgId);
+      default:
+         return false;
+      }
+   }
+
+   /**
+    * Determines whether a log level property (such as {@code log.ORGANIZATION.level.org1} or
+    * {@code log.USER.level.bob^org1}) belongs to an organization.
+    *
+    * @param property the property name.
+    * @param orgId    the organization ID.
+    *
+    * @return {@code true} if the property belongs to the organization.
+    */
+   public static boolean isOrgLogProperty(String property, String orgId) {
+      if(property == null || Tool.isEmptyString(orgId) || !property.startsWith("log.")) {
+         return false;
+      }
+
+      if(property.startsWith("log.level.")) {
+         // logger (category) levels may be scoped to an organization with a suffix
+         return property.endsWith("^" + orgId);
+      }
+
+      int idx = property.indexOf('.', 4);
+
+      if(idx < 0 || !property.startsWith(".level.", idx) || property.length() == idx + 7) {
+         return false;
+      }
+
+      try {
+         LogContext context = LogContext.valueOf(property.substring(4, idx));
+         return belongsToOrg(context, property.substring(idx + 7), orgId);
+      }
+      catch(IllegalArgumentException exc) {
+         // not a valid log context
+         return false;
+      }
+   }
+
    public void removeOrgLogLevels(String orgId) {
+      final String defaultOrgId = Organization.getDefaultOrganizationID();
+
       contextLevels.keySet().stream()
          .filter(logContext -> logContext != LogContext.CATEGORY)
          .forEach(logContext -> {
             Map<String, LogLevel> levelsMap = contextLevels.get(logContext);
 
             if(levelsMap != null) {
+               // a key that does not carry an organization (a community user name) does not
+               // belong to the default organization, so it is removed when clearing the others
                levelsMap.keySet().removeIf(key ->
                   !Tool.isEmptyString(orgId) ?
-                     key.endsWith(orgId) : !key.endsWith(Organization.getDefaultOrganizationID()));
+                     belongsToOrg(logContext, key, orgId) :
+                     !belongsToOrg(logContext, key, defaultOrgId));
             }
          });
    }
@@ -259,7 +328,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
             levelsMap.entrySet().removeIf(entry -> {
                String key = entry.getKey();
 
-               if(key.endsWith(oldOrgId)) {
+               if(belongsToOrg(logContext, key, oldOrgId)) {
                   removedLevelsMap.put(key, entry.getValue());
                   return true;
                }
