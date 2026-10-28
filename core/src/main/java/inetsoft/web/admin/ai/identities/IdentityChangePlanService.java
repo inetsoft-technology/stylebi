@@ -188,11 +188,13 @@ public class IdentityChangePlanService {
    {
       String name = requireNonBlank(label + ".spec.name", spec.getName());
       requireNoReferenceSeparators(label + ".spec.name", name);
+      IdentityNameRules.requireUserName(label + ".spec.name", name);
       String orgId = blankToDefault(spec.getOrgId(), currentOrgId);
       IdentityID id = new IdentityID(name, orgId);
       String key = key(IdentityUnitType.USER, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       requireNoBlankPassword(label, spec.getPassword());
+      IdentityNameRules.requireAliasOrOrgName(label + ".spec.alias", trimmed(spec.getAlias()));
       requireCreateIdFree(label, () -> securityService.getUser(id, user), key);
       String proposed = IdentityProjection.projectUserSpec(id, spec, newUserRoles(id, spec, user));
       // Bug #79016: the projection carries only pw:set, so two different passwords hashed alike.
@@ -229,6 +231,7 @@ public class IdentityChangePlanService {
    {
       String name = requireNonBlank(label + ".spec.name", spec.getName());
       requireNoReferenceSeparators(label + ".spec.name", name);
+      IdentityNameRules.requireGroupOrRoleName(label + ".spec.name", name);
       String orgId = blankToDefault(spec.getOrgId(), currentOrgId);
       IdentityID id = new IdentityID(name, orgId);
       String key = key(IdentityUnitType.GROUP, id.convertToKey());
@@ -245,6 +248,7 @@ public class IdentityChangePlanService {
    {
       String name = requireNonBlank(label + ".spec.name", spec.getName());
       requireNoReferenceSeparators(label + ".spec.name", name);
+      IdentityNameRules.requireGroupOrRoleName(label + ".spec.name", name);
       String orgId = blankToDefault(spec.getOrgId(), currentOrgId);
       IdentityID id = new IdentityID(name, orgId);
       String key = key(IdentityUnitType.ROLE, id.convertToKey());
@@ -262,7 +266,9 @@ public class IdentityChangePlanService {
       throws Exception
    {
       String id = requireNonBlank(label + ".spec.id", spec.getId());
-      requireNonBlank(label + ".spec.orgName", spec.getOrgName());
+      String orgName = requireNonBlank(label + ".spec.orgName", spec.getOrgName());
+      IdentityNameRules.requireOrgId(label + ".spec.id", id);
+      IdentityNameRules.requireAliasOrOrgName(label + ".spec.orgName", orgName);
       String key = key(IdentityUnitType.ORGANIZATION, id);
       requireUnseen(label, key, seenKeys);
       requireCreateIdFree(label, () -> securityService.getOrganization(id, user), key);
@@ -354,10 +360,13 @@ public class IdentityChangePlanService {
       IdentityID id =
          parseIdentityId(label, rawId, currentOrgId, IdentityUnitType.USER, directory());
       requireRenameFreeOfSeparators(label, spec, id);
+      requireRenamedNameLegal(label, spec, id, IdentityNameRules::requireUserName);
       String key = key(IdentityUnitType.USER, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       normalizeMemberRefs(label, IdentityUnitType.USER, spec, id.getOrgID());
       SecurityUser existing = requireGet(label, () -> securityService.getUser(id, user), key);
+      requireChangedValueLegal(label + ".spec.alias", spec.getAlias(), existing.getAlias(),
+                               IdentityNameRules::requireAliasOrOrgName);
       String before = IdentityProjection.projectUser(existing);
       SecurityUser merged = IdentityMerge.mergeUser(existing, spec, id);
       String proposed = IdentityProjection.projectUser(merged);
@@ -372,6 +381,7 @@ public class IdentityChangePlanService {
       IdentityID id =
          parseIdentityId(label, rawId, currentOrgId, IdentityUnitType.GROUP, directory());
       requireRenameFreeOfSeparators(label, spec, id);
+      requireRenamedNameLegal(label, spec, id, IdentityNameRules::requireGroupOrRoleName);
       String key = key(IdentityUnitType.GROUP, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       normalizeMemberRefs(label, IdentityUnitType.GROUP, spec, id.getOrgID());
@@ -406,6 +416,7 @@ public class IdentityChangePlanService {
       IdentityID id =
          parseIdentityId(label, rawId, currentOrgId, IdentityUnitType.ROLE, directory());
       requireRenameFreeOfSeparators(label, spec, id);
+      requireRenamedNameLegal(label, spec, id, IdentityNameRules::requireGroupOrRoleName);
       String key = key(IdentityUnitType.ROLE, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       normalizeMemberRefs(label, IdentityUnitType.ROLE, spec, id.getOrgID());
@@ -439,11 +450,14 @@ public class IdentityChangePlanService {
          // real rename there and must be gated here too. The guards themselves stay
          // case-insensitive -- see their own doc comments.
          if(!proposedId.equals(organizationId)) {
+            IdentityNameRules.requireOrgId(label + ".spec.id", proposedId);
             requireNotReservedOrganizationIdRename(label, organizationId, proposedId);
             requireNoDuplicateOrganizationId(label, organizationId, proposedId, user);
          }
       }
 
+      requireChangedValueLegal(label + ".spec.orgName", spec.getOrgName(), existing.getName(),
+                               IdentityNameRules::requireAliasOrOrgName);
       String before = IdentityProjection.projectOrganization(existing, organizationId);
       SecurityOrganization merged = IdentityMerge.mergeOrganization(existing, spec, organizationId);
       String proposed = IdentityProjection.projectOrganization(merged, merged.getId());
@@ -1268,6 +1282,29 @@ public class IdentityChangePlanService {
       if(name != null && !name.equals(id.getName())) {
          requireNoReferenceSeparators(label + ".spec.name", name);
       }
+   }
+
+   /** A rename gets the EM character check; an unchanged name (possibly external) does not. */
+   private static void requireRenamedNameLegal(String label, IdentitySpec spec, IdentityID id,
+                                               java.util.function.BiConsumer<String, String> check)
+   {
+      requireChangedValueLegal(label + ".spec.name", spec == null ? null : spec.getName(),
+                               id.getName(), check);
+   }
+
+   /** Applies {@code check} only when the trimmed new value differs from the existing one. */
+   private static void requireChangedValueLegal(String field, String proposed, String existing,
+                                                java.util.function.BiConsumer<String, String> check)
+   {
+      String value = trimmed(proposed);
+
+      if(value != null && !value.equals(existing)) {
+         check.accept(field, value);
+      }
+   }
+
+   private static String trimmed(String value) {
+      return value == null ? null : value.trim();
    }
 
    static String requireNonBlank(String field, String value) {
