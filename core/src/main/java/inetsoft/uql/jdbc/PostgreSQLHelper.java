@@ -168,4 +168,12 @@ public class PostgreSQLHelper extends SQLHelper {
       keywords.add("similar");
       keywords.add("verbose");
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }
