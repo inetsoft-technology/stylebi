@@ -63,6 +63,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class IdentityChangesetApplyServiceTest {
    @Mock private SecurityService securityService;
+   private static boolean existsByDefault(IdentityID id) {
+      return "host-org".equals(id.getOrgID()) && !id.getName().contains("^");
+   }
+
+   private final java.util.Set<String> deniedResources = new java.util.HashSet<>();
    @Mock private IdentityService identityService;
    @Mock private SecurityEngine securityEngine;
    @Mock private AdminBackupService backupService;
@@ -89,6 +94,16 @@ class IdentityChangesetApplyServiceTest {
       SecurityProvider writable =
          new TestSecurityProvider(editableAuthentication, authorizationProvider);
       lenient().when(securityEngine.getSecurityProvider()).thenReturn(writable);
+      // Bug #79562: member references must resolve at preview; by default every one exists and
+      // is administrable, tests override per case.
+      ((AbstractSecurityProvider) writable).setCheckPermissionStrategy(
+         (principal, type, resource, action) -> !deniedResources.contains(resource));
+      lenient().when(editableAuthentication.getUser(any(IdentityID.class)))
+         .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(User.class) : null);
+      lenient().when(editableAuthentication.getGroup(any(IdentityID.class)))
+         .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Group.class) : null);
+      lenient().when(editableAuthentication.getRole(any(IdentityID.class)))
+         .thenAnswer(inv -> existsByDefault(inv.getArgument(0)) ? mock(Role.class) : null);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
