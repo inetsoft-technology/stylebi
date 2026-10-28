@@ -353,6 +353,7 @@ public class IdentityChangePlanService {
    {
       IdentityID id =
          parseIdentityId(label, rawId, currentOrgId, IdentityUnitType.USER, directory());
+      requireNotDeactivatingCaller(label, spec, id, user);
       requireRenameFreeOfSeparators(label, spec, id);
       String key = key(IdentityUnitType.USER, id.convertToKey());
       requireUnseen(label, key, seenKeys);
@@ -381,6 +382,27 @@ public class IdentityChangePlanService {
       String proposed = IdentityProjection.projectGroup(merged, merged.getIdentityID());
       return new PlanChange(key, id.getOrgID(), before, proposed, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, "update group " + id.getLabel());
+   }
+
+   /**
+    * Refuses {@code active=false} on the calling user. {@code SecurityService.updateUser} forces
+    * the status of the account whose identity key equals the principal name back to active, and
+    * the Enterprise Manager disables the checkbox for it, so the change would plan as applicable
+    * and then be silently undone. The comparison is that same exact key equality on the parsed
+    * (pre-rename) id: another user with the same bare name in another organization is not the
+    * caller.
+    */
+   private static void requireNotDeactivatingCaller(String label, IdentitySpec spec, IdentityID id,
+                                                    Principal user)
+   {
+      if(spec.getActive() != null && !spec.getActive() && user != null &&
+         id.convertToKey().equals(user.getName()))
+      {
+         throw new IllegalArgumentException(
+            label + ".spec.active: the calling user (" + id.getLabel() + ") cannot be " +
+            "deactivated; the Enterprise Manager forbids it and apply would force the account " +
+            "back to active");
+      }
    }
 
    /**
