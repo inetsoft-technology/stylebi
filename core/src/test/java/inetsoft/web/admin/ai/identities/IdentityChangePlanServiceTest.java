@@ -706,6 +706,64 @@ class IdentityChangePlanServiceTest {
       assertTrue(plan.changes().get(0).recognized());
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #79564: deactivating the calling user
+   // -------------------------------------------------------------------------
+
+   private ResolvedPlan resolveUserActive(String callerKey, String id, Boolean active, String name)
+      throws Exception
+   {
+      lenient().when(user.getName()).thenReturn(callerKey);
+      IdentityID target = new IdentityID("admin", "host-org");
+      lenient().when(securityService.getUser(eq(target), eq(user)))
+         .thenReturn(existingUser(target));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setActive(active);
+      spec.setName(name);
+      return service.resolve(request("task", List.of(updateUser(id, spec))), user);
+   }
+
+   private void assertDeactivationRefused(String callerKey, String id, String name) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveUserActive(callerKey, id, false, name));
+      assertTrue(ex.getMessage().contains("changes[0].spec.active"));
+      assertTrue(ex.getMessage().contains("calling user"));
+   }
+
+   @Test void resolveUpdateRefusesDeactivatingTheCallingUser() {
+      assertDeactivationRefused("admin~;~host-org", "admin", null);
+   }
+
+   @Test void resolveUpdateRefusesDeactivatingTheCallingUserByKeyFormId() {
+      assertDeactivationRefused("admin~;~host-org", "admin~;~host-org", null);
+   }
+
+   @Test void resolveUpdateRefusesDeactivatingAndRenamingTheCallingUser() {
+      assertDeactivationRefused("admin~;~host-org", "admin", "admin2");
+   }
+
+   @Test void resolveUpdateAllowsActivatingTheCallingUser() throws Exception {
+      assertEquals(1,
+         resolveUserActive("admin~;~host-org", "admin", true, null).changes().size());
+   }
+
+   @Test void resolveUpdateAllowsDeactivatingAnotherUser() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+      lenient().when(user.getName()).thenReturn("admin~;~host-org");
+      when(securityService.getUser(eq(bob), eq(user))).thenReturn(existingUser(bob));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setActive(false);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(updateUser("bob", spec))), user);
+      assertTrue(plan.changes().get(0).proposedValue().contains("active=false"));
+   }
+
+   @Test void resolveUpdateAllowsDeactivatingTheSameNameInAnotherOrganization() throws Exception {
+      // The caller is admin in another organization; admin in the current one is a different user.
+      assertEquals(1,
+         resolveUserActive("admin~;~other-org", "admin", false, null).changes().size());
+   }
+
    @Test void resolveUpdateProducesADiffLimitedToTheTouchedField() throws Exception {
       IdentityID id = new IdentityID("bob", "host-org");
       SecurityUser existing = existingUser(id);
