@@ -50,6 +50,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
+import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.SnapshotFileGcService;
@@ -1787,13 +1788,27 @@ public class IdentityService {
 
       Properties properties = SreeEnv.getProperties();
       Set<Object> orgProperties = properties.keySet().stream()
-         .filter(prop -> ((String) prop).startsWith(prefix) || ((String) prop).startsWith("log.")
-            && ((String) prop).endsWith("^" + orgID))
+         .filter(prop -> ((String) prop).startsWith(prefix) ||
+            LogManager.isOrgLogProperty((String) prop, orgID))
          .collect(Collectors.toSet());
 
       for(Object orgProp : orgProperties) {
          String propName = (String) orgProp;
          SreeEnv.remove(propName);
+      }
+
+      // removing only changes the node's own properties, the other nodes see it after a save
+      if(!orgProperties.isEmpty()) {
+         saveProperties("Unable to save properties after removing the organization's properties");
+      }
+   }
+
+   private void saveProperties(String errorMessage) {
+      try {
+         SreeEnv.save();
+      }
+      catch(IOException e) {
+         LOG.error(errorMessage, e);
       }
    }
 
@@ -1986,21 +2001,30 @@ public class IdentityService {
     */
    private void updateOrgLogProperties(Properties properties, String oId, String id) {
       String oldSuffix = "^" + oId;
+      String orgPrefix = "log." + LogContext.ORGANIZATION + ".level.";
       Set<String> logProperties = properties.keySet().stream()
          .map(prop -> (String) prop)
-         .filter(prop -> prop.startsWith("log.") && prop.endsWith(oldSuffix))
+         .filter(prop -> LogManager.isOrgLogProperty(prop, oId))
          .collect(Collectors.toSet());
 
       for(String oldName : logProperties) {
          String value = properties.getProperty(oldName);
+         String newName = oldName.startsWith(orgPrefix) ? orgPrefix + id :
+            oldName.substring(0, oldName.length() - oldSuffix.length()) + "^" + id;
 
          if(value != null) {
-            String newName =
-               oldName.substring(0, oldName.length() - oldSuffix.length()) + "^" + id;
             SreeEnv.setProperty(newName, value);
          }
 
-         SreeEnv.remove(oldName);
+         // a rename that only changes the case keeps no distinct name to remove
+         if(!oldName.equals(newName)) {
+            SreeEnv.remove(oldName);
+         }
+      }
+
+      // the other nodes see the moved properties only after a save
+      if(!logProperties.isEmpty()) {
+         saveProperties("Unable to save properties after moving the organization's log levels");
       }
    }
 
