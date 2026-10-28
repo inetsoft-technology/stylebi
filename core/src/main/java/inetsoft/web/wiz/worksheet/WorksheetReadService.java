@@ -828,7 +828,11 @@ public class WorksheetReadService {
             }
 
             DataRef dataRef = item.getAttribute();
-            String field = dataRef != null ? outputName(dataRef) : null;
+            // aggregate/group refs (post/ranking conditions) keep the source column: consumers
+            // such as remove_filter match them against the aggregate's source column
+            String field = dataRef == null ? null
+               : (dataRef instanceof AggregateRef || dataRef instanceof GroupRef)
+               ? dataRef.getAttribute() : outputName(dataRef);
 
             XCondition xc = item.getXCondition();
             String operation = xc != null ? operationName(xc) : null;

@@ -2210,6 +2210,40 @@ class WorksheetReadServiceTest {
       assertEquals("ID", sorts.get(1).field());
    }
 
+   @Test
+   void preConditionFieldIsReportedByTheVisibleColumnName() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ConditionList cl = new ConditionList();
+      Condition c = new Condition(XSchema.INTEGER);
+      c.setOperation(XCondition.EQUAL_TO);
+      c.addValue(1);
+      cl.append(new ConditionItem(aliased("QUANTITY", "PRODUCT_QTY"), c, 0));
+      t.setPreConditionList(cl);
+      ws.addAssembly(t);
+
+      assertEquals("PRODUCT_QTY", tableNamed(read(ws), "T").preConditions().get(0).field());
+   }
+
+   @Test
+   void postConditionFieldKeepsTheAggregateSourceColumn() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      AggregateRef agg = new AggregateRef(aliased("QUANTITY", "TOTAL"), AggregateFormula.SUM);
+      AggregateInfo ai = new AggregateInfo();
+      ai.addAggregate(agg);
+      t.setAggregateInfo(ai);
+      ConditionList cl = new ConditionList();
+      Condition c = new Condition(XSchema.INTEGER);
+      c.setOperation(XCondition.GREATER_THAN);
+      c.addValue(1);
+      cl.append(new ConditionItem(agg, c, 0));
+      t.setPostConditionList(cl);
+      ws.addAssembly(t);
+
+      assertEquals("QUANTITY", tableNamed(read(ws), "T").postConditions().get(0).field());
+   }
+
    private static ColumnRef aliased(String attribute, String alias) {
       ColumnRef ref = new ColumnRef(new AttributeRef(null, attribute));
       ref.setAlias(alias);
