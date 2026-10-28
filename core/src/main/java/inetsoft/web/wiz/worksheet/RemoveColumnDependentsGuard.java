@@ -38,6 +38,11 @@ import java.util.List;
  * only SAVED dependents recorded in the dependency index are seen (a table renamed in memory but
  * not yet saved can be missed). It cannot live in {@code Editor}, which has no worksheet entry or
  * repository.</p>
+ *
+ * <p>Known gap (parity with the Composer's delete-column check, deliberately not closed here):
+ * only saved dependents bound directly to {@code table} are seen. A dependent bound to a join,
+ * mirror or concatenation built on this table, which exposes the column from it, is not found,
+ * so removing the column there is not refused.</p>
  */
 final class RemoveColumnDependentsGuard {
    private RemoveColumnDependentsGuard() {

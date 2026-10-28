@@ -107,6 +107,15 @@ class RemoveColumnDependents79526Test {
    }
 
    @Test
+   void aDependentBoundToAnotherTableWithTheSameColumnDoesNotBlockRemoval() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE, "U");
+
+      f.controller().edit("TOK", request("STATE", false), agent);
+
+      assertNull(f.table().getColumnSelection(false).getAttribute("STATE"));
+   }
+
+   @Test
    void anUnsavedWorksheetIsNotScanned() throws Exception {
       Fixture f = fixture(AssetRepository.TEMPORARY_SCOPE);
 
@@ -131,11 +140,16 @@ class RemoveColumnDependents79526Test {
                           AssetEntry dependent) {}
 
    private Fixture fixture(int scope) throws Exception {
+      return fixture(scope, "T");
+   }
+
+   private Fixture fixture(int scope, String boundTable) throws Exception {
       int n = ++count;
       AssetEntry src = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, "rcd79526_ws" + n, null);
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "CITY", "STATE");
       ws.addAssembly(t);
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "U", "CITY", "STATE"));
 
       AssetEntry dep = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
                                       "rcd79526_vs" + n, null);
@@ -144,7 +158,7 @@ class RemoveColumnDependents79526Test {
          AssetUtil.getAssetRepository(false).setSheet(src, ws, null, true);
          Viewsheet vs = new Viewsheet(src);
          TableVSAssembly table = new TableVSAssembly(vs, "CustTable");
-         table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "T"));
+         table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, boundTable));
          ColumnSelection cols = new ColumnSelection();
          cols.addAttribute(new ColumnRef(new AttributeRef(null, "CITY")));
          ((TableVSAssemblyInfo) table.getInfo()).setColumnSelection(cols);
