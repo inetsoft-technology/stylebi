@@ -20,7 +20,9 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
@@ -832,22 +834,63 @@ public class ViewsheetAssemblyAgentController {
             "type 'private'.");
       }
 
-      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareBookmark",
-                                         ResourceAction.READ))
-      {
+      if(!hasSharePermission(user, "ShareBookmark")) {
          throw new IllegalArgumentException(
             tool + ": you do not have the Share Bookmark permission -- use type 'private', or " +
             "leave an existing shared bookmark's 'type'/'readOnly' unchanged.");
       }
 
       if(typeChanged && type == VSBookmarkInfo.ALLSHARE &&
-         !securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareToAll",
-                                         ResourceAction.READ))
+         !hasSharePermission(user, "ShareToAll"))
       {
          throw new IllegalArgumentException(
             tool + ": you do not have the Share to All permission -- use type 'group' or " +
             "'private'.");
       }
+   }
+
+   /**
+    * Evaluates a user-facing share action ({@code ShareBookmark} / {@code ShareToAll}) against
+    * the real user's grants. Every request on this controller carries a wiz-tagged principal,
+    * which {@code WizDelegatingCheckPermissionStrategy} approves unconditionally (Redmine #76630);
+    * Redmine #79486 carves these two resources out of that bypass, so the check runs on a copy
+    * of the principal with the wiz tag removed (same name, roles, groups and organization).
+    * <p>
+    * A principal that carries no roles or groups and is unknown to the security provider has no
+    * identity to evaluate, and {@code DefaultCheckPermissionStrategy} would deny it before it
+    * reaches the allow-by-default rule for {@code VIEWSHEET_ACTION}. No grant or deny can exist
+    * for such a user, so the default (allowed) applies instead of a false denial.
+    */
+   private boolean hasSharePermission(Principal user, String resource)
+      throws SecurityException
+   {
+      Principal subject = user;
+
+      if(SRPrincipal.isWizPrincipal(user)) {
+         SRPrincipal real = new SRPrincipal((SRPrincipal) user);
+         real.setProperty("wiz", null);
+
+         if(!isResolvableIdentity(real)) {
+            return true;
+         }
+
+         subject = real;
+      }
+
+      return securityEngine.checkPermission(subject, ResourceType.VIEWSHEET_ACTION, resource,
+                                            ResourceAction.READ);
+   }
+
+   private boolean isResolvableIdentity(SRPrincipal principal) {
+      IdentityID[] roles = principal.getRoles();
+      String[] groups = principal.getGroups();
+
+      if(roles != null && roles.length > 0 || groups != null && groups.length > 0) {
+         return true;
+      }
+
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+      return provider == null || provider.getUser(principal.getIdentityID()) != null;
    }
 
    private static IdentityID ownerOf(Principal user) {

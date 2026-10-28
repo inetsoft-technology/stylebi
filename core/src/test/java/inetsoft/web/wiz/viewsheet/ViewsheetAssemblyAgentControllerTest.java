@@ -27,11 +27,17 @@ import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
 import inetsoft.util.MessageException;
+import inetsoft.sree.security.CheckPermissionStrategy;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.security.User;
+import inetsoft.sree.security.WizDelegatingCheckPermissionStrategy;
+import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -54,6 +60,9 @@ import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -5522,6 +5531,208 @@ class ViewsheetAssemblyAgentControllerTest {
       when(vsBookmarkService.addBookmarkToViewSheet(any(), anyString(), anyInt(), anyBoolean(),
          anyBoolean(), any(Principal.class))).thenReturn(ok);
       return vsBookmarkService;
+   }
+
+   /**
+    * Bug #79486: Share Bookmark / Share to All are evaluated against the real user's grants even
+    * though every plugin request carries a wiz-tagged principal. The engine here routes through a
+    * real {@link WizDelegatingCheckPermissionStrategy}, so a check that still passed the wiz-tagged
+    * principal would be approved unconditionally and these tests would fail.
+    */
+   @Nested
+   class WizPrincipalSharePermission {
+      private org.mockito.MockedStatic<XSessionService> sessionService;
+
+      @BeforeEach
+      void mockSessionService() {
+         sessionService = mockStatic(XSessionService.class);
+         sessionService.when(XSessionService::getService).thenReturn(new XSessionService());
+      }
+
+      @AfterEach
+      void closeSessionService() {
+         sessionService.close();
+      }
+
+      @Test
+      void noConfiguredDenyAndNoClaims_allowsSharing() throws Exception {
+         // a principal with no roles/groups unknown to the provider is denied by the real strategy
+         // before the allow-by-default rule, so the controller must not treat that as a deny
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = okAddBookmarkService();
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, engine(denyEverything(), false));
+
+         controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
+            wizUser(false));
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void noConfiguredDenyWithRoles_allowsSharing() throws Exception {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = okAddBookmarkService();
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, engine(deny(), true));
+
+         controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "group", null),
+            wizUser(true));
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.GROUPSHARE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void shareBookmarkDenied_refusesCreateSharedAndGroup() throws Exception {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = mock(VSBookmarkService.class);
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, engine(deny("ShareBookmark"), true));
+
+         for(String type : List.of("shared", "group")) {
+            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+               () -> controller.createBookmark("tok",
+                  new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", type, null),
+                  wizUser(true)));
+            assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
+         }
+
+         verify(svc, never()).addBookmarkToViewSheet(
+            any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void shareBookmarkDenied_refusesReadOnlyChangeOfSharedBookmark() throws Exception {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         ownerOfSharedBookmark(sessions);
+         VSBookmarkService svc = visibleAdminBookmark(VSBookmarkInfo.GROUPSHARE, true);
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, engine(deny("ShareBookmark"), true));
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.updateBookmark("tok",
+               new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, false),
+               wizUser(true)));
+         assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
+      }
+
+      @Test
+      void shareBookmarkDenied_refusesRenamingPrivateToShared() throws Exception {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+         IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+         when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+            new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, admin, false,
+                               System.currentTimeMillis()));
+         VSBookmarkService svc = visibleAdminBookmark(VSBookmarkInfo.PRIVATE, false);
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, engine(deny("ShareBookmark"), true));
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.renameBookmark("tok",
+               new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+                  "Q1 Report", "Q1 Report", "shared", null, null),
+               wizUser(true)));
+         assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
+         verify(svc, never()).renameBookmarkInViewSheet(
+            any(), anyString(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void shareToAllDenied_refusesSharedButAllowsGroup() throws Exception {
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = okAddBookmarkService();
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, engine(deny("ShareToAll"), true));
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.createBookmark("tok",
+               new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
+               wizUser(true)));
+         assertTrue(thrown.getMessage().contains("Share to All permission"));
+
+         controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "group", null),
+            wizUser(true));
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.GROUPSHARE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void adminAllowedToShare() throws Exception {
+         // the delegate (the real grant evaluation) allows an administrator everything
+         ViewsheetSessionService sessions = realMutatingSessions();
+         wireMutate(sessions, mock(RuntimeViewsheet.class));
+         VSBookmarkService svc = okAddBookmarkService();
+         ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+            sessions, svc, engine(deny(), true));
+
+         controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
+            wizUser(true));
+
+         verify(svc).addBookmarkToViewSheet(any(), eq("Q1 Report"), eq(VSBookmarkInfo.ALLSHARE),
+            anyBoolean(), anyBoolean(), any());
+      }
+
+      @Test
+      void otherPermissionsKeepTheWizBypass() throws Exception {
+         CheckPermissionStrategy delegate = deny("ShareBookmark");
+         WizDelegatingCheckPermissionStrategy strategy =
+            new WizDelegatingCheckPermissionStrategy(delegate);
+
+         assertTrue(strategy.checkPermission(wizUser(true), ResourceType.VIEWSHEET_ACTION,
+                                             "Bookmark", ResourceAction.READ));
+         verifyNoInteractions(delegate);
+      }
+
+      private SRPrincipal wizUser(boolean withRoles) {
+         IdentityID id = IdentityID.getIdentityIDFromKey("admin");
+         IdentityID[] roles = withRoles ? new IdentityID[] {new IdentityID("Everyone", id.orgID)}
+            : new IdentityID[0];
+         SRPrincipal principal = new SRPrincipal(id, roles, new String[0], id.orgID, 1L);
+         principal.setProperty("wiz", "true");
+         return principal;
+      }
+
+      /** Answers like the real strategy for a user holding no grant but the named denies. */
+      private CheckPermissionStrategy deny(String... resources) throws Exception {
+         CheckPermissionStrategy delegate = mock(CheckPermissionStrategy.class);
+         when(delegate.checkPermission(any(), any(), nullable(String.class), any()))
+            .thenAnswer(inv -> !List.of(resources).contains(inv.<String>getArgument(2)));
+         return delegate;
+      }
+
+      /** Mimics DefaultCheckPermissionStrategy's identity == null early return. */
+      private CheckPermissionStrategy denyEverything() throws Exception {
+         CheckPermissionStrategy delegate = mock(CheckPermissionStrategy.class);
+         when(delegate.checkPermission(any(), any(), nullable(String.class), any()))
+            .thenReturn(false);
+         return delegate;
+      }
+
+      private SecurityEngine engine(CheckPermissionStrategy delegate, boolean providerKnowsUser)
+         throws Exception
+      {
+         WizDelegatingCheckPermissionStrategy strategy =
+            new WizDelegatingCheckPermissionStrategy(delegate);
+         SecurityEngine engine = mock(SecurityEngine.class);
+         when(engine.checkPermission(any(), any(), nullable(String.class), any()))
+            .thenAnswer(inv -> strategy.checkPermission(inv.getArgument(0), inv.getArgument(1),
+                                                        inv.getArgument(2), inv.getArgument(3)));
+         SecurityProvider provider = mock(SecurityProvider.class);
+         when(provider.getUser(any())).thenReturn(providerKnowsUser ? mock(User.class) : null);
+         when(engine.getSecurityProvider()).thenReturn(provider);
+         return engine;
+      }
    }
 
    /** Every action permission granted except the named VIEWSHEET_ACTION resources. */
