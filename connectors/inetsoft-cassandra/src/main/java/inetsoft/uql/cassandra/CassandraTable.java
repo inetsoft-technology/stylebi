@@ -37,6 +37,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A class to map a Cassandra resultset to a table.
@@ -67,13 +68,35 @@ public class CassandraTable extends XTableNode {
       curr = (maxrows > 0 && rowcnt >= maxrows) ? null : result.one();
 
       if(curr == null) {
-         session.close();
+         closeSession();
       }
       else {
          rowcnt++;
       }
 
       return curr != null;
+   }
+
+   /**
+    * Release the session. A table that is dropped before its rows are exhausted never reaches
+    * the end of {@link #next()}, so the session is also released here.
+    */
+   @Override
+   public void close() {
+      closeSession();
+      super.close();
+   }
+
+   @Override
+   public void cancel() {
+      super.cancel();
+      closeSession();
+   }
+
+   private void closeSession() {
+      if(sessionClosed.compareAndSet(false, true)) {
+         session.close();
+      }
    }
 
    /**
@@ -270,6 +293,7 @@ public class CassandraTable extends XTableNode {
    private Row curr;
    private int rowcnt = 0;
    private int maxrows = 0;
+   private final AtomicBoolean sessionClosed = new AtomicBoolean(false);
 
    private static final Logger LOG = LoggerFactory.getLogger(CassandraTable.class.getName());
 }

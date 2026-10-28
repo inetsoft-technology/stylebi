@@ -18,7 +18,9 @@
 package inetsoft.uql.tabular;
 
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.XNode;
 import inetsoft.uql.XQuery;
+import inetsoft.uql.XTableNode;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.tabular.impl.TabularHandler;
@@ -45,12 +47,19 @@ public abstract class TabularQuery extends XQuery {
       int maxRows = getMaxRows();
       setMaxRows(100);
 
+      XNode result = null;
+
       try {
          // not need to get most up-to-date data for refreshing columns.
          vtable.put(XQuery.HINT_PREVIEW, "true");
-         handler.execute(this, vtable, null, null);
+         result = handler.execute(this, vtable, null, null);
       }
       finally {
+         // only the columns are needed, so release any connection the unread result holds
+         if(result instanceof XTableNode) {
+            ((XTableNode) result).close();
+         }
+
          vtable.remove(XQuery.HINT_PREVIEW);
          setMaxRows(maxRows);
       }
