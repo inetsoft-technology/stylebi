@@ -102,7 +102,8 @@ public class ChartAestheticAgentService {
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       return sessions.mutate(sessionToken, user,
-         ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
+         ChartRenderCheck.checked(assemblyName, ChartBindingService.scriptExpressions(field),
+            (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);

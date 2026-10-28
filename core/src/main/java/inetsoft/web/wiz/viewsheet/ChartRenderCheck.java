@@ -139,14 +139,77 @@ public final class ChartRenderCheck {
       warnIfScriptFails(rvs, name, dispatcher);
    }
 
-   /** A whole mutation followed by {@link #warnIfScriptFails}, whichever way the body returns. */
+   /** @see #checked(String, Collection, ViewsheetSessionService.Mutation) */
    public static ViewsheetSessionService.Mutation checked(
       String chartName, ViewsheetSessionService.Mutation mutation)
    {
+      return checked(chartName, List.of(), mutation);
+   }
+
+   /**
+    * A whole mutation followed by {@link #warnIfScriptFails}, whichever way the body returns.
+    *
+    * <p>A {@link ScriptException} thrown out of the mutation itself (bug #79503) is a refusal, not
+    * an opaque 500: a {@code "=script"} column that does not parse or fails to evaluate is run by
+    * the Composer's own {@code updateAssembly} in the middle of the write, after the binding was
+    * stored. The checkpoint {@code mutate()} took before the call is restored, so the chart does
+    * not keep a script that every later write would execute (and fail on) again, and the failure
+    * is rethrown as an {@link IllegalArgumentException} naming {@code expressions} -- the
+    * {@code "="} values the request carried -- which the controller maps to a clean 400.
+    * Only applies to a chart; any other assembly keeps its own failure handling.
+    *
+    * @param expressions the script values ({@code "=..."}) the write sets, for the message
+    */
+   public static ViewsheetSessionService.Mutation checked(
+      String chartName, Collection<String> expressions,
+      ViewsheetSessionService.Mutation mutation)
+   {
       return (rvs, runtimeId, dispatcher) -> {
-         mutation.run(rvs, runtimeId, dispatcher);
+         try {
+            mutation.run(rvs, runtimeId, dispatcher);
+         }
+         catch(Exception e) {
+            ScriptException script = scriptCause(e);
+            Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+            if(script == null || vs == null ||
+               !(vs.getAssembly(chartName) instanceof ChartVSAssembly))
+            {
+               throw e;
+            }
+
+            boolean restored = false;
+
+            try {
+               // The current checkpoint, not the newest: after an undo they differ.
+               restored = rvs.restoreCurrentCheckpoint();
+            }
+            catch(RuntimeException ignore) {
+            }
+
+            throw new IllegalArgumentException(
+               scriptRefusal(chartName, expressions, script.getMessage(), restored), e);
+         }
+
          warnIfScriptFails(rvs, chartName, dispatcher);
       };
+   }
+
+   /** The refusal text for a write whose script column failed to parse or evaluate. */
+   static String scriptRefusal(String chartName, Collection<String> expressions, String failure,
+                               boolean restored)
+   {
+      String named = expressions == null || expressions.isEmpty()
+         ? "A script on chart '" + chartName + "'"
+         : "The expression " + String.join(", ", expressions.stream()
+            .map(x -> "'" + x + "'").toList());
+      String reason = failure == null || failure.isBlank() ? "" : ": " + failure.strip();
+
+      return named + " does not parse or failed to evaluate" + reason + ". " +
+         (restored
+            ? "Nothing was changed."
+            : "The write may be applied (the runtime could not be restored to its previous " +
+              "state); re-read the binding and undo if needed.");
    }
 
    /** Whether {@code e} is, or was caused by, a {@link ScriptException}. */
