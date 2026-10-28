@@ -35,10 +35,18 @@ import java.util.List;
  * adds up. {@code NON_NULL} and deliberately not {@code NON_EMPTY}: an empty {@code sources} or
  * {@code joins} list is a meaningful answer ("built on nothing", "no predicates") and must stay on
  * the wire.</p>
+ *
+ * <p>Any assembly kind can be the worksheet's primary assembly. Tables, variables, named groups
+ * and mirrors each carry an always-emitted {@code primary} flag; {@code primaryAssembly} names the
+ * primary assembly of any kind, including a kind not listed here (a condition or date range that
+ * is not a mirror), and is omitted when the worksheet has no primary assembly.</p>
+ *
+ * @param primaryAssembly name of the worksheet's primary assembly, whatever its kind
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WorksheetModel(List<TableModel> tables, List<VariableModel> variables,
-                             List<NamedGroupModel> namedGroups, List<MirrorModel> mirrors) {
+                             List<NamedGroupModel> namedGroups, List<MirrorModel> mirrors,
+                             String primaryAssembly) {
 
    /**
     * A non-table mirror assembly -- a variable, named group, condition or date range mirrored from
@@ -57,10 +65,11 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    mirrored assembly in this worksheet; {@code null} when unknown
     * @param outerMirror whether the source is another worksheet
     * @param autoUpdate  whether the mirror follows its source automatically
+    * @param primary     {@code true} if this is the worksheet's primary assembly; always emitted
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record MirrorModel(String name, String kind, String source, boolean outerMirror,
-                             boolean autoUpdate) {}
+                             boolean autoUpdate, boolean primary) {}
 
    /**
     * A single table assembly inside the worksheet.
@@ -424,7 +433,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record VariableModel(String name, String label, String type, String defaultValue,
-                               ChoicesModel choices, Boolean hidden) {}
+                               ChoicesModel choices, Boolean hidden,
+                               boolean primary) {}
 
    /**
     * A variable's enumerated "Values" picker, mirroring
@@ -472,6 +482,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param groupOthers {@code true} if unmapped values are grouped as "Others"
     * @param hidden      {@code true} for a hidden copy that backs a mirror (see
     *                    {@link MirrorModel}); {@code null} otherwise
+    * @param primary     {@code true} if this is the worksheet's primary assembly; always emitted
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record NamedGroupModel(
@@ -485,7 +496,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String type,
       List<GroupMappingModel> groupMappings,
       boolean groupOthers,
-      Boolean hidden
+      Boolean hidden,
+      boolean primary
    ) {}
 
    /**
