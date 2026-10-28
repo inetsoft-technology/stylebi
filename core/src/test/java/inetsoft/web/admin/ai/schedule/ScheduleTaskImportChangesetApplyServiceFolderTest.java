@@ -77,7 +77,8 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       AdminBackupService backupService = mock(AdminBackupService.class);
       when(backupService.backup(anyString())).thenReturn("snap");
       transferService = new ScheduleTaskTransferService(scheduleManager, mock(ScheduleService.class));
-      planService = new ScheduleTaskImportChangePlanService(transferService, scheduleManager);
+      planService = new ScheduleTaskImportChangePlanService(transferService, scheduleManager,
+                                                       scheduleTaskService);
       service = new ScheduleTaskImportChangesetApplyService(
          planService, transferService, scheduleManager, mock(AdminScheduleGateway.class),
          scheduleTaskService, backupService);
@@ -152,6 +153,20 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       assertTrue(listedIn("/", taskId), "listed in the root folder");
    }
 
+   /** The preview also runs the sanitizers now, so fail only the call apply makes while writing (the third: preview, apply re-resolve, write). */
+   private void failApplyOfTask(String failId) throws Exception {
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      doAnswer(inv -> {
+         if(calls.incrementAndGet() > 2) {
+            throw new IllegalStateException("forced failure");
+         }
+
+         return null;
+      }).when(scheduleTaskService).sanitizeConditions(
+         argThat((ScheduleTask t) -> t != null && failId.equals(t.getTaskId())),
+         any(ScheduleTask.class), any());
+   }
+
    @Test
    void rollbackOfOverwriteRestoresTheTaskInItsFolder() throws Exception {
       String taskId = storeTask("i78592undo", "I78592R");
@@ -159,10 +174,7 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       String otherId = other.getTaskId();
       taskIds.add(otherId);
       // the import of the second, new task fails, so the overwrite of the first is rolled back
-      doThrow(new IllegalStateException("forced failure"))
-         .when(scheduleTaskService).sanitizeConditions(
-            argThat((ScheduleTask t) -> t != null && otherId.equals(t.getTaskId())),
-            any(ScheduleTask.class), any());
+      failApplyOfTask(otherId);
 
       ScheduleTaskImportApplyResult result = importTasks(
          List.of(task("i78592undo", 11), other), List.of(change(taskId, true), change(otherId, false)));
@@ -201,10 +213,7 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       String otherId = other.getTaskId();
       taskIds.add(otherId);
       // the import of the third, new task fails, so both overwrites are rolled back
-      doThrow(new IllegalStateException("forced failure"))
-         .when(scheduleTaskService).sanitizeConditions(
-            argThat((ScheduleTask t) -> t != null && otherId.equals(t.getTaskId())),
-            any(ScheduleTask.class), any());
+      failApplyOfTask(otherId);
 
       ScheduleTaskImportApplyResult result = importTasks(
          List.of(task("i78592multi1", 11), task("i78592multi2", 12), other),
@@ -274,7 +283,7 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       planRequest.setTask("import over a stored task");
       planRequest.setStagingToken(stagingToken);
       planRequest.setChanges(changes);
-      ResolvedPlan plan = planService.resolve(planRequest, admin);
+      ResolvedPlan plan = planService.resolve(planRequest, admin, "http://localhost:8080/");
 
       ScheduleTaskImportApplyRequest request = new ScheduleTaskImportApplyRequest();
       request.setTask(planRequest.getTask());
