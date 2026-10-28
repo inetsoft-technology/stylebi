@@ -801,7 +801,9 @@ public class AdminScheduleGateway {
          output.setEndDate(new Date(task.getEndDate()));
       }
 
-      if(task.getStartDate() >= 0) {
+      // Bug #79432, same for an omitted start date: 0 is no start date, as in EM, rather than a
+      // start in 1970 stored on the task
+      if(task.getStartDate() > 0) {
          output.setStartDate(new Date(task.getStartDate()));
       }
 
