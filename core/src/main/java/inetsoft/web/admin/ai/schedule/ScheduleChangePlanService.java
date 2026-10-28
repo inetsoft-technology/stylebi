@@ -268,6 +268,8 @@ public class ScheduleChangePlanService {
             label + ".spec.conditions[" + i + "]", tc.getTimeRange());
          ScheduleConditionConverter.requireKnownTimeZone(
             label + ".spec.conditions[" + i + "]", tc.getTimeZone());
+         ScheduleConditionConverter.requireTimeOfDayInRange(
+            label + ".spec.conditions[" + i + "]", tc);
 
          if(tc.getType() == TimeCondition.Type.AT && tc.getDate() == null) {
             throw new IllegalArgumentException(

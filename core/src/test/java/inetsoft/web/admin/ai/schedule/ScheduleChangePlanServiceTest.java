@@ -803,6 +803,17 @@ class ScheduleChangePlanServiceTest {
          "changes[0].spec.conditions[0].timeZone: \"Mars/Olympus\""), ex.getMessage());
    }
 
+   // bug #79524
+   @Test void outOfRangeTimeOfDayIsRefusedNamingTheField() {
+      CreateScheduleTaskRequest spec = specWith(timeCondition(25, 0));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveCreateOf(spec));
+
+      assertTrue(ex.getMessage().startsWith("changes[0].spec.conditions[0].hour: "),
+                 ex.getMessage());
+   }
+
    @Test void knownAndOmittedTimeZonesAreAccepted() throws Exception {
       for(String zone : new String[]{null, "America/New_York", "UTC", "utc"}) {
          TimeCondition condition = timeCondition(9, 0);

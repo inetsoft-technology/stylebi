@@ -157,6 +157,8 @@ public class ScheduleCycleChangePlanService {
          label + ".spec.conditions", change.spec().conditions());
       ScheduleConditionConverter.refuseRunOnce(
          label + ".spec.conditions", change.spec().conditions());
+      ScheduleConditionConverter.requireTimeOfDayInRange(
+         label + ".spec.conditions", change.spec().conditions());
       ScheduleConditionConverter.requireKnownTimeZones(
          label + ".spec.conditions", change.spec().conditions());
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(user);
@@ -224,6 +226,8 @@ public class ScheduleCycleChangePlanService {
          ScheduleConditionConverter.refuseTimeRanges(
             label + ".spec.conditions", spec.conditions());
          ScheduleConditionConverter.refuseRunOnce(
+            label + ".spec.conditions", spec.conditions());
+         ScheduleConditionConverter.requireTimeOfDayInRange(
             label + ".spec.conditions", spec.conditions());
          ScheduleConditionConverter.requireKnownTimeZones(
             label + ".spec.conditions", spec.conditions());
