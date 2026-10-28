@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.AutoSaveUtils;
@@ -832,22 +833,42 @@ public class ViewsheetAssemblyAgentController {
             "type 'private'.");
       }
 
-      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareBookmark",
-                                         ResourceAction.READ))
-      {
+      if(!hasSharePermission(user, "ShareBookmark")) {
          throw new IllegalArgumentException(
             tool + ": you do not have the Share Bookmark permission -- use type 'private', or " +
             "leave an existing shared bookmark's 'type'/'readOnly' unchanged.");
       }
 
       if(typeChanged && type == VSBookmarkInfo.ALLSHARE &&
-         !securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareToAll",
-                                         ResourceAction.READ))
+         !hasSharePermission(user, "ShareToAll"))
       {
          throw new IllegalArgumentException(
             tool + ": you do not have the Share to All permission -- use type 'group' or " +
             "'private'.");
       }
+   }
+
+   /**
+    * Evaluates a user-facing share action ({@code ShareBookmark} / {@code ShareToAll}) against
+    * the real user's grants. Every request on this controller carries a wiz-tagged principal,
+    * which {@code WizDelegatingCheckPermissionStrategy} approves unconditionally (Redmine #76630);
+    * Redmine #79486 carves these two resources out of that bypass, so the check runs on a copy
+    * of the principal with the wiz tag removed (same name, roles, groups and organization).
+    */
+   private boolean hasSharePermission(Principal user, String resource)
+      throws SecurityException
+   {
+      Principal subject = user;
+
+      if(SRPrincipal.isWizPrincipal(user)) {
+         SRPrincipal real = new SRPrincipal((SRPrincipal) user);
+         real.setProperty("wiz", null);
+
+         subject = real;
+      }
+
+      return securityEngine.checkPermission(subject, ResourceType.VIEWSHEET_ACTION, resource,
+                                            ResourceAction.READ);
    }
 
    private static IdentityID ownerOf(Principal user) {
