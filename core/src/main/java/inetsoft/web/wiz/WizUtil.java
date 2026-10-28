@@ -23,11 +23,15 @@ import inetsoft.graph.internal.LabelValue;
 import inetsoft.report.filter.DCMergeCell;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.SRPrincipal;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.pairing.PairingException;
 import org.slf4j.Logger;
@@ -40,6 +44,85 @@ import java.util.Base64;
 import java.util.Locale;
 
 public class WizUtil {
+   /**
+    * Returns a copy of a wiz principal (same name, roles, groups and organization) with the "wiz"
+    * tag removed, so permission checks on it are evaluated against the real user's grants instead
+    * of being approved unconditionally by {@code WizDelegatingCheckPermissionStrategy}. Any other
+    * principal is returned as is.
+    */
+   public static Principal nonWizCopy(Principal user) {
+      if(!SRPrincipal.isWizPrincipal(user)) {
+         return user;
+      }
+
+      SRPrincipal real = new SRPrincipal((SRPrincipal) user);
+      real.setProperty("wiz", null);
+      return real;
+   }
+
+   /**
+    * The principal an agent save is permission-checked as: {@link #nonWizCopy} with the login
+    * check skipped. REPORT/ASSET checks, unlike VIEWSHEET_ACTION, require
+    * {@code SecurityEngine.isLogin}, which a plugin request's principal only satisfies through
+    * the wiz tag; skipping it keeps the check from depending on the browser session still being
+    * live. Nothing else changes: grants are still evaluated for the real roles, groups and
+    * organization.
+    */
+   public static XPrincipal saveCheckPrincipal(XPrincipal user) {
+      if(!SRPrincipal.isWizPrincipal(user)) {
+         return user;
+      }
+
+      XPrincipal real = (XPrincipal) nonWizCopy(user);
+      real.setIgnoreLogin(true);
+      return real;
+   }
+
+   /**
+    * Redmine #79530: refuses an agent save the real user could not make from the Composer. The
+    * engine's own WRITE checks in {@code AbstractAssetEngine.setSheet} are approved for a wiz
+    * principal, so this repeats them on {@link #saveCheckPrincipal}: WRITE on the target when it
+    * is already stored (overwrite), otherwise WRITE on its parent folder, or on the nearest
+    * existing ancestor when the parent is missing. Run it before any folder is created or
+    * anything is written. A non-wiz principal is left to the engine's own checks.
+    *
+    * @param kind "viewsheet" or "worksheet", for the error text.
+    */
+   public static void requireSaveWritePermission(AssetRepository repository, AssetEntry entry,
+                                                 XPrincipal user, String kind)
+      throws PairingException
+   {
+      if(!SRPrincipal.isWizPrincipal(user)) {
+         return;
+      }
+
+      XPrincipal real = saveCheckPrincipal(user);
+
+      try {
+         AssetEntry target = entry;
+
+         if(!repository.containsEntry(entry)) {
+            target = entry.getParent();
+
+            while(target != null && !target.isRoot() && !repository.containsEntry(target)) {
+               target = target.getParent();
+            }
+         }
+
+         if(target != null) {
+            repository.checkAssetPermission(real, target, ResourceAction.WRITE);
+         }
+      }
+      catch(MessageException e) {
+         throw new PairingException("Failed to save " + kind + ": " + e.getMessage(), e);
+      }
+      catch(Exception e) {
+         throw new PairingException(
+            "Failed to check write permission for " + kind + " '" + entry.getPath() + "': " +
+            e.getMessage(), e);
+      }
+   }
+
    public static String decodeId(String id) {
       String decodedId;
 

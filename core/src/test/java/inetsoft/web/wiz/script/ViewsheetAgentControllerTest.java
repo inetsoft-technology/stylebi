@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.script;
 
+import static org.mockito.Mockito.doThrow;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.wiz.pairing.*;
@@ -529,5 +530,50 @@ class ViewsheetAgentControllerTest {
 
       FunctionSignature builtin = controller.signature("dateAdd");
       assertFalse(builtin.sample());
+   }
+
+   /**
+    * Bug #79530: a wiz-tagged principal is approved for every permission check, so the engine's
+    * own WRITE check in setSheet never refused a READ-only user; the save pre-check repeats it on
+    * a copy of the principal without the tag.
+    */
+   @Test
+   void saveWithoutWritePermissionIsRefusedAndNothingIsWritten79530() throws Exception {
+      inetsoft.sree.security.IdentityID id =
+         inetsoft.sree.security.IdentityID.getIdentityIDFromKey("reader");
+      inetsoft.sree.security.SRPrincipal wiz = new inetsoft.sree.security.SRPrincipal(
+         id, new inetsoft.sree.security.IdentityID[0], new String[0], id.orgID, 1L);
+      wiz.setProperty("wiz", "true");
+
+      inetsoft.uql.asset.AssetEntry entry = new inetsoft.uql.asset.AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         inetsoft.uql.asset.AssetEntry.Type.VIEWSHEET, "D", null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(entry);
+      ScriptEditService edit = mock(ScriptEditService.class);
+      when(edit.resolve(eq("tok"), any())).thenReturn(rvs);
+
+      inetsoft.uql.asset.AssetRepository repo = mock(inetsoft.uql.asset.AssetRepository.class);
+      when(repo.containsEntry(any())).thenReturn(true);
+      doThrow(new inetsoft.util.MessageException("Write access denied: D")).when(repo)
+         .checkAssetPermission(any(), any(), eq(inetsoft.sree.security.ResourceAction.WRITE));
+      inetsoft.analytic.composition.ViewsheetService vsService =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(vsService.getAssetRepository()).thenReturn(repo);
+
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetAgentController controller = new ViewsheetAgentController(feature,
+         mock(SheetJoinService.class), mock(SheetSessionService.class), edit,
+         mock(ScriptReadService.class), mock(ScriptExecuteService.class),
+         mock(ScriptStateRefreshService.class), mock(ScriptContextService.class),
+         mock(ScriptApiService.class), mock(ScriptImageService.class), vsService,
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+                                         () -> controller.save("tok", wiz));
+
+      assertTrue(ex.getMessage().contains("Write access denied: D"), ex.getMessage());
+      verify(vsService, never()).setViewsheet(any(), any(), any(), anyBoolean(), anyBoolean());
    }
 }

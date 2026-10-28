@@ -20,7 +20,6 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.AutoSaveUtils;
@@ -858,17 +857,8 @@ public class ViewsheetAssemblyAgentController {
    private boolean hasSharePermission(Principal user, String resource)
       throws SecurityException
    {
-      Principal subject = user;
-
-      if(SRPrincipal.isWizPrincipal(user)) {
-         SRPrincipal real = new SRPrincipal((SRPrincipal) user);
-         real.setProperty("wiz", null);
-
-         subject = real;
-      }
-
-      return securityEngine.checkPermission(subject, ResourceType.VIEWSHEET_ACTION, resource,
-                                            ResourceAction.READ);
+      return securityEngine.checkPermission(WizUtil.nonWizCopy(user), ResourceType.VIEWSHEET_ACTION,
+                                            resource, ResourceAction.READ);
    }
 
    private static IdentityID ownerOf(Principal user) {
@@ -2688,9 +2678,15 @@ public class ViewsheetAssemblyAgentController {
          }
       }
 
+      // Bug #79530: WizDelegatingCheckPermissionStrategy approves the engine's own WRITE checks
+      // for a wiz principal, so the user's real write permission is verified here, before
+      // ensureParentFolder creates anything and before setViewsheet writes.
+      WizUtil.requireSaveWritePermission(viewsheetService.getAssetRepository(), entry, xp,
+                                         "viewsheet");
+
       Map<String, Object> result = new LinkedHashMap<>();
 
-      if(entry != oldEntry && ensureParentFolder(entry, xp)) {
+      if(entry != oldEntry && ensureParentFolder(entry, WizUtil.saveCheckPrincipal(xp))) {
          result.put("createdFolder", entry.getParent().getPath());
       }
 
