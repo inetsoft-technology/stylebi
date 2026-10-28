@@ -17,9 +17,11 @@
  */
 package inetsoft.mv.data;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.jdbc.XBinaryCondition;
 import inetsoft.uql.jdbc.XExpression;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,6 +71,102 @@ class XDimDictionaryPatternValsTest {
    void noMatchReturnsEmptyArray() {
       Object[] vals = fix(dictionary(), "CONTAINS", "zzz");
       assertEquals(0, vals.length);
+   }
+
+   // Bug #79417. The source database's LIKE case sensitivity (condition attribute) overrides
+   // the global setting; without the attribute the global setting applies as before.
+   @Test
+   void likeFamilyFollowsAttributeOverGlobalSetting() {
+      for(boolean global : new boolean[] { false, true }) {
+         withGlobalCaseSensitive(global, () -> {
+            for(String op : new String[] { "CONTAINS", "STARTSWITH", "LIKE" }) {
+               String pattern = "LIKE".equals(op) ? "%a%" : "STARTSWITH".equals(op) ? "t" : "a";
+               // attribute true: exact case
+               assertEquals(matches(op, pattern, true), fixValues(op, pattern, "true"), op);
+               // attribute false: folded
+               assertEquals(matches(op, pattern, false), fixValues(op, pattern, "false"), op);
+               // absent: the global setting
+               assertEquals(matches(op, pattern, global), fixValues(op, pattern, null), op);
+            }
+         });
+      }
+   }
+
+   @Test
+   void containsAttributeTrueKeepsUpperCaseOnlyValues() {
+      withGlobalCaseSensitive(false, () -> {
+         assertEquals(List.of("banana"), fixValues("CONTAINS", "a", "true"));
+         assertEquals(List.of("MeToo AppServer", "True Action", "banana"),
+                      fixValues("CONTAINS", "a", null));
+      });
+   }
+
+   private static List<String> fixValues(String op, String pattern, String attr) {
+      XDimDictionary dict = new XDimDictionary();
+      dict.setDataType(String.class);
+
+      for(String value : new String[] { "True Action", "MeToo AppServer", "banana", "xyz" }) {
+         dict.addValue(value);
+      }
+
+      dict.complete();
+      XBinaryCondition cond = new XBinaryCondition(
+         new XExpression("col", XExpression.FIELD),
+         new XExpression(pattern, XExpression.VALUE), op);
+
+      if(attr != null) {
+         cond.setAttribute(MVConditionListHandler.LIKE_CASE_SENSITIVE, attr);
+      }
+
+      dict.fixFilter(cond);
+      List<String> result = new ArrayList<>();
+
+      for(Object idx : (Object[]) cond.getExpression2().getValue()) {
+         result.add(dict.getValue(Integer.parseInt((String) idx)).toString());
+      }
+
+      // order independent
+      result.sort(null);
+      return result;
+   }
+
+   // independent expectation over the 4 values
+   private static List<String> matches(String op, String pattern, boolean cs) {
+      List<String> result = new ArrayList<>();
+
+      for(String value : new String[] { "True Action", "MeToo AppServer", "banana", "xyz" }) {
+         String v = cs ? value : value.toLowerCase();
+         String p = cs ? pattern : pattern.toLowerCase();
+         boolean match = "CONTAINS".equals(op) ? v.contains(p) :
+            "STARTSWITH".equals(op) ? v.startsWith(p) : v.contains(p.replace("%", ""));
+
+         if(match) {
+            result.add(value);
+         }
+      }
+
+      result.sort(null);
+      return result;
+   }
+
+   private static void withGlobalCaseSensitive(boolean cs, Runnable run) {
+      String old = SreeEnv.getProperty("string.compare.casesensitive");
+      SreeEnv.setProperty("string.compare.casesensitive", "" + cs);
+      Tool.invalidateCaseSensitive();
+
+      try {
+         run.run();
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("string.compare.casesensitive");
+         }
+         else {
+            SreeEnv.setProperty("string.compare.casesensitive", old);
+         }
+
+         Tool.invalidateCaseSensitive();
+      }
    }
 
    private static XDimDictionary dictionary() {

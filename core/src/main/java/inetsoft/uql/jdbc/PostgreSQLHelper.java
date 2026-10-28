@@ -29,6 +29,19 @@ import java.util.Set;
  */
 public class PostgreSQLHelper extends SQLHelper {
    /**
+    * Check if the default LIKE of this database product is case sensitive. This is
+    * per product, not per database: a case-insensitive collation or column type
+    * (e.g. H2 IGNORECASE/varchar_ignorecase, Oracle NLS_COMP/NLS_SORT, PostgreSQL
+    * citext) can make a particular database behave differently.
+    *
+    * @return TRUE if LIKE is case sensitive by default.
+    */
+   @Override
+   public Boolean getLikeCaseSensitivity() {
+      return Boolean.TRUE;
+   }
+
+   /**
     * Check if is case sensitive when quote table or column or schema.
     */
    @Override
