@@ -18,6 +18,7 @@
 package inetsoft.uql.service;
 
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
@@ -146,6 +147,57 @@ class DataSourceRegistryOrgDeleteTest {
       cluster.sendMessage(new ClearDataSourceCacheEvent(org, true));
 
       assertArrayEquals(new String[] { "Orders" }, registry.getDataSourceFullNames("/", other));
+   }
+
+   /** A failed cluster send must not abort the caller, and the local clear must still happen. */
+   @Test
+   void failedBroadcastDoesNotPropagate() throws Exception {
+      String org = "org79558f";
+      seedAndList(org);
+      recreateEmptyOrgElsewhere(org);
+      indexedStorage.setInitialized(org);
+      MessageListener failing = event -> {
+         throw new IllegalStateException("send failed");
+      };
+      cluster.addMessageListener(failing);
+
+      try {
+         assertDoesNotThrow(() -> registry.orgDeleted(org));
+      }
+      finally {
+         cluster.removeMessageListener(failing);
+      }
+
+      assertArrayEquals(new String[0], registry.getDataSourceFullNames("/", org));
+      assertFalse(indexedStorage.isInitialized(org));
+   }
+
+   /** An old-format event (no org-deleted flag) still does the global clear. */
+   @Test
+   void oldFormatEventStillClearsGlobally() throws Exception {
+      String org = "org79558g";
+      seedAndList(org);
+      recreateEmptyOrgElsewhere(org);
+      indexedStorage.setInitialized(org);
+
+      cluster.sendMessage(new ClearDataSourceCacheEvent(org));
+
+      assertArrayEquals(new String[0], registry.getDataSourceFullNames("/", org));
+      assertTrue(indexedStorage.isInitialized(org), "an ordinary event must not reset the flag");
+   }
+
+   /** init() after resetInitialized leaves an existing root intact. */
+   @Test
+   void initAfterResetKeepsExistingRoot() throws Exception {
+      String org = "org79558h";
+      seedAndList(org);
+      indexedStorage.setInitialized(org);
+
+      indexedStorage.resetInitialized(org);
+      registry.init();
+
+      assertFalse(indexedStorage.isInitialized(org));
+      assertArrayEquals(new String[] { "Orders" }, registry.getDataSourceFullNames("/", org));
    }
 
    private void seedAndList(String org) throws Exception {

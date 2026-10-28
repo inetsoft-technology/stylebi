@@ -440,17 +440,17 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public boolean isInitialized(String orgID) {
-      return cachedOrgIDs.contains(orgID);
+      return cachedOrgIDs.contains(initKey(orgID));
    }
 
    @Override
    public void setInitialized(String orgID) {
-      cachedOrgIDs.add(orgID);
+      cachedOrgIDs.add(initKey(orgID));
    }
 
    @Override
    public void resetInitialized(String orgID) {
-      cachedOrgIDs.remove(orgID);
+      cachedOrgIDs.remove(initKey(orgID));
    }
 
    @Override
@@ -712,13 +712,19 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public void removeStorage(String orgID) throws Exception  {
-      cachedOrgIDs.remove(orgID);
+      cachedOrgIDs.remove(initKey(orgID));
       BlobStorage<Metadata> metadataStorage = getMetadataStorage(orgID);
       metadataStorage.deleteBlobStorage();
    }
 
    private final BlobStorageManager blobStorageManager;
-   private Set<String> cachedOrgIDs = new HashSet<>();
+   // written from login threads and from the cluster message listener thread (org delete)
+   private final Set<String> cachedOrgIDs = ConcurrentHashMap.newKeySet();
+
+   // a concurrent set rejects null, which callers may pass for the default org
+   private static String initKey(String orgID) {
+      return orgID == null ? " null" : orgID;
+   }
    private static final Logger LOG = LoggerFactory.getLogger(BlobIndexedStorage.class);
 
    public static final class Metadata implements Serializable {

@@ -3817,7 +3817,15 @@ public class DataSourceRegistry implements MessageListener {
    public void orgDeleted(String orgID) throws Exception {
       clearCache(orgID);
       indexedStorage.resetInitialized(orgID);
-      Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent(orgID, true));
+
+      // the local clear is done; a failed broadcast must not abort the rest of the org delete
+      try {
+         Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent(orgID, true));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to notify the cluster that organization {} was deleted; other nodes " +
+                  "may keep its data source cache until restarted", orgID, e);
+      }
    }
 
    public void removeCacheEntry(Object key) {
