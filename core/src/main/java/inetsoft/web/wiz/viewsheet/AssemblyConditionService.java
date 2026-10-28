@@ -20,6 +20,8 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.XTable;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -38,6 +40,7 @@ import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.wiz.service.WizVsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -247,6 +250,11 @@ public class AssemblyConditionService {
 
          Object[] conditionList = ConditionVocabulary.toConditionList(clauses, model.getFields());
          checkExpressions(rvs, conditionList, warnings);
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+         VariableTable variables = box == null ? null : box.getAllVariables();
+         VariableOperandCheck.check(conditionList, variables, true, warnings);
+         boolean guard = box != null && VariableOperandCheck.hasVariableOperand(conditionList);
+         boolean failingBefore = guard && failedQueryCause(box, assemblyName) != null;
          Object[] previous = model.getConditionList();
          model.setConditionList(conditionList);
          applied[0] = clauses == null ? 0 : clauses.size();
@@ -258,17 +266,27 @@ public class AssemblyConditionService {
          catch(Exception e) {
             // the refresh failed after the new list was committed; put the old one back rather
             // than leave a condition the caller was told failed
-            try {
-               model.setConditionList(previous);
-               conditionService.setModel(runtimeId, assemblyName, model, linkUri, user,
-                                         dispatcher);
-               reexecute(rvs, runtimeId, assemblyName, dispatcher, linkUri, user);
-            }
-            catch(Exception restoreFailure) {
-               e.addSuppressed(restoreFailure);
-            }
-
+            restore(rvs, runtimeId, assemblyName, model, previous, linkUri, user, dispatcher, e);
             throw e;
+         }
+
+         // A live-mode query that fails is swallowed into a design-time sample row (e.g. integer
+         // 999 and the current timestamp), so setModel does not throw and the table would serve
+         // that fabricated row as data. A table that rendered fine before, and fails now, owes
+         // that to the variable operand just written: undo it and say why (bug #79535). Read
+         // after reexecute() so the data is the re-executed one.
+         String cause = guard && !failingBefore ? failedQueryCause(box, assemblyName) : null;
+
+         if(cause != null) {
+            IllegalArgumentException refused = new IllegalArgumentException(
+               "The condition makes the query of '" + assemblyName + "' fail" +
+               (cause.isBlank() ? "" : ": " + cause) + ". It uses variable operand(s) " +
+               VariableOperandCheck.describeOperands(conditionList, variables) + ". " +
+               String.join(" ", warnings) + (warnings.isEmpty() ? "" : " ") +
+               "Nothing was changed.");
+            restore(rvs, runtimeId, assemblyName, model, previous, linkUri, user, dispatcher,
+                    refused);
+            throw refused;
          }
 
          ChartRenderCheck.warnIfChartScriptFails(rvs, assemblyName, dispatcher);
@@ -322,6 +340,35 @@ public class AssemblyConditionService {
       }
       else {
          refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user);
+      }
+   }
+
+   private void restore(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                        VSConditionDialogModel model, Object[] previous, String linkUri,
+                        Principal user, CommandDispatcher dispatcher, Exception failure)
+   {
+      try {
+         model.setConditionList(previous);
+         conditionService.setModel(runtimeId, assemblyName, model, linkUri, user, dispatcher);
+         reexecute(rvs, runtimeId, assemblyName, dispatcher, linkUri, user);
+      }
+      catch(Exception restoreFailure) {
+         failure.addSuppressed(restoreFailure);
+      }
+   }
+
+   /**
+    * The cause of the failed-query fallback the assembly's table currently renders, or null when
+    * it renders real data or the data cannot be read here (a script failure is reported as a
+    * warning elsewhere and must not be taken for a failed query).
+    */
+   private static String failedQueryCause(ViewsheetSandbox box, String assemblyName) {
+      try {
+         return box.getData(assemblyName) instanceof XTable table ?
+            WizVsService.findFailedQueryCause(table) : null;
+      }
+      catch(Exception e) {
+         return null;
       }
    }
 

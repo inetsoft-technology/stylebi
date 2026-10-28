@@ -388,6 +388,22 @@ public final class ConditionVocabulary {
       return value;
    }
 
+   /**
+    * Why {@code raw} would be refused as a literal value for {@code field} under {@code operation},
+    * or {@code null} when it fits. Runs the same checks {@link #value} applies to a literal, so a
+    * variable's resolved value is judged by one rule set (bug #79535). The leading
+    * {@code Condition N's} of the refusal text is dropped: the caller words its own prefix.
+    */
+   static String literalMismatch(Object raw, DataRefModel field, int operation) {
+      try {
+         value(raw, 0, Map.of(), field, operation);
+         return null;
+      }
+      catch(IllegalArgumentException e) {
+         return e.getMessage().replaceFirst("^Condition 0's ", "");
+      }
+   }
+
    private static String rawToString(Object raw) {
       if(raw instanceof Number number) {
          double d = number.doubleValue();
@@ -757,7 +773,7 @@ public final class ConditionVocabulary {
       return value.getValue();
    }
 
-   private static String variableName(Object value) {
+   static String variableName(Object value) {
       if(value instanceof String str && str.startsWith("$(") && str.endsWith(")")) {
          return str.substring(2, str.length() - 1);
       }
@@ -766,7 +782,7 @@ public final class ConditionVocabulary {
    }
 
    /** An unmapped operation reads back as itself rather than as a guessed token. */
-   private static String operatorToken(int operation) {
+   static String operatorToken(int operation) {
       for(Map.Entry<String, Integer> entry : OPERATORS.entrySet()) {
          if(entry.getValue() == operation && !isAlias(entry.getKey())) {
             return entry.getKey();
