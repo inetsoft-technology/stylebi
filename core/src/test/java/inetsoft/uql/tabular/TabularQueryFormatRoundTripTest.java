@@ -149,4 +149,35 @@ class TabularQueryFormatRoundTripTest {
       assertInstanceOf(java.util.Date.class, before);
       assertEquals(before, after);
    }
+   @Test
+   void xmlWrittenByPreFixWriterLoadsCorrectly() throws Exception {
+      // the writer was always correct; this is the shape of a file saved before the fix
+      String xml = "<tabularQuery type=\"test\" name=\"q\"><columnTypes>" +
+         "<columnType><name><![CDATA[d]]></name><type><![CDATA[date]]></type></columnType>" +
+         "</columnTypes><columnFormats>" +
+         "<columnFormat><name><![CDATA[d]]></name><format><![CDATA[DateFormat]]></format>" +
+         "</columnFormat></columnFormats><columnFormatExtents>" +
+         "<columnFormatExtent><name><![CDATA[d]]></name>" +
+         "<FormatExtent><![CDATA[dd/MM/yyyy]]></FormatExtent></columnFormatExtent>" +
+         "</columnFormatExtents></tabularQuery>";
+      Document doc = Tool.parseXML(new java.io.StringReader(xml));
+      TestQuery loaded = new TestQuery();
+      loaded.parseContents(doc.getDocumentElement());
+
+      assertEquals("DateFormat", loaded.getColumnFormat("d"));
+      assertEquals("dd/MM/yyyy", loaded.getColumnFormatExtent("d"));
+      assertInstanceOf(java.util.Date.class,
+                       new TestRuntime().convert(loaded, "d", "31/12/2020"));
+   }
+
+   @Test
+   void numberTransformMatchesAfterRoundTrip() throws Exception {
+      TestRuntime runtime = new TestRuntime();
+      TestQuery original = createQuery();
+      Object before = runtime.convert(original, "n", "1,234.50");
+      Object after = runtime.convert(roundTrip(original), "n", "1,234.50");
+
+      assertNotNull(before);
+      assertEquals(before, after);
+   }
 }
