@@ -18,6 +18,9 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.TimeCondition;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.web.admin.schedule.ScheduleService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.Base64;
@@ -72,5 +77,101 @@ class ScheduleTaskTransferServiceTest {
          () -> service.stage(base64, user));
 
       assertTrue(ex.getMessage().startsWith("xml:"));
+   }
+
+   @Test void stageRefusesAnHourOutOfRange() {
+      assertRefused(everyDayTask("t1", 25, 0, 0), "t1", "hour");
+   }
+
+   @Test void stageRefusesAMinuteOutOfRangeUnderAValidHour() {
+      assertRefused(everyDayTask("t1", 9, 70, 0), "t1", "minute");
+   }
+
+   @Test void stageRefusesASecondOutOfRangeUnderAValidHourAndMinute() {
+      assertRefused(everyDayTask("t1", 9, 30, 60), "t1", "second");
+   }
+
+   @Test void stageAcceptsATimeInRange() throws Exception {
+      ScheduleTaskStagingResult result = stage(everyDayTask("t1", 23, 59, 59));
+
+      assertEquals(1, result.tasks().size());
+   }
+
+   @Test void stageIgnoresTheTimeFieldsOfAnAtCondition() throws Exception {
+      String xml = "<Task name=\"t1\" owner=\"admin\" enabled=\"true\"><Condition " +
+         "type=\"TimeCondition\" timeType=\"0\" time=\"1700000000000\" hour=\"99\" " +
+         "minute=\"99\" second=\"99\"/></Task>";
+
+      assertEquals(1, stage(xml).tasks().size());
+   }
+
+   @Test void stageAcceptsAnEveryHourConditionWithoutEndFields() throws Exception {
+      String xml = "<Task name=\"t1\" owner=\"admin\" enabled=\"true\"><Condition " +
+         "type=\"TimeCondition\" timeType=\"8\" hour=\"0\" minute=\"15\" second=\"0\" " +
+         "hour_end=\"-1\" minute_end=\"-1\" second_end=\"-1\"/></Task>";
+
+      assertEquals(1, stage(xml).tasks().size());
+   }
+
+   @Test void stageRefusesAnEveryHourEndFieldOutOfRange() {
+      String xml = "<Task name=\"t1\" owner=\"admin\" enabled=\"true\"><Condition " +
+         "type=\"TimeCondition\" timeType=\"8\" hour=\"0\" minute=\"15\" second=\"0\" " +
+         "hour_end=\"-1\" minute_end=\"60\" second_end=\"-1\"/></Task>";
+
+      assertRefused(xml, "t1", "end minute");
+   }
+
+   @Test void stageRefusesTheWholeFileWhenOneTaskIsOutOfRange() {
+      String xml = everyDayTask("good", 9, 0, 0) + everyDayTask("bad", 9, 61, 0);
+
+      assertRefused(xml, "bad", "minute");
+   }
+
+   @Test void stageStillAcceptsTasksWithoutATimeCondition() throws Exception {
+      String xml = "<Task name=\"none\" owner=\"admin\" enabled=\"true\"/>" +
+         "<Task name=\"after\" owner=\"admin\" enabled=\"true\"><Condition " +
+         "type=\"Completion\" task=\"none\"/></Task>";
+
+      assertEquals(2, stage(xml).tasks().size());
+   }
+
+   @Test void stageAcceptsTasksWrittenByTheScheduleTaskItself() throws Exception {
+      ScheduleTask daily = new ScheduleTask("daily");
+      daily.setOwner(new IdentityID("admin", "host-org"));
+      daily.addCondition(TimeCondition.at(7, 5, 0));
+      ScheduleTask hourly = new ScheduleTask("hourly");
+      hourly.setOwner(new IdentityID("admin", "host-org"));
+      hourly.addCondition(TimeCondition.atHours(new int[0], 8, 30, 0));
+      StringWriter out = new StringWriter();
+      PrintWriter writer = new PrintWriter(out);
+      daily.writeXML(writer);
+      hourly.writeXML(writer);
+      writer.flush();
+
+      assertEquals(2, stage(out.toString()).tasks().size());
+   }
+
+   private ScheduleTaskStagingResult stage(String tasksXml) throws Exception {
+      ScheduleTaskTransferService service =
+         new ScheduleTaskTransferService(scheduleManager, scheduleService);
+      String xml = "<schedule>" + tasksXml + "</schedule>";
+      String base64 = Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8));
+      return service.stage(base64, user);
+   }
+
+   private void assertRefused(String tasksXml, String taskName, String field) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> stage(tasksXml));
+
+      assertTrue(ex.getMessage().startsWith("xml:"), "got: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"" + taskName + "\""), "got: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("The " + field + " of a time condition"),
+         "got: " + ex.getMessage());
+   }
+
+   private static String everyDayTask(String name, int hour, int minute, int second) {
+      return "<Task name=\"" + name + "\" owner=\"admin\" enabled=\"true\"><Condition " +
+         "type=\"TimeCondition\" timeType=\"1\" hour=\"" + hour + "\" minute=\"" + minute +
+         "\" second=\"" + second + "\"/></Task>";
    }
 }

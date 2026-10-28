@@ -227,6 +227,7 @@ class ScheduleTaskImportChangePlanServiceTest {
       c.setType(TimeCondition.EVERY_DAY);
       c.setHour(9);
       c.setMinute(0);
+      c.setSecond(0);
       return c;
    }
 

@@ -315,6 +315,7 @@ class ScheduleTaskImportChangesetApplyServiceTest {
       condition.setType(TimeCondition.EVERY_DAY);
       condition.setHour(9);
       condition.setMinute(0);
+      condition.setSecond(0);
       task.addCondition(condition);
 
       ViewsheetAction action = new ViewsheetAction();

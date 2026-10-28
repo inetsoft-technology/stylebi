@@ -74,11 +74,14 @@ class ScheduleChangesetApplyServiceLinkUriTest {
       }).when(scheduleManager).setScheduleTask(anyString(), any(), any());
 
       SecurityEngine securityEngine = mock(SecurityEngine.class, withSettings().lenient());
-      AdminScheduleGateway gateway = new AdminScheduleGateway(
+      AdminScheduleGateway gateway = spy(new AdminScheduleGateway(
          repository, scheduleManager,
          mock(ScheduleService.class, withSettings().lenient()),
          mock(ScheduleConditionService.class, withSettings().lenient()),
-         mock(ScheduleTaskService.class, withSettings().lenient()), securityEngine);
+         mock(ScheduleTaskService.class, withSettings().lenient()), securityEngine));
+      // the sheet lookup reads the JVM-wide asset repository, which an earlier test class can
+      // have initialised; this test is about the stored LinkURI, not the sheet lookup
+      doReturn(true).when(gateway).viewsheetExists(anyString());
       planService = new ScheduleChangePlanService(gateway, scheduleManager);
       AdminBackupService backupService = mock(AdminBackupService.class);
       when(backupService.backup(anyString())).thenReturn("snap-ref");
