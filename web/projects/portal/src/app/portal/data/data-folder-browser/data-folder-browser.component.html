@@ -95,6 +95,7 @@
               @if (selectionOn) {
                 <button class="dropdown-item"
                   title="_#(data.datasets.moveSelected)"
+                  [disabled]="moveDisable"
                   (click)="moveSelected()">_#(Move)
                 </button>
               }
