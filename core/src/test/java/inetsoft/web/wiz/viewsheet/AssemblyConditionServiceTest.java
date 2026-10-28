@@ -21,6 +21,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.drm.AggregateRefModel;
+import inetsoft.web.binding.drm.AttributeRefModel;
+import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
@@ -178,6 +181,113 @@ class AssemblyConditionServiceTest {
       assertEquals(2, read.get("conditionCount"));
       assertEquals(List.of("Region", "Revenue"), read.get("fields"));
       verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   // ── Bug #79526: a stored condition on a column the assembly no longer offers ──────────
+
+   private static ConditionModel conditionOn(DataRefModel field) {
+      ConditionModel condition = new ConditionModel();
+      condition.setField(field);
+      return condition;
+   }
+
+   private static VSConditionDialogModel modelWith(DataRefModel[] fields, DataRefModel... on) {
+      VSConditionDialogModel model = new VSConditionDialogModel();
+      model.setTableName("Orders");
+      model.setFields(fields);
+      Object[] list = new Object[on.length];
+
+      for(int i = 0; i < on.length; i++) {
+         list[i] = conditionOn(on[i]);
+      }
+
+      model.setConditionList(list);
+      return model;
+   }
+
+   @Test
+   void warnsOnAConditionWhoseColumnIsNoLongerAField() throws Exception {
+      VSConditionDialogModel stale = modelWith(
+         new DataRefModel[]{ field("Region"), field("Revenue") }, field("STATE"));
+
+      Map<String, Object> read = harness(stale).service.read("tok", principal(), "Table1");
+
+      @SuppressWarnings("unchecked")
+      List<String> warnings = (List<String>) read.get("warnings");
+      assertEquals(1, warnings.size());
+      assertTrue(warnings.get(0).contains("'STATE'"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("not applied"), warnings.get(0));
+      assertEquals(1, read.get("conditionCount"));
+   }
+
+   @Test
+   void aHealthyAssemblyHasNoWarningsKey() throws Exception {
+      VSConditionDialogModel healthy = modelWith(
+         new DataRefModel[]{ field("Region"), field("Revenue") }, field("region"));
+
+      assertFalse(harness(healthy).service.read("tok", principal(), "T").containsKey("warnings"));
+   }
+
+   @Test
+   void aRelabelledColumnIsNotStale() throws Exception {
+      AttributeRefModel inner = new AttributeRefModel();
+      inner.setName("COMPANY_NAME");
+      ColumnRefModel relabelled = new ColumnRefModel();
+      relabelled.setName("Company");
+      relabelled.setAlias("Company");
+      relabelled.setDataRefModel(inner);
+      ColumnRefModel inCondition = new ColumnRefModel();
+      inCondition.setName("Company");
+      inCondition.setAlias("Company");
+      inCondition.setDataRefModel(inner);
+      VSConditionDialogModel model =
+         modelWith(new DataRefModel[]{ relabelled }, inCondition);
+
+      assertFalse(harness(model).service.read("tok", principal(), "T").containsKey("warnings"));
+   }
+
+   @Test
+   void aCalcFieldInFieldsIsNotStale() throws Exception {
+      VSConditionDialogModel model = modelWith(
+         new DataRefModel[]{ field("Region"), field("DbgCalc") }, field("DbgCalc"));
+
+      assertFalse(harness(model).service.read("tok", principal(), "T").containsKey("warnings"));
+   }
+
+   @Test
+   void aLabelSharedByTwoColumnsIsAmbiguousNotStale() throws Exception {
+      ColumnRefModel a = relabelled("A_COL", "Dup");
+      ColumnRefModel b = relabelled("B_COL", "Dup");
+      VSConditionDialogModel model = modelWith(new DataRefModel[]{ a, b }, field("Dup"));
+
+      assertFalse(harness(model).service.read("tok", principal(), "T").containsKey("warnings"));
+   }
+
+   @Test
+   void emptyFieldsMeansUnknownNotEverythingStale() throws Exception {
+      VSConditionDialogModel model = modelWith(new DataRefModel[0], field("STATE"));
+
+      assertFalse(harness(model).service.read("tok", principal(), "T").containsKey("warnings"));
+   }
+
+   @Test
+   void anAggregateReferenceIsNotJudgedByName() throws Exception {
+      AggregateRefModel aggregate = new AggregateRefModel();
+      aggregate.setName("Sum(Revenue)");
+      VSConditionDialogModel model = modelWith(
+         new DataRefModel[]{ field("Region"), field("Revenue") }, aggregate);
+
+      assertFalse(harness(model).service.read("tok", principal(), "T").containsKey("warnings"));
+   }
+
+   private static ColumnRefModel relabelled(String column, String label) {
+      AttributeRefModel inner = new AttributeRefModel();
+      inner.setName(column);
+      ColumnRefModel ref = new ColumnRefModel();
+      ref.setName(label);
+      ref.setAlias(label);
+      ref.setDataRefModel(inner);
+      return ref;
    }
 
    @Test
