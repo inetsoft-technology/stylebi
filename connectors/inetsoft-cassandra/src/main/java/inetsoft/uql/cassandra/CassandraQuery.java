@@ -26,7 +26,12 @@ import java.io.PrintWriter;
 
 @View(vertical=true, value={
       @View1(type=ViewType.LABEL, value="queryString", font="Default-BOLD-11"),
-      @View1(type=ViewType.EDITOR, value="queryString")
+      @View1(type=ViewType.EDITOR, value="queryString"),
+      @View1(type=ViewType.LABEL, text="The query is a CQL (Cassandra Query Language) " +
+         "statement. CQL string literals are single-quoted and a quote inside a literal is " +
+         "escaped by doubling it (''). A string $(name) variable inside a quoted literal " +
+         "is escaped, an unquoted string $(name) becomes an escaped literal, and $(@name) " +
+         "embeds the raw text.")
    })
 public class CassandraQuery extends TabularQuery {
    public CassandraQuery() {
