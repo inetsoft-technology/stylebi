@@ -211,8 +211,8 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
          }));
 
       this.repositoryClient.connect();
-      this.repositoryClient.dataChanged
-         .subscribe(() => this.refreshBrowserContent(this.currentFolderPathString));
+      this.subscriptions.add(this.repositoryClient.dataChanged
+         .subscribe(() => this.refreshBrowserContent(this.currentFolderPathString)));
 
       this.clientService.connect();
    }
@@ -461,6 +461,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
                .then((buttonClicked) => {
                   if(buttonClicked === "ok") {
                      this.httpClient.post("../api/data/removeAll", this.selectedItems)
+                        .pipe(finalize(() => {
+                           // refresh folder contents, even if failure some items may be deleted
+                           this.refreshBrowserContent(this.currentFolderPathString);
+                        }))
                         .subscribe(
                            () => {
                               this.dataNotifications.notifications.success(
@@ -469,10 +473,6 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
                            () => {
                               this.dataNotifications.notifications.danger(
                                  "_#(js:data.datasets.deleteItemsError)");
-                           },
-                           () => {
-                              // refresh folder contents, even if failure some items may be deleted
-                              this.refreshBrowserContent(this.currentFolderPathString);
                            }
                         );
                   }
@@ -930,6 +930,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
     * Open the move asset dialog.
     */
    moveSelected(): void {
+      if(this.moveDisable) {
+         return;
+      }
+
       this.moveAssets(this.selectedItems);
    }
 
@@ -1008,7 +1012,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
                   httpParams = httpParams.set("targetScope", "" + moveScope);
                }
 
-               if(Tool.isNumber(this.currentFolderPathScope)) {
+               if(Tool.isNumber(assetScope)) {
+                  httpParams = httpParams.set("assetScope", "" + assetScope);
+               }
+               else if(Tool.isNumber(this.currentFolderPathScope)) {
                   httpParams = httpParams.set("assetScope", "" + this.currentFolderPathScope);
                }
 
@@ -1235,7 +1242,7 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
                }
 
                for(let key of scopeMap.keys()) {
-                  this.moveAssets(assets, target, key);
+                  this.moveAssets(scopeMap.get(key), target, key);
                }
             }
          });
