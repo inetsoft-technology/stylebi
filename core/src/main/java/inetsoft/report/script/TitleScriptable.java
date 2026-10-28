@@ -60,6 +60,8 @@ public class TitleScriptable extends PropertyScriptable {
                      TitleDescriptor.class);
          addProperty("visible", "isVisible", "setVisible", boolean.class,
                      TitleDescriptor.class);
+         addProperty("labelGap", "getLabelGap", "setLabelGap", int.class,
+                     TitleDescriptor.class);
          addProperty("font", "getFont", "setFont", Font.class,
                      CompositeTextFormat.class, legend.getTextFormat());
          addProperty("color", "getColor", "setColor", Color.class,
@@ -80,6 +82,8 @@ public class TitleScriptable extends PropertyScriptable {
          addProperty("text", "getTitle", "setTitle", String.class,
                      getClass(), this);
          addProperty("visible", "isVisible", "setVisible", boolean.class,
+                     getClass(), this);
+         addProperty("labelGap", "getLabelGap", "setLabelGap", int.class,
                      getClass(), this);
          addProperty("font", "getFont", "setFont", Font.class,
                      getClass(), this);// legend.getTextFormat());
@@ -107,6 +111,14 @@ public class TitleScriptable extends PropertyScriptable {
 
    public boolean isVisible() {
       return getter.getTitle().isVisible();
+   }
+
+   public void setLabelGap(int labelGap) {
+      getter.getTitle().setLabelGap(labelGap);
+   }
+
+   public int getLabelGap() {
+      return getter.getTitle().getLabelGap();
    }
 
    public void setFont(Font font) {

@@ -166,6 +166,8 @@ public class AxisScriptable extends PropertyScriptable {
             addProperty("labelVisible", "isLabelVisible",
                         "setLabelVisible", boolean.class,
                         AxisDescriptor.class);
+            addProperty("labelGap", "getLabelGap", "setLabelGap", int.class,
+                        AxisDescriptor.class);
             addProperty("labelOnSecondaryAxis", "isLabelOnSecondaryAxis",
                         "setLabelOnSecondaryAxis", boolean.class,
                         AxisDescriptor.class);
