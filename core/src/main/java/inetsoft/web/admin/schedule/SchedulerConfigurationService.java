@@ -298,6 +298,48 @@ public class SchedulerConfigurationService {
       }
    }
 
+   /**
+    * Moves a password embedded in the path of a location (for example
+    * {@code ftp://user:secret@host/dir}) into the user name and password of its path info, the
+    * way {@link #setServerLocations} stores it. The password in the path wins over the password
+    * and the secret of the location.
+    *
+    * @param location the location to split.
+    *
+    * @return the location without the password in its path, or {@code location} itself if its
+    *         path has no password.
+    */
+   public static ServerLocation splitPathPassword(ServerLocation location) {
+      ServerPathInfoModel infoModel = location.pathInfoModel();
+
+      if(infoModel == null) {
+         return location;
+      }
+
+      boolean secret = infoModel.ftp() && infoModel.useCredential();
+      FTPUtil.PathPassword pathPassword = SUtil.splitServerLocationPassword(
+         location.path(), secret, secret ? infoModel.secretId() : null,
+         infoModel.ftp() && !secret ? infoModel.username() : null);
+
+      if(pathPassword == null) {
+         return location;
+      }
+
+      return ServerLocation.builder()
+         .from(location)
+         .path(pathPassword.path())
+         .pathInfoModel(ServerPathInfoModel.builder()
+                           .from(infoModel)
+                           .path(pathPassword.path())
+                           .ftp(true)
+                           .useCredential(false)
+                           .secretId(null)
+                           .username(pathPassword.user())
+                           .password(pathPassword.password())
+                           .build())
+         .build();
+   }
+
    private void setServerLocations(List<ServerLocation> locations) {
       if(locations == null || locations.isEmpty()) {
          SreeEnv.setProperty("server.save.locations", null);
@@ -313,31 +355,12 @@ public class SchedulerConfigurationService {
          }
 
          for(ServerLocation location : locations) {
+            // Bug #77971, store a password in the path in the password field
+            location = splitPathPassword(location);
             String path = location.path();
             String label = location.label();
             StringBuilder pathInfo = new StringBuilder();
             ServerPathInfoModel infoModel = location.pathInfoModel();
-
-            // Bug #77971, store a password in the path in the password field
-            if(infoModel != null) {
-               boolean secret = infoModel.ftp() && infoModel.useCredential();
-               FTPUtil.PathPassword pathPassword = SUtil.splitServerLocationPassword(
-                  path, secret, secret ? infoModel.secretId() : null,
-                  infoModel.ftp() && !secret ? infoModel.username() : null);
-
-               if(pathPassword != null) {
-                  path = pathPassword.path();
-                  infoModel = ServerPathInfoModel.builder()
-                     .from(infoModel)
-                     .path(path)
-                     .ftp(true)
-                     .useCredential(false)
-                     .secretId(null)
-                     .username(pathPassword.user())
-                     .password(pathPassword.password())
-                     .build();
-               }
-            }
 
             if(infoModel != null) {
                if(infoModel.ftp()) {

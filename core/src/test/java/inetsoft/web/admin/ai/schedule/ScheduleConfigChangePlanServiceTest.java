@@ -386,6 +386,155 @@ class ScheduleConfigChangePlanServiceTest {
    // helpers
    // -------------------------------------------------------------------------
 
+   // -------------------------------------------------------------------------
+   // Bug #79546: a password embedded in the path is split out exactly as the write stores it
+   // -------------------------------------------------------------------------
+
+   private static final String PW = "QaProbeSecret123";
+
+   private static ScheduleConfigChangeRequest withInfo(
+      ScheduleConfigChangeRequest change, Map<String, Object> extra)
+   {
+      Map<String, Object> info = new HashMap<>(extra);
+      info.put("path", change.getSpec().get("path"));
+      change.getSpec().put("pathInfoModel", info);
+      return change;
+   }
+
+   private ScheduleConfigChangePlanService.Resolution resolveFull(ScheduleConfigChangeRequest... changes) throws Exception {
+      return service.resolveFull(request("task", List.of(changes)), user);
+   }
+
+   private static void assertNoSecret(ScheduleConfigChangePlanService.Resolution r) {
+      assertFalse(r.plan().changes().toString().contains(PW), r.plan().changes().toString());
+      assertFalse(r.entries().toString().contains(PW), r.entries().toString());
+   }
+
+   @Test void createWithPasswordInPathSplitsItOutOfThePlan() throws Exception {
+      stubConfig(List.of(), List.of());
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(
+         createLocation("ftp://qauser:" + PW + "@127.0.0.1/qa-probe", "L"));
+
+      PlanChange c = r.plan().changes().get(0);
+      assertEquals("ftp://qauser@127.0.0.1/qa-probe", c.property());
+      assertTrue(c.proposedValue().contains("path=ftp://qauser@127.0.0.1/qa-probe"), c.proposedValue());
+      assertTrue(c.proposedValue().contains("ftp=true"), c.proposedValue());
+      assertTrue(c.proposedValue().contains("username=qauser"), c.proposedValue());
+      assertTrue(c.proposedValue().contains("password=(set)"), c.proposedValue());
+      assertEquals("ftp://qauser@127.0.0.1/qa-probe", r.entries().get(0).afterKey());
+      assertNoSecret(r);
+   }
+
+   @Test void sftpPathPasswordIsSplit() throws Exception {
+      stubConfig(List.of(), List.of());
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(
+         createLocation("sftp://qauser:" + PW + "@host/dir", "L"));
+
+      assertEquals("sftp://qauser@host/dir", r.plan().changes().get(0).property());
+      assertEquals("sftp://qauser@host/dir", r.entries().get(0).afterKey());
+      assertNoSecret(r);
+   }
+
+   @Test void passwordWithAtSignInPathIsSplitOnTheLastAt() throws Exception {
+      stubConfig(List.of(), List.of());
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(
+         createLocation("ftp://qauser:p@ss" + PW + "@host/dir", "L"));
+
+      assertEquals("ftp://qauser@host/dir", r.plan().changes().get(0).property());
+      assertFalse(r.plan().changes().toString().contains("ss" + PW));
+   }
+
+   @Test void passwordLessUserInPathIsLeftAlone() throws Exception {
+      stubConfig(List.of(), List.of());
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(
+         createLocation("ftp://qauser@host/dir", "L"));
+
+      assertEquals("ftp://qauser@host/dir", r.plan().changes().get(0).property());
+      assertTrue(r.plan().changes().get(0).proposedValue().contains("path=ftp://qauser@host/dir"));
+   }
+
+   @Test void nonFtpPathWithAtAndColonIsLeftAlone() throws Exception {
+      stubConfig(List.of(), List.of());
+      String path = "\\\\srv\\share\\a@b:c";
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(createLocation(path, "L"));
+
+      assertEquals(path, r.plan().changes().get(0).property());
+      assertEquals(path, r.entries().get(0).afterKey());
+   }
+
+   @Test void pathPasswordBeatsThePasswordField() throws Exception {
+      stubConfig(List.of(), List.of());
+      Map<String, Object> extra = new HashMap<>();
+      extra.put("username", "other");
+      extra.put("password", "FieldPw");
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(withInfo(
+         createLocation("ftp://qauser:" + PW + "@host/dir", "L"), extra));
+
+      PlanChange c = r.plan().changes().get(0);
+      assertEquals("ftp://qauser@host/dir", c.property());
+      assertTrue(c.proposedValue().contains("username=qauser"), c.proposedValue());
+      assertNoSecret(r);
+   }
+
+   @Test void pathPasswordBeatsTheSecretId() throws Exception {
+      stubConfig(List.of(), List.of());
+      Map<String, Object> extra = new HashMap<>();
+      extra.put("useCredential", true);
+      extra.put("secretId", "sec-1");
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(withInfo(
+         createLocation("ftp://qauser:" + PW + "@host/dir", "L"), extra));
+
+      PlanChange c = r.plan().changes().get(0);
+      assertEquals("ftp://qauser@host/dir", c.property());
+      assertTrue(c.proposedValue().contains("username=qauser"), c.proposedValue());
+      assertFalse(c.proposedValue().contains("sec-1"), c.proposedValue());
+      assertNoSecret(r);
+   }
+
+   @Test void updateWithPasswordInPathSplitsItOutOfThePlan() throws Exception {
+      stubConfig(List.of(storedLocation("ftp://qauser@host/old", "qauser", "Old")), List.of());
+      ScheduleConfigChangeRequest change = createLocation("ftp://qauser:" + PW + "@host/new", "L");
+      change.setVerb(ScheduleConfigChangeRequest.VERB_UPDATE);
+      change.setKey("ftp://qauser:" + PW + "@host/old");
+
+      ScheduleConfigChangePlanService.Resolution r = resolveFull(change);
+
+      assertEquals("ftp://qauser@host/old", r.plan().changes().get(0).property());
+      assertEquals("ftp://qauser@host/new", r.entries().get(0).afterKey());
+      assertNoSecret(r);
+   }
+
+   @Test void deleteKeyWithPasswordMatchesTheStoredPathAndIsNotEchoed() throws Exception {
+      stubConfig(List.of(storedLocation("ftp://qauser@host/old", "qauser", "Old")), List.of());
+
+      ScheduleConfigChangePlanService.Resolution r =
+         resolveFull(deleteLocation("ftp://qauser:" + PW + "@host/old"));
+
+      assertEquals("ftp://qauser@host/old", r.plan().changes().get(0).property());
+      assertNoSecret(r);
+   }
+
+   @Test void unknownKeyWithPasswordIsRefusedWithoutEchoingThePassword() throws Exception {
+      stubConfig(List.of(), List.of());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> resolveFull(deleteLocation("ftp://qauser:" + PW + "@host/missing")));
+      assertFalse(ex.getMessage().contains(PW), ex.getMessage());
+   }
+
+   @Test void duplicateAndOverlapErrorsDoNotEchoThePathPassword() throws Exception {
+      stubConfig(List.of(storedLocation("ftp://qauser@host/dir", "qauser", "Old")), List.of());
+
+      IllegalArgumentException dup = assertThrows(IllegalArgumentException.class,
+         () -> resolveFull(createLocation("ftp://qauser:" + PW + "@host/dir", "New")));
+      assertTrue(dup.getMessage().contains("already exists"), dup.getMessage());
+      assertFalse(dup.getMessage().contains(PW), dup.getMessage());
+
+      IllegalArgumentException overlap = assertThrows(IllegalArgumentException.class,
+         () -> resolveFull(createLocation("ftp://qauser:" + PW + "@host/dir/sub", "New")));
+      assertFalse(overlap.getMessage().contains(PW), overlap.getMessage());
+   }
+
    private void stubConfig(List<ServerLocation> locations, List<TimeRangeModel> ranges) throws Exception {
       when(gateway.getFullConfig(user)).thenReturn(sampleModel(locations, ranges));
    }
