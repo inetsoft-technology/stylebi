@@ -359,6 +359,7 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       condition.setType(TimeCondition.EVERY_DAY);
       condition.setHour(hour);
       condition.setMinute(0);
+      condition.setSecond(0);
       task.addCondition(condition);
       return task;
    }
