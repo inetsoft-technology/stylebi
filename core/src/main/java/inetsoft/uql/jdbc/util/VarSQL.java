@@ -196,6 +196,17 @@ public class VarSQL {
    }
 
    /**
+    * Set whether an unquoted {@link SQLType#STRING} placeholder whose String
+    * value is exactly a UUID (see {@link #UUID_STRING}) is emitted as is
+    * instead of as a quoted literal, for dialects where a bare UUID is a
+    * literal (CQL uuid and timeuuid). Any other String is still an escaped
+    * literal. Defaults to {@code false} (Bug #79597).
+    */
+   public void setRawUuidStrings(boolean rawUuidStrings) {
+      this.rawUuidStrings = rawUuidStrings;
+   }
+
+   /**
     * Get the values of the parameters used in the SQL.
     */
    public List<Object> getParameterValues() {
@@ -734,6 +745,12 @@ public class VarSQL {
          // it is safe unquoted and keeps numeric positions working (Bug #78594)
          return (String) val;
       }
+      else if(val instanceof String && rawUuidStrings &&
+         UUID_STRING.matcher((String) val).matches())
+      {
+         // hex digits and hyphens only, so nothing can ride along (Bug #79597)
+         return (String) val;
+      }
       else if(val instanceof String) {
          // the value supplies the whole literal here, so it must be escaped
          // or it could close the literal early (Bug #76864)
@@ -750,6 +767,7 @@ public class VarSQL {
    private boolean backtickIdentifiers = false;
    private CommentSyntax commentSyntax = CommentSyntax.SQL;
    private boolean rawNumericStrings = false;
+   private boolean rawUuidStrings = false;
 
    /**
     * A String value emitted unquoted when {@link #setRawNumericStrings} is on:
@@ -757,6 +775,13 @@ public class VarSQL {
     * or other characters.
     */
    static final Pattern NUMERIC_STRING = Pattern.compile("[+-]?[0-9]+(\\.[0-9]+)?");
+
+   /**
+    * A String value emitted unquoted when {@link #setRawUuidStrings} is on:
+    * ASCII hex digits in the 8-4-4-4-12 layout, nothing else.
+    */
+   static final Pattern UUID_STRING = Pattern.compile(
+      "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
    private List<Object> params = new ArrayList();
    private List<String> names = new ArrayList();
    private static final Logger LOG = LoggerFactory.getLogger(VarSQL.class);

@@ -515,6 +515,40 @@ public class VarSQLTest {
    }
 
    @Test
+   void rawUuidStrings_onlyExactUuidsAreUnquoted() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setRawUuidStrings(true);
+
+      for(String uuid : new String[] { "11111111-2222-3333-4444-555555555555", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                                       "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+                                       "1b4e28ba-2fa1-11d2-883f-0016d3cca427" })
+      {
+         assertEquals("WHERE id =  " + uuid + " ",
+                      varSql.replaceVariables("WHERE id = $(p)", vars("p", uuid)));
+      }
+
+      for(String text : new String[] { "11111111-2222-3333-4444-555555555555 OR 1=1", "11111111-2222-3333-4444-555555555555\n", "11111111-2222-3333-4444-555555555555 ", " 11111111-2222-3333-4444-555555555555",
+                                       "11111111-2222-3333-4444-555555555555'--", "{11111111-2222-3333-4444-555555555555}", "urn:uuid:11111111-2222-3333-4444-555555555555",
+                                       "11111111-2222-3333-4444-5555555555550", "1111111-2222-3333-4444-555555555555", "gggggggg-2222-3333-4444-555555555555",
+                                       "\u0661\u0661\u0661\u0661\u0661\u0661\u0661\u0661-2222-3333-4444-555555555555", "" })
+      {
+         assertEquals("WHERE id =  '" + text.replace("'", "''") + "' ",
+                      varSql.replaceVariables("WHERE id = $(p)", vars("p", text)), text);
+      }
+   }
+
+   @Test
+   void rawUuidStrings_offByDefault() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setRawNumericStrings(true);
+
+      assertEquals("WHERE id =  '11111111-2222-3333-4444-555555555555' ",
+                   varSql.replaceVariables("WHERE id = $(p)", vars("p", "11111111-2222-3333-4444-555555555555")));
+      assertEquals("WHERE id =  5 ", varSql.replaceVariables("WHERE id = $(p)", vars("p", "5")));
+   }
+   @Test
    void backtickIdentifiers_trackedAndValueCannotEndIdentifier() {
       VarSQL varSql = new VarSQL();
       varSql.setSQLType(VarSQL.SQLType.STRING);

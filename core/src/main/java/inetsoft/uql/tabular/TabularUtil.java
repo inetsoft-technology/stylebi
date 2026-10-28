@@ -285,6 +285,7 @@ public class TabularUtil {
                            VarSQL.TemplateBackslash.PLAIN);
                         varsql.setBacktickIdentifiers(annotation.backtickIdentifiers());
                         varsql.setRawNumericStrings(true);
+                        varsql.setRawUuidStrings(annotation.rawUuidStrings());
                      }
 
                      VariableTable vars0 = style == VarSQL.LiteralEscapeStyle.JSON ?
