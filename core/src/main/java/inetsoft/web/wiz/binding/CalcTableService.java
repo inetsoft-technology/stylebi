@@ -1026,6 +1026,23 @@ public class CalcTableService {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          TableLayout layout = layoutOf(assembly);
          requireInGrid(layout, row, col);
+
+         if("mergeCells".equals(resolved)) {
+            requireSourceRangeInGrid(layout, new Rectangle(col, row, spanCols, spanRows));
+         }
+         else if("deleteRow".equals(resolved) && count > layout.getRowCount() - row) {
+            throw new IllegalArgumentException(
+               "'n' is " + count + " but only " + (layout.getRowCount() - row) +
+               " row(s) remain from row " + row + " (the grid has " + layout.getRowCount() +
+               " row(s)). Reduce 'n'. Nothing was changed.");
+         }
+         else if("deleteCol".equals(resolved) && count > layout.getColCount() - col) {
+            throw new IllegalArgumentException(
+               "'n' is " + count + " but only " + (layout.getColCount() - col) +
+               " column(s) remain from column " + col + " (the grid has " +
+               layout.getColCount() + " column(s)). Reduce 'n'. Nothing was changed.");
+         }
+
          List<RankTarget> rankings = snapshotRankings(rvs, assembly);
 
          if("splitCells".equals(resolved)) {
