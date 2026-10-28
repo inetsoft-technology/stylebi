@@ -325,7 +325,8 @@ class ScheduleChangesetApplyServiceTest {
       doThrow(new MessageException("The execute-as user nouser does not exist"))
          .when(scheduleGateway).checkAddScheduleTaskAllowed(any(), any(), eq(user));
 
-      ApplyResult result = service.apply(applyRequest("create a task", createChange(spec)), user);
+      ApplyResult result =
+         service.apply(applyRequest("create a task", createChange(spec)), user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
