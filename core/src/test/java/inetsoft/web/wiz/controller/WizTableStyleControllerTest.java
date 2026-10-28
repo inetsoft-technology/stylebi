@@ -34,6 +34,7 @@ import org.mockito.InOrder;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -686,7 +687,6 @@ class WizTableStyleControllerTest {
       }
    }
 
-
    // ---- Bug #79529: style/folder share one full-name namespace; blank/edge-space folders ----
 
    private static void assertNothingWritten(Fixture fixture) {
@@ -760,7 +760,8 @@ class WizTableStyleControllerTest {
 
    @Test
    void create_refusesBlankFolderVariantsWithAndWithoutCreateFolders() {
-      for(String folder : new String[] { "  ", "\t", "\u0001", " / ", "/ ", "  /" }) {
+      for(String folder : new String[] { "  ", "\t", "\u0001", " / ", "/ ", "  /", "\u3000",
+                                         "\u2003", "\u3000/", " \u3000 / " }) {
          for(Boolean createFolders : new Boolean[] { null, true }) {
             Fixture fixture = new Fixture();
             assertFolderRefused(() -> createIn(fixture, folder, createFolders), fixture);
@@ -770,8 +771,8 @@ class WizTableStyleControllerTest {
 
    @Test
    void create_refusesNewFolderSegmentsWithEdgeWhitespaceOrControlChars() {
-      for(String folder : new String[] { "Bands/ x /", "Bands/ x", "Bands/ x", "Bands/x ",
-                                         "Bands/　x　", "Bands/  /y", "Bands/a\u0001b" })
+      for(String folder : new String[] { "Bands/ x /", "Bands/ x", "Bands/\u00a0x", "Bands/x\u00a0",
+                                         "Bands/\u3000x\u3000", "Bands/  /y", "Bands/a\u0001b" })
       {
          Fixture fixture = new Fixture();
          registerFolders(fixture, "Bands");
@@ -853,7 +854,7 @@ class WizTableStyleControllerTest {
 
    @Test
    void update_refusesBlankFolderVariants() {
-      for(String folder : new String[] { "  ", "\t", " / ", "\u0001" }) {
+      for(String folder : new String[] { "  ", "\t", " / ", "\u0001", "\u3000", "\u2003", "\u3000/" }) {
          Fixture fixture = new Fixture();
          when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
          assertFolderRefused(() -> fixture.controller.update("1001",
@@ -923,7 +924,7 @@ class WizTableStyleControllerTest {
       final WizTableStylePreviewRenderer previewRenderer =
          mock(WizTableStylePreviewRenderer.class);
       final LibManager lib = mock(LibManager.class);
-      final java.util.Set<String> styleFullNames = java.util.Set.of(
+      final Set<String> styleFullNames = Set.of(
          "X", "BorderedBands", "Renamed", "User Defined~Renamed", "Sales~Renamed",
          "Sales~BorderedBands", "Audit~Bands");
       final Principal principal = mock(Principal.class);

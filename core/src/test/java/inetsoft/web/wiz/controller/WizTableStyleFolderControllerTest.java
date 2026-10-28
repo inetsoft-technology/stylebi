@@ -270,7 +270,7 @@ class WizTableStyleFolderControllerTest {
       Fixture f = new Fixture();
       f.folders(null, "Sales");
 
-      for(String parent : new String[] { "  ", " / ", "\t" }) {
+      for(String parent : new String[] { "  ", " / ", "\t", "\u3000", "\u3000/" }) {
          Exception thrown = assertThrows(IllegalArgumentException.class, () -> f.controller.create(
             new WizTableStyleFolderController.CreateFolderRequest("Q1", parent), f.principal));
          assertTrue(thrown.getMessage().contains("'parent'"), thrown.getMessage());
@@ -285,7 +285,7 @@ class WizTableStyleFolderControllerTest {
       f.folders(null, "Sales");
       f.folders("Sales", "Sales~Q1");
 
-      for(String newParent : new String[] { "  ", " / " }) {
+      for(String newParent : new String[] { "  ", " / ", "\u3000", "\u3000/" }) {
          Exception thrown = assertThrows(IllegalArgumentException.class, () -> f.controller.update(
             new WizTableStyleFolderController.UpdateFolderRequest("Sales/Q1", null, newParent),
             f.principal));

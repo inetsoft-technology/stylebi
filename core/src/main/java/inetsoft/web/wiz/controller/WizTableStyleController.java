@@ -348,7 +348,7 @@ public class WizTableStyleController {
                   ". Pick a different name/folder.");
             }
 
-            requireNameFree(lib, tableStyleService, newFullName, newLeaf, oldFullName);
+            requireNameFree(lib, tableStyleService, newFullName, newLeaf, null);
             requirePermission(principal, newFullName, ResourceAction.WRITE);
             List<String> missingFolders = List.of();
 
@@ -543,8 +543,8 @@ public class WizTableStyleController {
     * after that ({@code "/X"}, {@code "Bands//X"}, {@code "Bands//"}, {@code "//"}) is ambiguous
     * and refused, so it can never be stored as an unlistable {@code "Bands~"}-style parent or
     * registered as an empty-named folder. Only {@code ""} and {@code "/"} mean the root: a value
-    * that merely normalizes to empty ({@code "  "}, {@code " / "}, a control character) is refused
-    * rather than silently read as the root. Segments are NOT trimmed here -- this is also the
+    * that merely normalizes to blank ({@code "  "}, {@code " / "}, an ideographic space, a control
+    * character) is refused rather than silently read as the root. Segments are NOT trimmed here -- this is also the
     * lookup canonicalizer, and an existing folder may legitimately carry edge whitespace.
     *
     * @param field the request field the value came from, named in the errors.
@@ -556,7 +556,7 @@ public class WizTableStyleController {
          f = f.substring(0, f.length() - 1);
       }
 
-      if(f.isEmpty() && !folder.isEmpty() && !folder.equals("/")) {
+      if(f.isBlank() && !folder.isEmpty() && !folder.equals("/")) {
          throw new IllegalArgumentException(
             "'" + field + "' is blank -- pass '' (or omit it) for the library root, or a real " +
             "folder path such as 'User Defined/Sales'.");
