@@ -29,6 +29,7 @@ import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -509,6 +510,7 @@ class AssemblyConditionServiceTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       VSConditionDialogService conditions = mock(VSConditionDialogService.class);
+      VSRefreshService refresh = mock(VSRefreshService.class);
 
       try {
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
@@ -525,8 +527,8 @@ class AssemblyConditionServiceTest {
       }
 
       AssemblyConditionService service = checker == null
-         ? new AssemblyConditionService(sessions, conditions, (exp, box) -> null)
-         : new AssemblyConditionService(sessions, conditions, checker);
+         ? new AssemblyConditionService(sessions, conditions, refresh, (exp, box) -> null)
+         : new AssemblyConditionService(sessions, conditions, refresh, checker);
       return new Harness(service, sessions, conditions);
    }
 

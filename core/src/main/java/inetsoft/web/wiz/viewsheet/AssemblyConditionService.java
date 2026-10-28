@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.AggregateRefModel;
@@ -33,7 +34,10 @@ import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
+import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -68,17 +72,20 @@ public class AssemblyConditionService {
 
    @Autowired
    public AssemblyConditionService(ViewsheetSessionService sessions,
-                                   VSConditionDialogService conditionService)
+                                   VSConditionDialogService conditionService,
+                                   VSRefreshService refreshService)
    {
-      this(sessions, conditionService, VSAQuery::checkConditionExpression);
+      this(sessions, conditionService, refreshService, VSAQuery::checkConditionExpression);
    }
 
    AssemblyConditionService(ViewsheetSessionService sessions,
                             VSConditionDialogService conditionService,
+                            VSRefreshService refreshService,
                             ExpressionChecker checker)
    {
       this.sessions = sessions;
       this.conditionService = conditionService;
+      this.refreshService = refreshService;
       this.checker = checker;
    }
 
@@ -246,6 +253,7 @@ public class AssemblyConditionService {
 
          try {
             conditionService.setModel(runtimeId, assemblyName, model, linkUri, user, dispatcher);
+            reexecute(rvs, runtimeId, assemblyName, dispatcher, linkUri, user);
          }
          catch(Exception e) {
             // the refresh failed after the new list was committed; put the old one back rather
@@ -254,6 +262,7 @@ public class AssemblyConditionService {
                model.setConditionList(previous);
                conditionService.setModel(runtimeId, assemblyName, model, linkUri, user,
                                          dispatcher);
+               reexecute(rvs, runtimeId, assemblyName, dispatcher, linkUri, user);
             }
             catch(Exception restoreFailure) {
                e.addSuppressed(restoreFailure);
@@ -286,6 +295,34 @@ public class AssemblyConditionService {
       }
 
       return new SetResult(applied[0], warnings);
+   }
+
+   /**
+    * Bug #79543: re-executes the assembly the way {@code edit op:refresh} does. The Composer's
+    * condition service skips its own re-execution when any assembly in the viewsheet holds an
+    * unresolved prompt variable (it sends a parameter prompt and returns, and nothing answers it
+    * here), which left the assembly -- of any type -- serving the previous condition's data until
+    * a later read refreshed it. Only the native service's early return is worked around: it is
+    * left as is, since the Composer UI relies on it.
+    */
+   private void reexecute(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                          CommandDispatcher dispatcher, String linkUri, Principal user)
+      throws Exception
+   {
+      RefreshVSAssemblyEvent event = RefreshVSAssemblyEvent.builder()
+         .vsRuntimeId(runtimeId)
+         .assemblyName(assemblyName)
+         .build();
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs != null && vs.getAssembly(assemblyName) instanceof ChartVSAssembly) {
+         // a chart whose script fails is reported once by the check after this, not thrown
+         ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
+            refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user));
+      }
+      else {
+         refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user);
+      }
    }
 
    private void checkExpressions(RuntimeViewsheet rvs, Object[] conditionList,
@@ -397,5 +434,6 @@ public class AssemblyConditionService {
 
    private final ViewsheetSessionService sessions;
    private final VSConditionDialogService conditionService;
+   private final VSRefreshService refreshService;
    private final ExpressionChecker checker;
 }
