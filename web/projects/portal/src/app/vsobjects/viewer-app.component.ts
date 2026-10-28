@@ -1479,6 +1479,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.fullscreenId = null;
       this.vsObjects.splice(0, this.vsObjects.length);
       this.vsObjectActions = [];
+      this.selectedAssemblies = null;
+      this.selectedActions = null;
 
       if(this.preview) {
          this.openPreviewViewsheet();
@@ -2423,6 +2425,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          if(command.model.objectType === "VSGroupContainer") {
             this.vsObjects.unshift(command.model);
             this.vsObjectActions.unshift(this.actionFactory.createActions(command.model));
+            // every existing object moved up one position, so move the selection with it
+            this.selectedAssemblies = this.selectedAssemblies
+               ? this.selectedAssemblies.map(n => n + 1) : null;
          }
          else {
             this.vsObjects.push(command.model);
@@ -2793,8 +2798,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.vsObjects.splice(index, 1);
          this.vsObjectActions.splice(index, 1);
          this.calculateAllAssemblyBounds();
+         // selectedAssemblies holds positions in vsObjects, so shift the ones after the
+         // removed object down to keep them on the same objects (new array for change detection)
          this.selectedAssemblies = this.selectedAssemblies
-            ? this.selectedAssemblies.filter(n => n != index) : null;
+            ? this.selectedAssemblies.filter(n => n != index).map(n => n > index ? n - 1 : n)
+            : null;
 
          if(this.selectedActions &&
             this.selectedActions.getModel().absoluteName == command.name)
