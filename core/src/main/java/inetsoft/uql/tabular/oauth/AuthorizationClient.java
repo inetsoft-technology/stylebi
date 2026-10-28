@@ -154,8 +154,16 @@ public class AuthorizationClient {
                "Failed to refresh token, server responded with null response body.");
          }
 
+         // RFC 6749 section 6: a rotated refresh token replaces the old one, but a response that
+         // omits it means the existing one stays valid. Dropping it would leave the data source
+         // with no refresh token, so the next expiry could neither refresh nor re-grant.
+         final String newRefreshToken = result.getRefreshToken();
+         final String carriedRefreshToken =
+            newRefreshToken == null || newRefreshToken.isEmpty() ? refreshToken : newRefreshToken;
+
          return Tokens.builder()
             .accessToken(result.getAccessToken())
+            .refreshToken(carriedRefreshToken)
             .issued(null)
             .expiration(expiresInToExpiration(result.getExpiresIn()))
             .scope(result.getScope())
