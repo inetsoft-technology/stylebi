@@ -29,7 +29,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.awt.*;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -74,7 +73,7 @@ class CassandraTableTypeEquivalenceTest {
          Arguments.of(ProtocolConstants.DataType.BIGINT, Long.class),
          Arguments.of(ProtocolConstants.DataType.COUNTER, Long.class),
          Arguments.of(ProtocolConstants.DataType.INT, Integer.class),
-         Arguments.of(ProtocolConstants.DataType.VARINT, BigInteger.class),
+         Arguments.of(ProtocolConstants.DataType.VARINT, String.class),
          Arguments.of(ProtocolConstants.DataType.DECIMAL, BigDecimal.class),
          Arguments.of(ProtocolConstants.DataType.DOUBLE, Double.class),
          Arguments.of(ProtocolConstants.DataType.FLOAT, Float.class),
