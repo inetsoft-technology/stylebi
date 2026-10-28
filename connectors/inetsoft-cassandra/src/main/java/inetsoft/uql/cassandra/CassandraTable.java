@@ -192,6 +192,8 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.VARINT:
          return curr.getBigInteger(col);
       case ProtocolConstants.DataType.DECIMAL:
+         BigDecimal decimal = curr.getBigDecimal(col);
+         return decimal == null ? null : decimal.doubleValue();
       case ProtocolConstants.DataType.DOUBLE:
          return curr.getDouble(col);
       case ProtocolConstants.DataType.FLOAT:
