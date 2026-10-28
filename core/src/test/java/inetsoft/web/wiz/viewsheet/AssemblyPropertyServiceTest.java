@@ -22,9 +22,11 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
@@ -2299,6 +2301,175 @@ class AssemblyPropertyServiceTest {
       service.set("tok", principal(), "Gauge1", Map.of("aggregate", "Foo"), "");
 
       assertEquals("Foo", model.getDataOutputPaneModel().getAggregate());
+   }
+
+   // ── #79540: gauge/text/image output table/column binding ───────────────────
+
+   private static Worksheet worksheetWithTables(String... names) {
+      Worksheet ws = mock(Worksheet.class);
+      List<Assembly> all = new ArrayList<>();
+
+      for(String name : names) {
+         TableAssembly table = mock(TableAssembly.class);
+         when(table.getName()).thenReturn(name);
+         when(ws.getAssembly(name)).thenReturn(table);
+         all.add(table);
+      }
+
+      when(ws.getAssemblies()).thenReturn(all.toArray(new Assembly[0]));
+      return ws;
+   }
+
+   private static GaugePropertyDialogModel gaugeBoundTo(String table, String column) {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getDataOutputPaneModel().setTable(table);
+      model.getDataOutputPaneModel().setColumn(column);
+      model.getDataOutputPaneModel().setColumnType(XSchema.STRING);
+      return model;
+   }
+
+   private static AssemblyPropertyService outputBindingService(
+      VSAssembly assembly, Object model, Worksheet ws, VSOutputService outputService)
+   {
+      return serviceWith(assembly, model, null, ws, mock(ImagePropertyDialogService.class),
+                         mock(GaugePropertyDialogService.class), outputService,
+                         mock(VSColumnHandler.class));
+   }
+
+   private static VSOutputService outputServiceWithColumns(String table, ColumnSelection cols) {
+      VSOutputService outputService = mock(VSOutputService.class);
+
+      try {
+         when(outputService.getOutputTableColumns(any(), eq(table), eq(true), any()))
+            .thenReturn(cols);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return outputService;
+   }
+
+   @Test
+   void refusesANonexistentOutputColumnOnTheAliasAndTheRawPathAndWritesNothing() {
+      for(String key : new String[] {"column", "dataOutputPaneModel.column"}) {
+         GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
+         VSOutputService outputService = outputServiceWithColumns(
+            "Table1", columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE));
+         AssemblyPropertyService service = outputBindingService(
+            mock(GaugeVSAssembly.class), model, worksheetWithTables("Table1"), outputService);
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Gauge1", Map.of(key, "Totl"), ""));
+
+         assertTrue(e.getMessage().contains("Totl"), e.getMessage());
+         assertTrue(e.getMessage().contains("Table1"), e.getMessage());
+         assertTrue(e.getMessage().contains("Total, Cost"), e.getMessage());
+         assertNothingWrittenBy(lastDialogServices);
+      }
+   }
+
+   @Test
+   void refusesANonexistentOutputTableAndWritesNothing() {
+      GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
+      AssemblyPropertyService service = outputBindingService(
+         mock(GaugeVSAssembly.class), model, worksheetWithTables("Table1", "Table2"),
+         mock(VSOutputService.class));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", Map.of("table", "NoSuchTable"), ""));
+
+      assertTrue(e.getMessage().contains("NoSuchTable"), e.getMessage());
+      assertTrue(e.getMessage().contains("Table1, Table2"), e.getMessage());
+      assertNothingWrittenBy(lastDialogServices);
+   }
+
+   @Test
+   void refusesANonexistentTextOutputColumn() {
+      TextPropertyDialogModel model = new TextPropertyDialogModel();
+      model.getDataOutputPaneModel().setTable("Table1");
+      model.getDataOutputPaneModel().setColumn("Total");
+      AssemblyPropertyService service = outputBindingService(
+         mock(TextVSAssembly.class), model, worksheetWithTables("Table1"),
+         outputServiceWithColumns("Table1", columnsWithType("Total", XSchema.DOUBLE)));
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Text1", Map.of("column", "Nope"), ""));
+
+      assertTrue(e.getMessage().contains("Nope"), e.getMessage());
+   }
+
+   @Test
+   void acceptsARealOutputColumnAndCanonicalisesItsCase() throws Exception {
+      GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Cost");
+      AssemblyPropertyService service = outputBindingService(
+         mock(GaugeVSAssembly.class), model, worksheetWithTables("Table1"),
+         outputServiceWithColumns("Table1",
+                                  columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE)));
+
+      service.set("tok", principal(), "Gauge1", Map.of("column", "Total"), "");
+      assertEquals("Total", model.getDataOutputPaneModel().getColumn());
+
+      service.set("tok", principal(), "Gauge1", Map.of("column", "cost"), "");
+      assertEquals("Cost", model.getDataOutputPaneModel().getColumn());
+   }
+
+   @Test
+   void aTableOnlyChangeToARealTableDoesNotRecheckTheStoredColumn() throws Exception {
+      GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
+      AssemblyPropertyService service = outputBindingService(
+         mock(GaugeVSAssembly.class), model, worksheetWithTables("Table1", "Table2"),
+         outputServiceWithColumns("Table2", columnsWithType("Other", XSchema.STRING)));
+
+      service.set("tok", principal(), "Gauge1", Map.of("table", "Table2"), "");
+
+      assertEquals("Table2", model.getDataOutputPaneModel().getTable());
+   }
+
+   @Test
+   void dynamicAndBlankOutputBindingValuesPassThrough() throws Exception {
+      GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
+      AssemblyPropertyService service = outputBindingService(
+         mock(GaugeVSAssembly.class), model, worksheetWithTables("Table1"),
+         outputServiceWithColumns("Table1", columnsWithType("Total", XSchema.DOUBLE)));
+
+      for(String ok : new String[] {"$(col)", "=field['x']", ""}) {
+         service.set("tok", principal(), "Gauge1", Map.of("column", ok), "");
+         assertEquals(ok, model.getDataOutputPaneModel().getColumn());
+      }
+
+      for(String ok : new String[] {"$(tbl)", "=tableName", ""}) {
+         service.set("tok", principal(), "Gauge1", Map.of("table", ok), "");
+         assertEquals(ok, model.getDataOutputPaneModel().getTable());
+      }
+   }
+
+   @Test
+   void anUnrelatedPatchOverALegacyBadOutputBindingIsNotBlocked() throws Exception {
+      GaugePropertyDialogModel model = gaugeBoundTo("GoneTable", "GoneColumn");
+      AssemblyPropertyService service = outputBindingService(
+         mock(GaugeVSAssembly.class), model, worksheetWithTables("Table1"),
+         mock(VSOutputService.class));
+
+      service.set("tok", principal(), "Gauge1", Map.of("aggregate", "Sum"), "");
+
+      assertEquals("GoneTable", model.getDataOutputPaneModel().getTable());
+      assertEquals("GoneColumn", model.getDataOutputPaneModel().getColumn());
+   }
+
+   @Test
+   void outputBindingIsNotJudgedWithoutABaseWorksheetOrWithAnEmptyColumnList() throws Exception {
+      GaugePropertyDialogModel noWs = gaugeBoundTo("Table1", "Total");
+      outputBindingService(mock(GaugeVSAssembly.class), noWs, null,
+                           outputServiceWithColumns("Table1", columnsWithType("Total", XSchema.STRING)))
+         .set("tok", principal(), "Gauge1", Map.of("column", "Anything"), "");
+      assertEquals("Anything", noWs.getDataOutputPaneModel().getColumn());
+
+      GaugePropertyDialogModel denied = gaugeBoundTo("Table1", "Total");
+      outputBindingService(mock(GaugeVSAssembly.class), denied, worksheetWithTables("Table1"),
+                           outputServiceWithColumns("Table1", new ColumnSelection()))
+         .set("tok", principal(), "Gauge1", Map.of("column", "Anything"), "");
+      assertEquals("Anything", denied.getDataOutputPaneModel().getColumn());
    }
 
    // ── #78678: selection measure formula ──────────────────────────────────────
