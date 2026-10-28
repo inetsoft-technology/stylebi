@@ -1839,10 +1839,11 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             }
          }
 
-         return "((0.0+" + SUMSQ.getExpression(column, null, helper) + ") * " +
-            COUNT_ALL.getExpression(column, null, helper) + " - ((0.0 + " +
+         String zero = getZeroLiteral(helper);
+         return "((" + zero + "+" + SUMSQ.getExpression(column, null, helper) + ") * " +
+            COUNT_ALL.getExpression(column, null, helper) + " - ((" + zero + " + " +
             SUM.getExpression(column, null, helper) + ") * " +
-            SUM.getExpression(column, null, helper) + " ))/((0.0 + " +
+            SUM.getExpression(column, null, helper) + " ))/((" + zero + " + " +
             COUNT_ALL.getExpression(column, null, helper) + ") * " +
             COUNT_ALL.getExpression(column, null, helper) + ")";
       }
@@ -1863,13 +1864,25 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2,
                                      AggregateHelper helper) {
-         return "((0.0+" + SUMSQ.getExpressionSub(column, null, helper) +
+         String zero = getZeroLiteral(helper);
+         return "((" + zero + "+" + SUMSQ.getExpressionSub(column, null, helper) +
             ") * " +
-            COUNT_ALL.getExpressionSub(column, null, helper) + " - ((0.0 + " +
+            COUNT_ALL.getExpressionSub(column, null, helper) + " - ((" + zero + " + " +
             SUM.getExpressionSub(column, col2, helper) + ") * " +
-            SUM.getExpressionSub(column, col2, helper) + " ))/((0.0 + " +
+            SUM.getExpressionSub(column, col2, helper) + " ))/((" + zero + " + " +
             COUNT_ALL.getExpressionSub(column, null, helper) + ") * " +
             COUNT_ALL.getExpressionSub(column, null, helper) + ")";
+      }
+
+      /**
+       * Get the zero literal used to coerce the population variance
+       * arithmetic. DB2 types the plain literal 0.0 as DECIMAL(2,1), so the
+       * final division keeps only one decimal digit (the fraction is
+       * truncated). 0.0E0 is a DOUBLE literal on DB2, which forces the
+       * arithmetic to floating point. Other databases are unchanged.
+       */
+      private static String getZeroLiteral(AggregateHelper helper) {
+         return helper != null && "db2".equals(helper.getDBType()) ? "0.0E0" : "0.0";
       }
 
       /**
