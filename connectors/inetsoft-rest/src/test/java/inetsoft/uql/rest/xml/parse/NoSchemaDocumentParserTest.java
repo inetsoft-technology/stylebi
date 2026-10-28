@@ -64,5 +64,31 @@ class NoSchemaDocumentParserTest {
       assertEquals(XSchema.STRING, table.getColumnType("Company.Name"));
    }
 
+   @Test
+   void attributesBecomeEntries() throws Exception {
+      final Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new org.xml.sax.InputSource(new java.io.StringReader(
+            "<c id=\"1\" xmlns:x=\"urn:x\"><name>A</name><r k=\"v\">t</r></c>")));
+      final NoSchemaDocumentParser parser = new NoSchemaDocumentParser();
+      parser.append(document.getDocumentElement());
+
+      final MapNode c = (MapNode) ((MapNode) parser.getRoot()).get("c");
+      assertEquals(java.util.Arrays.asList("name", "r", "r@k", "@id"),
+         new java.util.ArrayList<>(c.keySet()));
+      assertEquals(new ValueNode(1), c.get("@id"));
+      assertEquals(new ValueNode("v"), c.get("r@k"));
+      assertEquals(new ValueNode("t"), c.get("r"));
+   }
+
+   @Test
+   void matchedAttributeNodeYieldsValue() throws Exception {
+      final Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new org.xml.sax.InputSource(new java.io.StringReader("<c total=\"296\"/>")));
+      final NoSchemaDocumentParser parser = new NoSchemaDocumentParser();
+      parser.append(document.getDocumentElement().getAttributeNode("total"));
+
+      assertEquals(new ValueNode(296), ((MapNode) parser.getRoot()).get("@total"));
+   }
+
    private final ClassLoader loader = getClass().getClassLoader();
 }

@@ -32,4 +32,10 @@
   <xsl:template match ="$xpath">
     <xsl:value-of select="is:addNode(., $parser)"/>
   </xsl:template>
+  <!-- Attributes are not children, so the built-in element rule never visits them. Visit them
+       explicitly so an xpath ending in @attr can match. Priority -1 keeps a bare * or node()
+       xpath bound to the user template. -->
+  <xsl:template match="*" priority="-1">
+    <xsl:apply-templates select="@*|node()"/>
+  </xsl:template>
 </xsl:stylesheet>

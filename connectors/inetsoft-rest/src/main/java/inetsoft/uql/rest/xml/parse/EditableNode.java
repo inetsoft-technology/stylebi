@@ -40,6 +40,10 @@ class EditableNode {
       }
    }
 
+   boolean hasChildren() {
+      return !singleChildren.isEmpty() || !multiChildren.isEmpty();
+   }
+
    void setValue(Object value) {
       this.value = value;
    }
