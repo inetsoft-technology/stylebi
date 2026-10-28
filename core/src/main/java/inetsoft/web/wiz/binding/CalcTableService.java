@@ -1030,6 +1030,22 @@ public class CalcTableService {
          if("mergeCells".equals(resolved)) {
             requireSourceRangeInGrid(layout, new Rectangle(col, row, spanCols, spanRows));
          }
+         else if("appendRow".equals(resolved) &&
+                 (spanRows < 1 || spanRows > layout.getRowCount() - row))
+         {
+            throw new IllegalArgumentException(
+               "'rows' is " + spanRows + " but must be between 1 and " +
+               (layout.getRowCount() - row) + " for appendRow from row " + row +
+               " (the grid has " + layout.getRowCount() + " row(s)). Nothing was changed.");
+         }
+         else if("appendCol".equals(resolved) &&
+                 (spanCols < 1 || spanCols > layout.getColCount() - col))
+         {
+            throw new IllegalArgumentException(
+               "'cols' is " + spanCols + " but must be between 1 and " +
+               (layout.getColCount() - col) + " for appendCol from column " + col +
+               " (the grid has " + layout.getColCount() + " column(s)). Nothing was changed.");
+         }
          else if("deleteRow".equals(resolved) && count > layout.getRowCount() - row) {
             throw new IllegalArgumentException(
                "'n' is " + count + " but only " + (layout.getRowCount() - row) +

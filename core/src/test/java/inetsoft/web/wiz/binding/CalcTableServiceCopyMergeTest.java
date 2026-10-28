@@ -890,6 +890,21 @@ class CalcTableServiceCopyMergeTest {
       assertEquals(2, layout().getRowCount());
    }
 
+   @Test
+   void refusesAppendSpanOutsideTheGrid() {
+      assertLayoutRefused("appendRow", 0, 0, 0, null, 1, "'rows'");
+      assertLayoutRefused("appendRow", 0, 0, -1, null, 1, "'rows'");
+      assertLayoutRefused("appendRow", 2, 0, 3, null, 1, "'rows'");
+      assertLayoutRefused("appendCol", 0, 0, null, 0, 1, "'cols'");
+      assertLayoutRefused("appendCol", 0, 3, null, 2, 1, "'cols'");
+   }
+
+   @Test
+   void allowsAppendSpanEndingAtTheGridEdge() throws Exception {
+      service.modifyLayout("tok", principal(), "Calc1", "appendRow", 2, 0, 2, null, 1);
+      assertEquals(5, layout().getRowCount());
+   }
+
    // ── helpers ───────────────────────────────────────────────────────────────
 
    private TableLayout layout() {
