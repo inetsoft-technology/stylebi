@@ -2685,7 +2685,10 @@ public class VSWizardBindingHandler {
          info.setPixelSize(new Dimension(180, 250));
       }
       else if(info instanceof TimeSliderVSAssemblyInfo) {
-         info.setPixelSize(new Dimension(350, 50));
+         // a marked slider's card padding takes part of the box, so keep the density height
+         int height = info.getVizMark() == null ? 50 :
+            VSDensityDefaults.rangeSliderSize(VizContext.of(info)).height;
+         info.setPixelSize(new Dimension(350, height));
       }
       else if(info instanceof CalendarVSAssemblyInfo) {
          info.setPixelSize(new Dimension(450, 250));
