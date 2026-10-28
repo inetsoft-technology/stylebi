@@ -222,6 +222,76 @@ class IdentityChangePlanServiceTest {
       assertEquals(1, plan.changes().size());
    }
 
+   @Test void resolveRefusesRoleCreateThatIsBothSysAdminAndOrgAdmin() throws Exception {
+      when(securityService.getRole(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"));
+      IdentityChangeRequest change = createRole("Both Role");
+      change.getSpec().setSysAdmin(true);
+      change.getSpec().setOrgAdmin(true);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(e.getMessage().contains("spec.sysAdmin"));
+      assertTrue(e.getMessage().contains("spec.orgAdmin"));
+   }
+
+   @Test void resolveAllowsRoleCreateWithSysAdminAlone() throws Exception {
+      when(securityService.getRole(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"));
+      IdentityChangeRequest change = createRole("Sys Role");
+      change.getSpec().setSysAdmin(true);
+
+      assertEquals(1, service.resolve(request("task", List.of(change)), user).changes().size());
+   }
+
+   private SecurityRole roleWithFlags(boolean sysAdmin, boolean orgAdmin) throws Exception {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole existing = existingRole(id);
+      existing.setSysAdmin(sysAdmin);
+      existing.setOrgAdmin(orgAdmin);
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(existing);
+      return existing;
+   }
+
+   private ResolvedPlan resolveRoleUpdate(Boolean sysAdmin, Boolean orgAdmin, String description)
+      throws Exception
+   {
+      IdentitySpec spec = new IdentitySpec();
+      spec.setSysAdmin(sysAdmin);
+      spec.setOrgAdmin(orgAdmin);
+      spec.setDescription(description);
+      return service.resolve(request("task", List.of(updateRole("Viewer", spec))), user);
+   }
+
+   @Test void resolveRefusesRoleUpdateAddingOrgAdminToSysAdminRole() throws Exception {
+      roleWithFlags(true, false);
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> resolveRoleUpdate(null, true, null));
+      assertTrue(e.getMessage().contains("spec.sysAdmin"));
+      assertTrue(e.getMessage().contains("spec.orgAdmin"));
+   }
+
+   @Test void resolveRefusesRoleUpdateAddingSysAdminToOrgAdminRole() throws Exception {
+      roleWithFlags(false, true);
+      assertThrows(IllegalArgumentException.class, () -> resolveRoleUpdate(true, null, null));
+   }
+
+   @Test void resolveAllowsUnrelatedEditOnRoleThatAlreadyHasBothFlags() throws Exception {
+      roleWithFlags(true, true);
+      assertEquals(1, resolveRoleUpdate(null, null, "New description").changes().size());
+      assertEquals(1, resolveRoleUpdate(true, null, "Restated").changes().size());
+   }
+
+   @Test void resolveAllowsClearingOneFlagOnRoleThatAlreadyHasBothFlags() throws Exception {
+      roleWithFlags(true, true);
+      assertEquals(1, resolveRoleUpdate(null, false, null).changes().size());
+   }
+
+   @Test void resolveAllowsSwappingTheFlagOnARole() throws Exception {
+      roleWithFlags(true, false);
+      assertEquals(1, resolveRoleUpdate(false, true, null).changes().size());
+   }
+
    @Test void resolveAllowsPropertiesOnOrganizationCreate() throws Exception {
       when(securityService.getOrganization(any(), eq(user)))
          .thenThrow(new MissingResourceException("no such organization"));

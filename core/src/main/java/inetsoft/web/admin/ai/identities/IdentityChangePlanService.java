@@ -226,6 +226,8 @@ public class IdentityChangePlanService {
       String key = key(IdentityUnitType.ROLE, id.convertToKey());
       requireUnseen(label, key, seenKeys);
       requireCreateIdFree(label, () -> securityService.getRole(id, user), key);
+      requireRoleAdminFlagsExclusive(label, Boolean.TRUE.equals(spec.getSysAdmin()),
+                                     Boolean.TRUE.equals(spec.getOrgAdmin()), false);
       String proposed = IdentityProjection.projectRoleSpec(id, spec);
       return new PlanChange(key, orgId, null, proposed, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, "create role " + id.getLabel());
@@ -357,6 +359,22 @@ public class IdentityChangePlanService {
                             AdminChangeRecord.SCOPE_STORAGE, true, "update group " + id.getLabel());
    }
 
+   /**
+    * Refuses a role whose effective flags become both system administrator and organization
+    * administrator. A role that already had both is not a new conflict, so unrelated edits and
+    * clearing one flag stay allowed. Flags inherited through role inheritance are not checked.
+    */
+   private static void requireRoleAdminFlagsExclusive(String label, boolean sysAdmin,
+                                                      boolean orgAdmin, boolean alreadyBoth)
+   {
+      if(sysAdmin && orgAdmin && !alreadyBoth) {
+         throw new IllegalArgumentException(
+            label + ".spec.sysAdmin and " + label + ".spec.orgAdmin are mutually exclusive: " +
+            "a role cannot be both a system administrator and an organization administrator " +
+            "(the resulting role, after merging this spec onto the existing role, would be both)");
+      }
+   }
+
    private PlanChange resolveUpdateRole(String label, String rawId, IdentitySpec spec,
                                         Principal user, String currentOrgId, Set<String> seenKeys)
       throws Exception
@@ -370,6 +388,10 @@ public class IdentityChangePlanService {
       SecurityRole existing = requireGet(label, () -> securityService.getRole(id, user), key);
       String before = IdentityProjection.projectRole(existing, id);
       SecurityRole merged = IdentityMerge.mergeRole(existing, spec, id);
+      requireRoleAdminFlagsExclusive(
+         label, Boolean.TRUE.equals(merged.getSysAdmin()),
+         Boolean.TRUE.equals(merged.getOrgAdmin()),
+         Boolean.TRUE.equals(existing.getSysAdmin()) && Boolean.TRUE.equals(existing.getOrgAdmin()));
       String proposed = IdentityProjection.projectRole(merged, merged.getIdentityID());
       return new PlanChange(key, id.getOrgID(), before, proposed, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, "update role " + id.getLabel());
