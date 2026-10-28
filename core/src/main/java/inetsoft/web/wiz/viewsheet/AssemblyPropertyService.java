@@ -22,8 +22,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.gui.viewsheet.gauge.VSGauge;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -293,6 +295,8 @@ public class AssemblyPropertyService {
          String measureBefore = selectionMeasure(type, model);
          String formulaBefore = selectionFormula(type, model);
          String outputAggregateBefore = outputAggregate(type, model);
+         String outputTableBefore = outputBinding(type, model, OUTPUT_TABLE_PATH);
+         String outputColumnBefore = outputBinding(type, model, OUTPUT_COLUMN_PATH);
          SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
          ShapeFillGradientGuard.Snapshot fillBefore = ShapeFillGradientGuard.snapshot(type, model);
 
@@ -358,6 +362,8 @@ public class AssemblyPropertyService {
                                               measureBefore);
          model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
          model = requireKnownOutputAggregate(assemblyName, type, model, outputAggregateBefore);
+         model = requireKnownOutputBinding(rvs, user, type, model, outputTableBefore,
+                                           outputColumnBefore);
 
          if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
             path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
@@ -1054,6 +1060,120 @@ public class AssemblyPropertyService {
    }
 
    private static final String OUTPUT_AGGREGATE_PATH = "dataOutputPaneModel.aggregate";
+
+   private static final String OUTPUT_TABLE_PATH = "dataOutputPaneModel.table";
+   private static final String OUTPUT_COLUMN_PATH = "dataOutputPaneModel.column";
+
+   private static String outputBinding(String type, Object model, String path) {
+      return PropertyAliases.isDataOutputType(type) ? (String) PropertyPath.get(model, path) : null;
+   }
+
+   /**
+    * A gauge/text/image {@code dataOutputPaneModel.table}/{@code column} was stored verbatim, so a
+    * table or column that does not exist left the output permanently unbound while the write
+    * reported success (bug #79540). Same before/after shape as
+    * {@link #requireKnownOutputAggregate}: only a table or column this patch changed is checked,
+    * so a legacy bad binding does not block an unrelated write, and the refusal happens before
+    * anything is written.
+    *
+    * <p>A changed table must be a table of the base worksheet (or a cube the output pane offers).
+    * A changed column is checked against the same column list the Composer's output pane offers
+    * for the stored table, matching name, attribute or alias case-insensitively and storing the
+    * canonical name. Blank (clear) and dynamic ({@code $(x)}, {@code =script}) values, a missing
+    * base worksheet, and an empty column list (permission denied, cube) are not judged. A table
+    * change alone does not re-check a stored column, so the natural "table, then column" two-call
+    * flow keeps working.
+    */
+   private Object requireKnownOutputBinding(RuntimeViewsheet rvs, Principal user, String type,
+                                            Object model, String tableBefore, String columnBefore)
+      throws Exception
+   {
+      if(!PropertyAliases.isDataOutputType(type)) {
+         return model;
+      }
+
+      String table = (String) PropertyPath.get(model, OUTPUT_TABLE_PATH);
+      String column = (String) PropertyPath.get(model, OUTPUT_COLUMN_PATH);
+      boolean tableChanged = !Objects.equals(table, tableBefore);
+      boolean columnChanged = !Objects.equals(column, columnBefore);
+
+      if(!tableChanged && !columnChanged || table == null || table.isBlank() ||
+         VSUtil.isDynamicValue(table))
+      {
+         return model;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+
+      if(ws == null) {
+         return model;
+      }
+
+      Object wsTable = ws.getAssembly(table);
+
+      if(wsTable == null && table.endsWith("_O")) {
+         wsTable = ws.getAssembly(table.substring(0, table.length() - 2));
+      }
+
+      if(!(wsTable instanceof TableAssembly)) {
+         Map<String, List<String>> offered = outputService.getOutputTables(rvs, user);
+         List<String> cubes = offered == null ? null : offered.get("cubeData");
+
+         if(cubes != null && cubes.contains(table)) {
+            return model;
+         }
+
+         if(tableChanged) {
+            StringBuilder names = new StringBuilder();
+
+            for(Assembly assembly : ws.getAssemblies()) {
+               if(assembly instanceof TableAssembly) {
+                  names.append(names.length() == 0 ? "" : ", ").append(assembly.getName());
+               }
+            }
+
+            throw new IllegalArgumentException(
+               "'" + OUTPUT_TABLE_PATH + "' ('" + table + "') is not a table of the " +
+               "viewsheet's base worksheet. StyleBI stores an unknown table with no error and " +
+               "the output then renders nothing, so this write would report success and leave " +
+               "it unbound. Real tables: " + names + ".");
+         }
+
+         return model;
+      }
+
+      if(!columnChanged || column == null || column.isBlank() || VSUtil.isDynamicValue(column)) {
+         return model;
+      }
+
+      ColumnSelection columns = outputService.getOutputTableColumns(rvs, table, true, user);
+
+      if(columns == null || columns.getAttributeCount() == 0) {
+         return model;
+      }
+
+      StringBuilder names = new StringBuilder();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+         names.append(i == 0 ? "" : ", ").append(ref.getName());
+         String alias = ref instanceof ColumnRef cref ? cref.getAlias() : null;
+
+         if(column.equalsIgnoreCase(ref.getName()) || column.equalsIgnoreCase(ref.getAttribute()) ||
+            alias != null && column.equalsIgnoreCase(alias))
+         {
+            return column.equals(ref.getName()) ? model :
+               PropertyPath.set(model, OUTPUT_COLUMN_PATH, ref.getName());
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + OUTPUT_COLUMN_PATH + "' ('" + column + "') is not a column of '" + table +
+         "'. StyleBI stores an unknown column with no error and the output then renders " +
+         "nothing, so this write would report success and leave it unbound. Real columns: " +
+         names + ".");
+   }
 
    private static String selectionMeasure(String type, Object model) {
       String pane = selectionPane(type);
