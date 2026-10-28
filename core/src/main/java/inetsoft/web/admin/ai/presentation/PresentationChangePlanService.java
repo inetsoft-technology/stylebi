@@ -237,6 +237,7 @@ public class PresentationChangePlanService {
             "later global edit. Use scope \"global\".");
       }
    }
+
    static boolean requireScope(String label, PresentationSubModel subModel, String scope) {
       if(scope == null) {
          throw new IllegalArgumentException(
