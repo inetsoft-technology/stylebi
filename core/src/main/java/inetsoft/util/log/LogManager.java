@@ -215,6 +215,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
             .filter(e -> entry.getKey() != LogContext.CATEGORY || !e.getKey().equals("inetsoft"))
             .filter(e -> e.getValue() != LogLevel.OFF)
             .map(e -> buildLogLevelSetting(entry.getKey(), e, provider))
+            .filter(Objects::nonNull)
             .forEachOrdered(result::add);
       }
 
@@ -358,6 +359,15 @@ public final class LogManager implements AutoCloseable, MessageListener {
 
       if(context == LogContext.ORGANIZATION) {
          orgName = provider.getOrgNameFromID(name);
+
+         // the organization no longer exists (a level left behind by an earlier delete) or the
+         // provider cannot resolve it, so there is no name to show; skip it instead of failing
+         // the whole listing
+         if(Tool.isEmptyString(orgName)) {
+            LOG.debug("Skipping the log level of the unresolved organization: {}", name);
+            return null;
+         }
+
          name = orgName;
       }
       else {

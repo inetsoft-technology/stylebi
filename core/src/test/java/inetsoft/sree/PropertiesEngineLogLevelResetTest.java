@@ -34,6 +34,8 @@ import inetsoft.util.log.*;
 import inetsoft.util.log.logback.LogbackContextFilter;
 import inetsoft.util.stall.StallWatchdog;
 import inetsoft.web.admin.properties.PropertiesController;
+import inetsoft.web.admin.logviewer.LogSettingService;
+import inetsoft.web.admin.logviewer.LogSettingsModel;
 import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -744,6 +746,51 @@ class PropertiesEngineLogLevelResetTest {
 
       assertEquals("debug", engine.getProperty("log.ORGANIZATION.level.org79560case"));
       assertNull(engine.getProperty("log.ORGANIZATION.level.Org79560case"));
+   }
+
+   /**
+    * Bug #79560: a level left behind for an organization that no longer exists must not stop
+    * the Logging page from listing the other levels, and must not be touched by a page save.
+    */
+   @Test
+   void unresolvedOrganizationLevelIsSkippedByThePage() throws Exception {
+      String deadOrg = "org79560dead";
+      String liveOrg = "org79560live";
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(provider.getOrgNameFromID(liveOrg)).thenReturn("Live");
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.getSecurityProvider()).thenReturn(provider);
+      ObjectProvider<SecurityEngine> securityEngineProvider =
+         new StaticListableBeanFactory(Map.of("securityEngine", securityEngine))
+            .getBeanProvider(SecurityEngine.class);
+      LogManager manager = new LogManager(securityEngineProvider, null, null);
+      manager.setContextLevel(LogContext.ORGANIZATION, deadOrg, LogLevel.DEBUG);
+      manager.setContextLevel(LogContext.ORGANIZATION, liveOrg, LogLevel.INFO);
+      manager.setContextLevel(LogContext.USER, "u1^" + liveOrg, LogLevel.WARN);
+
+      List<LogLevelSetting> levels = manager.getContextLevels();
+
+      assertEquals(2, levels.size());
+      assertTrue(levels.stream().anyMatch(
+         s -> s.getContext() == LogContext.ORGANIZATION && "Live".equals(s.getName())));
+      assertTrue(levels.stream().anyMatch(
+         s -> s.getContext() == LogContext.USER && "u1".equals(s.getName())));
+
+      // the level is skipped, not deleted
+      Field field = LogManager.class.getDeclaredField("contextLevels");
+      field.setAccessible(true);
+      @SuppressWarnings("unchecked")
+      Map<LogContext, Map<String, LogLevel>> contextLevels =
+         (Map<LogContext, Map<String, LogLevel>>) field.get(manager);
+      assertEquals(LogLevel.DEBUG, contextLevels.get(LogContext.ORGANIZATION).get(deadOrg));
+
+      // the page model is built from the listing, which used to fail on the null name
+      LogManager spied = spy(manager);
+      doReturn("inetsoft.log").when(spied).getBaseLogFile(false);
+      LogSettingService service = new LogSettingService(securityEngine, spied);
+      LogSettingsModel model = service.getConfiguration();
+      assertNotNull(model, "the Logging page could not be built");
+      assertEquals(2, model.logLevels().size());
    }
 
    private void assertOrgLogLevels(String user, String group, String oldOrg, String newOrg)
