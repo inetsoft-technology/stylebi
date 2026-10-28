@@ -73,4 +73,12 @@ public class H2Helper extends SQLHelper {
    static {
       keywords.add("top");
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

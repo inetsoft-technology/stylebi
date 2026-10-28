@@ -282,4 +282,20 @@ public class SQLServerHelper extends SQLHelper {
       keywords.add("try_convert");
       keywords.add("unpivot");
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
+
+   /**
+    * A [ starts a character set in a SQL Server pattern, so it is escaped too.
+    */
+   @Override
+   protected String getLikeSpecialChars() {
+      return "%_[";
+   }
 }

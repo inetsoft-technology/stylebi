@@ -5781,6 +5781,54 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the character this dialect accepts in a {@code LIKE ... ESCAPE 'c'} clause, used to
+    * match a contains / starting with value literally instead of as a pattern. Returns
+    * {@code null} (the default) for a dialect not known to support the clause, in which
+    * case the value is spliced unescaped.
+    *
+    * @return the escape character, or {@code null} if the ESCAPE clause is not used.
+    */
+   public Character getLikeEscapeChar() {
+      return null;
+   }
+
+   /**
+    * Get the characters, besides the escape character itself, that are special in a LIKE
+    * pattern of this dialect and must be escaped to be matched literally.
+    */
+   protected String getLikeSpecialChars() {
+      return "%_";
+   }
+
+   /**
+    * Escape a value so that a LIKE pattern built from it matches the value literally.
+    * Only meaningful when {@link #getLikeEscapeChar()} is not {@code null}; the pattern must
+    * then be followed by the matching ESCAPE clause.
+    */
+   public String escapeLikeValue(String value) {
+      Character esc = getLikeEscapeChar();
+
+      if(esc == null || value == null) {
+         return value;
+      }
+
+      String special = getLikeSpecialChars();
+      StringBuilder escaped = new StringBuilder(value.length() + 4);
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == esc || special.indexOf(c) >= 0) {
+            escaped.append(esc.charValue());
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
+   }
+
+   /**
     * Create a query that limits the output to the specified number of rows.
     */
    protected String generateMaxRowsClause(String sql, int maxrows) {

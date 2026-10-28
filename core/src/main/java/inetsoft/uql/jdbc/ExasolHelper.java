@@ -55,4 +55,12 @@ public class ExasolHelper extends SQLHelper {
       buffer.append(maxrows);
       return buffer.toString();
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }
