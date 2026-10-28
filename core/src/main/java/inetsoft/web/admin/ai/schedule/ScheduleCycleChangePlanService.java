@@ -153,7 +153,7 @@ public class ScheduleCycleChangePlanService {
             label + ".spec.name: a scheduled cycle named \"" + name + "\" already exists");
       }
 
-      ScheduleConditionConverter.requireKnownTimeRanges(
+      ScheduleConditionConverter.refuseTimeRanges(
          label + ".spec.conditions", change.spec().conditions());
       ScheduleConditionConverter.requireKnownTimeZones(
          label + ".spec.conditions", change.spec().conditions());
@@ -219,7 +219,7 @@ public class ScheduleCycleChangePlanService {
       }
 
       if(spec.conditions() != null) {
-         ScheduleConditionConverter.requireKnownTimeRanges(
+         ScheduleConditionConverter.refuseTimeRanges(
             label + ".spec.conditions", spec.conditions());
          ScheduleConditionConverter.requireKnownTimeZones(
             label + ".spec.conditions", spec.conditions());
@@ -234,7 +234,14 @@ public class ScheduleCycleChangePlanService {
       proposed.setOrgId(orgId);
       proposed.setEnabled(current.isEnabled());
       proposed.setConditions(conditions);
-      proposed.setInfo(current.getInfo());
+
+      // ScheduleCycleService#editCycle stores the carried-over info under the new name, so the
+      // projection must too; clone so the current asset's info (and currentValue) stay untouched.
+      DataCycleManager.CycleInfo proposedInfo = current.getInfo() == null
+         ? new DataCycleManager.CycleInfo(newName, orgId)
+         : (DataCycleManager.CycleInfo) current.getInfo().clone();
+      proposedInfo.setName(newName);
+      proposed.setInfo(proposedInfo);
 
       String currentProjection = AdminScheduleCycleGateway.projectXml(current);
       String proposedProjection = AdminScheduleCycleGateway.projectXml(proposed);

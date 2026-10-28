@@ -109,6 +109,10 @@ public class TabularHandler extends XHandler {
       oquery.setSampleRows(((TabularQuery) query).getSampleRows(),
                            ((TabularQuery) query).isSampleRowsTruncated());
 
+      // Same clone boundary and unconditional copy again, for the timeout the runner reports when
+      // it cancels a query -- see TabularQuery.getTimedOutSeconds.
+      oquery.setTimedOutSeconds(((TabularQuery) query).getTimedOutSeconds());
+
       if(tbl != null && tbl.getColCount() > 0) {
          int max = TabularUtil.getMaxRows(query, params);
 

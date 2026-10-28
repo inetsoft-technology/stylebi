@@ -878,7 +878,9 @@ public class XEmbeddedTable
 
                   // a value that silently became null is data loss; refuse it unless the
                   // caller asked to force the conversion
-                  if(!force && oval != null && arr[col] == null && !isBlankOrNullText(oval)) {
+                  if(!force && oval != null &&
+                     (arr[col] == null ? !isBlankOrNullText(oval) : isLossyText(oval, type)))
+                  {
                      throw new ParseException(
                         "Cannot convert value \"" + oval + "\" to " + type, 0);
                   }
@@ -931,6 +933,42 @@ public class XEmbeddedTable
       }
 
       return Tool.getData(type, number);
+   }
+
+   /**
+    * Whether a value that converted to a non-null result lost information: the converter turns
+    * text it cannot parse as a boolean into false (including "N/A", which only becomes null for
+    * the null-based types; the text "null" is null for every type), and keeps only the first character for a character. Mirrors
+    * the converter's own parsing, untrimmed.
+    */
+   private static boolean isLossyText(Object value, String type) {
+      if(XSchema.BOOLEAN.equals(type)) {
+         if(!(value instanceof String)) {
+            return false;
+         }
+
+         String str = (String) value;
+
+         if(str.isEmpty() || str.equalsIgnoreCase("true") || str.equalsIgnoreCase("false")) {
+            return false;
+         }
+
+         // whitespace-only text trims to an empty number, which the parser reads as zero
+         if(str.trim().isEmpty()) {
+            return true;
+         }
+
+         try {
+            NumberParserWrapper.getDouble(str);
+            return false;
+         }
+         catch(Exception ex) {
+            return true;
+         }
+      }
+
+      return XSchema.CHARACTER.equals(type) && !(value instanceof Character) &&
+         value.toString().length() > 1;
    }
 
    /**

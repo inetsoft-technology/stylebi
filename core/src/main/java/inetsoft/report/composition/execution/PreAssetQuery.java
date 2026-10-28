@@ -3457,6 +3457,27 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    }
 
    /**
+    * Check if the aggregates contain two or more count distinct and the database cannot
+    * run them in one ungrouped select (Derby).
+    */
+   private boolean isMultiDistinctUnsupported(AggregateRef[] aggregates) {
+      int distinct = 0;
+
+      for(AggregateRef aggregate : aggregates) {
+         if(aggregate.getFormula() == AggregateFormula.COUNT_DISTINCT) {
+            distinct++;
+         }
+      }
+
+      if(distinct < 2) {
+         return false;
+      }
+
+      SQLHelper helper = getSQLHelper(getUniformSQL());
+      return helper != null && "derby".equals(helper.getSQLHelperType());
+   }
+
+   /**
     * Check if the group information is mergeable.
     * @return <tt>true</tt> if mergeable, <tt>false</tt> otherwise.
     */
@@ -3517,6 +3538,14 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
             return false;
          }
+      }
+
+      // Derby rejects more than one DISTINCT aggregate in a select without a group by
+      // ("Multiple DISTINCT aggregates are not supported at this time"), which the
+      // per-aggregate check above cannot see, so aggregate the set in memory. Grouped
+      // queries and other databases are unaffected.
+      if(groups.length == 0 && isMultiDistinctUnsupported(aggregates)) {
+         return false;
       }
 
       // if precondition/expression requires to add non-group column,

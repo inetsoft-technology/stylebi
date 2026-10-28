@@ -272,17 +272,168 @@ class TableBindingCrosstabRowLabelTest {
       assertEquals("SL", ct.label(1));
    }
 
+   // -- a measure label across a rows reshape (bug-79331) --
+
+   private static final String YEAR = "" + inetsoft.uql.XConstants.YEAR_DATE_GROUP;
+   private static final String QUARTER =
+      "" + inetsoft.uql.XConstants.QUARTER_OF_YEAR_DATE_GROUP;
+
+   /** rows Year/Quarter of ORDER_DATE, cols REGION, Sum(REVENUE) labelled "Revenue". */
+   private static Crosstab labelledRevenue() {
+      Crosstab ct = new Crosstab(
+         new DataRef[] { dateDim("ORDER_DATE", YEAR), dateDim("ORDER_DATE", QUARTER) },
+         cols("REGION"), new DataRef[] { sum("REVENUE") });
+      String[] dims = dimNames(ct);
+
+      // As applyCrosstabLabels writes it: the rendered detail path, widened to every level.
+      for(TableDataPath path : SetTableHeaderAliasHandler.withUnrenderedLevels(
+         List.of(headerPath(dims[0], dims[1], agg(ct))), false))
+      {
+         SetTableHeaderAliasHandler.setAliasWithHeaderDuality(path, ct.live.getFormatInfo(),
+                                                              "Revenue");
+      }
+
+      return ct;
+   }
+
+   private static String[] dimNames(Crosstab ct) {
+      return VSUtil.buildName(ct.info().getRuntimeRowHeaders(), false);
+   }
+
+   private static String agg(Crosstab ct) {
+      return VSUtil.buildName(ct.info().getRuntimeAggregates(), true)[0];
+   }
+
+   private static FieldRef dateField(String level) {
+      return new FieldRef("ORDER_DATE", "dimension", null, level, null);
+   }
+
+   /**
+    * Bug #79331: adding a deeper row level re-keys the old detail path [Year, Quarter, agg] to
+    * the new detail, and that same path is now the quarter subtotal. The clear-vacated processor
+    * erased it, so the quarter Total rows rendered the default name.
+    */
+   @Test
+   void addingARowLevelKeepsTheMeasureLabelOnTheNewSubtotalLevel() throws Exception {
+      Crosstab ct = labelledRevenue();
+      String[] old = dimNames(ct);
+      String agg = agg(ct);
+
+      ct.service().setShelf("tok", principal(), "Crosstab1", "rows",
+                            List.of(dateField("year"), dateField("quarter_of_year"),
+                                    dateField("month_of_year")), null);
+
+      String[] dims = dimNames(ct);
+      assertEquals(3, dims.length, "fixture: the reshape added a row level");
+      assertTrue(ct.event.isClearVacatedAliases());
+      assertEquals("Revenue", ct.headerLabel(dims[0], dims[1], dims[2], agg), "detail");
+      assertEquals("Revenue", ct.headerLabel(old[0], old[1], agg), "new quarter subtotal");
+      assertEquals("Revenue", ct.headerLabel(old[0], agg), "year subtotal");
+      assertEquals("Revenue", ct.headerLabel("ROW_GRAND_TOTAL", agg), "grand total");
+   }
+
+   /** #78530 still holds with a measure bound: a row that leaves loses its corner label. */
+   @Test
+   void aLeavingRowStillLosesItsCornerLabelWithAMeasureBound() throws Exception {
+      Crosstab ct = new Crosstab(rows("Region", "State"), cols("Category"),
+                                 new DataRef[] { sum("REVENUE") });
+      ct.label(0, "RL");
+      ct.label(1, "SL");
+
+      ct.service().removeField("tok", principal(), "Crosstab1", "rows", "Region");
+
+      assertEquals("SL", ct.label(0));
+      assertNull(ct.label(1), "the vacated corner path must still be cleared");
+   }
+
+   /**
+    * A reorder creates a subtotal path no old path maps to, so the label covers only part of the
+    * measure's headers; the read-back says so instead of reporting it as covering all of them.
+    */
+   @Test
+   void reorderingRowsLeavesAPartialLabelThatTheCoverageNoteReports() throws Exception {
+      Crosstab ct = labelledRevenue();
+      String agg = agg(ct);
+
+      ct.service().setShelf("tok", principal(), "Crosstab1", "rows",
+                            List.of(dateField("quarter_of_year"), dateField("year")), null);
+
+      String[] dims = dimNames(ct);
+      List<TableDataPath> rendered = SetTableHeaderAliasHandler.withUnrenderedLevels(
+         List.of(headerPath(dims[0], dims[1], agg)), false);
+      String note = TableBindingService.labelCoverageNote(ct.live.getFormatInfo(), rendered,
+                                                          "Sum(REVENUE)");
+
+      assertEquals("Revenue", ct.headerLabel(dims[0], dims[1], agg), "detail moved with the sync");
+      assertNull(ct.headerLabel(dims[0], agg), "the new quarter subtotal has no old path");
+      assertNotNull(note);
+      assertTrue(note.contains("'Revenue'") && note.contains("covers 2 of 3"), note);
+      assertTrue(note.contains("set_column_labels"), note);
+   }
+
+   @Test
+   void theCoverageNoteIsSilentWhenEveryPathOrNoneIsLabelled() {
+      FormatInfo formatInfo = new FormatInfo();
+      List<TableDataPath> paths =
+         List.of(headerPath("Y", "agg"), headerPath("ROW_GRAND_TOTAL", "agg"));
+
+      assertNull(TableBindingService.labelCoverageNote(formatInfo, paths, "agg"));
+
+      for(TableDataPath path : paths) {
+         SetTableHeaderAliasHandler.setAlias(path, formatInfo, "L");
+      }
+
+      assertNull(TableBindingService.labelCoverageNote(formatInfo, paths, "agg"));
+   }
+
    // ── fixture ──────────────────────────────────────────────────────────────
 
    /** A live crosstab, its session plumbing, and a setBinding that syncs the format map. */
    private static final class Crosstab {
       Crosstab(DataRef[] rows, DataRef[] cols) {
+         this(rows, cols, null);
+      }
+
+      /** @param aggs aggregates the writes leave alone, with runtime IDs as a render assigns. */
+      Crosstab(DataRef[] rows, DataRef[] cols, DataRef[] aggs) {
          Viewsheet vs = new Viewsheet();
          live = new CrosstabVSAssembly(vs, "Crosstab1");
+         this.aggs = aggs;
          VSCrosstabInfo info = new VSCrosstabInfo();
          setHeaders(info, rows, cols);
+         setAggregates(info);
          live.setVSCrosstabInfo(info);
          live.setFormatInfo(new FormatInfo());
+      }
+
+      private void setAggregates(VSCrosstabInfo info) {
+         if(aggs == null) {
+            return;
+         }
+
+         info.setDesignAggregates(aggs);
+         DataRef[] runtime = cloneAll(aggs);
+
+         for(int i = 0; i < runtime.length; i++) {
+            ((VSAggregateRef) runtime[i]).setRuntimeID(i);
+         }
+
+         info.setRuntimeAggregates(runtime);
+         DataRef[] cols = info.getRuntimeColHeaders();
+         DataRef[] rows = info.getRuntimeRowHeaders();
+
+         for(int i = 0; i < cols.length; i++) {
+            ((VSDimensionRef) cols[i]).setRuntimeID(i);
+         }
+
+         for(int i = 0; i < rows.length; i++) {
+            ((VSDimensionRef) rows[i]).setRuntimeID(cols.length + i);
+         }
+      }
+
+      /** The rendered (HEADER) label of a summary header path, or null. */
+      String headerLabel(String... segments) {
+         return aliasOf(live.getFormatInfo(), headerPath(segments));
       }
 
       VSCrosstabInfo info() {
@@ -347,14 +498,18 @@ class TableBindingCrosstabRowLabelTest {
          CrosstabVSAssembly next = (CrosstabVSAssembly) live.clone();
          VSCrosstabInfo cinfo = new VSCrosstabInfo();
          setHeaders(cinfo, refsOf(model.getRows()), refsOf(model.getCols()));
+         setAggregates(cinfo);
          next.setVSCrosstabInfo(cinfo);
          VSUtil.syncCrosstabPath(next, oinfo, false, next.getFormatInfo().getFormatMap(),
                                  event.isClearVacatedAliases()
-                                    ? ClearTableHeaderAliasHandler::processClearAliasFormat : null);
+                                    ? ClearTableHeaderAliasHandler
+                                       .clearVacatedKeepingBoundMeasures(next)
+                                    : null);
          live = next;
       }
 
       CrosstabVSAssembly live;
+      final DataRef[] aggs;
       ApplyVSAssemblyInfoEvent event;
       Map<Integer, String> labelAtBinding;
       boolean syncOnBinding = true;
@@ -438,6 +593,26 @@ class TableBindingCrosstabRowLabelTest {
       dim.setDataType(XSchema.DATE);
       dim.setDateLevelValue(level);
       return dim;
+   }
+
+   private static TableDataPath headerPath(String... segments) {
+      return new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING, segments);
+   }
+
+   private static String aliasOf(FormatInfo formatInfo, TableDataPath path) {
+      VSCompositeFormat format = formatInfo.getFormatMap().get(path);
+      VSFormat ufmt = format == null ? null : format.getUserDefinedFormat();
+
+      return ufmt != null && VSFormat.MESSAGE_FORMAT.equals(ufmt.getFormatValue())
+         ? ufmt.getFormatExtentValue() : null;
+   }
+
+   private static VSAggregateRef sum(String column) {
+      VSAggregateRef agg = new VSAggregateRef();
+      agg.setDataRef(new ColumnRef(new AttributeRef(null, column)));
+      agg.setColumnValue(column);
+      agg.setFormulaValue("Sum");
+      return agg;
    }
 
    private static TableDataPath cornerPath(int index) {

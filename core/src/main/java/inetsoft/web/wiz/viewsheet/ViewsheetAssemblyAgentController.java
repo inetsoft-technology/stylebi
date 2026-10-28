@@ -60,10 +60,12 @@ import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
 import inetsoft.util.MessageException;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.BookmarkRecord;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
+import inetsoft.web.admin.content.repository.RepletRegistryService;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -148,8 +150,10 @@ public class ViewsheetAssemblyAgentController {
                                    VSBookmarkService vsBookmarkService,
                                    VSExportService exportService,
                                    SecurityEngine securityEngine,
-                                   ViewsheetPropertyDialogService viewsheetPropertyDialogService)
+                                   ViewsheetPropertyDialogService viewsheetPropertyDialogService,
+                                   RepletRegistryService repletRegistryService)
    {
+      this.repletRegistryService = repletRegistryService;
       this.feature = feature;
       this.joinService = joinService;
       this.sessionService = sessionService;
@@ -2612,6 +2616,14 @@ public class ViewsheetAssemblyAgentController {
          throw new PairingException(e.getMessage());
       }
 
+      // Bug #78593 (same guard as WorksheetAgentController.save): a leading, trailing or doubled
+      // '/' leaves an empty folder/entry name. "Folder/Name" stays legal.
+      if(name != null && (name.startsWith("/") || name.endsWith("/") || name.contains("//"))) {
+         throw new PairingException(
+            "'name' must not start or end with '/' or contain '//' (empty folder name); " +
+            "use \"Folder/Name\" for a nested path.");
+      }
+
       boolean wasTemporary = oldEntry.getScope() == AssetRepository.TEMPORARY_SCOPE;
 
       if(wasTemporary) {
@@ -2656,6 +2668,10 @@ public class ViewsheetAssemblyAgentController {
       }
 
       Map<String, Object> result = new LinkedHashMap<>();
+
+      if(entry != oldEntry && ensureParentFolder(entry, xp)) {
+         result.put("createdFolder", entry.getParent().getPath());
+      }
 
       try {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
@@ -2716,6 +2732,67 @@ public class ViewsheetAssemblyAgentController {
       }
 
       return result;
+   }
+
+   /**
+    * Creates the parent folder of a dashboard about to be saved when it does not exist yet, so a
+    * "Folder/name" save works the way {@code save_worksheet} does. {@code setSheet} only creates
+    * a missing parent for non-viewsheets and otherwise fails with an unrelated "Cannot move
+    * Dashboard to subfolder" message.
+    *
+    * <p>A dashboard folder lives in the repository registry and in asset storage; creating it
+    * through the registry writes both (the registry's add-folder event writes the storage half),
+    * which a bare {@code AssetRepository.addFolder} would not. The registry creates every missing
+    * level itself. It does no permission check, so write permission is verified first on the
+    * nearest existing ancestor, the same check {@code setSheet} makes next for the new sheet.
+    *
+    * @return {@code true} if a folder was created.
+    */
+   boolean ensureParentFolder(AssetEntry entry, XPrincipal xp) throws PairingException {
+      AssetEntry parent = entry.getParent();
+
+      if(parent == null || parent.isRoot()) {
+         return false;
+      }
+
+      String path = parent.getPath();
+
+      try {
+         AssetRepository repository = viewsheetService.getAssetRepository();
+
+         if(repository.containsEntry(parent)) {
+            return false;
+         }
+
+         AssetEntry ancestor = parent.getParent();
+
+         while(ancestor != null && !ancestor.isRoot() && !repository.containsEntry(ancestor)) {
+            ancestor = ancestor.getParent();
+         }
+
+         if(ancestor != null) {
+            repository.checkAssetPermission(xp, ancestor, ResourceAction.WRITE);
+         }
+
+         boolean userScope = entry.getScope() == AssetRepository.USER_SCOPE;
+         IdentityID owner = userScope ? entry.getUser() : null;
+         String registryPath = userScope ? Tool.MY_DASHBOARD + "/" + path : path;
+         repletRegistryService.addRepositoryFolder(registryPath, null, null, owner);
+
+         if(!repository.containsEntry(parent)) {
+            throw new PairingException(
+               "Folder '" + path + "' was created in the registry but is missing from storage; " +
+               "run repair_repository_folders or contact an administrator.");
+         }
+      }
+      catch(PairingException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new PairingException("Cannot create folder '" + path + "': " + e.getMessage(), e);
+      }
+
+      return true;
    }
 
    /**
@@ -3426,4 +3503,5 @@ public class ViewsheetAssemblyAgentController {
    private final VSExportService exportService;
    private final SecurityEngine securityEngine;
    private final ViewsheetPropertyDialogService viewsheetPropertyDialogService;
+   private final RepletRegistryService repletRegistryService;
 }

@@ -18,7 +18,16 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.drm.AttributeRefModel;
@@ -786,7 +795,8 @@ public final class TableBindingMutator {
             }
 
             for(int j = 0; j < previous.size(); j++) {
-               if(!consumed[j] && isExpertPlaceholder(previous.get(j), field.namedGroup()) &&
+               if(!consumed[j] &&
+                  FieldRefFactory.isExpertPlaceholder(previous.get(j), field.namedGroup()) &&
                   matches(previous.get(j), field))
                {
                   consumed[j] = true;
@@ -977,13 +987,6 @@ public final class TableBindingMutator {
       return -1;
    }
 
-   /** Whether {@code previous} holds an expert group that the read reports as {@code name}. */
-   private static boolean isExpertPlaceholder(BDimensionRefModel previous, String name) {
-      NamedGroupInfoModel group = previous.getNamedGroupInfo();
-      return group != null && group.getType() == XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO &&
-         name.equals(group.getName());
-   }
-
    /** Whether {@code previous} is the same occurrence of the same column as {@code field}. */
    private static boolean matches(BDimensionRefModel previous, FieldRef field) {
       if(previous == null || field.column() == null) {
@@ -1153,6 +1156,15 @@ public final class TableBindingMutator {
                   calculatorName(match.getCalculateInfo()) + ") was kept, because this write " +
                   "did not name calculateInfo. Send calculateInfo: null to remove it.");
             }
+         }
+
+         // The legacy percentage was copied from the match above; once the calculator is final,
+         // a nonzero value with no PercentCalcInfo is stale (the factory persists NONE for it) and
+         // would still make isPercent warn about a percent that is gone (bug #79453).
+         if(!(ref.getCalculateInfo() instanceof
+            inetsoft.web.binding.model.graph.calc.PercentCalcInfo))
+         {
+            ref.setPercentage("0");
          }
 
          out.add(ref);
@@ -1388,6 +1400,112 @@ public final class TableBindingMutator {
       }
 
       return formula + "(" + column + ")";
+   }
+
+   /**
+    * Marks each {@code details} shelf {@link FieldRef} with whether its column currently renders,
+    * per {@link TableVSAssemblyInfo#getHiddenColumns()} -- the read side of {@link
+    * #setFieldVisibility}. {@code get_table_binding} was blind to this state before (see
+    * bug-76807): {@link #read} only ever reads {@code
+    * TableBindingModel.getDetails()}, which has no visibility concept of its own.
+    *
+    * <p>A hidden column is <em>absent</em> from {@code details} to begin with -- {@link
+    * TableBindingModel}'s constructor builds it only from {@link
+    * TableVSAssembly#getColumnSelection()}, the shown side, disjoint by construction from {@code
+    * getHiddenColumns()}. So this does not just re-mark the existing list: it merges in every
+    * hidden column {@code details} is missing, at the position {@link
+    * HideColumnsDialogService#getOrderedColumns} recorded for it. Without this merge a hidden
+    * field vanishes from {@code get_table_binding} instead of reporting {@code visible: false}
+    * -- the exact silent-disappearance class of bug bug-76807 exists to close, just reopened on
+    * the read side.
+    *
+    * <p>The resulting {@code details} index is the column's slot in the <em>full</em> (shown and
+    * hidden) order, and {@code addField}'s {@code position} on a Table reads the same order, so
+    * an index read here and written back names the same slot. Hidden positions are absolute
+    * indexes into that order: they are re-stamped by {@code addField} and {@code removeField} but not
+    * when shown columns are reordered, inserted or removed by other writes, so a column shown again later may land beside a
+    * different neighbour than the one it was hidden next to.
+    */
+   static void enrichTableVisibility(TableVSAssembly table,
+                                     Map<String, List<FieldRef>> shelfFields,
+                                     DataRefModelFactoryService refModelService)
+   {
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      ColumnSelection hiddenCols = info.getHiddenColumns();
+      Set<String> hidden = new HashSet<>();
+      Enumeration<DataRef> refs = hiddenCols.getAttributes();
+
+      while(refs.hasMoreElements()) {
+         DataRef href = refs.nextElement();
+         hidden.add(refKey(href));
+      }
+
+      List<FieldRef> details = shelfFields.get("details");
+      List<FieldRef> enriched = details == null ? new ArrayList<>() : new ArrayList<>(details);
+      Set<String> present = new HashSet<>();
+
+      for(int i = 0; i < enriched.size(); i++) {
+         FieldRef field = enriched.get(i);
+         present.add(field.column());
+         enriched.set(i, field.withVisible(!hidden.contains(field.column())));
+      }
+
+      Map<String, FieldRef> hiddenFields = new LinkedHashMap<>();
+      Enumeration<DataRef> hiddenRefs = hiddenCols.getAttributes();
+
+      while(hiddenRefs.hasMoreElements()) {
+         DataRef ref = hiddenRefs.nextElement();
+
+         if(present.contains(refKey(ref))) {
+            continue;
+         }
+
+         ColumnRef col = (ColumnRef) ref.clone();
+         col.setApplyingAlias(false);
+         ColumnRefModel model = (ColumnRefModel) refModelService.createDataRefModel(col);
+         hiddenFields.put(refKey(ref),
+                          fieldOf(model, "details").withVisible(false));
+      }
+
+      // a hidden column reads back at the position it will return to when shown
+      List<FieldRef> ordered = new ArrayList<>();
+      Map<String, FieldRef> byName = new HashMap<>();
+
+      for(FieldRef field : enriched) {
+         byName.put(field.column(), field);
+      }
+
+      for(DataRef ref : HideColumnsDialogService.getOrderedColumns(info.getColumnSelection(),
+                                                                   hiddenCols))
+      {
+         FieldRef field = byName.remove(refKey(ref));
+
+         if(field == null) {
+            field = hiddenFields.remove(refKey(ref));
+         }
+
+         if(field != null) {
+            ordered.add(field);
+         }
+      }
+
+      for(FieldRef field : enriched) {
+         if(byName.containsKey(field.column())) {
+            ordered.add(field);
+         }
+      }
+
+      ordered.addAll(hiddenFields.values());
+      shelfFields.put("details", ordered);
+   }
+
+   /**
+    * The key {@link FieldRef#column()} reports a Table column under: the column's own name,
+    * entity-qualified when it has an entity, never its alias.
+    */
+   static String refKey(DataRef ref) {
+      return ref instanceof ColumnRef column && column.getDataRef() != null
+         ? column.getDataRef().getName() : ref.getName();
    }
 
    static FieldRef fieldOf(DataRefModel ref, String shelf) {
@@ -1756,6 +1874,161 @@ public final class TableBindingMutator {
       }
 
       return null;
+   }
+
+   /**
+    * Bug #79450: refuses a CHANGE / VALUE-OF calculator whose target dimension a crosstab cannot
+    * compute, instead of letting the engine throw "Error loading data" for it. Run on the final
+    * model of a write, so a write that repairs the shape passes. Only shapes demonstrated to fail
+    * are refused; a target that cannot be classified is never refused.
+    *
+    * <ul>
+    *   <li>from 4-7 (Previous Year/Quarter/Week/Month), target a date part level
+    *       (month_of_year, ...) or a non-date dimension, on rows or cols: the engine throws.
+    *   <li>rows only, from 4 on a year target followed by a month dimension: every cell is blank.
+    *   <li>rows only, from 7 on a year target: every cell is blank.
+    * </ul>
+    *
+    * @throws IllegalArgumentException naming the field, the calculator and the level
+    */
+   public static void refuseUnsupportedCalculatorTarget(BaseTableBindingModel model) {
+      if(!(model instanceof CrosstabBindingModel crosstab) || crosstab.getAggregates() == null) {
+         return;
+      }
+
+      List<BDimensionRefModel> rows = crosstab.getRows() == null ? List.of() : crosstab.getRows();
+      List<BDimensionRefModel> cols = crosstab.getCols() == null ? List.of() : crosstab.getCols();
+
+      for(BAggregateRefModel agg : crosstab.getAggregates()) {
+         if(!(agg.getCalculateInfo() instanceof ValueOfCalcInfo calc) ||
+            calc.getFrom() < ValueOfCalc.PREVIOUS_YEAR || calc.getFrom() > ValueOfCalc.PREVIOUS_MONTH)
+         {
+            continue;
+         }
+
+         List<BDimensionRefModel> axis = null;
+         int index = -1;
+         String target = calc.getColumnName();
+
+         if(target == null || target.isBlank()) {
+            axis = !rows.isEmpty() ? rows : cols;
+            index = axis.size() - 1;
+         }
+         else if(AbstractCalc.ROW_INNER.equals(target.trim())) {
+            axis = rows;
+            index = rows.size() - 1;
+         }
+         else if(AbstractCalc.COLUMN_INNER.equals(target.trim())) {
+            axis = cols;
+            index = cols.size() - 1;
+         }
+         else {
+            for(List<BDimensionRefModel> candidate : List.of(rows, cols)) {
+               for(int i = 0; i < candidate.size(); i++) {
+                  if(target.trim().equalsIgnoreCase(candidate.get(i).getFullName())) {
+                     axis = candidate;
+                     index = i;
+                  }
+               }
+            }
+         }
+
+         if(axis == null || index < 0) {
+            continue;
+         }
+
+         BDimensionRefModel dim = axis.get(index);
+         int level = calculatorTargetLevel(dim);
+
+         if(level == LEVEL_UNKNOWN) {
+            continue;
+         }
+
+         String name = agg.getFullName() != null ? agg.getFullName() : agg.getColumnValue();
+         String where = "'" + (dim.getFullName() != null ? dim.getFullName() : dim.getColumnValue()) + "'";
+         boolean onRows = axis == rows;
+         String reason = null;
+
+         if(level == LEVEL_NON_DATE) {
+            reason = where + " is not a date";
+         }
+         else if((level & XConstants.PART_DATE_GROUP) != 0) {
+            reason = where + " is bound at " + DateLevels.name(String.valueOf(level)) +
+               ", a date part";
+         }
+         else if(onRows && level == XConstants.YEAR_DATE_GROUP &&
+            calc.getFrom() == ValueOfCalc.PREVIOUS_MONTH)
+         {
+            reason = where + " is bound at year, so every cell would be blank";
+         }
+         else if(onRows && level == XConstants.YEAR_DATE_GROUP &&
+            calc.getFrom() == ValueOfCalc.PREVIOUS_YEAR && followedByMonth(axis, index))
+         {
+            reason = where + " is bound at year with a month dimension after it, so every " +
+               "cell would be blank";
+         }
+
+         if(reason != null) {
+            throw new IllegalArgumentException(
+               "calculateInfo.from " + calc.getFrom() + " (" + previousName(calc.getFrom()) +
+               ") on " + name + " cannot be computed: its calculator dimension " + reason +
+               ". Use a flat full-date level that matches the calculator (for Previous Month, " +
+               "rows = [the date field at month level], which compares January with the " +
+               "previous December) or remove the calculateInfo.");
+         }
+      }
+   }
+
+   private static final int LEVEL_UNKNOWN = Integer.MIN_VALUE;
+   private static final int LEVEL_NON_DATE = Integer.MIN_VALUE + 1;
+
+   /** The numeric date level of a calculator target, LEVEL_NON_DATE, or LEVEL_UNKNOWN. */
+   private static int calculatorTargetLevel(BDimensionRefModel dim) {
+      String level = dim.getDateLevel() == null ? null : dim.getDateLevel().trim();
+
+      if(level != null && !level.isEmpty() && !DateLevels.isDynamicValue(level)) {
+         try {
+            int value = Integer.parseInt(level);
+
+            if(value >= 0) {
+               return value;
+            }
+         }
+         catch(NumberFormatException ignored) {
+            return LEVEL_UNKNOWN;
+         }
+      }
+      else if(level != null && !level.isEmpty()) {
+         return LEVEL_UNKNOWN;
+      }
+
+      String type = dim.getDataType();
+
+      if(type == null || type.isEmpty()) {
+         return LEVEL_UNKNOWN;
+      }
+
+      // no level (or none): the raw value, a Date for a date column
+      return XSchema.isDateType(type) ? XConstants.NONE_DATE_GROUP : LEVEL_NON_DATE;
+   }
+
+   private static boolean followedByMonth(List<BDimensionRefModel> axis, int index) {
+      for(int i = index + 1; i < axis.size(); i++) {
+         if(calculatorTargetLevel(axis.get(i)) == XConstants.MONTH_DATE_GROUP) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static String previousName(int from) {
+      return switch(from) {
+         case ValueOfCalc.PREVIOUS_YEAR -> "Previous Year";
+         case ValueOfCalc.PREVIOUS_QUARTER -> "Previous Quarter";
+         case ValueOfCalc.PREVIOUS_WEEK -> "Previous Week";
+         default -> "Previous Month";
+      };
    }
 
    private static boolean isPercent(BAggregateRefModel agg) {

@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
@@ -34,6 +35,7 @@ import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.FieldRef;
@@ -54,8 +56,11 @@ import java.util.Map;
 @Service
 public class BindingReadService {
    @Autowired
-   public BindingReadService(VSBindingService binding) {
+   public BindingReadService(VSBindingService binding,
+                             DataRefModelFactoryService refModelService)
+   {
       this.binding = binding;
+      this.refModelService = refModelService;
    }
 
    public AssemblyBinding read(RuntimeViewsheet rvs, String assemblyName) {
@@ -175,8 +180,17 @@ public class BindingReadService {
          shelves.put("aggregates", refs(crosstab.getAggregates()));
       }
       else if(model instanceof TableBindingModel table) {
+         // Details are read the way get_table_binding reads them: typed, and with the hidden
+         // columns the native model leaves out listed at their slot as visible:false.
+         Map<String, List<FieldRef>> details = new LinkedHashMap<>();
+         details.put("details", TableBindingMutator.read(table, "details"));
+
+         if(assembly instanceof TableVSAssembly tableAssembly) {
+            TableBindingMutator.enrichTableVisibility(tableAssembly, details, refModelService);
+         }
+
          shelves.put("groups", refs(table.getGroups()));
-         shelves.put("details", refs(table.getDetails()));
+         shelves.put("details", details.get("details"));
          shelves.put("aggregates", refs(table.getAggregates()));
       }
 
@@ -303,4 +317,5 @@ public class BindingReadService {
    }
 
    private final VSBindingService binding;
+   private final DataRefModelFactoryService refModelService;
 }

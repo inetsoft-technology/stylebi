@@ -89,6 +89,67 @@ class VSBindingModelServiceClearVacatedAliasesTest {
                                      any(), any(), any(), any(), any());
    }
 
+   /**
+    * Bug #79331: on a crosstab the processor keeps a vacated summary header path of a measure
+    * that is still bound, and still clears a corner label (bug #78530).
+    */
+   @Test
+   @SuppressWarnings("unchecked")
+   void aCrosstabKeepsTheLabelOfAStillBoundMeasure() throws Exception {
+      inetsoft.uql.viewsheet.VSAggregateRef sum = new inetsoft.uql.viewsheet.VSAggregateRef();
+      sum.setDataRef(new inetsoft.uql.asset.ColumnRef(
+         new inetsoft.uql.erm.AttributeRef(null, "REVENUE")));
+      sum.setColumnValue("REVENUE");
+      sum.setFormulaValue("Sum");
+      inetsoft.uql.viewsheet.VSCrosstabInfo cinfo = new inetsoft.uql.viewsheet.VSCrosstabInfo();
+      cinfo.setRuntimeAggregates(new inetsoft.uql.erm.DataRef[] { sum });
+      String agg = inetsoft.uql.viewsheet.internal.VSUtil.buildName(
+         cinfo.getRuntimeAggregates(), true)[0];
+
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(info.clone()).thenReturn(info);
+      inetsoft.uql.viewsheet.CrosstabVSAssembly crosstab =
+         mock(inetsoft.uql.viewsheet.CrosstabVSAssembly.class);
+      when(crosstab.getInfo()).thenReturn(info);
+      when(crosstab.getVSAssemblyInfo()).thenReturn(info);
+      when(crosstab.clone()).thenReturn(crosstab);
+      when(crosstab.getVSCrosstabInfo()).thenReturn(cinfo);
+      VSAssemblyInfoHandler handler = mock(VSAssemblyInfoHandler.class);
+
+      service(handler, crosstab).setBinding("rt1", event(true), principal(),
+                                            mock(CommandDispatcher.class));
+
+      org.mockito.ArgumentCaptor<java.util.function.BiConsumer<java.util.Map<
+         inetsoft.report.TableDataPath, inetsoft.uql.viewsheet.VSCompositeFormat>,
+         inetsoft.report.TableDataPath>> processor =
+         org.mockito.ArgumentCaptor.forClass(java.util.function.BiConsumer.class);
+      verify(handler).apply(any(RuntimeViewsheet.class), any(VSAssemblyInfo.class),
+                            any(ViewsheetService.class), eq(false), eq(false), eq(false),
+                            eq(false), any(), isNull(), isNull(), isNull(), isNull(),
+                            processor.capture());
+
+      inetsoft.uql.viewsheet.FormatInfo formats = new inetsoft.uql.viewsheet.FormatInfo();
+      inetsoft.report.TableDataPath measure = header("Year", "Quarter", agg);
+      inetsoft.report.TableDataPath corner = header("Cell [0,1]");
+      inetsoft.web.binding.handler.SetTableHeaderAliasHandler.setAlias(measure, formats, "Rev");
+      inetsoft.web.binding.handler.SetTableHeaderAliasHandler.setAlias(corner, formats, "Q");
+
+      processor.getValue().accept(formats.getFormatMap(), measure);
+      processor.getValue().accept(formats.getFormatMap(), corner);
+
+      org.junit.jupiter.api.Assertions.assertEquals(
+         "Rev", formats.getFormatMap().get(measure).getUserDefinedFormat()
+            .getFormatExtentValue());
+      org.junit.jupiter.api.Assertions.assertNotEquals(
+         inetsoft.uql.viewsheet.VSFormat.MESSAGE_FORMAT,
+         formats.getFormatMap().get(corner).getUserDefinedFormat().getFormatValue());
+   }
+
+   private static inetsoft.report.TableDataPath header(String... segments) {
+      return new inetsoft.report.TableDataPath(-1, inetsoft.report.TableDataPath.HEADER,
+                                               inetsoft.uql.schema.XSchema.STRING, segments);
+   }
+
    private static ApplyVSAssemblyInfoEvent event(boolean clearVacatedAliases) {
       ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
       event.setName("Text1");
@@ -105,6 +166,13 @@ class VSBindingModelServiceClearVacatedAliasesTest {
       when(assembly.getInfo()).thenReturn(info);
       when(assembly.getVSAssemblyInfo()).thenReturn(info);
       when(assembly.clone()).thenReturn(assembly);
+      return service(handler, assembly);
+   }
+
+   private static VSBindingModelService service(VSAssemblyInfoHandler handler,
+                                                inetsoft.uql.viewsheet.VSAssembly assembly)
+      throws Exception
+   {
 
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly("Text1")).thenReturn(assembly);

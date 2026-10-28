@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.internal.StandardPeriods;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * One legal combination of the Date Comparison dialog for Standard Periods (period level,
@@ -78,6 +79,11 @@ public record DcShape(int periodLevel, int intervalLevel, int granularity, int c
          .orElseThrow(() -> new AssertionError("not a legal shape: " + id));
    }
 
+   /** One shape of each kind of period / interval / context, for the runs too long for every shape. */
+   public static final Set<String> SAMPLE = Set.of(
+      "Y-all-gM", "Y-ytd-gW-cY", "Y-sameW-gD-cQ", "Y-sameD-gD-cM", "Q-qtd-gM-cQ", "Q-mtd-gW-cM",
+      "M-wtd-gW-cM", "M-all-gD", "W-wtd-gD-cW", "D-all-gD");
+
    /**
     * The comparison of a Standard Periods shape.
     *
@@ -87,6 +93,14 @@ public record DcShape(int periodLevel, int intervalLevel, int granularity, int c
     */
    public DateComparisonInfo toInfo(String endDay, boolean toDate, boolean inclusive, int option,
                                     int preCount, boolean intervalInclusive)
+   {
+      return toInfo(endDay, null, toDate, inclusive, option, preCount, intervalInclusive);
+   }
+
+   /** @param intervalEnd the interval's own End Date, or null for the periods' End Date. */
+   public DateComparisonInfo toInfo(String endDay, String intervalEnd, boolean toDate,
+                                    boolean inclusive, int option, int preCount,
+                                    boolean intervalInclusive)
    {
       DateComparisonInfo dc = new DateComparisonInfo();
       StandardPeriods periods = new StandardPeriods();
@@ -106,7 +120,12 @@ public record DcShape(int periodLevel, int intervalLevel, int granularity, int c
          interval.setContextLevel(contextLevel);
       }
 
-      interval.setEndDayAsToDate(true);
+      interval.setEndDayAsToDate(intervalEnd == null);
+
+      if(intervalEnd != null) {
+         interval.setIntervalEndDateValue(intervalEnd);
+      }
+
       interval.setInclusive(intervalInclusive);
       dc.setDateComparisonInterval(interval);
       dc.setComparisonOption(option);

@@ -1177,6 +1177,50 @@ class CalcTableServiceTest {
    }
 
    /**
+    * Bug #79330: a formula group cell's stored topn limits neither its script's list nor the
+    * summary cells that use it as their group, so the write stores none instead of a ranking
+    * that would read back as active. The sort and NONE_DATE_GROUP stay as before.
+    */
+   @Test
+   void aFormulaGroupCellDoesNotPersistATopn() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "formula", "value", "toList(data['REGION'])", "grouping", "group",
+              "expand", "vertical", "sort", spec("direction", "desc"),
+              "topn", spec("mode", "top", "n", 1)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      CellBindingInfo bound = captor.getValue().getBinding();
+      assertEquals(XCondition.NONE, bound.getTopn().getType());
+      assertEquals(XConstants.SORT_DESC, bound.getOrder().getType());
+      assertEquals(XConstants.NONE_DATE_GROUP, bound.getOrder().getOption());
+   }
+
+   /** Control for bug #79330: a column group cell still persists its topn. */
+   @Test
+   void aColumnGroupCellStillPersistsItsTopn() throws Exception {
+      Harness h = harness(3, 3);
+      AggregateRef sum = aggregate("PAID", "Sum");
+      when(h.layoutHandler().getCalcAggregateFields(any(), any()))
+         .thenReturn(new inetsoft.uql.erm.CalcAggregate[]{ sum });
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension"),
+              "topn", spec("mode", "top", "n", 1)));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(XCondition.TOP_N, captor.getValue().getBinding().getTopn().getType());
+      assertEquals(1, captor.getValue().getBinding().getTopn().getTopn());
+   }
+
+   /**
     * Unlike a chart/table dimension's dlevelValue, a calc-table cell's OrderModel.option is a
     * plain int with no DynamicValue counterpart -- DateLevels.normalize() now returns a
     * "$(ComponentName)" value unchanged (bug #76751) rather than throwing, so applyDateGroup has
@@ -2394,5 +2438,87 @@ class CalcTableServiceTest {
       decimal.getUserDefinedFormat().setFormatValue(XConstants.DECIMAL_FORMAT);
       assertNull(formatNotes(rebind(harness(2, 2), decimal, summary("Product:Total", "Sum"))));
       assertEquals(XConstants.DECIMAL_FORMAT, decimal.getUserDefinedFormat().getFormat());
+   }
+
+   // ── numeric binding under a whole-object date format is refused (bug 79342) ─────
+
+   /**
+    * Binds [0,1] to {@code Sum(PAID)} on a table whose whole-object format is a DateFormat, the
+    * cell's own format being {@code own} (null for none). The layout service is a mock, so a
+    * refused write is one that never reaches it.
+    */
+   private static Harness bindUnderObjectDateFormat(VSCompositeFormat own, DataRef column,
+                                                    String formula) throws Exception
+   {
+      Harness h = harness(2, 2);
+      FormatInfo formatInfo = new FormatInfo();
+      formatInfo.setFormat(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.OBJECTPATH,
+                           dateFormat());
+
+      if(own != null) {
+         formatInfo.setFormat(CELL_01, own);
+      }
+
+      when(h.assemblyInfo().getFormatInfo()).thenReturn(formatInfo);
+      when(h.assemblyInfo().getCellDataPath(0, 1)).thenReturn(CELL_01);
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(column);
+      when(h.columnsHandler().getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean())).thenReturn(cols);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+         spec("content", "column", "grouping", "summary",
+              "field", spec("column", column.getName(), "type", "measure"),
+              "formula", formula));
+      return h;
+   }
+
+   @Test
+   void numericBindingOfAFormatlessCellUnderAnObjectDateFormatIsRefusedAndWritesNothing()
+      throws Exception
+   {
+      Harness h = harness(2, 2);
+      FormatInfo formatInfo = new FormatInfo();
+      formatInfo.setFormat(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.OBJECTPATH,
+                           dateFormat());
+      when(h.assemblyInfo().getFormatInfo()).thenReturn(formatInfo);
+      when(h.assemblyInfo().getCellDataPath(0, 1)).thenReturn(CELL_01);
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(typedColumn("PAID", XSchema.DOUBLE));
+      when(h.columnsHandler().getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean())).thenReturn(cols);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+            spec("content", "column", "grouping", "summary",
+                 "field", spec("column", "PAID", "type", "measure"), "formula", "Sum")));
+
+      assertTrue(thrown.getMessage().contains("Calc1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains(XConstants.DATE_FORMAT), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Sum(PAID)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_calc_cell_format"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(),
+                                                      any(Principal.class), any());
+   }
+
+   @Test
+   void numericBindingOfACellWithItsOwnFormatUnderAnObjectDateFormatIsAccepted()
+      throws Exception
+   {
+      VSCompositeFormat decimal = new VSCompositeFormat();
+      decimal.getUserDefinedFormat().setFormatValue(XConstants.DECIMAL_FORMAT);
+
+      Harness h = bindUnderObjectDateFormat(decimal, typedColumn("PAID", XSchema.DOUBLE), "Sum");
+
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   @Test
+   void dateOutputUnderAnObjectDateFormatIsAccepted() throws Exception {
+      Harness h = bindUnderObjectDateFormat(null, typedColumn("PAID", XSchema.DATE), "Max");
+
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
    }
 }

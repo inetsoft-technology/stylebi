@@ -754,6 +754,14 @@ public class VSSelectionService {
          }
 
          hint = sassembly.setStateSelectionList(slist);
+
+         // Bug #79349: an explicit, initiator-driven apply (set_selection,
+         // clear_selection, unselect all) should supersede a stale script-assigned
+         // selection pin; otherwise checkScriptSelectedValues() silently reverts
+         // this write on the very next getSelectedObjects()/getConditionList() call.
+         if(isInitiator) {
+            sassembly.setScriptSelectedValues(null);
+         }
       }
       else if(assembly instanceof SelectionTreeVSAssembly) {
          SelectionTreeVSAssembly sassembly = (SelectionTreeVSAssembly) assembly;

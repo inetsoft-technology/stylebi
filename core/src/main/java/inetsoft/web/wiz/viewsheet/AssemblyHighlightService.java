@@ -17,23 +17,26 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.InputVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
@@ -204,6 +207,10 @@ public class AssemblyHighlightService {
    {
       requireName(highlight);
       List<String> warnings = new ArrayList<>();
+
+      // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
+      // Checked again inside the mutation in case the assembly changed in between.
+      requireHighlightRenderable(sessions.resolve(sessionToken, user), assemblyName);
 
       List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
@@ -504,6 +511,12 @@ public class AssemblyHighlightService {
    private static String existingNames(List<String> names, RuntimeViewsheet rvs,
                                        String assemblyName, Region region, String missing)
    {
+      Map<String, List<String>> columns = otherColumnGroups(rvs, assemblyName, region, names);
+
+      if(!columns.isEmpty()) {
+         return tableHint(names, columns);
+      }
+
       MeasureGroups all = measureGroups(rvs, assemblyName, region);
       Map<String, List<String>> groups = all.reachable();
       boolean holdsName = false;
@@ -536,6 +549,83 @@ public class AssemblyHighlightService {
       }
 
       return out.toString();
+   }
+
+   /**
+    * The cell-level highlights held by the columns of a plain table other than the one that was
+    * read, keyed by column name (bug #79397). A cell-level highlight lives on its own column's
+    * data path, while a call that names no row/col/colName reads only the first data cell (that
+    * column's group plus the shared row-level group), so a highlight on any other column is
+    * invisible to it. Names in {@code readNames} (already reported) are left out.
+    *
+    * <p>Empty for anything but a plain table, and for a call that names a colName, row, col, axis
+    * or text, which addresses one cell and is never widened. Read-only.
+    */
+   private static Map<String, List<String>> otherColumnGroups(RuntimeViewsheet rvs,
+                                                              String assemblyName, Region region,
+                                                              List<String> readNames)
+   {
+      boolean located = region != null &&
+         (hasColName(region) || region.cellSupplied() || region.axis() || region.text());
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(located || assembly == null ||
+         !(assembly.getVSAssemblyInfo() instanceof TableVSAssemblyInfo info))
+      {
+         return Map.of();
+      }
+
+      return columnGroups(info.getHighlightAttr(), readNames);
+   }
+
+   /** The non-row detail-cell groups of {@code attr}, minus {@code skip}, by column name. */
+   static Map<String, List<String>> columnGroups(TableHighlightAttr attr, Collection<String> skip) {
+      Map<String, List<String>> out = new LinkedHashMap<>();
+
+      if(attr == null) {
+         return out;
+      }
+
+      Enumeration<TableDataPath> paths = attr.getAllDataPaths();
+
+      while(paths.hasMoreElements()) {
+         TableDataPath path = paths.nextElement();
+         HighlightGroup group = path == null ? null : attr.getHighlight(path);
+
+         if(path == null || path.isRow() || path.getType() != TableDataPath.DETAIL ||
+            group == null || path.getPath() == null || path.getPath().length == 0)
+         {
+            continue;
+         }
+
+         List<String> held = new ArrayList<>();
+
+         for(String n : group.getNames()) {
+            if(skip.stream().noneMatch(n::equalsIgnoreCase)) {
+               held.add(n);
+            }
+         }
+
+         if(!held.isEmpty()) {
+            out.computeIfAbsent(path.getPath()[path.getPath().length - 1],
+                                k -> new ArrayList<>()).addAll(held);
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * The refusal text for a plain table whose first data cell lacks the name while other columns
+    * hold highlights. Keeps the "It has: ..." half, names the columns, and says to pass colName.
+    */
+   static String tableHint(List<String> names, Map<String, List<String>> columns) {
+      return (names.isEmpty() ? "The first data cell has no highlights of its own."
+                              : "It has: " + String.join(", ", names) + ".") +
+         " Other columns of the table hold highlights: " + describe(columns) +
+         ". A cell-level highlight lives on its column, so pass colName (or row/col) to address " +
+         "it; a call with no location reads only the first data cell.";
    }
 
    private static String describe(Map<String, List<String>> groups) {
@@ -926,17 +1016,18 @@ public class AssemblyHighlightService {
    }
 
    /**
-    * Refuses a highlight on an output assembly that is not a Text or Image (Submit, Gauge,
-    * Cylinder, Thermometer, SlidingScale) and on a Form input (Slider, Spinner, TextInput,
-    * CheckBox, RadioButton, ComboBox).
+    * Refuses a highlight on any assembly that does not render one. Only Table/Crosstab/CalcTable,
+    * Chart, Text and Image do; every other type (Submit, Gauge, Cylinder, Thermometer,
+    * SlidingScale, a Form input, a shape, a selection, a container) is refused.
     *
-    * <p>{@code HighlightDialogService} accepts every {@code OutputVSAssemblyInfo}, but an output's
-    * highlight colour/font is only ever applied for Text and Image ({@code VSFormatModel},
-    * {@code VSImage}); every other output is painted without it. The Composer offers no Highlight
-    * action for these types either. Without this the write reported success, read back correctly
-    * via list_highlights, and never rendered. An allow-list, so a future output type is refused
-    * until it renders highlights. Only {@code set} calls it, so a stray highlight already stored
-    * on such an assembly can still be listed and deleted.
+    * <p>{@code HighlightDialogService} accepts the info of any assembly, but a highlight colour or
+    * font is only ever applied for those four ({@code VSFormatModel}, {@code VSImage}, the table
+    * and chart renderers). The Composer offers no Highlight action for the other types either.
+    * Without this the write reported success, read back correctly via list_highlights, and never
+    * rendered, or fell through to a table-oriented field-lookup error. An allow-list on the
+    * assembly class, like {@code AssemblyHyperlinkService.requireHyperlinkable}, so a future type
+    * is refused until it renders highlights. Only {@code set} calls it, so a stray highlight
+    * already stored on such an assembly can still be listed and deleted.
     */
    private static void requireHighlightRenderable(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
@@ -946,22 +1037,21 @@ public class AssemblyHighlightService {
          return;
       }
 
-      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
-
-      if(!(info instanceof InputVSAssemblyInfo) &&
-         (!(info instanceof OutputVSAssemblyInfo) ||
-          info instanceof TextVSAssemblyInfo || info instanceof ImageVSAssemblyInfo))
+      if(assembly instanceof TableDataVSAssembly || assembly instanceof ChartVSAssembly ||
+         assembly instanceof TextVSAssembly || assembly instanceof ImageVSAssembly)
       {
          return;
       }
 
-      String type = info.getClass().getSimpleName().replaceFirst("VSAssemblyInfo$", "");
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      String type = (info == null ? assembly : info).getClass().getSimpleName()
+         .replaceFirst("VSAssembly(Info)?$", "");
 
       throw new IllegalArgumentException(
-         "'" + assemblyName + "' is a " + type + ", which does not render highlights -- only " +
-         "Text and Image outputs apply a highlight's colour or font, and the Composer offers no " +
-         "Highlight for this type. Highlight a Text, Image, Table, Crosstab or Chart instead " +
-         "(a Gauge-family assembly also has rangeValues/rangeColorValues for a similar effect).");
+         "'" + assemblyName + "' is a " + type + ", which does not render highlights -- the " +
+         "Composer offers no Highlight for this type and nothing paints one. Highlight a " +
+         "Text, Image, Table, Crosstab or Chart instead (a Gauge-family assembly also has " +
+         "rangeValues/rangeColorValues for a similar effect).");
    }
 
    /**

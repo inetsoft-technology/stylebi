@@ -237,6 +237,56 @@ describe("SecurityProviderService — scene layer", () => {
    });
 
    // ---------------------------------------------------------------------------
+   // Bug #79235 — a failed preview query comes back as an error and must be shown
+   // ---------------------------------------------------------------------------
+   describe("preview getters", () => {
+      const previews: [string, () => any, string][] = [
+         ["getUsers", () => service.getUsers(makeFileAuthnForm()), "../api/em/security/get-users"],
+         ["getGroups", () => service.getGroups(makeFileAuthnForm()), "../api/em/security/get-groups"],
+         ["getRoles", () => service.getRoles(makeFileAuthnForm()), "../api/em/security/get-roles"],
+         ["getOrganizations", () => service.getOrganizations(makeFileAuthnForm()),
+            "../api/em/security/get-organizations"],
+         ["getAllUserRoles", () => service.getAllUserRoles(makeFileAuthnForm()),
+            "../api/em/security/get-user-roles"],
+         ["getUserEmails", () => service.getUserEmails(makeFileAuthnForm(), uid),
+            "../api/em/security/get-user-emails/"],
+         ["getUserRoles", () => service.getUserRoles(makeFileAuthnForm(), uid),
+            "../api/em/security/get-roles/"],
+         ["getGroupUsers", () => service.getGroupUsers(makeFileAuthnForm(), uid),
+            "../api/em/security/group/users/"],
+         ["getOrganizationMembers", () => service.getOrganizationMembers(makeFileAuthnForm(), "org1"),
+            "../api/em/security/organization-members/"]
+      ];
+      const uid = { name: "u1", orgID: "host-org" } as any;
+
+      for(const [name, call, url] of previews) {
+         it(`[Risk 3] ${name} should show the error and emit nothing when the request fails`, () => {
+            errorServiceSpy.showSnackBar.mockImplementation((e, m, producer) => producer());
+            const next = vi.fn();
+            let completed = false;
+
+            call().subscribe({ next, complete: () => completed = true });
+            httpMock.expectOne(r => r.url.startsWith(url))
+               .flush("failed", { status: 500, statusText: "Internal Server Error" });
+
+            expect(errorServiceSpy.showSnackBar).toHaveBeenCalled();
+            expect(next).not.toHaveBeenCalled();
+            expect(completed).toBe(true);
+         });
+
+         it(`[Risk 2] ${name} should emit the result and not show an error on success`, () => {
+            const next = vi.fn();
+
+            call().subscribe(next);
+            httpMock.expectOne(r => r.url.startsWith(url)).flush({ ids: [], list: [], type: 0 });
+
+            expect(next).toHaveBeenCalledTimes(1);
+            expect(errorServiceSpy.showSnackBar).not.toHaveBeenCalled();
+         });
+      }
+   });
+
+   // ---------------------------------------------------------------------------
    // Group 4 [Risk 3, 2, 2] — getAdminRoles
    // ---------------------------------------------------------------------------
    describe("getAdminRoles", () => {
@@ -244,6 +294,7 @@ describe("SecurityProviderService — scene layer", () => {
          // 🔁 Regression-sensitive: removing catchError would swallow the failure and skip the dialog
          //    entirely, so the user would never see the admin roles picker on network errors
          dialogSpy.open.mockReturnValue({ afterClosed: () => NEVER });
+         errorServiceSpy.showSnackBar.mockImplementation((e, m, producer) => producer());
 
          service.getAdminRoles("admin", makeFileAuthnForm(), true).subscribe();
 
@@ -254,6 +305,8 @@ describe("SecurityProviderService — scene layer", () => {
             expect.anything(),
             expect.objectContaining({ data: expect.objectContaining({ allRoles: [] }) })
          );
+         // Bug #79235: the failure reason is shown, not swallowed
+         expect(errorServiceSpy.showSnackBar).toHaveBeenCalled();
       });
 
       // 🔁 Regression-sensitive (Bug #78720): the dialog's Cancel button closes with null, while

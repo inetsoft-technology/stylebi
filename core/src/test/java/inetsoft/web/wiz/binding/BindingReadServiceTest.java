@@ -27,8 +27,26 @@ import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartGeoRefModel;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.web.binding.drm.ColumnRefModel;
+import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import inetsoft.test.SwapperTestConfiguration;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +61,11 @@ import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class BindingReadServiceTest {
    @Test
@@ -50,7 +73,7 @@ class BindingReadServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(new ChartBindingModel());
 
-      AssemblyBinding result = new BindingReadService(binding)
+      AssemblyBinding result = new BindingReadService(binding, mock(DataRefModelFactoryService.class))
          .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
 
       assertEquals("Chart1", result.assembly());
@@ -78,7 +101,7 @@ class BindingReadServiceTest {
          new DimensionSortRanking.Sort("desc", null, null));
       when(binding.createModel(any())).thenReturn(model);
 
-      AssemblyBinding result = new BindingReadService(binding)
+      AssemblyBinding result = new BindingReadService(binding, mock(DataRefModelFactoryService.class))
          .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
 
       assertFalse(result.sorts().containsKey("ORDER_DATE"),
@@ -108,7 +131,7 @@ class BindingReadServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
 
-      AssemblyBinding result = new BindingReadService(binding)
+      AssemblyBinding result = new BindingReadService(binding, mock(DataRefModelFactoryService.class))
          .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
 
       assertTrue(result.shelves().containsKey("open"), "a bound open shelf must be reported");
@@ -132,7 +155,7 @@ class BindingReadServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
 
-      AssemblyBinding result = new BindingReadService(binding)
+      AssemblyBinding result = new BindingReadService(binding, mock(DataRefModelFactoryService.class))
          .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
 
       for(String shelf : List.of("path", "source", "start", "milestone")) {
@@ -154,7 +177,7 @@ class BindingReadServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(new ChartBindingModel());
 
-      AssemblyBinding result = new BindingReadService(binding)
+      AssemblyBinding result = new BindingReadService(binding, mock(DataRefModelFactoryService.class))
          .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
 
       assertEquals(Set.of("x", "y", "group"), result.shelves().keySet(),
@@ -454,7 +477,7 @@ class BindingReadServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
 
-      return new BindingReadService(binding)
+      return new BindingReadService(binding, mock(DataRefModelFactoryService.class))
          .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
    }
 
@@ -468,7 +491,7 @@ class BindingReadServiceTest {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(new ChartBindingModel());
 
-      AssemblyBinding result = new BindingReadService(binding)
+      AssemblyBinding result = new BindingReadService(binding, mock(DataRefModelFactoryService.class))
          .read(runtimeWith("Chart1", chart), "Chart1");
 
       assertNull(result.dateComparisonSeries());
@@ -502,7 +525,7 @@ class BindingReadServiceTest {
    void refusesACalcTablePointingAtTheLayoutTool() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> new BindingReadService(mock(VSBindingService.class))
+         () -> new BindingReadService(mock(VSBindingService.class), mock(DataRefModelFactoryService.class))
             .read(runtimeWith("Calc1", mock(CalcTableVSAssembly.class)), "Calc1"));
 
       assertTrue(thrown.getMessage().contains("get_calc_layout"),
@@ -513,7 +536,7 @@ class BindingReadServiceTest {
    void namesTheUnknownAssemblyRatherThanReturningAnEmptyBinding() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> new BindingReadService(mock(VSBindingService.class))
+         () -> new BindingReadService(mock(VSBindingService.class), mock(DataRefModelFactoryService.class))
             .read(runtimeWith("Ghost", null), "Ghost"));
 
       assertTrue(thrown.getMessage().contains("Ghost"));
@@ -525,5 +548,98 @@ class BindingReadServiceTest {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       return rvs;
+   }
+
+   // ── Table details: parity with get_table_binding (Bug #79365) ─────────────
+
+   private static ColumnRef tableColumn(String name) {
+      return new ColumnRef(new AttributeRef(null, name));
+   }
+
+   private static AssemblyBinding readTable(TableVSAssembly table, List<String> shown,
+                                            ColumnRef... hidden)
+   {
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      ColumnSelection selection = new ColumnSelection();
+      TableBindingModel model = new TableBindingModel();
+
+      for(String name : shown) {
+         ColumnRef ref = tableColumn(name);
+         selection.addAttribute(ref);
+         model.getDetails().add(new ColumnRefModel(ref));
+      }
+
+      ColumnSelection hiddenColumns = new ColumnSelection();
+
+      for(ColumnRef ref : hidden) {
+         hiddenColumns.addAttribute(ref);
+      }
+
+      info.setColumnSelection(selection);
+      info.setHiddenColumns(hiddenColumns);
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenReturn(model);
+      DataRefModelFactoryService refModels = mock(DataRefModelFactoryService.class);
+      when(refModels.createDataRefModel(any()))
+         .thenAnswer(call -> new ColumnRefModel(call.getArgument(0)));
+
+      return new BindingReadService(binding, refModels)
+         .read(runtimeWith(table.getName(), table), table.getName());
+   }
+
+   private static void assertTypedDetails(List<FieldRef> details, String... expectedColumns) {
+      assertEquals(List.of(expectedColumns),
+                   details.stream().map(FieldRef::column).toList());
+
+      for(FieldRef field : details) {
+         assertEquals("dimension", field.type(), field.column() + " must be typed");
+         assertNotNull(field.visible(), field.column() + " must report visible");
+      }
+   }
+
+   @Test
+   void tableDetailsAreTypedAndVisibleWhenNothingIsHidden() {
+      AssemblyBinding result = readTable(
+         new TableVSAssembly(mock(Viewsheet.class), "Table1"), List.of("A", "B"));
+
+      assertTypedDetails(result.shelves().get("details"), "A", "B");
+      assertTrue(result.shelves().get("details").stream().allMatch(FieldRef::visible));
+   }
+
+   @Test
+   void tableDetailsListAHiddenColumnAtItsSlot() {
+      ColumnRef hidden = tableColumn("B");
+      hidden.setHiddenPosition(1);
+      AssemblyBinding result = readTable(
+         new TableVSAssembly(mock(Viewsheet.class), "Table1"), List.of("A", "C"), hidden);
+
+      List<FieldRef> details = result.shelves().get("details");
+      assertTypedDetails(details, "A", "B", "C");
+      assertEquals(List.of(true, false, true),
+                   details.stream().map(FieldRef::visible).toList());
+   }
+
+   @Test
+   void tableDetailsListEveryColumnWhenAllAreHidden() {
+      ColumnRef a = tableColumn("A");
+      ColumnRef b = tableColumn("B");
+      AssemblyBinding result = readTable(
+         new TableVSAssembly(mock(Viewsheet.class), "Table1"), List.of(), a, b);
+
+      List<FieldRef> details = result.shelves().get("details");
+      assertTypedDetails(details, "A", "B");
+      assertTrue(details.stream().noneMatch(FieldRef::visible));
+   }
+
+   @Test
+   void embeddedTableDetailsListAHiddenCalcField() {
+      ColumnRef calc = new ColumnRef(new ExpressionRef(null, null, "Margin"));
+      AssemblyBinding result = readTable(
+         new EmbeddedTableVSAssembly(mock(Viewsheet.class), "Table1"), List.of("A"), calc);
+
+      List<FieldRef> details = result.shelves().get("details");
+      assertTypedDetails(details, "A", "Margin");
+      assertFalse(details.get(1).visible());
    }
 }

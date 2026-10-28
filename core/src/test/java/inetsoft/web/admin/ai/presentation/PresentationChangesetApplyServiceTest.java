@@ -816,4 +816,56 @@ class PresentationChangesetApplyServiceTest {
       Object restoredFormats = state.get(stateKey(PresentationSubModel.FORMATS, false));
       assertEquals("MM/dd/yyyy", ((PresentationFormatsSettingsModel) restoredFormats).dateFormat());
    }
+
+   // ---------------------------------------------------------------- Bug #79429: swapped file bytes
+
+   private static ObjectNode logoSpec(String content) {
+      ObjectNode spec = obj().put("defaultLogo", false);
+      spec.putObject("logoFile").put("name", "qa-logo.png")
+         .put("content", Base64.getEncoder().encodeToString(content.getBytes()));
+      return spec;
+   }
+
+   @Test
+   void applyRefusesLogoBytesSwappedAfterPreview() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+
+      // Preview with bytes A, apply with bytes B under A's hash and token.
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", logoSpec("reviewed-bytes")));
+      req.setChanges(List.of(change("lookAndFeel", "global", logoSpec("swapped-bytes"))));
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+                   () -> service.apply(req, user));
+      verify(access, never()).write(any(), any(), any(), anyBoolean());
+   }
+
+   @Test
+   void applyAcceptsTheSameLogoBytesItWasPreviewedWith() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", logoSpec("reviewed-bytes")));
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, service.apply(req, user).status());
+   }
+
+   @Test
+   void applyRefusesABlankWelcomePageSourceSwappedInAfterPreview() throws Exception {
+      // Bug #79430: apply re-resolves from its own request, so it must refuse the value on its own
+      // (before the plan hash and before any write), not only at preview.
+      seed(PresentationSubModel.WELCOME_PAGE, true,
+         inetsoft.web.admin.presentation.model.WelcomePageSettingsModel.builder()
+            .type(0).source("").build());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("welcomePage", "global", obj().put("type", 1).put("source", "http://x")));
+      req.setChanges(List.of(change("welcomePage", "global", obj().put("type", 1).put("source", ""))));
+
+      IllegalArgumentException e =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(e.getMessage().contains("changes[0].spec.source"), e.getMessage());
+      verify(access, never()).write(any(), any(), any(), anyBoolean());
+   }
 }

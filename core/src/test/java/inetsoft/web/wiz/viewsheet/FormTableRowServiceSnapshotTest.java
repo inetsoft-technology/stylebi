@@ -113,6 +113,7 @@ class FormTableRowServiceSnapshotTest {
       VSFormTableService forms = new VSFormTableService(engine, mock(CoreLifecycleService.class));
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
       doAnswer(inv -> {
          ViewsheetSessionService.Mutation mutation = inv.getArgument(2);
          return CapturingCommandDispatcher.withCapturingDispatcher(user, d -> {

@@ -181,7 +181,12 @@ export class HyperlinkViewModel {
 
       while(hyperlink.link != null && hyperlink.link.indexOf("$(") >= 0) {
          const start = hyperlink.link.indexOf("$(");
-         const end = hyperlink.link.substring(start).indexOf(")") + start;
+         const end = hyperlink.link.indexOf(")", start);
+
+         if(end < 0) {
+            break;
+         }
+
          var baseLink = hyperlink.link == null ? "" : hyperlink.link;
 
          if (start - 1 >= 0 && "/" == (baseLink.substring(start - 1,start))) {

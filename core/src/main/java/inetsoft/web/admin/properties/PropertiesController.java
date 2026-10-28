@@ -38,6 +38,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.security.Principal;
+import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
@@ -125,6 +126,21 @@ public class PropertiesController {
          throw new MessageException(
             Catalog.getCatalog(user).getString("em.properties.orgOverrideNotAllowed", propertyName),
             LogLevel.INFO, false);
+      }
+
+      // Multi-tenancy cannot be turned on while an LDAP or Active Directory provider exists; the
+      // set-multi-tenancy endpoint refuses it, and this page would otherwise bypass that.
+      if("security.users.multiTenant".equalsIgnoreCase(propertyName) &&
+         Boolean.parseBoolean(value))
+      {
+         List<String> ldapProviders = SecurityEngine.getSecurity().getLdapAuthenticationProviderNames();
+
+         if(!ldapProviders.isEmpty()) {
+            throw new MessageException(
+               Catalog.getCatalog(user).getString("em.security.multitenant.ldapProviderExists",
+                                                  String.join(", ", ldapProviders)),
+               LogLevel.INFO, false);
+         }
       }
 
       if("".equals(value)) {

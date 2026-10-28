@@ -66,6 +66,7 @@ import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.TableLensGuard;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import inetsoft.web.wiz.viewsheet.WizDateFormatOverNumeric;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -127,7 +128,11 @@ public class TableBindingService {
                                     fields == null ? 0 : fields.size());
          String livePercentageBy = livePercentageByValue(assembly);
          TableBindingMutator.drainNotes();
+         Set<String> numericBefore = numericOutputsBefore(assembly, model, rvs, source);
          TableBindingMutator.setShelf(model, shelf, fields, rvs, source, refModelService);
+         refuseNewNumericUnderObjectDateFormat(assembly, assemblyName, numericBefore, model, rvs,
+                                              source);
+         TableBindingMutator.refuseUnsupportedCalculatorTarget(model);
          relayUnhiddenNotes(assemblyName, assembly, shelf, fields, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
@@ -288,10 +293,10 @@ public class TableBindingService {
          String resolved = resolveTable(rvs, model, table, assemblyName);
 
          if(!force) {
-            requireNoBoundFields(model, assemblyName, resolved);
+            requireNoBoundFields(rvs, model, assemblyName, resolved);
          }
          else {
-            discardBoundFields(rvs, model, resolved);
+            discardBoundFields(rvs, model, assemblyName, resolved);
          }
 
          // Only type, prefix and source survive the trip back: VSBindingService.updateSourceInfo
@@ -356,8 +361,8 @@ public class TableBindingService {
     * Refuses to discard bound fields. The columns on a shelf belong to the source that was set
     * when they were added, so repointing invalidates all of them.
     */
-   private static void requireNoBoundFields(BaseTableBindingModel model, String assemblyName,
-                                            String table)
+   private static void requireNoBoundFields(RuntimeViewsheet rvs, BaseTableBindingModel model,
+                                            String assemblyName, String table)
    {
       if(BindingSources.alreadyPointedAt(model, table)) {
          return;
@@ -377,6 +382,13 @@ public class TableBindingService {
          if(count > 0) {
             populated.add(count + " on " + shelf);
          }
+      }
+
+      // Bug #79331: a Table's hidden columns are bound too, but live outside the model.
+      int hidden = hiddenColumnsOf(rvs, assemblyName).getAttributeCount();
+
+      if(hidden > 0) {
+         populated.add(hidden + " hidden");
       }
 
       if(!populated.isEmpty()) {
@@ -408,7 +420,7 @@ public class TableBindingService {
     * {@code setShelf} overload already has everywhere else it is used).
     */
    private static void discardBoundFields(RuntimeViewsheet rvs, BaseTableBindingModel model,
-                                         String table)
+                                         String assemblyName, String table)
    {
       if(BindingSources.alreadyPointedAt(model, table)) {
          return;
@@ -445,6 +457,29 @@ public class TableBindingService {
       // A kept dimension's by-value sort/ranking now survives the discard (bug #77025 R1), so one
       // that named an aggregate this repoint discarded must not be left pointing at it.
       TableBindingMutator.clearDanglingAggregateReferences(model, aggregatesBefore);
+
+      // Bug #79331: a Table's hidden columns are not in the model, so the loop above never saw
+      // them. Drop the ones the new source lacks, matched by column (refKey), not by alias; the
+      // factory's removeUnboundSorts then drops their sorts. Like a shown field, a hidden calc
+      // field or expression column never resolves in the source's columns and is dropped too.
+      ColumnSelection hidden = hiddenColumnsOf(rvs, assemblyName);
+
+      for(int i = hidden.getAttributeCount() - 1; i >= 0; i--) {
+         String column = refKey(hidden.getAttribute(i));
+
+         if(availableColumns.stream().noneMatch(
+            c -> c.equalsIgnoreCase(column) || c.equalsIgnoreCase(unqualified(column))))
+         {
+            hidden.removeAttribute(i);
+         }
+      }
+   }
+
+   /** A Table's hidden columns, or an empty selection for any other assembly. */
+   private static ColumnSelection hiddenColumnsOf(RuntimeViewsheet rvs, String assemblyName) {
+      return rvs.getViewsheet().getAssembly(assemblyName) instanceof TableVSAssembly table
+         ? ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns()
+         : new ColumnSelection();
    }
 
    /**
@@ -552,6 +587,8 @@ public class TableBindingService {
             List<String> full = table == null || position == null || field == null
                ? null : fullDetailsOrder(table, field.column());
 
+            Set<String> numericBefore = numericOutputsBefore(table, model, rvs, source);
+
             if(full == null) {
                TableBindingMutator.addField(model, shelf, field, position, rvs, source,
                                             refModelService);
@@ -579,6 +616,9 @@ public class TableBindingService {
 
             TableBindingMutator.addField(model, shelf, field, shownPosition, rvs, source,
                                          refModelService);
+            // Before restampHiddenPositions, the one write below that touches the live Table.
+            refuseNewNumericUnderObjectDateFormat(table, assemblyName, numericBefore, model, rvs,
+                                                  source);
             full.add(position, field.column());
             restampHiddenPositions(table, full);
          });
@@ -872,6 +912,9 @@ public class TableBindingService {
                ". Add it with add_table_field or set_table_fields first.");
          }
 
+         refuseUnhidingNumericUnderObjectDateFormat((TableVSAssembly) liveAssembly,
+                                                    assemblyName, column, visible);
+
          List<String> newAvailable = new ArrayList<>(current.availableColumns());
          List<String> newHidden = new ArrayList<>(current.hiddenColumns());
          newAvailable.remove(column);
@@ -1151,12 +1194,11 @@ public class TableBindingService {
          // separate hidden-columns selection, so resolve over shown then hidden.
          ColumnSelection columns = table.getColumnSelection();
          ColumnSelection hidden = table.getHiddenColumns();
-         DataRef ref = resolveSortColumn(columns, column);
-         ref = ref != null ? ref : resolveSortColumn(hidden, column);
+         DataRef ref = resolveSortColumn(columns, hidden, column);
 
          if(ref == null) {
-            List<String> bound = boundColumnNames(columns);
-            bound.addAll(boundColumnNames(hidden).stream().map(n -> n + " (hidden)").toList());
+            List<String> bound = sortColumnDescriptions(columns);
+            bound.addAll(sortColumnDescriptions(hidden).stream().map(n -> n + " (hidden)").toList());
             throw new IllegalArgumentException(
                "'" + column + "' is not bound on '" + assemblyName + "'. It holds: " +
                (bound.isEmpty() ? "(nothing)" : String.join(", ", bound)) + ".");
@@ -1230,26 +1272,103 @@ public class TableBindingService {
       };
    }
 
-   /** Case-insensitive column-name lookup, matching this class's other by-name resolutions. */
-   private static DataRef resolveSortColumn(ColumnSelection columns, String column) {
-      if(columns == null) {
-         return null;
-      }
+   /**
+    * Resolves a column by attribute first (exact case, then case-insensitive), then by label. A
+    * single exact-case attribute match wins; otherwise a request that names one column by
+    * attribute and another by label is refused as ambiguous instead of silently picking the
+    * first in column order.
+    */
+   private static DataRef resolveSortColumn(ColumnSelection shown, ColumnSelection hidden,
+                                            String column)
+   {
+      List<DataRef> all = new ArrayList<>();
 
-      Enumeration<DataRef> refs = columns.getAttributes();
+      for(ColumnSelection columns : new ColumnSelection[] { shown, hidden }) {
+         if(columns != null) {
+            Enumeration<DataRef> refs = columns.getAttributes();
 
-      while(refs.hasMoreElements()) {
-         DataRef ref = refs.nextElement();
-         String name = ref.getName();
-
-         if(name != null &&
-            (name.equalsIgnoreCase(column) || unqualified(name).equalsIgnoreCase(column)))
-         {
-            return ref;
+            while(refs.hasMoreElements()) {
+               all.add(refs.nextElement());
+            }
          }
       }
 
-      return null;
+      List<DataRef> byAttribute = new ArrayList<>();
+      List<DataRef> byLabel = new ArrayList<>();
+
+      for(DataRef ref : all) {
+         String attribute = sortAttributeName(ref);
+
+         if(attribute != null && (attribute.equalsIgnoreCase(column) ||
+            unqualified(attribute).equalsIgnoreCase(column)))
+         {
+            byAttribute.add(ref);
+         }
+         else if(ref instanceof ColumnRef columnRef && columnRef.getAlias() != null &&
+            columnRef.isApplyingAlias() &&
+            (ref.getName().equalsIgnoreCase(column) ||
+               unqualified(ref.getName()).equalsIgnoreCase(column)))
+         {
+            byLabel.add(ref);
+         }
+      }
+
+      // a single exact-case attribute match wins over any label or case-insensitive hit
+      List<DataRef> exact = byAttribute.stream()
+         .filter(r -> sortAttributeName(r).equals(column) ||
+            unqualified(sortAttributeName(r)).equals(column))
+         .toList();
+
+      if(exact.size() == 1) {
+         return exact.get(0);
+      }
+
+      if(byAttribute.size() == 1 && byLabel.isEmpty()) {
+         return byAttribute.get(0);
+      }
+
+      if(byAttribute.isEmpty() && byLabel.size() == 1) {
+         return byLabel.get(0);
+      }
+
+      if(byAttribute.isEmpty() && byLabel.isEmpty()) {
+         return null;
+      }
+
+      List<String> candidates = new ArrayList<>();
+      byAttribute.forEach(r -> candidates.add(describeSortColumn(r) + " by attribute"));
+      byLabel.forEach(r -> candidates.add(describeSortColumn(r) + " by label"));
+      throw new IllegalArgumentException(
+         "'" + column + "' is ambiguous: it matches " + String.join("; ", candidates) +
+         ". Use the attribute name with its exact case to pick the column by attribute, " +
+         "or rename the label.");
+   }
+
+   private static String sortAttributeName(DataRef ref) {
+      return ref instanceof ColumnRef columnRef ? columnRef.getDataRef().getName() :
+         ref.getName();
+   }
+
+   /** The attribute, followed by its label in parentheses when the column carries one. */
+   private static String describeSortColumn(DataRef ref) {
+      String attribute = sortAttributeName(ref);
+
+      return attribute.equals(ref.getName()) ? attribute :
+         attribute + " (labelled '" + ref.getName() + "')";
+   }
+
+   private static List<String> sortColumnDescriptions(ColumnSelection columns) {
+      List<String> names = new ArrayList<>();
+
+      if(columns != null) {
+         Enumeration<DataRef> refs = columns.getAttributes();
+
+         while(refs.hasMoreElements()) {
+            names.add(describeSortColumn(refs.nextElement()));
+         }
+      }
+
+      return names;
    }
 
    private static List<String> boundColumnNames(ColumnSelection columns) {
@@ -2423,7 +2542,7 @@ public class TableBindingService {
          VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
 
          if(liveAssembly instanceof TableVSAssembly table) {
-            enrichTableVisibility(table, shelfFields);
+            TableBindingMutator.enrichTableVisibility(table, shelfFields, refModelService);
          }
       }
 
@@ -2634,6 +2753,16 @@ public class TableBindingService {
                   field = withLabel(field, label);
                }
 
+               if(aggregate) {
+                  String coverage = labelCoverageNote(
+                     formatInfo, SetTableHeaderAliasHandler.findHeaderPaths(lens, ref, i),
+                     ref instanceof VSAggregateRef agg ? agg.getFullName() : field.column());
+
+                  if(coverage != null) {
+                     notes.add(coverage);
+                  }
+               }
+
                // Bug #78850: stacked measures share one column, so no single measure has a
                // visibility of its own -- leave it unreported rather than read all-hidden.
                if(aggregate && isStackedMeasures(crossInfo)) {
@@ -2667,6 +2796,43 @@ public class TableBindingService {
       }
    }
 
+   /**
+    * Bug #79331: a measure label is one MESSAGE_FORMAT per rendered header path (detail, each
+    * subtotal level, grand total), and a reshape can leave some of them without it -- a reorder
+    * creates subtotal paths no old path maps to, and a format map over 200 entries prunes
+    * vacated paths. The {@code label} read-back takes the first path, so say when it does not
+    * cover the rest. {@code null} when every rendered path carries the same label, or none does.
+    */
+   static String labelCoverageNote(FormatInfo formatInfo, List<TableDataPath> paths,
+                                   String measure)
+   {
+      if(paths.size() < 2) {
+         return null;
+      }
+
+      Map<String, Integer> counts = new LinkedHashMap<>();
+
+      for(TableDataPath path : paths) {
+         String alias = readAlias(formatInfo, path);
+
+         if(alias != null) {
+            counts.merge(alias, 1, Integer::sum);
+         }
+      }
+
+      String first = readAlias(formatInfo, paths.get(0));
+      String label = first != null ? first : counts.entrySet().stream()
+         .max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
+
+      if(label == null || counts.get(label) == paths.size()) {
+         return null;
+      }
+
+      return "label '" + label + "' on " + measure + " covers " + counts.get(label) + " of " +
+         paths.size() + " rendered header paths (detail, subtotal and grand-total levels); " +
+         "re-run set_column_labels to label the rest.";
+   }
+
    private static String readAlias(FormatInfo formatInfo, TableDataPath path) {
       VSCompositeFormat format = formatInfo.getFormat(path);
       VSFormat ufmt = format == null ? null : format.getUserDefinedFormat();
@@ -2683,108 +2849,11 @@ public class TableBindingService {
    }
 
    /**
-    * Marks each {@code details} shelf {@link FieldRef} with whether its column currently renders,
-    * per {@link TableVSAssemblyInfo#getHiddenColumns()} -- the read side of {@link
-    * #setFieldVisibility}. {@code get_table_binding} was blind to this state before (see
-    * bug-76807): {@link TableBindingMutator#read} only ever reads {@code
-    * TableBindingModel.getDetails()}, which has no visibility concept of its own.
-    *
-    * <p>A hidden column is <em>absent</em> from {@code details} to begin with -- {@link
-    * TableBindingModel}'s constructor builds it only from {@link
-    * TableVSAssembly#getColumnSelection()}, the shown side, disjoint by construction from {@code
-    * getHiddenColumns()}. So this does not just re-mark the existing list: it merges in every
-    * hidden column {@code details} is missing, at the position {@link
-    * HideColumnsDialogService#getOrderedColumns} recorded for it. Without this merge a hidden
-    * field vanishes from {@code get_table_binding} instead of reporting {@code visible: false}
-    * -- the exact silent-disappearance class of bug bug-76807 exists to close, just reopened on
-    * the read side.
-    *
-    * <p>The resulting {@code details} index is the column's slot in the <em>full</em> (shown and
-    * hidden) order, and {@link #addField}'s {@code position} on a Table reads the same order, so
-    * an index read here and written back names the same slot. Hidden positions are absolute
-    * indexes into that order: they are re-stamped by {@code addField} and {@code removeField} but not
-    * when shown columns are reordered, inserted or removed by other writes, so a column shown again later may land beside a
-    * different neighbour than the one it was hidden next to.
-    */
-   private void enrichTableVisibility(TableVSAssembly table,
-                                       Map<String, List<FieldRef>> shelfFields)
-   {
-      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
-      ColumnSelection hiddenCols = info.getHiddenColumns();
-      Set<String> hidden = new HashSet<>();
-      Enumeration<DataRef> refs = hiddenCols.getAttributes();
-
-      while(refs.hasMoreElements()) {
-         DataRef href = refs.nextElement();
-         hidden.add(refKey(href));
-      }
-
-      List<FieldRef> details = shelfFields.get("details");
-      List<FieldRef> enriched = details == null ? new ArrayList<>() : new ArrayList<>(details);
-      Set<String> present = new HashSet<>();
-
-      for(int i = 0; i < enriched.size(); i++) {
-         FieldRef field = enriched.get(i);
-         present.add(field.column());
-         enriched.set(i, withVisibility(field, !hidden.contains(field.column())));
-      }
-
-      Map<String, FieldRef> hiddenFields = new LinkedHashMap<>();
-      Enumeration<DataRef> hiddenRefs = hiddenCols.getAttributes();
-
-      while(hiddenRefs.hasMoreElements()) {
-         DataRef ref = hiddenRefs.nextElement();
-
-         if(present.contains(refKey(ref))) {
-            continue;
-         }
-
-         ColumnRef col = (ColumnRef) ref.clone();
-         col.setApplyingAlias(false);
-         ColumnRefModel model = (ColumnRefModel) refModelService.createDataRefModel(col);
-         hiddenFields.put(refKey(ref),
-                          withVisibility(TableBindingMutator.fieldOf(model, "details"), false));
-      }
-
-      // a hidden column reads back at the position it will return to when shown
-      List<FieldRef> ordered = new ArrayList<>();
-      Map<String, FieldRef> byName = new HashMap<>();
-
-      for(FieldRef field : enriched) {
-         byName.put(field.column(), field);
-      }
-
-      for(DataRef ref : HideColumnsDialogService.getOrderedColumns(info.getColumnSelection(),
-                                                                   hiddenCols))
-      {
-         FieldRef field = byName.remove(refKey(ref));
-
-         if(field == null) {
-            field = hiddenFields.remove(refKey(ref));
-         }
-
-         if(field != null) {
-            ordered.add(field);
-         }
-      }
-
-      for(FieldRef field : enriched) {
-         if(byName.containsKey(field.column())) {
-            ordered.add(field);
-         }
-      }
-
-      ordered.addAll(hiddenFields.values());
-      shelfFields.put("details", ordered);
-   }
-
-   /**
     * The key {@link FieldRef#column()} reports a Table column under: the column's own name,
     * entity-qualified when it has an entity, never its alias.
     */
    private static String refKey(DataRef ref) {
-      return ref instanceof ColumnRef column && column.getDataRef() != null
-         ? column.getDataRef().getName() : ref.getName();
+      return TableBindingMutator.refKey(ref);
    }
 
    /**
@@ -2898,6 +2967,105 @@ public class TableBindingService {
    }
 
    /**
+    * Bug #79342: a whole-assembly date/time format reaches every cell with no format of its own,
+    * so a numeric column or aggregate bound under it renders as an epoch-millisecond date
+    * (1970-01-01). The numeric outputs the binding model holds before the write, or null when
+    * the assembly has no such format and nothing needs checking.
+    */
+   static Set<String> numericOutputsBefore(VSAssembly assembly, BaseTableBindingModel model,
+                                           RuntimeViewsheet rvs,
+                                           inetsoft.uql.asset.SourceInfo source)
+   {
+      if(!(assembly instanceof TableDataVSAssembly) ||
+         WizDateFormatOverNumeric.objectDateFormat(assembly.getVSAssemblyInfo()) == null)
+      {
+         return null;
+      }
+
+      return plannedNumericOutputs(assembly, model, rvs, source);
+   }
+
+   private static Set<String> plannedNumericOutputs(VSAssembly assembly,
+                                                    BaseTableBindingModel model,
+                                                    RuntimeViewsheet rvs,
+                                                    inetsoft.uql.asset.SourceInfo source)
+   {
+      Set<String> ownFormat = assembly instanceof TableVSAssembly table
+         ? WizDateFormatOverNumeric.ownDetailFormatHeaders(table) : Set.of();
+
+      try {
+         return WizDateFormatOverNumeric.plannedNumericOutputs(
+            model, ownFormat,
+            column -> FieldRefFactory.dimensionDataType(model, rvs, source, column));
+      }
+      catch(RuntimeException e) {
+         // A model entry that cannot be typed here: unknown, so the check fails open.
+         return Set.of();
+      }
+   }
+
+   /**
+    * Showing a hidden numeric Table column renders a new numeric output, which a whole-object
+    * date format would turn into 1970-01-01 dates. Checked before the show is written.
+    */
+   private static void refuseUnhidingNumericUnderObjectDateFormat(TableVSAssembly table,
+                                                                  String assemblyName,
+                                                                  String column, boolean visible)
+   {
+      String dateFormat = WizDateFormatOverNumeric.objectDateFormat(table.getVSAssemblyInfo());
+
+      if(!visible || dateFormat == null) {
+         return;
+      }
+
+      Enumeration<DataRef> hidden =
+         ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).getHiddenColumns().getAttributes();
+
+      while(hidden.hasMoreElements()) {
+         DataRef ref = hidden.nextElement();
+
+         if(refKey(ref).equalsIgnoreCase(column) &&
+            WizDateFormatOverNumeric.isNumericWithoutOwnFormat(table, ref))
+         {
+            throw new IllegalArgumentException(WizDateFormatOverNumeric.refusalMessage(
+               assemblyName, dateFormat, List.of(column)));
+         }
+      }
+   }
+
+   /**
+    * Refuses a binding write that would add a numeric output to an assembly whose whole-object
+    * format is a date/time format. Judged on the planned binding model, before it is applied, so
+    * a refused write changes nothing; only outputs the write adds are counted, so a numeric
+    * column already under the format never blocks an unrelated write. A column that does not
+    * exist yet cannot be given its own format first, hence the advice to change the object
+    * format instead.
+    *
+    * @param numericBefore the result of {@link #numericOutputsBefore}, taken before the mutation
+    */
+   static void refuseNewNumericUnderObjectDateFormat(VSAssembly assembly, String assemblyName,
+                                                     Set<String> numericBefore,
+                                                     BaseTableBindingModel model,
+                                                     RuntimeViewsheet rvs,
+                                                     inetsoft.uql.asset.SourceInfo source)
+   {
+      if(numericBefore == null) {
+         return;
+      }
+
+      String dateFormat = WizDateFormatOverNumeric.objectDateFormat(assembly.getVSAssemblyInfo());
+      List<String> added = new ArrayList<>(plannedNumericOutputs(assembly, model, rvs, source));
+      added.removeAll(numericBefore);
+
+      if(dateFormat == null || added.isEmpty()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         WizDateFormatOverNumeric.refusalMessage(assemblyName, dateFormat, added));
+   }
+
+   /**
     * Reports what the mutator reset on its own as WARNING messages, so the caller is told rather
     * than finding a sort or ranking gone (bug #77025 review F1).
     */
@@ -2956,7 +3124,11 @@ public class TableBindingService {
             ? data.getSourceInfo() : null;
          String livePercentageBy = livePercentageByValue(assembly);
          TableBindingMutator.drainNotes();
+         Set<String> numericBefore = numericOutputsBefore(assembly, model, rvs, source);
          mutation.accept(model, rvs, source);
+         refuseNewNumericUnderObjectDateFormat(assembly, assemblyName, numericBefore, model, rvs,
+                                              source);
+         TableBindingMutator.refuseUnsupportedCalculatorTarget(model);
          relayUnhiddenNotes(assemblyName, assembly, shelf, unhiddenCandidates, dispatcher);
          TableBindingMutator.preserveUntouchedPercentageBy(model, livePercentageBy);
          relayNotes(assemblyName, dispatcher);
@@ -3013,6 +3185,7 @@ public class TableBindingService {
          String livePercentageBy = preservePercentageBy ? livePercentageByValue(assembly) : null;
          TableBindingMutator.drainNotes();
          mutation.accept(rvs, model);
+         TableBindingMutator.refuseUnsupportedCalculatorTarget(model);
          relayNotes(assemblyName, dispatcher);
 
          if(preservePercentageBy) {
@@ -3040,7 +3213,9 @@ public class TableBindingService {
     * <ul>
     *   <li>{@link ApplyVSAssemblyInfoEvent#setClearVacatedAliases} -- the same {@code
     *   processClearAliasFormat} native drag-and-drop passes, which clears every path left
-    *   behind once survivors have been re-keyed (a removal, and the shift it leaves);</li>
+    *   behind once survivors have been re-keyed (a removal, and the shift it leaves), except a
+    *   summary header path of a measure still bound (bug #79331, {@code
+    *   ClearTableHeaderAliasHandler.clearVacatedKeepingBoundMeasures});</li>
     *   <li>{@link #clearLabelsOfRowsLeaving} before the write, for what the processor never
     *   sees: a row moved to cols (no branch in {@code syncCornerPath}) and a one-call replace
     *   ({@code buildMap}'s runtime-ID fallback maps the dropped row onto the newcomer).</li>

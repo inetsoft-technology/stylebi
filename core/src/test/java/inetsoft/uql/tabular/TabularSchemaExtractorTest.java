@@ -17,8 +17,13 @@
  */
 package inetsoft.uql.tabular;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.uql.util.Config;
+import inetsoft.uql.XDataSource;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.util.credential.CredentialType;
+import inetsoft.util.credential.LocalApiKeyCredential;
+import inetsoft.util.credential.LocalPasswordCredential;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.context.ApplicationContext;
@@ -372,7 +377,7 @@ class TabularSchemaExtractorTest {
       ds.objects = new Object[] { new StringBuilder("OBJ-SECRET") };
 
       TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
-      String all = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(config).toString();
+      String all = new ObjectMapper().valueToTree(config).toString();
 
       assertFalse(all.contains("@"), all);
 
@@ -402,6 +407,337 @@ class TabularSchemaExtractorTest {
       assertEquals("s1", fieldNamed(config, "set").getItems().get(0).get("value"));
       assertEquals("mapKey", fieldNamed(config, "map").getItems().get(0).get("name"));
       assertNull(fieldNamed(config, "objects").getItems().get(0).get("value"));
+   }
+
+   // ─── extractDataSourceConfig: credential-derived secrets (Bug #79411) ──────
+
+   @Test
+   void extractDataSourceConfigMasksAnUnflaggedApiKeyAndTheUserDerivedFromIt() {
+      ApiKeyDataSource ds = apiKeyDataSource("MONDAY-API-KEY-12345");
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertMasked(fieldNamed(config, "apiKey"));
+      assertMasked(fieldNamed(config, "user"));
+      assertFalse(json(config).contains("MONDAY-API-KEY-12345"), json(config));
+      assertEquals("https://api.example.com", fieldNamed(config, "url").getValue());
+   }
+
+   @Test
+   void extractDataSourceConfigMasksAShortApiKeyCopiedIntoUser() {
+      ApiKeyDataSource ds = apiKeyDataSource("k3y");
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertMasked(fieldNamed(config, "user"));
+      assertFalse(json(config).contains("\"k3y\""), json(config));
+   }
+
+   @Test
+   void extractDataSourceConfigMasksAnUnflaggedHttpParameterItemHoldingTheToken() {
+      TokenParameterDataSource ds = new TokenParameterDataSource();
+      ds.queryParams = new HttpParameter[] {
+         HttpParameter.builder().name("Api-Token").value("AC-TOKEN-VALUE-1")
+            .type(HttpParameter.ParameterType.HEADER).build(),
+         HttpParameter.builder().name("page_token").value("cursor-abc")
+            .type(HttpParameter.ParameterType.QUERY).build() };
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertMasked(fieldNamed(config, "apiToken"));
+      List<Map<String, Object>> items = fieldNamed(config, "queryHttpParameters").getItems();
+      assertNull(items.get(0).get("value"));
+      assertEquals(Boolean.TRUE, items.get(0).get("configured"));
+      assertEquals("cursor-abc", items.get(1).get("value"), "a non-secret parameter stays clear");
+      assertFalse(json(config).contains("AC-TOKEN-VALUE-1"), json(config));
+   }
+
+   @Test
+   void extractDataSourceConfigMasksASecretEmbeddedInAnotherFieldAndParameter() {
+      TokenParameterDataSource ds = new TokenParameterDataSource();
+      ds.setApiToken("EMBEDDED-SECRET-77");
+      ds.queryParams = new HttpParameter[] {
+         HttpParameter.builder().name("api_key").value("EMBEDDED-SECRET-77")
+            .type(HttpParameter.ParameterType.QUERY).build() };
+      ds.setUrl("https://h.example.com/x?k=EMBEDDED-SECRET-77");
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertMasked(fieldNamed(config, "url"));
+      assertNull(fieldNamed(config, "queryHttpParameters").getItems().get(0).get("value"));
+      assertFalse(json(config).contains("EMBEDDED-SECRET-77"), json(config));
+   }
+
+   @Test
+   void extractDataSourceConfigKeepsNonSecretNamesAndPasswordCredentialUserInClear() {
+      TokenParameterDataSource ds = new TokenParameterDataSource();
+      ds.setTokenUri("https://auth.example.com/token");
+      ds.setTokenExpiration("3600");
+      ds.setUrl("https://example.com");
+      LocalPasswordCredential credential = new LocalPasswordCredential();
+      credential.setUser("alice@example.com/token");
+      credential.setPassword("pa55w0rd-secret");
+      ds.setCredential(credential);
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertEquals("https://auth.example.com/token", fieldNamed(config, "tokenUri").getValue());
+      assertEquals("3600", fieldNamed(config, "tokenExpiration").getValue());
+      assertEquals("alice@example.com/token", fieldNamed(config, "user").getValue());
+      assertFalse(fieldNamed(config, "user").isPassword());
+   }
+
+   @Test
+   void extractDataSourceConfigMasksUserEchoingAFlaggedPasswordApiKey() {
+      PasswordKeyDataSource ds = new PasswordKeyDataSource();
+      ds.apiKey = "FLAGGED-KEY-XY12";
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertTrue(fieldNamed(config, "apiKey").isPassword());
+      assertMasked(fieldNamed(config, "user"));
+      assertFalse(json(config).contains("FLAGGED-KEY-XY12"), json(config));
+   }
+
+   @Test
+   void extractDataSourceConfigMasksAKeyHeldOnlyInTheCredential() {
+      CredentialOnlyDataSource ds = new CredentialOnlyDataSource();
+      LocalApiKeyCredential credential = new LocalApiKeyCredential();
+      credential.setApiKey("CRED-ONLY-KEY-5577");
+      ds.setCredential(credential);
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertMasked(fieldNamed(config, "user"));
+      assertFalse(json(config).contains("CRED-ONLY-KEY-5577"), json(config));
+   }
+
+   @Test
+   void extractDataSourceConfigIgnoresNonStringPasswordValuesWhenMasking() {
+      NumericPasswordDataSource ds = new NumericPasswordDataSource();
+
+      TabularDataSourceConfig config = new TabularSchemaExtractor().extractDataSourceConfig(ds);
+
+      assertTrue(fieldNamed(config, "tokenExpiration").isPassword());
+      assertEquals("0", fieldNamed(config, "connectTimeout").getValue());
+      assertFalse(fieldNamed(config, "connectTimeout").isPassword());
+      assertEquals("0", fieldNamed(config, "readTimeout").getValue());
+   }
+
+   @Test
+   void extractDataSourceConfigAcceptsADataSourceThatIsNotTabular() {
+      XDataSource ds = mock(XDataSource.class);
+      when(ds.getType()).thenReturn("Other");
+
+      TabularDataSourceConfig config = assertDoesNotThrow(
+         () -> new TabularSchemaExtractor().extractDataSourceConfig(ds));
+
+      assertEquals("Other", config.getDataSourceType());
+   }
+
+   private static ApiKeyDataSource apiKeyDataSource(String key) {
+      ApiKeyDataSource ds = new ApiKeyDataSource();
+      ds.setUrl("https://api.example.com");
+      LocalApiKeyCredential credential = new LocalApiKeyCredential();
+      credential.setApiKey(key);
+      ds.setCredential(credential);
+      ds.setApiKey(key);
+      return ds;
+   }
+
+   private static void assertMasked(TabularDataSourceConfig.Field field) {
+      assertNull(field.getValue(), field.getName() + " must not carry a value");
+      assertTrue(field.isConfigured(), field.getName() + " must report it is configured");
+   }
+
+   private static String json(TabularDataSourceConfig config) {
+      return new ObjectMapper().valueToTree(config).toString();
+   }
+
+   /**
+    * Monday-style: an unflagged apiKey getter plus a user getter that returns the credential's key.
+    */
+   public static class ApiKeyDataSource extends TabularDataSource<ApiKeyDataSource> {
+      public ApiKeyDataSource() {
+         super("ApiKey", ApiKeyDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "URL")
+      public String getUrl() {
+         return url;
+      }
+
+      public void setUrl(String url) {
+         this.url = url;
+      }
+
+      @Property(label = "API Key")
+      public String getApiKey() {
+         return credential() == null ? null : credential().getApiKey();
+      }
+
+      public void setApiKey(String apiKey) {
+         if(credential() != null) {
+            credential().setApiKey(apiKey);
+         }
+      }
+
+      @Property(label = "User")
+      public String getUser() {
+         return getApiKey();
+      }
+
+      private LocalApiKeyCredential credential() {
+         return getCredential() instanceof LocalApiKeyCredential c ? c : null;
+      }
+
+      private String url;
+   }
+
+   /**
+    * ActiveCampaign-style token held in an HttpParameter, plus endpoint-like names that must stay
+    * readable.
+    */
+   public static class TokenParameterDataSource extends TabularDataSource<TokenParameterDataSource> {
+      public TokenParameterDataSource() {
+         super("TokenParam", TokenParameterDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "URL")
+      public String getUrl() {
+         return url;
+      }
+
+      public void setUrl(String url) {
+         this.url = url;
+      }
+
+      @Property(label = "API Token")
+      public String getApiToken() {
+         for(HttpParameter p : queryParams) {
+            if("Api-Token".equals(p.getName())) {
+               return p.getValue();
+            }
+         }
+
+         return apiToken;
+      }
+
+      public void setApiToken(String apiToken) {
+         this.apiToken = apiToken;
+      }
+
+      @Property(label = "Query")
+      public HttpParameter[] getQueryHttpParameters() {
+         return queryParams;
+      }
+
+      @Property(label = "Token URI")
+      public String getTokenUri() {
+         return tokenUri;
+      }
+
+      public void setTokenUri(String tokenUri) {
+         this.tokenUri = tokenUri;
+      }
+
+      @Property(label = "Token Expiration")
+      public String getTokenExpiration() {
+         return tokenExpiration;
+      }
+
+      public void setTokenExpiration(String tokenExpiration) {
+         this.tokenExpiration = tokenExpiration;
+      }
+
+      @Property(label = "User")
+      public String getUser() {
+         return getCredential() instanceof LocalPasswordCredential c ? c.getUser() : null;
+      }
+
+      HttpParameter[] queryParams = new HttpParameter[0];
+      private String url;
+      private String apiToken;
+      private String tokenUri;
+      private String tokenExpiration;
+   }
+
+   /** AzureSearch-style: a flagged password key echoed by an unflagged user getter. */
+   public static class PasswordKeyDataSource extends TabularDataSource<PasswordKeyDataSource> {
+      public PasswordKeyDataSource() {
+         super("PasswordKey", PasswordKeyDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "API Key", password = true)
+      public String getApiKey() {
+         return apiKey;
+      }
+
+      @Property(label = "User")
+      public String getUser() {
+         return apiKey;
+      }
+
+      private String apiKey;
+   }
+
+   /** AdobeAnalytics-style: no key-named property; the user getter returns the credential key. */
+   public static class CredentialOnlyDataSource extends TabularDataSource<CredentialOnlyDataSource> {
+      public CredentialOnlyDataSource() {
+         super("CredentialOnly", CredentialOnlyDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "User")
+      public String getUser() {
+         return getCredential() instanceof LocalApiKeyCredential c ? c.getApiKey() : null;
+      }
+   }
+
+   /** GData-style: a numeric flagged password (0) next to unrelated numeric 0 properties. */
+   public static class NumericPasswordDataSource extends TabularDataSource<NumericPasswordDataSource> {
+      public NumericPasswordDataSource() {
+         super("NumericPassword", NumericPasswordDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "Token Expiration", password = true)
+      public long getTokenExpiration() {
+         return 0L;
+      }
+
+      @Property(label = "Connect Timeout")
+      public int getConnectTimeout() {
+         return 0;
+      }
+
+      @Property(label = "Read Timeout")
+      public int getReadTimeout() {
+         return 0;
+      }
    }
 
    public static class ArrayDataSource extends FixtureTabularDataSource {

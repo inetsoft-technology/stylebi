@@ -644,6 +644,393 @@ class ScriptExecuteServiceTest {
       assertFalse(result.requiresConfirmation());
    }
 
+   /** Bug #79322: runs {@code script} against a one-entry library and expects NO confirmation. */
+   private void assertNotGated(String libSource, String script) throws Exception {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(anyString(), nullable(String.class))).thenReturn(1);
+
+      ScriptExecResult result = runLiveWithLibrary(script, Map.of("lib", libSource), false, scope);
+
+      assertTrue(result.ok(), libSource);
+      assertFalse(result.requiresConfirmation(), libSource);
+   }
+
+   @Test
+   void namespaceExportedThroughAnIifeGlobalAliasIsGated() throws Exception {
+      String member = "{ count: function() { return runQuery('q').length; } }";
+
+      assertGatedViaNamespace("(function(g){ g.Ns = " + member + "; })(this);", "Ns.count()");
+      assertGatedViaNamespace("(function(g){ g.Ns = " + member + "; }(this));", "Ns.count()");
+      assertGatedViaNamespace("(function(g){ g.Ns = " + member + "; })(globalThis);", "Ns.count()");
+      assertGatedViaNamespace("((g) => { g.Ns = " + member + "; })(this);", "Ns.count()");
+      assertGatedViaNamespace("(function(a, g){ g.Ns = " + member + "; })(1, this);",
+                              "Ns.count()");
+      assertGatedViaNamespace("(function(g){ if(g) { g.Ns = " + member + "; } })(this);",
+                              "Ns.count()");
+   }
+
+   @Test
+   void namespaceExportedThroughAnIifeThisOrGlobalQualifierIsGated() throws Exception {
+      String member = "{ count: function() { return runQuery('q').length; } }";
+
+      assertGatedViaNamespace("(function(){ this.Ns = " + member + "; })();", "Ns.count()");
+      assertGatedViaNamespace("(function(){ this.Ns = " + member + "; }).call(this);",
+                              "Ns.count()");
+      assertGatedViaNamespace("(function(){ window.Ns = " + member + "; })();", "Ns.count()");
+      assertGatedViaNamespace("(function(g){ g.Ns = {}; g.Ns.count = function() { return runQuery('q'); }; })(this);",
+                              "Ns.count()");
+   }
+
+   @Test
+   void undeclaredNamespaceLeakedFromAnIifeIsGated() throws Exception {
+      assertGatedViaNamespace("(function(){ Ns = { count: function() { return runQuery('q'); } }; })();",
+                              "Ns.count()");
+      // declared inside the IIFE and re-exported through the alias
+      assertGatedViaNamespace(
+         "(function(g){ var impl = { count: function() { return runQuery('q'); } }; g.Ns = impl; })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void namespaceAssignedInsideAPlainBlockIsGated() throws Exception {
+      String member = "{ count: function() { return runQuery('q').length; } }";
+
+      assertGatedViaNamespace("var Ns; if (true) { Ns = " + member + "; }", "Ns.count()");
+      assertGatedViaNamespace("var Ns; if (false) { } else { Ns = " + member + "; }", "Ns.count()");
+      assertGatedViaNamespace("var Ns; try { Ns = " + member + "; } catch(e) { }", "Ns.count()");
+      assertGatedViaNamespace("var Ns = {}; for(var i = 0; i < 1; i++) { Ns.count = function() { return runQuery('q'); }; }",
+                              "Ns.count()");
+      assertGatedViaNamespace("var Ns; { Ns = " + member + "; }", "Ns.count()");
+   }
+
+   @Test
+   void localsOfAnIifeOrAFunctionBlockAreNotIndexedAsRoots() throws Exception {
+      // a local of the IIFE is not a global, even though the IIFE runs at load time
+      assertNotGated("(function(g){ var result = runQuery('q'); g.Ns = { a: 1 }; })(this);",
+                     "var result = 2; result");
+      assertNotGated("(function(g){ var Ns = { count: function() { return runQuery('q'); } }; })(this);",
+                     "Ns.count()");
+      assertNotGated("(function(g, Ns){ Ns = { count: function() { return runQuery('q'); } }; })(this, 1);",
+                     "Ns.count()");
+      // a block inside an ordinary function body does not make its assignments global
+      assertNotGated("var Ns = { count: function() { if(true) { result = runQuery('q'); } return result; } };",
+                     "var result = 2; result");
+      assertNotGated("(function(g){ g.Ns = { count: function() { if(true) { var result = runQuery('q'); } } }; })(this);",
+                     "var result = 2; result");
+   }
+
+   @Test
+   void iifeNestedInAnOrdinaryFunctionOrCapturingAnOuterLocalIsNotIndexed() throws Exception {
+      // the nested IIFE is not load-time code (or only reassigns a captured local)
+      assertNotGated("function f(){ var result; (function(){ result = runQuery('q'); })(); }",
+                     "var result = 2; result");
+      assertNotGated("var Ns = { count: function(){ (function(){ result = runQuery('q'); })(); } };",
+                     "var result = 2; result");
+      assertNotGated("(function(g){ var result; (function(){ result = runQuery('q'); })(); g.Ns = {}; })(this);",
+                     "var result = 2; result");
+      // but the exported namespace of a nested load-time IIFE is still followed
+      assertGatedViaNamespace(
+         "(function(g){ (function(){ g.Ns = { count: function() { return runQuery('q'); } }; })(); })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void deeplyNestedIifesAreScannedInBoundedTime() {
+      for(int depth : new int[] { 2000, 8000 }) {
+         StringBuilder src = new StringBuilder("var Ns = { count: function() { return runQuery('q'); } };\n");
+         src.append("(function(){".repeat(depth)).append(" var x = 1; ").append("})();".repeat(depth));
+         String lib = src.toString();
+
+         assertTimeoutPreemptively(java.time.Duration.ofSeconds(30), () -> {
+            // the top-level namespace is still followed whatever the nesting below it
+            assertGatedViaNamespace(lib, "Ns.count()");
+            assertNotGated(lib.replace("var Ns =", "var Other ="), "Ns.count()");
+         });
+      }
+   }
+   @Test
+   void iifeParameterNotBoundToAGlobalObjectIsNotAnAlias() throws Exception {
+      assertNotGated("(function(g){ g.Ns = { count: function() { return runQuery('q'); } }; })(other);",
+                     "Ns.count()");
+      // an ordinary (non-IIFE) function is not run at load, so its parameter is no alias
+      assertNotGated("function install(g) { g.Ns = { count: function() { return runQuery('q'); } }; }",
+                     "Ns.count()");
+      assertNotGated("var f = function(g){ g.Ns = { count: function() { return runQuery('q'); } }; };",
+                     "Ns.count()");
+   }
+
+   // Bug #79346 (SSL-014, Problem 1): 10 further ways a Script Library entry can expose a
+   // namespace that the pre-fix scanner does not recognize as binding the global scope.
+   @Test
+   void topLevelAliasOfGlobalExposesItsNamespace() throws Exception {
+      // shape 1: var root = this; root.Ns = {...};
+      assertGatedViaNamespace(
+         "var root = this;\nroot.Ns = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void aliasDeclaredInsideAnIifeExposesItsNamespace() throws Exception {
+      // shape 2: (function(){ var g = this; g.Ns = {...}; })();
+      assertGatedViaNamespace(
+         "(function() { var g = this; g.Ns = { count: function() { return runQuery('q'); } }; })();",
+         "Ns.count()");
+   }
+
+   @Test
+   void namespaceCreatedInTheIifeCallArgumentIsGated() throws Exception {
+      // shape 3: (function(ns){ ns.count = ...; })(this.Ns = this.Ns || {});
+      assertGatedViaNamespace(
+         "(function(ns) { ns.count = function() { return runQuery('q'); }; })" +
+         "(this.Ns = this.Ns || {});",
+         "Ns.count()");
+   }
+
+   @Test
+   void installerFunctionCalledAtLoadExposesItsNamespace() throws Exception {
+      // shape 4: function install(g){ g.Ns = {...}; } install(this);
+      assertGatedViaNamespace(
+         "function install(g) { g.Ns = { count: function() { return runQuery('q'); } }; }\n" +
+         "install(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void iifeAssignedToAVarIsGated() throws Exception {
+      // shape 5: var _ = function(g){ g.Ns = {...}; }(this);
+      assertGatedViaNamespace(
+         "var _ = function(g) { g.Ns = { count: function() { return runQuery('q'); } }; }(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void voidOperatorIifeIsGated() throws Exception {
+      // shape 6: void function(g){ g.Ns = {...}; }(this);
+      assertGatedViaNamespace(
+         "void function(g) { g.Ns = { count: function() { return runQuery('q'); } }; }(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void bracketAssignmentInsideAnIifeIsGated() throws Exception {
+      // shape 7: (function(g){ g["Ns"] = {...}; })(this);
+      assertGatedViaNamespace(
+         "(function(g) { g[\"Ns\"] = { count: function() { return runQuery('q'); } }; })(this);",
+         "Ns.count()");
+   }
+
+   @Test
+   void topLevelBracketAssignmentIsGated() throws Exception {
+      // shape 8: this["Ns"] = {...};
+      assertGatedViaNamespace(
+         "this[\"Ns\"] = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void labeledBlockAssignmentIsGated() throws Exception {
+      // shape 9: lbl: { Ns = {...}; }
+      assertGatedViaNamespace(
+         "lbl: { Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   @Test
+   void bracedSwitchCaseAssignmentIsGated() throws Exception {
+      // shape 10: switch (1) { case 1: { Ns = {...}; } }
+      assertGatedViaNamespace(
+         "switch (1) { case 1: { Ns = { count: function() { return runQuery('q'); } }; } }",
+         "Ns.count()");
+   }
+
+   @Test
+   void unbracedSwitchCaseAssignmentIsGated() throws Exception {
+      // control for shape 10: switch (1) { case 1: Ns = {...}; } (no extra { to misclassify)
+      assertGatedViaNamespace(
+         "switch (1) { case 1: Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   /**
+    * Review bot hand-off round, non-blocking note: gap E's recognition of a {@code :}-preceded
+    * {@code {} also matches an object-literal value's own {@code :} (here {@code Ns: { ... }}),
+    * not only a statement label/switch case -- confirming this does not change whether the
+    * namespace is recognized (the root {@code x} is matched textually before any of these braces
+    * even open, so how the nested braces are classified is immaterial here either way).
+    */
+   @Test
+   void objectLiteralValueColonDoesNotAffectNamespaceDetection() throws Exception {
+      assertGatedViaNamespace(
+         "var x = { Ns: { count: function() { return runQuery('q'); } } };",
+         "x.Ns.count()");
+   }
+
+   // Bug #79346 (SSL-015, Problem 2): a let/const or a catch parameter declared inside a plain
+   // block must stay excluded from the gate -- a viewsheet script's own unrelated local of the
+   // same name must run normally, not be wrongly reported as calling the library entry.
+   @Test
+   void letDeclaredInsideAnIfBlockIsNotIndexedAsARoot() throws Exception {
+      assertNotGated("if (true) { let C1 = runQuery('q'); }", "var C1 = 2; C1");
+   }
+
+   @Test
+   void catchParameterReassignedInTheCatchBodyIsNotIndexedAsARoot() throws Exception {
+      assertNotGated("try { foo(); } catch (C2) { C2 = runQuery('q'); }", "var C2 = 2; C2");
+   }
+
+   /** Refutation correction: a catch parameter must be excluded in EVERY frame kind, IIFE too. */
+   @Test
+   void catchParameterInsideAnIifeIsNotIndexedAsARoot() throws Exception {
+      assertNotGated(
+         "(function(){ try { foo(); } catch (C3) { C3 = runQuery('q'); } })();",
+         "var C3 = 2; C3");
+   }
+
+   @Test
+   void iifeParameterReusedAsABareAssignmentTargetIsNotIndexedAsARoot() throws Exception {
+      // control: an IIFE's own parameter already correctly excludes a reused bare name
+      assertNotGated("(function(C4) { C4 = runQuery('q'); })(1);", "var C4 = 2; C4");
+   }
+
+   @Test
+   void bareUndeclaredAssignmentInsideAnIfBlockIsGated() throws Exception {
+      // control: a genuine bare (undeclared) assignment is real sloppy-mode implicit global --
+      // the one case in the matrix that is NOT a false positive and must keep gating.
+      assertGatedViaNamespace(
+         "if (true) { Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   // --- Adversarial tests added during independent re-verification (Bug #79346 / 04-verify.md) ---
+   // None of these shapes are covered by the 16 tests above: they either combine two gaps at once
+   // (A+D) or are the refuter's own live-tried stress shapes (for/switch-case let|const
+   // declarations) that were never turned into a JUnit case.
+
+   @Test
+   void aliasThenBracketAssignmentExposesItsNamespace() throws Exception {
+      // combines gap A (var g = this; registers g as an alias) with gap D (g["Ns"] = ... is a
+      // BRACKET_ASSIGNMENT, resolved via owner.aliases.contains(first) -- neither the 16 new tests
+      // nor the pre-existing suite exercise an alias created by gap A being read by gap D's own
+      // separate matcher loop).
+      assertGatedViaNamespace(
+         "var g = this;\ng[\"Ns\"] = { count: function() { return runQuery('q'); } };",
+         "Ns.count()");
+   }
+
+   @Test
+   void constDeclaredInsideAForLoopBodyIsNotIndexedAsARoot() throws Exception {
+      // the refuter's own live-tried stress shape (02-refute-ssl015.md section 3):
+      // for (var i = 0; i < 1; i++) { const X = runQuery(...); }
+      assertNotGated(
+         "for (var i = 0; i < 1; i++) { const C5 = runQuery('q'); }",
+         "var C5 = 2; C5");
+   }
+
+   @Test
+   void letDeclaredInUnbracedSwitchCaseIsNotIndexedAsARoot() throws Exception {
+      // the refuter's own live-tried stress shape (02-refute-ssl015.md section 3):
+      // switch (1) { case 1: let X = runQuery(...); break; } -- a DECLARATION (not an assignment,
+      // unlike unbracedSwitchCaseAssignmentIsGated above) directly inside an unbraced case.
+      assertNotGated(
+         "switch (1) { case 1: let C6 = runQuery('q'); break; }",
+         "var C6 = 2; C6");
+   }
+
+   // --- Review round 1 (05-review-community-r1.md) follow-up tests ---
+
+   @Test
+   void bracketKeyStringContainingALiteralCloseBracketDoesNotCorruptLaterScanning() throws Exception {
+      // Blocker 1: a bracket-key string's own content that itself contains a literal ] must not be
+      // spliced back raw into the stripped text -- doing so (the pre-fix behavior) produces an
+      // extra bracket character scopeOwners's own bracket-matching pass cannot tell apart from a
+      // real one, desyncing the frame stack for everything scanned afterward in the same entry.
+      // Here it prematurely pops "unrelated"'s own (never-reachable) function-body frame one
+      // statement early, which would wrongly make the following Ns assignment -- still textually
+      // inside that same dead function -- look load-time-reachable.
+      assertNotGated(
+         "function unrelated() {\n" +
+         "   Q[\"a]b\"] = 1;\n" +
+         "   Ns = { count: function() { return runQuery('q'); } };\n" +
+         "}",
+         "Ns");
+   }
+
+   @Test
+   void catchParameterInsideAGapFPromotedInstallerFunctionIsNotIndexedAsARoot() throws Exception {
+      // Blocker 2: gap F's post-hoc promotion of an installer function's body used to flatten
+      // every previously-unowned position straight to one brand-new synthetic frame, discarding a
+      // nested catch (X) { ... } block's own frame -- the one openFrame already populated with X in
+      // its own locals, independent of reachability -- reopening exactly the catch-parameter
+      // over-gating bug Problem 2's fix closed, but through gap F's own promotion path.
+      String lib =
+         "function install(g) {\n" +
+         "   try { foo(); } catch (X) { X = runQuery('q'); }\n" +
+         "   g.Ns = { count: function() { return runQuery('q'); } };\n" +
+         "}\n" +
+         "install(this);";
+
+      // the installer's own body is still correctly promoted/gated -- confirms this exercises gap
+      // F's promotion at all, rather than an installer that was never recognized in the first place
+      assertGatedViaNamespace(lib, "Ns.count()");
+      // ... but the catch parameter nested inside it must stay excluded
+      assertNotGated(lib, "var X = 2; X");
+   }
+
+   @Test
+   void destructiveDefaultParameterExpressionOnANeverCalledFunctionIsNotIndexedAsARoot() throws Exception {
+      // Important finding: gap C's blanket "a ( or [ does not open a new scope" fix also applied
+      // to a function/arrow's OWN parameter-list parens, not just an IIFE's call-argument parens --
+      // so a destructive default-parameter expression was wrongly treated as load-time-reachable
+      // merely because the function declaration itself sits in reachable code, even though it only
+      // executes if the function is actually called AND that argument is omitted.
+      assertNotGated(
+         "function foo(x = window.Ns = { count: function() { return runQuery('q'); } }) {}",
+         "Ns");
+   }
+
+   // --- Review bot hand-off round (05-review-community-bot-r1.md) follow-up tests -- B1 ---
+   // A let/const written directly at the Script Library entry's OWN top level -- zero enclosing
+   // { } of any kind -- must stay gated exactly like `var Ns`/a bare `Ns = ...` already are: a
+   // top-level let/const name is visible to every later script in the entry too, it is not a
+   // transient block-local. Only a let/const written inside a REAL nested block (SSL-015's own
+   // target, see the bare-block control below) is genuinely invisible outside its own braces.
+
+   @Test
+   void topLevelLetDeclarationWithObjectInitializerIsGated() throws Exception {
+      assertGatedViaNamespace("let Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void topLevelConstDeclarationWithObjectInitializerIsGated() throws Exception {
+      assertGatedViaNamespace("const Ns = { count: function() { return runQuery('q'); } };",
+                              "Ns.count()");
+   }
+
+   @Test
+   void topLevelLetDeclarationThenAssignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace(
+         "let Ns = {};\nNs.count = function() { return runQuery('q'); };", "Ns.count()");
+   }
+
+   @Test
+   void topLevelConstDeclarationThenAssignedMemberIsGated() throws Exception {
+      assertGatedViaNamespace(
+         "const Ns = {};\nNs.count = function() { return runQuery('q'); };", "Ns.count()");
+   }
+
+   /**
+    * Control for the four tests above: SSL-015's actual target, a let/const declared inside a
+    * genuine nested block (here a bare {@code { }} with no {@code if}/{@code for}/{@code switch}
+    * wrapping it at all) must stay correctly excluded -- this is what must NOT be reopened by the
+    * B1 fix above.
+    */
+   @Test
+   void letDeclaredInsideABareBlockIsNotIndexedAsARoot() throws Exception {
+      assertNotGated(
+         "{ let Ns = {}; Ns.count = function() { return runQuery('q'); }; }", "Ns");
+   }
+
    @Test
    void nonDestructiveNamespaceIsNotGated() throws Exception {
       ViewsheetScope scope = mock(ViewsheetScope.class);
@@ -1428,5 +1815,163 @@ class ScriptExecuteServiceTest {
       java.lang.reflect.Field f = XUtil.class.getDeclaredField("RUN_QUERY_OBSERVER");
       f.setAccessible(true);
       return ((ThreadLocal<?>) f.get(null)).get();
+   }
+
+   /**
+    * Bug #79369: an assembly script can write any assembly by name, so the own assembly
+    * ("Submit1", the script's host) plus every other named assembly must be tracked. Builds a
+    * sheet with one real Submit per name, wired as in {@link #viewsheetWithVsScript}, and puts
+    * the assembly script on "Submit1".
+    */
+   private RuntimeViewsheet viewsheetWithCrossAssemblyScript(String script, ViewsheetScope scope,
+                                                             Map<String, VSAScriptable> scriptables)
+   {
+      RuntimeViewsheet rvs = viewsheetWithVsScript(false, "", scope, scriptables);
+      SubmitVSAssemblyInfo own =
+         (SubmitVSAssemblyInfo) ((SubmitVSAssembly) rvs.getViewsheet().getAssembly("Submit1"))
+            .getVSAssemblyInfo();
+      own.setScript(script);
+      own.setOnClick(script);
+      own.setScriptEnabled(true);
+      return rvs;
+   }
+
+   private static VSAScriptable scriptableWith(List<String> unrecognized, List<String> rejected) {
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(scriptable.getUnrecognizedWrites()).thenReturn(unrecognized);
+      when(scriptable.getRejectedWrites()).thenReturn(rejected);
+      return scriptable;
+   }
+
+   @Test
+   void executeQualifiesAnUnrecognizedWriteToAnotherAssemblyFromAnAssemblyScript()
+      throws Exception
+   {
+      for(ScriptTarget.Kind kind :
+         List.of(ScriptTarget.Kind.ASSEMBLY_MAIN, ScriptTarget.Kind.ASSEMBLY_ON_CLICK))
+      {
+         String script = "Submit2.label = 'Notify Now';";
+         ViewsheetScope scope = mock(ViewsheetScope.class);
+         when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+         VSAScriptable own = scriptableWith(List.of(), List.of());
+         VSAScriptable other = scriptableWith(List.of("label"), List.of());
+         Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+         scriptables.put("Submit1", own);
+         scriptables.put("Submit2", other);
+         RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+         ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.of(kind, "Submit1"), false);
+
+         assertTrue(result.ok(), kind.toString());
+         assertEquals(List.of(), result.changed(), kind.toString());
+         assertEquals(List.of("Submit2.label"), result.unrecognizedProperties(), kind.toString());
+         assertTrue(result.summary().contains("Submit2.label"), result.summary());
+         assertFalse(result.summary().contains("for this assembly type"), result.summary());
+         verify(own).resetUnrecognizedWrites();
+         verify(other).resetUnrecognizedWrites();
+         verify(other).resetRejectedWrites();
+      }
+   }
+
+   @Test
+   void executeReportsOwnUnrecognizedWriteBareAndOtherQualifiedWhenMixed() throws Exception {
+      String script = "Submit1.label = 'a'; Submit2.label = 'b';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of("label"), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of("label"), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of("label", "Submit2.label"), result.unrecognizedProperties());
+      assertEquals(List.of(), result.changed());
+   }
+
+   @Test
+   void executeKeepsTwoOtherAssembliesDistinguishableFromAnAssemblyScript() throws Exception {
+      String script = "Submit2.label = 'a'; Submit3.label = 'b';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of("label"), List.of()));
+      scriptables.put("Submit3", scriptableWith(List.of("label"), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Submit1"), false);
+
+      assertEquals(List.of("Submit2.label", "Submit3.label"), result.unrecognizedProperties());
+   }
+
+   /**
+    * Risk A: BindingRootProxy.putMember sends a script-local that collides with a Calc function
+    * name to the root scope of the execution, which for an assembly script is the OWN assembly's
+    * scriptable. So the declared-locals filter applies to the own entry only: a local on the own
+    * scriptable is hidden, while another assembly's same-named write is still reported.
+    */
+   @Test
+   void executeAppliesDeclaredLocalsFilterOnlyToTheOwnAssemblyEntry() throws Exception {
+      String script = "var maxDate = 1; var label = 2; Submit2.label = 'x';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of("maxDate", "label"), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of("label"), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of("Submit2.label"), result.unrecognizedProperties());
+   }
+
+   @Test
+   void executeQualifiesARejectedWriteToAnotherAssemblyFromAnAssemblyScript() throws Exception {
+      String script = "Submit2.position = new Point(1, 2); Submit1.position = new Point(3, 4);";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of("position")));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of("position")));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("position", "Submit2.position"), result.unrecognizedProperties());
+   }
+
+   @Test
+   void executeStaysCleanWhenNoAssemblyDroppedAWriteFromAnAssemblyScript() throws Exception {
+      String script = "Submit2.enabled = false;";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1");
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, target, false);
+
+      assertEquals(List.of(target.toString()), result.changed());
+      assertNull(result.unrecognizedProperties());
    }
 }

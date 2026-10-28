@@ -68,6 +68,7 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.MessageException;
 import inetsoft.web.admin.security.PropertyModel;
@@ -77,6 +78,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -334,6 +336,53 @@ class PropertiesControllerTest {
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("my.setting", "hello world"));
       sreeEnvStatic.verify(SreeEnv::save);
       verify(sideEffects).applyEditSideEffects("my.setting");
+   }
+
+   // [security.users.multiTenant=true, LDAP provider exists] Bug #79234: refused, nothing stored
+   @Test
+   void editProperty_multiTenantTrue_ldapProviderExists_isRefused() throws Exception {
+      SecurityEngine engine = mock(SecurityEngine.class);
+      when(engine.getLdapAuthenticationProviderNames()).thenReturn(List.of("corp-ldap"));
+
+      try(MockedStatic<SecurityEngine> securityStatic = mockStatic(SecurityEngine.class)) {
+         securityStatic.when(SecurityEngine::getSecurity).thenReturn(engine);
+         PropertyModel property = PropertyModel.builder()
+            .name("security.users.multiTenant").value("true").build();
+
+         MessageException e = assertThrows(MessageException.class,
+                                           () -> controller.editProperty(principal, property));
+
+         assertTrue(e.getMessage().contains("corp-ldap"), e.getMessage());
+      }
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());
+   }
+
+   // [security.users.multiTenant=true, no LDAP provider] stored as normal
+   @Test
+   void editProperty_multiTenantTrue_noLdapProvider_isStored() throws Exception {
+      SecurityEngine engine = mock(SecurityEngine.class);
+      when(engine.getLdapAuthenticationProviderNames()).thenReturn(List.of());
+
+      try(MockedStatic<SecurityEngine> securityStatic = mockStatic(SecurityEngine.class)) {
+         securityStatic.when(SecurityEngine::getSecurity).thenReturn(engine);
+         controller.editProperty(principal, PropertyModel.builder()
+            .name("security.users.multiTenant").value("true").build());
+      }
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("security.users.multiTenant", "true"));
+   }
+
+   // [security.users.multiTenant=false, LDAP provider exists] turning it off is not affected
+   @Test
+   void editProperty_multiTenantFalse_ldapProviderExists_isStored() throws Exception {
+      try(MockedStatic<SecurityEngine> securityStatic = mockStatic(SecurityEngine.class)) {
+         controller.editProperty(principal, PropertyModel.builder()
+            .name("security.users.multiTenant").value("false").build());
+         securityStatic.verifyNoInteractions();
+      }
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("security.users.multiTenant", "false"));
    }
 
    // [empty value] reads existing value from SreeEnv; stores it back unchanged

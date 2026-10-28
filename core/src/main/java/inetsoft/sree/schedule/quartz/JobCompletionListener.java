@@ -206,8 +206,22 @@ public class JobCompletionListener extends JobListenerSupport {
              .getJobKeys(GroupMatcher.jobGroupEquals(Scheduler.GROUP_NAME)))
          {
             JobDetail jobDetail = context.getScheduler().getJobDetail(jobKey);
+
+            // Bug #79262, a key listed in the group index with no job (an orphan left by a
+            // concurrent replace) must not stop the other dependants from being triggered
+            if(jobDetail == null) {
+               LOG.warn("Skipping job key {} listed in group {} but with no job detail",
+                        jobKey, Scheduler.GROUP_NAME);
+               continue;
+            }
+
             ScheduleTask task = (ScheduleTask) jobDetail.getJobDataMap()
                .get(ScheduleTask.class.getName());
+
+            if(task == null) {
+               LOG.warn("Skipping job {} with no schedule task", jobKey);
+               continue;
+            }
 
             if(!task.isEnabled()) {
                continue;

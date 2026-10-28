@@ -225,7 +225,12 @@ public class ModifyCalculateFieldService {
 
          if(cinfo == null || srcInfo == null) {
             SourceInfo src = new SourceInfo(SourceInfo.ASSET, null, tname);
-            cinfo = new DefaultVSChartInfo();
+            // keep an existing info so an explicitly set chart type (e.g. radar) of a
+            // source-less chart is not reset to auto
+            if(cinfo == null) {
+               cinfo = new DefaultVSChartInfo();
+            }
+
             chart.setSourceInfo(src);
             chart.setVSChartInfo(cinfo);
             chart.getVSChartInfo().setAggregateInfo(new AggregateInfo());

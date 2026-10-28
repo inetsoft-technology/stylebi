@@ -275,7 +275,10 @@ public class ImportTaskController {
     * are moved to the caller's current organization, the same as a site admin deploy import.
     */
    private ScheduleTask parseTask(Element ele, Principal principal) throws Exception {
-      return identityChecker.parseImportedTask(ele, principal);
+      ScheduleTask task = identityChecker.parseImportedTask(ele, principal);
+      // Bug #79236, an hour or minute out of range can repeat a fire of the task
+      task.validateTimeConditions();
+      return task;
    }
 
    /**

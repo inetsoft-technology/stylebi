@@ -17,6 +17,20 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AttachedAssembly;
+import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.NamedGroupInfo;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
@@ -46,11 +60,15 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @WizAgentTestSupport
 @Tag("core")
@@ -590,6 +608,338 @@ class ChartBindingMutatorTest {
          "order must not be left with the SORT_SPECIFIC bit set once the named group backing " +
          "it is dropped");
       assertNull(dimension.getNamedGroupInfo());
+   }
+
+   // -- bug #79314: re-sending an already-grouped dimension keeps its sort direction ----------
+   //
+   // toChartRef forces SORT_SPECIFIC on every freshly built ref that carries a group, and
+   // preserveDimensionState used to skip the order copy whenever the incoming field carried a
+   // group, so a read-then-write echo of {State, group, desc} read back "manual". The rule now
+   // mirrors TableBindingMutator.dimensions() (stylebi#7101, bug #78937): a previous ref that
+   // already had a real group keeps its order; a first-time group stays SORT_SPECIFIC.
+
+   private static FieldRef.NamedGroupValues westGroup(String... members) {
+      return new FieldRef.NamedGroupValues(
+         List.of(new FieldRef.NamedGroupValues.Clause("West", List.of(members))), null);
+   }
+
+   private static FieldRef groupedRegion(FieldRef.NamedGroupValues group) {
+      return new FieldRef("Region", "dimension", null, null, null, null, null, group);
+   }
+
+   private static ChartDimensionRefModel xDimension(ChartBindingModel model) {
+      return (ChartDimensionRefModel) model.getXFields().get(0);
+   }
+
+   @Test
+   void resendingTheSameGroupedDimensionKeepsItsDescSort() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+      assertEquals("desc",
+         ((Map<?, ?>) ChartBindingMutator.describeSorts(model, "x").get("Region"))
+            .get("direction"));
+      assertNotNull(xDimension(model).getNamedGroupInfo());
+   }
+
+   @Test
+   void resendingAGroupedDimensionWithChangedMembersKeepsItsDescSort() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(groupedRegion(westGroup("CA", "OR", "WA"))));
+
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+      assertNotNull(xDimension(model).getNamedGroupInfo());
+   }
+
+   @Test
+   void resendingAGroupedDimensionKeepsAnExplicitAscSort() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("asc"));
+      assertEquals(XConstants.SORT_ASC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_ASC, xDimension(model).getOrder());
+   }
+
+   @Test
+   void addingAGroupToAnUngroupedDimensionStillReadsManual() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+      assertEquals("manual",
+         ((Map<?, ?>) ChartBindingMutator.describeSorts(model, "x").get("Region"))
+            .get("direction"));
+   }
+
+   @Test
+   void aFirstTimeGroupOnAFreshShelfStillReadsManual() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+   }
+
+   @Test
+   void resendingAManualGroupedDimensionKeepsItsManualOrder() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("manual", null, List.of("West", "Other")));
+      List<String> manualOrder = new ArrayList<>(xDimension(model).getManualOrder());
+      assertFalse(manualOrder.isEmpty());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(groupedRegion(westGroup("CA", "OR"))));
+
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+      assertEquals(manualOrder, xDimension(model).getManualOrder());
+   }
+
+   @Test
+   void resendingAGroupedDimensionOnTheYAndGroupShelvesKeepsItsDescSort() {
+      for(String shelf : List.of("y", "group")) {
+         ChartBindingModel model = new ChartBindingModel();
+         ChartBindingMutator.setShelf(model, shelf, List.of(groupedRegion(westGroup("CA", "OR"))));
+         ChartBindingMutator.setSort(model, shelf, "Region", null, sortOf("desc"));
+
+         ChartBindingMutator.setShelf(model, shelf, List.of(groupedRegion(westGroup("CA", "OR"))));
+
+         List<?> fields = "y".equals(shelf) ? model.getYFields() : model.getGroupFields();
+         assertEquals(XConstants.SORT_DESC, ((ChartDimensionRefModel) fields.get(0)).getOrder(),
+                      shelf);
+      }
+   }
+
+   @Test
+   void resendingAGroupedDimensionByWorksheetLocalNameKeepsItsDescSort() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "Region"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(source);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "Region"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ ngAssembly });
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      DataRefModelFactoryService refModelService = mock(DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+
+      FieldRef byName = new FieldRef("Region", "dimension", null, null, "Coastal");
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(byName), rvs, source, refModelService);
+      assertEquals(XConstants.SORT_SPECIFIC, xDimension(model).getOrder());
+      ChartBindingMutator.setSort(model, "x", "Region", null, sortOf("desc"));
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(byName), rvs, source, refModelService);
+
+      assertEquals(XConstants.SORT_DESC, xDimension(model).getOrder());
+      assertNotNull(xDimension(model).getNamedGroupInfo());
+   }
+
+   // -- bug #79342: a worksheet-local group read back as "Custom" is accepted as an echo ------
+
+   private static DefaultNamedGroupAssembly worksheetGroup(String name, SourceInfo source,
+                                                           int operation, String value)
+   {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(operation);
+      when(condition.getValues()).thenReturn(List.of(value));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "STATE"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("M states", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn(name);
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(source);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "STATE"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+      return ngAssembly;
+   }
+
+   private static RuntimeViewsheet rvsWith(DefaultNamedGroupAssembly... groups) {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(groups);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private static DataRefModelFactoryService refModels() {
+      DataRefModelFactoryService refModelService = mock(DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenReturn(mock(DataRefModel.class));
+      return refModelService;
+   }
+
+   private static final FieldRef BY_NG1 = new FieldRef("STATE", "dimension", null, null, "Ng1");
+   private static final FieldRef CUSTOM = new FieldRef("STATE", "dimension", null, null, "Custom");
+
+   /** Stores Ng1 on x, then renames the stored group to the read-back placeholder. */
+   private static ChartBindingModel modelReadingBackCustom(
+      RuntimeViewsheet rvs, SourceInfo source, int fields)
+      throws Exception
+   {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", Collections.nCopies(fields, BY_NG1),
+                                   rvs, source, refModels());
+
+      for(Object ref : model.getXFields()) {
+         ((ChartDimensionRefModel) ref).getNamedGroupInfo().setName("Custom");
+      }
+
+      return model;
+   }
+
+   private static org.mockito.MockedStatic<inetsoft.uql.asset.internal.AssetUtil> noRepository() {
+      org.mockito.MockedStatic<inetsoft.uql.asset.internal.AssetUtil> assetUtil =
+         org.mockito.Mockito.mockStatic(inetsoft.uql.asset.internal.AssetUtil.class);
+      assetUtil.when(() -> inetsoft.uql.asset.internal.AssetUtil.getAssetRepository(false))
+         .thenReturn(null);
+      return assetUtil;
+   }
+
+   @Test
+   void aCustomEchoOnAChartShelfKeepsTheStoredGroupAndItsConditions() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 1);
+         var before = xDimension(model).getNamedGroupInfo();
+         assertFalse(before.getConditions().isEmpty());
+
+         ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source, refModels());
+
+         var after = xDimension(model).getNamedGroupInfo();
+         assertNotNull(after);
+         assertEquals(inetsoft.uql.util.XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, after.getType());
+         // Carried whole: the per-group conditions survive, not a flattened membership list.
+         assertSame(before.getConditions(), after.getConditions());
+      }
+   }
+
+   @Test
+   void aCustomWithNoPreviousExpertGroupStillThrowsTheFieldNamedError() {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = new ChartBindingModel();
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source,
+                                               refModels()));
+
+         assertTrue(
+            thrown.getMessage().contains("'Custom' is not a named group on column 'STATE'"));
+      }
+   }
+
+   @Test
+   void twoSameColumnCustomPlaceholdersAreRefusedWithAListNamedGroupsHint() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 2);
+
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM, CUSTOM), rvs, source,
+                                               refModels()));
+
+         assertTrue(thrown.getMessage().contains("list_named_groups"));
+      }
+   }
+
+   @Test
+   void clearingTheGroupWithNullValuesIsNotResurrectedByTheEchoPath() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs =
+         rvsWith(worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 1);
+         FieldRef clear = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+            "{\"column\":\"STATE\",\"type\":\"dimension\",\"namedGroupValues\":null}",
+            FieldRef.class);
+
+         ChartBindingMutator.setShelf(model, "x", List.of(clear), rvs, source, refModels());
+
+         assertNull(xDimension(model).getNamedGroupInfo());
+      }
+   }
+
+   @Test
+   void aRealWorksheetGroupNamedCustomWinsOverTheEcho() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs = rvsWith(
+         worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"),
+         worksheetGroup("Custom", source, Condition.STARTING_WITH, "N"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 1);
+         var before = xDimension(model).getNamedGroupInfo();
+
+         ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source, refModels());
+
+         assertNotSame(before.getConditions(),
+                       xDimension(model).getNamedGroupInfo().getConditions());
+      }
+   }
+
+   @Test
+   void aRealGroupNamedCustomWinsEvenWhenTwoPreviousPlaceholdersAreAmbiguous() throws Exception {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+      RuntimeViewsheet rvs = rvsWith(
+         worksheetGroup("Ng1", source, Condition.STARTING_WITH, "M"),
+         worksheetGroup("Custom", source, Condition.STARTING_WITH, "N"));
+
+      try(var ignored = noRepository()) {
+         ChartBindingModel model = modelReadingBackCustom(rvs, source, 2);
+         var before = xDimension(model).getNamedGroupInfo();
+
+         ChartBindingMutator.setShelf(model, "x", List.of(CUSTOM), rvs, source, refModels());
+
+         assertNotSame(before.getConditions(),
+                       xDimension(model).getNamedGroupInfo().getConditions());
+      }
    }
 
    // ── measure calculateInfo/secondaryY survive a shelf rewrite (bug #76896) ────────────────

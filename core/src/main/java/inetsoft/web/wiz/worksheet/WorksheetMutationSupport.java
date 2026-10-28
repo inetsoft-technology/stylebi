@@ -39,6 +39,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
+import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
@@ -510,7 +511,9 @@ public final class WorksheetMutationSupport {
                   return new NamedGroupRetargetConflict(table.getName(), ref.getAttribute());
                }
 
-               ColumnSelection cs = table.getColumnSelection(true);
+               // The private selection: a hidden column is absent from the public one, which would
+               // skip the table here although the group still maps through the hidden column.
+               ColumnSelection cs = table.getColumnSelection(false);
                DataRef column = cs == null ? null : cs.getAttribute(ref.getName());
 
                if(column instanceof ColumnRef columnRef &&
@@ -694,7 +697,7 @@ public final class WorksheetMutationSupport {
          }
 
          for(int i = 0; i < values.length; i++) {
-            Object value = conditionValue(dtype, values[i]);
+            Object value = parseConditionLiteral(t, dtype, values[i]);
 
             // Bug #78145 (WSC-008): the same leftover-literal guard buildConditionList runs.
             // add_filter/edit_condition take no valueSpecs, so only the column-name heuristic
@@ -3669,7 +3672,6 @@ public final class WorksheetMutationSupport {
     *                       constructors below) keeps the original append-only behavior for a
     *                       caller not resubmitting a readback.
     */
-   @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
    public record ConditionValueSpec(String valueType, String field, String expression,
                                     String expressionType, String subQueryName,
                                     String inSubQueryColumn,
@@ -3778,6 +3780,18 @@ public final class WorksheetMutationSupport {
                throw new IllegalArgumentException(
                   "A 'subquery' valueSpec's subQueryName \"" + spec.subQueryName() +
                   "\" does not exist as a table in this worksheet.");
+            }
+
+            // Bug #79328: refused before anything is stored. A stored cycle (e.g. a mirror of
+            // this table used as its own subquery) makes every later update()/dependency walk
+            // recurse until StackOverflowError, so no read of the worksheet works any more.
+            if(WorksheetEventUtil.checkCyclicalDependency(ws, t, subqueryTable)) {
+               throw new IllegalArgumentException(
+                  "A 'subquery' valueSpec on table \"" + t.getName() + "\" cannot use \"" +
+                  spec.subQueryName() + "\" as its subquery table: \"" + spec.subQueryName() +
+                  "\" already depends on \"" + t.getName() + "\", so this would form a " +
+                  "dependency cycle. Build the subquery table from the underlying source " +
+                  "instead of from a mirror, join or condition of \"" + t.getName() + "\".");
             }
 
             // resolveFieldOrNull (not a bare ColumnSelection.getAttribute() call) so a
@@ -4062,7 +4076,7 @@ public final class WorksheetMutationSupport {
                      // routes every value through convertType, whose UserVariable branch
                      // (Condition:2129-2149) sets the type node from the condition's own type, so
                      // the variable was typed from the column either way.
-                     Object value = conditionValue(dtype, v);
+                     Object value = parseConditionLiteral(t, dtype, v);
 
                      if(value instanceof UserVariable uv &&
                         spec.choiceQuery() != null && !spec.choiceQuery().isBlank())
@@ -4189,6 +4203,8 @@ public final class WorksheetMutationSupport {
                   }
                }
 
+               requireSubQueryShape(t, post, spec, op, resolvedValues);
+
                // Bug #78394: counted after the valueSpecs replace/append step, so a field
                // comparison that has only valueSpecs (A = B) counts its one value, and after the
                // leftover-literal checks above, whose messages name the actual mistake.
@@ -4283,15 +4299,18 @@ public final class WorksheetMutationSupport {
 
    /**
     * Sets the table's whole ranking condition list from {@code specs}, in order — the plural
-    * counterpart to {@link #setRanking}, for establishing more than one independent ranked
-    * field (e.g. top 3 customers by revenue AND top 3 employees by order count) in a single
-    * call. {@code null} or empty clears all ranking, matching {@code setRanking(t, null)}.
+    * counterpart to {@link #setRanking}. {@code null} or empty clears all ranking, matching
+    * {@code setRanking(t, null)}. Two or more entries are accepted only in the shape the engine
+    * evaluates (see {@link #checkMultipleRankingsEvaluable}): a grouped table with a different
+    * group column per entry, applied as a nested per-parent top-N, not as an intersection.
     */
    public static void setRankings(TableAssembly t, List<RankingSpec> specs) {
       if(specs == null || specs.isEmpty()) {
          t.setRankingConditionList(new ConditionList());
          return;
       }
+
+      checkMultipleRankingsEvaluable(t, specs);
 
       ConditionList cl = new ConditionList();
       boolean first = true;
@@ -4312,6 +4331,77 @@ public final class WorksheetMutationSupport {
       }
 
       t.setRankingConditionList(cl);
+   }
+
+   /**
+    * Refuses a list of two or more rankings that the query engine would not evaluate as
+    * written, before anything is mutated. The engine never intersects independent ranking
+    * conditions and never reads the stored junction: on an ungrouped table, or for an entry on
+    * an aggregate, it applies only the first entry; for two entries on one group column it keeps
+    * only the last. The one multi-entry shape that works is a different group column per entry,
+    * each with an {@code of} aggregate, which the grouped path applies as a nested per-parent
+    * top-N following the table's group order. Anything else would be stored and silently
+    * ignored, so it is refused. A single entry, or an empty list, is not checked.
+    * <p>
+    * Each {@code field} is resolved with {@link #resolveAggregateOrGroupField} and each
+    * {@code of} with {@code resolveField(t, of, true)}, the calls
+    * {@link #buildRankingConditionItem} stores them with, so the check sees what the engine will.
+    * Consequences: the view form of an aliased aggregate (e.g. {@code Sum(Q)} for an aggregate
+    * with an alias) is not an accepted {@code of}, and a group column named like an aggregate's
+    * base column resolves to the aggregate and is refused.
+    */
+   private static void checkMultipleRankingsEvaluable(TableAssembly t, List<RankingSpec> specs) {
+      if(specs.size() < 2) {
+         return;
+      }
+
+      String why = null;
+      AggregateInfo ainfo = t.getAggregateInfo();
+
+      if(ainfo == null || ainfo.getGroupCount() == 0) {
+         why = "the table is not grouped";
+      }
+      else {
+         Set<String> groups = new HashSet<>();
+
+         for(RankingSpec spec : specs) {
+            if(spec == null) {
+               why = "an entry is empty";
+               break;
+            }
+
+            DataRef field = resolveAggregateOrGroupField(t, spec.field());
+
+            if(!(field instanceof GroupRef)) {
+               why = "'" + spec.field() + "' is not a group column of this table";
+               break;
+            }
+
+            if(!groups.add(field.getName())) {
+               why = "group column '" + spec.field() + "' is ranked more than once";
+               break;
+            }
+
+            if(spec.of() == null || spec.of().isBlank()) {
+               why = "the ranking on '" + spec.field() + "' has no 'of' aggregate";
+               break;
+            }
+
+            if(!(resolveField(t, spec.of(), true) instanceof AggregateRef)) {
+               why = "'of' \"" + spec.of() + "\" is not an aggregate of this table";
+               break;
+            }
+         }
+      }
+
+      if(why != null) {
+         throw new IllegalArgumentException(
+            "set_rankings: more than one ranking is only supported on a grouped table with each " +
+            "ranking on a different group column and an 'of' aggregate (" + why + "). Rankings " +
+            "on the same group column, on an aggregate, on an ungrouped table, or without 'of' " +
+            "are not applied together - only one of them would take effect. Use one ranking, " +
+            "or rank different group columns.");
+      }
    }
 
    /**
@@ -5256,6 +5346,29 @@ public final class WorksheetMutationSupport {
    private static final java.util.regex.Pattern SUBQUERY_DISPLAY_TEXT =
       java.util.regex.Pattern.compile("^Query\\[(.+)\\]$");
 
+   private static boolean isSubQueryDisplayText(TableAssembly t, String value) {
+      return isSubQueryDisplayText(t, SUBQUERY_DISPLAY_TEXT.matcher(value));
+   }
+
+   private static boolean isSubQueryDisplayText(TableAssembly t, java.util.regex.Matcher m) {
+      return m.matches() && t.getWorksheet() != null &&
+         t.getWorksheet().getAssembly(m.group(1)) instanceof TableAssembly;
+   }
+
+   /**
+    * Parses a raw condition literal for its column type. A boolean column's strict true/false
+    * parse is skipped for sub query display text so a matching valueSpecs entry can replace it
+    * (the read_worksheet_model round trip) and an unreplaced one reaches
+    * {@link #requireNotSubQueryDisplayText} instead of the boolean message.
+    */
+   private static Object parseConditionLiteral(TableAssembly t, String dtype, String value) {
+      if(XSchema.BOOLEAN.equals(dtype) && isSubQueryDisplayText(t, value)) {
+         return value;
+      }
+
+      return conditionValue(dtype, value);
+   }
+
    /**
     * Refuses a literal of the form {@code Query[name]} when {@code name} is a table in the
     * worksheet: that is {@code SubQueryValue.toString()}, the text {@code read_worksheet_model}
@@ -5273,9 +5386,7 @@ public final class WorksheetMutationSupport {
    {
       java.util.regex.Matcher m = SUBQUERY_DISPLAY_TEXT.matcher(value);
 
-      if(m.matches() && t.getWorksheet() != null &&
-         t.getWorksheet().getAssembly(m.group(1)) instanceof TableAssembly)
-      {
+      if(isSubQueryDisplayText(t, m)) {
          String spec = "{index: " + i + ", valueType: \"subquery\", subQueryName: \"" +
             m.group(1) + "\", inSubQueryColumn: \"<column on " + m.group(1) + ">\", where?}";
          String remedy = specsAvailable
@@ -5655,6 +5766,93 @@ public final class WorksheetMutationSupport {
       }
 
       return value;
+   }
+
+   /**
+    * Bug #79328: refuses a subquery value in a shape the engine cannot evaluate, instead of
+    * storing it and failing at preview with a raw database error. The engine
+    * ({@code AssetCondition.getSubQueryValue}, {@code PreAssetQuery.createCondNode}) runs a
+    * subquery only for =, &lt;, &lt;=, &gt;, &gt;= and ONE_OF (negation is applied outside), and
+    * only when it is the condition's single value; any other shape evaluates it as a literal or
+    * silently as {@code =}. The column types are compared only when both are actually known,
+    * since an untyped column reports {@code string}.
+    */
+   private static void requireSubQueryShape(TableAssembly t, boolean post, ConditionSpec spec,
+                                            int op, List<Object> values)
+   {
+      SubQueryValue sub = null;
+
+      for(Object value : values) {
+         if(value instanceof SubQueryValue sv) {
+            sub = sv;
+            break;
+         }
+      }
+
+      if(sub == null) {
+         return;
+      }
+
+      String field = spec.field();
+      String name = spec.operation() == null || spec.operation().isBlank() ? "=" :
+         spec.operation();
+
+      if(op != XCondition.EQUAL_TO && op != XCondition.LESS_THAN &&
+         op != XCondition.GREATER_THAN && op != XCondition.ONE_OF)
+      {
+         throw new IllegalArgumentException(
+            "A subquery valueSpec cannot be used with " + name + " on \"" + field + "\": the " +
+            "engine evaluates a subquery only for =, !=, <, <=, >, >=, ONE_OF and NOT_ONE_OF. " +
+            "Use one of those operations.");
+      }
+
+      if(values.size() != 1) {
+         throw new IllegalArgumentException(
+            "A subquery valueSpec must be the only value of the condition on \"" + field +
+            "\" (got " + values.size() + " values): it cannot be mixed with literals or with " +
+            "another subquery, because the engine would not evaluate it as a subquery.");
+      }
+
+      DataRef col = resolveField(t, field, post);
+      DataRef subCol = sub.getAttribute();
+
+      if(col == null || subCol == null || !isTypeKnown(col) || !isTypeKnown(subCol)) {
+         return;
+      }
+
+      String colType = inferColumnType(t, field, post);
+      String subType = subCol.getDataType();
+
+      if(!typeFamily(colType).equals(typeFamily(subType))) {
+         throw new IllegalArgumentException(
+            "A subquery valueSpec on \"" + field + "\" compares a " + colType + " column with " +
+            sub.getQuery() + "." + subCol.getName() + ", a " + subType + " column; the " +
+            "database cannot compare these types. Pick a subquery column of a comparable type " +
+            "(numeric with numeric, text with text, date with date).");
+      }
+   }
+
+   private static boolean isTypeKnown(DataRef col) {
+      String type = col.getDataType();
+
+      if(type == null || type.isBlank()) {
+         return false;
+      }
+
+      return col.isDataTypeSet() || !XSchema.STRING.equals(type) ||
+         col instanceof ColumnRef cr && cr.getDataRef() != null && cr.getDataRef().isDataTypeSet();
+   }
+
+   private static String typeFamily(String type) {
+      if(XSchema.isNumericType(type)) {
+         return "numeric";
+      }
+
+      if(XSchema.isDateType(type)) {
+         return "date";
+      }
+
+      return XSchema.BOOLEAN.equals(type) ? "boolean" : "string";
    }
 
    /**

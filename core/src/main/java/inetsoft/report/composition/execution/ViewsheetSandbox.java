@@ -1741,6 +1741,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          VariableTable ovars = getVariableTable().clone();
 
          try {
+            // a saved selection is not applied to the tables until processSelections() below,
+            // apply it now so the onLoad script reads the filtered data (#79367)
+            applySelectionsToTables(Arrays.stream(arr)
+               .filter(a -> a instanceof SelectionVSAssembly)
+               .map(a -> (SelectionVSAssembly) a).collect(Collectors.toList()));
+
+            if(hasOnLoadScript()) {
+               resetScriptable();
+            }
+
             processOnLoad(clist, true);
 
             // if variable is changed in onLoad, the variable may impact the result of
@@ -2287,11 +2297,54 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          vs.fireEvent(Viewsheet.BINDING_CHANGED, name);
       }
 
+      // the onLoad script reads the data of the tables, which must already be filtered by the
+      // changed selection, otherwise it sees the previous selection's data (#79367)
+      if(vs.getAssembly(name) instanceof SelectionVSAssembly) {
+         applySelectionsToTables(Collections.singletonList((SelectionVSAssembly) vs.getAssembly(name)));
+      }
+
       resetScriptable(type);
       processOnInit();
       processOnLoad(clist, true);
       processChange0(name, hint, clist);
    }
+
+   /**
+    * Apply the selections to the tables depending on them, and drop the cached data of the
+    * assemblies on those tables so it is queried again under the new conditions. The onLoad
+    * script reads such data, so this is only done if there is an onLoad script to run.
+    * Dispatching and the processed state of the assemblies are left to processSelections().
+    */
+   private void applySelectionsToTables(Collection<SelectionVSAssembly> selections)
+      throws Exception
+   {
+      if(!hasOnLoadScript()) {
+         return;
+      }
+
+      Set<String> tables = new HashSet<>();
+
+      for(SelectionVSAssembly selection : selections) {
+         tables.addAll(getDependentTableNames(selection));
+      }
+
+      applySelectionConditions(tables);
+
+      for(Assembly vassembly : vs.getAssemblies()) {
+         if(vassembly instanceof VSAssembly &&
+            tables.contains(((VSAssembly) vassembly).getTableName()))
+         {
+            resetDataMap(vassembly.getName());
+         }
+      }
+   }
+
+   private boolean hasOnLoadScript() {
+      String onload = vs.getViewsheetInfo().getOnLoad();
+      return vs.getViewsheetInfo().isScriptEnabled() && onload != null &&
+         !onload.trim().isEmpty();
+   }
+
 
    /**
     * Reset scope.
@@ -2894,9 +2947,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       String onload = vs.getViewsheetInfo().getOnLoad();
       onLoadExeced = true;
 
-      if(!vs.getViewsheetInfo().isScriptEnabled() ||
-         onload == null || onload.trim().length() == 0)
-      {
+      if(!hasOnLoadScript()) {
          return;
       }
 
@@ -5481,27 +5532,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         final Set<SelectionVSAssembly> selections = new HashSet<>();
-         final Set<String> dependentTableNames;
-
-         if(isUnsupportedSelection(assembly)) {
-            dependentTableNames = new HashSet<>();
-         }
-         else if(assembly instanceof AssociatedSelectionVSAssembly) {
-            final SelectionVSAssembly[] sarr =
-               SelectionVSUtil.getRelatedSelectionAssemblies((AssociatedSelectionVSAssembly) assembly)
-                  .toArray(new SelectionVSAssembly[0]);
-            dependentTableNames = Arrays.stream(sarr)
-               .flatMap((s) -> s.getTableNames().stream())
-               .collect(Collectors.toSet());
-         }
-         else {
-            dependentTableNames = new HashSet<>(assembly.getTableNames());
-         }
-
-         for(String tname : dependentTableNames) {
-            selections.addAll(refreshRuntimeConditionList(tname, false, new HashSet<>()));
-         }
+         final Set<SelectionVSAssembly> selections =
+            applySelectionConditions(getDependentTableNames(assembly));
 
          selections.forEach((s) -> clist.getSelectionList().remove(s.getAssemblyEntry()));
 
@@ -5534,6 +5566,41 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          throw ex;
       }
+   }
+
+   /**
+    * Get the worksheet tables whose runtime conditions depend on the selection.
+    */
+   private Set<String> getDependentTableNames(SelectionVSAssembly assembly) {
+      if(isUnsupportedSelection(assembly)) {
+         return new HashSet<>();
+      }
+      else if(assembly instanceof AssociatedSelectionVSAssembly) {
+         final SelectionVSAssembly[] sarr =
+            SelectionVSUtil.getRelatedSelectionAssemblies((AssociatedSelectionVSAssembly) assembly)
+               .toArray(new SelectionVSAssembly[0]);
+         return Arrays.stream(sarr)
+            .flatMap((s) -> s.getTableNames().stream())
+            .collect(Collectors.toSet());
+      }
+
+      return new HashSet<>(assembly.getTableNames());
+   }
+
+   /**
+    * Install the current state of the selections as runtime conditions on the tables.
+    * @return the selection assemblies sharing those tables.
+    */
+   private Set<SelectionVSAssembly> applySelectionConditions(Set<String> tables)
+      throws Exception
+   {
+      final Set<SelectionVSAssembly> selections = new HashSet<>();
+
+      for(String tname : tables) {
+         selections.addAll(refreshRuntimeConditionList(tname, false, new HashSet<>()));
+      }
+
+      return selections;
    }
 
    private boolean isUnsupportedSelection(VSAssembly assembly) {
@@ -9555,6 +9622,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    public AtomicBoolean needRefresh = new AtomicBoolean();
    // run view during export it.
    public static final ThreadLocal<Boolean> exportRefresh =
+      ThreadLocal.withInitial(() -> Boolean.FALSE);
+   // a refresh that must keep the runtime values scripts and events wrote (the refresh a wiz
+   // script run triggers), but still reruns onLoad and recomputes the dependents. (79395)
+   public static final ThreadLocal<Boolean> keepRuntimeValuesRefresh =
       ThreadLocal.withInitial(() -> Boolean.FALSE);
    private boolean refreshing = false;
    private final AssetEntry entry; // asset entry

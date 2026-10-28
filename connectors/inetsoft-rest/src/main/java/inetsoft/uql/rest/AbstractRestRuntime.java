@@ -69,6 +69,7 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
 
          TimedQueue.TimedRunnable timeoutRunnable = null;
          final boolean[] timedOut = { false };
+         final int[] effectiveTimeout = { 0 };
          final List<UserMessage> userMsgs = new ArrayList<>();
 
          try {
@@ -104,6 +105,7 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
                   timeout *= ((RestJsonQuery) query).getLookupCount() * 2 + 1;
                }
 
+               effectiveTimeout[0] = timeout;
                TimedQueue.add(timeoutRunnable = new TimedQueue.TimedRunnable(timeout * 1000L) {
                   @Override
                   public void run() {
@@ -122,6 +124,10 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
                TimedQueue.remove(timeoutRunnable);
 
                if(timedOut[0]) {
+                  // structured, so a caller can say "timed out after N s" without matching the
+                  // localized message below (see TabularQuery.getTimedOutSeconds)
+                  query.setTimedOutSeconds(effectiveTimeout[0]);
+
                   // a cancelled live/preview query already returns whatever partial data
                   // was fetched (see QueryRunner.run()), so notify with a non-blocking
                   // toast instead of the modal error dialog that would otherwise make the

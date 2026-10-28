@@ -315,6 +315,27 @@ class DeployManagerServiceScheduleFolderImportTest {
       assertNull(((AssetFolder) store.get(folderId("F"))).getOwner());
    }
 
+   // Bug #79236, a time condition with an hour out of range can repeat a fire, the task is
+   // refused before any folder is written, and the same condition in range is imported
+   @Test
+   void siteAdminParseContent_hourOutOfRange_isRefusedBeforeFolders() throws Exception {
+      String hourly = "<Condition type=\"TimeCondition\" timeType=\"8\" hour=\"%d\" " +
+         "minute=\"30\" second=\"0\" hour_end=\"-1\" minute_end=\"-1\" second_end=\"-1\" " +
+         "hourlyInterval=\"0.5\" daysOfWeek=\"1,2,3,4,5,6,7\"/>";
+      String bad = taskXml(BOB.convertToKey(), "", "F", "F")
+         .replace("<Condition type=\"NeverRun\"/>", String.format(hourly, -1));
+
+      assertThrows(IllegalArgumentException.class, () -> new ScheduleTaskAsset().parseContent(
+         new ByteArrayInputStream(bad.getBytes(StandardCharsets.UTF_8)), null, true, true));
+      assertFalse(store.containsKey(folderId("F")), "folder F was written for a refused task");
+
+      String ok = taskXml(BOB.convertToKey(), "", "F", "F")
+         .replace("<Condition type=\"NeverRun\"/>", String.format(hourly, 0));
+      new ScheduleTaskAsset().parseContent(
+         new ByteArrayInputStream(ok.getBytes(StandardCharsets.UTF_8)), null, true, true);
+      assertTrue(store.containsKey(folderId("F")));
+   }
+
    private List<String> importEntry(String content) throws Exception {
       ScheduleTaskAsset asset = new ScheduleTaskAsset();
       // exists() needs a task path

@@ -50,7 +50,9 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -160,6 +162,13 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       }
 
       checkProviderTypeLicensed(model.providerType(), null);
+
+      // checked before getProviderFromModel, which validates the parameters and may connect
+      if(model.providerType() == SecurityProviderType.LDAP && multiTenantSupplier.getAsBoolean()) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.security.multitenant.ldapProviderNotAllowed"));
+      }
+
       AuthenticationProvider newProvider = getProviderFromModel(model)
          .orElseThrow(() -> new MessageException("Failed to create new authentication provider"));
 
@@ -188,6 +197,17 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       if(!model.providerName().equals(name) &&
          getProviderByName(model.providerName()) != null) {
          throw new MessageException(Catalog.getCatalog().getString("security.authentication.exists"));
+      }
+
+      // Turning a provider of another type into an LDAP one is refused under multi-tenancy.
+      // An existing LDAP provider (legacy state) stays editable, so it can be fixed or replaced.
+      if(model.providerType() == SecurityProviderType.LDAP && multiTenantSupplier.getAsBoolean()) {
+         AuthenticationProvider existing = getProviderByName(name);
+
+         if(existing != null && !(existing instanceof LdapAuthenticationProvider)) {
+            throw new MessageException(
+               Catalog.getCatalog().getString("em.security.multitenant.ldapProviderNotAllowed"));
+         }
       }
 
       try {
@@ -358,6 +378,13 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          .build();
    }
 
+   /**
+    * Replaces the multi-tenancy check, for tests.
+    */
+   void setMultiTenantSupplier(BooleanSupplier multiTenantSupplier) {
+      this.multiTenantSupplier = multiTenantSupplier;
+   }
+
    public AuthenticationProvider getProviderByName(String name) {
       if(getAuthenticationChain().isEmpty()) {
          LOG.error("em.common.security.noProvider");
@@ -396,14 +423,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
 
    private IdentityListModel getUsers(Optional<AuthenticationProvider> optionProvider) {
       AuthenticationProvider provider = optionProvider.orElse(null);
-      IdentityID[] users = new IdentityID[0];
-      setIgnoreCache(provider, true);
-
-      if(provider != null) {
-         users = provider.getUsers();
-      }
-
-      setIgnoreCache(provider, false);
+      IdentityID[] users = previewCall(
+         provider, () -> provider == null ? new IdentityID[0] : provider.getUsers());
 
       //return sorted by organization, then name
       Arrays.sort(users, (o1, o2) -> {
@@ -472,12 +493,11 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    }
 
    private IdentityListModel getUserEmails(AuthenticationProvider provider, IdentityID userID) {
-      setIgnoreCache(provider, true);
-      IdentityID[] emails = provider == null ? new IdentityID[0] :
+      IdentityID[] emails = previewCall(provider, () -> provider == null ?
+         new IdentityID[0] :
          Arrays.stream(provider.getEmails(userID))
             .map(e -> new IdentityID(e,userID.orgID))
-            .toArray(IdentityID[]::new);
-      setIgnoreCache(provider, false);
+            .toArray(IdentityID[]::new));
 
       return IdentityListModel.builder()
          .ids(emails)
@@ -503,15 +523,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
 
    private IdentityListModel getGroups(Optional<AuthenticationProvider> optionalProvider) {
       AuthenticationProvider provider = optionalProvider.orElse(null);
-      IdentityID[] groups = new IdentityID[0];
-
-      setIgnoreCache(provider, true);
-
-      if(provider != null) {
-         groups = provider.getGroups();
-      }
-
-      setIgnoreCache(provider, false);
+      IdentityID[] groups = previewCall(
+         provider, () -> provider == null ? new IdentityID[0] : provider.getGroups());
 
       //return sorted by organization, then name
       Arrays.sort(groups, (o1, o2) -> {
@@ -536,15 +549,10 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
 
    private IdentityListModel getOrganizations(Optional<AuthenticationProvider> optionalProvider) {
       AuthenticationProvider provider = optionalProvider.orElse(null);
-      IdentityID[] organizations = new IdentityID[0];
-
-      setIgnoreCache(provider, true);
-
-      if(provider != null) {
-         organizations = Arrays.stream(provider.getOrganizationIDs()).map(o -> new IdentityID(o,o)).toArray(IdentityID[]::new);
-      }
-
-      setIgnoreCache(provider, false);
+      IdentityID[] organizations = previewCall(provider, () -> provider == null ?
+         new IdentityID[0] :
+         Arrays.stream(provider.getOrganizationIDs()).map(o -> new IdentityID(o,o))
+            .toArray(IdentityID[]::new));
 
       return IdentityListModel.builder()
          .ids(organizations)
@@ -561,9 +569,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    }
 
    private IdentityListModel getGroupUsers(AuthenticationProvider provider, IdentityID group) {
-      setIgnoreCache(provider, true);
-      IdentityID[] users = provider == null ? new IdentityID[0] : provider.getUsers(group);
-      setIgnoreCache(provider, false);
+      IdentityID[] users = previewCall(
+         provider, () -> provider == null ? new IdentityID[0] : provider.getUsers(group));
 
       return IdentityListModel.builder()
          .ids(users)
@@ -580,10 +587,10 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    }
 
    private IdentityListModel getOrganizationUsers(AuthenticationProvider provider, String org) {
-      setIgnoreCache(provider, true);
-      IdentityID[] members = provider == null ? new IdentityID[0] :
-         Arrays.stream(provider.getOrganizationMembers(org)).map(n -> new IdentityID(n,org)).toArray(IdentityID[]::new);
-      setIgnoreCache(provider, false);
+      IdentityID[] members = previewCall(provider, () -> provider == null ?
+         new IdentityID[0] :
+         Arrays.stream(provider.getOrganizationMembers(org)).map(n -> new IdentityID(n,org))
+            .toArray(IdentityID[]::new));
 
       return IdentityListModel.builder()
          .ids(members)
@@ -627,15 +634,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
 
    private IdentityListModel getRoles(Optional<AuthenticationProvider> optionalProvider) {
       AuthenticationProvider provider = optionalProvider.orElse(null);
-      IdentityID[] roles = new IdentityID[0];
-
-      setIgnoreCache(provider, true);
-
-      if(provider != null) {
-         roles = provider.getRoles();
-      }
-
-      setIgnoreCache(provider, false);
+      IdentityID[] roles = previewCall(
+         provider, () -> provider == null ? new IdentityID[0] : provider.getRoles());
 
       //return sorted by organization, then name
       Arrays.sort(roles, (o1, o2) -> {
@@ -660,9 +660,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    }
 
    private IdentityListModel getUserRoles(AuthenticationProvider provider, IdentityID userName) {
-      setIgnoreCache(provider, true);
-      IdentityID[] roles = provider == null ? new IdentityID[0] : provider.getRoles(userName);
-      setIgnoreCache(provider, false);
+      IdentityID[] roles = previewCall(
+         provider, () -> provider == null ? new IdentityID[0] : provider.getRoles(userName));
 
       return IdentityListModel.builder()
          .ids(roles)
@@ -678,9 +677,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       if(model.providerType() == SecurityProviderType.DATABASE) {
          return withProviderFromModel(model, optProvider -> {
             if(optProvider.orElse(null) instanceof DatabaseAuthenticationProvider dbProvider) {
-               setIgnoreCache(dbProvider, true);
-               Map<IdentityID, IdentityID[]> userRoles = dbProvider.getAllUserRoles();
-               setIgnoreCache(dbProvider, false);
+               Map<IdentityID, IdentityID[]> userRoles =
+                  previewCall(dbProvider, dbProvider::getAllUserRoles);
 
                for(Map.Entry<IdentityID, IdentityID[]> e : userRoles.entrySet()) {
                   builder.addList(UserRolesModel.builder()
@@ -799,6 +797,13 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       catch(Exception e) {
          if(rethrowCreationException) {
             throw e;
+         }
+
+         // a database provider that can not connect must not look like an empty directory
+         if(model.providerType() == SecurityProviderType.DATABASE) {
+            LOG.warn("Could not create authentication provider from model", e);
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.security.provider.connectionFailed", e.getMessage()), e);
          }
 
          LOG.warn("Could not create authentication provider from model", e);
@@ -961,6 +966,39 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       return securityEngine.getAuthenticationChain();
    }
 
+   /**
+    * Runs a preview getter with the provider cache ignored. A database provider records a
+    * failed query instead of throwing (login and the provider chain rely on that), so the
+    * failure is turned into an error here; a valid query that returns no rows is not one.
+    */
+   private <T> T previewCall(AuthenticationProvider provider, Supplier<T> fn) {
+      DatabaseAuthenticationProvider dbProvider =
+         provider instanceof DatabaseAuthenticationProvider db ? db : null;
+      setIgnoreCache(provider, true);
+
+      try {
+         if(dbProvider != null) {
+            dbProvider.clearQueryFailed();
+         }
+
+         T result = fn.get();
+
+         if(dbProvider != null && dbProvider.isQueryFailed()) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.security.provider.queryFailed"));
+         }
+
+         return result;
+      }
+      finally {
+         if(dbProvider != null) {
+            dbProvider.clearQueryFailed();
+         }
+
+         setIgnoreCache(provider, false);
+      }
+   }
+
    private void setIgnoreCache(AuthenticationProvider provider, boolean ignoreCache) {
       if(provider instanceof LdapAuthenticationProvider) {
          ((LdapAuthenticationProvider) provider).setIgnoreCache(ignoreCache);
@@ -1009,6 +1047,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    }
 
    private final SecurityEngine securityEngine;
+   private BooleanSupplier multiTenantSupplier = SUtil::isMultiTenant;
    private final ObjectMapper objectMapper;
    private final Cluster cluster;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();

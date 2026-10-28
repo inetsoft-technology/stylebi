@@ -2384,6 +2384,7 @@ public class WorksheetEditService {
          }
 
          requireStorableName(newName, "A table name");
+         requireScriptQuotableName(newName, "A table name");
 
          if(!ws.renameAssembly(oldName, newName, true)) {
             throw new PairingException(
@@ -2673,7 +2674,8 @@ public class WorksheetEditService {
                            " with format \"" + pattern + "\" (check the format matches the data)" :
                            "") +
                         ". Nothing was changed. Pass confirmed=true to convert anyway, which " +
-                        "replaces every value that will not parse with null -- that discards " +
+                        "replaces every value that will not parse with null (false for " +
+                        "boolean, its first character for character) -- that discards " +
                         "data and cannot be undone by changing the type back.");
                   }
 
@@ -3861,7 +3863,8 @@ public class WorksheetEditService {
       {
          // Resolved before the rename so an unknown table is reported against the name the caller
          // passed, not against a name that does not exist yet.
-         requireTable(table);
+         TableAssembly target = requireTable(table);
+         refuseHiddenCopy(target, table);
          String name = table;
 
          if(newName != null && !newName.equals(table)) {
@@ -4587,6 +4590,7 @@ public class WorksheetEditService {
             throw new PairingException("Assembly not found: " + table);
          }
 
+         refuseHiddenCopy(a, table);
          boolean changed = !table.equals(ws.getPrimaryAssemblyName());
 
          if(!ws.setPrimaryAssembly(table)) {
@@ -4711,6 +4715,7 @@ public class WorksheetEditService {
          }
 
          requireStorableName(newName, "A variable name");
+         requireScriptQuotableName(newName, "A variable name");
 
          if(!ws.renameAssembly(oldName, newName, true)) {
             throw new PairingException(
@@ -5316,6 +5321,62 @@ public class WorksheetEditService {
                "verbatim, so that sequence closes the section early and leaves malformed XML in " +
                "storage, which no later edit can repair. Choose a name without it.");
          }
+      }
+
+      /**
+       * Bug #79340: a rename rewrites script references to the assembly as worksheet['New Name']
+       * (or worksheet["New Name"] when the name holds a single quote) when the new name is not an
+       * identifier. A name with both quote kinds, a backslash or a square bracket cannot be
+       * written inside that key without breaking the script, so such a rename is refused.
+       */
+      static void requireScriptQuotableName(String name, String what) throws PairingException {
+         if(name == null) {
+            return;
+         }
+
+         boolean bothQuotes = name.indexOf('\'') >= 0 && name.indexOf('"') >= 0;
+         StringBuilder bad = new StringBuilder();
+
+         for(char c : name.toCharArray()) {
+            boolean refused = "\\[]".indexOf(c) >= 0 || bothQuotes && (c == '\'' || c == '"');
+
+            if(refused && bad.indexOf(String.valueOf(c)) < 0) {
+               bad.append(c);
+            }
+         }
+
+         if(bad.length() > 0) {
+            throw new PairingException(
+               what + " cannot contain " + bad + " when renaming: scripts that read the old " +
+               "name are rewritten to worksheet['<name>'], which cannot hold both a single and " +
+               "a double quote, a backslash or a square bracket. Choose a name without them.");
+         }
+      }
+      /**
+       * Bug #79328: a hidden (outer) assembly is the copy that backs a mirror. The native UI
+       * cannot select it, so making it primary or editing its properties would leave a primary
+       * the user cannot see, or break the mirror's reference.
+       */
+      private void refuseHiddenCopy(Assembly a, String name) throws PairingException {
+         if(!(a instanceof WSAssembly wsa) || !wsa.isOuter()) {
+            return;
+         }
+
+         String mirror = "a mirror";
+
+         for(Assembly m : ws.getAssemblies()) {
+            if(m instanceof MirrorAssembly ma && ma.isOuterMirror() &&
+               !((WSAssembly) m).isOuter() &&
+               Arrays.asList(ws.getOuterCopies(ma)).contains(wsa))
+            {
+               mirror = "the mirror '" + m.getName() + "'";
+               break;
+            }
+         }
+
+         throw new PairingException(
+            "'" + name + "' is a hidden copy that backs " + mirror + " and cannot be changed " +
+            "directly. Change the mirror itself or the source worksheet instead.");
       }
 
       private TableAssembly requireTable(String name) throws PairingException {

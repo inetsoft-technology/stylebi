@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.sree.schedule.IndividualAssetBackupAction;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.schedule.TimeCondition;
@@ -24,6 +25,7 @@ import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.Tool;
+import inetsoft.util.dep.XAsset;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Answers;
@@ -34,7 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 @Tag("core")
@@ -148,7 +152,7 @@ class ScheduleXmlProjectionTest {
    }
 
    @Test void normalizeRewritesEveryNormalizedAttributeValueToSet() {
-      String xml = "<Action password=\"cipherA\"><Nested password=\"cipherB\"/></Action>";
+      String xml = "<Task name=\"t\"><Action password=\"cipherA\"><Nested password=\"cipherB\"/></Action></Task>";
 
       String normalized = ScheduleXmlProjection.normalize(xml);
 
@@ -158,6 +162,81 @@ class ScheduleXmlProjectionTest {
          assertTrue(normalized.contains(attr + "=\"SET\""),
             "expected " + attr + " to be normalized to SET");
       }
+   }
+
+   // Bug #79363: the exclusion used to run over the whole writeXML text, so <ServerPath path=...>
+   // (save-to-server location) was erased from the projection and from the delete audit record.
+   @Test void projectionKeepsSaveToServerPath() {
+      ScheduleTask task = task("t", "admin");
+      task.addAction(viewsheetActionWithSaveToServerPassword(""));
+
+      assertTrue(ScheduleXmlProjection.project(task).contains("path=\"/exports/report.pdf\""));
+   }
+
+   @Test void projectionDiffersWhenOnlyTheSaveToServerPathDiffers() {
+      ScheduleTask a = task("t", "admin");
+      a.addAction(viewsheetActionWithSavePath("/exports/a.pdf"));
+      ScheduleTask b = task("t", "admin");
+      b.addAction(viewsheetActionWithSavePath("/exports/b.pdf"));
+
+      assertNotEquals(ScheduleXmlProjection.project(a), ScheduleXmlProjection.project(b));
+   }
+
+   @Test void projectionKeepsBackupServerPathAndAssetPath() {
+      XAsset asset = mock(XAsset.class);
+      when(asset.getType()).thenReturn("VIEWSHEET");
+      when(asset.getPath()).thenReturn("Examples/Census");
+      IndividualAssetBackupAction action = new IndividualAssetBackupAction();
+      action.setServerPaths(new ServerPathInfo("/backup/b.zip", "", ""));
+      action.setAssets(new java.util.ArrayList<>(java.util.List.of(asset)));
+      ScheduleTask task = task("t", "admin");
+      task.addAction(action);
+
+      String projection = ScheduleXmlProjection.project(task);
+
+      assertTrue(projection.contains("<ServerPath"));
+      assertTrue(projection.contains("path=\"/backup/b.zip\""));
+      assertTrue(projection.contains("<XAsset type=\"VIEWSHEET\" path=\""));
+   }
+
+   @Test void projectionKeepsAttributeLikeTextInEmailMessage() {
+      ViewsheetAction action = viewsheetActionWithSavePath("/exports/a.pdf");
+      action.setMessage("see <a path=\"x\">");
+      ScheduleTask task = task("t", "admin");
+      task.addAction(action);
+
+      assertTrue(ScheduleXmlProjection.project(task).contains(" path=\"x\""));
+   }
+
+   @Test void projectionIgnoresLastModifiedDifferences() {
+      ScheduleTask a = task("t", "admin");
+      a.setLastModified(1L);
+      ScheduleTask b = task("t", "admin");
+      b.setLastModified(2L);
+
+      assertEquals(ScheduleXmlProjection.project(a), ScheduleXmlProjection.project(b));
+   }
+
+   @Test void normalizeStripsOnlyTheRootTaskTagAttributes() {
+      String xml = "<Task name=\"t\" lastModified=\"5\" path=\"/\" editable=\"true\" " +
+         "removable=\"false\"><ServerPath  path=\"/keep.pdf\"/><X editable=\"1\"/></Task>";
+
+      String normalized = ScheduleXmlProjection.normalize(xml);
+
+      assertEquals("<Task name=\"t\"><ServerPath  path=\"/keep.pdf\"/><X editable=\"1\"/></Task>",
+         normalized);
+   }
+
+   @Test void normalizeFailsLoudWhenRootIsNotATask() {
+      assertThrows(IllegalStateException.class,
+         () -> ScheduleXmlProjection.normalize("<Other path=\"/\"/>"));
+   }
+
+   private static ViewsheetAction viewsheetActionWithSavePath(String path) {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("vs1");
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF, new ServerPathInfo(path, "", ""));
+      return action;
    }
 
    private static ScheduleTask task(String name, String owner) {

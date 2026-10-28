@@ -170,7 +170,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getUsers();
       }
 
-      return dao.getUsers().result();
+      return checked(dao.getUsers());
    }
 
    @Override
@@ -326,7 +326,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getOrganizations();
       }
 
-      return dao.getOrganizations().result();
+      return checked(dao.getOrganizations());
    }
 
    @Override
@@ -337,7 +337,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             .toArray(String[]::new);
       }
 
-      return Arrays.stream(dao.getOrganizations().result())
+      return Arrays.stream(checked(dao.getOrganizations()))
          .map(dao::getOrganizationName)
          .toArray(String[]::new);
    }
@@ -375,7 +375,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getOrganizationMembers(organizationID);
       }
 
-      return dao.getOrganizationMembers(organizationID).result();
+      return checked(dao.getOrganizationMembers(organizationID));
    }
 
    @Override
@@ -394,7 +394,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getUsers(groupIdentity);
       }
 
-      return dao.getUsers(groupIdentity).result();
+      return checked(dao.getUsers(groupIdentity));
    }
 
    /**
@@ -413,7 +413,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getUsers(groupIdentity);
       }
 
-      return dao.getUsers(groupIdentity, groupIndex).result();
+      return checked(dao.getUsers(groupIdentity, groupIndex));
    }
 
    /**
@@ -478,7 +478,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getRoles();
       }
 
-      return dao.getRoles().result();
+      return checked(dao.getRoles());
    }
 
    @Override
@@ -488,7 +488,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             return getCache().getRoles(userID);
          }
 
-         return dao.getRoles(userID).result();
+         return checked(dao.getRoles(userID));
       }
 
       return new IdentityID[0];
@@ -508,7 +508,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getAllUserRoles();
       }
 
-      Map<IdentityID, IdentityArray> roles = dao.getUserRoles().result();
+      Map<IdentityID, IdentityArray> roles = checked(dao.getUserRoles());
       Map<IdentityID, IdentityID[]> result = new HashMap<>();
 
       for(Map.Entry<IdentityID, IdentityArray> entry : roles.entrySet()) {
@@ -524,7 +524,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getGroups();
       }
 
-      return dao.getGroups().result();
+      return checked(dao.getGroups());
    }
 
    /**
@@ -538,7 +538,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getEmails(userIdentity);
       }
 
-      return dao.getEmails(userIdentity).result();
+      return checked(dao.getEmails(userIdentity));
    }
 
    @Override
@@ -996,6 +996,34 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       }
    }
 
+   /**
+    * Records a failed query for {@link #isQueryFailed()} while the cache is ignored (the
+    * EM preview), and returns the result unchanged. The getters stay non-throwing so that
+    * login and the provider chain keep treating a failed query as an empty list.
+    */
+   private <T> T checked(QueryResult<T> queryResult) {
+      if(queryResult.failed() && isIgnoreCache()) {
+         queryFailed.set(true);
+      }
+
+      return queryResult.result();
+   }
+
+   /**
+    * Clears the failed-query flag of the current thread.
+    */
+   public void clearQueryFailed() {
+      queryFailed.set(false);
+   }
+
+   /**
+    * Gets whether a query failed on the current thread since {@link #clearQueryFailed()}.
+    * Only queries run while the cache is ignored are recorded.
+    */
+   public boolean isQueryFailed() {
+      return queryFailed.get();
+   }
+
    public boolean isIgnoreCache() {
       return ignoreCache.get() != null && ignoreCache.get();
    }
@@ -1108,6 +1136,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    private final Lock cacheLock = new ReentrantLock();
    private DatabaseAuthenticationCache securityCache;
    private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
+   private final ThreadLocal<Boolean> queryFailed = ThreadLocal.withInitial(() -> false);
    private final ConnectionProvider connectionProvider = new ConnectionProvider(this);
 
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationProvider.class);

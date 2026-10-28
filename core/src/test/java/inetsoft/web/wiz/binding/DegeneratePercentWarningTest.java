@@ -19,12 +19,17 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
+import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import inetsoft.web.binding.model.table.TableBindingModel;
+import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
@@ -46,6 +51,7 @@ class DegeneratePercentWarningTest {
       BAggregateRefModel agg = new BAggregateRefModel();
       agg.setColumnValue("Total");
       agg.setPercentage(percentage);
+      agg.setFormula("Sum");
       return agg;
    }
 
@@ -121,5 +127,110 @@ class DegeneratePercentWarningTest {
          assertFalse(e.getMessage().contains("zeros"), e.getMessage());
          assertTrue(e.getMessage().contains("100%"), e.getMessage());
       }
+   }
+
+   private static FieldRef clearingCalc(String column, String aggregate) {
+      try {
+         return new ObjectMapper().readValue(
+            "{\"column\":\"" + column + "\",\"type\":\"measure\",\"aggregate\":\"" +
+            aggregate + "\",\"calculateInfo\":null}", FieldRef.class);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   /** A rows-only crosstab whose single aggregate is a stored PERCENT with the legacy value. */
+   private static CrosstabBindingModel storedPercent(String percentage) {
+      BAggregateRefModel agg = percentByCalc(percentage.equals("1") ? 2 : 1);
+      agg.setPercentage(percentage);
+      agg.setFormula("Sum");
+      return crosstab(null, true, false, agg);
+   }
+
+   /** Bug #79453: clearing the calculator must not leave the stale percent warning behind. */
+   @ParameterizedTest
+   @ValueSource(strings = { "1", "2" })
+   void clearingAPercentCalculatorLeavesNoPercentWarning(String percentage) {
+      CrosstabBindingModel model = storedPercent(percentage);
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(clearingCalc("Total", "Sum")));
+
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+      assertEquals("0", model.getAggregates().get(0).getPercentage());
+      assertNull(TableBindingMutator.degeneratePercentWarning(model));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "1", "2" })
+   void replacingPercentWithARunningTotalLeavesNoPercentWarning(String percentage) {
+      CrosstabBindingModel model = storedPercent(percentage);
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(
+         new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                      new RunningTotalCalcInfo())));
+
+      assertTrue(model.getAggregates().get(0).getCalculateInfo() instanceof RunningTotalCalcInfo);
+      assertEquals("0", model.getAggregates().get(0).getPercentage());
+      assertNull(TableBindingMutator.degeneratePercentWarning(model));
+   }
+
+   @Test
+   void keepingAnOmittedPercentCalculatorStillWarnsAndKeepsPercentage() {
+      CrosstabBindingModel model = storedPercent("2");
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      assertTrue(model.getAggregates().get(0).getCalculateInfo() instanceof PercentCalcInfo);
+      assertEquals("2", model.getAggregates().get(0).getPercentage());
+      assertNotNull(TableBindingMutator.degeneratePercentWarning(model));
+      TableBindingMutator.drainNotes();
+   }
+
+   @Test
+   void aNewPercentFieldStillWarns() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setRows(List.of(new BDimensionRefModel()));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(
+         new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                      new PercentCalcInfo())));
+
+      assertNotNull(TableBindingMutator.degeneratePercentWarning(model));
+   }
+
+   /** A legacy percentage with no calculator at all is not a percent once the shelf is rewritten. */
+   @Test
+   void legacyPercentageWithoutACalculatorIsZeroedByAShelfWrite() {
+      CrosstabBindingModel model = crosstab(null, true, false, percentByOption("2"));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+      assertNull(TableBindingMutator.degeneratePercentWarning(model));
+      assertEquals("0", model.getAggregates().get(0).getPercentage());
+   }
+
+   /** The read-back ctor pairs the legacy percentage with a PercentCalcInfo, so a write that
+    *  names no calculator keeps both and the Bug 78909 warning still fires. */
+   @ParameterizedTest
+   @ValueSource(strings = { "1", "2" })
+   void aRealReadBackPercentAggregateKeepsItsWarningThroughAnUntouchedWrite(String percentage) {
+      inetsoft.uql.viewsheet.VSAggregateRef ref = new inetsoft.uql.viewsheet.VSAggregateRef();
+      ref.setColumnValue("Total");
+      ref.setFormulaValue("Sum");
+      ref.setPercentageOptionValue(percentage);
+      BAggregateRefModel agg = new BAggregateRefModel(ref);
+      assertTrue(agg.getCalculateInfo() instanceof PercentCalcInfo);
+      CrosstabBindingModel model = crosstab(null, true, false, agg);
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      assertEquals(percentage, model.getAggregates().get(0).getPercentage());
+      assertNotNull(TableBindingMutator.degeneratePercentWarning(model));
+      TableBindingMutator.drainNotes();
    }
 }
