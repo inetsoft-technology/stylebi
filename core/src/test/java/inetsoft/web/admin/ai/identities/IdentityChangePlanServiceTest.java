@@ -1205,6 +1205,8 @@ class IdentityChangePlanServiceTest {
    @Test void userCreateResolvesGroupsAndRoles() throws Exception {
       when(securityService.getUser(any(), eq(user)))
          .thenThrow(new MissingResourceException("no such user"));
+      when(securityService.projectNewUserRoles(any(), any(), eq(user)))
+         .thenAnswer(inv -> inv.getArgument(1));
       IdentityChangeRequest change = createUser("bob");
       change.getSpec().setGroups(new java.util.ArrayList<>(List.of("g^host-org")));
       change.getSpec().setRoles(new java.util.ArrayList<>(List.of("r:host-org")));
@@ -1213,7 +1215,50 @@ class IdentityChangePlanServiceTest {
          .changes().get(0).proposedValue();
 
       assertTrue(proposed.contains("groups=g;"), proposed);
-      assertTrue(proposed.contains("roles=r;"), proposed);
+      assertTrue(proposed.contains("roles=r~;~host-org;"), proposed);
+   }
+
+   // Bug #79563: the plan of a user create shows the roles the create will really give
+   @Test void userCreateWithoutRolesShowsTheDefaultRolesTheCreateWillSeed() throws Exception {
+      when(securityService.getUser(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      when(securityService.projectNewUserRoles(any(), isNull(), eq(user)))
+         .thenReturn(List.of(new IdentityID("Everyone", "host-org")));
+
+      String proposed = service.resolve(request("task", List.of(createUser("bob"))), user)
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("roles=Everyone~;~host-org;"), proposed);
+   }
+
+   @Test void userCreateRolesAreWhatTheSharedComputationReturnsNotTheRawSpec() throws Exception {
+      when(securityService.getUser(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      // a caller without root role ADMIN: the explicit role is ignored by the create
+      when(securityService.projectNewUserRoles(any(), any(), eq(user)))
+         .thenReturn(List.of(new IdentityID("Everyone", "host-org")));
+      IdentityChangeRequest change = createUser("bob");
+      change.getSpec().setRoles(new java.util.ArrayList<>(List.of("r:host-org")));
+
+      String proposed = service.resolve(request("task", List.of(change)), user)
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("roles=Everyone~;~host-org;"), proposed);
+      assertFalse(proposed.contains("r~;~"), proposed);
+   }
+
+   @Test void userCreatePlanDoesNotFailWhenTheRoleComputationThrows() throws Exception {
+      when(securityService.getUser(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      when(securityService.projectNewUserRoles(any(), any(), eq(user)))
+         .thenThrow(new IllegalStateException("not editable"));
+      IdentityChangeRequest change = createUser("bob");
+      change.getSpec().setRoles(new java.util.ArrayList<>(List.of("r:host-org")));
+
+      String proposed = service.resolve(request("task", List.of(change)), user)
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("roles=r~;~host-org;"), proposed);
    }
 
    @Test void roleCreateResolvesInheritedRolesAssignedUsersAndAssignedGroups() throws Exception {

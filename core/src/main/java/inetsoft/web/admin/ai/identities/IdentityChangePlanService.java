@@ -185,7 +185,7 @@ public class IdentityChangePlanService {
       requireUnseen(label, key, seenKeys);
       requireNoBlankPassword(label, spec.getPassword());
       requireCreateIdFree(label, () -> securityService.getUser(id, user), key);
-      String proposed = IdentityProjection.projectUserSpec(id, spec);
+      String proposed = IdentityProjection.projectUserSpec(id, spec, newUserRoles(id, spec, user));
       // Bug #79016: the projection carries only pw:set, so two different passwords hashed alike.
       // The digest goes into the hash only (the apply-time read-back is masked and is compared
       // through the projection, never the hash). requireNoBlankPassword has already refused a
@@ -197,6 +197,21 @@ public class IdentityChangePlanService {
 
       return new PlanChange(key, orgId, null, proposed, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, "create user " + id.getLabel());
+   }
+
+   /** The roles the user will really hold once created (the defaults SecurityService seeds,
+    * or the explicit roles), so the plan matches the apply-time read-back. Roles and default
+    * flags of identities created earlier in the same plan are not visible here (not yet
+    * applied); that forward-reference gap is deliberately not solved here. */
+   private List<IdentityID> newUserRoles(IdentityID id, IdentitySpec spec, Principal user) {
+      List<IdentityID> requested = IdentityMerge.toIdentityIds(spec.getRoles(), id.getOrgID());
+
+      try {
+         return securityService.projectNewUserRoles(id, requested, user);
+      }
+      catch(Exception e) {
+         return requested;
+      }
    }
 
    private PlanChange resolveCreateGroup(String label, IdentitySpec spec, Principal user,

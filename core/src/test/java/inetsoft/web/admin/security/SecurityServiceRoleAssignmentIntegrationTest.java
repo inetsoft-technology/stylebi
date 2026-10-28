@@ -352,6 +352,83 @@ class SecurityServiceRoleAssignmentIntegrationTest {
                    "a site admin keeps every default role, administrator ones included");
    }
 
+   /**
+    * Bug #79563: the roles a plan shows for a new user are exactly the roles createUser gives it,
+    * for every caller privilege and every shape of the requested roles.
+    */
+   @Test
+   void projectedNewUserRoles_noRoles_areTheDefaultsTheCreateSeeds() throws Exception {
+      grant(ResourceType.SECURITY_USER, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate", "boss");
+      makeDefaultRoles();
+
+      assertProjectionMatchesCreate(delegate, null, Set.of(PLAIN));
+      assertProjectionMatchesCreate(boss, null, Set.of(PLAIN, OA, BOSS_ROLE));
+      assertProjectionMatchesCreate(builder.principalOf("sa", HOST), null,
+                                    Set.of(PLAIN, OA, BOSS_ROLE, SYS_DEFAULT));
+   }
+
+   @Test
+   void projectedNewUserRoles_rootRoleAdmin_explicitReplacesDefaultsAndEmptyClearsThem()
+      throws Exception
+   {
+      grant(ResourceType.SECURITY_USER, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate");
+      grant(ResourceType.SECURITY_ROLE, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate");
+      makeDefaultRoles();
+
+      assertProjectionMatchesCreate(delegate, List.of(PLAIN), Set.of(PLAIN));
+      assertProjectionMatchesCreate(delegate, List.of(), Set.of());
+   }
+
+   @Test
+   void projectedNewUserRoles_noRootRoleAdmin_explicitRolesAreIgnoredAndDefaultsKept()
+      throws Exception
+   {
+      grant(ResourceType.SECURITY_USER, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate");
+      makeDefaultRoles();
+
+      assertProjectionMatchesCreate(delegate, List.of(OTHER), Set.of(PLAIN));
+      assertProjectionMatchesCreate(delegate, List.of(), Set.of(PLAIN));
+   }
+
+   @Test
+   void projectedNewUserRoles_dropsSystemAdminRoleForNonSiteAdmin() throws Exception {
+      grant(ResourceType.SECURITY_USER, IDENTITY_ROOT, ResourceAction.ADMIN, "boss");
+      grant(ResourceType.SECURITY_ROLE, IDENTITY_ROOT, ResourceAction.ADMIN, "boss");
+      makeDefaultRoles();
+
+      assertProjectionMatchesCreate(boss, List.of(SYS_DEFAULT, PLAIN), Set.of(PLAIN));
+   }
+
+   @Test
+   void projectedNewUserRoles_unresolvableRole_doesNotThrowAndIsKeptForSiteAdmin() throws Exception {
+      IdentityID missing = new IdentityID("missing79563", ORG_ID);
+      SRPrincipal sa = builder.principalOf("sa", HOST);
+
+      // the create would fail on it, the plan must still show what was asked for
+      assertEquals(List.of(missing), service.projectNewUserRoles(NEW_USER, List.of(missing), sa));
+   }
+
+   @Test
+   void projectedNewUserRoles_unassignableRole_doesNotThrow() throws Exception {
+      grant(ResourceType.SECURITY_USER, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate");
+      grant(ResourceType.SECURITY_ROLE, IDENTITY_ROOT, ResourceAction.ADMIN, "delegate");
+
+      assertDoesNotThrow(() -> service.projectNewUserRoles(NEW_USER, List.of(OA), delegate));
+   }
+
+   private void assertProjectionMatchesCreate(SRPrincipal caller, List<IdentityID> requested,
+                                              Set<IdentityID> expected) throws Exception
+   {
+      ThreadContext.setContextPrincipal(caller);
+      Set<IdentityID> projected = OrganizationManager.runInOrgScope(
+         ORG_ID, () -> new HashSet<>(service.projectNewUserRoles(NEW_USER, requested, caller)));
+      assertEquals(expected, projected, "projected roles");
+
+      createUser(caller, requested);
+      assertEquals(projected, roles(NEW_USER), "the create gives the projected roles");
+      fileProvider.removeUser(NEW_USER);
+   }
+
    private interface Call {
       void run() throws Exception;
    }
