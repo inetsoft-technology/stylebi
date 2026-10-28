@@ -35,7 +35,9 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -143,8 +145,11 @@ class RenameTransformCompletionTest {
       assertTrue(workerInterrupted.get(), "the transform threads are stopped");
    }
 
+   /**
+    * After the wait times out the transform threads go on; the result completes when they end.
+    */
    @Test
-   void renameDepIsIncompleteWhenItTimesOut() throws Exception {
+   void renameDepCompletesInTheBackgroundAfterTheWaitTimesOut() throws Exception {
       CountDownLatch entered = new CountDownLatch(1);
       doAnswer(inv -> {
          entered.countDown();
@@ -152,16 +157,23 @@ class RenameTransformCompletionTest {
          return mock(IndexedStorage.class);
       }).when(repository).getStorage(any());
 
-      assertFalse(DependencyTransformer.renameDep(newTask(1), true, 200L, TimeUnit.MILLISECONDS));
+      CompletableFuture<Boolean> result =
+         DependencyTransformer.renameDepAsync(newTask(1), 200L, TimeUnit.MILLISECONDS);
+
+      assertFalse(result.isDone(), "still running after the wait");
       assertTrue(entered.await(10, TimeUnit.SECONDS));
       assertFalse(Thread.currentThread().isInterrupted());
+
+      release.countDown();
+      // waits for the transform thread, so that it doesn't outlive the test
+      assertTrue(result.get(10, TimeUnit.SECONDS), "complete once the threads end");
    }
 
    // ---- Rename.run dequeues only a finished or skipped task, or on a running node ----
 
    @Test
    void unfinishedTaskOnAStoppingNodeIsNotDequeued() throws Exception {
-      new RenameTransformTask.Rename(newTask(1)).run(i -> false, () -> true);
+      new RenameTransformTask.Rename(newTask(1)).run(i -> done(false), () -> true);
       assertEquals(0, removeSubmissions());
    }
 
@@ -177,7 +189,7 @@ class RenameTransformCompletionTest {
 
    @Test
    void finishedTaskIsDequeued() throws Exception {
-      new RenameTransformTask.Rename(newTask(1)).run(i -> true, () -> true);
+      new RenameTransformTask.Rename(newTask(1)).run(i -> done(true), () -> true);
       assertEquals(1, removeSubmissions());
    }
 
@@ -187,8 +199,70 @@ class RenameTransformCompletionTest {
     */
    @Test
    void unfinishedTaskOnARunningNodeIsDequeued() throws Exception {
-      new RenameTransformTask.Rename(newTask(1)).run(i -> false, () -> false);
+      new RenameTransformTask.Rename(newTask(1)).run(i -> done(false), () -> false);
       assertEquals(1, removeSubmissions());
+   }
+
+   /**
+    * Bug #79519 (review r1): a transform that goes on after the wait keeps the task in the queue
+    * until it ends, so a stop in the meantime leaves the task to be replayed.
+    */
+   @Test
+   void backgroundTransformIsDequeuedOnlyWhenItFinishes() throws Exception {
+      CompletableFuture<Boolean> result = new CompletableFuture<>();
+
+      new RenameTransformTask.Rename(newTask(1)).run(i -> result, () -> false);
+      assertEquals(0, removeSubmissions(), "not dequeued while the rewrite goes on");
+
+      result.complete(true);
+      assertEquals(1, removeSubmissions(), "dequeued when the rewrite ends");
+   }
+
+   @Test
+   void backgroundTransformCutShortByAStopStaysQueued() throws Exception {
+      CompletableFuture<Boolean> result = new CompletableFuture<>();
+      AtomicBoolean stopping = new AtomicBoolean();
+
+      new RenameTransformTask.Rename(newTask(1)).run(i -> result, stopping::get);
+      stopping.set(true); // the server stops while the rewrite goes on
+      result.complete(false);
+
+      assertEquals(0, removeSubmissions(), "the unfinished task stays in the queue");
+   }
+
+   /**
+    * The real transform: one dependent outlasts the wait, the task returns at once and is
+    * dequeued only after the dependent is done.
+    */
+   @Test
+   void slowTransformIsDequeuedAfterItsThreadsEnd() throws Exception {
+      CountDownLatch entered = new CountDownLatch(1);
+      CountDownLatch ended = new CountDownLatch(1);
+      doAnswer(inv -> {
+         entered.countDown();
+         release.await(30, TimeUnit.SECONDS);
+         return mock(IndexedStorage.class);
+      }).when(repository).getStorage(any());
+      AtomicReference<CompletableFuture<Boolean>> transform = new AtomicReference<>();
+
+      new RenameTransformTask.Rename(newTask(1)).run(i -> {
+         CompletableFuture<Boolean> result =
+            DependencyTransformer.renameDepAsync(i, 200L, TimeUnit.MILLISECONDS);
+         transform.set(result);
+         return result;
+      }, () -> {
+         ended.countDown();
+         return false;
+      });
+
+      assertTrue(entered.await(10, TimeUnit.SECONDS));
+      assertEquals(0, removeSubmissions(), "not dequeued while the dependent is rewritten");
+
+      release.countDown();
+      assertTrue(transform.get().get(10, TimeUnit.SECONDS));
+      // the dequeue runs on the transform thread right after the result completes
+      await().atMost(10, TimeUnit.SECONDS).until(() -> countRemoveSubmissions() == 1);
+      assertEquals(1, ended.getCount(), "complete, so the stopping check is not needed");
    }
 
    @Test
@@ -198,7 +272,7 @@ class RenameTransformCompletionTest {
 
       new RenameTransformTask.Rename(newTask(1), true).run(i -> {
          transformed.set(true);
-         return true;
+         return done(true);
       }, () -> true);
 
       assertFalse(transformed.get(), "the stale task is not transformed");
@@ -338,8 +412,16 @@ class RenameTransformCompletionTest {
                             org).toIdentifier();
    }
 
+   private static CompletableFuture<Boolean> done(boolean complete) {
+      return CompletableFuture.completedFuture(complete);
+   }
+
    private long removeSubmissions() throws Exception {
       cluster().awaitTasks();
+      return countRemoveSubmissions();
+   }
+
+   private long countRemoveSubmissions() {
       return cluster().submissions.stream()
          .filter(s -> s.equals("dependencyStorage:Remove"))
          .count();

@@ -34,9 +34,11 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -309,18 +311,24 @@ public class RenameTransformTask
 
       @Override
       public void run() {
-         run(DependencyTransformer::renameDep, RenameTransformTask::isNodeStopping);
+         run(info -> DependencyTransformer.renameDepAsync(info, 50L, TimeUnit.SECONDS),
+             RenameTransformTask::isNodeStopping);
       }
 
       /**
        * Runs the task.
        *
-       * @param transform rewrites the dependents, returns {@code true} if all were rewritten.
+       * @param transform rewrites the dependents. Its result tells if all were rewritten; it is
+       *                  not done yet if the rewrite goes on in the background, and then the task
+       *                  is dequeued, or kept, when the rewrite ends.
        * @param stopping  tells if this node is stopping.
        */
-      void run(Predicate<RenameDependencyInfo> transform, BooleanSupplier stopping) {
+      void run(Function<RenameDependencyInfo, CompletableFuture<Boolean>> transform,
+               BooleanSupplier stopping)
+      {
          LOG.debug("Rename transform task started: {}", info.getTaskId());
          boolean done = false;
+         boolean background = false;
 
          try {
             String removedOrg = getRemovedOrganization(info);
@@ -352,27 +360,55 @@ public class RenameTransformTask
                }
             }
 
-            done = transform.test(info);
-         }
-         finally {
-            // A task that did not finish because this node is stopping stays in the queue, to be
-            // replayed at the next cluster start. On a running node it is dequeued even if the
-            // transform failed, so that it neither waits for the next start nor keeps
-            // waitUntilRenameFinished() waiting.
-            if(done || !stopping.getAsBoolean()) {
-               if(!done) {
-                  LOG.warn("Rename transform task did not finish, repeat the rename if " +
-                              "references to the old name remain: {}", describe(info));
-               }
+            CompletableFuture<Boolean> result = transform.apply(info);
 
-               getServiceBean(Cluster.class)
-                  .submit(DependencyStorageService.QUEUE_STORE, new Remove(info));
-               LOG.debug("Rename transform task finished: {}", info.getTaskId());
+            if(result.isDone()) {
+               done = !result.isCompletedExceptionally() && Boolean.TRUE.equals(result.join());
             }
             else {
-               LOG.warn("Rename transform task stopped before it finished, it stays in the " +
-                           "queue to be replayed at the next cluster start: {}", describe(info));
+               // The rewrite takes longer than the wait and goes on in the background. This
+               // task returns, so neither the queue store's service nor a waiting caller is held
+               // longer than before, but the task stays in the queue until the rewrite ends; a
+               // stop before then leaves it to be replayed.
+               background = true;
+               result.whenComplete((complete, error) -> {
+                  try {
+                     finish(error == null && Boolean.TRUE.equals(complete), stopping);
+                  }
+                  catch(Exception e) {
+                     LOG.error("Failed to finish the rename transform task: {}",
+                               describe(info), e);
+                  }
+               });
             }
+         }
+         finally {
+            if(!background) {
+               finish(done, stopping);
+            }
+         }
+      }
+
+      /**
+       * Dequeues the task, unless it did not finish because this node is stopping: then it stays
+       * in the queue, to be replayed at the next cluster start. On a running node it is dequeued
+       * even if the transform failed, so that it neither waits for the next start nor keeps
+       * waitUntilRenameFinished() waiting.
+       */
+      private void finish(boolean done, BooleanSupplier stopping) {
+         if(done || !stopping.getAsBoolean()) {
+            if(!done) {
+               LOG.warn("Rename transform task did not finish, repeat the rename if " +
+                           "references to the old name remain: {}", describe(info));
+            }
+
+            getServiceBean(Cluster.class)
+               .submit(DependencyStorageService.QUEUE_STORE, new Remove(info));
+            LOG.debug("Rename transform task finished: {}", info.getTaskId());
+         }
+         else {
+            LOG.warn("Rename transform task stopped before it finished, it stays in the " +
+                        "queue to be replayed at the next cluster start: {}", describe(info));
          }
       }
 

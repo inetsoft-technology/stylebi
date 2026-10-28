@@ -42,6 +42,7 @@ import java.rmi.RemoteException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * DependencyTransformer is a class to process rename dependencies. Its children classes is as this:
@@ -87,115 +88,135 @@ public abstract class DependencyTransformer {
     *         still run, or a dependent failed.
     */
    public static boolean renameDep(RenameDependencyInfo dinfo, boolean syncProcess) {
-      return renameDep(dinfo, syncProcess, 50L, TimeUnit.SECONDS);
-   }
-
-   /**
-    * Runs the transform, waiting for the transform threads at most for the given time.
-    */
-   static boolean renameDep(RenameDependencyInfo dinfo, boolean syncProcess, long timeout,
-                            TimeUnit unit)
-   {
-      long start = System.currentTimeMillis();
-      LOG.debug("Rename transformation start: " + start);
+      if(syncProcess) {
+         CompletableFuture<Boolean> completion = renameDepAsync(dinfo, 50L, TimeUnit.SECONDS);
+         // still running after the wait: not complete yet
+         return completion.isDone() && completion.join();
+      }
 
       if(dinfo == null || dinfo.getDependencyMap().isEmpty()) {
          return true;
       }
 
+      AtomicBoolean failed = new AtomicBoolean();
+      AtomicBoolean previous = TRANSFORM_FAILED.get();
+      TRANSFORM_FAILED.set(failed);
+
+      try {
+         transformAssets(Arrays.asList(dinfo.getAssetObjects()), dinfo, false);
+      }
+      finally {
+         if(previous == null) {
+            TRANSFORM_FAILED.remove();
+         }
+         else {
+            TRANSFORM_FAILED.set(previous);
+         }
+      }
+
+      return !failed.get();
+   }
+
+   /**
+    * Runs the transform on transform threads and waits for them at most for the given time.
+    *
+    * @return a future of whether every dependent was transformed. It is done when this method
+    *         returns, unless the wait timed out: then the transform threads go on and the future
+    *         completes when they end. An interrupted wait stops the threads, restores the
+    *         interrupt and returns {@code false}.
+    */
+   static CompletableFuture<Boolean> renameDepAsync(RenameDependencyInfo dinfo, long timeout,
+                                                   TimeUnit unit)
+   {
+      long start = System.currentTimeMillis();
+      LOG.debug("Rename transformation start: " + start);
+
+      if(dinfo == null || dinfo.getDependencyMap().isEmpty()) {
+         return CompletableFuture.completedFuture(true);
+      }
+
       AssetObject[] entries = dinfo.getAssetObjects();
       AtomicBoolean failed = new AtomicBoolean();
+      CompletableFuture<Boolean> completion = new CompletableFuture<>();
 
-      if(syncProcess) {
-         int nthread = DependencyTool.getThreadNumber(entries.length);
-         // the transform assets number for each thread.
-         int count = (int) Math.ceil(entries.length * 1.0 / nthread);
-         final int pri = Thread.currentThread().getPriority();
-         ExecutorService executors = Executors.newFixedThreadPool(nthread, r -> {
-            Thread t = new Thread(r, "DependencyTransformer");
-            t.setDaemon(true);
-            return t;
-         });
+      int nthread = DependencyTool.getThreadNumber(entries.length);
+      AtomicInteger running = new AtomicInteger(nthread);
+      // the transform assets number for each thread.
+      int count = (int) Math.ceil(entries.length * 1.0 / nthread);
+      final int pri = Thread.currentThread().getPriority();
+      ExecutorService executors = Executors.newFixedThreadPool(nthread, r -> {
+         Thread t = new Thread(r, "DependencyTransformer");
+         t.setDaemon(true);
+         return t;
+      });
 
-         for(int i = 0; i < nthread; i++) {
-            List<AssetObject> list = DependencyTool.getThreadAssets(i, count, entries);
+      for(int i = 0; i < nthread; i++) {
+         List<AssetObject> list = DependencyTool.getThreadAssets(i, count, entries);
 
-            executors.execute((new GroupedThread("AssetTransformerThread_" + i,
-                                                 ThreadContext.getContextPrincipal())
+         executors.execute((new GroupedThread("AssetTransformerThread_" + i,
+                                              ThreadContext.getContextPrincipal())
+         {
             {
-               {
-                  setDaemon(true);
+               setDaemon(true);
+            }
+
+            @Override
+            protected void doRun() {
+               setPriority(pri);
+               TRANSFORM_FAILED.set(failed);
+
+               try {
+                  transformAssets(list, dinfo, true);
                }
+               catch(RuntimeException | Error e) {
+                  failed.set(true);
+                  throw e;
+               }
+               finally {
+                  TRANSFORM_FAILED.remove();
 
-               @Override
-               protected void doRun() {
-                  setPriority(pri);
-                  TRANSFORM_FAILED.set(failed);
-
-                  try {
-                     transformAssets(list, dinfo, true);
-                  }
-                  catch(RuntimeException | Error e) {
-                     failed.set(true);
-                     throw e;
-                  }
-                  finally {
-                     TRANSFORM_FAILED.remove();
+                  // the last transform thread to end reports the result
+                  if(running.decrementAndGet() == 0) {
+                     completion.complete(!failed.get());
                   }
                }
-            }));
-         }
+            }
+         }));
+      }
 
-         executors.shutdown();
-         boolean finished;
+      executors.shutdown();
+
+      try {
+         completion.get(timeout, unit);
+      }
+      catch(TimeoutException e) {
+         LOG.info("Rename transformation did not finish in {} {} and goes on in the " +
+                     "background: task {}", timeout, unit, dinfo.getTaskId());
+      }
+      catch(ExecutionException e) {
+         // never completed exceptionally
+         completion.complete(false);
+      }
+      catch(InterruptedException e) {
+         // the server is stopping: stop the transform threads instead of leaving them
+         // running against storage that is being closed, and report the interrupt
+         completion.complete(false);
+         executors.shutdownNow();
 
          try {
-            finished = executors.awaitTermination(timeout, unit);
-
-            if(!finished) {
-               LOG.warn("Rename transformation did not finish in {} {} and goes on in the " +
-                           "background: task {}", timeout, unit, dinfo.getTaskId());
-            }
+            executors.awaitTermination(5, TimeUnit.SECONDS);
          }
-         catch(InterruptedException e) {
-            // the server is stopping: stop the transform threads instead of leaving them
-            // running against storage that is being closed, and report the interrupt
-            finished = false;
-            executors.shutdownNow();
-
-            try {
-               executors.awaitTermination(5, TimeUnit.SECONDS);
-            }
-            catch(InterruptedException ignore) {
-               // the interrupt is restored below
-            }
-
-            Thread.currentThread().interrupt();
-            LOG.warn("Rename transformation interrupted: task {}", dinfo.getTaskId());
+         catch(InterruptedException ignore) {
+            // the interrupt is restored below
          }
 
-         long end = System.currentTimeMillis();
-         LOG.debug("Rename transformation end, cost: " + (end - start));
-         return finished && !failed.get();
+         Thread.currentThread().interrupt();
+         LOG.warn("Rename transformation interrupted: task {}", dinfo.getTaskId());
       }
-      else {
-         AtomicBoolean previous = TRANSFORM_FAILED.get();
-         TRANSFORM_FAILED.set(failed);
 
-         try {
-            transformAssets(Arrays.asList(entries), dinfo, false);
-         }
-         finally {
-            if(previous == null) {
-               TRANSFORM_FAILED.remove();
-            }
-            else {
-               TRANSFORM_FAILED.set(previous);
-            }
-         }
-
-         return !failed.get();
-      }
+      long end = System.currentTimeMillis();
+      LOG.debug("Rename transformation end, cost: " + (end - start));
+      return completion;
    }
 
    /**
