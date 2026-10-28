@@ -160,6 +160,53 @@ final class ScheduleConditionConverter {
    }
 
    /**
+    * Refuses a time of day outside the ranges {@code TimeCondition.validateRanges} enforces
+    * (hour 0-23, minute and second 0-59; for EVERY_HOUR also the end fields, where -1 means
+    * unset). AT is exempt, its time comes from {@code date}. Without this an hour of 25 is shown
+    * to the reviewer as "1" (the plan XML wraps it) and a minute of 70 is stored as given.
+    * {@link #convertCondition(TimeCondition)} deliberately stays lenient (rollback and read-back
+    * feed it stored values), so user input must be checked here, at plan time.
+    *
+    * @param conditionLabel the path of the condition, e.g. {@code changes[0].spec.conditions[1]}.
+    */
+   static void requireTimeOfDayInRange(String conditionLabel, TimeCondition condition) {
+      if(condition.getType() == TimeCondition.Type.AT) {
+         return;
+      }
+
+      requireInRange(conditionLabel, "hour", condition.getHour(), 0, 23);
+      requireInRange(conditionLabel, "minute", condition.getMinute(), 0, 59);
+      requireInRange(conditionLabel, "second", condition.getSecond(), 0, 59);
+
+      if(condition.getType() == TimeCondition.Type.EVERY_HOUR) {
+         requireInRange(conditionLabel, "hourEnd", condition.getHourEnd(), -1, 23);
+         requireInRange(conditionLabel, "minuteEnd", condition.getMinuteEnd(), -1, 59);
+         requireInRange(conditionLabel, "secondEnd", condition.getSecondEnd(), -1, 59);
+      }
+   }
+
+   private static void requireInRange(String conditionLabel, String field, int value, int min,
+                                      int max)
+   {
+      if(value < min || value > max) {
+         throw new IllegalArgumentException(
+            conditionLabel + "." + field + ": expected an integer between " + min + " and " +
+            max + "; got " + value);
+      }
+   }
+
+   /**
+    * Applies {@link #requireTimeOfDayInRange(String, TimeCondition)} to every condition of a list.
+    *
+    * @param conditionsLabel the path of the list, e.g. {@code changes[0].spec.conditions}.
+    */
+   static void requireTimeOfDayInRange(String conditionsLabel, List<TimeCondition> conditions) {
+      for(int i = 0; i < conditions.size(); i++) {
+         requireTimeOfDayInRange(conditionsLabel + "[" + i + "]", conditions.get(i));
+      }
+   }
+
+   /**
     * Applies {@link #requireKnownTimeZone} to every condition of a list.
     *
     * @param conditionsLabel the path of the list, e.g. {@code changes[0].spec.conditions}.

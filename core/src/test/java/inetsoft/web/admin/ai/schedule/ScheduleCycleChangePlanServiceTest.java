@@ -453,6 +453,46 @@ class ScheduleCycleChangePlanServiceTest {
                  ex.getMessage());
    }
 
+   // bug #79524, hour 25 was shown as "1" and minute 70 stored as given
+
+   @Test void resolveCreateRefusesOutOfRangeTimeOfDay() {
+      TimeCondition bad = everyDay();
+      bad.setHour(25);
+      bad.setMinute(70);
+      ScheduleCycleChangePlanRequest req =
+         request("task", List.of(createChange("NewCycle", List.of(bad))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().startsWith("changes[0].spec.conditions[0].hour: "),
+                 ex.getMessage());
+   }
+
+   @Test void resolveUpdateRefusesOutOfRangeTimeOfDay() throws Exception {
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+      TimeCondition bad = everyDay();
+      bad.setMinute(70);
+      ScheduleCycleChangePlanRequest req =
+         request("task", List.of(updateChange("Cycle1", null, List.of(bad))));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().startsWith("changes[0].spec.conditions[0].minute: "),
+                 ex.getMessage());
+   }
+
+   @Test void resolveCreateKeepsInRangeHour() throws Exception {
+      TimeCondition ok = everyDay();
+      ok.setHour(22);
+      ok.setMinute(30);
+      ScheduleCycleChangePlanRequest req =
+         request("task", List.of(createChange("NewCycle", List.of(ok))));
+
+      assertTrue(service.resolve(req, user).changes().get(0).proposedValue()
+                    .contains("hour=\"22\""));
+   }
+
    // bug #79020, an unknown time zone would be stored as GMT
    @Test void resolveCreateThrowsOnUnknownTimeZone() {
       TimeCondition second = everyDay();

@@ -193,6 +193,54 @@ class ScheduleConditionConverterTest {
       }
    }
 
+   // bug #79524
+   @Test
+   void requireTimeOfDayInRangeRefusesOutOfRangeAndNamesTheField() {
+      Object[][] cases = {{25, 0, 0, "hour"}, {24, 0, 0, "hour"}, {-1, 0, 0, "hour"},
+                          {0, 60, 0, "minute"}, {0, 0, 60, "second"}};
+
+      for(Object[] c : cases) {
+         TimeCondition cond = new TimeCondition();
+         cond.setType(TimeCondition.Type.EVERY_DAY);
+         cond.setHour((Integer) c[0]);
+         cond.setMinute((Integer) c[1]);
+         cond.setSecond((Integer) c[2]);
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ScheduleConditionConverter.requireTimeOfDayInRange("l", cond));
+         assertTrue(ex.getMessage().startsWith("l." + c[3] + ": "), ex.getMessage());
+      }
+   }
+
+   @Test
+   void requireTimeOfDayInRangeAcceptsValidAtAndHourlyUnset() {
+      TimeCondition cond = new TimeCondition();
+      cond.setType(TimeCondition.Type.EVERY_DAY);
+      cond.setHour(23);
+      cond.setMinute(59);
+      cond.setSecond(59);
+      assertDoesNotThrow(() -> ScheduleConditionConverter.requireTimeOfDayInRange("l", cond));
+
+      TimeCondition at = new TimeCondition();
+      at.setType(TimeCondition.Type.AT);
+      at.setHour(99);
+      assertDoesNotThrow(() -> ScheduleConditionConverter.requireTimeOfDayInRange("l", at));
+
+      TimeCondition hourly = new TimeCondition();
+      hourly.setType(TimeCondition.Type.EVERY_HOUR);
+      hourly.setHourEnd(-1);
+      hourly.setMinuteEnd(-1);
+      hourly.setSecondEnd(-1);
+      assertDoesNotThrow(() -> ScheduleConditionConverter.requireTimeOfDayInRange("l", hourly));
+      hourly.setHourEnd(24);
+      assertThrows(IllegalArgumentException.class,
+         () -> ScheduleConditionConverter.requireTimeOfDayInRange("l", hourly));
+
+      TimeCondition daily = new TimeCondition();
+      daily.setType(TimeCondition.Type.EVERY_DAY);
+      daily.setHourEnd(99);
+      assertDoesNotThrow(() -> ScheduleConditionConverter.requireTimeOfDayInRange("l", daily));
+   }
+
    @Test
    void requireKnownTimeZoneAcceptsResolvableIds() {
       for(String id : new String[]{"America/New_York", "Etc/UTC", "UTC", "GMT", "GMT+8", "GMT0",
