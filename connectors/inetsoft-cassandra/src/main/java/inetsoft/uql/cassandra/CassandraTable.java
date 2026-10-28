@@ -183,6 +183,12 @@ public class CassandraTable extends XTableNode {
     */
    @Override
    public synchronized Object getObject(int col) {
+      // The driver's primitive getters (getLong, getInt, getDouble, getFloat, getBoolean) map a
+      // CQL null to 0/false, which corrupts aggregates, so null must be detected up front.
+      if(curr.isNull(col)) {
+         return null;
+      }
+
       switch(types[col].getProtocolCode()) {
       case ProtocolConstants.DataType.BIGINT:
       case ProtocolConstants.DataType.COUNTER:
