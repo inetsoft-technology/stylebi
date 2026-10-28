@@ -1039,13 +1039,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       // growth, so it takes the sides only: a top and bottom inset would come out of the rows
       // the author sized the box for and clip them
       if(!isUserPadding() && !isCssPaddingDefined()) {
-         Insets inset = VSDensityDefaults.tablePadding(ctx);
-
-         if(!followsDensitySize()) {
-            inset = new Insets(0, inset.left, 0, inset.right);
-         }
-
-         setPadding(inset);
+         setPadding(defaultPadding(ctx));
       }
 
       // the box follows density, because the content inside it does. A tier's taller rows and
@@ -1098,7 +1092,15 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
 
    @Override
    protected Insets defaultPadding(VizContext ctx) {
-      return VSDensityDefaults.tablePadding(ctx);
+      Insets inset = VSDensityDefaults.tablePadding(ctx);
+
+      // the one rule for both writers, the seed and resetPadding (the padding pane's "follow the
+      // default" checkbox): only a box that follows density grows to pay for a vertical inset
+      if(!followsDensitySize()) {
+         inset = new Insets(0, inset.left, 0, inset.right);
+      }
+
+      return inset;
    }
 
    /**

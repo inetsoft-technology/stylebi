@@ -117,6 +117,34 @@ class SelectionAuthorSizeInsetTest {
       assertEquals(new Insets(5, 5, 5, 5), info.getPadding());
    }
 
+   // the padding pane's "follow the default" checkbox must agree with the seed
+   @ParameterizedTest
+   @CsvSource({ "dense,8", "compact,12", "comfortable,16" })
+   void resetPaddingAgreesWithTheSeedOnAnAuthorSizedBox(String density, int side) {
+      SelectionListVSAssemblyInfo list = census(new SelectionListVSAssemblyInfo(), density);
+      SelectionTreeVSAssemblyInfo tree = census(new SelectionTreeVSAssemblyInfo(), density);
+      list.setPadding(new Insets(5, 5, 5, 5));
+      tree.setPadding(new Insets(5, 5, 5, 5));
+
+      list.resetPadding(VizContext.of(list));
+      tree.resetPadding(VizContext.of(tree));
+
+      assertEquals(new Insets(0, side, 0, side), list.getPadding());
+      assertEquals(new Insets(0, side, 0, side), tree.getPadding());
+   }
+
+   @Test
+   void resetPaddingOnADefaultSizeListGivesTheFullInset() {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPadding(new Insets(5, 5, 5, 5));
+
+      info.resetPadding(VizContext.of(info));
+
+      assertEquals(new Insets(12, 12, 12, 12), info.getPadding());
+   }
+
    private <T extends SelectionBaseVSAssemblyInfo> T census(T info, String density) {
       SreeEnv.setProperty("viewsheet.density", density);
       info.setPixelSize(new Dimension(344, 88));
