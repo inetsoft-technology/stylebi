@@ -34,9 +34,11 @@ presents it as two pairs that say what they actually do: **Row Spacing** and **S
 So top/bottom padding acts as **row spacing**. A legend with 10 items and `top = 5` gets about
 50px taller, not 5px.
 
-Inside a row, the symbol stays centred on the row and the label is offset by `bottom - top`
-(`LegendItem.java:215-224`). The built-in 0 / 1 offsets the label by 1px against its symbol; equal
-top and bottom values centre both.
+Inside a row, the symbol and the label are both centred in the content band between the
+paddings: `top` px sit above them and `bottom` px below (`LegendItem.java:195-240`). The label
+stays centred on its symbol for any top / bottom pair, and the label box never leaves its row.
+Before #79398 the symbol was centred on the whole row and the label was offset by `bottom - top`,
+so unequal values (e.g. 0 / 10) pushed the label off its symbol and the first label into the title.
 
 ### 2.2 Setting it replaces all the built-in defaults at once
 
