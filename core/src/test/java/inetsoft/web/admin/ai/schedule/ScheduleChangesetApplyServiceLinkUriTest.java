@@ -74,6 +74,10 @@ class ScheduleChangesetApplyServiceLinkUriTest {
       }).when(scheduleManager).setScheduleTask(anyString(), any(), any());
 
       SecurityEngine securityEngine = mock(SecurityEngine.class, withSettings().lenient());
+      // Bug #79828, apply refuses an owner whose organization the provider does not know
+      SecurityProvider provider = mock(SecurityProvider.class, withSettings().lenient());
+      when(provider.getOrganization("host-org")).thenReturn(mock(Organization.class));
+      when(securityEngine.getSecurityProvider()).thenReturn(provider);
       AdminScheduleGateway gateway = spy(new AdminScheduleGateway(
          repository, scheduleManager,
          mock(ScheduleService.class, withSettings().lenient()),
