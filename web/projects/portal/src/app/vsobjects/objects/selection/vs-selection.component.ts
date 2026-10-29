@@ -1697,7 +1697,11 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          }
       }
 
-      this.minTextWidth = GuiTool.measureText(measureText, this.model.objectFormat.font);
+      // the cell's measure box carries valuePadding as padding-right (#79566)
+      this.minTextWidth = measureText
+         ? Math.ceil(GuiTool.measureText(measureText, this.model.objectFormat.font)) +
+            SelectionListCell.INDENT_SIZE
+         : 0;
       const ratio = measure / (label + measure);
       return Math.max(0.25, ratio);
    }
