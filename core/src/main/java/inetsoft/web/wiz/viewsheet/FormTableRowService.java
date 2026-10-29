@@ -24,6 +24,8 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.viewsheet.ColumnOption;
+import inetsoft.uql.viewsheet.ComboBoxColumnOption;
+import inetsoft.uql.viewsheet.ListData;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -586,8 +588,15 @@ public class FormTableRowService {
     * integral/floating lens column class decides (this covers a Text or Float option on an integer
     * column), else a Float option means {@code double}. A temporal type is the lens column's
     * ({@code Tool.getDataType}, the same mapping {@code changeFormInput} uses), or {@code date}
-    * for a Date option on any other column. Anything else (string, boolean, ComboBox labels, an
-    * unresolvable lens) is passed through unchanged.
+    * for a Date option on any other column. Anything else (string, boolean, an unresolvable lens)
+    * is passed through unchanged.
+    *
+    * <p>Bug #79694: a ComboBox cell is a drop-down in the native client, which can only send one
+    * of the list's labels, but {@code changeFormInput} never checks membership (it maps a label to
+    * its value and stores any other text as is, and {@code ColumnOption.validate} is always true
+    * for a ComboBox). A bridge caller could therefore store a value outside the list, so the text
+    * must be a label, or the string form of a value, of the option's runtime {@code ListData}
+    * ({@link #requireListMember}).
     *
     * <p>{@code null} and the empty string are passed through unchanged. Note an empty string does
     * not clear a numeric cell at apply ({@code XEmbeddedTable.setObject} keeps the old value); only
@@ -610,7 +619,8 @@ public class FormTableRowService {
       ColumnOption option = lens.getVisibleColumnOption(col);
       String optionType = option == null ? null : option.getType();
 
-      if(ColumnOption.COMBOBOX.equals(optionType)) {
+      if(option instanceof ComboBoxColumnOption combo) {
+         requireListMember(assemblyName, lens, col, combo, value);
          return value;
       }
 
@@ -642,6 +652,65 @@ public class FormTableRowService {
 
       return parsed == null ? value : String.valueOf(parsed);
    }
+
+   /**
+    * Refuses {@code value} unless it equals (case-sensitive, untrimmed, like
+    * {@code VSFormTableService.getComboBoxValue}) a label of the ComboBox's list, or the string
+    * form of one of its values. A list that is not resolved (null {@code ListData}, no labels --
+    * not yet executed, no source, empty query result) cannot be judged and passes. Do not use
+    * {@code ListData.isEmpty()} for this: it reports {@code values.length > 0}.
+    */
+   private static void requireListMember(String assemblyName, FormTableLens lens, int col,
+                                         ComboBoxColumnOption option, String value)
+   {
+      ListData list = option.getListData();
+      String[] labels = list == null ? null : list.getLabels();
+
+      if(labels == null || labels.length == 0) {
+         return;
+      }
+
+      Object[] values = list.getValues();
+
+      for(int i = 0; i < labels.length; i++) {
+         if(value.equals(labels[i])) {
+            return;
+         }
+
+         if(values != null && i < values.length && values[i] != null &&
+            value.equals(String.valueOf(values[i])))
+         {
+            return;
+         }
+      }
+
+      Object header = null;
+
+      try {
+         header = lens.getObject(0, col);
+      }
+      catch(RuntimeException ignore) {
+         // fall back to the column index below
+      }
+
+      StringBuilder allowed = new StringBuilder();
+      int shown = Math.min(labels.length, MAX_LISTED_LABELS);
+
+      for(int i = 0; i < shown; i++) {
+         allowed.append(i == 0 ? "" : ", ").append('\'').append(labels[i]).append('\'');
+      }
+
+      if(labels.length > shown) {
+         allowed.append(", ... (").append(labels.length - shown).append(" more)");
+      }
+
+      throw new IllegalArgumentException(
+         "'" + value + "' is not in the list of ComboBox column " +
+         (header == null ? "[" + col + "]" : "'" + header + "' [" + col + "]") + " of '" +
+         assemblyName + "'. Allowed values: " + allowed + ".");
+   }
+
+   private static final int MAX_LISTED_LABELS = 20;
 
    private static boolean isTemporal(String type) {
       return Tool.DATE.equals(type) || Tool.TIME_INSTANT.equals(type) || Tool.TIME.equals(type);
