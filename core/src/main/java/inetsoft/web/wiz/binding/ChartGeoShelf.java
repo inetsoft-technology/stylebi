@@ -68,6 +68,14 @@ public final class ChartGeoShelf {
     * more than one polygon layer. Runs before anything is written.
     */
    public static void validate(List<Field> fields) {
+      validate(fields, null);
+   }
+
+   /**
+    * As {@link #validate(List)}, and when {@code mapType} is given, refuses any layer that map
+    * type does not provide.
+    */
+   public static void validate(List<Field> fields, String mapType) {
       if(fields == null || fields.isEmpty()) {
          throw new IllegalArgumentException("fields must name at least one geographic column");
       }
@@ -85,8 +93,17 @@ public final class ChartGeoShelf {
                "Column '" + field.column() + "' is listed more than once in the geo fields");
          }
 
-         if(!MapData.isPointLayer(layerId(field))) {
+         int layer = layerId(field);
+
+         if(!MapData.isPointLayer(layer)) {
             polygons++;
+         }
+
+         if(mapType != null && !MapHelper.isLayerSupported(mapType, layer)) {
+            throw new IllegalArgumentException(
+               Catalog.getCatalog().getString("em.common.graph.layerNotSupported",
+                                              field.layer(), mapType) +
+               " Column '" + field.column() + "'.");
          }
       }
 
@@ -96,6 +113,19 @@ public final class ChartGeoShelf {
       }
    }
 
+   private static String requireMapType(String mapType) {
+      if(mapType == null || mapType.isBlank()) {
+         return null;
+      }
+
+      if(!MapHelper.isValidType(mapType)) {
+         throw new IllegalArgumentException(
+            "Map type '" + mapType + "' is not one of " + String.join(", ", MapData.getMapTypes()));
+      }
+
+      return mapType;
+   }
+
    /**
     * One undo checkpoint: writes the geo shelf of {@code assemblyName} through {@link #apply}
     * and, when the write ends in a combination the chart cannot render, puts the chart back as
@@ -103,10 +133,11 @@ public final class ChartGeoShelf {
     */
    public static List<Detected> write(ViewsheetSessionService sessions, String sessionToken,
                                       Principal user, String assemblyName, VSChartHandler handler,
-                                      List<Field> fields)
+                                      List<Field> fields, String mapType)
       throws Exception
    {
-      validate(fields);
+      String requested = requireMapType(mapType);
+      validate(fields, requested);
       List<Detected> result = new ArrayList<>();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -119,7 +150,7 @@ public final class ChartGeoShelf {
          }
 
          try {
-            result.addAll(apply(rvs, chart, handler, fields));
+            result.addAll(apply(rvs, chart, handler, fields, requested));
          }
          catch(Exception e) {
             // The write is already committed and mutate() does not undo a thrown mutation; the
@@ -157,7 +188,20 @@ public final class ChartGeoShelf {
                                       VSChartHandler handler, List<Field> fields)
       throws Exception
    {
-      validate(fields);
+      return apply(rvs, chart, handler, fields, null);
+   }
+
+   /**
+    * @param mapType0 the map type to detect within, or {@code null} to detect it from the data.
+    *                 A geo column left over from an earlier call whose mapping is of another
+    *                 type is reset, so it cannot keep its old type.
+    */
+   public static List<Detected> apply(RuntimeViewsheet rvs, ChartVSAssembly chart,
+                                      VSChartHandler handler, List<Field> fields, String mapType0)
+      throws Exception
+   {
+      String mapType = requireMapType(mapType0);
+      validate(fields, mapType);
       Viewsheet vs = rvs.getViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow(
          () -> new IllegalStateException("The viewsheet has no sandbox"));
@@ -166,6 +210,10 @@ public final class ChartGeoShelf {
       if(!(ainfo.getVSChartInfo() instanceof VSMapInfo info)) {
          throw new IllegalArgumentException(
             "'" + chart.getName() + "' is not a map chart; set the chart type to map first");
+      }
+
+      if(mapType != null) {
+         info.setMeasureMapType(mapType);
       }
 
       // The shelf fields, with the layer asked for on both the field and its geo column.
@@ -180,6 +228,16 @@ public final class ChartGeoShelf {
 
          VSChartGeoRef col = (VSChartGeoRef) info.getGeoColumns().getAttribute(field.column());
          col.getGeographicOption().setLayerValue(layer);
+
+         if(mapType != null) {
+            GeographicOption opt = col.getGeographicOption();
+
+            if(!mapType.equals(opt.getMapping().getType())) {
+               opt.setMapping(new FeatureMapping());
+            }
+
+            opt.getMapping().setType(mapType);
+         }
 
          VSChartGeoRef geo = new VSChartGeoRef();
          geo.setGroupColumnValue(field.column());
@@ -229,15 +287,16 @@ public final class ChartGeoShelf {
 
       for(Field field : fields) {
          VSChartGeoRef col = (VSChartGeoRef) info.getGeoColumns().getAttribute(field.column());
-         String colType = col == null ? null : col.getGeographicOption().getMapping().getType();
-         colType = colType == null ? "" : colType;
-         int layer = col.getGeographicOption().getLayer();
 
          if(col == null) {
             throw new IllegalArgumentException(
                "Column '" + field.column() + "' could not be registered as geographic; check " +
                "that it is a column of the chart's source.");
          }
+
+         String colType = col.getGeographicOption().getMapping().getType();
+         colType = colType == null ? "" : colType;
+         int layer = col.getGeographicOption().getLayer();
 
          if(type != null && !type.equals(colType)) {
             throw new IllegalArgumentException(

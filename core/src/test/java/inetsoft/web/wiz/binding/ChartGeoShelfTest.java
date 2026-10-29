@@ -217,9 +217,33 @@ class ChartGeoShelfTest {
       when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
 
       assertThrows(java.io.IOException.class, () -> ChartGeoShelf.write(
-         sessions, "tok", null, "Chart1", handler, List.of(new Field("State", "State"))));
+         sessions, "tok", null, "Chart1", handler, List.of(new Field("State", "State")), null));
 
       verify(rvs).restoreCurrentCheckpoint();
+   }
+
+   @Test
+   void anExplicitMapTypeIsRespectedAndAStaleEntryDoesNotKeepItsOldType() throws Exception {
+      ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")), "U.S.");
+      VSChartGeoRef stale = (VSChartGeoRef) info.getGeoColumns().getAttribute("State");
+      stale.getGeographicOption().setMapping(new FeatureMapping("id", "alg", "Canada", 2));
+
+      List<Detected> detected = ChartGeoShelf.apply(
+         rvs, chart, handler, List.of(new Field("State", "State")), "U.S.");
+
+      assertEquals("U.S.", detected.get(0).mapType());
+      assertEquals("U.S.", mappingType("State"));
+      assertEquals("U.S.", info.getMeasureMapType());
+   }
+
+   @Test
+   void aLayerTheExplicitMapTypeDoesNotProvideIsRefusedBeforeAnythingIsWritten() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")), "World"));
+
+      assertTrue(e.getMessage().contains("not supported"), e.getMessage());
+      assertEquals(0, info.getGeoFields().length);
+      assertEquals(0, info.getGeoColumns().getAttributeCount());
    }
 
    private String mappingType(String column) {

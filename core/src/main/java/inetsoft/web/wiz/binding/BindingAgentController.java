@@ -212,7 +212,8 @@ public class BindingAgentController {
 
    /** @param layer Country, State, Province, City or Zip. */
    public record GeoShelfField(String column, String layer) {}
-   public record GeoShelfRequest(String assembly, List<GeoShelfField> fields) {}
+   public record GeoShelfRequest(String assembly, List<GeoShelfField> fields,
+                                 String mapType) {}
 
    /**
     * Writes a map chart's geo shelf with real geo column registration and detection; see
@@ -231,7 +232,8 @@ public class BindingAgentController {
             .map(f -> new ChartGeoShelf.Field(f.column(), f.layer())).toList();
       List<ChartGeoShelf.Detected> detected = ChartGeoShelf.write(
          sessions, sessionToken, user, request.assembly(),
-         ConfigurationContext.getContext().getSpringBean(VSChartHandler.class), fields);
+         ConfigurationContext.getContext().getSpringBean(VSChartHandler.class), fields,
+         request.mapType());
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("geo", detected);
 
