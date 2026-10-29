@@ -60,11 +60,12 @@ import java.util.List;
  * {@code "start"} always performs an unconditional stop, then start, even when the scheduler is
  * already running (an existing product quirk, not something this area introduces); {@code "stop"}
  * also fires the product's own configured "scheduler down" notification email, the same as
- * clicking Stop in Enterprise Manager; {@code "restart"} stops the scheduler, blocks waiting up to
- * 30s for it to actually stop, and only then starts it again -- if that 30s window elapses first,
- * the scheduler is left STOPPED, not restarted, and {@code setStatus} throws rather than silently
- * calling start anyway. {@link SchedulerStatusChangesetApplyService} surfaces that partial-failure
- * state plainly rather than reporting a generic "restart failed".
+ * clicking Stop in Enterprise Manager; {@code "start"} and {@code "restart"} stop the scheduler,
+ * block waiting up to 30s for it to actually stop, and only then start it again -- if that 30s
+ * window elapses first, the scheduler is left STOPPED, not started, and {@code setStatus} throws
+ * rather than silently calling start anyway. {@link SchedulerStatusChangesetApplyService}
+ * surfaces that partial-failure state plainly, naming the verb, rather than reporting a generic
+ * failure.
  */
 @Component
 public class SchedulerStatusChangePlanService {
@@ -144,8 +145,9 @@ public class SchedulerStatusChangePlanService {
 
       switch(verb) {
       case SchedulerStatusChangeRequest.VERB_START:
-         base = "start the scheduler -- performs an unconditional stop, then start, even if it is " +
-            "already running";
+         base = "start the scheduler -- performs an unconditional stop, waits up to 30s for it to " +
+            "actually stop, then starts it, even if it is already running; if the 30s window " +
+            "elapses first, the scheduler is left stopped, not started";
          break;
       case SchedulerStatusChangeRequest.VERB_STOP:
          base = "stop the scheduler -- also fires the product's own configured \"scheduler down\" " +

@@ -233,6 +233,26 @@ class SchedulerStatusChangesetApplyServiceTest {
       }
    }
 
+   @Test void startTimeoutNamesTheStartVerbNotRestart() throws Exception {
+      stubStatus(true);
+      String hash = planService.resolve(request("task", List.of(start()))).planHash();
+
+      doThrow(new IllegalStateException("Time out waiting for scheduler to stop"))
+         .when(configService).setStatus("start");
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         var result = service.apply(applyRequest("task", hash, "looks good", start()), user);
+
+         assertEquals(SchedulerStatusChangesetApplyService.STATUS_FAILED, result.status());
+         SchedulerStatusApplyOutcome outcome = result.results().get(0);
+         assertEquals(AdminChangeRecord.STATUS_FAILED, outcome.status());
+         assertTrue(outcome.error().startsWith("start failed:"));
+         assertTrue(outcome.error().contains("NOT started"));
+         assertFalse(outcome.error().contains("restart"));
+         assertTrue(outcome.error().contains("Time out waiting for scheduler to stop"));
+      }
+   }
+
    // -------------------------------------------------------------------------
    // no "partial" status is possible in this area -- single entry only
    // -------------------------------------------------------------------------

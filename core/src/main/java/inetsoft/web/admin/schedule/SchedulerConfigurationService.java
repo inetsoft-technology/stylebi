@@ -209,28 +209,33 @@ public class SchedulerConfigurationService {
    public void setStatus(String action) throws Exception {
       switch(Objects.requireNonNull(action)) {
       case "start":
-         SUtil.stopScheduler();
+      case "restart":
+         stopAndWait();
          SUtil.startScheduler();
          break;
       case "stop":
          SUtil.stopScheduler(true, true);
          break;
-      case "restart":
-         SUtil.stopScheduler();
-         long start = System.currentTimeMillis();
+      }
+   }
 
-         do {
-            Thread.sleep(500L);
-         }
-         while(scheduleClient.isRunning() && System.currentTimeMillis() - start < 30000L);
+   /**
+    * Stops the scheduler and blocks until it has left the cluster. The stop request is
+    * asynchronous, so starting right away would see the dying process as still ready and
+    * {@link SUtil#startScheduler()} would return without launching a new one. A scheduler whose
+    * node is registered but does not answer ping (still starting or unhealthy) is not stopped by
+    * the request, so this waits for it too and times out.
+    */
+   private void stopAndWait() throws Exception {
+      SUtil.stopScheduler();
+      long start = System.currentTimeMillis();
 
-         if(scheduleClient.isRunning()) {
-            throw new IllegalStateException(
-               "Time out waiting for scheduler to stop");
-         }
+      while(scheduleClient.isRunning() && System.currentTimeMillis() - start < stopTimeoutMillis) {
+         Thread.sleep(500L);
+      }
 
-         SUtil.startScheduler();
-         break;
+      if(scheduleClient.isRunning()) {
+         throw new IllegalStateException("Time out waiting for scheduler to stop");
       }
    }
 
@@ -444,6 +449,8 @@ public class SchedulerConfigurationService {
    private final ResourcePermissionService permissionService;
    private final ExternalStorageService externalStorageService;
    private final Cluster cluster;
+   // overridable by tests so the timeout path does not take 30 seconds
+   long stopTimeoutMillis = 30000L;
 
    private static final Logger LOG = LoggerFactory.getLogger(SchedulerConfigurationService.class);
 }

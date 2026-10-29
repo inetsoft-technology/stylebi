@@ -126,20 +126,22 @@ public class SchedulerStatusChangesetApplyService {
             if(!verified) {
                error = "read-back status \"" + afterLabel + "\" does not match the proposed state " +
                   "\"" + change.proposedValue() + "\" after retrying past the possible status " +
-                  "propagation delay -- for restart this can mean the server-side 30s stop-wait " +
-                  "timed out, leaving the scheduler stopped but NOT restarted; for start/stop it may " +
+                  "propagation delay -- for start/restart this can mean the server-side 30s " +
+                  "stop-wait timed out, leaving the scheduler stopped but NOT started; for stop it may " +
                   "mean the underlying call did not complete as expected";
             }
          }
          catch(IllegalStateException e) {
-            // SchedulerConfigurationService.setStatus("restart")'s own documented partial-failure
-            // path: it stopped the scheduler, waited up to 30s, and gave up without ever calling
-            // startScheduler(). This must be surfaced plainly, not swallowed into a generic
-            // "restart failed" (track-status/01-design.md section 3a).
+            // SchedulerConfigurationService.setStatus("start"/"restart")'s own documented
+            // partial-failure path: it stopped the scheduler, waited up to 30s, and gave up
+            // without ever calling startScheduler(). This must be surfaced plainly, not swallowed
+            // into a generic failure (track-status/01-design.md section 3a).
             outcomeStatus = STATUS_FAILED;
-            error = "restart failed: " + e.getMessage() + " -- the scheduler has been stopped but " +
-               "was NOT restarted; it is not running. Check status and consider a plain \"start\" " +
-               "instead of retrying restart immediately.";
+            String notDone = SchedulerStatusChangeRequest.VERB_RESTART.equals(verb) ?
+               "restarted" : "started";
+            error = verb + " failed: " + e.getMessage() + " -- the scheduler has been stopped " +
+               "but was NOT " + notDone + "; it is not running. Check status and consider a " +
+               "plain \"start\" instead of retrying " + verb + " immediately.";
          }
          catch(Exception e) {
             outcomeStatus = STATUS_FAILED;
