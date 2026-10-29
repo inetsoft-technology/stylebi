@@ -160,6 +160,17 @@ public class ModifyCalculateFieldService {
          }
       }
 
+      // Bug #79601: a per-row calc field on a worksheet table that has its own group/aggregate
+      // never reaches the table's output columns, so any binding of it is silently dropped
+      if(!remove && cref != null) {
+         String problem = detailCalcOnAggregatedTableMessage(vs, tname, cref);
+
+         if(problem != null) {
+            sendErrorMessage(new IllegalArgumentException(problem), dispatcher);
+            return null;
+         }
+      }
+
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
@@ -1083,6 +1094,40 @@ public class ModifyCalculateFieldService {
       }
 
       return false;
+   }
+
+   /**
+    * Explains why a per-row (baseOnDetail) calc field cannot be put on a worksheet table that has
+    * its own group/aggregate, or null if it can. The table's output columns are only its groups
+    * and aggregates, so the calc column never reaches the viewsheet and every binding of it is
+    * silently dropped. A table without an aggregate of its own (including a mirror of a grouped
+    * table), a crosstab-mode aggregate, a logical model table and a non-table source are not
+    * affected (Bug #79601).
+    */
+   static String detailCalcOnAggregatedTableMessage(Viewsheet vs, String tname, CalculateRef cref) {
+      if(cref == null || !cref.isBaseOnDetail() || tname == null) {
+         return null;
+      }
+
+      Worksheet ws = vs.getBaseWorksheet();
+      Assembly wass = ws == null ? null : ws.getAssembly(tname);
+
+      if(!(wass instanceof AbstractTableAssembly table) || wass instanceof BoundTableAssembly) {
+         return null;
+      }
+
+      AggregateInfo ainfo = table.getAggregateInfo();
+
+      if(ainfo == null || ainfo.isEmpty() || table.isCrosstab()) {
+         return null;
+      }
+
+      return "Calc field '" + cref.getName() + "' is per-row (baseOnDetail:true), but table '" +
+         tname + "' has its own group/aggregate in the worksheet, so a per-row calc field would " +
+         "be silently dropped from anything bound to it. Add an expression column in the " +
+         "worksheet before the grouping and aggregate that column instead; or, for an " +
+         "aggregate-level calc field that applies to the already-grouped values, use " +
+         "baseOnDetail:false.";
    }
 
    /**
