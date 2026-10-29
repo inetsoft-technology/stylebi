@@ -2344,7 +2344,7 @@ class WorksheetAgentControllerTest {
          OutputStream out = invocation.getArgument(2);
          out.write(fakeCsv);
          return null;
-      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -2358,7 +2358,7 @@ class WorksheetAgentControllerTest {
 
       verify(servletResponse).setContentType("text/csv");
       verify(servletResponse).setHeader(eq("Content-Disposition"), contains("T.csv"));
-      verify(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+      verify(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
       assertArrayEquals(fakeCsv, written.toByteArray());
    }
 
@@ -2378,7 +2378,7 @@ class WorksheetAgentControllerTest {
 
       RawDataService rawDataService = mock(RawDataService.class);
       doThrow(new RuntimeException("Table missing not found."))
-         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("missing"), any());
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("missing"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -2392,6 +2392,33 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getMessage().contains("missing"));
    }
 
+   /** Bug #79596: warnings the service reports are sent as a header before the body. */
+   @Test
+   void exportTableSetsTheWarningsHeaderFromTheServiceBeforeStreaming() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      doAnswer(invocation -> {
+         java.util.function.Consumer<java.util.List<String>> sink = invocation.getArgument(3);
+         sink.accept(java.util.List.of("1 cell(s) were cut"));
+         return null;
+      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+      ctrl.exportTable("TOK", "T", agent, servletResponse);
+
+      verify(servletResponse).setHeader("X-Wiz-Export-Warnings",
+         "%5B%221%20cell%28s%29%20were%20cut%22%5D");
+   }
+
    /** Redmine 78271: the export failure must reach the client as a body naming the cause. */
    @Test
    void exportTableReportsTheFailureCauseAsAResponseStatusException() throws Exception {
@@ -2402,7 +2429,7 @@ class WorksheetAgentControllerTest {
 
       RawDataService rawDataService = mock(RawDataService.class);
       doThrow(new RuntimeException("Failed to export worksheet table 'T': undefinedFn is not defined"))
-         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -2433,7 +2460,7 @@ class WorksheetAgentControllerTest {
 
       RawDataService rawDataService = mock(RawDataService.class);
       doThrow(new ExecutionException("sub-query failed", new IllegalStateException("root cause")))
-         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
