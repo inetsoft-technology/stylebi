@@ -933,4 +933,38 @@ class ScheduleConfigChangePlanServiceTest {
       assertNotEquals(service.resolve(request("t", List.of(plain)), user).planHash(),
                       service.resolve(request("t", List.of(granted)), user).planHash());
    }
+
+   // a rename with modified == null carries permissions (Bug #79545), so the carried grant is a
+   // write that must be bound into the hash
+
+   @Test void renameCarryingStoredGrantChangesTheHash() throws Exception {
+      ScheduleConfigChangeRequest rename = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      String withoutGrant = service.resolve(request("t", List.of(rename)), user).planHash();
+
+      stubConfig(List.of(), List.of(rangeWithPermissions("Morning", permissionModel())));
+      ResolvedPlan withGrant = service.resolve(request("t", List.of(rename)), user);
+
+      assertNotEquals(withoutGrant, withGrant.planHash());
+      assertTrue(withGrant.changes().get(0).description().contains("ALSO WRITES"));
+   }
+
+   @Test void renameCarryingCallerGrantWithNullModifiedChangesTheHash() throws Exception {
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      ScheduleConfigChangeRequest plain = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+      ScheduleConfigChangeRequest granted = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+      granted.getSpec().put("permissions", permissions(grant("alice", "READ")));
+
+      assertNotEquals(service.resolve(request("t", List.of(plain)), user).planHash(),
+                      service.resolve(request("t", List.of(granted)), user).planHash());
+   }
+
+   @Test void renameWithoutAnyGrantHashesLikeBefore() throws Exception {
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      ScheduleConfigChangeRequest rename = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+
+      assertEquals(service.resolve(request("t", List.of(rename)), user).planHash(),
+                   service.resolve(request("t", List.of(rename)), user).planHash());
+   }
 }
