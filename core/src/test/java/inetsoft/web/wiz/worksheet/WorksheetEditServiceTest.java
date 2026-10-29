@@ -2314,4 +2314,53 @@ class WorksheetEditServiceTest {
       assertEquals(2, joinA.getTableAssemblies().length, "a rejected call must not mutate JoinA");
       assertNotNull(joinA.getOperator("CUSTOMERS_A", "CONTACTS_A"));
    }
+
+   /**
+    * Bug #79692: extending a join by its own name must resolve a key column owned by a MIRROR
+    * member, matching it by attribute name the way add_table_to_join already does.
+    */
+   @Test
+   void addJoinExtendsJoinWhoseKeyColumnLivesOnMirrorMember() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly orders = TestWorksheets.tableWithColumns(ws, "ORDERS", "CUSTOMER_ID", "AMT");
+      EmbeddedTableAssembly k = TestWorksheets.tableWithColumns(ws, "K", "CID", "TAG");
+      EmbeddedTableAssembly customers =
+         TestWorksheets.tableWithColumns(ws, "CUSTOMERS", "CUSTOMER_ID", "NAME");
+      ws.addAssembly(orders);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", orders);
+      ws.addAssembly(mirror);
+      ws.addAssembly(k);
+      ws.addAssembly(customers);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-8", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         new InnerJoinService(null, null));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("J", "M", "CUSTOMER_ID", "K", "CID", "INNER", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("J", "J", "CUSTOMER_ID", "CUSTOMERS", "CUSTOMER_ID", "INNER",
+                                 null, null));
+
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertEquals(3, join.getTableAssemblies().length);
+      assertNotNull(join.getOperator("M", "CUSTOMERS"));
+
+      assertThrows(Exception.class,
+                   () -> svc.apply("TOK", agent,
+                      ed -> ed.addJoin("J", "J", "NO_SUCH_COL", "CUSTOMERS", "CUSTOMER_ID",
+                                       "INNER", null, null)));
+   }
 }

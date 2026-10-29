@@ -5400,6 +5400,9 @@ public class WorksheetEditService {
        * extend-in-place branch for why passing the composite's own name is actively dangerous,
        * not just imprecise).
        *
+       * A column matches by attribute name or visible name, since a mirror member's
+       * getName() is entity-qualified.
+       *
        * @throws PairingException if zero, or more than one, direct member has a column named
        *                          {@code columnName} -- fails loud rather than silently guessing.
        */
@@ -5414,7 +5417,7 @@ public class WorksheetEditService {
             while(attrs.hasMoreElements()) {
                DataRef ref = (DataRef) attrs.nextElement();
 
-               if(columnName.equals(ref.getName())) {
+               if(refNamed(ref, columnName)) {
                   if(match != null) {
                      throw new PairingException(
                         "Column \"" + columnName + "\" exists on more than one table already " +
