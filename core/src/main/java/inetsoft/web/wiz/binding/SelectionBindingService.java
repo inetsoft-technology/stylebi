@@ -376,6 +376,7 @@ public class SelectionBindingService {
          else if(assembly instanceof CalendarVSAssembly) {
             refuseMeasure(assemblyName, "a calendar", measure);
             requireArity(assemblyName, "a calendar", resolvedColumns, 1, 1);
+            requireDateType(assemblyName, resolvedTable, resolvedColumns.get(0));
             CalendarPropertyDialogModel model =
                calendarService.getCalendarPropertyModel(runtimeId, assemblyName, user);
             CalendarDataPaneModel pane = model.getCalendarDataPaneModel();
@@ -529,6 +530,26 @@ public class SelectionBindingService {
          "date or time; '" + field.column() + "' is " + type + " (table '" + table + "'), so " +
          "the slider would render empty. Bind '" + field.column() + "' to a selection list " +
          "instead. The slider's existing binding was not changed.");
+   }
+
+   /**
+    * Refuses a calendar bound to a column that is not a date or time. Such a column gives the
+    * calendar no dates to offer, yet the bind used to succeed and retitle the calendar. Runs before
+    * anything is read or applied, so a refused bind leaves the calendar unbound. A column with no
+    * known data type is allowed, as for the range slider.
+    */
+   private static void requireDateType(String assemblyName, String table, BindableField field) {
+      String type = field.dataType();
+
+      if(type == null || XSchema.isDateType(type)) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' is a calendar, which must be bound to a date or time column; '" +
+         field.column() + "' is " + type + " (table '" + table + "'), so the calendar would have " +
+         "no dates to offer. Bind '" + field.column() + "' to a selection list instead. The " +
+         "calendar's existing binding was not changed.");
    }
 
    /**
