@@ -20,7 +20,6 @@ package inetsoft.uql.cassandra;
 import com.datastax.oss.driver.api.core.CqlIdentifier;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
-import com.datastax.oss.driver.api.core.data.TupleValue;
 import com.datastax.oss.driver.api.core.type.DataType;
 import com.datastax.oss.protocol.internal.ProtocolConstants;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,7 +28,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.awt.*;
 import java.math.BigDecimal;
-import java.net.InetAddress;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -90,8 +88,8 @@ class CassandraTableTypeEquivalenceTest {
          Arguments.of(ProtocolConstants.DataType.UUID, UUID.class),
          Arguments.of(ProtocolConstants.DataType.TIMEUUID, UUID.class),
          Arguments.of(ProtocolConstants.DataType.BLOB, Image.class),
-         Arguments.of(ProtocolConstants.DataType.INET, InetAddress.class),
-         Arguments.of(ProtocolConstants.DataType.TUPLE, TupleValue.class),
+         Arguments.of(ProtocolConstants.DataType.INET, String.class),
+         Arguments.of(ProtocolConstants.DataType.TUPLE, String.class),
          Arguments.of(ProtocolConstants.DataType.ASCII, String.class),
          Arguments.of(ProtocolConstants.DataType.VARCHAR, String.class),
          // Not named in the switch — exercises the default branch.

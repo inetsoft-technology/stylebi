@@ -20,11 +20,13 @@ package inetsoft.uql.cassandra;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
 import com.datastax.oss.driver.api.core.data.TupleValue;
+import com.datastax.oss.driver.api.core.data.UdtValue;
 import com.datastax.oss.driver.api.core.type.DataType;
 import com.datastax.oss.driver.api.core.type.ListType;
 import com.datastax.oss.driver.api.core.type.MapType;
 import com.datastax.oss.driver.api.core.type.SetType;
 import com.datastax.oss.protocol.internal.ProtocolConstants;
+import com.datastax.oss.protocol.internal.util.Bytes;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTableNode;
 import inetsoft.util.Tool;
@@ -211,9 +213,8 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.BLOB:
          return Image.class;
       case ProtocolConstants.DataType.INET:
-         return InetAddress.class;
       case ProtocolConstants.DataType.TUPLE:
-         return TupleValue.class;
+         return String.class;
       case ProtocolConstants.DataType.ASCII:
       case ProtocolConstants.DataType.VARCHAR:
          return String.class;
@@ -271,20 +272,38 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.BLOB:
          ByteBuffer buf = curr.getByteBuffer(col);
 
+         if(buf == null) {
+            return null;
+         }
+
          try {
-            return buf == null ?
-               null : Tool.getImage(new ByteArrayInputStream(buf.array()), false);
+            // decode only the remaining bytes; array() would ignore offset/limit
+            ByteBuffer copy = buf.duplicate();
+            byte[] bytes = new byte[copy.remaining()];
+            copy.get(bytes);
+            Image image = Tool.getImage(new ByteArrayInputStream(bytes), false);
+
+            if(image != null) {
+               return image;
+            }
          }
          catch(Exception ex) {
-            return buf;
+            LOG.debug("Failed to decode blob as image: (" + col + ")", ex);
          }
+
+         return Bytes.toHexString(buf);
       case ProtocolConstants.DataType.INET:
-         return curr.getInetAddress(col);
+         InetAddress inet = curr.getInetAddress(col);
+         return inet == null ? null : inet.getHostAddress();
       case ProtocolConstants.DataType.TUPLE:
-         return curr.getTupleValue(col);
+         TupleValue tuple = curr.getTupleValue(col);
+         return tuple == null ? null : tuple.getFormattedContents();
       case ProtocolConstants.DataType.ASCII:
       case ProtocolConstants.DataType.VARCHAR:
          return curr.getString(col);
+      case ProtocolConstants.DataType.UDT:
+         UdtValue udt = curr.getUdtValue(col);
+         return udt == null ? null : udt.getFormattedContents();
       default:
          try {
             return curr.getUdtValue(col);
