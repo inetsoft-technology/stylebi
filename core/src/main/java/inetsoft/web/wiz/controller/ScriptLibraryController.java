@@ -27,14 +27,17 @@ import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.sync.DependencyTransformer;
-import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.SourceSection;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Wraps StyleBI's Script Library asset (LibManager, AssetEntry.Type.SCRIPT) -- a reusable script
@@ -56,12 +59,35 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/wiz/v1/script-library")
 public class ScriptLibraryController {
+   @Autowired
    public ScriptLibraryController(LibManagerProvider libManagerProvider,
                                   SecurityEngine securityEngine)
    {
+      this(libManagerProvider, securityEngine,
+           text -> ScriptEnvRepository.getScriptEnv().checkFunction("script", text));
+   }
+
+   ScriptLibraryController(LibManagerProvider libManagerProvider, SecurityEngine securityEngine,
+                           ScriptSyntaxChecker syntaxChecker)
+   {
       this.libManagerProvider = libManagerProvider;
       this.securityEngine = securityEngine;
+      this.syntaxChecker = syntaxChecker;
    }
+
+   /**
+    * Parse-only syntax check of a function text; throws when the text does not compile.
+    */
+   @FunctionalInterface
+   interface ScriptSyntaxChecker {
+      void check(String text) throws Exception;
+   }
+
+   /**
+    * A failed syntax check. {@code cause} is the exception the checker threw, kept so a caller can
+    * tell a syntax error from an unavailable engine.
+    */
+   record SyntaxError(String message, int line, int column, Exception cause) {}
 
    public record ScriptLibraryFunction(String name, String comment) {}
 
@@ -89,6 +115,19 @@ public class ScriptLibraryController {
    public record CheckScriptSyntaxResult(boolean ok, String message, Integer line, Integer column) {}
 
    public record CheckScriptSyntaxRequest(String script) {}
+
+   /**
+    * The native Script Library dialog's name rule (form-validators.ts), enforced here because that
+    * check runs only in the browser.
+    */
+   private static final Pattern IDENTIFIER = Pattern.compile("^[\\p{L}_$][\\p{L}\\p{N}_$]*$");
+
+   // ES reserved words only; contextual names (let, static, yield, await, async, of) stay legal.
+   private static final Set<String> RESERVED_WORDS = Set.of(
+      "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
+      "do", "else", "enum", "export", "extends", "false", "finally", "for", "function", "if",
+      "import", "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw",
+      "true", "try", "typeof", "var", "void", "while", "with");
 
    private static final String RESYNC_WARNING =
       "Viewsheet sessions that were already open before this call may not see this change in " +
@@ -140,6 +179,7 @@ public class ScriptLibraryController {
          throw new IllegalArgumentException("create_script_library_function requires 'text'.");
       }
 
+      requireValidName("name", name);
       requirePermission(principal, name, ResourceAction.WRITE);
       LibManager lib = libManagerProvider.getManager(principal);
 
@@ -149,6 +189,7 @@ public class ScriptLibraryController {
             "update_script_library_function to change it, or pick a different name.");
       }
 
+      requireCompiles(request.text());
       lib.setScript(name, request.text());
       DependencyHandler.getInstance().updateScriptDependencies(null, request.text(), scriptEntry(name));
 
@@ -175,6 +216,8 @@ public class ScriptLibraryController {
 
       String oldText = lib.getScript(name);
       String newText = request.text();
+      // validate before any mutation so a refused update leaves the old text and dependency edges
+      requireCompiles(newText);
       // Keeps the outgoing dependency graph in sync with the new body, the same way
       // OpenScriptController.saveScript does for a per-sheet script save -- otherwise delete()'s
       // dependency-safety check above is only as accurate as the last create/update wrote.
@@ -206,6 +249,7 @@ public class ScriptLibraryController {
          throw new IllegalArgumentException("rename_script_library_function requires 'newName'.");
       }
 
+      requireValidName("newName", newName);
       requirePermission(principal, name, ResourceAction.WRITE);
       requirePermission(principal, newName, ResourceAction.WRITE);
       LibManager lib = libManagerProvider.getManager(principal);
@@ -221,6 +265,9 @@ public class ScriptLibraryController {
       // reload triggered by another thread cannot wipe the unsaved in-memory rename.
       synchronized(lib) {
          String newText = LibManager.renameFunctionDeclaration(name, newName, lib.getScript(name));
+         // the rewritten declaration must still compile, or the renamed function would be stored
+         // but never installed
+         requireCompiles(newText);
          lib.renameScript(name, newName);
          lib.save();
 
@@ -289,10 +336,23 @@ public class ScriptLibraryController {
 
    @PostMapping("/check")
    public CheckScriptSyntaxResult checkSyntax(@RequestBody CheckScriptSyntaxRequest request) {
-      ScriptEnv env = ScriptEnvRepository.getScriptEnv();
+      SyntaxError error = diagnose(request.script());
 
+      if(error != null) {
+         return new CheckScriptSyntaxResult(false, error.message(), error.line(), error.column());
+      }
+
+      return new CheckScriptSyntaxResult(true, null, null, null);
+   }
+
+   /**
+    * Runs the syntax check and unwraps a failure to its message and source location; null when the
+    * text compiles. Shared by {@link #checkSyntax} and the save gate so both report identically.
+    */
+   SyntaxError diagnose(String text) {
       try {
-         env.checkFunction("script", request.script());
+         syntaxChecker.check(text);
+         return null;
       }
       catch(Exception e) {
          int line = 0;
@@ -311,10 +371,55 @@ public class ScriptLibraryController {
             column = loc.getStartColumn();
          }
 
-         return new CheckScriptSyntaxResult(false, e.getMessage(), line, column);
+         return new SyntaxError(e.getMessage(), line, column, e);
+      }
+   }
+
+   /**
+    * Persistence gate for create/update/rename: the same parse-only check as
+    * check_script_library_syntax and the native editor. It does not require the text to declare a
+    * function named like the entry (var namespaces and IIFEs are valid entries). Top-level
+    * let/const redeclarations are rejected here, which may be stricter than the installer's
+    * let-to-var rewrite.
+    */
+   private void requireCompiles(String text) {
+      SyntaxError error = diagnose(text);
+
+      if(error == null) {
+         return;
       }
 
-      return new CheckScriptSyntaxResult(true, null, null, null);
+      if(error.cause() instanceof IllegalStateException) {
+         // 503 through WizControllerErrorHandler's ResponseStatusException mapping; a bare
+         // IllegalStateException would surface as a generic 500
+         throw new ResponseStatusException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "The script engine is not available, so the function text could not be checked: " +
+            firstLine(error.message()) + ". Nothing was saved.", error.cause());
+      }
+
+      String location = error.line() > 0
+         ? " (line " + error.line() + ", column " + error.column() + ")" : "";
+      throw new IllegalArgumentException(
+         "text does not compile: " + firstLine(error.message()) + location +
+         ". Nothing was saved.");
+   }
+
+   private void requireValidName(String field, String name) {
+      if(!IDENTIFIER.matcher(name).matches() || RESERVED_WORDS.contains(name)) {
+         throw new IllegalArgumentException(
+            field + " \"" + name + "\" is not a valid JavaScript identifier (letters, digits, " +
+            "'_' and '$', not starting with a digit, not a reserved word). Nothing was saved.");
+      }
+   }
+
+   private static String firstLine(String message) {
+      if(message == null) {
+         return "";
+      }
+
+      int nl = message.indexOf('\n');
+      return (nl < 0 ? message : message.substring(0, nl)).strip();
    }
 
    private void requireExists(LibManager lib, String name) {
@@ -356,4 +461,5 @@ public class ScriptLibraryController {
 
    private final LibManagerProvider libManagerProvider;
    private final SecurityEngine securityEngine;
+   private final ScriptSyntaxChecker syntaxChecker;
 }
