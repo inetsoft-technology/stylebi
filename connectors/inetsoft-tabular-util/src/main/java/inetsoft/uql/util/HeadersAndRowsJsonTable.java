@@ -119,12 +119,7 @@ public class HeadersAndRowsJsonTable extends BaseJsonTable {
                         }
 
                         // handle mixed type
-                        if(type != null && type != cls) {
-                           types.set(i, String.class);
-                        }
-                        else {
-                           types.set(i, cls);
-                        }
+                        types.set(i, widenTypes(type, cls));
                      }
                   }
 
@@ -323,7 +318,7 @@ public class HeadersAndRowsJsonTable extends BaseJsonTable {
    @Override
    public synchronized Object getObject(int col) {
       Object[] row = data.get(curr);
-      return row != null && col < row.length ? row[col] : null;
+      return row != null && col < row.length ? coerceToColumnType(row[col], types.get(col)) : null;
    }
 
    @Override

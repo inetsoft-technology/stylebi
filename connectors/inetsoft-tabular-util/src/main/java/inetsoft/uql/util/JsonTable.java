@@ -260,12 +260,7 @@ public class JsonTable extends BaseJsonTable {
          }
 
          // handle mixed type
-         if(type != null && type != cls) {
-            types.set(idx, String.class);
-         }
-         else {
-            types.set(idx, cls);
-         }
+         types.set(idx, widenTypes(type, cls));
       }
    }
 
@@ -428,7 +423,7 @@ public class JsonTable extends BaseJsonTable {
    @Override
    public synchronized Object getObject(int col) {
       Object[] row = data.get(curr);
-      return row != null && col < row.length ? row[col] : null;
+      return row != null && col < row.length ? coerceToColumnType(row[col], types.get(col)) : null;
    }
 
    @Override

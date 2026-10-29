@@ -122,15 +122,13 @@ final class MongoCatalog {
                columnTypes.put(name, XSchema.STRING);
             }
 
-            // Schema-less means the same key can legitimately hold different types across
-            // documents (e.g. a numeric field that started as int32 and is now stored as
-            // double). This connector does not detect or widen that: the first non-null value
-            // seen for a key, in scan order, decides its reported type, and a later, differently
-            // typed value for the same key is silently not reflected -- a real gap beyond what
-            // columnsMayBeIncomplete already communicates, recorded as a known degradation.
-            if(!resolved.contains(name) && value.getBsonType() != BsonType.NULL) {
-               columnTypes.put(name, toXSchemaType(value.getBsonType()));
-               resolved.add(name);
+            // Schema-less means the same key can hold different types across documents (e.g. an
+            // int32 that later turns up as a double). Widen across the sampled documents the same
+            // way the runtime table does (numeric -> long/double, any other mix -> string) so this
+            // agrees with add_table. Only documents inside this bounded sample are seen.
+            if(value.getBsonType() != BsonType.NULL) {
+               String type = toXSchemaType(value.getBsonType());
+               columnTypes.put(name, resolved.add(name) ? type : widen(columnTypes.get(name), type));
             }
          }
       }
@@ -154,6 +152,35 @@ final class MongoCatalog {
          // source-published metadata -- MongoDB has none to read instead. Same position
          // AerospikeCatalog takes; this connector has no path that would make it false.
          true);
+   }
+
+   private static String widen(String prev, String type) {
+      if(prev.equals(type)) {
+         return type;
+      }
+
+      boolean intPrev = isIntegral(prev);
+      boolean intType = isIntegral(type);
+
+      if(intPrev && intType) {
+         return XSchema.LONG;
+      }
+
+      if((intPrev || isFractional(prev)) && (intType || isFractional(type))) {
+         return XSchema.DOUBLE;
+      }
+
+      return XSchema.STRING;
+   }
+
+   private static boolean isIntegral(String type) {
+      return XSchema.BYTE.equals(type) || XSchema.SHORT.equals(type) ||
+         XSchema.INTEGER.equals(type) || XSchema.LONG.equals(type);
+   }
+
+   private static boolean isFractional(String type) {
+      return XSchema.FLOAT.equals(type) || XSchema.DOUBLE.equals(type) ||
+         XSchema.DECIMAL.equals(type);
    }
 
    /**

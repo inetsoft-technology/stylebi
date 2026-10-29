@@ -76,6 +76,69 @@ abstract public class BaseJsonTable extends XTableNode {
    public abstract void finishStreamedLoading();
 
    /**
+    * Merge the column type seen so far with the type of a newly seen value. Two numeric types
+    * widen to a numeric type (both integral: Long; otherwise Double) so a column holding e.g.
+    * Int32 and Double values stays numeric; any other mix falls back to String.
+    */
+   static Class<?> widenTypes(Class<?> prev, Class<?> cls) {
+      if(prev == null || prev == cls) {
+         return cls;
+      }
+
+      if(Number.class.isAssignableFrom(prev) && Number.class.isAssignableFrom(cls)) {
+         return isIntegral(prev) && isIntegral(cls) ? Long.class : Double.class;
+      }
+
+      return String.class;
+   }
+
+   private static boolean isIntegral(Class<?> cls) {
+      return cls == Byte.class || cls == Short.class || cls == Integer.class ||
+         cls == Long.class;
+   }
+
+   /**
+    * Convert a cell to the column's final numeric type so every cell of a widened column has
+    * the same class.
+    */
+   static Object coerceToColumnType(Object val, Class<?> type) {
+      if(val instanceof Number) {
+         if(type == Double.class && val.getClass() != Double.class) {
+            return ((Number) val).doubleValue();
+         }
+         else if(type == Long.class && val.getClass() != Long.class) {
+            // never lose value: a later value wider than the sampled type stays as is
+            Long lval = toExactLong((Number) val);
+            return lval != null ? lval : val;
+         }
+      }
+
+      return val;
+   }
+
+   private static Long toExactLong(Number num) {
+      if(num instanceof Byte || num instanceof Short || num instanceof Integer) {
+         return num.longValue();
+      }
+
+      if(num instanceof java.math.BigInteger) {
+         return ((java.math.BigInteger) num).bitLength() <= 63 ? (Long) num.longValue() : null;
+      }
+
+      if(num instanceof java.math.BigDecimal) {
+         try {
+            return ((java.math.BigDecimal) num).longValueExact();
+         }
+         catch(ArithmeticException ex) {
+            return null;
+         }
+      }
+
+      double d = num.doubleValue();
+      return d == Math.rint(d) && d >= -0x1p63 && d < 0x1p63 ? (Long) (long) d : null;
+   }
+
+   /**
     * Gets the number of rows currently loaded into this table.
     *
     * @return the row count.
