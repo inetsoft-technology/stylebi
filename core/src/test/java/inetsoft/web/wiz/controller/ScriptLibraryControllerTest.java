@@ -56,6 +56,10 @@ import static org.mockito.Mockito.*;
  */
 @Tag("core")
 class ScriptLibraryControllerTest {
+   private static final String FN_1 = "function helper() { return 1; }";
+   private static final String FN_2 = "function helper() { return 2; }";
+   private static final String FN_OTHER = "function helper() { return other(); }";
+
    @Test
    void create_returnsAResyncWarning() throws Exception {
       Fixture fixture = new Fixture();
@@ -65,7 +69,7 @@ class ScriptLibraryControllerTest {
 
          ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.create(
             new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
-               "helper", "return 1;", null),
+               "helper", FN_1, null),
             fixture.principal);
 
          assertNotNull(result.resyncWarning());
@@ -83,20 +87,20 @@ class ScriptLibraryControllerTest {
 
          fixture.controller.create(
             new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
-               "helper", "return other();", null),
+               "helper", FN_OTHER, null),
             fixture.principal);
 
          AssetEntry expectedEntry = new AssetEntry(
             AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "helper", null);
          verify(dependencyHandler).updateScriptDependencies(
-            isNull(), eq("return other();"), eq(expectedEntry));
+            isNull(), eq(FN_OTHER), eq(expectedEntry));
       }
    }
 
    @Test
    void update_returnsAResyncWarning() throws Exception {
       Fixture fixture = new Fixture();
-      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+      when(fixture.lib.getScript("helper")).thenReturn(FN_1);
 
       DependencyHandler dependencyHandler = mock(DependencyHandler.class);
 
@@ -105,7 +109,7 @@ class ScriptLibraryControllerTest {
 
          ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.update(
             "helper",
-            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("return 2;", null),
+            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest(FN_2, null),
             fixture.principal);
 
          assertNotNull(result.resyncWarning());
@@ -233,7 +237,7 @@ class ScriptLibraryControllerTest {
    @Test
    void update_refreshesTheOutgoingDependencyGraph() throws Exception {
       Fixture fixture = new Fixture();
-      when(fixture.lib.getScript("helper")).thenReturn("return other();");
+      when(fixture.lib.getScript("helper")).thenReturn(FN_OTHER);
 
       DependencyHandler dependencyHandler = mock(DependencyHandler.class);
 
@@ -242,16 +246,16 @@ class ScriptLibraryControllerTest {
 
          fixture.controller.update(
             "helper",
-            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("return 1;", null),
+            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest(FN_1, null),
             fixture.principal);
 
          AssetEntry expectedEntry = new AssetEntry(
             AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, "helper", null);
          verify(dependencyHandler).updateScriptDependencies(
-            eq("return other();"), eq("return 1;"), eq(expectedEntry));
+            eq(FN_OTHER), eq(FN_1), eq(expectedEntry));
       }
 
-      verify(fixture.lib).setScript("helper", "return 1;");
+      verify(fixture.lib).setScript("helper", FN_1);
    }
 
    @Test
@@ -350,6 +354,181 @@ class ScriptLibraryControllerTest {
       verify(fixture.lib).save();
    }
 
+   private static ScriptLibraryController.CreateScriptLibraryFunctionRequest createRequest(
+      String name, String text)
+   {
+      return new ScriptLibraryController.CreateScriptLibraryFunctionRequest(name, text, null);
+   }
+
+   private static void assertNothingWritten(Fixture fixture) throws Exception {
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+      verify(fixture.lib, never()).renameScript(anyString(), anyString());
+      verify(fixture.lib, never()).save();
+   }
+
+   /*
+    * Bug #79709: create/update/rename persisted names that are not identifiers and text that does
+    * not compile.
+    */
+
+   @Test
+   void create_rejectsNamesThatAreNotIdentifiers() throws Exception {
+      for(String bad : new String[] { "fn-bad", "1x", "a b", "class", "function", "a.b" }) {
+         Fixture fixture = new Fixture();
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> fixture.controller.create(createRequest(bad, FN_1), fixture.principal), bad);
+
+         assertTrue(e.getMessage().startsWith(
+            "name \"" + bad + "\" is not a valid JavaScript identifier"), e.getMessage());
+         assertTrue(e.getMessage().endsWith("Nothing was saved."), e.getMessage());
+         assertFalse(e.getMessage().contains("\n"));
+         assertNothingWritten(fixture);
+      }
+   }
+
+   @Test
+   void create_acceptsIdentifierNames() throws Exception {
+      for(String good : new String[] { "_a", "$a", "héllo", "你好", "a1" }) {
+         Fixture fixture = new Fixture();
+
+         try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class)) {
+            handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
+
+            fixture.controller.create(createRequest(good, FN_1), fixture.principal);
+         }
+
+         verify(fixture.lib).setScript(good, FN_1);
+      }
+   }
+
+   @Test
+   void create_rejectsTextThatDoesNotCompile() throws Exception {
+      Fixture fixture = new Fixture();
+      doThrow(new Exception("Syntax error in script: unexpected token\nsecond line"))
+         .when(fixture.checker).check("function (");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> fixture.controller.create(createRequest("helper", "function ("), fixture.principal));
+
+      assertEquals("text does not compile: Syntax error in script: unexpected token " +
+                   "(line 0, column 0). Nothing was saved.", e.getMessage());
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void update_rejectsTextThatDoesNotCompile_andLeavesTheFunctionUntouched() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn(FN_1);
+      doThrow(new Exception("Syntax error in script: bad")).when(fixture.checker).check("function (");
+      DependencyHandler dependencyHandler = mock(DependencyHandler.class);
+
+      try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class)) {
+         handler.when(DependencyHandler::getInstance).thenReturn(dependencyHandler);
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> fixture.controller.update(
+               "helper",
+               new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("function (", "c"),
+               fixture.principal));
+
+         assertTrue(e.getMessage().startsWith("text does not compile: "), e.getMessage());
+      }
+
+      verifyNoInteractions(dependencyHandler);
+      verify(fixture.lib, never()).setScriptComment(anyString(), anyString());
+      assertNothingWritten(fixture);
+      assertEquals(FN_1, fixture.lib.getScript("helper"));
+   }
+
+   @Test
+   void rename_rejectsNewNamesThatAreNotIdentifiers_andKeepsTheOldFunction() throws Exception {
+      for(String bad : new String[] { "fn-bad", "1x", "a b", "class" }) {
+         Fixture fixture = new Fixture();
+         fixture.stubRenamableScript("oldFn", "function oldFn(x) { return x; }");
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> fixture.controller.rename(
+               "oldFn", new ScriptLibraryController.RenameScriptLibraryFunctionRequest(bad),
+               fixture.principal), bad);
+
+         assertTrue(e.getMessage().startsWith("newName \"" + bad + "\" is not a valid"),
+                    e.getMessage());
+         assertNothingWritten(fixture);
+         assertEquals("function oldFn(x) { return x; }", fixture.lib.getScript("oldFn"));
+      }
+   }
+
+   @Test
+   void rename_rejectsWhenTheRewrittenTextDoesNotCompile() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRenamableScript("oldFn", "function oldFn(x) { return x; }");
+      doThrow(new Exception("Syntax error in script: bad"))
+         .when(fixture.checker).check("function newFn(x) { return x; }");
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
+         "oldFn", new ScriptLibraryController.RenameScriptLibraryFunctionRequest("newFn"),
+         fixture.principal));
+
+      assertNothingWritten(fixture);
+      assertEquals("function oldFn(x) { return x; }", fixture.lib.getScript("oldFn"));
+   }
+
+   @Test
+   void legacyNamedFunction_staysReadableAndDeletable() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRemovableScript("fn-legacy", "return 1;");
+
+      assertEquals("return 1;", fixture.controller.read("fn-legacy", fixture.principal).text());
+
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
+         transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
+            .thenReturn(List.of());
+
+         assertDoesNotThrow(() -> fixture.controller.delete("fn-legacy", false, fixture.principal));
+      }
+
+      verify(fixture.lib).removeScript("fn-legacy");
+   }
+
+   @Test
+   void engineUnavailable_isNotReportedAsACompileError() throws Exception {
+      Fixture fixture = new Fixture();
+      doThrow(new IllegalStateException("Engine not initialized"))
+         .when(fixture.checker).check(anyString());
+
+      IllegalStateException e = assertThrows(IllegalStateException.class,
+         () -> fixture.controller.create(createRequest("helper", FN_1), fixture.principal));
+
+      assertTrue(e.getMessage().contains("script engine is not available"), e.getMessage());
+      assertFalse(e.getMessage().contains("does not compile"));
+      assertNothingWritten(fixture);
+   }
+
+   @Test
+   void diagnose_returnsNullForCompilingTextAndTheFailureOtherwise() throws Exception {
+      Fixture fixture = new Fixture();
+      assertNull(fixture.controller.diagnose(FN_1));
+
+      Exception failure = new Exception("Syntax error in script: bad");
+      doThrow(failure).when(fixture.checker).check("function (");
+
+      ScriptLibraryController.SyntaxError error = fixture.controller.diagnose("function (");
+      assertEquals("Syntax error in script: bad", error.message());
+      assertEquals(0, error.line());
+      assertEquals(0, error.column());
+      assertSame(failure, error.cause());
+
+      // check_script_library_syntax reports through the same helper
+      ScriptLibraryController.CheckScriptSyntaxResult result = fixture.controller.checkSyntax(
+         new ScriptLibraryController.CheckScriptSyntaxRequest("function ("));
+      assertFalse(result.ok());
+      assertEquals(error.message(), result.message());
+   }
+
    /*
     * Bug #76932: every endpoint must check permission before existence. Otherwise a caller with no
     * permission on a name can tell whether it exists from the error ("no function named X" /
@@ -368,7 +547,7 @@ class ScriptLibraryControllerTest {
       assertDeniedRegardlessOfExistence("helper", ResourceAction.WRITE,
          f -> f.controller.create(
             new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
-               "helper", "return 1;", null), f.principal));
+               "helper", FN_1, null), f.principal));
    }
 
    @Test
@@ -376,7 +555,7 @@ class ScriptLibraryControllerTest {
       assertDeniedRegardlessOfExistence("helper", ResourceAction.WRITE,
          f -> f.controller.update(
             "helper",
-            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("return 2;", null),
+            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest(FN_2, null),
             f.principal));
    }
 
@@ -452,7 +631,7 @@ class ScriptLibraryControllerTest {
          when(securityEngine.checkPermission(any(), eq(ResourceType.SCRIPT), anyString(),
                                              any(ResourceAction.class))).thenReturn(true);
          when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
-         controller = new ScriptLibraryController(libManagerProvider, securityEngine);
+         controller = new ScriptLibraryController(libManagerProvider, securityEngine, checker);
       }
 
       // lib is a mock: make removeScript take effect, as the controller now verifies it did
@@ -493,6 +672,8 @@ class ScriptLibraryControllerTest {
       final SecurityEngine securityEngine = mock(SecurityEngine.class);
       final LibManager lib = mock(LibManager.class);
       final Principal principal = mock(Principal.class);
+      final ScriptLibraryController.ScriptSyntaxChecker checker =
+         mock(ScriptLibraryController.ScriptSyntaxChecker.class);
       final ScriptLibraryController controller;
    }
 }
