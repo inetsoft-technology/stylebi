@@ -53,7 +53,9 @@ public @interface Property {
    double max() default Double.NaN;
 
    /**
-    * Regular expression validation.
+    * Regular expression validation. When more than one pattern is given they are positional
+    * alternatives, not conjunctive constraints: the first applies to a folder selection and the
+    * second to a file selection, so a value is valid if it matches the pattern for its kind.
     */
    String[] pattern() default {};
 

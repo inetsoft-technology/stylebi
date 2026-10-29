@@ -362,15 +362,17 @@ public final class TabularQueryParamsSchemaBuilder {
          node.put("pattern", patterns.get(0));
       }
       else if(patterns.size() > 1) {
-         ArrayNode patternAllOf = FACTORY.arrayNode();
+         // multiple patterns are positional alternatives (e.g. folder, then file), not
+         // conjunctive constraints, so a value is valid when any one of them matches
+         ArrayNode patternAnyOf = FACTORY.arrayNode();
 
          for(String p : patterns) {
             ObjectNode pn = FACTORY.objectNode();
             pn.put("pattern", p);
-            patternAllOf.add(pn);
+            patternAnyOf.add(pn);
          }
 
-         node.set("allOf", patternAllOf);
+         node.set("anyOf", patternAnyOf);
       }
 
       List<String> descParts = new ArrayList<>();
@@ -386,6 +388,11 @@ public final class TabularQueryParamsSchemaBuilder {
                descParts.add(hint);
             }
          }
+      }
+
+      if(patterns.size() > 1) {
+         descParts.add("Multiple patterns are alternatives: the first applies to folders, " +
+            "the second to files; a value is valid if it matches any of them.");
       }
 
       boolean hasTagsMethod = param.getTagsMethod() != null && !param.getTagsMethod().isEmpty();
