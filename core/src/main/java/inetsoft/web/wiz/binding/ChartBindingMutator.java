@@ -40,10 +40,12 @@ import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Read-modify-write over {@code ChartBindingModel}.
@@ -201,23 +203,35 @@ public final class ChartBindingMutator {
          preserveChartTypes(oldRefs, refs);
       }
 
+      // Judged on the pre-write model: a stored true that was in force and is made outer by this
+      // write is not an echo (bug #79757).
+      ChartTimeSeriesGuard.Place guardPlace = switch(name) {
+         case "x" -> ChartTimeSeriesGuard.Place.X;
+         case "y" -> ChartTimeSeriesGuard.Place.Y;
+         default -> ChartTimeSeriesGuard.Place.GROUP;
+      };
+      Set<ChartRefModel> effectiveBefore = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(int i = 0; i < oldRefs.size(); i++) {
+         if(oldRefs.get(i) instanceof ChartDimensionRefModel old &&
+            ChartTimeSeriesGuard.isEffective(model, guardPlace, name, i, old))
+         {
+            effectiveBefore.add(old);
+         }
+      }
+
       assignShelf(model, name, refs);
 
       // Checked on the post-write model (bug #78214); the shelf is put back on a refusal so the
       // caller's in-memory model is not left holding a write that was rejected.
       try {
-         ChartTimeSeriesGuard.Place place = switch(name) {
-            case "x" -> ChartTimeSeriesGuard.Place.X;
-            case "y" -> ChartTimeSeriesGuard.Place.Y;
-            default -> ChartTimeSeriesGuard.Place.GROUP;
-         };
-
          for(int i = 0; i < refs.size(); i++) {
             if(refs.get(i) instanceof ChartDimensionRefModel dimension) {
                // A stored true carried by a keyless resend is kept even where the dimension
-               // became outer (#78214's tolerance); only a new explicit true is refused here.
-               ChartTimeSeriesGuard.require(model, place, name, i, dimension, fieldList.get(i),
-                                            oldRefs);
+               // became outer (#78214's tolerance); only a new explicit true, or an explicit
+               // one that makes a previously effective true outer (#79757), is refused here.
+               ChartTimeSeriesGuard.require(model, guardPlace, name, i, dimension, fieldList.get(i),
+                                            oldRefs, effectiveBefore);
             }
          }
 
