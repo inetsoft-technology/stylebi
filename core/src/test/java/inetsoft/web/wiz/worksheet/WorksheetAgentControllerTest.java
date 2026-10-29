@@ -11914,6 +11914,84 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #79707: a wildcard over a {@code $(@var)} placeholder table fails the parse and yields no
+    * columns; the refusal must name the wildcard/placeholder cause, not "check syntax".
+    */
+   @Test
+   void addSqlQueryNamesWildcardOverPlaceholderTableWhenParseFails() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(mock(JDBCDataSource.class));
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-WC"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(new ColumnSelection());
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_FAILED)))
+      {
+         PairingException wildcard = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-WC", new WorksheetAgentController.SqlQueryRequest(
+               "MyDatasource", "SELECT * FROM $(@srcTable)", null), agent));
+         assertTrue(wildcard.getMessage().contains("wildcard")
+                       && wildcard.getMessage().contains("$(@var)"),
+                    "got: " + wildcard.getMessage());
+
+         PairingException bad = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-WC", new WorksheetAgentController.SqlQueryRequest(
+               "MyDatasource", "SELECT FROM WHERE", null), agent));
+         assertTrue(bad.getMessage().contains("SQL could not be parsed — check syntax"),
+                    "got: " + bad.getMessage());
+      }
+   }
+
+   /** Bug #79707: which SQL shapes are recognized as wildcard-over-placeholder. */
+   @Test
+   void wildcardOverRawTextPlaceholderMessageMatchesOnlyWildcardShapes() {
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM $(@srcTable)"));
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT t.* FROM $(@srcTable) t"));
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "select * from SA.$(@srcTable)"));
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT a.ID, t.* FROM $(@srcTable) t JOIN a ON 1=1"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT t.ORDER_ID AS ORDER_ID FROM $(@srcTable) t"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT COUNT(*) AS N FROM $(@srcTable)"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT a * b AS P FROM $(@srcTable)"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.ORDER_DETAILS"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(null));
+   }
+
+
+   /**
     * WSQ-006: when the SQL parses fine but the guard still fires (empty columns), a captured
     * driver error should be surfaced instead of the generic message. {@code sql.getParseResult()}
     * is stubbed to {@code PARSE_SUCCESS} via {@code stubUniformSqlConstruction}, and
