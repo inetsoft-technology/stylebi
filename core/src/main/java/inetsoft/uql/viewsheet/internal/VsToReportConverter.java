@@ -728,7 +728,8 @@ public class VsToReportConverter {
             Rectangle textInputBounds = addInputLabel(assembly, sectionName);
             Object value = ((TextInputVSAssemblyInfo) info).getValue();
             if(value != null) {
-               addTextBoxElement0(info, null, value + "", textInputBounds, sectionName);
+               String inputText = ((TextInputVSAssemblyInfo) info).getExportText(value + "");
+               addTextBoxElement0(info, null, inputText, textInputBounds, sectionName);
             }
             break;
          case AbstractSheet.SUBMIT_ASSET:

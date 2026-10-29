@@ -41,6 +41,11 @@ import java.text.NumberFormat;
  */
 public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
    /**
+    * The text shown in place of a password value in exports and images.
+    */
+   public static final String PASSWORD_MASK = "******";
+
+   /**
     * Constructor.
     */
    public TextInputVSAssemblyInfo() {
@@ -134,6 +139,25 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
     */
    public ColumnOption getColumnOption() {
       return option;
+   }
+
+   /**
+    * Check whether this text input uses the password input editor, so its value must not be
+    * shown in the clear.
+    */
+   public boolean isPassword() {
+      return getColumnOption() instanceof PasswordColumnOption;
+   }
+
+   /**
+    * Get the text to render in an export or image. The viewer hides a password value in the
+    * browser, but the server side exporters draw whatever string they are given, so every
+    * exporter that renders the value of a text input must pass it through here.
+    * @param text the text the exporter would draw.
+    * @return the mask for a non-empty password value, otherwise the text itself.
+    */
+   public String getExportText(String text) {
+      return isPassword() && text != null && !text.isEmpty() ? PASSWORD_MASK : text;
    }
 
    /**

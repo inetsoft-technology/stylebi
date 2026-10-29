@@ -273,8 +273,9 @@ public class HTMLVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
       if(info != null) {
-         Object value = assembly.getSelectedObject() != null ?
-            assembly.getSelectedObject() : null;
+         Object value = assembly.getSelectedObject();
+         String text = value == null ? null : helper.getTextInputString(assembly, value);
+         text = ((TextInputVSAssemblyInfo) info).getExportText(text);
          Rectangle2D widgetBounds = writeInputLabel(info);
 
          if(widgetBounds != null && isZeroSize(widgetBounds))
@@ -283,7 +284,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
          }
 
          Rectangle2D bounds = widgetBounds != null ? widgetBounds : helper.getBounds(info);
-         helper.writeTextInput(writer, bounds, assembly, getTextFormat(info), value, info.getZIndex());
+         helper.writeTextInput(writer, bounds, assembly, getTextFormat(info), text, info.getZIndex());
       }
    }
 
