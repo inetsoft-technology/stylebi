@@ -8657,6 +8657,52 @@ class WorksheetAgentControllerTest {
       verify(metadataApiService).getJDBCDatasource("MyDatasource");
    }
 
+   /**
+    * Bug #79760: add_table naming a datasource that does not exist answered the generic
+    * "StyleBI-side bug" 500. Drives the real controller (with its own local handlers) behind the
+    * real WizControllerErrorHandler advice, so a local handler or a catch-all taking precedence
+    * would show up here.
+    */
+   @Test
+   void addBoundTableWithMissingDatasourceAnswersBadRequestNamingIt() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.PHYSICAL_TABLE),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("NoSuchDatasource"), eq(ResourceAction.READ),
+                                             eq(agent)))
+         .thenReturn(true);
+      MetadataApiService metadataApiService = mock(MetadataApiService.class);
+      when(metadataApiService.getJDBCDatasource("NoSuchDatasource"))
+         .thenThrow(new inetsoft.web.wiz.service.DatasourceNotFoundException("NoSuchDatasource"));
+
+      WorksheetAgentController ctrl = securityController(mock(WorksheetEditService.class),
+         dataSourceService, securityEngine, metadataApiService,
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      org.springframework.test.web.servlet.MockMvc mvc =
+         org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(ctrl)
+            .setControllerAdvice(new inetsoft.web.wiz.WizControllerErrorHandler())
+            .build();
+
+      mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                     .post("/api/wiz/v1/agent/worksheet/TOK-DS/edit")
+                     .principal(agent)
+                     .accept(org.springframework.http.MediaType.APPLICATION_JSON)
+                     .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                     .content(new ObjectMapper().writeValueAsString(
+                        addBoundTableRequest("ORDERS", "NoSuchDatasource"))))
+         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                       .status().isBadRequest())
+         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                       .jsonPath("$.error").value("Data source 'NoSuchDatasource' not found."))
+         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                       .jsonPath("$.errorCode").value("INVALID_ARGUMENT"));
+   }
+
    @Test
    void addBoundTableDeniedByDatasourceReadThrowsPairingExceptionBeforeProbe() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");

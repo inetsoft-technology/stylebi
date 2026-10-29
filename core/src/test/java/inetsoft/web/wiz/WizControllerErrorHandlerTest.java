@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz;
 
+import inetsoft.web.wiz.service.DatasourceNotFoundException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,6 +87,15 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("not supported")))
          .andExpect(content().string(containsString("datasourceType")))
          .andExpect(content().string(containsString("Mongo")));
+   }
+
+   /** A datasource name that is not registered is a bad request naming it, not a server error. */
+   @Test
+   void datasourceNotFoundExceptionMapsToBadRequestNamingTheDatasource() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "dsmissing"))
+         .andExpect(status().isBadRequest())
+         .andExpect(content().string(containsString("Data source 'NoSuchDatasource' not found.")))
+         .andExpect(content().string(containsString("INVALID_ARGUMENT")));
    }
 
    /**
@@ -303,6 +313,10 @@ class WizControllerErrorHandlerTest {
 
          if("unsupported".equals(type)) {
             throw new UnsupportedDatasourceException("MongoDB REST", "Mongo");
+         }
+
+         if("dsmissing".equals(type)) {
+            throw new DatasourceNotFoundException("NoSuchDatasource");
          }
 
          if("illegal".equals(type)) {

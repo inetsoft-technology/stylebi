@@ -374,7 +374,7 @@ public class MetadataApiService {
       XDataSource dataSource = xrepository.getDataSource(dsName);
 
       if(dataSource == null) {
-         throw new Exception("Data source " + dsName + " not found.");
+         throw new DatasourceNotFoundException(dsName);
       }
 
       // The datasource exists but isn't relational (e.g. MongoDB and other tabular/NoSQL
