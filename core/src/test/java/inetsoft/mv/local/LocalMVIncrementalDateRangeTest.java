@@ -27,7 +27,15 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.mv.data.MV;
+import inetsoft.mv.MVCreatorUtil;
+import inetsoft.mv.MVDef;
+import inetsoft.mv.data.MVStorage;
+import inetsoft.uql.XTable;
 import org.junit.jupiter.api.Tag;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -115,6 +123,88 @@ class LocalMVIncrementalDateRangeTest {
 
       assertEquals(1, num.getOriginalMin().intValue());
       assertEquals(9, num.getOriginalMax().intValue());
+   }
+
+   /**
+    * The incremental update path: updateDictionaryRanges is given the rows left after a delete
+    * and must not keep the date range of the deleted rows.
+    */
+   @Test
+   void updateDictionaryRangesDropsTheRangeOfDeletedRows() throws Exception {
+      MVDef def = newDef();
+      DateMVColumn day = (DateMVColumn) def.getColumns().get(1);
+      // the range of the original build
+      scan(day, 10 * DAY, 400 * DAY, 4000 * DAY);
+      assertEquals(new Date(10 * DAY), day.getMin());
+
+      // the delete removed the first row, two rows are left
+      update(def, rows(400 * DAY, 4000 * DAY));
+
+      assertEquals(new Date(400 * DAY), day.getMin());
+      assertEquals(new Date(4000 * DAY), day.getMax());
+   }
+
+   @Test
+   void updateDictionaryRangesClearsTheRangeWhenNoRowsAreLeft() throws Exception {
+      MVDef def = newDef();
+      DateMVColumn day = (DateMVColumn) def.getColumns().get(1);
+      scan(day, 10 * DAY, 400 * DAY);
+
+      update(def, rows());
+
+      assertNull(day.getMin());
+      assertNull(day.getMax());
+   }
+
+   private static MVDef newDef() {
+      ColumnRef baseRef = new ColumnRef(new AttributeRef("test", "dateCol"));
+      baseRef.setDataType(XSchema.TIME_INSTANT);
+      MVColumn base = new MVColumn(baseRef, true);
+      DateMVColumn day = column(DateRangeRef.DAY_INTERVAL);
+      MVDef def = new MVDef();
+
+      try {
+         // the columns are otherwise loaded from the MV manager
+         Class<?> type = Class.forName("inetsoft.mv.MVDef$MVContainer");
+         java.lang.reflect.Constructor<?> ctor =
+            type.getDeclaredConstructor(List.class, inetsoft.uql.asset.Worksheet.class);
+         ctor.setAccessible(true);
+         java.lang.reflect.Field field = MVDef.class.getDeclaredField("container");
+         field.setAccessible(true);
+         field.set(def, ctor.newInstance(new ArrayList<>(List.of(base, day)), null));
+      }
+      catch(ReflectiveOperationException e) {
+         throw new IllegalStateException(e);
+      }
+
+      return def;
+   }
+
+   private static XTable rows(long... times) {
+      Object[][] rows = new Object[times.length + 1][];
+      rows[0] = new Object[] { "dateCol" };
+
+      for(int i = 0; i < times.length; i++) {
+         rows[i + 1] = new Object[] { new Date(times[i]) };
+      }
+
+      return new DefaultTableLens(rows);
+   }
+
+   private static void update(MVDef def, XTable data) throws Exception {
+      MV mv = Mockito.mock(MV.class);
+      Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));
+      Mockito.when(mv.getBlockSize()).thenReturn(1);
+      Mockito.when(mv.getHeaders()).thenReturn(new String[] { "dateCol", "dateCol_day" });
+      MVStorage storage = Mockito.mock(MVStorage.class);
+      Mockito.when(storage.get(Mockito.any())).thenReturn(mv);
+
+      try(MockedStatic<MVStorage> statics = Mockito.mockStatic(MVStorage.class)) {
+         statics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         statics.when(MVStorage::getInstance).thenReturn(storage);
+         LocalMVIncremental incremental = new LocalMVIncremental(def);
+         incremental.updateDictionaryRanges(MVCreatorUtil.expand(def, data));
+      }
    }
 
    private static void scan(DateMVColumn col, long... times) {

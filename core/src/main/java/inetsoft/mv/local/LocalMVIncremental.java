@@ -230,8 +230,16 @@ public class LocalMVIncremental extends MVIncremental {
       assembly = (TableAssembly) assembly.clone();
       assembly.getAggregateInfo().clear();
       LocalMVExecutor exec = new LocalMVExecutor(assembly, mvdef.getName(), vars, null);
-      XTable lensMV = MVCreatorUtil.expand(mvdef, exec.getData());
+      updateDictionaryRanges(MVCreatorUtil.expand(mvdef, exec.getData()));
+   }
 
+   /**
+    * Recompute the dictionary and column ranges from the rows that are left in the MV and
+    * save the MV. Package-private for tests.
+    *
+    * @param lensMV the expanded data of the MV.
+    */
+   void updateDictionaryRanges(XTable lensMV) throws Exception {
       // Get a list of columns in MV-sorted order
       List<MVColumn> cols = mvdef.getColumns();
       XIntList colList = new XIntList();
