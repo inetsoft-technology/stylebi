@@ -34,7 +34,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -302,8 +301,7 @@ public final class VSFormatTableLens extends FormatTableLens {
 
       if(objfmt != null) {
          VSFormat fmt = new VSFormat();
-         styled = assembly.getTableStyle() != null ||
-            CSSDictionary.getDictionary().checkPresent("TableStyle");
+         styled = assembly.getTableDataVSAssemblyInfo().isStyled();
 
          VSFormat userf = objfmt.getUserDefinedFormat();
          objAlignment = userf.isAlignmentDefined() || userf.isAlignmentValueDefined();
