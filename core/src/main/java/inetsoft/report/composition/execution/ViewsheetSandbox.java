@@ -9332,7 +9332,37 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Map<Integer, Integer> cmap = getColumnMapping(assembly, wstable);
 
-      for(int i = embedded.getHeaderRowCount(); i < rows.length; i++) {
+      // The form lens holds only the visible columns, so the embedded columns it does not map
+      // (e.g. a hidden ID column) are not in any lens row. A delete/insert moves lens rows to
+      // other positions, so carry those columns along with their row, by the row's base index,
+      // from a copy taken before the loop overwrites embedded rows in place. This assumes the
+      // lens was built from the embedded table as it still is now, as the positional write of
+      // the mapped columns already does.
+      int hrows = embedded.getHeaderRowCount();
+      int oldRowCount = embedded.getRowCount();
+      int colCount = embedded.getColCount();
+      Set<Integer> mapped = new HashSet<>(cmap.values());
+      List<Integer> unmapped = new ArrayList<>();
+
+      for(int c = 0; c < colCount; c++) {
+         if(!mapped.contains(c)) {
+            unmapped.add(c);
+         }
+      }
+
+      Object[][] oldValues = new Object[oldRowCount][];
+
+      if(!unmapped.isEmpty()) {
+         for(int r = hrows; r < oldRowCount; r++) {
+            oldValues[r] = new Object[colCount];
+
+            for(int c : unmapped) {
+               oldValues[r][c] = embedded.getObject(r, c);
+            }
+         }
+      }
+
+      for(int i = hrows; i < rows.length; i++) {
          if(rows[i] == null) {
             continue;
          }
@@ -9345,7 +9375,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         rows[i].commit();
+         int base = rows[i].getBaseRowIndex();
+         boolean fresh = rows[i].getRowState() == FormTableRow.ADDED || base < hrows ||
+            base >= oldRowCount;
+
+         for(int c : unmapped) {
+            embedded.setObject(i, c, fresh ? null : oldValues[base][c]);
+         }
+
+         // the row is now at embedded row i, a later apply on this lens must find it there
+         rows[i].commit(i);
       }
 
       int size = embedded.getRowCount();
