@@ -53,6 +53,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.PropertyMeta;
+import inetsoft.uql.tabular.SelectableTabularQuery;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.tabular.TabularQuerySchema;
@@ -1690,6 +1691,27 @@ public class WorksheetAgentController {
             resolvedSuffix = refreshedSuffix == null ? resolvedSuffix : refreshedSuffix.toString();
          }
 
+         // The clone carries the live query's cached column state: SelectableTabularQuery
+         // (ServerFile, OneDrive, ...) caches its ColumnDefinition[] and rebuilds its output
+         // columns from that cache alone, so a schema-affecting edit (file, delimiter, header
+         // row, encoding, ...) would otherwise keep the stale columns. Reset only after every
+         // applyQueryContract call above, since those can re-cache columns through enabledMethods.
+         // A caller-supplied 'columns' definition is the explicit new state and is kept.
+         boolean resetColumns = hasQueryParams || hasExtraProperties;
+
+         if(resetColumns) {
+            boolean callerSuppliedColumns =
+               containsColumnsKey(req.queryParams()) || containsColumnsKey(req.extraProperties());
+
+            if(scratchQuery instanceof SelectableTabularQuery selectable &&
+               !callerSuppliedColumns)
+            {
+               selectable.setColumns(null);
+            }
+
+            scratchQuery.setOutputColumns(null);
+         }
+
          // Detached scratch assembly, never registered via ws.addAssembly -- loadColumnSelection
          // reads/writes only its OWN info/column-selection, so this is a pure, side-effect-free
          // test of the new query against the live connector; the live assembly is untouched if
@@ -1723,8 +1745,13 @@ public class WorksheetAgentController {
          scratchAssembly.loadColumnSelection(new VariableTable(), true, null);
 
          ColumnSelection newColumns = scratchAssembly.getColumnSelection(false);
+         Object reloadError = scratchQuery.getProperty("wizLoadColumnsError");
+         // The seeded live selection can satisfy the emptiness check below even when the reload
+         // failed, so a failed reload is detected explicitly rather than committed as stale columns.
+         boolean reloadFailed =
+            reloadError != null || (resetColumns && scratchQuery.getOutputColumns() == null);
 
-         if(newColumns == null || newColumns.getAttributeCount() == 0) {
+         if(reloadFailed || newColumns == null || newColumns.getAttributeCount() == 0) {
             Object loadError = scratchQuery.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(scratchQuery, loadError);
             throw new PairingException("The request to '" + target + "' of '" + dsName +
@@ -1760,6 +1787,11 @@ public class WorksheetAgentController {
 
          return null;
       });
+   }
+
+   static boolean containsColumnsKey(Map<String, ?> params) {
+      return params != null &&
+         params.keySet().stream().anyMatch(k -> k != null && "columns".equalsIgnoreCase(k.trim()));
    }
 
    /**

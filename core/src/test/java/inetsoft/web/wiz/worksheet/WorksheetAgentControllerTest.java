@@ -83,6 +83,7 @@ import inetsoft.web.wiz.service.FakeColumnProducingCustomRestQuery;
 import inetsoft.web.wiz.service.FakeColumnProducingNamedConnectorQuery;
 import inetsoft.web.wiz.service.FakeCustomRestQuery;
 import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
+import inetsoft.web.wiz.service.FakeDelimitedFileQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
@@ -1186,6 +1187,122 @@ class WorksheetAgentControllerTest {
       assertNotNull(newColumns.getAttribute("gadgetId"));
       assertNull(newColumns.getAttribute("widgetId"),
          "the OLD suffix's columns must not linger after the edit");
+   }
+
+   /**
+    * Bug #79598: a file-style connector (SelectableTabularQuery) caches its ColumnDefinition[]
+    * and rebuilds its output columns from that cache alone, so edit_table on a schema-affecting
+    * parameter (here the delimiter) kept the stale column set while ok:true was returned.
+    */
+   @Test
+   void editTableRebuildsColumnsOfSelectableQueryWhenSchemaParamChanges() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      TabularTableAssembly liveAssembly = fileTable("TOK-ET79598A", "a;b;c", agent);
+
+      // Wrong delimiter on the first add: the whole header is one column.
+      assertEquals(1, liveAssembly.getColumnSelection(false).getAttributeCount());
+
+      runFileEdit("TOK-ET79598A", agent, Map.of("delimiter", ";"));
+
+      ColumnSelection cols = liveAssembly.getColumnSelection(false);
+      assertEquals(3, cols.getAttributeCount(), "columns must be rebuilt, not kept stale");
+      assertNotNull(cols.getAttribute("a"));
+      assertNotNull(cols.getAttribute("c"));
+      assertNull(cols.getAttribute("a;b;c"));
+   }
+
+   /**
+    * Bug #79598: when the reload after a file edit fails, the seeded live selection used to
+    * satisfy the "returned no columns" guard and the stale columns were committed with ok:true.
+    */
+   @Test
+   void editTableRefusesWhenSelectableQueryReloadFailsInsteadOfKeepingStaleColumns()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      TabularTableAssembly liveAssembly = fileTable("TOK-ET79598B", "a;b;c", agent);
+      FakeDelimitedFileQuery liveQuery =
+         (FakeDelimitedFileQuery) ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> runFileEdit("TOK-ET79598B", agent, Map.of("header", "")));
+      assertTrue(ex.getMessage().contains("returned no columns"), ex.getMessage());
+
+      assertSame(liveQuery, ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery());
+      assertEquals("a;b;c", liveQuery.getHeader(), "a refused edit must not mutate the live query");
+      assertEquals(1, liveAssembly.getColumnSelection(false).getAttributeCount());
+   }
+
+   /** Bug #79598: an explicit 'columns' definition from the caller is not reset away. */
+   @Test
+   void editTableKeepsCallerSuppliedColumnsDefinition() {
+      assertTrue(WorksheetAgentController.containsColumnsKey(Map.of(" Columns ", List.of())));
+      assertTrue(WorksheetAgentController.containsColumnsKey(Map.of("columns", List.of())));
+      assertFalse(WorksheetAgentController.containsColumnsKey(Map.of("delimiter", ";")));
+      assertFalse(WorksheetAgentController.containsColumnsKey(null));
+   }
+
+   private final Map<String, WorksheetAgentController> fileControllers = new java.util.HashMap<>();
+
+   private TabularTableAssembly fileTable(String token, String header, Principal agent)
+      throws Exception
+   {
+      FakeDelimitedFileQuery liveQuery = new FakeDelimitedFileQuery();
+      liveQuery.setHeader(header);
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      when(ds.getType()).thenReturn("FakeDelimitedFile");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Files");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      TabularDataSource<?> xds = mock(TabularDataSource.class);
+      when(xds.getType()).thenReturn("FakeDelimitedFile");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(xds);
+
+      fileControllers.put(token, securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class)));
+      return liveAssembly;
+   }
+
+   private void runFileEdit(String token, Principal agent, Map<String, Object> queryParams)
+      throws Exception
+   {
+      EditRequest req = editTableRequest("Files", null, null, null, null, queryParams, null, null);
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try {
+         fileControllers.get(token).edit(token, req, agent);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
    }
 
    /**
