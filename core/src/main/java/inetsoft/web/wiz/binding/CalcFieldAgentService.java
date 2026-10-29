@@ -284,6 +284,12 @@ public class CalcFieldAgentService {
             }
          }
 
+         // Bug #79651: the native remove leaves a dimension's sort/ranking naming the removed
+         // aggregate and silently deletes highlights/hyperlinks that named it -- clear the former
+         // and report all of it.
+         CalcFieldRemovalCleanup removal = req.remove()
+            ? CalcFieldRemovalCleanup.begin(rvs.getViewsheet(), tableName, req.name()) : null;
+
          ImmutableModifyCalculateFieldEvent event = ImmutableModifyCalculateFieldEvent.builder()
             .name(req.assembly())
             .confirmed(true)
@@ -298,6 +304,10 @@ public class CalcFieldAgentService {
 
          modifyCalculateFieldService.modifyCalculateField(
             runtimeId, event, agent, dispatcher, linkUri);
+
+         if(removal != null) {
+            aggregateWarnings.addAll(removal.finish());
+         }
 
          // Not a chart write: a create re-executes nothing and edit/remove swallow a script
          // failure, so the named chart (only) is checked to keep a clean ok honest.
