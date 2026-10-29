@@ -4758,6 +4758,12 @@ public class WorksheetAgentController {
 
          if(columns == null || columns.getAttributeCount() == 0) {
             if(sql.getParseResult() == UniformSQL.PARSE_FAILED) {
+               String wildcardMsg = wildcardOverRawTextPlaceholderMessage(expression);
+
+               if(wildcardMsg != null) {
+                  throw new PairingException(wildcardMsg);
+               }
+
                throw new PairingException(
                   "SQL could not be parsed — check syntax (punctuation, keywords, clause structure).");
             }
@@ -6083,6 +6089,25 @@ public class WorksheetAgentController {
                                    List<String> variablesNeedingValues,
                                    List<String> warnings) {}
 
+   private static final java.util.regex.Pattern SELECT_WILDCARD = java.util.regex.Pattern.compile(
+      "(?i)(?:\\bselect|,)\\s*(?:distinct\\s+)?(?:[\\w\"]+\\.)?\\*\\s*(?:,|\\bfrom\\b)");
+
+   /**
+    * Bug #79707: a wildcard select over a {@code $(@var)} raw-text table placeholder cannot be
+    * expanded because the table name is unresolved at parse time, so the parse fails and no
+    * columns can be derived. Returns a message naming that cause, or null when the SQL is not
+    * that shape (so genuine syntax errors keep the generic message).
+    */
+   static String wildcardOverRawTextPlaceholderMessage(String sql) {
+      if(sql == null || !sql.contains("$(@") || !SELECT_WILDCARD.matcher(sql).find()) {
+         return null;
+      }
+
+      return "A wildcard (SELECT * / t.*) cannot be expanded when the table is a raw-text "
+         + "$(@var) placeholder, because the table name is not known at parse time. List the "
+         + "columns explicitly, or use the literal table name.";
+   }
+
    /**
     * Create a new SQL query table assembly in the worksheet.
     *
@@ -6218,6 +6243,12 @@ public class WorksheetAgentController {
 
          if(columns == null || columns.getAttributeCount() == 0) {
             if(sql.getParseResult() == UniformSQL.PARSE_FAILED) {
+               String wildcardMsg = wildcardOverRawTextPlaceholderMessage(body.sql());
+
+               if(wildcardMsg != null) {
+                  throw new PairingException(wildcardMsg);
+               }
+
                throw new PairingException(
                   "SQL could not be parsed — check syntax (punctuation, keywords, clause structure).");
             }
