@@ -196,6 +196,18 @@ describe("Selection List Cell Test", () => {
       expect(span.injector.get(TooltipIfDirective, null)).not.toBe(null);
    });
 
+   // the label's own tooltipIf was never disabled in viewer/preview, where truncated names are seen
+   it("should not disable the span tooltip in viewer mode", () => {
+      selectionListCell.contextProvider =
+         new ContextProvider(true, false, false, false, false, false, false, false, false, false, false);
+      fixture.detectChanges();
+
+      const span = fixture.debugElement.query(By.css("span.selection-value-text"));
+
+      expect(selectionListCell.toggleEnabled).toBe(true);
+      expect(span.injector.get(TooltipIfDirective).disableTooltipIf).toBeFalsy();
+   });
+
    // Bug #10494 make sure selectionlist show text value properly.
    it("should show text value when 'Text' is set to true", () => new Promise<void>((done) => {
       selectionListCell.showText = true;
