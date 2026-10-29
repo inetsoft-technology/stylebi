@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <modal-header [title]="displayTitle + ' Query'" (onCancel)="cancel()"
-  [cshid]="'CreatingDataSet' + helpDisplayTitle">
+  [cshid]="helpCshid">
 </modal-header>
 @if (isLoading) {
   <div class="loading-container">
