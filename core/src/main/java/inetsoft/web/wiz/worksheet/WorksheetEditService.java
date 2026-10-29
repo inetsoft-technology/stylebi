@@ -1416,17 +1416,23 @@ public class WorksheetEditService {
       }
 
       /**
-       * Removes an assembly (typically a join assembly) from the worksheet by name.
+       * Removes a join assembly (keyed or MERGE) from the worksheet by name.
        *
-       * @param name the assembly name to remove
-       * @throws PairingException if no assembly with {@code name} exists, or if another
-       *                          assembly is built on it
+       * @param name the join assembly name to remove
+       * @throws PairingException if no assembly with {@code name} exists, if it is not a join,
+       *                          or if another assembly is built on it
        */
       public void removeJoin(String name) throws PairingException {
          Assembly a = ws.getAssembly(name);
 
          if(a == null) {
             throw new PairingException("Join assembly not found in worksheet: " + name);
+         }
+
+         if(!(a instanceof AbstractJoinTableAssembly)) {
+            throw new PairingException(
+               "\"" + name + "\" is a " + kindOf(a) + ", not a join. remove_join only removes " +
+               "join assemblies; use delete_table to remove a table. Nothing was changed.");
          }
 
          List<String> dependents = dependentNames(a);

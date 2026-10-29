@@ -3617,6 +3617,60 @@ class WorksheetEditServiceMutatorsTest {
       assertNotNull(ws.getAssembly("M"), "and so must the mirror that depends on it");
    }
 
+   /** Bug #79722: remove_join on a plain table used to delete it; it is refused instead. */
+   @Test
+   void removeJoinRefusesAPlainTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "L", "id"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeJoin("L")));
+
+      assertTrue(ex.getMessage().contains("not a join"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("delete_table"), ex.getMessage());
+      assertNotNull(ws.getAssembly("L"), "the table must still be there");
+   }
+
+   @Test
+   void removeJoinRefusesAMirrorAndAConcatenation() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "A", "id"));
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "B", "id"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> {
+         ed.addMirror("M", "A");
+         ed.addConcatenation("U", List.of("A", "B"), "UNION");
+      });
+
+      for(String name : new String[] { "M", "U" }) {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> svc.apply("TOK", agent, ed -> ed.removeJoin(name)));
+
+         assertTrue(ex.getMessage().contains("not a join"), ex.getMessage());
+         assertNotNull(ws.getAssembly(name), name + " must still be there");
+      }
+   }
+
+   /** Guards against narrowing the check to keyed joins only. */
+   @Test
+   void removeJoinStillRemovesAMergeJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "A", "id"));
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "B", "id"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addMergeJoin("MJ", new String[] { "A", "B" });
+         ed.removeJoin("MJ");
+      });
+
+      assertNull(ws.getAssembly("MJ"), "merge join 'MJ' should have been removed");
+   }
+
    // =========================================================================
    // Bug #76786 (WBS-063): add_join extends an existing named join in place, symmetrically,
    // instead of always nesting it as a member of a brand-new assembly. Every test here uses
