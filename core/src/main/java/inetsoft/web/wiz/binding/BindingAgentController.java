@@ -19,6 +19,8 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.uql.XPrincipal;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.util.ConfigurationContext;
+import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.BindableTable;
@@ -206,6 +208,36 @@ public class BindingAgentController {
          chartService.setSingleShelf(sessionToken, user, request.assembly(), request.shelf(),
                                   resolved == null ? null : resolved.fields().get(0),
                                   resolved == null ? null : resolved.source(), linkUri));
+   }
+
+   /** @param layer Country, State, Province, City or Zip. */
+   public record GeoShelfField(String column, String layer) {}
+   public record GeoShelfRequest(String assembly, List<GeoShelfField> fields,
+                                 String mapType) {}
+
+   /**
+    * Writes a map chart's geo shelf with real geo column registration and detection; see
+    * {@link ChartGeoShelf}. The handler is looked up rather than injected so this controller's
+    * constructor stays as it is.
+    */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/geo-shelf")
+   public Map<String, Object> setChartGeoShelf(@PathVariable String sessionToken,
+                                               @RequestBody GeoShelfRequest request,
+                                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      List<ChartGeoShelf.Field> fields = request.fields() == null ? null
+         : request.fields().stream()
+            .map(f -> new ChartGeoShelf.Field(f.column(), f.layer())).toList();
+      List<ChartGeoShelf.Detected> detected = ChartGeoShelf.write(
+         sessions, sessionToken, user, request.assembly(),
+         ConfigurationContext.getContext().getSpringBean(VSChartHandler.class), fields,
+         request.mapType());
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("geo", detected);
+
+      return out;
    }
 
    /** @see TableSortRequest — same shape, applied to a chart's x/y/group dimension shelves. */
