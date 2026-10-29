@@ -1,0 +1,94 @@
+{
+  "$comment": "Schedule task permission policy (Testing #79042): the expected allow / deny answer of every actor and operation, as rules over actor attributes and two settings. The Java helper matrix (SchedulePermissionHelperMatrixTest) and the e2e entry-point matrix (stylebi-enterprise e2e/tests/api/schedule/permission-matrix) both read this file. Rules are proposed until the test lead confirms them. An expression uses the attributes, the settings share (schedule.options.shareTaskInGroup) and deleteOnlyByOwner (schedule.options.deleteTaskOnlyByOwner), other rule ids, true / false, and && || ! ( ). Every refused request must answer an error and change nothing.",
+  "attributes": {
+    "siteAdmin": "site administrator",
+    "orgAdmin": "organization administrator of the task's org",
+    "owner": "the task owner",
+    "ownerAdmin": "SECURITY_USER ADMIN on the owner",
+    "shareMember": "in a group with the owner",
+    "grantHolder": "explicit SCHEDULE_TASK READ+WRITE+DELETE on the task",
+    "sameOrg": "in the task's org",
+    "scheduler": "SCHEDULER access"
+  },
+  "rules": [
+    {
+      "id": "mayView",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || owner || ownerAdmin || grantHolder || share && shareMember)",
+      "status": "proposed",
+      "basis": "RepletEngine.hasTaskPermission (\"may see\")"
+    },
+    {
+      "id": "mayManage",
+      "expr": "mayView && (siteAdmin || orgAdmin || owner || ownerAdmin || grantHolder || !deleteOnlyByOwner)",
+      "status": "proposed",
+      "basis": "ScheduleTaskService.canDeleteTask, with the explicit grant added"
+    },
+    {
+      "id": "see",
+      "expr": "scheduler && mayView",
+      "status": "proposed",
+      "basis": "mayView behind the SCHEDULER gate",
+      "changes": "the public API run / get accept only explicit grants (no share group); EM run / stop and public stop skip SCHEDULER"
+    },
+    {
+      "id": "manage",
+      "expr": "scheduler && mayManage",
+      "status": "proposed",
+      "basis": "mayManage behind the SCHEDULER gate",
+      "changes": "EM / Portal editors ignore explicit grants; public API PUT / DELETE need only the grant and ignore deleteTaskOnlyByOwner; delete must check dependents at every entry point"
+    },
+    {
+      "id": "takeOwnership",
+      "expr": "manage && (siteAdmin || orgAdmin || ownerAdmin || owner)",
+      "status": "proposed",
+      "basis": "ScheduleTaskService.checkTaskIdentityPermission (owner ADMIN)"
+    },
+    {
+      "id": "siteAdminOnly",
+      "expr": "siteAdmin",
+      "status": "proposed",
+      "basis": "internal-task targets (#77531), foreign owners on import, folder grants a site admin always has"
+    },
+    {
+      "id": "adminOnly",
+      "expr": "scheduler && (siteAdmin || sameOrg && orgAdmin)",
+      "status": "proposed",
+      "basis": "import may name another user of the org as owner or execute-as only for an admin of that user"
+    },
+    {
+      "id": "never",
+      "expr": "false",
+      "status": "proposed",
+      "basis": "checkSaveRefusals: the owner (who runs the task) may not read the sheet / query / target, so even a site admin's save is refused"
+    }
+  ],
+  "operationRules": {
+    "list": "see",
+    "view": "see",
+    "export": "see",
+    "run": "see",
+    "stop": "see",
+    "editCondition": "manage",
+    "removeCondition": "manage",
+    "rename": "manage",
+    "disable": "manage",
+    "delete": "manage",
+    "importOverwrite": "manage",
+    "changeOwner": "takeOwnership",
+    "move/writableTarget": "manage",
+    "move/deniedTarget": "siteAdminOnly",
+    "addDashboardAction/globalGranted": "manage",
+    "addDashboardAction/globalNotGranted": "never",
+    "addDashboardAction/otherUserPrivate": "never",
+    "addDashboardAction/foreignOrg": "never",
+    "addDashboardAction/hostOrgPrivate": "never",
+    "addBatchAction/ownTarget": "manage",
+    "addBatchAction/otherUserTarget": "never",
+    "addBatchAction/internalTarget": "siteAdminOnly",
+    "addBatchAction/foreignQuery": "never",
+    "importForeignOwner/otherOwner": "adminOnly",
+    "importForeignOwner/foreignOwner": "siteAdminOnly",
+    "importForeignOwner/executeAsAdmin": "adminOnly",
+    "importForeignOwner/internalType": "siteAdminOnly"
+  }
+}
