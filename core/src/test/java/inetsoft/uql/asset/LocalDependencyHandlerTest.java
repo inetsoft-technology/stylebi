@@ -37,6 +37,7 @@ import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.RenameTransformObject;
 import inetsoft.uql.erm.XEntity;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -240,6 +241,36 @@ class LocalDependencyHandlerTest {
                    ((DependenciesInfo) captor.getValue()).getDependencies().stream()
                       .map(asset -> ((AssetEntry) asset).toIdentifier())
                       .toList());
+   }
+
+   /*
+    * Bug #79718: a viewsheet that calls a library function only from its onInit or onLoad script
+    * was not recorded as a dependent of the function, so renaming the function never visited it.
+    */
+   @Test
+   void viewsheetOnInitAndOnLoadAreRegisteredAsDependentsOfTheFunctions() throws Exception {
+      ThreadContext.setContextPrincipal(mockPrincipal());
+      LibManager manager = mock(LibManager.class);
+      when(manager.findScriptName(anyString())).thenAnswer(
+         invocation -> invocation.getArgument(0));
+      AssetEntry sheet = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                        "79718/vs", null);
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setOnInit(SCRIPT_NAME + "(1);");
+      vs.getViewsheetInfo().setOnLoad(HELPER_SCRIPT_NAME + "(2);");
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
+         provider.when(LibManagerProvider::getInstance).thenReturn(libManagerProvider);
+         when(libManagerProvider.getManager()).thenReturn(manager);
+
+         handler.updateSheetDependencies(vs, sheet, true, false);
+      }
+
+      assertEquals(List.of(sheet.toIdentifier()),
+                   capturedDependencies(scriptEntry(SCRIPT_NAME).toIdentifier()));
+      assertEquals(List.of(sheet.toIdentifier()),
+                   capturedDependencies(scriptEntry(HELPER_SCRIPT_NAME).toIdentifier()));
    }
 
    private AssetEntry scriptEntry(String name) {
