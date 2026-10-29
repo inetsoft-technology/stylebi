@@ -37,6 +37,7 @@ import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Catalog;
 import inetsoft.web.wiz.WizUtil;
+import inetsoft.web.wiz.dispatch.AssetScriptFailureWarnings;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
@@ -1138,9 +1139,12 @@ public class ViewsheetEditService {
    private List<String> refreshWholeSheet(String sessionToken, Principal user, String linkUri)
       throws Exception
    {
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
-         refreshService.refreshViewsheet(runtimeId, VSRefreshEvent.builder().confirmed(false).build(),
-                                         user, dispatcher, linkUri));
+      // assembly scripts that fail during the reset only land in ASSET_EXCEPTIONS (Bug #79623)
+      return AssetScriptFailureWarnings.collect(() ->
+         sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+            refreshService.refreshViewsheet(
+               runtimeId, VSRefreshEvent.builder().confirmed(false).build(), user, dispatcher,
+               linkUri)));
    }
 
    private List<String> moveFromContainer(String sessionToken, Principal user, EditRequest request,
