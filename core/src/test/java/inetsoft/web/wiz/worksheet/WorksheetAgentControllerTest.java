@@ -12497,6 +12497,77 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #79733: WorksheetInfo is not serialized, so the alias/description set on the session
+    * must reach the AssetEntry handed to setWorksheet() -- on a first save and on a Save-As.
+    */
+   @Test
+   void saveCopiesWorksheetAliasAndDescriptionOntoTheSavedEntry() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.WORKSHEET, "__TEMPORARY__/ws-79733", null);
+      Worksheet sheet = new Worksheet();
+      sheet.getWorksheetInfo().setAlias("Orders Alias");
+      sheet.getWorksheetInfo().setDescription("Orders description");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(tempEntry);
+      when(rws.getWorksheet()).thenReturn(sheet);
+      when(rws.getCurrent()).thenReturn(0);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-79733A"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-79733a"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      ctrl.save("TOK-79733A", new WorksheetAgentController.SaveRequest("agent_ws_79733", null),
+                agent);
+
+      ArgumentCaptor<AssetEntry> saved = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(ws).setWorksheet(any(), saved.capture(), any(), anyBoolean(), anyBoolean());
+      assertEquals("Orders Alias", saved.getValue().getAlias());
+      assertEquals("Orders description", saved.getValue().getProperty("description"));
+   }
+
+   /** Bug #79733: a worksheet whose info is unset (re-opened) must not wipe the stored values. */
+   @Test
+   void saveInPlaceKeepsStoredAliasWhenWorksheetInfoIsUnset() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry storedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      storedEntry.setAlias("Stored Alias");
+      storedEntry.setProperty("description", "Stored description");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(storedEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(1);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-79733B"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-79733b"));
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(eq(agent))).thenReturn(new RuntimeSheet[0]);
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString()))
+            .thenReturn(List.of());
+         ctrl.save("TOK-79733B", new WorksheetAgentController.SaveRequest(null, null), agent);
+      }
+
+      verify(ws).setWorksheet(any(), same(storedEntry), any(), anyBoolean(), anyBoolean());
+      assertEquals("Stored Alias", storedEntry.getAlias());
+      assertEquals("Stored description", storedEntry.getProperty("description"));
+   }
+
+   /**
     * Regression for Bug VBM-005: a first save out of TEMPORARY_SCOPE whose target name COLLIDES
     * with (and, via {@code confirmed:true}, overwrites) an asset that is already a connected
     * viewsheet's base entry must still reset that viewsheet's runtime -- the sibling test above
