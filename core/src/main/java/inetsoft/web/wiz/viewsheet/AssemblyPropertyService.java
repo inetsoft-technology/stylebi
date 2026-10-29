@@ -585,10 +585,16 @@ public class AssemblyPropertyService {
     * The gauge's Number Range pane has its own model, so {@link #requireValidNumericRange} never
     * saw it: a max below the min, a 0 or negative increment, a major increment not above the
     * minor and a non-numeric bound all reported success and were stored (bug-79539). The pane
-    * requires min and max, a max above the min, and increments that are blank or above 0 with the
-    * major above the minor. Dynamic values are exempt and an order is judged only when both
-    * sides are plain numbers on the post-patch model, so an unset counterpart never blocks, and
-    * only when the patch wrote a number-range field.
+    * accepts a blank min, max and increments (the automatic scale), and otherwise a number or a
+    * dynamic value; a number must give a max above the min, increments above 0 and a major above
+    * the minor. A blank is normalised to null in place on the post-patch model, whatever key
+    * spelling wrote it: the engine's automatic scale
+    * ({@code RangeOutputVSAssemblyInfo#setDefaultValues}) only runs for a null min/max, and a
+    * stored "" would make it fail to parse and leave a fixed 0-100 dial. The automatic scale
+    * also needs the increments and the target value to be at their defaults, so clearing the
+    * bounds does not always produce it. Dynamic values are exempt and an order is judged only
+    * when both sides are plain numbers on the post-patch model, so an unset counterpart never
+    * blocks, and only when the patch wrote a number-range field.
     */
    static void requireValidGaugeNumberRange(Object model, Map<String, String> resolved) {
       NumberRangePaneModel pane = null;
@@ -614,19 +620,43 @@ public class AssemblyPropertyService {
          String name = entry.getKey().equalsIgnoreCase(path) ? leaf : entry.getKey();
 
          if("min".equalsIgnoreCase(leaf)) {
-            requireNumericBound(name, pane.getMin());
+            if(isBlank(pane.getMin())) {
+               pane.setMin(null);
+            }
+            else {
+               requireNumericBound(name, pane.getMin());
+            }
+
             minName = name;
          }
          else if("max".equalsIgnoreCase(leaf)) {
-            requireNumericBound(name, pane.getMax());
+            if(isBlank(pane.getMax())) {
+               pane.setMax(null);
+            }
+            else {
+               requireNumericBound(name, pane.getMax());
+            }
+
             maxName = name;
          }
          else if("minorIncrement".equalsIgnoreCase(leaf)) {
-            requireBlankOrPositiveIncrement(name, pane.getMinorIncrement());
+            if(isBlank(pane.getMinorIncrement())) {
+               pane.setMinorIncrement(null);
+            }
+            else {
+               requirePositiveIncrement(name, pane.getMinorIncrement());
+            }
+
             minorName = name;
          }
          else if("majorIncrement".equalsIgnoreCase(leaf)) {
-            requireBlankOrPositiveIncrement(name, pane.getMajorIncrement());
+            if(isBlank(pane.getMajorIncrement())) {
+               pane.setMajorIncrement(null);
+            }
+            else {
+               requirePositiveIncrement(name, pane.getMajorIncrement());
+            }
+
             majorName = name;
          }
       }
@@ -659,11 +689,8 @@ public class AssemblyPropertyService {
       }
    }
 
-   /** The gauge's increments may be left blank, as in the Composer; a value must be above 0. */
-   private static void requireBlankOrPositiveIncrement(String name, String value) {
-      if(value != null && !value.isBlank()) {
-         requirePositiveIncrement(name, value);
-      }
+   private static boolean isBlank(String value) {
+      return value == null || value.isBlank();
    }
 
    private static void requireNumericBound(String name, String value) {
