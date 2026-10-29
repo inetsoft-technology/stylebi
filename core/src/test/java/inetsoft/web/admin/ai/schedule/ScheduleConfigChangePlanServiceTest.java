@@ -845,4 +845,126 @@ class ScheduleConfigChangePlanServiceTest {
       assertTrue(ScheduleConfigChangePlanService.projectTimeRange(range)
                     .startsWith("name=Morning\\;defaultRange\\=true;startTime="));
    }
+
+   // -------------------------------------------------------------------------
+   // Bug #79544: a time range's permission write is part of the plan hash
+   // -------------------------------------------------------------------------
+
+   private static Map<String, Object> grant(String user, String... actions) {
+      Map<String, Object> id = new HashMap<>();
+      id.put("name", user);
+      id.put("orgID", "host-org");
+      Map<String, Object> entry = new HashMap<>();
+      entry.put("identityID", id);
+      entry.put("type", 0);
+      entry.put("actions", List.of(actions));
+      return entry;
+   }
+
+   @SafeVarargs
+   private static Map<String, Object> permissions(Map<String, Object>... entries) {
+      Map<String, Object> perm = new HashMap<>();
+      perm.put("permissions", List.of(entries));
+      perm.put("displayActions", List.of("READ", "WRITE"));
+      perm.put("securityEnabled", true);
+      perm.put("requiresBoth", false);
+      perm.put("derivePermissionLabel", "inherit");
+      perm.put("grantReadToAllVisible", false);
+      return perm;
+   }
+
+   private ResolvedPlan previewRange(Boolean modified, Map<String, Object> permissions)
+      throws Exception
+   {
+      ScheduleConfigChangeRequest change = createRange("Nightly", "01:00", "03:00", false);
+
+      if(modified != null) {
+         change.getSpec().put("modified", modified);
+      }
+
+      if(permissions != null) {
+         change.getSpec().put("permissions", permissions);
+      }
+
+      return preview(change);
+   }
+
+   @Test void timeRangeWithAGrantHashesDifferentlyFromOneWithout() throws Exception {
+      ResolvedPlan without = previewRange(null, null);
+      ResolvedPlan with = previewRange(true, permissions(grant("alice", "READ")));
+      assertNotEquals(without.planHash(), with.planHash());
+      // the displayed projection is unchanged, so apply's read-back verification still matches
+      assertEquals(without.changes().get(0).proposedValue(), with.changes().get(0).proposedValue());
+      assertTrue(with.changes().get(0).description().contains("ALSO WRITES"));
+      assertFalse(without.changes().get(0).description().contains("ALSO WRITES"));
+   }
+
+   @Test void timeRangeDifferentGrantsHashDifferently() throws Exception {
+      assertNotEquals(
+         previewRange(true, permissions(grant("alice", "READ"))).planHash(),
+         previewRange(true, permissions(grant("alice", "READ", "WRITE"))).planHash());
+      assertNotEquals(
+         previewRange(true, permissions(grant("alice", "READ"))).planHash(),
+         previewRange(true, permissions(grant("bob", "READ"))).planHash());
+   }
+
+   @Test void timeRangeSameGrantHashesTheSameRegardlessOfOrder() throws Exception {
+      assertEquals(
+         previewRange(true, permissions(grant("alice", "READ", "WRITE"), grant("bob", "READ")))
+            .planHash(),
+         previewRange(true, permissions(grant("bob", "READ"), grant("alice", "WRITE", "READ")))
+            .planHash());
+   }
+
+   @Test void timeRangePermissionsAreIgnoredWhenModifiedIsNull() throws Exception {
+      // an echoed read record carries permissions but no modified; nothing is written, so it
+      // must hash like a plain spec
+      assertEquals(previewRange(null, null).planHash(),
+                   previewRange(null, permissions(grant("alice", "READ"))).planHash());
+   }
+
+   @Test void timeRangeUpdateWithAGrantChangesTheHash() throws Exception {
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      ScheduleConfigChangeRequest plain = updateRange("Morning", "Morning", "06:00", "12:00", false);
+      ScheduleConfigChangeRequest granted = updateRange("Morning", "Morning", "06:00", "12:00", false);
+      granted.getSpec().put("modified", true);
+      granted.getSpec().put("permissions", permissions(grant("alice", "READ")));
+
+      assertNotEquals(service.resolve(request("t", List.of(plain)), user).planHash(),
+                      service.resolve(request("t", List.of(granted)), user).planHash());
+   }
+
+   // a rename with modified == null carries permissions (Bug #79545), so the carried grant is a
+   // write that must be bound into the hash
+
+   @Test void renameCarryingStoredGrantChangesTheHash() throws Exception {
+      ScheduleConfigChangeRequest rename = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      String withoutGrant = service.resolve(request("t", List.of(rename)), user).planHash();
+
+      stubConfig(List.of(), List.of(rangeWithPermissions("Morning", permissionModel())));
+      ResolvedPlan withGrant = service.resolve(request("t", List.of(rename)), user);
+
+      assertNotEquals(withoutGrant, withGrant.planHash());
+      assertTrue(withGrant.changes().get(0).description().contains("ALSO WRITES"));
+   }
+
+   @Test void renameCarryingCallerGrantWithNullModifiedChangesTheHash() throws Exception {
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      ScheduleConfigChangeRequest plain = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+      ScheduleConfigChangeRequest granted = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+      granted.getSpec().put("permissions", permissions(grant("alice", "READ")));
+
+      assertNotEquals(service.resolve(request("t", List.of(plain)), user).planHash(),
+                      service.resolve(request("t", List.of(granted)), user).planHash());
+   }
+
+   @Test void renameWithoutAnyGrantHashesLikeBefore() throws Exception {
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      ScheduleConfigChangeRequest rename = updateRange("Morning", "Morning2", "06:00", "12:00", false);
+
+      assertEquals(service.resolve(request("t", List.of(rename)), user).planHash(),
+                   service.resolve(request("t", List.of(rename)), user).planHash());
+   }
 }
