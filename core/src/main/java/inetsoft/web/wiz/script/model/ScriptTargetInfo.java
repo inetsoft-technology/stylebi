@@ -43,8 +43,11 @@ package inetsoft.web.wiz.script.model;
  * @param hostSheet  {@code viewsheet} or {@code worksheet}
  * @param target     the v1 delimited string, or {@code null} for a kind the legacy grammar never
  *                   addressed
+ * @param expression the current expression text of a {@code calcField}; {@code null} for every
+ *                   other kind. It lets an ordinary (non-pane) session read a calc field before
+ *                   rewriting it, since {@code edit_calc_field} always replaces the whole formula
  */
 public record ScriptTargetInfo(String id, String kind, String assembly, String name, Boolean sql,
                                Boolean baseOnDetail, String label, String runsWhen,
                                boolean hasScript, boolean enabled, String enableScope,
-                               String hostSheet, String target) {}
+                               String hostSheet, String target, String expression) {}

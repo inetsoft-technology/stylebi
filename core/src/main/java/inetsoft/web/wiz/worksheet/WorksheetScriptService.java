@@ -222,7 +222,8 @@ public class WorksheetScriptService {
             true,                            // an expression column always has a body (may be "")
             true,                            // no per-column enable flag exists
             "worksheetExpression:" + t.getName() + ":" + name,
-            "worksheet", null));             // no legacy delimited form
+            "worksheet", null,              // no legacy delimited form
+            null));                          // expression: calc fields only
       }
    }
 
@@ -267,7 +268,7 @@ public class WorksheetScriptService {
             "each time " + t.getName() + " is queried",
             true, true,
             "worksheetCondition:" + t.getName() + ":" + name,
-            "worksheet", null));
+            "worksheet", null, null));
       }
    }
 
