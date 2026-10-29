@@ -101,7 +101,8 @@
               <div class="selection-value"
                 [style.justify-content]="cellFormat.justifyContent"
                 [style.wordWrap]="cellFormat.wrapping.wordWrap">
-                <span class="selection-value-text">{{selectionValue.label}}</span>
+                <span class="selection-value-text" tooltipIf
+                  [disableTooltipIf]="toggleEnabled">{{selectionValue.label}}</span>
               </div>
             }
           </div>
