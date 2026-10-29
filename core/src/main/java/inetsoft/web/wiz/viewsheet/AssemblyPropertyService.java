@@ -331,6 +331,7 @@ public class AssemblyPropertyService {
             Object value = canonicalIntEnum(type, entry.getValue(), patch.get(entry.getKey()));
 
             requirePositiveSize(entry.getKey(), entry.getValue(), value);
+            requireLabelGapInRange(entry.getKey(), entry.getValue(), value);
 
             if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
                value = requireKnownTableStyle(model, entry.getValue(), value);
@@ -700,6 +701,39 @@ public class AssemblyPropertyService {
 
       double number = Double.parseDouble(value.trim());
       return Double.isFinite(number) ? number : null;
+   }
+
+   /**
+    * {@code InputLabelPaneModel.setLabelGap} clamps to 0..1000 without a word, so a written -5
+    * is stored as 0 and 5000 as 1000 while the write reports success (bug-79541). The dialog
+    * limits the field to the same range. Judged on the written value, before it reaches the
+    * clamping setter; a non-numeric value is left to the model's own type handling.
+    */
+   static void requireLabelGapInRange(String key, String path, Object value) {
+      if(!path.endsWith("inputLabelPaneModel.labelGap")) {
+         return;
+      }
+
+      Double number = null;
+
+      if(value instanceof Number n) {
+         number = n.doubleValue();
+      }
+      else if(value instanceof String str) {
+         try {
+            number = Double.parseDouble(str.trim());
+         }
+         catch(NumberFormatException ignore) {
+            // not numeric, left to the model's own type handling
+         }
+      }
+
+      if(number != null && (number < 0 || number > 1000)) {
+         throw new IllegalArgumentException(
+            key + ": labelGap must be between 0 and 1000 pixels (got " + value + "). StyleBI " +
+            "clamps an out-of-range gap to that range, so this write would report success and " +
+            "store a different value.");
+      }
    }
 
    private static final String RANGE_SIZE_PANE =
@@ -2574,6 +2608,16 @@ public class AssemblyPropertyService {
       sortType.put("hideothers", XConstants.SORT_SPECIFIC);
       sortType.put("hide_others", XConstants.SORT_SPECIFIC);
 
+      // The list-values pane of a CheckBox/ComboBox/RadioButton offers only None/Ascending/
+      // Descending; SORT_ORIGINAL/SORT_SPECIFIC/SORT_VALUE_* are never produced by it.
+      Map<String, Integer> listSortType = new LinkedHashMap<>();
+      listSortType.put("none", XConstants.SORT_NONE);
+      listSortType.put("unsorted", XConstants.SORT_NONE);
+      listSortType.put("asc", XConstants.SORT_ASC);
+      listSortType.put("ascending", XConstants.SORT_ASC);
+      listSortType.put("desc", XConstants.SORT_DESC);
+      listSortType.put("descending", XConstants.SORT_DESC);
+
       Map<String, Integer> rangeType = new LinkedHashMap<>();
       rangeType.put("year", TimeInfo.YEAR);
       rangeType.put("month", TimeInfo.MONTH);
@@ -2606,6 +2650,14 @@ public class AssemblyPropertyService {
                   new IntEnumDomain("showType", calendarShowType));
       domains.put("selectionTreePaneModel.mode", new IntEnumDomain("mode", mode));
       domains.put("selectionGeneralPaneModel.sortType", new IntEnumDomain("sortType", sortType));
+
+      for(String pane : new String[] { "checkboxGeneralPaneModel", "comboboxGeneralPaneModel",
+                                       "radioButtonGeneralPaneModel" })
+      {
+         domains.put(pane + ".listValuesPaneModel.sortType",
+                     new IntEnumDomain("sortType", listSortType));
+      }
+
       domains.put("rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.rangeType",
                   new IntEnumDomain("rangeType", rangeType));
       domains.put("calendarAdvancedPaneModel.viewMode", new IntEnumDomain("viewMode", viewMode));
