@@ -21,6 +21,7 @@ import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -81,6 +82,46 @@ class InputValueServiceComboTest {
       assertDoesNotThrow(() -> check(combo(true, false), "integer", 42));
       assertDoesNotThrow(() -> check(combo(false, true), "date", "2026-03-01"));
       assertDoesNotThrow(() -> check(combo(false, true), "date", "2026-03-01 00:00:00"));
+   }
+
+   private static ComboBoxVSAssemblyInfo boundedCalendar(String min, String max) {
+      ComboBoxVSAssemblyInfo info = combo(false, true);
+      when(info.getMinDate()).thenReturn(min == null ? null : Timestamp.valueOf(min));
+      when(info.getMaxDate()).thenReturn(max == null ? null : Timestamp.valueOf(max));
+      return info;
+   }
+
+   /** Bug 79697: a date outside the calendar's minDate/maxDate was stored with ok:true. */
+   @Test
+   void refusesDateOutsideCalendarBoundsAndNamesTheLimits() {
+      ComboBoxVSAssemblyInfo info = boundedCalendar("2024-01-01 00:00:00", "2024-12-31 00:00:00");
+      Exception after = refuses(info, "date", "2025-03-01");
+      assertTrue(after.getMessage().contains("2024-01-01"), after.getMessage());
+      assertTrue(after.getMessage().contains("2024-12-31"), after.getMessage());
+      refuses(info, "date", "2023-12-31");
+      refuses(info, "date", "2025-03-01 00:00:00");
+      refuses(info, "timeInstant", "2025-03-01 10:00:00");
+   }
+
+   @Test
+   void acceptsDateInsideAndOnCalendarBounds() {
+      ComboBoxVSAssemblyInfo info = boundedCalendar("2024-01-01 00:00:00", "2024-12-31 00:00:00");
+      assertDoesNotThrow(() -> check(info, "date", "2024-06-15"));
+      assertDoesNotThrow(() -> check(info, "date", "2024-01-01"));
+      assertDoesNotThrow(() -> check(info, "date", "2024-12-31"));
+      // the picker works in whole days, so a time on the max day is still offered
+      assertDoesNotThrow(() -> check(info, "timeInstant", "2024-12-31 18:30:00"));
+      assertDoesNotThrow(() -> check(info, "date", ""));
+   }
+
+   @Test
+   void enforcesOnlyTheBoundThatIsSet() {
+      assertDoesNotThrow(() -> check(boundedCalendar("2024-01-01 00:00:00", null), "date",
+                                     "2090-01-01"));
+      refuses(boundedCalendar("2024-01-01 00:00:00", null), "date", "2023-01-01");
+      assertDoesNotThrow(() -> check(boundedCalendar(null, "2024-12-31 00:00:00"), "date",
+                                     "1990-01-01"));
+      refuses(boundedCalendar(null, "2024-12-31 00:00:00"), "date", "2025-01-01");
    }
 
    @Test
