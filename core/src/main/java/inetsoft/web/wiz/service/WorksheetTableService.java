@@ -1663,7 +1663,7 @@ public class WorksheetTableService {
     *
     * <p>Sanitized ONCE, at this single return point, rather than ingredient-by-ingredient: every
     * piece assembled below can originate from data the connector or the caller controls — the
-    * response shape's own field NAMES (not just its leaf values — see {@link #singleArrayFieldHint}'s
+    * response shape's own field NAMES (not just its leaf values — see {@code singleArrayFieldHint}'s
     * sibling, {@code JsonShapeDistiller.objectShape}, which carries a response's real field names
     * through verbatim), the effective row path (a caller-supplied {@code jsonPath}), {@code
     * probeDesc} (caller-supplied parameter values), {@code wizLoadColumnsError} (also an unsanitized
@@ -1674,15 +1674,16 @@ public class WorksheetTableService {
     * adds; sanitizing each ingredient separately is right only until someone adds one more.</p>
     */
    private String emptyColumnsMessage(TabularQuery query, String dsName, String probeDesc) {
-      Object shape = query.getResponseShape();
       // Cleared before every attempt by TabularTableAssembly.loadColumnSelection (see that method),
       // so non-null here means loadOutputColumns actually threw during THIS probe, not a stale
       // value from an earlier call on a reused query instance.
       Object loadError = query.getProperty("wizLoadColumnsError");
-      String detail = TabularProbeCause.read(query, loadError).detail();
+      TabularProbeCause cause = TabularProbeCause.read(query, loadError);
+      String detail = cause.detail();
+      String zeroRows = TabularProbeCause.zeroRowsClause(query, loadError, cause);
       String message;
 
-      if(shape == null) {
+      if(zeroRows == null) {
          String loadErrorClause = loadError == null ? "" : " (" + loadError + ")";
 
          message = "The query on '" + dsName + "' returned no columns" + loadErrorClause +
@@ -1693,84 +1694,11 @@ public class WorksheetTableService {
             "server log for this request." + detail;
       }
       else {
-         String rowPath = effectiveRowPath(query);
-         String rowPathClause = rowPath == null ? "" : " Rows were read from '" + rowPath + "'.";
-         String truncatedClause = query.isResponseShapeTruncated()
-            ? " (capped — some fields may be missing from this description)" : "";
-         String hint = singleArrayFieldHint(shape, rowPath);
-         String hintClause = hint == null ? "" : " The rows look like they belong at '" + hint + "'.";
-
-         message = "The query on '" + dsName + "' completed successfully and returned a response, " +
-            "but selected zero rows — for a JSON REST endpoint, columns are derived from the rows " +
-            "returned, so zero rows means zero columns." + rowPathClause + " The response's shape " +
-            "was: " + shape + truncatedClause + "." + hintClause + " Parameters sent: " + probeDesc +
-            ". This is not a connection or credentials problem — the request itself succeeded. If " +
-            "this is unexpected, check the parameters (especially any date range or id filter) " +
-            "against the endpoint's actual data." + detail;
+         message = "The query on '" + dsName + "' " + zeroRows + " Parameters sent: " + probeDesc +
+            "." + detail;
       }
 
-      return singleLine(message);
-   }
-
-   /**
-    * Collapse to one line. Applied exactly once, to the fully-assembled {@code
-    * emptyColumnsMessage} — see that method's doc for why sanitizing the whole is preferred over
-    * sanitizing each ingredient that might carry connector- or caller-controlled text.
-    */
-   private static String singleLine(String message) {
-      return message.replace('\n', ' ').replace('\r', ' ');
-   }
-
-   /**
-    * The connector's own answer to "where are the rows", when it has one — reflective, so core never
-    * imports a connector type such as {@code RestJsonQuery}. Returns null for any connector with no
-    * such method (ServerFile, a generic non-JSON connector, ...), which the caller must treat as
-    * "omit the clause," never as "assume '$'."
-    */
-   private String effectiveRowPath(TabularQuery query) {
-      try {
-         Object path = query.getClass().getMethod("getValidJsonPath").invoke(query);
-         return path instanceof String s && !s.isBlank() ? s : null;
-      }
-      catch(Exception ex) {
-         return null;
-      }
-   }
-
-   /**
-    * A best-effort suggestion for where rows actually are, used only when the response's shape
-    * names exactly one top-level field holding an array — an object with two or more array-valued
-    * fields, or none, is ambiguous and returns null rather than guess: a wrong guess is worse than
-    * no hint. Also null when the candidate is already what {@code rowPath} points to, since then
-    * there is nothing new to tell the caller.
-    */
-   private String singleArrayFieldHint(Object shape, String rowPath) {
-      if(shape instanceof List<?>) {
-         return "$".equals(rowPath) ? null : "$";
-      }
-
-      if(!(shape instanceof Map<?, ?> map)) {
-         return null;
-      }
-
-      String onlyArrayField = null;
-
-      for(Map.Entry<?, ?> entry : map.entrySet()) {
-         if(entry.getValue() instanceof List) {
-            if(onlyArrayField != null) {
-               return null;
-            }
-
-            onlyArrayField = String.valueOf(entry.getKey());
-         }
-      }
-
-      if(onlyArrayField == null) {
-         return null;
-      }
-
-      String candidate = "$." + onlyArrayField + "[*]";
-      return candidate.equals(rowPath) ? null : candidate;
+      return TabularProbeCause.singleLine(message);
    }
 
    /**

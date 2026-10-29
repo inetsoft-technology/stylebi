@@ -125,7 +125,7 @@ public class FakeNamedConnectorQuery extends TabularQuery {
    }
 
    /** Mirrors what a real connector's probe run leaves on {@code TabularQuery.getResponseShape()}. */
-   void reportResponseShape(Object shape, boolean truncated) {
+   public void reportResponseShape(Object shape, boolean truncated) {
       this.shapeToReport = shape;
       this.shapeTruncated = truncated;
    }
