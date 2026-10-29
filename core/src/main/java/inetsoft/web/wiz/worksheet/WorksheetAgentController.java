@@ -1318,12 +1318,12 @@ public class WorksheetAgentController {
             // live worksheet.
             Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
-            throw new PairingException("The request to '" + target + "' of '" + dsName +
-               "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
+            throw new PairingException(emptyColumnsRefusal(
+               query, loadError, cause,
+               "The request to '" + target + "' of '" + dsName + "' returned no columns",
                ". URL suffix sent: " + resolvedSuffix +
                (extraApplied == null || extraApplied.isBlank() ? "" :
-                  ". Extra properties sent: " + extraApplied) +
-               ". " + cause.advice(PROBE_GENERIC_ADVICE));
+                  ". Extra properties sent: " + extraApplied)));
          }
 
          if(req.maxRows() != null) {
@@ -1425,9 +1425,9 @@ public class WorksheetAgentController {
             // assembly in the live worksheet -- mirrors WorksheetTableService.buildTabularTable.
             Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
-            throw new PairingException("The request to '" + dsName + "' returned no columns" +
-               (loadError == null ? "" : " (" + loadError + ")") + ". Properties sent: " +
-               applied + ". " + cause.advice(PROBE_GENERIC_ADVICE));
+            throw new PairingException(emptyColumnsRefusal(
+               query, loadError, cause, "The request to '" + dsName + "' returned no columns",
+               ". Properties sent: " + applied));
          }
 
          if(req.maxRows() != null) {
@@ -1727,11 +1727,11 @@ public class WorksheetAgentController {
          if(newColumns == null || newColumns.getAttributeCount() == 0) {
             Object loadError = scratchQuery.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(scratchQuery, loadError);
-            throw new PairingException("The request to '" + target + "' of '" + dsName +
-               "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
+            throw new PairingException(emptyColumnsRefusal(
+               scratchQuery, loadError, cause,
+               "The request to '" + target + "' of '" + dsName + "' returned no columns",
                (resolvedSuffix == null ? "" : ". URL suffix sent: " + resolvedSuffix) +
-               (applied == null || applied.isBlank() ? "" : ". Properties sent: " + applied) +
-               ". " + cause.advice(PROBE_GENERIC_ADVICE));
+               (applied == null || applied.isBlank() ? "" : ". Properties sent: " + applied)));
          }
 
          // Refuse an edit that drops a column a dependent join/composite table still keys on --
@@ -6460,6 +6460,26 @@ public class WorksheetAgentController {
    private static final String PROBE_GENERIC_ADVICE =
       "Check the parameter values and datasource credentials -- see the server log for the " +
       "cause.";
+
+   /**
+    * The single-line refusal of a tabular add_table/edit_table probe that produced no columns.
+    * The three signals that say why are disjoint: a load error is named in the lead, a timeout or
+    * connector message closes via {@link TabularProbeCause#advice}, and a request that succeeded
+    * with zero rows says so instead of sending the caller to credentials.
+    *
+    * @param lead  the caller's subject and "returned no columns".
+    * @param echoes what the caller sent, each part starting with ". ".
+    */
+   private static String emptyColumnsRefusal(TabularQuery query, Object loadError,
+                                             TabularProbeCause cause, String lead, String echoes)
+   {
+      String zeroRows = TabularProbeCause.zeroRowsClause(query, loadError, cause);
+      String closing = zeroRows == null ? cause.advice(PROBE_GENERIC_ADVICE) :
+         "The request " + zeroRows + cause.detail();
+
+      return TabularProbeCause.singleLine(
+         lead + (loadError == null ? "" : " (" + loadError + ")") + echoes + ". " + closing);
+   }
 
    /** Bug #78527: ends edit_table's dropped-column refusal. */
    private static final String TABULAR_EDIT_LOSS_REMEDY =
