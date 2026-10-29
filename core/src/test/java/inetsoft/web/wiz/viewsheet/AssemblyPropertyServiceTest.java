@@ -39,6 +39,7 @@ import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartLinePaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
+import inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -231,6 +232,49 @@ class AssemblyPropertyServiceTest {
          .orElseThrow(() -> new AssertionError("gauge should list a 'visible' entry"));
       assertNull(visible.get("label"),
                  "an ordinary alias with no better caption than its own name has no label");
+   }
+
+   /**
+    * Bug #79727: the plot-options pane captions the {@code showPoints} checkbox differently by
+    * chart type ("Show Lines" on a point chart, "Show Points" on a line or radar chart), but the
+    * listing carried no label for it. The label is now the model's own caption.
+    */
+   @Test
+   void listsTheModelCaptionOfShowPointsWhenTheControlIsShown() throws Exception {
+      assertEquals("Show Lines", showPointsLabel("Show Lines", true));
+      assertEquals("Show Points", showPointsLabel("Show Points", true));
+   }
+
+   @Test
+   void leavesShowPointsUnlabelledWhenTheControlIsHidden() throws Exception {
+      // a bar chart's model also carries "Show Lines", but the UI hides the checkbox
+      assertNull(showPointsLabel("Show Lines", false));
+   }
+
+   @Test
+   void leavesShowPointsUnlabelledWhenTheModelHasNoCaption() throws Exception {
+      assertNull(showPointsLabel(null, true));
+      assertNull(showPointsLabel(" ", true));
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Object showPointsLabel(String caption, boolean visible) throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      ChartPlotOptionsPaneModel plot = new ChartPlotOptionsPaneModel();
+      plot.setShowPointsLabel(caption);
+      plot.setShowPointsVisible(visible);
+      model.getChartAdvancedPaneModel().setChartPlotOptionsPaneModel(plot);
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      Map<String, Object> listed = service.list("tok", principal(), "Chart1");
+      java.util.List<Map<String, Object>> properties =
+         (java.util.List<Map<String, Object>>) listed.get("properties");
+
+      return properties.stream()
+         .filter(p -> "showPoints".equals(p.get("name")))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("chart should list a 'showPoints' entry"))
+         .get("label");
    }
 
    @Test
