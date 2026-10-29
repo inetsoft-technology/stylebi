@@ -32,6 +32,7 @@ import inetsoft.web.admin.schedule.SchedulerConfigurationService;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
 import inetsoft.web.admin.schedule.model.ServerLocation;
 import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
+import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -456,7 +457,7 @@ public class ScheduleConfigChangePlanService {
             clearOtherDefaults(ranges, existingIndex);
          }
 
-         ranges.set(existingIndex, spec);
+         ranges.set(existingIndex, carryPermissionsOnRename(existing, spec));
          requireNoDuplicateNamesOrDefaults(label, ranges);
 
          boolean identityChanged = !existing.name().equals(spec.name()) ||
@@ -471,6 +472,30 @@ public class ScheduleConfigChangePlanService {
       }
 
       throw unknownVerb(label, verb);
+   }
+
+   /**
+    * Bug #79545: time range permissions are stored under the range's name, and
+    * {@code SchedulerConfigurationService} only writes them when {@code modified} is non-null. A
+    * rename that resupplies a read-back record ({@code modified == null}) would therefore write
+    * the new name with no grant. When the name changes and the caller did not say whether the
+    * permissions were modified, mark them modified and carry the caller's permissions, falling
+    * back to the stored ones. Never produces a non-null model with null permissions (that would
+    * clear the new name's grants).
+    */
+   static TimeRangeModel carryPermissionsOnRename(TimeRangeModel existing, TimeRangeModel spec) {
+      if(existing.name().equals(spec.name()) || spec.modified() != null) {
+         return spec;
+      }
+
+      ResourcePermissionModel permissions =
+         spec.permissions() != null ? spec.permissions() : existing.permissions();
+
+      if(permissions == null) {
+         return spec;
+      }
+
+      return TimeRangeModel.builder().from(spec).modified(true).permissions(permissions).build();
    }
 
    private static void clearOtherDefaults(List<TimeRangeModel> ranges, int exceptIndex) {
