@@ -5795,13 +5795,49 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
-   void refusesABlankOrNonNumericGaugeBound() throws Exception {
+   void refusesANonNumericGaugeBound() throws Exception {
       assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
                               gaugePatch("min", "abc"), "min:", "abc");
       assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
                               gaugePatch("max", "NaN"), "max:", "NaN");
+   }
+
+   @Test
+   void refusesAGaugeBoundThatIsNotAnOrderedNumber() throws Exception {
       assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
-                              gaugePatch("max", ""), "max:", "required");
+                              gaugePatch("min", "200"), "min=200", "max=200");
+      assertGaugeRangeRefused(gaugeRange("0", "200", "10", "50"),
+                              gaugePatch("max", "0"), "max=0", "min=0");
+   }
+
+   @Test
+   void allowsBlankGaugeBoundsAndStoresThemAsNull() throws Exception {
+      String numberRange = "gaugeGeneralPaneModel.numberRangePaneModel.";
+      Object[] blanks = { null, "", "  " };
+
+      for(Object blank : blanks) {
+         for(String leaf : new String[] { "min", "max", "minorIncrement", "majorIncrement" }) {
+            for(String key : new String[] { leaf, numberRange + leaf }) {
+               GaugePropertyDialogModel model = gaugeRange("0", "200", "10", "50");
+               assertGaugeRangeAccepted(model, gaugePatch(key, blank));
+               var pane = model.getGaugeGeneralPaneModel().getNumberRangePaneModel();
+               String stored = switch(leaf) {
+                  case "min" -> pane.getMin();
+                  case "max" -> pane.getMax();
+                  case "minorIncrement" -> pane.getMinorIncrement();
+                  default -> pane.getMajorIncrement();
+               };
+               assertNull(stored, key + "=" + blank);
+            }
+         }
+      }
+   }
+
+   @Test
+   void allowsBlankGaugeMinWithAStoredMaxAndBothBlank() throws Exception {
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"), gaugePatch("min", ""));
+      assertGaugeRangeAccepted(gaugeRange("0", "200", "10", "50"),
+                               gaugePatch("min", "", "max", "  "));
    }
 
    @Test
