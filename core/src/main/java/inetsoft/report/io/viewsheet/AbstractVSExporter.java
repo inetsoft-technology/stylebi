@@ -1460,204 +1460,211 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          try {
             for(int i = 0; i < assemblies.length; i++) {
-               VSAssembly assembly = (VSAssembly) assemblies[i];
+               try {
+                  VSAssembly assembly = (VSAssembly) assemblies[i];
 
-               if(!needExport(assembly) ||
-                  viewsheet.getWarningTextAssembly(false) == assembly)
-               {
-                  continue;
+                  if(!needExport(assembly) ||
+                     viewsheet.getWarningTextAssembly(false) == assembly)
+                  {
+                     continue;
+                  }
+
+                  prepareAssembly(assembly);
+
+                  int type = assembly.getAssemblyType();
+                  String name = assembly.getAbsoluteName();
+                  VSTableLens lens = null;
+
+                  switch(type) {
+                  case AbstractSheet.IMAGE_ASSET:
+                     writeImageAssembly((ImageVSAssembly) assembly, helper);
+                     break;
+                  case AbstractSheet.THERMOMETER_ASSET:
+                     writeThermometer((ThermometerVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.GAUGE_ASSET:
+                     writeGauge((GaugeVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.SLIDING_SCALE_ASSET:
+                     writeSlidingScale((SlidingScaleVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.CYLINDER_ASSET:
+                     writeCylinder((CylinderVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.TEXT_ASSET:
+                     writeText(box.getVariableTable(), (TextVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.TEXTINPUT_ASSET:
+                     writeTextInput((TextInputVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.SPINNER_ASSET:
+                     writeSpinner((SpinnerVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.COMBOBOX_ASSET:
+                     writeComboBox((ComboBoxVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.CHECKBOX_ASSET:
+                     writeCheckBox((CheckBoxVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.RADIOBUTTON_ASSET:
+                     writeRadioButton((RadioButtonVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.TAB_ASSET:
+                     writeVSTab((TabVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.SLIDER_ASSET:
+                     writeSlider((SliderVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.TIME_SLIDER_ASSET:
+                     writeTimeSlider((TimeSliderVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.CALENDAR_ASSET:
+                     writeCalendar((CalendarVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.SELECTION_LIST_ASSET:
+                     writeSelectionList((SelectionListVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.SELECTION_TREE_ASSET:
+                     writeSelectionTree((SelectionTreeVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.TABLE_VIEW_ASSET:
+                  case AbstractSheet.EMBEDDEDTABLE_VIEW_ASSET:
+                     lens = box.getVSTableLens(name, false, 1);
+                     // Bug #74374, apply table.output.maxcol limit before getRegionTableLens(),
+                     // which captures column count at construction time in its own ccount field,
+                     // bypassing VSTableLens.maxCols. Same fix pattern as VsToReportConverter (Bug #74000).
+                     applyMaxColsLimit(lens, assembly.getName());
+                     lens = getRegionTableLens(lens, (TableVSAssembly) assembly, box);
+                     writeTable((TableVSAssembly) assembly, lens);
+                     break;
+                  case AbstractSheet.CROSSTAB_ASSET:
+                     lens = box.getVSTableLens(name, false, 1);
+                     applyMaxColsLimit(lens, assembly.getName());
+                     lens = getRegionTableLens(lens, (CrosstabVSAssembly) assembly, box);
+                     writeCrosstab((CrosstabVSAssembly) assembly, lens);
+                     break;
+                  case AbstractSheet.FORMULA_TABLE_ASSET:
+                     lens = box.getVSTableLens(name, false, 1);
+                     applyMaxColsLimit(lens, assembly.getName());
+                     lens = getRegionTableLens(lens, (CalcTableVSAssembly) assembly, box);
+                     writeCalcTable((CalcTableVSAssembly) assembly, lens);
+                     break;
+                  case AbstractSheet.CHART_ASSET:
+                     ChartVSAssembly chart = (ChartVSAssembly) assembly;
+                     ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+                     TextVSAssembly titleObj = null;
+                     info.setScalingRatio(new DimensionD(1.0, 1.0));
+                     Point pos = viewsheet.getPixelPosition(info);
+                     Dimension size = info.getPixelSize();
+
+                     writeChartBackgroundShape(chart, info, pos, size);
+
+                     if(info.isTitleVisible()) {
+                        chart = chart.clone();
+                        info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+
+                        String title = info.getTitle();
+                        int theight = info.getTitleHeight();
+                        TableDataPath tpath = new TableDataPath(-1, TableDataPath.TITLE);
+                        VSCompositeFormat tformat = info.getFormatInfo().getFormat(tpath);
+
+                        titleObj = new TextVSAssembly();
+                        TextVSAssemblyInfo titleInfo = (TextVSAssemblyInfo) titleObj.getInfo();
+
+                        Insets padding = info.getPadding();
+                        titleInfo.setPixelOffset(new Point(pos.x + padding.left,
+                                                           pos.y + padding.top));
+                        titleInfo.setPixelSize(
+                           new Dimension(size.width - padding.left - padding.right, theight));
+                        titleObj.setTextValue(title);
+                        titleInfo.setFormatInfo(info.getFormatInfo());
+                        titleInfo.setPadding(info.getTitlePadding());
+                        titleInfo.setZIndex(info.getZIndex());
+
+                        Hyperlink titleLink = info.getTitleLinkValue();
+
+                        if(titleLink != null) {
+                           titleInfo.setHyperlink(titleLink);
+                        }
+                     }
+
+                     VGraphPair pair = box.getVGraphPair(name, true, null, true, 1);
+                     DataSet data = (DataSet) box.getData(name);
+                     boolean imgOnly = exportChartAsImage(chart);
+                     data = data == null && pair != null ? pair.getData() : data;
+
+                     VGraph graph = null;
+                     boolean realSize = isRealSizeChart(name);
+
+                     if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
+                        graph = getChartGraph(name, pair);
+                     }
+
+                     Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
+
+                     // emit before writeChart so per-region links overlay on top
+                     if(emptyPlotLink != null) {
+                        int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
+                        Insets padding = info.getPadding();
+                        Insets2D border = getBorderOffset(info.getFormat());
+                        Rectangle2D chartBounds = new Rectangle2D.Double(
+                           pos.x + padding.left + border.left,
+                           pos.y + padding.top + border.top + titleHeight,
+                           size.width - padding.left - padding.right - border.left - border.right,
+                           size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
+                        writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), graph, chartBounds);
+                     }
+
+                     if(graph != null) {
+                        Rectangle2D bounds = graph.getBounds();
+                        // chart not included in onlyDataComponents. (59989)
+                        boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
+                           bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
+
+                        if(!needSlice) {
+                           writeChart(chart, graph, data, imgOnly);
+                        }
+                        else {
+                           writeSliceChart(chart, data, pair, realSize, imgOnly);
+                        }
+                     }
+
+                     if(titleObj != null) {
+                        titleObj.setViewsheet(assembly.getViewsheet());
+                        prepareAssembly(titleObj);
+                        writeText(titleObj);
+                     }
+
+                     break;
+                  case AbstractSheet.GROUPCONTAINER_ASSET:
+                     writeGroupContainer((GroupContainerVSAssembly) assembly, helper);
+                     break;
+                  case AbstractSheet.LINE_ASSET:
+                  case AbstractSheet.RECTANGLE_ASSET:
+                  case AbstractSheet.OVAL_ASSET:
+                     writeShape((ShapeVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.CURRENTSELECTION_ASSET:
+                     writeCurrentSelection((CurrentSelectionVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.SUBMIT_ASSET:
+                     writeSubmit((SubmitVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.ANNOTATION_ASSET:
+                     writeAnnotation((AnnotationVSAssembly) assembly);
+                     break;
+                  case AbstractSheet.ANNOTATION_LINE_ASSET:
+                  case AbstractSheet.ANNOTATION_RECTANGLE_ASSET:
+                     break;
+                  default:
+                     throw new RuntimeException("Unsupported assembly found:" +
+                                                   assembly);
+                  }
                }
-
-               prepareAssembly(assembly);
-
-               int type = assembly.getAssemblyType();
-               String name = assembly.getAbsoluteName();
-               VSTableLens lens = null;
-
-               switch(type) {
-               case AbstractSheet.IMAGE_ASSET:
-                  writeImageAssembly((ImageVSAssembly) assembly, helper);
-                  break;
-               case AbstractSheet.THERMOMETER_ASSET:
-                  writeThermometer((ThermometerVSAssembly) assembly);
-                  break;
-               case AbstractSheet.GAUGE_ASSET:
-                  writeGauge((GaugeVSAssembly) assembly);
-                  break;
-               case AbstractSheet.SLIDING_SCALE_ASSET:
-                  writeSlidingScale((SlidingScaleVSAssembly) assembly);
-                  break;
-               case AbstractSheet.CYLINDER_ASSET:
-                  writeCylinder((CylinderVSAssembly) assembly);
-                  break;
-               case AbstractSheet.TEXT_ASSET:
-                  writeText(box.getVariableTable(), (TextVSAssembly) assembly);
-                  break;
-               case AbstractSheet.TEXTINPUT_ASSET:
-                  writeTextInput((TextInputVSAssembly) assembly);
-                  break;
-               case AbstractSheet.SPINNER_ASSET:
-                  writeSpinner((SpinnerVSAssembly) assembly);
-                  break;
-               case AbstractSheet.COMBOBOX_ASSET:
-                  writeComboBox((ComboBoxVSAssembly) assembly);
-                  break;
-               case AbstractSheet.CHECKBOX_ASSET:
-                  writeCheckBox((CheckBoxVSAssembly) assembly);
-                  break;
-               case AbstractSheet.RADIOBUTTON_ASSET:
-                  writeRadioButton((RadioButtonVSAssembly) assembly);
-                  break;
-               case AbstractSheet.TAB_ASSET:
-                  writeVSTab((TabVSAssembly) assembly);
-                  break;
-               case AbstractSheet.SLIDER_ASSET:
-                  writeSlider((SliderVSAssembly) assembly);
-                  break;
-               case AbstractSheet.TIME_SLIDER_ASSET:
-                  writeTimeSlider((TimeSliderVSAssembly) assembly);
-                  break;
-               case AbstractSheet.CALENDAR_ASSET:
-                  writeCalendar((CalendarVSAssembly) assembly);
-                  break;
-               case AbstractSheet.SELECTION_LIST_ASSET:
-                  writeSelectionList((SelectionListVSAssembly) assembly);
-                  break;
-               case AbstractSheet.SELECTION_TREE_ASSET:
-                  writeSelectionTree((SelectionTreeVSAssembly) assembly);
-                  break;
-               case AbstractSheet.TABLE_VIEW_ASSET:
-               case AbstractSheet.EMBEDDEDTABLE_VIEW_ASSET:
-                  lens = box.getVSTableLens(name, false, 1);
-                  // Bug #74374, apply table.output.maxcol limit before getRegionTableLens(),
-                  // which captures column count at construction time in its own ccount field,
-                  // bypassing VSTableLens.maxCols. Same fix pattern as VsToReportConverter (Bug #74000).
-                  applyMaxColsLimit(lens, assembly.getName());
-                  lens = getRegionTableLens(lens, (TableVSAssembly) assembly, box);
-                  writeTable((TableVSAssembly) assembly, lens);
-                  break;
-               case AbstractSheet.CROSSTAB_ASSET:
-                  lens = box.getVSTableLens(name, false, 1);
-                  applyMaxColsLimit(lens, assembly.getName());
-                  lens = getRegionTableLens(lens, (CrosstabVSAssembly) assembly, box);
-                  writeCrosstab((CrosstabVSAssembly) assembly, lens);
-                  break;
-               case AbstractSheet.FORMULA_TABLE_ASSET:
-                  lens = box.getVSTableLens(name, false, 1);
-                  applyMaxColsLimit(lens, assembly.getName());
-                  lens = getRegionTableLens(lens, (CalcTableVSAssembly) assembly, box);
-                  writeCalcTable((CalcTableVSAssembly) assembly, lens);
-                  break;
-               case AbstractSheet.CHART_ASSET:
-                  ChartVSAssembly chart = (ChartVSAssembly) assembly;
-                  ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
-                  TextVSAssembly titleObj = null;
-                  info.setScalingRatio(new DimensionD(1.0, 1.0));
-                  Point pos = viewsheet.getPixelPosition(info);
-                  Dimension size = info.getPixelSize();
-
-                  writeChartBackgroundShape(chart, info, pos, size);
-
-                  if(info.isTitleVisible()) {
-                     chart = chart.clone();
-                     info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
-
-                     String title = info.getTitle();
-                     int theight = info.getTitleHeight();
-                     TableDataPath tpath = new TableDataPath(-1, TableDataPath.TITLE);
-                     VSCompositeFormat tformat = info.getFormatInfo().getFormat(tpath);
-
-                     titleObj = new TextVSAssembly();
-                     TextVSAssemblyInfo titleInfo = (TextVSAssemblyInfo) titleObj.getInfo();
-
-                     Insets padding = info.getPadding();
-                     titleInfo.setPixelOffset(new Point(pos.x + padding.left,
-                                                        pos.y + padding.top));
-                     titleInfo.setPixelSize(
-                        new Dimension(size.width - padding.left - padding.right, theight));
-                     titleObj.setTextValue(title);
-                     titleInfo.setFormatInfo(info.getFormatInfo());
-                     titleInfo.setPadding(info.getTitlePadding());
-                     titleInfo.setZIndex(info.getZIndex());
-
-                     Hyperlink titleLink = info.getTitleLinkValue();
-
-                     if(titleLink != null) {
-                        titleInfo.setHyperlink(titleLink);
-                     }
-                  }
-
-                  VGraphPair pair = box.getVGraphPair(name, true, null, true, 1);
-                  DataSet data = (DataSet) box.getData(name);
-                  boolean imgOnly = exportChartAsImage(chart);
-                  data = data == null && pair != null ? pair.getData() : data;
-
-                  VGraph graph = null;
-                  boolean realSize = isRealSizeChart(name);
-
-                  if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
-                     graph = getChartGraph(name, pair);
-                  }
-
-                  Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
-
-                  // emit before writeChart so per-region links overlay on top
-                  if(emptyPlotLink != null) {
-                     int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
-                     Insets padding = info.getPadding();
-                     Insets2D border = getBorderOffset(info.getFormat());
-                     Rectangle2D chartBounds = new Rectangle2D.Double(
-                        pos.x + padding.left + border.left,
-                        pos.y + padding.top + border.top + titleHeight,
-                        size.width - padding.left - padding.right - border.left - border.right,
-                        size.height - padding.top - padding.bottom - border.top - border.bottom - titleHeight);
-                     writeEmptyPlotHyperlink(new Hyperlink.Ref(emptyPlotLink), graph, chartBounds);
-                  }
-
-                  if(graph != null) {
-                     Rectangle2D bounds = graph.getBounds();
-                     // chart not included in onlyDataComponents. (59989)
-                     boolean needSlice = !isMatchLayout() && !isOnlyDataComponents() &&
-                        bounds.getWidth() * bounds.getHeight() > EXPORT_SIZE * EXPORT_SIZE;
-
-                     if(!needSlice) {
-                        writeChart(chart, graph, data, imgOnly);
-                     }
-                     else {
-                        writeSliceChart(chart, data, pair, realSize, imgOnly);
-                     }
-                  }
-
-                  if(titleObj != null) {
-                     titleObj.setViewsheet(assembly.getViewsheet());
-                     prepareAssembly(titleObj);
-                     writeText(titleObj);
-                  }
-
-                  break;
-               case AbstractSheet.GROUPCONTAINER_ASSET:
-                  writeGroupContainer((GroupContainerVSAssembly) assembly, helper);
-                  break;
-               case AbstractSheet.LINE_ASSET:
-               case AbstractSheet.RECTANGLE_ASSET:
-               case AbstractSheet.OVAL_ASSET:
-                  writeShape((ShapeVSAssembly) assembly);
-                  break;
-               case AbstractSheet.CURRENTSELECTION_ASSET:
-                  writeCurrentSelection((CurrentSelectionVSAssembly) assembly);
-                  break;
-               case AbstractSheet.SUBMIT_ASSET:
-                  writeSubmit((SubmitVSAssembly) assembly);
-                  break;
-               case AbstractSheet.ANNOTATION_ASSET:
-                  writeAnnotation((AnnotationVSAssembly) assembly);
-                  break;
-               case AbstractSheet.ANNOTATION_LINE_ASSET:
-               case AbstractSheet.ANNOTATION_RECTANGLE_ASSET:
-                  break;
-               default:
-                  throw new RuntimeException("Unsupported assembly found:" +
-                                                assembly);
+               catch(SheetMaxRowsException maxrows) {
+                  // only this component is cut by the row limit; keep writing the remaining
+                  // components, the warning is written once after the loop
+                  setMaxRows(maxrows.getMaxRows());
                }
             }
 
