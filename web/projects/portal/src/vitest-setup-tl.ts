@@ -22,16 +22,40 @@ import { getTestBed } from "@angular/core/testing";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "@test-mocks/server";
 
-// With isolate off, a worker runs about 140 TL files in one process and its memory grows from
-// about 200 MB to 1.7 GB. On the 4 vCPU CI runner, which also runs the Java tests, the garbage
-// collector then pauses the worker for seconds, and even tests that take a few milliseconds
-// locally hit the 5 s default (a pinned 4-CPU local run with the CPUs saturated still passes).
-// Until the cause of the growth is found, give TL tests more time.
+// With isolate off, a worker runs about 140 TL files in one process. Its retained heap grew from
+// about 150 MB to 1.4 GB, mostly from the testing-library fixtures fixed below; it still grows
+// to about 0.8 GB (intervals and smaller leaks). On the 4 vCPU CI runner, which also runs the
+// Java tests, the garbage collector then pauses the worker for seconds, and tests that take a few
+// milliseconds locally hit the 5 s default. Give TL tests more time.
 vi.setConfig({ testTimeout: 15000 });
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
+
+// @testing-library/angular keeps every rendered fixture in a module-level set and registers its
+// cleanup with the global afterEach when the module is first evaluated. With isolate off that
+// happens once per worker, so only the first spec file got the cleanup; the set then kept every
+// later fixture, with its destroyed component tree and DOM, and worker memory grew by more than
+// 1 GB. The cleanup is not exported, so record it when the library registers it through the
+// global afterEach (during the first spec file that imports it, which is the instance the specs
+// use) and register it for every spec file.
+const atlCleanup: { fn?: () => void, wrapped?: boolean } = (globalThis as any).__tlAtlCleanup ??= {};
+
+if(!atlCleanup.wrapped) {
+   atlCleanup.wrapped = true;
+   const globalAfterEach = (globalThis as any).afterEach;
+
+   (globalThis as any).afterEach = function(fn: any, ...rest: any[]) {
+      if(!atlCleanup.fn && typeof fn === "function" && /\bcleanup\d*\(\)/.test(String(fn))) {
+         atlCleanup.fn = fn;
+      }
+
+      return globalAfterEach.call(this, fn, ...rest);
+   };
+}
+
+afterEach(() => atlCleanup.fn?.());
 
 // Spec files in a worker share one jsdom window, so a value one file leaves in web storage (e.g.
 // the schedule condition history written by SimpleScheduleDialog.ok()) is read by the next file.
