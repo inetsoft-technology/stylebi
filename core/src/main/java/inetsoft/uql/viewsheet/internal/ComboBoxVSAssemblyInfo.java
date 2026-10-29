@@ -114,6 +114,9 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
    @Override
    public void validate() {
       if(textEditable) {
+         // an editable combo box does not auto select the first list item, so the fallback
+         // must always be the default value, never a value left over from a non-editable state
+         refreshEditableAutoSelectValue();
          return;
       }
 
@@ -180,12 +183,29 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
 
       if(isSelectedObjectEqual(obj, defaultValue)) {
          this.selectedObject = null;
+         refreshEditableAutoSelectValue();
          return VSAssembly.NONE_CHANGED;
       }
 
       this.selectedObject = obj;
+      refreshEditableAutoSelectValue();
 
       return VSAssembly.OUTPUT_DATA_CHANGED;
+   }
+
+   /**
+    * Keep the fallback value of an editable combo box in sync with its default value.
+    * getSelectedObject() returns this fallback when no explicit selection is stored, which
+    * is the case when the selection equals the default value or is cleared.
+    */
+   private void refreshEditableAutoSelectValue() {
+      if(!textEditable) {
+         return;
+      }
+
+      String str = defaultValue == null || defaultValue.isEmpty() ? null :
+         Tool.getPersistentDataString(defaultValue, getDataType());
+      autoSelectValue = str == null ? null : Tool.getData(getDataType(), str);
    }
 
    /**
