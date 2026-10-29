@@ -5733,7 +5733,7 @@ class WorksheetAgentControllerTest {
    }
 
    @Test
-   void removeJoinOfVariableDropsRuntimeValue() throws Exception {
+   void removeJoinOfVariableIsRefusedAndKeepsRuntimeValue() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
       Worksheet ws = new Worksheet();
       addVariable(ws, "state");
@@ -5742,9 +5742,13 @@ class WorksheetAgentControllerTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       WorksheetAgentController ctrl = variableSyncController("TOK-79001B", ws, vtable, box);
 
-      ctrl.edit("TOK-79001B", opRequest("remove_join", null, "state", null), agent);
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-79001B", opRequest("remove_join", null, "state", null), agent));
 
-      assertOnlyStateDropped(vtable);
+      assertTrue(ex.getMessage().contains("not a join"), ex.getMessage());
+      assertNotNull(ws.getAssembly("state"), "the variable must still be declared");
+      assertEquals("MD", vtable.get("state"), "the refused call must not drop the runtime value");
+      assertEquals("keep", vtable.get("other"));
    }
 
    @Test
