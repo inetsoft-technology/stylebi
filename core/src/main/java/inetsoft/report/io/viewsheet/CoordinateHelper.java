@@ -254,33 +254,35 @@ public class CoordinateHelper {
          size = ignoreScale ?vs0.getPixelSize(info) : getOutputSize(vs0.getPixelSize(info));
       }
       else if(info instanceof TextVSAssemblyInfo) {
-         fixTextSize(size, pos, (TextVSAssemblyInfo) info);
+         fixTextSize(size, pos, (TextVSAssemblyInfo) info, ignoreScale ? 1.0 : getScale());
       }
 
       return new Rectangle2D.Double(pos.x, pos.y, size.width, size.height);
    }
 
    public static void fixTextSize(Dimension size, Point pos, TextVSAssemblyInfo tinfo) {
-      if(tinfo.isAutoSize()) {
-         VSCompositeFormat format = tinfo.getFormat();
-         Font font = format.getFont();
-         FontMetrics fm = Common.getFontMetrics(tinfo.getFormat().getFont());
-         int width = (int) Common.stringWidth(tinfo.getText(), font, fm);
-
-         // if only have smaller pixel size, do not enlarge text.
-         if(size.width > 0) {
-            int h = Math.max(20, width * 20 / size.width);
-            size.height = h;
-         }
-
-         fixTextHeight(size, pos, tinfo);
-      }
+      fixTextSize(size, pos, tinfo, 1.0);
    }
 
-   private static void fixTextHeight(Dimension size, Point pos, TextVSAssemblyInfo tinfo) {
-      if(tinfo.isAutoSize()) {
+   /**
+    * Set the height of an auto-size text to what its wrapped content needs. The result is
+    * written into <tt>size</tt> in place; callers rely on that.
+    *
+    * @param scale the factor from pixels to the output unit of <tt>size</tt>, applied to the
+    *              padding (stored in pixels) so it is in the same unit as <tt>size</tt>.
+    */
+   public static void fixTextSize(Dimension size, Point pos, TextVSAssemblyInfo tinfo,
+                                  double scale)
+   {
+      // if only have smaller pixel size, do not enlarge text.
+      if(tinfo.isAutoSize() && size.width > 0) {
          VSCompositeFormat format = tinfo.getFormat();
          Font font = format.getFont();
+         Insets padding = tinfo.getPadding();
+         int left = padding == null ? 0 : (int) Math.ceil(padding.left * scale);
+         int right = padding == null ? 0 : (int) Math.ceil(padding.right * scale);
+         int top = padding == null ? 0 : (int) Math.ceil(padding.top * scale);
+         int bottom = padding == null ? 0 : (int) Math.ceil(padding.bottom * scale);
 
          int align = format.getAlignment() == StyleConstants.NONE ?
             StyleConstants.H_LEFT | StyleConstants.V_TOP : format.getAlignment();
@@ -289,13 +291,13 @@ public class CoordinateHelper {
             align |= StyleConstants.V_TOP;
          }
 
-         Bounds bounds = new Bounds(pos.x, pos.y, size.width, size.height);
+         // the text is painted inside the padding, so it wraps at the inner width
+         Bounds bounds = new Bounds(pos.x + left, pos.y + top,
+                                    Math.max(1, size.width - left - right), size.height);
          float height = Common.getStringHeight(font, tinfo.getValue() + "", bounds, align,
             format.isWrapping(), 0, 0);
-
-         if(height > size.height) {
-            size.height = (int) Math.ceil(height);
-         }
+         size.height = Math.max((int) Math.ceil(20 * scale),
+                                (int) Math.ceil(height) + top + bottom);
       }
    }
 
