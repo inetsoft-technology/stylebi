@@ -26,6 +26,7 @@ import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.time.LocalDate;
 import java.util.*;
 
 /**
@@ -304,6 +305,54 @@ public class InputValueService {
       }
    }
 
+   /**
+    * The calendar picker offers no day outside the combo's minDate/maxDate, so a date written
+    * outside them is a state a user cannot produce (bug #79697). The picker works in whole days,
+    * so the bounds are compared by day. A bound that is unset or does not resolve to a date (a
+    * variable or script that has not run) is not enforced. Run after
+    * {@link #checkEditableComboValues}, so every non-blank value already parses.
+    */
+   private static void checkCalendarBounds(ComboBoxVSAssemblyInfo combo, List<Object> values,
+                                           String dataType, String assemblyName, String what)
+   {
+      if(!Tool.DATE.equalsIgnoreCase(dataType) && !Tool.TIME_INSTANT.equalsIgnoreCase(dataType)) {
+         return;
+      }
+
+      LocalDate min = toDay(combo.getMinDate());
+      LocalDate max = toDay(combo.getMaxDate());
+
+      if(min == null && max == null) {
+         return;
+      }
+
+      for(Object value : values) {
+         if(value == null || String.valueOf(value).isBlank()) {
+            continue;
+         }
+
+         LocalDate day = toDay(WizStrictValueParser.parse(String.valueOf(value), dataType));
+
+         if(day == null) {
+            continue;
+         }
+
+         if(min != null && day.isBefore(min) || max != null && day.isAfter(max)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " + what + " with a calendar limited to " +
+               (min == null ? "any earlier date" : min) + " through " +
+               (max == null ? "any later date" : max) + ", and " + quote(value) +
+               " is outside it. The calendar offers no such date, so the value is refused and " +
+               "the previous one kept.");
+         }
+      }
+   }
+
+   private static LocalDate toDay(Object date) {
+      return date instanceof java.util.Date d ?
+         new java.sql.Timestamp(d.getTime()).toLocalDateTime().toLocalDate() : null;
+   }
+
    private static String formatHint(String dataType) {
       if(Tool.DATE.equalsIgnoreCase(dataType) || Tool.TIME_INSTANT.equalsIgnoreCase(dataType)) {
          return " (accepted format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)";
@@ -363,6 +412,11 @@ public class InputValueService {
          (combo.isTextEditable() || combo.isCalendar()))
       {
          checkEditableComboValues(values, dataType, assemblyName, what);
+
+         if(combo.isCalendar()) {
+            checkCalendarBounds(combo, values, dataType, assemblyName, what);
+         }
+
          return;
       }
 
