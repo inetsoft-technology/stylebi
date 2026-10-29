@@ -232,8 +232,9 @@ class DatabaseAuthenticationCacheReloadHookTest {
          // reload 1 changes x: its refresh is queued
          save(support.provider("x78793", ALL_USERS), support.slowTearDownProvider("y78793", ALL_USERS));
          reload(host);
-         // reload 2 changes only y, and its slow dispose holds it between clearing the list and
-         // setting the new one
+         // reload 2 changes only y, and its slow dispose of the old y holds the reload lock after
+         // the new list is already published (Bug #79355)
+         DatabaseAuthenticationProvider oldY = find(host, "y78793");
          save(support.provider("x78793", ALL_USERS), support.slowTearDownProvider("y78793", NO_ALICE));
          SlowTearDownProvider.inTearDown = new CountDownLatch(1);
          reload2 = new Thread(() -> {
@@ -246,16 +247,36 @@ class DatabaseAuthenticationCacheReloadHookTest {
          }, "reload2");
          reload2.start();
          assertTrue(SlowTearDownProvider.inTearDown.await(5, TimeUnit.SECONDS));
-         assertTrue(host.getProviders().isEmpty(), "reload 2 is between clear and set");
+         assertNotSame(oldY, find(host, "y78793"), "the new list is published before the old y is disposed");
+         assertNotNull(find(host, "x78793"), "the chain is never empty during reload 2");
       }
       finally {
-         // x's queued refresh runs now, inside reload 2's dispose window
+         // x's queued refresh runs now, inside reload 2's dispose window: it waits for the reload
+         // lock that reload 2 holds until the old y is disposed
          busy.countDown();
+
+         if(reload2 != null) {
+            joinReload(reload2, 10_000);
+         }
       }
 
-      reload2.join(10_000);
       SlowTearDownProvider.inTearDown = null;
       assertTrue(await(() -> cachedAlice("x78793"), 5_000), "x's refresh was lost");
+   }
+
+   /**
+    * Waits for the reload thread. A case that fails must not leave it running: its tear-down holds
+    * the reload lock and the shared refresh thread, which would fail the cases after it.
+    */
+   private static void joinReload(Thread reload, long timeoutMs) throws InterruptedException {
+      reload.join(timeoutMs);
+
+      if(reload.isAlive()) {
+         reload.interrupt();
+         reload.join(timeoutMs);
+      }
+
+      assertFalse(reload.isAlive(), "reload 2 never finished");
    }
 
    private static ExecutorService refreshExecutor() throws Exception {
@@ -267,7 +288,7 @@ class DatabaseAuthenticationCacheReloadHookTest {
    /**
     * The same as {@link #queuedRefreshRunningDuringASecondReloadIsNotLost()}, but reload 2's
     * dispose takes longer than the refresh's bounded wait for the reload lock: the refresh must
-    * keep waiting rather than find the empty list and skip x (review round 5).
+    * keep waiting for the reload lock rather than give up after the wait and skip x (review round 5).
     */
    @Test
    void queuedRefreshOutlastingTheReloadWaitIsNotLost() throws Exception {
@@ -294,8 +315,9 @@ class DatabaseAuthenticationCacheReloadHookTest {
          save(support.provider("xw78793", ALL_USERS),
               support.slowTearDownProvider("yw78793", ALL_USERS));
          reload(host);
-         // reload 2 changes only y, and its 12 s dispose holds it between clearing the list and
-         // setting the new one
+         // reload 2 changes only y, and its 12 s dispose of the old y holds the reload lock after
+         // the new list is already published (Bug #79355)
+         DatabaseAuthenticationProvider oldY = find(host, "yw78793");
          save(support.provider("xw78793", ALL_USERS),
               support.slowTearDownProvider("yw78793", NO_ALICE));
          SlowTearDownProvider.inTearDown = new CountDownLatch(1);
@@ -309,16 +331,25 @@ class DatabaseAuthenticationCacheReloadHookTest {
          }, "reload2");
          reload2.start();
          assertTrue(SlowTearDownProvider.inTearDown.await(5, TimeUnit.SECONDS));
-         assertTrue(host.getProviders().isEmpty(), "reload 2 is between clear and set");
+         assertNotSame(oldY, find(host, "yw78793"), "the new list is published before the old y is disposed");
+         assertNotNull(find(host, "xw78793"), "the chain is never empty during reload 2");
+         // let the refresh run: it must wait for the reload lock that reload 2 holds, rather than
+         // refresh x before the dispose ends
+         busy.countDown();
+         Thread.sleep(500);
+         assertTrue(reload2.isAlive(), "reload 2 ended before the refresh had to wait for it");
+         assertFalse(cachedAlice("xw78793"), "x was refreshed while reload 2 held the reload lock");
       }
       finally {
          // x's queued refresh runs now and waits for reload 2 longer than its bounded wait
          busy.countDown();
+
+         if(reload2 != null) {
+            joinReload(reload2, 25_000);
+         }
       }
 
-      reload2.join(25_000);
       SlowTearDownProvider.inTearDown = null;
-      assertFalse(reload2.isAlive(), "reload 2 never finished");
       assertTrue(await(() -> cachedAlice("xw78793"), 5_000), "x's refresh was lost");
    }
 

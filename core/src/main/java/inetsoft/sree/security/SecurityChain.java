@@ -379,13 +379,14 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
 
    /**
     * Gets the providers, waiting for an edit holding {@link #writeLock()} and for a reload of the
-    * configuration file that is replacing them to finish. During a reload the list is the old
-    * one until the new list is set, and the reload holds its lock until the old providers are
-    * disposed. The read lock is taken before the reload lock, the same order as an edit that
-    * saves the chain under the write lock. The caller must not hold a provider's locks.
+    * configuration file that is replacing them to finish. A reload publishes the new list before
+    * it disposes the old providers, and holds its lock until they are disposed. The read lock is
+    * taken before the reload lock, the same order as an edit that saves the chain under the write
+    * lock. The caller must not hold a provider's locks.
     * <p>
-    * A reload that takes long is logged, but this keeps waiting for it: the list may be the
-    * replaced one until it ends, so not waiting would lose the caller's work. Waiting can't
+    * A reload that takes long is logged, but this keeps waiting for it: a provider that the
+    * reload is disposing may still be in a list read earlier, and the caller's work belongs on the
+    * provider that replaces it, so not waiting would lose the caller's work. Waiting can't
     * deadlock, because no thread that holds the reload lock waits for the read lock.
     *
     * @param waiter what is waiting for the reload, for the log.
