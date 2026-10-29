@@ -2524,6 +2524,10 @@ public class WorksheetAgentController {
       WizUtil.requireSaveWritePermission(worksheetService.getAssetRepository(), entry, xp,
                                          "worksheet");
 
+      // Bug #79733: WorksheetInfo is not serialized; the repository keeps alias/description
+      // only on the AssetEntry handed to setWorksheet(), so carry the session's values over.
+      copyInfoToEntry(rws.getWorksheet().getWorksheetInfo(), oldEntry, entry);
+
       try {
          worksheetService.setWorksheet(rws.getWorksheet(), entry, xp, true, true);
          rws.setEntry(entry);
@@ -6003,6 +6007,36 @@ public class WorksheetAgentController {
       requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
       return readService.readProperties(rws);
+   }
+
+   /**
+    * Copies the worksheet's alias/description onto the entry that is about to be saved,
+    * mirroring SaveWorksheetDialogService. A null value (never set, or a re-opened worksheet
+    * whose info is not persisted) falls back to what the session's own entry carries, so a
+    * Save-As of a re-opened worksheet keeps them; for an in-place save the target already is
+    * that entry and is left untouched.
+    */
+   private static void copyInfoToEntry(WorksheetInfo winfo, AssetEntry sessionEntry,
+                                       AssetEntry target)
+   {
+      String alias = winfo == null ? null : winfo.getAlias();
+      String description = winfo == null ? null : winfo.getDescription();
+
+      if(alias == null && target != sessionEntry) {
+         alias = sessionEntry.getAlias();
+      }
+
+      if(description == null && target != sessionEntry) {
+         description = sessionEntry.getProperty("description");
+      }
+
+      if(alias != null) {
+         target.setAlias(alias);
+      }
+
+      if(description != null) {
+         target.setProperty("description", description);
+      }
    }
 
    /**
