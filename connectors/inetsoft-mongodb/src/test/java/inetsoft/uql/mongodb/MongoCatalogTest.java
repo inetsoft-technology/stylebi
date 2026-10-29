@@ -302,6 +302,25 @@ class MongoCatalogTest {
    }
 
    @Test
+   void describeDataset_mixedNumericTypes_widen() throws Exception {
+      MongoDatabase db = fakeDb();
+      stubSample(db, "t", List.of(
+         new BsonDocument().append("_id", new BsonObjectId(new ObjectId()))
+            .append("n", new BsonInt32(1)).append("l", new BsonInt32(1)).append("s", new BsonInt32(1)),
+         new BsonDocument().append("_id", new BsonObjectId(new ObjectId()))
+            .append("n", new BsonDouble(2.5)).append("l", new BsonInt64(5L))
+            .append("s", new BsonString("x"))));
+
+      TabularDatasetSchema schema = MongoCatalog.describeDataset(db, "t");
+      java.util.function.Function<String, String> typeOf = n -> schema.columns().stream()
+         .filter(c -> c.name().equals(n)).findFirst().orElseThrow().type();
+
+      assertEquals(XSchema.DOUBLE, typeOf.apply("n"));
+      assertEquals(XSchema.LONG, typeOf.apply("l"));
+      assertEquals(XSchema.STRING, typeOf.apply("s"));
+   }
+
+   @Test
    void describeDataset_keyNeverNonNull_defaultsToString() throws Exception {
       MongoDatabase db = fakeDb();
       BsonDocument doc = new BsonDocument()

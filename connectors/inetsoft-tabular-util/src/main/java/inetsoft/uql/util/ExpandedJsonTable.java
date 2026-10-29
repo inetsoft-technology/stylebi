@@ -143,12 +143,7 @@ public class ExpandedJsonTable extends BaseJsonTable {
                   cls = getJavaType(headers.get(i));
                }
 
-               if(types[i] != null && types[i] != cls) {
-                  types[i] = String.class;
-               }
-               else {
-                  types[i] = cls;
-               }
+               types[i] = widenTypes(types[i], cls);
 
                if(types[i] == String.class) {
                   break;
@@ -437,7 +432,7 @@ public class ExpandedJsonTable extends BaseJsonTable {
    @Override
    public synchronized Object getObject(int col) {
       Map<String, Object> row = rows.get(curr);
-      return row == null ? null : row.get(headers.get(col));
+      return row == null ? null : coerceToColumnType(row.get(headers.get(col)), types[col]);
    }
 
    @Override

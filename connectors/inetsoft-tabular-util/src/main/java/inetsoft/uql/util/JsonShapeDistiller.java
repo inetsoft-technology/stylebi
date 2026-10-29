@@ -362,7 +362,41 @@ public final class JsonShapeDistiller {
          return a;
       }
 
+      if(a instanceof String && b instanceof String) {
+         String numeric = widenNumericLeaf((String) a, (String) b);
+
+         if(numeric != null) {
+            return numeric;
+         }
+      }
+
       return CoreTool.STRING;
+   }
+
+   /**
+    * Widen two numeric leaf type names the same way the table widens column types:
+    * both integral gives long, any other numeric pair gives double, otherwise null.
+    */
+   private static String widenNumericLeaf(String a, String b) {
+      boolean intA = isIntegralName(a);
+      boolean intB = isIntegralName(b);
+
+      if(intA && intB) {
+         return CoreTool.LONG;
+      }
+
+      if((intA || CoreTool.DOUBLE.equals(a) || CoreTool.FLOAT.equals(a)) &&
+         (intB || CoreTool.DOUBLE.equals(b) || CoreTool.FLOAT.equals(b)))
+      {
+         return CoreTool.DOUBLE;
+      }
+
+      return null;
+   }
+
+   private static boolean isIntegralName(String name) {
+      return CoreTool.BYTE.equals(name) || CoreTool.SHORT.equals(name) ||
+         CoreTool.INTEGER.equals(name) || CoreTool.LONG.equals(name);
    }
 
    /**

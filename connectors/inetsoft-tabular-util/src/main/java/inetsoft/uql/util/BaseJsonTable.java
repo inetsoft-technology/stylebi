@@ -76,6 +76,45 @@ abstract public class BaseJsonTable extends XTableNode {
    public abstract void finishStreamedLoading();
 
    /**
+    * Merge the column type seen so far with the type of a newly seen value. Two numeric types
+    * widen to a numeric type (both integral: Long; otherwise Double) so a column holding e.g.
+    * Int32 and Double values stays numeric; any other mix falls back to String.
+    */
+   static Class<?> widenTypes(Class<?> prev, Class<?> cls) {
+      if(prev == null || prev == cls) {
+         return cls;
+      }
+
+      if(Number.class.isAssignableFrom(prev) && Number.class.isAssignableFrom(cls)) {
+         return isIntegral(prev) && isIntegral(cls) ? Long.class : Double.class;
+      }
+
+      return String.class;
+   }
+
+   private static boolean isIntegral(Class<?> cls) {
+      return cls == Byte.class || cls == Short.class || cls == Integer.class ||
+         cls == Long.class;
+   }
+
+   /**
+    * Convert a cell to the column's final numeric type so every cell of a widened column has
+    * the same class.
+    */
+   static Object coerceToColumnType(Object val, Class<?> type) {
+      if(val instanceof Number) {
+         if(type == Double.class && val.getClass() != Double.class) {
+            return ((Number) val).doubleValue();
+         }
+         else if(type == Long.class && val.getClass() != Long.class) {
+            return ((Number) val).longValue();
+         }
+      }
+
+      return val;
+   }
+
+   /**
     * Gets the number of rows currently loaded into this table.
     *
     * @return the row count.
