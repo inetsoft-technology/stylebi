@@ -38,6 +38,7 @@ import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
@@ -3175,6 +3176,17 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
     * Validate the query.
     */
    protected void validate() {
+      // setColumnSelection() inside validateColumnSelection() drops the group/aggregate/sort
+      // inputs whose column no longer exists in the source; remember them to report the loss
+      AggregateInfo aggregateInfo = getAggregateInfo();
+      // the crosstab state is read first, validation may drop the aggregates it depends on
+      boolean crosstab = aggregateInfo.isCrosstab() || getTable() instanceof AbstractTableAssembly &&
+         ((AbstractTableAssembly) getTable()).isCrosstab();
+      Set<Object> storedInputs = Collections.newSetFromMap(new IdentityHashMap<>());
+      storedInputs.addAll(Arrays.asList(aggregateInfo.getGroups()));
+      storedInputs.addAll(Arrays.asList(aggregateInfo.getAggregates()));
+      storedInputs.addAll(Arrays.asList(getTable().getSortInfo().getSorts()));
+
       // validate select
       validateColumnSelection();
       ColumnSelection columns = getTable().getColumnSelection();
@@ -3183,7 +3195,6 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ConditionList conds = getPreConditionList();
 
       // validate group by
-      AggregateInfo aggregateInfo = getAggregateInfo();
       aggregateInfo.validate(columns);
 
       // validate having
@@ -3193,11 +3204,58 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       // validate order by
       SortInfo sortInfo = getTable().getSortInfo();
       sortInfo.validate(columns);
+      warnDroppedInputs(storedInputs, aggregateInfo, crosstab);
 
       // validate ranking
       wrapper = getRankingConditionList();
       conds = wrapper.getConditionList();
       validateRanking(conds);
+   }
+
+   /**
+    * Tell the user which stored group, aggregate and sort inputs validate() dropped because
+    * their column no longer exists in the source table. Without this the table silently
+    * loses those columns, e.g. an aggregate mirror whose upstream column was removed.
+    * Only runtime worksheet queries warn; the tables a viewsheet runtime executes, vpm
+    * filtered queries, crosstabs and calc/expression inputs are left alone.
+    */
+   private void warnDroppedInputs(Set<Object> storedInputs, AggregateInfo aggregateInfo,
+                                  boolean crosstab)
+   {
+      if(!AssetQuerySandbox.isRuntimeMode(mode) || crosstab ||
+         box.getVPMUser() != null ||
+         box.getViewsheetSandbox() != null && box.getViewsheetSandbox().isRuntime())
+      {
+         return;
+      }
+
+      Set<Object> kept = Collections.newSetFromMap(new IdentityHashMap<>());
+      kept.addAll(Arrays.asList(aggregateInfo.getGroups()));
+      kept.addAll(Arrays.asList(aggregateInfo.getAggregates()));
+      kept.addAll(Arrays.asList(getTable().getSortInfo().getSorts()));
+
+      for(Object input : storedInputs) {
+         if(kept.contains(input)) {
+            continue;
+         }
+
+         DataRef ref = input instanceof GroupRef ? ((GroupRef) input).getDataRef() :
+            input instanceof AggregateRef ? ((AggregateRef) input).getDataRef() :
+            input instanceof SortRef ? ((SortRef) input).getDataRef() : null;
+
+         if(input instanceof CompositeAggregateRef || ref == null || ref.isExpression() ||
+            ref instanceof CalculateRef || VSUtil.isAggregateCalc(ref) ||
+            ref instanceof ColumnRef && ((ColumnRef) ref).getDataRef() instanceof AliasDataRef)
+         {
+            continue;
+         }
+
+         String kind = input instanceof GroupRef ? "group" :
+            input instanceof AggregateRef ? "aggregate" : "sort";
+         CoreTool.addUserWarning(Catalog.getCatalog().getString(
+            "viewer.worksheet.upstreamColumnMissing", getTable().getName(),
+            ref.getName(), kind));
+      }
    }
 
    /**
