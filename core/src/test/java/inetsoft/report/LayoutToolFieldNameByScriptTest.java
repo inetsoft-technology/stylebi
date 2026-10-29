@@ -70,6 +70,22 @@ class LayoutToolFieldNameByScriptTest {
    }
 
    @Test
+   void parenthesizedColumnNameInMiddleAndLastPosition() {
+      assertEquals("Sales (USD)", LayoutTool.getFieldNameByScript(
+         "toList(data['*'],'sort=asc,field=Sales (USD),sorton2=sum(Product:Total)')"));
+      assertEquals("Sales (USD)", LayoutTool.getFieldNameByScript(
+         "toList(data['*'],'field=Sales (USD)')"));
+      assertEquals("Total(EUR)", LayoutTool.getFieldNameByScript(
+         "mapList(data['*'],[[\"a\"],\"b\"],'sort=asc,field=Total(EUR)')"));
+   }
+
+   @Test
+   void trailingSpaceBeforeCommaIsKept() {
+      assertEquals("Sales ", LayoutTool.getFieldNameByScript(
+         "toList(data['*'],'field=Sales ,sort=asc')"));
+   }
+
+   @Test
    void nonScriptValuesAreUnchanged() {
       assertNull(LayoutTool.getFieldNameByScript(null));
       assertNull(LayoutTool.getFieldNameByScript("Customer:Region"));

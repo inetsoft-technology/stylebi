@@ -3638,15 +3638,17 @@ public class LayoutTool {
                if(end != -1) {
                   fname = fname.substring(0, end);
                }
+               else {
+                  // the option is the last one in the quoted option string, drop the closing
+                  // quote (the closing parenthesis is already removed by getOriginalColumn)
+                  int len = fname.length();
 
-               // the option may be the last one in the quoted option string
-               int len = fname.length();
+                  while(len > 0 && "'\" 	".indexOf(fname.charAt(len - 1)) >= 0) {
+                     len--;
+                  }
 
-               while(len > 0 && "'\" )".indexOf(fname.charAt(len - 1)) >= 0) {
-                  len--;
+                  fname = fname.substring(0, len);
                }
-
-               fname = fname.substring(0, len);
             }
             else {
                idx = fname.indexOf("rowValue[\"");
