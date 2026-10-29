@@ -61,6 +61,9 @@ public final class TabularEndpointBindingSupport {
     */
    private static final int MAX_LOOKUP_DEPTH = 5;
 
+   /** The connector default for both lookup flags (EndpointJsonQuery's field initialisers). */
+   private static final boolean DEFAULT_LOOKUP_FLAG = true;
+
    /**
     * Set the endpoint and its parameter values on a NAMED CONNECTOR's tabular query (one whose
     * query class exposes an {@code endpoint} property), and return the URL suffix that results.
@@ -226,6 +229,13 @@ public final class TabularEndpointBindingSupport {
     * leave the old, longer chain in place. {@code setLookupEndpoint(null, i)} is the connector's
     * own documented way to clear and trim a level, so this is safe to call unconditionally --
     * on a query that never had a chain this deep, it is a no-op.</p>
+    *
+    * <p>An omitted {@code expandArrays}/{@code topLevelOnly} is reset to the connector default
+    * ({@link #DEFAULT_LOOKUP_FLAG}) rather than left as-is, so {@code edit_table} -- which works
+    * on a clone of the live query and restates the whole query, as it does for {@code lookup}
+    * above -- does not keep an earlier {@code false}. On a fresh query (add_table) the reset
+    * is a no-op. The reset runs here, before any {@code extraProperties}, so an explicit value
+    * there still wins.</p>
     */
    public static void applyLookupChain(TabularQuery query, Map<String, PropertyMeta> pmap,
                                        List<String> lookup, Boolean expandArrays,
@@ -280,8 +290,10 @@ public final class TabularEndpointBindingSupport {
          clearProperty(pmap, query, "lookupEndpoint" + i);
       }
 
-      setOptionalProperty(pmap, query, "lookupExpanded", expandArrays);
-      setOptionalProperty(pmap, query, "lookupTopLevelOnly", topLevelOnly);
+      setOptionalProperty(pmap, query, "lookupExpanded",
+                          expandArrays == null ? DEFAULT_LOOKUP_FLAG : expandArrays);
+      setOptionalProperty(pmap, query, "lookupTopLevelOnly",
+                          topLevelOnly == null ? DEFAULT_LOOKUP_FLAG : topLevelOnly);
    }
 
    /**
