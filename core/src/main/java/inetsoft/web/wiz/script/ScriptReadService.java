@@ -245,10 +245,7 @@ public class ScriptReadService {
          case ASSEMBLY_ONCLICK -> {
             VSAssemblyInfo info = requireAssemblyInfo(rvs, target.assemblyName());
 
-            if(!supportsOnClick(info)) {
-               throw new PairingException("Assembly does not support onClick: " + target.assemblyName());
-            }
-
+            requireOnClickSupport(info, target.assemblyName());
             text = getOnClick(info);
             enabled = info.isScriptEnabled();
          }
@@ -315,6 +312,12 @@ public class ScriptReadService {
       return info instanceof ClickableOutputVSAssemblyInfo || info instanceof ClickableInputVSAssemblyInfo;
    }
 
+   static void requireOnClickSupport(VSAssemblyInfo info, String assemblyName) throws PairingException {
+      if(!supportsOnClick(info)) {
+         throw new PairingException("Assembly does not support onClick: " + assemblyName);
+      }
+   }
+
    static String getOnClick(VSAssemblyInfo info) {
       if(info instanceof ClickableOutputVSAssemblyInfo c) {
          return c.getOnClick();
@@ -327,15 +330,14 @@ public class ScriptReadService {
       return null;
    }
 
-   static void setOnClick(VSAssemblyInfo info, String text) throws PairingException {
+   static void setOnClick(VSAssemblyInfo info, String assemblyName, String text) throws PairingException {
+      requireOnClickSupport(info, assemblyName);
+
       if(info instanceof ClickableOutputVSAssemblyInfo c) {
          c.setOnClick(text);
       }
       else if(info instanceof ClickableInputVSAssemblyInfo c) {
          c.setOnClick(text);
-      }
-      else {
-         throw new PairingException("Assembly does not support onClick");
       }
    }
 

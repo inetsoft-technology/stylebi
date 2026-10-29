@@ -130,7 +130,22 @@ public class ScriptContextService {
          throw new PairingException("Assembly not found: " + target.assemblyName());
       }
 
+      if(target.kind() == ScriptTarget.Kind.ASSEMBLY_ON_CLICK) {
+         requireOnClickSupport(rvs, target.assemblyName());
+      }
+
       return new ScriptContext(one, vars);
+   }
+
+   void requireOnClickSupport(RuntimeViewsheet rvs, String assemblyName) throws PairingException {
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         throw new PairingException("Viewsheet not found in runtime");
+      }
+
+      ScriptReadService.requireOnClickSupport(
+         ScriptReadService.requireAssemblyInfo(vs, assemblyName), assemblyName);
    }
 
    /**

@@ -18,10 +18,13 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.VSScriptableService;
+import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.AssemblyContext;
 import inetsoft.web.wiz.script.model.ScriptContext;
-import org.junit.jupiter.api.Tag;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -29,7 +32,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@Tag("core")
+@WizAgentTestSupport
 // CONTROLLER NOTE: keep @Tag("core") if it works — this test mocks RuntimeViewsheet and overrides
 // describeAssemblies, so it may never touch Spring. But Task 2 hit exactly this and had to switch:
 // if these tests error with "ShutdownException: Spring application context is not available",
@@ -56,6 +59,53 @@ class ScriptContextServiceTest {
    private static final List<AssemblyContext> FULL = List.of(
       new AssemblyContext("Chart1", "chart", true, List.of("graph"), "CHART_TREE"),
       new AssemblyContext("Table1", "table", true, List.of("table"), "TABLE_TREE"));
+
+   private static final List<AssemblyContext> WITH_CLICKABLE = List.of(
+      new AssemblyContext("Chart1", "chart", true, List.of("graph"), "CHART_TREE"),
+      new AssemblyContext("Table1", "table", true, List.of("table"), "TABLE_TREE"),
+      new AssemblyContext("Gauge1", "gauge", true, List.of("gauge"), "GAUGE_TREE"),
+      new AssemblyContext("Text1", "text", true, List.of("text"), "TEXT_TREE"));
+
+   /** A runtime viewsheet holding real assemblies, so the onClick capability check is the real one. */
+   private static RuntimeViewsheet realAssemblies() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new ChartVSAssembly(vs, "Chart1"));
+      vs.addAssembly(new TableVSAssembly(vs, "Table1"));
+      vs.addAssembly(new GaugeVSAssembly(vs, "Gauge1"));
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   @Test
+   void onClickContextIsRefusedForAnAssemblyThatCannotReceiveOne() {
+      ScriptContextService service = serviceReturning(WITH_CLICKABLE);
+      RuntimeViewsheet rvs = realAssemblies();
+
+      for(String name : List.of("Chart1", "Table1", "Gauge1")) {
+         PairingException ex = assertThrows(PairingException.class, () -> service.context(
+            rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, name)));
+         assertEquals("Assembly does not support onClick: " + name, ex.getMessage());
+      }
+   }
+
+   @Test
+   void onClickContextForAMissingAssemblyStillSaysNotFound() {
+      ScriptContextService service = serviceReturning(WITH_CLICKABLE);
+
+      PairingException ex = assertThrows(PairingException.class, () -> service.context(
+         realAssemblies(), ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Nope1")));
+      assertEquals("Assembly not found: Nope1", ex.getMessage());
+   }
+
+   @Test
+   void mainContextOfANonClickableAssemblyIsStillAllowed() throws Exception {
+      ScriptContext ctx = serviceReturning(WITH_CLICKABLE).context(
+         realAssemblies(), ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Chart1"));
+
+      assertEquals("Chart1", ctx.assemblies().get(0).name());
+   }
 
    @Test
    void withATargetReturnsOnlyThatAssembly() throws Exception {
@@ -100,11 +150,11 @@ class ScriptContextServiceTest {
     */
    @Test
    void reportsEventOnlyForTheKindsThatCanReceiveOne() throws Exception {
-      ScriptContextService service = serviceReturning(FULL);
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ScriptContextService service = serviceReturning(WITH_CLICKABLE);
+      RuntimeViewsheet rvs = realAssemblies();
 
       ScriptContext onClick = service.context(
-         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Table1"));
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Text1"));
       assertTrue(onClick.contextVars().contains("event"));
 
       ScriptContext onLoad = service.context(
