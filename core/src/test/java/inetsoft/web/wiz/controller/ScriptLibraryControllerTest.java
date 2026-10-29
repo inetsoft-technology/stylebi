@@ -30,6 +30,8 @@ import inetsoft.uql.asset.sync.DependencyTransformer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.HashMap;
@@ -373,7 +375,7 @@ class ScriptLibraryControllerTest {
 
    @Test
    void create_rejectsNamesThatAreNotIdentifiers() throws Exception {
-      for(String bad : new String[] { "fn-bad", "1x", "a b", "class", "function", "a.b" }) {
+      for(String bad : new String[] { "fn-bad", "1x", "a b", "class", "function", "var", "a.b" }) {
          Fixture fixture = new Fixture();
 
          IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
@@ -389,7 +391,7 @@ class ScriptLibraryControllerTest {
 
    @Test
    void create_acceptsIdentifierNames() throws Exception {
-      for(String good : new String[] { "_a", "$a", "héllo", "你好", "a1" }) {
+      for(String good : new String[] { "_a", "$a", "héllo", "你好", "a1", "let", "yield", "async" }) {
          Fixture fixture = new Fixture();
 
          try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class)) {
@@ -411,8 +413,8 @@ class ScriptLibraryControllerTest {
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
          () -> fixture.controller.create(createRequest("helper", "function ("), fixture.principal));
 
-      assertEquals("text does not compile: Syntax error in script: unexpected token " +
-                   "(line 0, column 0). Nothing was saved.", e.getMessage());
+      assertEquals("text does not compile: Syntax error in script: unexpected token. " +
+                   "Nothing was saved.", e.getMessage());
       assertNothingWritten(fixture);
    }
 
@@ -463,8 +465,8 @@ class ScriptLibraryControllerTest {
    void rename_rejectsWhenTheRewrittenTextDoesNotCompile() throws Exception {
       Fixture fixture = new Fixture();
       fixture.stubRenamableScript("oldFn", "function oldFn(x) { return x; }");
-      doThrow(new Exception("Syntax error in script: bad"))
-         .when(fixture.checker).check("function newFn(x) { return x; }");
+      doThrow(new Exception("Syntax error in script: bad")).when(fixture.checker)
+         .check("function newFn(x) { return x; }");
 
       assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
          "oldFn", new ScriptLibraryController.RenameScriptLibraryFunctionRequest("newFn"),
@@ -500,11 +502,12 @@ class ScriptLibraryControllerTest {
       doThrow(new IllegalStateException("Engine not initialized"))
          .when(fixture.checker).check(anyString());
 
-      IllegalStateException e = assertThrows(IllegalStateException.class,
+      ResponseStatusException e = assertThrows(ResponseStatusException.class,
          () -> fixture.controller.create(createRequest("helper", FN_1), fixture.principal));
 
-      assertTrue(e.getMessage().contains("script engine is not available"), e.getMessage());
-      assertFalse(e.getMessage().contains("does not compile"));
+      assertEquals(HttpStatus.SERVICE_UNAVAILABLE, e.getStatusCode());
+      assertTrue(e.getReason().contains("script engine is not available"), e.getReason());
+      assertFalse(e.getReason().contains("does not compile"));
       assertNothingWritten(fixture);
    }
 

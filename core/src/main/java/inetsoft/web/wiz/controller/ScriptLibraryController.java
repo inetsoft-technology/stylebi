@@ -31,7 +31,9 @@ import inetsoft.util.script.ScriptEnvRepository;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.SourceSection;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.*;
@@ -120,12 +122,12 @@ public class ScriptLibraryController {
     */
    private static final Pattern IDENTIFIER = Pattern.compile("^[\\p{L}_$][\\p{L}\\p{N}_$]*$");
 
+   // ES reserved words only; contextual names (let, static, yield, await, async, of) stay legal.
    private static final Set<String> RESERVED_WORDS = Set.of(
-      "await", "break", "case", "catch", "class", "const", "continue", "debugger", "default",
-      "delete", "do", "else", "enum", "export", "extends", "false", "finally", "for", "function",
-      "if", "implements", "import", "in", "instanceof", "interface", "let", "new", "null",
-      "package", "private", "protected", "public", "return", "static", "super", "switch", "this",
-      "throw", "true", "try", "typeof", "var", "void", "while", "with", "yield");
+      "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
+      "do", "else", "enum", "export", "extends", "false", "finally", "for", "function", "if",
+      "import", "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw",
+      "true", "try", "typeof", "var", "void", "while", "with");
 
    private static final String RESYNC_WARNING =
       "Viewsheet sessions that were already open before this call may not see this change in " +
@@ -388,14 +390,19 @@ public class ScriptLibraryController {
       }
 
       if(error.cause() instanceof IllegalStateException) {
-         throw new IllegalStateException(
+         // 503 through WizControllerErrorHandler's ResponseStatusException mapping; a bare
+         // IllegalStateException would surface as a generic 500
+         throw new ResponseStatusException(
+            HttpStatus.SERVICE_UNAVAILABLE,
             "The script engine is not available, so the function text could not be checked: " +
             firstLine(error.message()) + ". Nothing was saved.", error.cause());
       }
 
+      String location = error.line() > 0
+         ? " (line " + error.line() + ", column " + error.column() + ")" : "";
       throw new IllegalArgumentException(
-         "text does not compile: " + firstLine(error.message()) + " (line " + error.line() +
-         ", column " + error.column() + "). Nothing was saved.");
+         "text does not compile: " + firstLine(error.message()) + location +
+         ". Nothing was saved.");
    }
 
    private void requireValidName(String field, String name) {
