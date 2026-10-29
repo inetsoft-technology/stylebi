@@ -3623,19 +3623,30 @@ public class LayoutTool {
 
          // find field, date['*@ or date['col@
          if(fname.startsWith("*")) {
-            idx = value.indexOf("field=");
+            String key = "field=";
+            idx = value.indexOf(key);
 
             if(idx == -1) {
-               idx = value.indexOf("fields=");
+               key = "fields=";
+               idx = value.indexOf(key);
             }
 
             if(idx != -1) {
-               fname = value.substring(idx + 6);
-               idx = fname.indexOf(",");
+               fname = value.substring(idx + key.length());
+               int end = fname.indexOf(",");
 
-               if(idx != -1) {
-                  fname = fname.substring(0, idx);
+               if(end != -1) {
+                  fname = fname.substring(0, end);
                }
+
+               // the option may be the last one in the quoted option string
+               int len = fname.length();
+
+               while(len > 0 && "'\" )".indexOf(fname.charAt(len - 1)) >= 0) {
+                  len--;
+               }
+
+               fname = fname.substring(0, len);
             }
             else {
                idx = fname.indexOf("rowValue[\"");
