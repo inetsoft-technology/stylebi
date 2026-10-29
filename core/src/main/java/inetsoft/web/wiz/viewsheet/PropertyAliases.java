@@ -286,6 +286,26 @@ public final class PropertyAliases {
       // "primary" fixed above.
       "embedUrl", "Embed content from URL");
 
+   /**
+    * Where a property's caption is itself model state rather than a fixed string, keyed by the
+    * property's path. The caption varies with the model (bug #79727: the plot-options pane
+    * captions the same {@code showPoints} checkbox "Show Lines" on a point chart and "Show
+    * Points" on a line or radar chart), so {@link #LABELS}, keyed by alias name alone, cannot
+    * carry it.
+    */
+   private static final Map<String, ModelCaption> MODEL_CAPTIONS = Map.of(
+      "chartAdvancedPaneModel.chartPlotOptionsPaneModel.showPoints",
+      new ModelCaption("chartAdvancedPaneModel.chartPlotOptionsPaneModel.showPointsLabel",
+                       "chartAdvancedPaneModel.chartPlotOptionsPaneModel.showPointsVisible"));
+
+   /**
+    * The model properties that hold a property's own caption: {@code captionPath} is the sibling
+    * string the Composer UI renders, and {@code visiblePath} is the flag that says whether the
+    * UI shows the control at all (the caption of a hidden control is meaningless).
+    */
+   public record ModelCaption(String captionPath, String visiblePath) {
+   }
+
    private static final Map<String, TypeAliases> REGISTRY = registry();
 
    private PropertyAliases() {
@@ -338,6 +358,14 @@ public final class PropertyAliases {
     */
    public static String labelFor(String alias) {
       return LABELS.get(alias);
+   }
+
+   /**
+    * The model-held caption for the property at {@code path}, if its caption is model state --
+    * see {@link #MODEL_CAPTIONS}. {@code null} when the caption is static.
+    */
+   public static ModelCaption modelCaptionFor(String path) {
+      return MODEL_CAPTIONS.get(path);
    }
 
    /**

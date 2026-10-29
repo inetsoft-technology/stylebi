@@ -213,6 +213,23 @@ public class AssemblyPropertyService {
       this.bindings = Collections.unmodifiableMap(map);
    }
 
+   /**
+    * The caption of one listed property: the model's own caption when the control is shown and
+    * the model has one (it can differ by model state, e.g. chart type), else the static caption.
+    */
+   private static String labelOf(Object model, String alias, String path) {
+      PropertyAliases.ModelCaption caption = PropertyAliases.modelCaptionFor(path);
+
+      if(caption != null && Boolean.TRUE.equals(PropertyPath.get(model, caption.visiblePath()))
+         && PropertyPath.get(model, caption.captionPath()) instanceof String label
+         && !label.isBlank())
+      {
+         return label;
+      }
+
+      return PropertyAliases.labelFor(alias);
+   }
+
    /** The alias vocabulary for an assembly's type, with its current values. */
    public Map<String, Object> list(String sessionToken, Principal user, String assemblyName)
       throws Exception
@@ -233,7 +250,7 @@ public class AssemblyPropertyService {
          // The Composer UI's own caption for this alias, when its own name has none (bug #76809,
          // VTB-017) -- e.g. "primary" -> "Visible in External Viewsheets". Null, like every other
          // alias, when PropertyAliases has no better name to offer than the alias itself.
-         property.put("label", PropertyAliases.labelFor(alias.getKey()));
+         property.put("label", labelOf(model, alias.getKey(), alias.getValue()));
 
          if(alias.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
             List<Map<String, Object>> options = tableStyleOptions(model, alias.getValue());
