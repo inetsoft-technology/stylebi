@@ -17,11 +17,14 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.stereotype.Service;
 
@@ -67,9 +70,12 @@ public class InputValueService {
    /** Fixed-length so the mask reveals nothing about the secret's length. */
    static final String SECRET_MASK = TextInputVSAssemblyInfo.PASSWORD_MASK;
 
-   public InputValueService(ViewsheetSessionService sessions, VSInputService inputs) {
+   public InputValueService(ViewsheetSessionService sessions, VSInputService inputs,
+                            CoreLifecycleService lifecycle)
+   {
       this.sessions = sessions;
       this.inputs = inputs;
+      this.lifecycle = lifecycle;
    }
 
    /**
@@ -124,6 +130,7 @@ public class InputValueService {
             : (values.isEmpty() ? null : values.get(0));
 
          inputs.singleApplySelection(runtimeId, assemblyName, selected, user, dispatcher, linkUri);
+         commitIfNotSubmittedOnChange(rvs, assemblyName, info0, dispatcher, linkUri);
 
          // Read back what the assembly actually holds -- a slider can still snap to its increment.
          VSAssembly applied = rvs.getViewsheet().getAssembly(assemblyName);
@@ -149,6 +156,44 @@ public class InputValueService {
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * Commits the value just applied into the sandbox variable table when the input does not
+    * submit on change. {@code singleApplySelection} only does that for a submit-on-change input,
+    * so otherwise the table keeps the previous value and the next viewsheet refresh copies it back
+    * onto the input ({@code ViewsheetSandbox.applyParameterToInput}). This is what the browser's
+    * Submit button does ({@code VSInputService.commitInputTableWrites}), resolved on the sandbox
+    * itself for the same proxy reason as {@link #checkWriteBack}.
+    */
+   private void commitIfNotSubmittedOnChange(RuntimeViewsheet rvs, String assemblyName,
+                                             VSAssemblyInfo info, CommandDispatcher dispatcher,
+                                             String linkUri)
+      throws Exception
+   {
+      if(!(info instanceof InputVSAssemblyInfo input) || input.isSubmitOnChange()) {
+         return;
+      }
+
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box == null) {
+         return;
+      }
+
+      ChangedAssemblyList clist = lifecycle.createList(true, dispatcher, rvs, linkUri);
+      box.lockWrite();
+
+      try {
+         box.processChange(assemblyName, VSAssembly.OUTPUT_DATA_CHANGED, clist);
+      }
+      finally {
+         box.unlockWrite();
+      }
+
+      // a later processChange does not carry this one's changes, so the dependents it found are
+      // executed here (Bug #78878)
+      lifecycle.execute(rvs, assemblyName, linkUri, clist, dispatcher, true);
    }
 
    /**
@@ -526,4 +571,5 @@ public class InputValueService {
 
    private final ViewsheetSessionService sessions;
    private final VSInputService inputs;
+   private final CoreLifecycleService lifecycle;
 }
