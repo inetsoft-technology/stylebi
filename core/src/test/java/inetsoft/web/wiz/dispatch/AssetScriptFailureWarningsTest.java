@@ -40,6 +40,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import inetsoft.util.script.ScriptException;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -111,6 +113,49 @@ class AssetScriptFailureWarningsTest {
       });
 
       assertEquals(List.of(), warnings);
+   }
+
+   @Test
+   void aScriptExceptionMatchingAnInfoTableWarningIsNotReportedTwice() throws Exception {
+      String message = BaseTableService.SCRIPT_FAILURE_PREFIX + "T\nTo fix: x";
+
+      List<String> warnings = AssetScriptFailureWarnings.collect(() -> {
+         WorksheetService.ASSET_EXCEPTIONS.get().add(new ScriptException(message));
+         return new ArrayList<>(List.of(message + "\n(note)"));
+      });
+
+      assertEquals(1, warnings.size(), warnings.toString());
+   }
+
+   @Test
+   void scriptFailuresOfTwoAssembliesAreTwoWarnings() throws Exception {
+      List<String> warnings = AssetScriptFailureWarnings.collect(() -> {
+         WorksheetService.ASSET_EXCEPTIONS.get().add(new ScriptException(
+            BaseTableService.SCRIPT_FAILURE_PREFIX + "T1\nTo fix: x"));
+         WorksheetService.ASSET_EXCEPTIONS.get().add(new ScriptException(
+            BaseTableService.SCRIPT_FAILURE_PREFIX + "T2\nTo fix: x"));
+         return new ArrayList<>();
+      });
+
+      assertEquals(2, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("T1") && warnings.get(1).contains("T2"),
+                 warnings.toString());
+   }
+
+   @Test
+   void theThreadLocalListIsRestoredWhenTheRefreshThrows() {
+      List<Exception> previous = new ArrayList<>();
+      WorksheetService.ASSET_EXCEPTIONS.set(previous);
+
+      try {
+         assertThrows(IllegalStateException.class, () -> AssetScriptFailureWarnings.collect(() -> {
+            throw new IllegalStateException("boom");
+         }));
+         assertSame(previous, WorksheetService.ASSET_EXCEPTIONS.get());
+      }
+      finally {
+         WorksheetService.ASSET_EXCEPTIONS.remove();
+      }
    }
 
    @Test

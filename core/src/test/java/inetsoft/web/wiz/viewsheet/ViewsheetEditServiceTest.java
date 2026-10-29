@@ -69,6 +69,9 @@ import org.mockito.MockedStatic;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.security.Principal;
+import inetsoft.report.composition.WorksheetService;
+import inetsoft.util.script.ScriptException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -2373,6 +2376,34 @@ class ViewsheetEditServiceTest {
       assertEquals(List.of(),
                    service.apply("tok", principal(), request("refresh_viewsheet", null), "")
                       .warnings());
+   }
+
+   /**
+    * Bug #79623: a script that fails while the refresh resets the sheet is only recorded in
+    * ASSET_EXCEPTIONS; refresh_viewsheet must hand it back as a warning (fails without the
+    * collect() wrap in refreshWholeSheet).
+    */
+   @Test
+   void refreshViewsheetReportsAScriptFailureRecordedDuringTheRefresh() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         WorksheetService.ASSET_EXCEPTIONS.get().add(new ScriptException(
+            "Script execution error in assembly: T\nTo fix: define F\nScript failed:\n" +
+            "ReferenceError: F is not defined"));
+         return new ArrayList<String>();
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      ViewsheetEditService service = new ViewsheetEditService(
+         sessions, mock(ComposerObjectService.class), mock(ClipboardControllerService.class),
+         mock(VSObjectPropertyService.class), mock(ViewsheetReadService.class),
+         mock(ComposerGroupService.class), mock(GroupingService.class),
+         mock(VSRefreshService.class), mock(CoreLifecycleService.class));
+
+      List<String> warnings =
+         service.apply("tok", principal(), request("refresh_viewsheet", null), "").warnings();
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("assembly: T"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("F is not defined"), warnings.get(0));
    }
 
    /** Exposes {@code refreshService} -- for the refresh op tests. */
