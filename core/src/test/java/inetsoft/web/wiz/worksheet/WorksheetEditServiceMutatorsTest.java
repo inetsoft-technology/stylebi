@@ -9008,6 +9008,50 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * A refused maxRows must not leave the rename or description from the same call behind:
+    * apply() has no rollback, so every validation has to run before the first write.
+    */
+   @Test
+   void setTablePropertiesRefusedMaxRowsLeavesNameAndDescriptionUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent,
+         ed -> ed.setTableProperties("T", "Renamed", "should not land", -5, null, null, null,
+                                     null)));
+
+      assertTrue(ex.getMessage().contains("negative"), ex.getMessage());
+      assertNotNull(ws.getAssembly("T"), "the table must keep its original name");
+      assertNull(ws.getAssembly("Renamed"), "the refused call must not rename the table");
+      assertNull(((TableAssembly) ws.getAssembly("T")).getDescription(),
+                 "the refused call must not write the description");
+   }
+
+   @Test
+   void setTablePropertiesRefusedRowCountLeavesNameAndDescriptionUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = embeddedWithData(ws, "T");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply(
+         "TOK", agent,
+         ed -> ed.setTableProperties("T", "Renamed", "should not land", null, null, null, null,
+                                     -1)));
+
+      assertTrue(ex.getMessage().contains("negative"), ex.getMessage());
+      assertNotNull(ws.getAssembly("T"), "the table must keep its original name");
+      assertNull(ws.getAssembly("Renamed"), "the refused call must not rename the table");
+      assertNull(((TableAssembly) ws.getAssembly("T")).getDescription(),
+                 "the refused call must not write the description");
+   }
+
+   /**
     * Making a table primary also exposes it to viewsheets, as WSPrimaryService:84 does. Only
     * matters for a table whose flag was cleared earlier, which is why the test clears it first.
     */

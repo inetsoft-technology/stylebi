@@ -3841,10 +3841,10 @@ public class WorksheetEditService {
        * through {@code refreshAssembly}. This used to accept an {@code alias} argument and drop it
        * behind a comment, returning success while changing nothing.
        *
-       * <p><b>The rename runs first, so a failure leaves everything untouched.</b> Renaming can fail
-       * on a name already in use, and applying the other properties before finding that out would
-       * half-write the patch -- the outcome this service refuses everywhere else. The remaining
-       * setters cannot fail, so ordering it this way makes the whole call all-or-nothing.
+       * <p><b>Every refusal happens before the first write, so a failure leaves everything
+       * untouched.</b> A negative {@code maxRows} or {@code rowCount} is refused up front, and the
+       * rename -- which can fail on a name already in use -- runs ahead of the other setters. The
+       * setters themselves cannot fail, so the whole call is all-or-nothing.
        */
       public void setTableProperties(String table, String newName, String description,
                                       Integer maxRows, Boolean distinct, Boolean mergeable,
@@ -3871,6 +3871,15 @@ public class WorksheetEditService {
          refuseHiddenCopy(target, table);
          String name = table;
 
+         // Validated before any write: apply() has no rollback, so a refusal raised after the
+         // rename or description setter would leave those changes in the live worksheet.
+         requireNonNegativeMaxRows(maxRows);
+
+         if(rowCount != null && target instanceof EmbeddedTableAssembly && rowCount < 0) {
+            throw new PairingException(
+               "rowCount cannot be negative (got " + rowCount + ").");
+         }
+
          if(newName != null && !newName.equals(table)) {
             // Worksheet.renameAssembly checks only that the old name exists and the new one is
             // free -- a blank name passes both and leaves a table nothing can address afterwards.
@@ -3878,7 +3887,7 @@ public class WorksheetEditService {
             // without it.
             if(newName.trim().isEmpty()) {
                throw new PairingException(
-                  "Cannot rename  + table +  to a blank name. Omit newName to leave the name " +
+                  "Cannot rename " + table + " to a blank name. Omit newName to leave the name " +
                   "alone; a blank one would be accepted and leave the table unaddressable.");
             }
 
@@ -3914,11 +3923,6 @@ public class WorksheetEditService {
          // drops a row. Skipped when the value already matches, matching the dialog, so a
          // set_table_properties call that only changes the description does not rewrite the data.
          if(rowCount != null && t instanceof EmbeddedTableAssembly etable) {
-            if(rowCount < 0) {
-               throw new PairingException(
-                  "rowCount cannot be negative (got " + rowCount + ").");
-            }
-
             XEmbeddedTable data = etable.getEmbeddedData();
 
             if(data != null) {
