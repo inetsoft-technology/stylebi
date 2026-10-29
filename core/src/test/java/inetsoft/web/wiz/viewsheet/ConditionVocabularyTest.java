@@ -673,6 +673,106 @@ class ConditionVocabularyTest {
          FIELDS));
    }
 
+   // ── bug 79570: field-typed values are checked against operator and column type ─
+
+   private static Object[] fieldCondition(String targetType, String operandType, String operator,
+                                          List<Object> values)
+   {
+      DataRefModel[] fields =
+         { field("Target", targetType), field("Operand", operandType) };
+      return ConditionVocabulary.toConditionList(
+         List.of(clause("Target", operator, values, null)), fields);
+   }
+
+   private static List<Object> operandRef() {
+      return List.of(Map.of("type", "field", "field", "Operand"));
+   }
+
+   @Test
+   void fieldTypedValueIsRefusedForOperatorsTheComposerDoesNotOffer() {
+      for(String operator : List.of("starts_with", "contains", "like", "date_in")) {
+         // date_in on a non-date target is refused earlier by its own guard, so the date_in case
+         // uses a date-typed target to exercise the field-operand refusal.
+         String targetType = "date_in".equals(operator) ? "timeInstant" : "string";
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> fieldCondition(targetType, targetType, operator, operandRef()), operator);
+
+         assertTrue(thrown.getMessage().contains(operator), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("equals, one_of, less_than, greater_than and " +
+                                                 "between"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void fieldTypedValueRefusalNamesTheCanonicalOperatorForAnAlias() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> fieldCondition("string", "string", "startswith", operandRef()));
+
+      assertTrue(thrown.getMessage().contains("starts_with"), thrown.getMessage());
+   }
+
+   @Test
+   void fieldTypedValueIsAcceptedForOperatorsTheComposerOffers() {
+      List<Object> two = List.of(Map.of("type", "field", "field", "Operand"),
+                                 Map.of("type", "field", "field", "Operand"));
+
+      for(String operator : List.of("equals", "one_of", "less_than", "greater_than")) {
+         Object[] list = fieldCondition("double", "double", operator, operandRef());
+         assertEquals(ConditionValueModel.FIELD,
+                      ((ConditionModel) list[0]).getValues()[0].getType(), operator);
+      }
+
+      Object[] between = fieldCondition("double", "double", "between", two);
+      assertEquals(2, ((ConditionModel) between[0]).getValues().length);
+   }
+
+   @Test
+   void fieldTypedValueIsRefusedWhenTheColumnTypesDiffer() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> fieldCondition("string", "double", "greater_than", operandRef()));
+
+      assertTrue(thrown.getMessage().contains("Target"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Operand"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("string"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("double"), thrown.getMessage());
+   }
+
+   @Test
+   void fieldTypedValueTypeMismatchIsRefusedForEveryOfferedOperator() {
+      for(String operator : List.of("equals", "one_of", "less_than", "greater_than")) {
+         assertThrows(IllegalArgumentException.class,
+            () -> fieldCondition("integer", "date", operator, operandRef()), operator);
+      }
+
+      assertThrows(IllegalArgumentException.class, () -> fieldCondition(
+         "boolean", "string", "between",
+         List.of(Map.of("type", "field", "field", "Operand"),
+                 Map.of("type", "field", "field", "Operand"))));
+   }
+
+   @Test
+   void fieldTypedValueAcceptsColumnsOfTheSameTypeFamily() {
+      String[][] pairs = {
+         { "decimal", "double" }, { "integer", "long" }, { "string", "char" },
+         { "string", "character" }, { "date", "timeInstant" }, { "time", "timeInstant" },
+         { "boolean", "boolean" } };
+
+      for(String[] pair : pairs) {
+         Object[] list = fieldCondition(pair[0], pair[1], "equals", operandRef());
+         assertEquals(ConditionValueModel.FIELD,
+                      ((ConditionModel) list[0]).getValues()[0].getType(),
+                      pair[0] + " vs " + pair[1]);
+      }
+   }
+
+   @Test
+   void fieldTypedValueIsAcceptedWhenEitherTypeIsUnknown() {
+      assertDoesNotThrow(() -> fieldCondition(null, "double", "greater_than", operandRef()));
+      assertDoesNotThrow(() -> fieldCondition("string", null, "greater_than", operandRef()));
+      assertDoesNotThrow(() -> fieldCondition("string", "color", "equals", operandRef()));
+   }
+
    // ── bug 76522 / DCG-010: a bare string that can't coerce to the field's type ─
 
    @Test

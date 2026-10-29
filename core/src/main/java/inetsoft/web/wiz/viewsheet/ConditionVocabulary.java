@@ -334,7 +334,7 @@ public final class ConditionVocabulary {
                                             DataRefModel targetField, int operation)
    {
       if(raw instanceof Map<?, ?> map && map.get("type") instanceof String typeToken) {
-         return typedValue(typeToken, map, index, fields);
+         return typedValue(typeToken, map, index, fields, targetField, operation);
       }
 
       String fieldType = targetField.getDataType();
@@ -516,7 +516,8 @@ public final class ConditionVocabulary {
    }
 
    private static ConditionValueModel typedValue(String typeToken, Map<?, ?> map, int index,
-                                                  Map<String, DataRefModel> fields)
+                                                  Map<String, DataRefModel> fields,
+                                                  DataRefModel targetField, int operation)
    {
       String type = typeToken.trim().toLowerCase();
       ConditionValueModel value = new ConditionValueModel();
@@ -532,6 +533,7 @@ public final class ConditionVocabulary {
                   "assembly cannot filter on. Available fields: " + fieldList(fields) + ".");
             }
 
+            requireFieldOperand(index, targetField, resolved, operation);
             value.setValue(resolved);
             value.setType(ConditionValueModel.FIELD);
          }
@@ -586,6 +588,65 @@ public final class ConditionVocabulary {
       }
 
       return value;
+   }
+
+   /**
+    * The Composer's condition dialog offers a Field value only for equals, one_of, less_than,
+    * greater_than and between (vs-condition-item-pane-provider); any other operator stores a
+    * condition that matches nothing. A column is also refused against a column of a different type
+    * family, which the query engine rejects at run time ("Comparisons between 'CHAR' and
+    * 'NUMERIC' are not supported"). An unknown type on either side is accepted.
+    */
+   private static void requireFieldOperand(int index, DataRefModel targetField,
+                                           DataRefModel operand, int operation)
+   {
+      if(operation == XCondition.STARTING_WITH || operation == XCondition.CONTAINS ||
+         operation == XCondition.LIKE || operation == XCondition.DATE_IN)
+      {
+         throw new IllegalArgumentException(
+            "Condition " + index + " uses '" + operatorToken(operation) + "', which does not " +
+            "accept a field-typed value. A field value is accepted only with equals, one_of, " +
+            "less_than, greater_than and between; use a literal value, variable or expression " +
+            "instead.");
+      }
+
+      String targetType = targetField.getDataType();
+      String operandType = operand.getDataType();
+      String targetFamily = typeFamily(targetType);
+      String operandFamily = typeFamily(operandType);
+
+      if(targetFamily != null && operandFamily != null && !targetFamily.equals(operandFamily)) {
+         throw new IllegalArgumentException(
+            "Condition " + index + " compares field '" + targetField.getName() + "' (" +
+            targetType + ") with field '" + operand.getName() + "' (" + operandType +
+            "), which are different types (" + targetFamily + " vs " + operandFamily +
+            ") and cannot be compared. Pick a field of the same type.");
+      }
+   }
+
+   /** The comparable family of a data type, or null when it is unknown. */
+   private static String typeFamily(String dataType) {
+      if(dataType == null) {
+         return null;
+      }
+
+      if(XSchema.STRING.equals(dataType) || XSchema.CHAR.equals(dataType) ||
+         XSchema.CHARACTER.equals(dataType))
+      {
+         return "text";
+      }
+
+      if(XSchema.isNumericType(dataType) || XSchema.DECIMAL.equals(dataType)) {
+         return "numeric";
+      }
+
+      if(XSchema.DATE.equals(dataType) || XSchema.TIME.equals(dataType) ||
+         XSchema.TIME_INSTANT.equals(dataType))
+      {
+         return "date";
+      }
+
+      return XSchema.BOOLEAN.equals(dataType) ? "boolean" : null;
    }
 
    private static String requireString(Object raw, int index, String fieldName) {
