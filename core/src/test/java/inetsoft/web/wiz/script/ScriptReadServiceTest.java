@@ -307,6 +307,29 @@ class ScriptReadServiceTest {
    }
 
    /**
+    * An ordinary session cannot read_script a calc field, so its current expression has to ride on
+    * the list entry -- edit_calc_field replaces the whole formula and the caller must see it first.
+    */
+   @Test
+   void aCalcFieldTargetCarriesItsExpression() {
+      List<ScriptTargetInfo> all = service.list(runtimeWithSqlAndJsCalcFields());
+
+      assertEquals("field['PRICE'] - field['COST']", calcNamed(all, "Margin").expression());
+      assertEquals("PRICE * 0.2", calcNamed(all, "TaxRate").expression());
+   }
+
+   @Test
+   void everyNonCalcTargetReportsNoExpression() {
+      List<ScriptTargetInfo> others = service.list(runtimeWithSqlAndJsCalcFields()).stream()
+         .filter(t -> !"calcField".equals(t.kind()))
+         .toList();
+
+      assertFalse(others.isEmpty(), "the fixture must carry non-calc targets to discriminate");
+      assertTrue(others.stream().allMatch(t -> t.expression() == null),
+                 "expression must be absent: " + others);
+   }
+
+   /**
     * Neither flag is meaningful off a calc field, so the other four kinds report null rather than
     * a default that reads as an answer — {@code sql=false} on an onInit script would claim the
     * viewsheet's initializer is "JavaScript, not SQL", which is not a distinction it has.

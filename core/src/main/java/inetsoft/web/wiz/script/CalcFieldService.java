@@ -56,7 +56,8 @@ import java.util.stream.Collectors;
 @Service
 public class CalcFieldService {
    /** One calc field, as enumeration reports it. */
-   public record Found(String table, String name, boolean sql, boolean baseOnDetail) {}
+   public record Found(String table, String name, boolean sql, boolean baseOnDetail,
+                       String expression) {}
 
    /**
     * The tables worth asking about.
@@ -111,7 +112,10 @@ public class CalcFieldService {
          }
 
          for(CalculateRef ref : refs) {
-            found.add(new Found(table, ref.getName(), ref.isSQL(), ref.isBaseOnDetail()));
+            String expression = ref.getDataRef() instanceof ExpressionRef expressionRef ?
+               expressionRef.getExpression() : null;
+            found.add(new Found(table, ref.getName(), ref.isSQL(), ref.isBaseOnDetail(),
+                                expression));
          }
       }
 
