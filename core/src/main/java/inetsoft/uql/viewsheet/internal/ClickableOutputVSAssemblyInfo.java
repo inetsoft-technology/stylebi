@@ -59,6 +59,25 @@ public abstract class ClickableOutputVSAssemblyInfo extends OutputVSAssemblyInfo
    }
 
    /**
+    * Rename the pop component when the assembly it names is renamed.
+    * @param oname the specified old name.
+    * @param nname the specified new name.
+    */
+   @Override
+   public void renameDepended(String oname, String nname, Viewsheet vs) {
+      super.renameDepended(oname, nname, vs);
+
+      // the pop component is stored as a plain assembly name, which the
+      // variable/script handling does not cover
+      if(oname.equals(popComponentValue.getDValue())) {
+         popComponentValue.setDValue(nname);
+      }
+      else {
+         VSUtil.renameDynamicValueDepended(oname, nname, popComponentValue, vs);
+      }
+   }
+
+   /**
     * Parse contents.
     * @param elem the specified xml element.
     * @param isSiteAdminImport flag to force into current organization if site admin.
