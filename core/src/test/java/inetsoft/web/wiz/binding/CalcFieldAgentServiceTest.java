@@ -18,11 +18,23 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.Hyperlink;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.report.TableDataPath;
+import inetsoft.report.filter.ColumnHighlight;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.internal.table.TableHighlightAttr;
+import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.test.*;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.Assembly;
@@ -35,6 +47,8 @@ import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
@@ -1357,6 +1371,119 @@ class CalcFieldAgentServiceTest {
 
       verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
       assertTrue(warnings.stream().noneMatch(w -> w.contains("REMOVED")), warnings.toString());
+   }
+
+   /** A crosstab of "Net Sales" by category, sorted, ranked, highlighted and linked on the measure. */
+   private static CrosstabVSAssembly netSalesCrosstab(Viewsheet vs, String name, String measure,
+                                                      boolean decorate)
+   {
+      CrosstabVSAssembly cross = new CrosstabVSAssembly(vs, name);
+      cross.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSAggregateRef aggr = new VSAggregateRef();
+      aggr.setColumnValue(measure);
+      aggr.setFormulaValue("Sum");
+      VSDimensionRef dim = new VSDimensionRef();
+      dim.setGroupColumnValue("Category");
+      dim.setOrder(XConstants.SORT_VALUE_DESC);
+      dim.setSortByColValue("Sum(" + measure + ")");
+      dim.setRankingOptionValue(String.valueOf(XCondition.TOP_N));
+      dim.setRankingNValue("5");
+      dim.setRankingColValue("Sum(" + measure + ")");
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignAggregates(new DataRef[] { aggr });
+      cinfo.setDesignRowHeaders(new DataRef[] { dim });
+      cinfo.setDesignColHeaders(new DataRef[0]);
+      cinfo.setAggregateInfo(new AggregateInfo());
+      cross.setVSCrosstabInfo(cinfo);
+
+      if(decorate) {
+         TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) cross.getVSAssemblyInfo();
+         HighlightGroup group = new HighlightGroup();
+         Condition cond = new Condition();
+         cond.addValue(3000000);
+         cond.setOperation(XCondition.GREATER_THAN);
+         ConditionList conditions = new ConditionList();
+         conditions.append(new ConditionItem(new ColumnRef(new AttributeRef(measure)), cond, 0));
+         ColumnHighlight highlight = new ColumnHighlight();
+         highlight.setConditionGroup(conditions);
+         highlight.setBackground(java.awt.Color.RED);
+         group.addHighlight("Above3M", highlight);
+         TableHighlightAttr hl = new TableHighlightAttr();
+         hl.setHighlight(new TableDataPath("Sum(" + measure + ")"), group);
+         info.setHighlightAttr(hl);
+         TableHyperlinkAttr hattr = new TableHyperlinkAttr();
+         hattr.setHyperlink(new TableDataPath("Sum(" + measure + ")"), new Hyperlink());
+         info.setHyperlinkAttr(hattr);
+      }
+
+      vs.addAssembly(cross);
+      return cross;
+   }
+
+   /** The proxy runs the real native binding removal, like ModifyCalculateFieldService does. */
+   private static ModifyCalculateFieldServiceProxy proxyRemovingBindings(Viewsheet vs, String name)
+      throws Exception
+   {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      doAnswer(invocation -> {
+         for(Assembly a : vs.getAssemblies()) {
+            if(a instanceof CrosstabVSAssembly) {
+               ((CrosstabVSAssembly) a).removeBindingCol(name);
+            }
+         }
+
+         return null;
+      }).when(proxy).modifyCalculateField(any(), any(), any(), any(), any());
+      return proxy;
+   }
+
+   /** Bug #79651: removing a calc field resets the sort and ranking that name it and says so. */
+   @Test
+   void removeClearsSortAndRankingAndReportsTheDeletedHighlightAndHyperlink() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Net Sales", "field['Total']", true));
+      CrosstabVSAssembly cross = netSalesCrosstab(vs, "NetByCategory", "Net Sales", true);
+      CrosstabVSAssembly control = netSalesCrosstab(vs, "Control", "Total", true);
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Net Sales", null, null, null, null, null, true, false);
+
+      List<String> warnings = serviceOver(vs, proxyRemovingBindings(vs, "Net Sales"))
+         .modify("tok", principal(), req, "").warnings();
+
+      VSDimensionRef dim = (VSDimensionRef) cross.getVSCrosstabInfo().getDesignRowHeaders()[0];
+      assertNull(dim.getSortByColValue());
+      assertEquals(XConstants.SORT_ASC, dim.getOrder());
+      assertNull(dim.getRankingColValue());
+      assertEquals(String.valueOf(XCondition.NONE), dim.getRankingOptionValue());
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("NetByCategory") &&
+         w.contains("sorted by 'Sum(Net Sales)'")), warnings.toString());
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("NetByCategory") &&
+         w.contains("ranked by 'Sum(Net Sales)'")), warnings.toString());
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'Above3M'") &&
+         w.contains("DELETED")), warnings.toString());
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("hyperlink") &&
+         w.contains("DELETED")), warnings.toString());
+
+      // a crosstab bound to another field keeps its sort and ranking, and says nothing
+      VSDimensionRef other = (VSDimensionRef) control.getVSCrosstabInfo().getDesignRowHeaders()[0];
+      assertEquals("Sum(Total)", other.getSortByColValue());
+      assertEquals(XConstants.SORT_VALUE_DESC, other.getOrder());
+      assertEquals("Sum(Total)", other.getRankingColValue());
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("Control")), warnings.toString());
+   }
+
+   @Test
+   void removeOfAFieldNothingSortsOrDecoratesAddsNoWarnings() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Net Sales", "field['Total']", true));
+      netSalesCrosstab(vs, "Control", "Total", false);
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Net Sales", null, null, null, null, null, true, false);
+
+      List<String> warnings = serviceOver(vs, proxyRemovingBindings(vs, "Net Sales"))
+         .modify("tok", principal(), req, "").warnings();
+
+      assertTrue(warnings == null || warnings.isEmpty(), String.valueOf(warnings));
    }
 
    /** A word boundary: an identifier that merely ends in "field" is not a field access. */
