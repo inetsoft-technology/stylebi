@@ -141,25 +141,16 @@ public final class TabularEndpointBindingSupport {
          }
       }
 
-      // Every missing required name at once, rather than one round trip per name -- every round
-      // trip past this point is a metered request.
-      if(!missing.isEmpty()) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + trimmedEndpoint + "' requires parameter(s) with no value supplied: " +
-            String.join(", ", missing) + ". Supply them; do not guess an identifier.");
-      }
-
-      // A name the endpoint does not declare is an error, not something to drop. Dropping it runs
-      // a DIFFERENT query than the one that was asked for and reports success -- and the likeliest
-      // cause is a caller using another endpoint's contract, which no later step can detect.
-      if(!supplied.isEmpty()) {
-         throw new IllegalArgumentException(
-            "Endpoint '" + trimmedEndpoint + "' has no parameter(s) named: " +
-            String.join(", ", supplied.keySet()) + ". Its parameters are: " +
-            params.getParameters().stream()
-               .map(p -> p.getName() + (p.isRequired() ? " (required)" : ""))
-               .collect(Collectors.joining(", ")) + ".");
-      }
+      // Every missing required name AND every unknown name at once, rather than one round trip per
+      // finding -- every round trip past this point is a metered request. A name the endpoint
+      // does not declare is an error, not something to drop: dropping it runs a DIFFERENT query
+      // than the one that was asked for and reports success, and the likeliest cause is a caller
+      // using another endpoint's contract, which no later step can detect.
+      TabularQueryContractSupport.requireValidParameters(
+         "Endpoint '" + trimmedEndpoint + "'", missing, supplied.keySet(),
+         params.getParameters().stream()
+            .map(p -> p.getName() + (p.isRequired() ? " (required)" : ""))
+            .collect(Collectors.joining(", ")));
 
       paramProp.setValue(query, params);
       setOptionalProperty(pmap, query, "jsonPath", jsonPath);

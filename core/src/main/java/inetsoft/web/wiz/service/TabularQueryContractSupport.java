@@ -403,18 +403,8 @@ public final class TabularQueryContractSupport {
          }
       }
 
-      if(!missing.isEmpty()) {
-         throw new IllegalArgumentException(
-            "'" + name + "' of '" + dsName + "' requires: " + String.join(", ", missing) +
-            ". Supply them; do not guess an identifier.");
-      }
-
-      if(!supplied.isEmpty()) {
-         throw new IllegalArgumentException(
-            "'" + name + "' of '" + dsName + "' has no parameter(s) named: " +
-            String.join(", ", supplied.keySet()) + ". Its parameters are: " +
-            describeElements(elements) + ".");
-      }
+      requireValidParameters("'" + name + "' of '" + dsName + "'", missing, supplied.keySet(),
+                             describeElements(elements));
 
       // The skeleton object itself, not a copy -- some composite getters (RestParameters,
       // HttpParameter[]) return a FRESH value on every call, so mutating elements in place does
@@ -437,6 +427,47 @@ public final class TabularQueryContractSupport {
                (actual == null ? "null" : "'" + actual + "'") + " instead. See the server log.");
          }
       }
+   }
+
+   /**
+    * Refuse a parameter map that misses required names and/or carries names the contract does not
+    * declare. Both findings are reported in ONE single-line message together with the full
+    * contract: a caller using another endpoint's names otherwise sees only the missing ones and
+    * has no way to learn that its keys were wrong, and a multi-line message is truncated
+    * downstream. Shared by {@link #fillNamedSkeleton} and
+    * {@link TabularEndpointBindingSupport#applyEndpointContract}.
+    *
+    * @param subject  what the contract belongs to, e.g. {@code Endpoint 'Range Query'}.
+    * @param missing  required parameter names with no value supplied.
+    * @param unknown  supplied keys the contract does not declare.
+    * @param contract the described contract, e.g. {@code name (required), other}.
+    */
+   static void requireValidParameters(String subject, Collection<String> missing,
+                                      Collection<String> unknown, String contract)
+   {
+      if(missing.isEmpty() && unknown.isEmpty()) {
+         return;
+      }
+
+      StringBuilder message = new StringBuilder(subject);
+
+      if(!missing.isEmpty()) {
+         message.append(" requires parameter(s) with no value supplied: ")
+            .append(String.join(", ", missing)).append('.');
+      }
+
+      if(!unknown.isEmpty()) {
+         message.append(missing.isEmpty() ? " has" : " It also has")
+            .append(" no parameter(s) named: ").append(String.join(", ", unknown)).append('.');
+      }
+
+      message.append(" Its parameters are: ").append(contract).append('.');
+
+      if(!missing.isEmpty()) {
+         message.append(" Supply the missing ones; do not guess an identifier.");
+      }
+
+      throw new IllegalArgumentException(message.toString());
    }
 
    private static String describeElements(List<Object> elements) {

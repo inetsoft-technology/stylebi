@@ -227,6 +227,50 @@ class TabularQueryContractSupportTest {
    }
 
    @Test
+   void missingOnlyNestedParameterAlsoListsTheContract() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("endpoint", "Repos", "parameters", Map.of())));
+      String message = ex.getMessage();
+
+      assertTrue(message.contains("requires parameter(s) with no value supplied: id"), message);
+      assertFalse(message.contains("has no parameter(s) named"), message);
+      assertTrue(message.contains("Its parameters are: id (required)"), message);
+      assertFalse(message.contains("\n"), message);
+   }
+
+   @Test
+   void unknownOnlyNestedParameterAlsoListsTheContract() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("endpoint", "Repos",
+            "parameters", Map.of("id", "1", "bogus", "1"))));
+      String message = ex.getMessage();
+
+      assertTrue(message.contains("has no parameter(s) named: bogus"), message);
+      assertFalse(message.contains("requires parameter(s)"), message);
+      assertTrue(message.contains("Its parameters are: id (required)"), message);
+      assertFalse(message.contains("\n"), message);
+   }
+
+   @Test
+   void combinedNestedParameterRefusalNamesBothMissingAndUnknown() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> apply(query, params("endpoint", "Repos",
+            "parameters", Map.of("bogus", "1"))));
+      String message = ex.getMessage();
+
+      assertTrue(message.contains("requires parameter(s) with no value supplied: id"), message);
+      assertTrue(message.contains("has no parameter(s) named: bogus"), message);
+      assertTrue(message.contains("Its parameters are: id (required)"), message);
+      assertFalse(message.contains("\n"), message);
+   }
+
+   @Test
    void compositeValueMustBeAnObject() {
       FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
 

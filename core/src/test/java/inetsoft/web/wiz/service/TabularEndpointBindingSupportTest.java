@@ -104,6 +104,59 @@ class TabularEndpointBindingSupportTest {
    }
 
    @Test
+   void applyEndpointContractMissingOnlyAlsoListsTheContract() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyWithIdAndOptionalStep(null));
+      String message = ex.getMessage();
+
+      assertTrue(message.contains("requires parameter(s) with no value supplied: id"), message);
+      assertFalse(message.contains("has no parameter(s) named"), message);
+      assertTrue(message.contains("Its parameters are: id (required), step"), message);
+      assertFalse(message.contains("\n"), message);
+   }
+
+   @Test
+   void applyEndpointContractUnknownOnlyAlsoListsTheContract() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyWithIdAndOptionalStep(Map.of("id", "1", "bogus", "1")));
+      String message = ex.getMessage();
+
+      assertTrue(message.contains("has no parameter(s) named: bogus"), message);
+      assertFalse(message.contains("requires parameter(s)"), message);
+      assertTrue(message.contains("Its parameters are: id (required), step"), message);
+      assertFalse(message.contains("\n"), message);
+   }
+
+   @Test
+   void applyEndpointContractCombinedNamesBothMissingAndUnknown() {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyWithIdAndOptionalStep(new java.util.LinkedHashMap<>(Map.of("bogus", "1"))));
+      String message = ex.getMessage();
+
+      assertTrue(message.contains("requires parameter(s) with no value supplied: id"), message);
+      assertTrue(message.contains("has no parameter(s) named: bogus"), message);
+      assertTrue(message.contains("Its parameters are: id (required), step"), message);
+      assertFalse(message.contains("\n"), message);
+   }
+
+   private static void applyWithIdAndOptionalStep(Map<String, String> supplied)
+      throws Exception
+   {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      RestParameter idParam = new RestParameter();
+      idParam.setName("id");
+      idParam.setRequired(true);
+      RestParameter stepParam = new RestParameter();
+      stepParam.setName("step");
+      query.getParameters().getParameters().add(idParam);
+      query.getParameters().getParameters().add(stepParam);
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", supplied, null, null, null, "myds");
+   }
+
+   @Test
    void applyEndpointContractRejectsUnknownEndpointName() {
       FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
