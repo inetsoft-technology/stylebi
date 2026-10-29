@@ -202,7 +202,7 @@ class InputValueServiceWriteBackProxySafetyTest {
                return d.getWarnings();
             });
          });
-         service = new InputValueService(sessions, inputs);
+         service = new InputValueService(sessions, inputs, mock(CoreLifecycleService.class));
       }
 
       /** Binds the slider to TABLE.qty with writeBackDirectly and a static row. */
