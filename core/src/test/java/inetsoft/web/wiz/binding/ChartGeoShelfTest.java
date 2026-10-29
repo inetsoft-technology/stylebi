@@ -70,6 +70,8 @@ class ChartGeoShelfTest {
    private VSMapInfo info;
    private RuntimeViewsheet rvs;
    private VSChartHandler handler;
+   private final inetsoft.web.wiz.viewsheet.ViewsheetSessionService sessions =
+      mock(inetsoft.web.wiz.viewsheet.ViewsheetSessionService.class);
 
    @BeforeEach
    void setUp() throws Exception {
@@ -184,6 +186,40 @@ class ChartGeoShelfTest {
          ChartGeoShelf.check(mixed, List.of(new Field("State", "State"), new Field("City", "City"))));
 
       assertTrue(e.getMessage().contains("Multiple map types are not supported."), e.getMessage());
+   }
+
+   @Test
+   void detectionMovingAFieldOntoASecondPolygonLayerIsRefused() {
+      VSMapInfo moved = new VSMapInfo();
+
+      for(String name : List.of("State", "City")) {
+         VSChartGeoRef col = new VSChartGeoRef();
+         col.setGroupColumnValue(name);
+         col.getGeographicOption().setMapping(new FeatureMapping("id", "alg", "U.S.", 2));
+         col.getGeographicOption().setLayerValue("2");
+         moved.getGeoColumns().addAttribute(col);
+      }
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         ChartGeoShelf.check(moved, List.of(new Field("State", "State"), new Field("City", "City"))));
+
+      assertTrue(e.getMessage().contains("Multiple state or country layers"), e.getMessage());
+   }
+
+   @Test
+   void aCheckedExceptionAfterThePartialWriteRestoresTheCheckpoint() throws Exception {
+      doThrow(new java.io.IOException("data failed")).when(handler).getChartData(any(), any());
+      doAnswer(inv -> {
+         ((inetsoft.web.wiz.viewsheet.ViewsheetSessionService.Mutation) inv.getArgument(2))
+            .run(rvs, "rt", null);
+         return List.of();
+      }).when(sessions).mutate(any(), any(), any());
+      when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
+
+      assertThrows(java.io.IOException.class, () -> ChartGeoShelf.write(
+         sessions, "tok", null, "Chart1", handler, List.of(new Field("State", "State"))));
+
+      verify(rvs).restoreCurrentCheckpoint();
    }
 
    private String mappingType(String column) {

@@ -121,13 +121,21 @@ public final class ChartGeoShelf {
          try {
             result.addAll(apply(rvs, chart, handler, fields));
          }
-         catch(RuntimeException e) {
+         catch(Exception e) {
             // The write is already committed and mutate() does not undo a thrown mutation; the
             // current checkpoint is the state before this call (see ChartBindingService.setShelf).
+            boolean restored = false;
+
             try {
-               rvs.restoreCurrentCheckpoint();
+               restored = rvs.restoreCurrentCheckpoint();
             }
             catch(RuntimeException ignore) {
+            }
+
+            if(e instanceof IllegalArgumentException) {
+               throw new IllegalArgumentException(e.getMessage() + (restored
+                  ? " The chart was left as it was."
+                  : " The chart could not be restored; undo the last step in the Composer."), e);
             }
 
             throw e;
@@ -223,7 +231,13 @@ public final class ChartGeoShelf {
          VSChartGeoRef col = (VSChartGeoRef) info.getGeoColumns().getAttribute(field.column());
          String colType = col == null ? null : col.getGeographicOption().getMapping().getType();
          colType = colType == null ? "" : colType;
-         int layer = col == null ? layerId(field) : col.getGeographicOption().getLayer();
+         int layer = col.getGeographicOption().getLayer();
+
+         if(col == null) {
+            throw new IllegalArgumentException(
+               "Column '" + field.column() + "' could not be registered as geographic; check " +
+               "that it is a column of the chart's source.");
+         }
 
          if(type != null && !type.equals(colType)) {
             throw new IllegalArgumentException(
@@ -242,6 +256,17 @@ public final class ChartGeoShelf {
          }
 
          detected.add(new Detected(field.column(), MapData.getLayerName(layer), colType));
+      }
+
+      // Detection can move a layer onto a polygon layer another field already uses.
+      long polygons = fields.stream().filter(f -> {
+         VSChartGeoRef c = (VSChartGeoRef) info.getGeoColumns().getAttribute(f.column());
+         return !MapData.isPointLayer(c.getGeographicOption().getLayer());
+      }).count();
+
+      if(polygons > 1) {
+         throw new IllegalArgumentException(
+            Catalog.getCatalog().getString("em.common.graph.multiPolygons"));
       }
 
       return detected;
