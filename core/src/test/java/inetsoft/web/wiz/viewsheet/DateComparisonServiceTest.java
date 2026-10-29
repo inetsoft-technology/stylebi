@@ -121,6 +121,28 @@ class DateComparisonServiceTest {
       assertTrue(thrown.getMessage().toLowerCase().contains("custom"), thrown.getMessage());
    }
 
+   /** Bug 79765: every entry point refuses an unknown assembly the way get_assembly_properties does. */
+   @Test
+   void unknownAssemblyIsRefusedByEveryEntryPoint() throws Exception {
+      Harness h = harness(model());
+      when(h.vs().getAssembly("Nope")).thenReturn(null);
+
+      Exception set = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Nope", comparison("2026-03-31", false), ""));
+      Exception read = assertThrows(IllegalArgumentException.class,
+         () -> h.service.read("tok", principal(), "Nope"));
+      Exception clear = assertThrows(IllegalArgumentException.class,
+         () -> h.service.clear("tok", principal(), "Nope", ""));
+      Exception sharers = assertThrows(IllegalArgumentException.class,
+         () -> h.service.sharersOf("tok", principal(), "Nope"));
+
+      for(Exception e : new Exception[] { set, read, clear, sharers }) {
+         assertEquals("Unknown assembly 'Nope'.", e.getMessage());
+      }
+
+      verify(h.comparisons(), never()).clearDateComparison(any(), any(), any(), any(), any());
+   }
+
    private static DateComparisonService.Comparison facetOnly() {
       return new DateComparisonService.Comparison(null, null, null, false, null, true, null, null,
                                                    null, null, null);
@@ -390,6 +412,7 @@ class DateComparisonServiceTest {
    void refusesAShareSourceThatDoesNotExist() {
       Harness h = harness(model());
       givenAssemblies(h, namedAssembly("Chart2", chartInfoOwnConfig(definedOwnDcInfo(), true)));
+      when(h.vs().getAssembly("Nope")).thenReturn(null);
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
          () -> h.service.set("tok", principal(), "Chart1", shareOnly("Nope"), ""));
@@ -3145,9 +3168,10 @@ class DateComparisonServiceTest {
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("rt1");
 
-      if(assembly != null) {
-         when(vs.getAssembly(anyString())).thenReturn(assembly);
-      }
+      // An unknown assembly name is refused up front, so a harness without an explicit assembly
+      // still needs the name to resolve.
+      when(vs.getAssembly(anyString())).thenReturn(assembly != null ? assembly :
+                                                      mock(VSAssembly.class));
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       DateComparisonDialogService comparisons = mock(DateComparisonDialogService.class);

@@ -188,6 +188,7 @@ public class DateComparisonService {
       throws Exception
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      requireAssembly(rvs.getViewsheet(), assemblyName);
       String runtimeId = rvs.getID();
       DateComparisonPaneModel model =
          comparisonService.getDateComparison(runtimeId, assemblyName, user);
@@ -325,6 +326,7 @@ public class DateComparisonService {
       Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireAssembly(rvs.getViewsheet(), assemblyName);
          DateComparisonPaneModel model =
             comparisonService.getDateComparison(runtimeId, assemblyName, user);
 
@@ -1243,10 +1245,23 @@ public class DateComparisonService {
                              String linkUri)
       throws Exception
    {
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireAssembly(rvs.getViewsheet(), assemblyName);
          ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
             comparisonService.clearDateComparison(runtimeId, assemblyName, linkUri, user,
-                                                  dispatcher)));
+                                                  dispatcher));
+      });
+   }
+
+   /**
+    * Every entry point takes an assembly name, so an unknown one is refused up front with the same
+    * message the other assembly tools use, instead of surfacing as a misleading "does not support
+    * date comparison", a bare {@code enabled:false}, or a generic server error.
+    */
+   private static void requireAssembly(Viewsheet vs, String assemblyName) {
+      if(vs == null || vs.getAssembly(assemblyName) == null) {
+         throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
+      }
    }
 
    /**
@@ -1258,7 +1273,13 @@ public class DateComparisonService {
       throws Exception
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
-      return rvs == null ? new ArrayList<>() : sharersOf(rvs.getViewsheet(), assemblyName);
+
+      if(rvs == null) {
+         return new ArrayList<>();
+      }
+
+      requireAssembly(rvs.getViewsheet(), assemblyName);
+      return sharersOf(rvs.getViewsheet(), assemblyName);
    }
 
    private static List<String> sharersOf(Viewsheet vs, String source) {
