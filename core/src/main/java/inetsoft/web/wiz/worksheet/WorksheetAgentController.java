@@ -1308,7 +1308,7 @@ public class WorksheetAgentController {
          // WorksheetTableService.buildTabularTable both make; a tabular query has no columns
          // until one response has been parsed.
          TabularProbeCause.beginProbe();
-         assembly.loadColumnSelection(new VariableTable(), true, null);
+         assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
 
@@ -1416,7 +1416,7 @@ public class WorksheetAgentController {
          // addTabularTable above both make; a tabular query has no columns until one response
          // has been parsed.
          TabularProbeCause.beginProbe();
-         assembly.loadColumnSelection(new VariableTable(), true, null);
+         assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
 
@@ -1720,7 +1720,7 @@ public class WorksheetAgentController {
          scratchAssembly.setColumnSelection(liveAssembly.getColumnSelection(false).clone(), false);
          scratchAssembly.setAggregateInfo((AggregateInfo) liveAssembly.getAggregateInfo().clone());
          TabularProbeCause.beginProbe();
-         scratchAssembly.loadColumnSelection(new VariableTable(), true, null);
+         scratchAssembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection newColumns = scratchAssembly.getColumnSelection(false);
 
@@ -3843,6 +3843,19 @@ public class WorksheetAgentController {
       }
 
       return data;
+   }
+
+   /**
+    * Bug #79593: the variable table a tabular column-discovery probe runs with. Variable values
+    * set through {@code set_variable_values} live only in the worksheet's runtime sandbox, so a
+    * probe given an empty table substitutes an unquoted {@code $(var)} as {@code null} and the
+    * connector rejects the query. A clone is returned so the probe's own hints (and anything a
+    * connector writes into the table) never reach the session's variable table.
+    */
+   static VariableTable probeVariables(RuntimeWorksheet rws) {
+      AssetQuerySandbox box = rws.getAssetQuerySandbox();
+      VariableTable vars = box == null ? null : box.getVariableTable();
+      return vars == null ? new VariableTable() : vars.clone();
    }
 
    /**

@@ -13530,9 +13530,16 @@ class WorksheetAgentControllerTest {
    private record MaxRowsFixture(WorksheetAgentController ctrl, Worksheet ws, Principal agent) {}
 
    private static MaxRowsFixture maxRowsFixture(String token, Worksheet ws) throws Exception {
+      return maxRowsFixture(token, ws, null);
+   }
+
+   private static MaxRowsFixture maxRowsFixture(String token, Worksheet ws, AssetQuerySandbox box)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
 
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
       when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
@@ -13585,6 +13592,100 @@ class WorksheetAgentControllerTest {
          tabularUtil.when(() -> TabularUtil.createQuery(eq(MAXROWS_DS))).thenReturn(query);
          f.ctrl().edit(token, req, f.agent());
       }
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79593: the column-discovery probe of add_table / edit_table must see the variable
+   // values set through set_variable_values (they live in the runtime sandbox's variable table),
+   // otherwise an unquoted $(var) is substituted as null and the connector rejects the query.
+   // ---------------------------------------------------------------------------
+
+   private static AssetQuerySandbox sandboxWith(VariableTable vars) {
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getVariableTable()).thenReturn(vars);
+      return box;
+   }
+
+   private static VariableTable sandboxVars() {
+      VariableTable vars = new VariableTable();
+      vars.put("cid", 7);
+      vars.put("region", "west");
+      vars.put("since", java.sql.Date.valueOf("2026-01-02"));
+      return vars;
+   }
+
+   private static void assertProbeSawSandboxValues(VariableTable sandbox) throws Exception {
+      VariableTable probe = FakeNamedConnectorQuery.getLastProbeVariables();
+      assertNotNull(probe, "the column-discovery probe must have run");
+      assertNotSame(sandbox, probe, "the probe gets a clone, never the live session table");
+      assertEquals(7, probe.get("cid"));
+      assertEquals("west", probe.get("region"));
+      assertEquals(java.sql.Date.valueOf("2026-01-02"), probe.get("since"));
+      assertEquals(3, sandbox.size(), "the sandbox table is left exactly as it was");
+      assertNull(sandbox.get(inetsoft.uql.XQuery.HINT_MAX_ROWS));
+   }
+
+   @Test
+   void addTableEndpointFormProbeReceivesSandboxVariables() throws Exception {
+      VariableTable vars = sandboxVars();
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-V1", ws, sandboxWith(vars));
+      FakeNamedConnectorQuery.clearLastProbeVariables();
+
+      runAddTabular(f, "TOK-V1",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, null),
+         maxRowsNamedQuery());
+
+      assertProbeSawSandboxValues(vars);
+   }
+
+   @Test
+   void addTableQueryParamsFormProbeReceivesSandboxVariables() throws Exception {
+      VariableTable vars = sandboxVars();
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-V2", ws, sandboxWith(vars));
+      EditRequest req = addQueryParamsTableRequestWithMaxRows(
+         "Iss", MAXROWS_DS, Map.of("endpoint", "Issues"), null);
+      FakeNamedConnectorQuery.clearLastProbeVariables();
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try {
+         runAddTabular(f, "TOK-V2", req, maxRowsNamedQuery());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertProbeSawSandboxValues(vars);
+   }
+
+   @Test
+   void editTableProbeReceivesSandboxVariables() throws Exception {
+      VariableTable vars = sandboxVars();
+      Worksheet ws = new Worksheet();
+      maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-V3", ws, sandboxWith(vars));
+      FakeNamedConnectorQuery.clearLastProbeVariables();
+
+      f.ctrl().edit("TOK-V3",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, null), f.agent());
+
+      assertProbeSawSandboxValues(vars);
+   }
+
+   @Test
+   void probeVariablesFallsBackToAnEmptyTableWithoutASandbox() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      assertEquals(0, WorksheetAgentController.probeVariables(rws).size());
    }
 
    @Test

@@ -94,6 +94,7 @@ public class FakeNamedConnectorQuery extends TabularQuery {
    @Override
    public void loadOutputColumns(VariableTable vtable) throws Exception {
       capturedHintMaxRows = (String) vtable.get(XQuery.HINT_MAX_ROWS);
+      lastProbeVariables = vtable;
 
       if(shapeToReport != null) {
          setResponseShape(shapeToReport, shapeTruncated);
@@ -107,6 +108,17 @@ public class FakeNamedConnectorQuery extends TabularQuery {
          throw new Exception(exceptionToThrow);
       }
    }
+
+   /** The variable table the most recent probe (on any instance, clones included) ran with. */
+   public static VariableTable getLastProbeVariables() {
+      return lastProbeVariables;
+   }
+
+   public static void clearLastProbeVariables() {
+      lastProbeVariables = null;
+   }
+
+   private static volatile VariableTable lastProbeVariables;
 
    public String getCapturedHintMaxRows() {
       return capturedHintMaxRows;
