@@ -284,6 +284,7 @@ public class SVGVSExporter extends AbstractVSExporter {
       Object value = assembly.getSelectedObject() != null ?
          ((TextInputVSAssemblyInfo) info).getText() : null;
       String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+      txt = ((TextInputVSAssemblyInfo) info).getExportText(txt);
 
       if(!writeTextInputWithLabel(info, txt)) {
          writeText(assembly, txt);

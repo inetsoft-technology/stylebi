@@ -45,6 +45,7 @@ class InputValueServiceSecretTest {
    {
       TextInputVSAssemblyInfo info = mock(TextInputVSAssemblyInfo.class);
       when(info.getColumnOption()).thenReturn(option);
+      when(info.isPassword()).thenCallRealMethod();
       when(info.getSelectedObjects()).thenReturn(stored.toArray());
 
       TextInputVSAssembly assembly = mock(TextInputVSAssembly.class);

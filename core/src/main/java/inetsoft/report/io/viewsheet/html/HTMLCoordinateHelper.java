@@ -427,8 +427,15 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       return styles.toString();
    }
 
+   /**
+    * Get the string a text input value is written as, before any password masking.
+    */
+   public String getTextInputString(TextInputVSAssembly assembly, Object value) {
+      return String.valueOf(getDataString(assembly.getDataType(), value));
+   }
+
    public void writeTextInput(Writer writer, Rectangle2D bounds, TextInputVSAssembly assembly,
-                              VSCompositeFormat format, Object value, int zIndex)
+                              VSCompositeFormat format, String text, int zIndex)
    {
       StringBuffer buf = new StringBuffer();
 
@@ -438,8 +445,8 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       buf.append(zIndex);
       buf.append("'>");
 
-      if(value != null) {
-         buf.append(value == null ? "" : getDataString(assembly.getDataType(), value));
+      if(text != null) {
+         buf.append(text);
       }
 
       buf.append("</textarea>");
@@ -448,7 +455,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          writer.write(buf.toString());
       }
       catch(Exception e) {
-         LOG.error("Failed to write textinput: " + value, e);
+         LOG.error("Failed to write textinput: " + assembly.getAbsoluteName(), e);
       }
    }
 

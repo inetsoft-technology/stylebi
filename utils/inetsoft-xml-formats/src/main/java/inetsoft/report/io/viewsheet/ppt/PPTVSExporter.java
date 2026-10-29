@@ -561,6 +561,7 @@ public class PPTVSExporter extends AbstractVSExporter {
       TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Object value = assembly.getSelectedObject();
       String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+      txt = info.getExportText(txt);
       Rectangle2D[] split = splitInputPixelBounds(info, viewsheet);
 
       if(split == null) {

@@ -688,6 +688,7 @@ public class PDFVSExporter extends AbstractVSExporter {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       Object value = ((TextInputVSAssemblyInfo) info).getText();
       String txt = value == null ? "" : Tool.getDataString(value, assembly.getDataType());
+      txt = ((TextInputVSAssemblyInfo) info).getExportText(txt);
 
       if(!writeTextInputWithLabel(info, txt)) {
          writeText(assembly, txt);

@@ -64,7 +64,7 @@ import java.util.*;
 @Service
 public class InputValueService {
    /** Fixed-length so the mask reveals nothing about the secret's length. */
-   static final String SECRET_MASK = "******";
+   static final String SECRET_MASK = TextInputVSAssemblyInfo.PASSWORD_MASK;
 
    public InputValueService(ViewsheetSessionService sessions, VSInputService inputs) {
       this.sessions = sessions;
@@ -156,8 +156,7 @@ public class InputValueService {
     * render {@code type=password}.
     */
    static boolean isSecret(VSAssemblyInfo info) {
-      return info instanceof TextInputVSAssemblyInfo text &&
-         text.getColumnOption() instanceof PasswordColumnOption;
+      return info instanceof TextInputVSAssemblyInfo text && text.isPassword();
    }
 
    private static boolean sameValues(List<Object> held, List<Object> requested) {
