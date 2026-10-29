@@ -151,7 +151,8 @@ public class ScriptReadService {
          null,                            // sql: SQL-vs-JavaScript is a calc-field distinction
          null,                            // baseOnDetail: likewise
          label(kind, assembly), runsWhen(kind),
-         hasScript, enabled, enableScope(kind, assembly), "viewsheet", target.toString());
+         hasScript, enabled, enableScope(kind, assembly), "viewsheet", target.toString(),
+         null);                           // expression: only a calc field carries one
    }
 
    /**
@@ -185,7 +186,8 @@ public class ScriptReadService {
          true,                            // no per-field enable flag exists
          "calcField:" + f.table() + ":" + f.name(),
          "viewsheet",
-         null);                           // no legacy string form
+         null,                            // no legacy string form
+         f.expression());
    }
 
    private static String label(ScriptTarget.Kind kind, String assembly) {

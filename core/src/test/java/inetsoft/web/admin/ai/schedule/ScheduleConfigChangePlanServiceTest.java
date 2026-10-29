@@ -18,12 +18,14 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
 import inetsoft.web.admin.schedule.model.ServerLocation;
 import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
+import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -253,6 +255,84 @@ class ScheduleConfigChangePlanServiceTest {
       IllegalArgumentException ex =
          assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
       assertTrue(ex.getMessage().contains("no time range"));
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79545: renaming a time range must carry its permissions to the new name
+   // -------------------------------------------------------------------------
+
+   @Test void renamingTimeRangeMarksPermissionsModifiedAndCarriesExistingGrant() throws Exception {
+      ResourcePermissionModel grant = permissionModel();
+      stubConfig(List.of(), List.of(rangeWithPermissions("Morning", grant)));
+      ScheduleConfigChangePlanRequest req = request("rename", List.of(
+         updateRange("Morning", "Morning2", "06:00", "12:00", false)));
+
+      TimeRangeModel after = service.resolveFull(req, user).after().timeRanges().get(0);
+
+      assertEquals("Morning2", after.name());
+      assertEquals(Boolean.TRUE, after.modified());
+      assertSame(grant, after.permissions());
+   }
+
+   @Test void timeRangeUpdateWithoutRenameLeavesModifiedNull() throws Exception {
+      stubConfig(List.of(), List.of(rangeWithPermissions("Morning", permissionModel())));
+      ScheduleConfigChangePlanRequest req = request("edit", List.of(
+         updateRange("Morning", "Morning", "07:00", "12:00", false)));
+
+      TimeRangeModel after = service.resolveFull(req, user).after().timeRanges().get(0);
+
+      assertNull(after.modified());
+      assertNull(after.permissions());
+   }
+
+   @Test void renamingTimeRangeWithNoStoredGrantDoesNotWritePermissions() throws Exception {
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      ScheduleConfigChangePlanRequest req = request("rename", List.of(
+         updateRange("Morning", "Morning2", "06:00", "12:00", false)));
+
+      TimeRangeModel after = service.resolveFull(req, user).after().timeRanges().get(0);
+
+      assertNull(after.modified());
+      assertNull(after.permissions());
+   }
+
+   @Test void carryPermissionsOnRenamePrefersTheCallersPermissions() {
+      ResourcePermissionModel stored = permissionModel();
+      ResourcePermissionModel supplied = permissionModel();
+      TimeRangeModel existing = rangeWithPermissions("Morning", stored);
+      TimeRangeModel spec = TimeRangeModel.builder().from(existing).name("Morning2")
+         .permissions(supplied).build();
+
+      TimeRangeModel result = ScheduleConfigChangePlanService.carryPermissionsOnRename(existing, spec);
+
+      assertEquals(Boolean.TRUE, result.modified());
+      assertSame(supplied, result.permissions());
+   }
+
+   @Test void carryPermissionsOnRenameHonoursAnExplicitModifiedFlag() {
+      TimeRangeModel existing = rangeWithPermissions("Morning", permissionModel());
+      TimeRangeModel spec = TimeRangeModel.builder().from(existing).name("Morning2")
+         .permissions((ResourcePermissionModel) null).modified(false).build();
+
+      assertSame(spec, ScheduleConfigChangePlanService.carryPermissionsOnRename(existing, spec));
+   }
+
+   private static ResourcePermissionModel permissionModel() {
+      return ResourcePermissionModel.builder()
+         .permissions(List.of())
+         .displayActions(EnumSet.of(ResourceAction.ACCESS))
+         .securityEnabled(true)
+         .requiresBoth(false)
+         .derivePermissionLabel("")
+         .grantReadToAllVisible(false)
+         .build();
+   }
+
+   private static TimeRangeModel rangeWithPermissions(String name, ResourcePermissionModel permissions) {
+      return TimeRangeModel.builder()
+         .name(name).startTime("06:00").endTime("12:00").defaultRange(false)
+         .permissions(permissions)
+         .build();
    }
 
    // -------------------------------------------------------------------------

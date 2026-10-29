@@ -53,7 +53,9 @@ public @interface Property {
    double max() default Double.NaN;
 
    /**
-    * Regular expression validation.
+    * Regular expression validation. When more than one pattern is given they are positional
+    * alternatives, not conjunctive constraints: the first applies to a folder selection and the
+    * second to a file selection, so a value is valid if it matches the pattern for its kind.
     */
    String[] pattern() default {};
 
@@ -117,6 +119,17 @@ public @interface Property {
     * (Bug #78594).
     */
    boolean backtickIdentifiers() default false;
+
+   /**
+    * True if a bare UUID is a valid literal in the dialect of a {@link #sql()}
+    * property with a non-JSON {@link #literalEscapeStyle()} (CQL uuid and
+    * timeuuid columns): an unquoted placeholder whose String value is exactly
+    * a UUID is then emitted as a bare token instead of a quoted literal. For
+    * a text column a UUID-shaped value must be written quoted,
+    * {@code '$(v)'}. Other bare-only types (boolean, blob) are not covered
+    * (Bug #79597).
+    */
+   boolean rawUuidStrings() default false;
 
    /**
     * The comment syntax of the language of a {@link #sql()} property, so

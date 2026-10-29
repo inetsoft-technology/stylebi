@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("core")
 class CassandraQueryVariableEscapeTest {
    private static final String QUOTED = "SELECT * FROM t WHERE name = '$(p)'";
+   private static final String UUID = "11111111-2222-3333-4444-555555555555";
    private static final String PREFIX = "SELECT * FROM t WHERE name = ";
 
    @Test
@@ -77,6 +78,40 @@ class CassandraQueryVariableEscapeTest {
    void unquotedNumericString_staysRaw() {
       assertEquals("SELECT * FROM t WHERE id =  5", replace("SELECT * FROM t WHERE id = $(p)", "5"));
       assertEquals("SELECT * FROM t LIMIT  -2.5", replace("SELECT * FROM t LIMIT $(p)", "-2.5"));
+   }
+
+   @Test
+   void unquotedUuid_isBareToken() {
+      for(String uuid : new String[] { UUID, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                                       "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", "1b4e28ba-2fa1-11d2-883f-0016d3cca427",
+                                       "1B4e28Ba-2fA1-11d2-883F-0016d3cca427" })
+      {
+         assertEquals("SELECT * FROM t WHERE id =  " + uuid, replace("SELECT * FROM t WHERE id = $(p)", uuid));
+      }
+   }
+
+   @Test
+   void quotedUuidPlaceholder_staysQuoted() {
+      assertEquals("SELECT * FROM t WHERE name = '" + UUID + "'", replace(QUOTED, UUID));
+   }
+
+   @Test
+   void uuidArrayInList_isListOfBareTokens() {
+      String other = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+      assertEquals("SELECT * FROM t WHERE id IN ( " + UUID + " , " + other + " )",
+                   replace("SELECT * FROM t WHERE id IN ($(p))", new String[] { UUID, other }));
+   }
+
+   @Test
+   void uuidWithTrailingText_staysQuoted() {
+      for(String text : new String[] { UUID + " OR 1=1", UUID + "\n", UUID + " ", " " + UUID,
+                                       UUID + "'--", "{" + UUID + "}", "urn:uuid:" + UUID,
+                                       UUID + "0", UUID.substring(1), UUID.replace('1', 'g'),
+                                       UUID.replace("1", "\u0661") })
+      {
+         assertEquals("SELECT * FROM t WHERE id =  '" + text.replace("'", "''") + "'",
+                      replace("SELECT * FROM t WHERE id = $(p)", text), text);
+      }
    }
 
    private static String replace(String template, Object value) {

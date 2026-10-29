@@ -109,6 +109,14 @@ final class ColumnLossReport {
       static final Scope QUERY_EDIT = new Scope(true, false, false, true, false);
 
       /**
+       * edit_table: {@link #QUERY_EDIT} plus a downstream aggregate or group-by on the column
+       * (Bug #79594). Unlike edit_sql_query, whose accept-and-warn is documented in its tool
+       * description (WSQ-009), edit_table has no warnings channel, so the mirror would collapse
+       * unannounced; it is refused, naming the mirror.
+       */
+      static final Scope TABULAR_EDIT = new Scope(true, true, false, true, false);
+
+      /**
        * edit_unpivot shrinking the header columns: the melted column's name leaves the table, so
        * downstream references and aggregates, the table's own conditions and sort, and its own
        * expression and range columns all break. Join keys are refused first by the caller, never

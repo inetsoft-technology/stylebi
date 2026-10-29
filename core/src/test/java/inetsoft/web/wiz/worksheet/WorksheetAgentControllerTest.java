@@ -1317,6 +1317,62 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * edit_table restates the whole query, so omitting lookupExpandArrays / lookupTopLevelOnly
+    * resets them to the connector default (true) instead of keeping the live query's earlier
+    * false -- the same default add_table gives a fresh query.
+    */
+   @Test
+   void editTableOmittedLookupFlagsResetToConnectorDefault() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of("Repos", List.of("repoId")));
+      liveQuery.setEndpoint("Repos");
+      liveQuery.setLookupExpanded(false);
+      liveQuery.setLookupTopLevelOnly(false);
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET11b"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest(
+         "Calendars", "Repos", Map.of("id", "42"), List.of("Issues"), null, null, null, null);
+
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET11b", req, agent));
+
+      FakeColumnProducingNamedConnectorQuery updatedQuery = (FakeColumnProducingNamedConnectorQuery)
+         ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertTrue(updatedQuery.isLookupExpanded(),
+         "an omitted lookupExpandArrays must reset to the connector default, not keep false");
+      assertTrue(updatedQuery.isLookupTopLevelOnly(),
+         "an omitted lookupTopLevelOnly must reset to the connector default, not keep false");
+   }
+
+   /**
     * Code-review follow-up (PR #5391, finding 2): the customLookups analogue of
     * {@link #editTableAppliesLookupChain}, for the suffix form.
     */
@@ -2344,7 +2400,7 @@ class WorksheetAgentControllerTest {
          OutputStream out = invocation.getArgument(2);
          out.write(fakeCsv);
          return null;
-      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -2358,7 +2414,7 @@ class WorksheetAgentControllerTest {
 
       verify(servletResponse).setContentType("text/csv");
       verify(servletResponse).setHeader(eq("Content-Disposition"), contains("T.csv"));
-      verify(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+      verify(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
       assertArrayEquals(fakeCsv, written.toByteArray());
    }
 
@@ -2378,7 +2434,7 @@ class WorksheetAgentControllerTest {
 
       RawDataService rawDataService = mock(RawDataService.class);
       doThrow(new RuntimeException("Table missing not found."))
-         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("missing"), any());
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("missing"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -2392,6 +2448,33 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getMessage().contains("missing"));
    }
 
+   /** Bug #79596: warnings the service reports are sent as a header before the body. */
+   @Test
+   void exportTableSetsTheWarningsHeaderFromTheServiceBeforeStreaming() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      doAnswer(invocation -> {
+         java.util.function.Consumer<java.util.List<String>> sink = invocation.getArgument(3);
+         sink.accept(java.util.List.of("1 cell(s) were cut"));
+         return null;
+      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+      ctrl.exportTable("TOK", "T", agent, servletResponse);
+
+      verify(servletResponse).setHeader("X-Wiz-Export-Warnings",
+         "%5B%221%20cell%28s%29%20were%20cut%22%5D");
+   }
+
    /** Redmine 78271: the export failure must reach the client as a body naming the cause. */
    @Test
    void exportTableReportsTheFailureCauseAsAResponseStatusException() throws Exception {
@@ -2402,7 +2485,7 @@ class WorksheetAgentControllerTest {
 
       RawDataService rawDataService = mock(RawDataService.class);
       doThrow(new RuntimeException("Failed to export worksheet table 'T': undefinedFn is not defined"))
-         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -2433,7 +2516,7 @@ class WorksheetAgentControllerTest {
 
       RawDataService rawDataService = mock(RawDataService.class);
       doThrow(new ExecutionException("sub-query failed", new IllegalStateException("root cause")))
-         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any(), any());
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -9857,6 +9940,204 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #79645: a probe whose request SUCCEEDED but selected zero rows must not be refused with
+   // the "check datasource credentials" advice; the three add_table/edit_table refusal sites all
+   // consult the response shape the same way.
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Runs an add_table of {@code req} against a {@link FakeNamedConnectorQuery} that records
+    * {@code shape} (null: records none) and produces no columns, and returns the refusal message.
+    * Asserts the worksheet is left without any assembly.
+    */
+   private String addTableRefusalMessage(String token, EditRequest req, Object shape)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      if(shape != null) {
+         query.reportResponseShape(shape, false);
+      }
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.edit(token, req, agent));
+         assertEquals(0, ws.getAssemblies().length,
+            "a refused add_table probe must not leave an assembly in the worksheet");
+         return ex.getMessage();
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   private static void assertZeroRowsRefusal(String message) {
+      assertTrue(message.contains("returned no columns"), message);
+      assertTrue(message.contains("completed successfully"), message);
+      assertTrue(message.contains("selected zero rows"), message);
+      assertFalse(message.contains("datasource credentials"), message);
+      assertFalse(message.contains("\n") || message.contains("\r"), message);
+   }
+
+   private static void assertGenericRefusal(String message) {
+      assertTrue(message.contains("returned no columns"), message);
+      assertTrue(message.contains("datasource credentials"), message);
+      assertFalse(message.contains("selected zero rows"), message);
+   }
+
+   @Test
+   void addTabularTableEndpointFormReportsZeroRowsWhenTheRequestSucceeded() throws Exception {
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null, Map.of("jsonPath", "$.items[*]"), null);
+
+      String message = addTableRefusalMessage(
+         "TOK-ZR1", req, Map.of("items", List.of()));
+
+      assertZeroRowsRefusal(message);
+      assertTrue(message.contains("The request to 'Comments' of 'MyDatasource'"), message);
+      assertTrue(message.contains("URL suffix sent:"), message);
+      assertTrue(message.contains("Extra properties sent:"), message);
+   }
+
+   @Test
+   void addTabularTableEndpointFormWithoutAShapeKeepsTheGenericAdvice() throws Exception {
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null, Map.of("jsonPath", "$.items[*]"), null);
+
+      assertGenericRefusal(addTableRefusalMessage("TOK-ZR2", req, null));
+   }
+
+   @Test
+   void addQueryParamsTableReportsZeroRowsWhenTheRequestSucceeded() throws Exception {
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      String message = addTableRefusalMessage(
+         "TOK-ZR3", req, Map.of("data", List.of()));
+
+      assertZeroRowsRefusal(message);
+      assertTrue(message.contains("The request to 'MyDatasource'"), message);
+      assertTrue(message.contains("Properties sent:"), message);
+   }
+
+   @Test
+   void addQueryParamsTableWithoutAShapeKeepsTheGenericAdvice() throws Exception {
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      assertGenericRefusal(addTableRefusalMessage("TOK-ZR4", req, null));
+   }
+
+   /**
+    * Runs an edit_table to an endpoint that yields no columns against a live two-column table,
+    * with the probe recording {@code shape} (null: none), and returns the refusal message. Asserts
+    * the live assembly's query and columns are unchanged.
+    */
+   private String editTableRefusalMessage(String token, Object shape) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of("Repos", List.of("repoId", "repoName")));
+      liveQuery.setEndpoint("Repos");
+
+      if(shape != null) {
+         liveQuery.reportResponseShape(shape, false);
+      }
+
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      // "Comments" is a known endpoint with no entry in columnsByEndpoint: zero columns.
+      EditRequest req = editTableRequest("Calendars", "Comments", null, null, null, null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit(token, req, agent));
+
+      assertSame(liveQuery,
+         ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery(),
+         "a refused edit must not replace the live query object");
+      assertEquals("Repos", liveQuery.getEndpoint());
+      assertEquals(2, liveAssembly.getColumnSelection(false).getAttributeCount(),
+         "the OLD columns must still be present after a refused edit");
+      return ex.getMessage();
+   }
+
+   @Test
+   void editTableReportsZeroRowsWhenTheRequestSucceeded() throws Exception {
+      String message = editTableRefusalMessage("TOK-ZR5", Map.of("data", List.of()));
+
+      assertZeroRowsRefusal(message);
+      assertTrue(message.contains("The request to 'Comments' of 'MyDatasource'"), message);
+   }
+
+   @Test
+   void editTableWithoutAShapeKeepsTheGenericAdvice() throws Exception {
+      assertGenericRefusal(editTableRefusalMessage("TOK-ZR6", null));
+   }
+
    /**
     * Regression for WBT-009 (#76691): {@code addQueryParamsTable} shares the same
     * {@code AssetUtil.getNextName} collision-suffixing as {@code addBoundTable} (see
@@ -13530,9 +13811,16 @@ class WorksheetAgentControllerTest {
    private record MaxRowsFixture(WorksheetAgentController ctrl, Worksheet ws, Principal agent) {}
 
    private static MaxRowsFixture maxRowsFixture(String token, Worksheet ws) throws Exception {
+      return maxRowsFixture(token, ws, null);
+   }
+
+   private static MaxRowsFixture maxRowsFixture(String token, Worksheet ws, AssetQuerySandbox box)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
 
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
       when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
@@ -13585,6 +13873,100 @@ class WorksheetAgentControllerTest {
          tabularUtil.when(() -> TabularUtil.createQuery(eq(MAXROWS_DS))).thenReturn(query);
          f.ctrl().edit(token, req, f.agent());
       }
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79593: the column-discovery probe of add_table / edit_table must see the variable
+   // values set through set_variable_values (they live in the runtime sandbox's variable table),
+   // otherwise an unquoted $(var) is substituted as null and the connector rejects the query.
+   // ---------------------------------------------------------------------------
+
+   private static AssetQuerySandbox sandboxWith(VariableTable vars) {
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getVariableTable()).thenReturn(vars);
+      return box;
+   }
+
+   private static VariableTable sandboxVars() {
+      VariableTable vars = new VariableTable();
+      vars.put("cid", 7);
+      vars.put("region", "west");
+      vars.put("since", java.sql.Date.valueOf("2026-01-02"));
+      return vars;
+   }
+
+   private static void assertProbeSawSandboxValues(VariableTable sandbox) throws Exception {
+      VariableTable probe = FakeNamedConnectorQuery.getLastProbeVariables();
+      assertNotNull(probe, "the column-discovery probe must have run");
+      assertNotSame(sandbox, probe, "the probe gets a clone, never the live session table");
+      assertEquals(7, probe.get("cid"));
+      assertEquals("west", probe.get("region"));
+      assertEquals(java.sql.Date.valueOf("2026-01-02"), probe.get("since"));
+      assertEquals(3, sandbox.size(), "the sandbox table is left exactly as it was");
+      assertNull(sandbox.get(inetsoft.uql.XQuery.HINT_MAX_ROWS));
+   }
+
+   @Test
+   void addTableEndpointFormProbeReceivesSandboxVariables() throws Exception {
+      VariableTable vars = sandboxVars();
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-V1", ws, sandboxWith(vars));
+      FakeNamedConnectorQuery.clearLastProbeVariables();
+
+      runAddTabular(f, "TOK-V1",
+         addTabularTableRequestWithMaxRows("Iss", MAXROWS_DS, "Issues", null, null),
+         maxRowsNamedQuery());
+
+      assertProbeSawSandboxValues(vars);
+   }
+
+   @Test
+   void addTableQueryParamsFormProbeReceivesSandboxVariables() throws Exception {
+      VariableTable vars = sandboxVars();
+      Worksheet ws = new Worksheet();
+      MaxRowsFixture f = maxRowsFixture("TOK-V2", ws, sandboxWith(vars));
+      EditRequest req = addQueryParamsTableRequestWithMaxRows(
+         "Iss", MAXROWS_DS, Map.of("endpoint", "Issues"), null);
+      FakeNamedConnectorQuery.clearLastProbeVariables();
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try {
+         runAddTabular(f, "TOK-V2", req, maxRowsNamedQuery());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertProbeSawSandboxValues(vars);
+   }
+
+   @Test
+   void editTableProbeReceivesSandboxVariables() throws Exception {
+      VariableTable vars = sandboxVars();
+      Worksheet ws = new Worksheet();
+      maxRowsLiveTable(ws, "Repos", 100, 100);
+      MaxRowsFixture f = maxRowsFixture("TOK-V3", ws, sandboxWith(vars));
+      FakeNamedConnectorQuery.clearLastProbeVariables();
+
+      f.ctrl().edit("TOK-V3",
+         editTableRequest("Issues1", "Issues", null, null, null, null, null, null), f.agent());
+
+      assertProbeSawSandboxValues(vars);
+   }
+
+   @Test
+   void probeVariablesFallsBackToAnEmptyTableWithoutASandbox() {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      assertEquals(0, WorksheetAgentController.probeVariables(rws).size());
    }
 
    @Test
@@ -13766,4 +14148,41 @@ class WorksheetAgentControllerTest {
          ((TabularTableAssemblyInfo) t.getTableInfo()).getQuery()).getEndpoint());
    }
 
+   /**
+    * Bug #79530: a wiz-tagged principal is approved for every permission check, so the engine's
+    * own WRITE check in setSheet never refused a READ-only user; the save pre-check repeats it on
+    * a copy of the principal without the tag.
+    */
+   @Test
+   void saveWithoutWritePermissionIsRefusedAndNothingIsWritten79530() throws Exception {
+      IdentityID id = IdentityID.getIdentityIDFromKey("reader");
+      SRPrincipal wiz = new SRPrincipal(id, new IdentityID[0], new String[0], id.orgID, 1L);
+      wiz.setProperty("wiz", "true");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-79530"), any()))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-79530"));
+
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(any())).thenReturn(true);
+      doThrow(new inetsoft.util.MessageException("Write access denied: Orders WS"))
+         .when(repo).checkAssetPermission(any(), any(), eq(ResourceAction.WRITE));
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getAssetRepository()).thenReturn(repo);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.save("TOK-79530",
+         new WorksheetAgentController.SaveRequest(null, null), wiz));
+
+      assertTrue(ex.getMessage().contains("Write access denied: Orders WS"), ex.getMessage());
+      verify(ws, never()).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+   }
 }

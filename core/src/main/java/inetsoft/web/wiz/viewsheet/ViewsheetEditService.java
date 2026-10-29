@@ -311,6 +311,7 @@ public class ViewsheetEditService {
       }
 
       requireValues(request.op(), "x", request.x(), "y", request.y());
+      requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
       boolean resizeRequested = request.width() != null || request.height() != null;
 
@@ -570,6 +571,7 @@ public class ViewsheetEditService {
       throws Exception
    {
       requireValues(request.op(), "x", request.x(), "y", request.y());
+      requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
          clipboard.pasteObject(runtimeId, request.x(), request.y(), user, dispatcher, linkUri));
@@ -1074,6 +1076,22 @@ public class ViewsheetEditService {
                "down to one member; remove it explicitly with edit(op:'remove') once empty.");
          }
 
+         // ComposerGroupService.ungroup unwraps the assembly itself when it is a group, or its
+         // container when that is a group (a child of a group), and silently no-ops otherwise.
+         VSAssembly container = assembly == null ? null : assembly.getContainer();
+
+         if(assembly != null && !(assembly instanceof GroupContainerVSAssembly) &&
+            !(container instanceof GroupContainerVSAssembly))
+         {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is not a Group and is not inside one, so there is " +
+               "nothing to ungroup -- edit(op:'ungroup') only reverses the GroupContainer that " +
+               "group creates." +
+               (container == null ? "" :
+                  " It is inside '" + container.getName() + "'; to take it out of that " +
+                  "container, use edit(op:'move_from_container') on it instead."));
+         }
+
          groups.ungroup(runtimeId, request.assembly(), linkUri, user, dispatcher);
       });
    }
@@ -1130,6 +1148,7 @@ public class ViewsheetEditService {
    {
       requireAssembly(request);
       requireValues(request.op(), "x", request.x(), "y", request.y());
+      requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
@@ -1214,8 +1233,7 @@ public class ViewsheetEditService {
          for(AssemblyNode node : targets) {
             VSAssembly assembly = vs == null ? null : vs.getAssembly(node.name());
 
-            boolean locked = assembly instanceof LockableVSAssembly lockable &&
-               Boolean.TRUE.equals(lockable.islocked());
+            boolean locked = isLocked(assembly);
             boolean inContainer = assembly != null && assembly.getContainer() != null;
 
             if(!locked && !inContainer) {
@@ -1452,13 +1470,17 @@ public class ViewsheetEditService {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(request.assembly());
 
-      if(assembly instanceof LockableVSAssembly lockable &&
-         Boolean.TRUE.equals(lockable.islocked()))
-      {
+      if(isLocked(assembly)) {
          throw new IllegalArgumentException(
             "Edit op '" + request.op() + "' cannot be applied to '" + request.assembly() +
             "' — it is locked. Use edit(op:'set_lock', locked:false) first.");
       }
+   }
+
+   /** Whether the assembly is a lockable one (image, line, oval, rectangle) that is locked. */
+   static boolean isLocked(VSAssembly assembly) {
+      return assembly instanceof LockableVSAssembly lockable &&
+         Boolean.TRUE.equals(lockable.islocked());
    }
 
    private AssemblyNode requireExisting(RuntimeViewsheet rvs, String name) {

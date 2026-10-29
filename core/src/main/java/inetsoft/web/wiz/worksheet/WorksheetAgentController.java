@@ -87,6 +87,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.ExportCellCapScanner;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.TabularProbeCause;
 import inetsoft.web.wiz.service.RenderNotReadyException;
@@ -1308,7 +1309,7 @@ public class WorksheetAgentController {
          // WorksheetTableService.buildTabularTable both make; a tabular query has no columns
          // until one response has been parsed.
          TabularProbeCause.beginProbe();
-         assembly.loadColumnSelection(new VariableTable(), true, null);
+         assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
 
@@ -1318,12 +1319,12 @@ public class WorksheetAgentController {
             // live worksheet.
             Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
-            throw new PairingException("The request to '" + target + "' of '" + dsName +
-               "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
+            throw new PairingException(emptyColumnsRefusal(
+               query, loadError, cause,
+               "The request to '" + target + "' of '" + dsName + "' returned no columns",
                ". URL suffix sent: " + resolvedSuffix +
                (extraApplied == null || extraApplied.isBlank() ? "" :
-                  ". Extra properties sent: " + extraApplied) +
-               ". " + cause.advice(PROBE_GENERIC_ADVICE));
+                  ". Extra properties sent: " + extraApplied)));
          }
 
          if(req.maxRows() != null) {
@@ -1416,7 +1417,7 @@ public class WorksheetAgentController {
          // addTabularTable above both make; a tabular query has no columns until one response
          // has been parsed.
          TabularProbeCause.beginProbe();
-         assembly.loadColumnSelection(new VariableTable(), true, null);
+         assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
 
@@ -1425,9 +1426,9 @@ public class WorksheetAgentController {
             // assembly in the live worksheet -- mirrors WorksheetTableService.buildTabularTable.
             Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
-            throw new PairingException("The request to '" + dsName + "' returned no columns" +
-               (loadError == null ? "" : " (" + loadError + ")") + ". Properties sent: " +
-               applied + ". " + cause.advice(PROBE_GENERIC_ADVICE));
+            throw new PairingException(emptyColumnsRefusal(
+               query, loadError, cause, "The request to '" + dsName + "' returned no columns",
+               ". Properties sent: " + applied));
          }
 
          if(req.maxRows() != null) {
@@ -1720,18 +1721,18 @@ public class WorksheetAgentController {
          scratchAssembly.setColumnSelection(liveAssembly.getColumnSelection(false).clone(), false);
          scratchAssembly.setAggregateInfo((AggregateInfo) liveAssembly.getAggregateInfo().clone());
          TabularProbeCause.beginProbe();
-         scratchAssembly.loadColumnSelection(new VariableTable(), true, null);
+         scratchAssembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection newColumns = scratchAssembly.getColumnSelection(false);
 
          if(newColumns == null || newColumns.getAttributeCount() == 0) {
             Object loadError = scratchQuery.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(scratchQuery, loadError);
-            throw new PairingException("The request to '" + target + "' of '" + dsName +
-               "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
+            throw new PairingException(emptyColumnsRefusal(
+               scratchQuery, loadError, cause,
+               "The request to '" + target + "' of '" + dsName + "' returned no columns",
                (resolvedSuffix == null ? "" : ". URL suffix sent: " + resolvedSuffix) +
-               (applied == null || applied.isBlank() ? "" : ". Properties sent: " + applied) +
-               ". " + cause.advice(PROBE_GENERIC_ADVICE));
+               (applied == null || applied.isBlank() ? "" : ". Properties sent: " + applied)));
          }
 
          // Refuse an edit that drops a column a dependent join/composite table still keys on --
@@ -1742,7 +1743,8 @@ public class WorksheetAgentController {
             ws, liveAssembly, liveAssembly.getColumnSelection(false), newColumns,
             "Editing this table would change the type of",
             breaks -> JoinKeyTypeGuard.tabularRemedy(),
-            "Editing table '" + tableName + "'", TABULAR_EDIT_LOSS_REMEDY);
+            "Editing table '" + tableName + "'", TABULAR_EDIT_LOSS_REMEDY,
+            ColumnLossReport.Scope.TABULAR_EDIT);
 
          // Commit: only now does the live assembly's own query/columns actually change.
          liveInfo.setQuery(scratchQuery);
@@ -2229,7 +2231,14 @@ public class WorksheetAgentController {
       response.setHeader("Content-Disposition",
          ContentDisposition.attachment().filename(table + ".csv").build().toString());
       try {
-         rawDataService.writeLiveWorksheetTableCsvStream(rws, table, response.getOutputStream());
+         rawDataService.writeLiveWorksheetTableCsvStream(
+            rws, table, response.getOutputStream(), warnings -> {
+               String header = ExportCellCapScanner.toHeaderValue(warnings);
+
+               if(header != null) {
+                  response.setHeader(ExportCellCapScanner.WARNINGS_HEADER, header);
+               }
+            });
       }
       catch(Exception e) {
          // an unhandled RuntimeException is a bare 500 with no body; report the cause instead
@@ -2477,6 +2486,11 @@ public class WorksheetAgentController {
          throw new PairingException("Cannot save: agent principal is not an XPrincipal (" +
                                     user.getClass().getName() + ")");
       }
+
+      // Bug #79530: the engine's own WRITE checks are approved for a wiz principal; verify the
+      // user's real write permission before anything is written.
+      WizUtil.requireSaveWritePermission(worksheetService.getAssetRepository(), entry, xp,
+                                         "worksheet");
 
       try {
          worksheetService.setWorksheet(rws.getWorksheet(), entry, xp, true, true);
@@ -3840,6 +3854,19 @@ public class WorksheetAgentController {
    }
 
    /**
+    * Bug #79593: the variable table a tabular column-discovery probe runs with. Variable values
+    * set through {@code set_variable_values} live only in the worksheet's runtime sandbox, so a
+    * probe given an empty table substitutes an unquoted {@code $(var)} as {@code null} and the
+    * connector rejects the query. A clone is returned so the probe's own hints (and anything a
+    * connector writes into the table) never reach the session's variable table.
+    */
+   static VariableTable probeVariables(RuntimeWorksheet rws) {
+      AssetQuerySandbox box = rws.getAssetQuerySandbox();
+      VariableTable vars = box == null ? null : box.getVariableTable();
+      return vars == null ? new VariableTable() : vars.clone();
+   }
+
+   /**
     * Bug #78681: appends the table's own expression and range columns to {@code columns}, the
     * selection a rewritten SQL query produced, so the edit does not drop them. Refuses, naming
     * the column and leaving everything unchanged, when the new query projects a column named
@@ -4816,6 +4843,23 @@ public class WorksheetAgentController {
       String lossLead, String lossRemedy)
       throws PairingException
    {
+      assertSqlEditAllowsColumnRemoval(
+         ws, assembly, oldColumns, newColumns, lead, remedy, lossLead, lossRemedy,
+         ColumnLossReport.Scope.QUERY_EDIT);
+   }
+
+   /**
+    * Same as above, checking the dependents in {@code scope}: edit_table passes
+    * {@link ColumnLossReport.Scope#TABULAR_EDIT}, which also refuses a downstream aggregate or
+    * group-by (Bug #79594).
+    */
+   static void assertSqlEditAllowsColumnRemoval(
+      Worksheet ws, TableAssembly assembly, ColumnSelection oldColumns,
+      ColumnSelection newColumns, String lead,
+      java.util.function.Function<List<JoinKeyTypeGuard.Break>, String> remedy,
+      String lossLead, String lossRemedy, ColumnLossReport.Scope scope)
+      throws PairingException
+   {
       if(oldColumns == null) {
          return;
       }
@@ -4846,7 +4890,7 @@ public class WorksheetAgentController {
 
       ColumnLossReport.requireNoDependentLoss(
          ws, assembly, assembly.getName(), dataColumns, keptNames,
-         ColumnLossReport.Scope.QUERY_EDIT, lossLead, lossRemedy);
+         scope, lossLead, lossRemedy);
    }
 
    // ---------------------------------------------------------------------------
@@ -6424,6 +6468,26 @@ public class WorksheetAgentController {
    private static final String PROBE_GENERIC_ADVICE =
       "Check the parameter values and datasource credentials -- see the server log for the " +
       "cause.";
+
+   /**
+    * The single-line refusal of a tabular add_table/edit_table probe that produced no columns.
+    * The three signals that say why are disjoint: a load error is named in the lead, a timeout or
+    * connector message closes via {@link TabularProbeCause#advice}, and a request that succeeded
+    * with zero rows says so instead of sending the caller to credentials.
+    *
+    * @param lead  the caller's subject and "returned no columns".
+    * @param echoes what the caller sent, each part starting with ". ".
+    */
+   private static String emptyColumnsRefusal(TabularQuery query, Object loadError,
+                                             TabularProbeCause cause, String lead, String echoes)
+   {
+      String zeroRows = TabularProbeCause.zeroRowsClause(query, loadError, cause);
+      String closing = zeroRows == null ? cause.advice(PROBE_GENERIC_ADVICE) :
+         "The request " + zeroRows + cause.detail();
+
+      return TabularProbeCause.singleLine(
+         lead + (loadError == null ? "" : " (" + loadError + ")") + echoes + ". " + closing);
+   }
 
    /** Bug #78527: ends edit_table's dropped-column refusal. */
    private static final String TABULAR_EDIT_LOSS_REMEDY =

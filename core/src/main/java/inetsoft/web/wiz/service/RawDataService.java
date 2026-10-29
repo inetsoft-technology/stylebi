@@ -34,6 +34,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.XSourceInfo;
+import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.util.TimedQueue;
 import inetsoft.web.portal.controller.database.DataSourceService;
@@ -45,6 +46,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.function.Consumer;
 
 @Service
 public class RawDataService {
@@ -104,7 +107,7 @@ public class RawDataService {
 
          // a failed query degrades to sample rows (999/XXX); fail like worksheet preview does
          WizVsService.checkFailedQuery(lens, false);
-         writeCsvContent(lens, outputStream);
+         writeCsvContent(lens, outputStream, null);
       }
       catch(Exception e) {
          throw new RuntimeException(
@@ -124,6 +127,19 @@ public class RawDataService {
     */
    public void writeLiveWorksheetTableCsvStream(RuntimeWorksheet rws, String tableName,
                                                 OutputStream outputStream)
+      throws Exception
+   {
+      writeLiveWorksheetTableCsvStream(rws, tableName, outputStream, null);
+   }
+
+   /**
+    * @param warningsSink receives the export warnings (see {@link ExportCellCapScanner}) after
+    *                     the rows are materialized and before the first byte is written, so the
+    *                     caller can still set a response header. May be null.
+    */
+   public void writeLiveWorksheetTableCsvStream(RuntimeWorksheet rws, String tableName,
+                                                OutputStream outputStream,
+                                                Consumer<List<String>> warningsSink)
       throws Exception
    {
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
@@ -170,7 +186,7 @@ public class RawDataService {
 
          // a failed query degrades to sample rows (999/XXX); fail like worksheet preview does
          WizVsService.checkFailedQuery(lens, false);
-         writeCsvContent(lens, outputStream);
+         writeCsvContent(lens, outputStream, warningsSink);
       }
       catch(Exception e) {
          throw new RuntimeException(
@@ -236,7 +252,7 @@ public class RawDataService {
       XDataService service = XRepository.getRepository();
       XNode result = service.execute(principal.getName(), query, null, principal, true, null);
 
-      writeCsvContent(new XNodeTableLens(result), outputStream);
+      writeCsvContent(new XNodeTableLens(result), outputStream, null);
    }
 
    private void setupTable(JDBCQuery query, AssetEntry table, XPrincipal principal) throws Exception {
@@ -301,7 +317,10 @@ public class RawDataService {
       }
    }
 
-   private void writeCsvContent(TableLens lens, OutputStream outputStream) throws IOException {
+   private void writeCsvContent(TableLens lens, OutputStream outputStream,
+                                Consumer<List<String>> warningsSink)
+      throws IOException
+   {
       int loadRows =
          Integer.parseInt(SreeEnv.getProperty(WizUtil.ANNOTATION_RAW_DATA_MAX_ROW, "100000"));
 
@@ -313,6 +332,13 @@ public class RawDataService {
 
       int rowCount = lens.getRowCount();
       int colCount = lens.getColCount();
+
+      // Bug #79596: the lens cuts every cell over max.cell.size while it is read below, so scan
+      // the uncut values first and report before any byte is streamed.
+      if(warningsSink != null) {
+         warningsSink.accept(
+            ExportCellCapScanner.scan(lens, Util.getOrganizationMaxCellSize()));
+      }
 
       try(BufferedWriter writer =
              new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8))) {
@@ -332,6 +358,10 @@ public class RawDataService {
                writer.flush();
             }
          }
+      }
+      finally {
+         // each cut cell queued a user message on this pooled thread; nothing reads them here
+         CoreTool.clearUserMessage();
       }
    }
 

@@ -24,6 +24,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -120,6 +123,47 @@ class TabularProbeCauseTest {
       TabularProbeCause.read(query(0), null);
 
       assertNull(CoreTool.getUserMessage());
+   }
+
+   @Test
+   void zeroRowsClauseIsReturnedOnlyWhenTheRequestSucceededWithNoOtherCause() {
+      String clause = TabularProbeCause.zeroRowsClause(
+         queryWithShape(0, Map.of("data", List.of())), null,
+         TabularProbeCause.read(queryWithShape(0, Map.of("data", List.of())), null));
+
+      assertNotNull(clause);
+      assertTrue(clause.startsWith("completed successfully"), clause);
+      assertTrue(clause.contains("selected zero rows"), clause);
+      assertTrue(clause.contains("'$.data[*]'"), clause);
+      assertTrue(clause.contains("not a connection or credentials problem"), clause);
+   }
+
+   @Test
+   void zeroRowsClauseIsNullWithoutAResponseShape() {
+      TabularQuery query = query(0);
+
+      assertNull(TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null)));
+   }
+
+   @Test
+   void zeroRowsClauseDoesNotMaskALoadError() {
+      TabularQuery query = queryWithShape(0, Map.of("data", List.of()));
+
+      assertNull(TabularProbeCause.zeroRowsClause(
+         query, "connection refused", TabularProbeCause.read(query, "connection refused")));
+   }
+
+   @Test
+   void zeroRowsClauseYieldsToATimeout() {
+      TabularQuery query = queryWithShape(3, Map.of("data", List.of()));
+
+      assertNull(TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null)));
+   }
+
+   private static TabularQuery queryWithShape(int timedOutSeconds, Object shape) {
+      TabularQuery query = query(timedOutSeconds);
+      when(query.getResponseShape()).thenReturn(shape);
+      return query;
    }
 
    private static TabularQuery query(int timedOutSeconds) {

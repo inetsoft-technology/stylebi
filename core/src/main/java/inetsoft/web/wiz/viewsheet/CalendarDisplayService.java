@@ -215,6 +215,7 @@ public class CalendarDisplayService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalendarVSAssembly calendar = requireCalendar(rvs, assemblyName);
+         requireBoundColumn(calendar, assemblyName);
          CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
 
          boolean dual = info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE;
@@ -249,6 +250,20 @@ public class CalendarDisplayService {
       result.put("persistsOnSave", true);
       ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
+   }
+
+   /**
+    * Refuses dates for a calendar that has no column bound. Without a column the dates are stored
+    * and read back, but there is nothing for them to filter, so the write would report success
+    * while changing no query -- the same guard selection lists and trees apply.
+    */
+   private static void requireBoundColumn(CalendarVSAssembly calendar, String assemblyName) {
+      if(calendar.getDataRef() == null) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a calendar with no column bound, so dates selected on it " +
+            "would filter nothing. Call set_selection_source with a date column first. No dates " +
+            "were stored.");
+      }
    }
 
    static final String DAY_SELECTION_SIDE_EFFECT =

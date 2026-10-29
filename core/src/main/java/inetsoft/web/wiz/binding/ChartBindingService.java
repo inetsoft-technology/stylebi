@@ -22,6 +22,7 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.XAggregateRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
@@ -233,6 +234,47 @@ public class ChartBindingService {
 
       if(aesthetic != null && aesthetic.getDataRef() instanceof XAggregateRef aggregate) {
          CalculatorColumnRefs.requireResolved(info, field.calculateInfo(), aggregate.getCalculator());
+      }
+   }
+
+   /**
+    * Post-write read-back (bug #79666): a named group sent on an aesthetic dimension must still be
+    * on the channel after the runtime processed the write.
+    * {@code ChangeChartProcessor.syncNamedGroup} makes an aesthetic ref take the named group of a
+    * shelf dimension on the same column, so when that shelf dimension is plain the group is
+    * overwritten with none and the write would otherwise be reported as success with no grouping.
+    */
+   static void requireAestheticNamedGroupKept(VSChartInfo info, String channel, FieldRef field) {
+      if(info == null || field == null || !"dimension".equalsIgnoreCase(field.type())) {
+         return;
+      }
+
+      boolean groupSent = field.namedGroupValues() != null ||
+         field.namedGroup() != null && !field.namedGroup().isBlank();
+
+      if(!groupSent) {
+         return;
+      }
+
+      ChartBindable bound = info instanceof GanttVSChartInfo gantt &&
+         gantt.getStartField() instanceof ChartBindable start ? start : info;
+      AestheticRef aesthetic = switch(channel == null ? "" : channel.toLowerCase()) {
+         case "color" -> bound.getColorField();
+         case "shape" -> bound.getShapeField();
+         case "size" -> bound.getSizeField();
+         case "text" -> bound.getTextField();
+         default -> null;
+      };
+
+      if(aesthetic != null && aesthetic.getDataRef() instanceof XDimensionRef dimension &&
+         dimension.getNamedGroupInfo() == null)
+      {
+         throw new IllegalArgumentException(
+            "The named group on '" + field.column() + "' was not applied to the " + channel +
+            " channel: the same column is already bound on a chart shelf without a group, and a " +
+            "chart keeps one grouping per column, so the shelf's wins. Put the named group on " +
+            "that shelf dimension with set_chart_shelf first (the " + channel + " channel then " +
+            "follows it), or bind the " + channel + " channel without a named group.");
       }
    }
 

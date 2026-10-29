@@ -662,14 +662,12 @@ public class ChartRegionPropertyService {
       });
 
       if(hidden != null) {
-         String column = hidden.isEmpty() ? "<its column>" : hidden;
-
          throw new IllegalArgumentException(
             "Axis '" + axisTarget + "' is hidden, so there is nothing drawn to " +
             (read ? "read" : "write") + " here" +
             (read && !blank ? " (its labels are what supply the aliases)" : "") + ". Show it " +
-            "first with set_chart_element_visibility {element: 'axis', target: '" + column +
-            "', visible: true} (showing restores all axes), then retry.");
+            "first with set_chart_element_visibility {element: 'axis', visible: true} (no target; " +
+            "showing restores all axes), then retry.");
       }
    }
 

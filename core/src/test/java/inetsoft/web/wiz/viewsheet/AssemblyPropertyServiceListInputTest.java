@@ -450,6 +450,168 @@ class AssemblyPropertyServiceListInputTest {
       assertFalse(ed.isServerTZ());
    }
 
+   // ── bug #79541: defaultValue / sortType / labelGap ──────────────────────
+
+   private static final String LIST_SORT_TYPE =
+      "comboboxGeneralPaneModel.listValuesPaneModel.sortType";
+   private static final String LABEL_GAP = "inputLabelPaneModel.labelGap";
+
+   private static ComboboxPropertyDialogModel embeddedAbc() {
+      ComboboxPropertyDialogModel model = combobox("string", false, "", "");
+      ComboBoxEditorModel ed = editor(model);
+      ed.setEmbedded(true);
+      ed.getVariableListDialogModel().setLabels(new String[] { "A", "B", "C" });
+      ed.getVariableListDialogModel().setValues(new String[] { "a", "b", "c" });
+      return model;
+   }
+
+   @Test
+   void refusesADefaultValueOffTheEmbeddedList() throws Exception {
+      ComboboxPropertyDialogModel model = embeddedAbc();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> set(model, Map.of(E + ".defaultValue", "zzz")));
+
+      assertTrue(e.getMessage().contains("defaultValue"), e.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesADefaultValueThatIsALabelAndHintsAtTheValue() throws Exception {
+      ComboboxPropertyDialogModel model = embeddedAbc();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> set(model, Map.of(E + ".defaultValue", "A")));
+
+      assertTrue(e.getMessage().contains("defaultValue"), e.getMessage());
+      assertTrue(e.getMessage().contains("label of the value 'a'"), e.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void storesAListedDefaultAndLeavesBlankVariableAndScriptDefaultsAlone() {
+      for(String ok : new String[] { "b", "", "$(pick)", "=Tab1.value" }) {
+         ComboboxPropertyDialogModel model = embeddedAbc();
+
+         set(model, Map.of(E + ".defaultValue", ok));
+
+         assertEquals(ok, editor(model).getDefaultValue());
+      }
+   }
+
+   @Test
+   void judgesTheDefaultAgainstTheListWrittenInTheSamePatch() throws Exception {
+      ComboboxPropertyDialogModel model = embeddedAbc();
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(E + ".defaultValue", "x");
+      patch.put(E + ".variableListDialogModel.values", new String[] { "x", "y" });
+      patch.put(E + ".variableListDialogModel.labels", new String[] { "X", "Y" });
+
+      set(model, patch);
+
+      assertEquals("x", editor(model).getDefaultValue());
+   }
+
+   @Test
+   void doesNotJudgeTheDefaultOfAQueryOrNoSourceList() {
+      ComboboxPropertyDialogModel query = embeddedAbc();
+      editor(query).setQuery(true);
+      set(query, Map.of(E + ".defaultValue", "zzz"));
+      assertEquals("zzz", editor(query).getDefaultValue());
+
+      ComboboxPropertyDialogModel none = embeddedAbc();
+      editor(none).setEmbedded(false);
+      set(none, Map.of(E + ".defaultValue", "zzz"));
+      assertEquals("zzz", editor(none).getDefaultValue());
+   }
+
+   @Test
+   void leavesTheDefaultAloneWhenThePatchDoesNotWriteIt() {
+      ComboboxPropertyDialogModel model = embeddedAbc();
+      editor(model).setDefaultValue("legacy");
+
+      assertDoesNotThrow(() -> set(model, Map.of("visible", "false")));
+   }
+
+   @Test
+   void refusesACalendarDefaultThatIsNotARealDayOrOutsideTheBounds() throws Exception {
+      String[] bad = { "2024-02-30", "2025-01-01", "2023-12-31" };
+
+      for(String value : bad) {
+         ComboboxPropertyDialogModel model = combobox("date", true, "2024-01-01", "2024-12-31");
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> set(model, Map.of(E + ".defaultValue", value)), value);
+
+         assertTrue(e.getMessage().contains("defaultValue"), e.getMessage());
+      }
+
+      ComboboxPropertyDialogModel ok = combobox("date", true, "2024-01-01", "2024-12-31");
+      set(ok, Map.of(E + ".defaultValue", "2024-06-15"));
+      assertEquals("2024-06-15", editor(ok).getDefaultValue());
+   }
+
+   @Test
+   void refusesAListSortTypeOutsideNoneAscDesc() throws Exception {
+      for(Object bad : new Object[] { 5, 4, 8, 17, 3, -1 }) {
+         ComboboxPropertyDialogModel model = embeddedAbc();
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> set(model, Map.of(LIST_SORT_TYPE, bad)), String.valueOf(bad));
+
+         assertTrue(e.getMessage().contains("sortType"), e.getMessage());
+      }
+
+      verifyNothingWritten();
+   }
+
+   @Test
+   void acceptsAListSortTypeTokensAndTheThreeInts() {
+      Object[][] ok = { { 0, 0 }, { 1, 1 }, { 2, 2 }, { "none", 0 }, { "asc", 1 },
+                        { "Descending", 2 } };
+
+      for(Object[] c : ok) {
+         ComboboxPropertyDialogModel model = embeddedAbc();
+         set(model, Map.of(LIST_SORT_TYPE, c[0]));
+         assertEquals(c[1], model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+            .getSortType(), String.valueOf(c[0]));
+      }
+   }
+
+   @Test
+   void refusesACheckboxAndRadioSortTypeOutsideTheDomain() {
+      assertThrows(IllegalArgumentException.class, () -> setCheckbox(
+         checkbox("1", "2"),
+         Map.of("checkboxGeneralPaneModel.listValuesPaneModel.sortType", 5)));
+      assertThrows(IllegalArgumentException.class, () -> setRadio(
+         radio("1", "2"),
+         Map.of("radioButtonGeneralPaneModel.listValuesPaneModel.sortType", 5)));
+   }
+
+   @Test
+   void refusesAnOutOfRangeLabelGapNamingTheFieldAndKeepsTheStoredOne() throws Exception {
+      for(Object bad : new Object[] { -5, -1, 1001, 5000, "-5" }) {
+         ComboboxPropertyDialogModel model = embeddedAbc();
+
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> set(model, Map.of(LABEL_GAP, bad)), String.valueOf(bad));
+
+         assertTrue(e.getMessage().contains("labelGap"), e.getMessage());
+         assertEquals(5, model.getInputLabelPaneModel().getLabelGap());
+      }
+
+      verifyNothingWritten();
+   }
+
+   @Test
+   void storesTheLabelGapBoundaries() {
+      for(int gap : new int[] { 0, 1000, 12 }) {
+         ComboboxPropertyDialogModel model = embeddedAbc();
+         set(model, Map.of(LABEL_GAP, gap));
+         assertEquals(gap, model.getInputLabelPaneModel().getLabelGap());
+      }
+   }
+
    // ── harness ─────────────────────────────────────────────────────────────
 
    static final String E =

@@ -62,7 +62,10 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -133,6 +136,29 @@ class AssemblyConditionServiceRefreshRealStackTest {
       assertEquals(0, rows(rvs, CHART));
    }
 
+   /**
+    * Bug #79535: the rollback of a write that fails after it was committed went through the
+    * write's own model, whose revision the commit had just bumped, so the real
+    * {@code setModel} answered with a write-conflict message and left the NEW condition stored
+    * while the caller was told "Nothing was changed". Mock-based tests cannot see this: only the
+    * real service checks the revision.
+    */
+   @Test
+   void aWriteThatFailsAfterTheCommitIsRolledBackToTheExactPreviousConditions() throws Exception {
+      RuntimeViewsheet rvs = open();
+      service(rvs).set("tok", principal(), TABLE, List.of(noMatch()), "");
+      assertEquals(0, rows(rvs, TABLE), "the previous condition filters everything");
+      AssemblyConditionService failing = service(rvs, true);
+
+      assertThrows(RuntimeException.class,
+                   () -> failing.set("tok", principal(), TABLE, List.of(), ""));
+
+      Map<String, Object> read = failing.read("tok", principal(), TABLE);
+      assertEquals(1, read.get("conditionCount"),
+                   "the previous condition must be back, not the cleared list");
+      assertEquals(0, rows(rvs, TABLE), "and it must filter again");
+   }
+
    private static ConditionVocabulary.Clause variableClause() {
       return new ConditionVocabulary.Clause(
          "type", "equals", List.of(Map.of("type", "variable", "name", "unset79543")), null,
@@ -182,6 +208,12 @@ class AssemblyConditionServiceRefreshRealStackTest {
    }
 
    private AssemblyConditionService service(RuntimeViewsheet rvs) throws Exception {
+      return service(rvs, false);
+   }
+
+   private AssemblyConditionService service(RuntimeViewsheet rvs, boolean firstRefreshFails)
+      throws Exception
+   {
       QueryManagerService queries = mock(QueryManagerService.class);
       DataRefModelFactoryService dataRefFactory = wiredRefService();
       VSAssemblyInfoHandler handler = new VSAssemblyInfoHandler(
@@ -201,6 +233,12 @@ class AssemblyConditionServiceRefreshRealStackTest {
             return d.getWarnings();
          });
       });
+      if(firstRefreshFails) {
+         refresh = spy(refresh);
+         doThrow(new RuntimeException("refresh failed")).doCallRealMethod().when(refresh)
+            .refreshVsAssembly(any(), any(), any(), any(), any());
+      }
+
       return new AssemblyConditionService(sessions, conditions, refresh);
    }
 

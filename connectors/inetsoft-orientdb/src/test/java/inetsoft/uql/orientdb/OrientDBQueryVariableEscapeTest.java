@@ -84,6 +84,12 @@ class OrientDBQueryVariableEscapeTest {
       assertEquals("SELECT `a OR 1=1 --` FROM t", replace("SELECT `$(p)` FROM t", "a` OR 1=1 --"));
    }
 
+   @Test
+   void unquotedUuid_staysQuoted() {
+      assertEquals("SELECT * FROM t WHERE id =  '11111111-2222-3333-4444-555555555555'",
+                   replace("SELECT * FROM t WHERE id = $(p)", "11111111-2222-3333-4444-555555555555"));
+   }
+
    private static String replace(String template, Object value) {
       OrientDBQuery query = new OrientDBQuery();
       query.setQueryString(template);

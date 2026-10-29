@@ -72,6 +72,22 @@ class VSAQueryCheckConditionExpressionTest {
       assertTrue(error.contains("undefinedFn"), error);
    }
 
+   /** The list guard tests {@code instanceof Object[]}, as ConditionGroup does at refresh time. */
+   @Test
+   void evaluatedListIsAnObjectArray() throws Exception {
+      VSAQuery.ExpressionResult result =
+         VSAQuery.evaluateConditionExpression("['CA','NY']", sandbox());
+
+      assertNull(result.error());
+      Object[] list = assertInstanceOf(Object[].class, result.value());
+      assertArrayEquals(new Object[] { "CA", "NY" }, list);
+   }
+
+   @Test
+   void evaluatedScalarIsReturnedAsIs() throws Exception {
+      assertEquals("NY", VSAQuery.evaluateConditionExpression("'NY'", sandbox()).value());
+   }
+
    @Test
    void goodExpressionReturnsNull() throws Exception {
       assertNull(VSAQuery.checkConditionExpression("10 + 1", sandbox()));

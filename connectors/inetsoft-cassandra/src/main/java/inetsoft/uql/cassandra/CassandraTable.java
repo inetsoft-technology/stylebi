@@ -20,8 +20,13 @@ package inetsoft.uql.cassandra;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
 import com.datastax.oss.driver.api.core.data.TupleValue;
+import com.datastax.oss.driver.api.core.data.UdtValue;
 import com.datastax.oss.driver.api.core.type.DataType;
+import com.datastax.oss.driver.api.core.type.ListType;
+import com.datastax.oss.driver.api.core.type.MapType;
+import com.datastax.oss.driver.api.core.type.SetType;
 import com.datastax.oss.protocol.internal.ProtocolConstants;
+import com.datastax.oss.protocol.internal.util.Bytes;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTableNode;
 import inetsoft.util.Tool;
@@ -35,8 +40,17 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A class to map a Cassandra resultset to a table.
@@ -67,13 +81,35 @@ public class CassandraTable extends XTableNode {
       curr = (maxrows > 0 && rowcnt >= maxrows) ? null : result.one();
 
       if(curr == null) {
-         session.close();
+         closeSession();
       }
       else {
          rowcnt++;
       }
 
       return curr != null;
+   }
+
+   /**
+    * Release the session. A table that is dropped before its rows are exhausted never reaches
+    * the end of {@link #next()}, so the session is also released here.
+    */
+   @Override
+   public void close() {
+      closeSession();
+      super.close();
+   }
+
+   @Override
+   public void cancel() {
+      super.cancel();
+      closeSession();
+   }
+
+   private void closeSession() {
+      if(sessionClosed.compareAndSet(false, true)) {
+         session.close();
+      }
    }
 
    /**
@@ -141,8 +177,14 @@ public class CassandraTable extends XTableNode {
          return Long.class;
       case ProtocolConstants.DataType.INT:
          return Integer.class;
+      case ProtocolConstants.DataType.SMALLINT:
+         return Short.class;
+      case ProtocolConstants.DataType.TINYINT:
+         return Byte.class;
       case ProtocolConstants.DataType.VARINT:
-         return BigInteger.class;
+         // varint is arbitrary precision; BigInteger columns are narrowed to long by the core
+         // table lens, so it is exposed as text to stay exact.
+         return String.class;
       case ProtocolConstants.DataType.DECIMAL:
          return BigDecimal.class;
       case ProtocolConstants.DataType.DOUBLE:
@@ -153,6 +195,12 @@ public class CassandraTable extends XTableNode {
          return Boolean.class;
       case ProtocolConstants.DataType.TIMESTAMP:
          return java.util.Date.class;
+      case ProtocolConstants.DataType.DATE:
+         return java.sql.Date.class;
+      case ProtocolConstants.DataType.TIME:
+         return java.sql.Time.class;
+      case ProtocolConstants.DataType.DURATION:
+         return String.class;
       case ProtocolConstants.DataType.LIST:
          return java.util.List.class;
       case ProtocolConstants.DataType.MAP:
@@ -165,9 +213,8 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.BLOB:
          return Image.class;
       case ProtocolConstants.DataType.INET:
-         return InetAddress.class;
       case ProtocolConstants.DataType.TUPLE:
-         return TupleValue.class;
+         return String.class;
       case ProtocolConstants.DataType.ASCII:
       case ProtocolConstants.DataType.VARCHAR:
          return String.class;
@@ -196,7 +243,8 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.INT:
          return curr.getInt(col);
       case ProtocolConstants.DataType.VARINT:
-         return curr.getBigInteger(col);
+         BigInteger varint = curr.getBigInteger(col);
+         return varint == null ? null : varint.toString();
       case ProtocolConstants.DataType.DECIMAL:
          BigDecimal decimal = curr.getBigDecimal(col);
          return decimal == null ? null : decimal.doubleValue();
@@ -209,50 +257,53 @@ public class CassandraTable extends XTableNode {
       case ProtocolConstants.DataType.TIMESTAMP:
          Instant instant = curr.getInstant(col);
          return instant == null ? null : new Date(instant.toEpochMilli());
+      case ProtocolConstants.DataType.SMALLINT:
+      case ProtocolConstants.DataType.TINYINT:
+      case ProtocolConstants.DataType.DATE:
+      case ProtocolConstants.DataType.TIME:
+      case ProtocolConstants.DataType.DURATION:
       case ProtocolConstants.DataType.LIST:
-         try {
-            return curr.getList(col, String.class);
-         }
-         catch(Throwable ex) {
-            LOG.info("Failed to get value: (" + col + ")", ex);
-            return null;
-         }
       case ProtocolConstants.DataType.MAP:
-         try {
-            return curr.getMap(col, String.class, String.class);
-         }
-         catch(Throwable ex) {
-            LOG.info("Failed to get value: (" + col + ")", ex);
-            return null;
-         }
       case ProtocolConstants.DataType.SET:
-         try {
-            return curr.getSet(col, String.class);
-         }
-         catch(Throwable ex) {
-            LOG.info("Failed to get value: (" + col + ")", ex);
-            return null;
-         }
+         return convert(curr.getObject(col), types[col]);
       case ProtocolConstants.DataType.UUID:
       case ProtocolConstants.DataType.TIMEUUID:
          return curr.getUuid(col);
       case ProtocolConstants.DataType.BLOB:
          ByteBuffer buf = curr.getByteBuffer(col);
 
+         if(buf == null) {
+            return null;
+         }
+
          try {
-            return buf == null ?
-               null : Tool.getImage(new ByteArrayInputStream(buf.array()), false);
+            // decode only the remaining bytes; array() would ignore offset/limit
+            ByteBuffer copy = buf.duplicate();
+            byte[] bytes = new byte[copy.remaining()];
+            copy.get(bytes);
+            Image image = Tool.getImage(new ByteArrayInputStream(bytes), false);
+
+            if(image != null) {
+               return image;
+            }
          }
          catch(Exception ex) {
-            return buf;
+            LOG.debug("Failed to decode blob as image: (" + col + ")", ex);
          }
+
+         return Bytes.toHexString(buf);
       case ProtocolConstants.DataType.INET:
-         return curr.getInetAddress(col);
+         InetAddress inet = curr.getInetAddress(col);
+         return inet == null ? null : inet.getHostAddress();
       case ProtocolConstants.DataType.TUPLE:
-         return curr.getTupleValue(col);
+         TupleValue tuple = curr.getTupleValue(col);
+         return tuple == null ? null : tuple.getFormattedContents();
       case ProtocolConstants.DataType.ASCII:
       case ProtocolConstants.DataType.VARCHAR:
          return curr.getString(col);
+      case ProtocolConstants.DataType.UDT:
+         UdtValue udt = curr.getUdtValue(col);
+         return udt == null ? null : udt.getFormattedContents();
       default:
          try {
             return curr.getUdtValue(col);
@@ -261,6 +312,60 @@ public class CassandraTable extends XTableNode {
             LOG.info("Failed to get value: (" + col + ")", ex);
             return null;
          }
+      }
+   }
+
+   /**
+    * Converts a value read with the driver's own codec for {@code type} to the class
+    * {@link #getType(DataType)} reports for it. Collections are converted element by element with
+    * the element's own type, so nested and frozen collections follow the same mapping as columns.
+    * Tuples and UDTs are returned as the driver values, as they are for a top-level column.
+    */
+   private static Object convert(Object value, DataType type) {
+      if(value == null) {
+         return null;
+      }
+
+      switch(type.getProtocolCode()) {
+      case ProtocolConstants.DataType.DATE:
+         return java.sql.Date.valueOf((LocalDate) value);
+      case ProtocolConstants.DataType.TIME:
+         // java.sql.Time has no sub-second precision
+         return java.sql.Time.valueOf((LocalTime) value);
+      case ProtocolConstants.DataType.TIMESTAMP:
+         return new Date(((Instant) value).toEpochMilli());
+      case ProtocolConstants.DataType.DURATION:
+         return value.toString();
+      case ProtocolConstants.DataType.LIST:
+         DataType listElement = ((ListType) type).getElementType();
+         List<Object> list = new ArrayList<>();
+
+         for(Object element : (List<?>) value) {
+            list.add(convert(element, listElement));
+         }
+
+         return list;
+      case ProtocolConstants.DataType.SET:
+         DataType setElement = ((SetType) type).getElementType();
+         Set<Object> set = new LinkedHashSet<>();
+
+         for(Object element : (Set<?>) value) {
+            set.add(convert(element, setElement));
+         }
+
+         return set;
+      case ProtocolConstants.DataType.MAP:
+         MapType mapType = (MapType) type;
+         Map<Object, Object> map = new LinkedHashMap<>();
+
+         for(Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+            map.put(convert(entry.getKey(), mapType.getKeyType()),
+                    convert(entry.getValue(), mapType.getValueType()));
+         }
+
+         return map;
+      default:
+         return value;
       }
    }
 
@@ -276,6 +381,7 @@ public class CassandraTable extends XTableNode {
    private Row curr;
    private int rowcnt = 0;
    private int maxrows = 0;
+   private final AtomicBoolean sessionClosed = new AtomicBoolean(false);
 
    private static final Logger LOG = LoggerFactory.getLogger(CassandraTable.class.getName());
 }

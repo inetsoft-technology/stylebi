@@ -75,15 +75,33 @@ class TabularQueryParamsSchemaBuilderTest {
    }
 
    @Test
-   void twoPatternsMapToAnAllOfOfTwoPatternEntries() {
+   void twoPatternsMapToAnAnyOfOfTwoPatternEntries() {
       JsonNode twoPattern = properties().get("twoPatternField");
 
       assertFalse(twoPattern.has("pattern"),
          "JSON Schema's own 'pattern' keyword takes exactly one regex");
-      assertTrue(twoPattern.get("allOf").isArray());
-      assertEquals(2, twoPattern.get("allOf").size());
-      assertEquals("^[a-z]+$", twoPattern.get("allOf").get(0).get("pattern").asText());
-      assertEquals("^.{1,10}$", twoPattern.get("allOf").get(1).get("pattern").asText());
+      assertFalse(twoPattern.has("allOf"),
+         "positional alternatives must not be emitted as an all-must-match allOf");
+      assertTrue(twoPattern.get("anyOf").isArray());
+      assertEquals(2, twoPattern.get("anyOf").size());
+      assertEquals(".*", twoPattern.get("anyOf").get(0).get("pattern").asText());
+      assertEquals("^.*\\.(txt|csv)$", twoPattern.get("anyOf").get(1).get("pattern").asText());
+
+      // a folder-like value and a file both satisfy at least one alternative
+      for(String value : List.of("monthly", "a.csv")) {
+         boolean valid = false;
+
+         for(JsonNode alt : twoPattern.get("anyOf")) {
+            valid |= java.util.regex.Pattern.compile(alt.get("pattern").asText())
+               .matcher(value).find();
+         }
+
+         assertTrue(valid, value + " must satisfy the anyOf");
+      }
+
+      String description = twoPattern.get("description").asText();
+      assertTrue(description.contains("first applies to folders"), description);
+      assertTrue(description.contains("second to files"), description);
    }
 
    @Test
@@ -411,7 +429,7 @@ class TabularQueryParamsSchemaBuilderTest {
          this.namePattern = namePattern;
       }
 
-      @Property(label = "Two Pattern Field", pattern = { "^[a-z]+$", "^.{1,10}$" })
+      @Property(label = "Two Pattern Field", pattern = { ".*", "^.*\\.(txt|csv)$" })
       public String getTwoPatternField() {
          return twoPatternField;
       }

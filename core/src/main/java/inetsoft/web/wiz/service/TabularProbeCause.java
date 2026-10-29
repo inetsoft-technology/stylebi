@@ -22,6 +22,9 @@ import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.util.CoreTool;
 import inetsoft.util.UserMessage;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * Why a tabular column probe ({@code TabularTableAssembly.loadColumnSelection}) came back with no
  * columns, when it did not throw.
@@ -108,6 +111,107 @@ public final class TabularProbeCause {
    private String timeoutSentence() {
       return "The request timed out after " + timedOutSeconds + " s (the query's timeout limit); " +
          "raise the query's 'timeout' (seconds) or narrow the request.";
+   }
+
+   /**
+    * The "request succeeded but selected zero rows" clause of an empty-columns refusal, or null
+    * when that is not what happened. The three signals that say why a probe has no columns are
+    * disjoint (the {@code wizLoadColumnsError} property, this class, and
+    * {@link TabularQuery#getResponseShape}); this is the third, and the clause is returned only
+    * when neither of the other two speaks: a load error is still the reported cause, and a timeout
+    * is never reported as a success. A null result means the caller keeps its own wording.
+    *
+    * <p>The clause starts with a lowercase verb so each caller can lead with its own subject and
+    * echoes ("The query on ..." / "The request to ... returned no columns"), and carries no
+    * parameter echo.</p>
+    *
+    * @param query     the query the probe ran on.
+    * @param loadError the {@code wizLoadColumnsError} value read from {@code query}, or null.
+    * @param cause     the result of {@link #read} for the same probe.
+    */
+   public static String zeroRowsClause(TabularQuery query, Object loadError,
+                                       TabularProbeCause cause)
+   {
+      Object shape = query.getResponseShape();
+
+      if(shape == null || loadError != null || cause.isTimeout()) {
+         return null;
+      }
+
+      String rowPath = effectiveRowPath(query);
+      String rowPathClause = rowPath == null ? "" : " Rows were read from '" + rowPath + "'.";
+      String truncatedClause = query.isResponseShapeTruncated()
+         ? " (capped — some fields may be missing from this description)" : "";
+      String hint = singleArrayFieldHint(shape, rowPath);
+      String hintClause = hint == null ? "" : " The rows look like they belong at '" + hint + "'.";
+
+      return "completed successfully and returned a response, but selected zero rows — for a " +
+         "JSON REST endpoint, columns are derived from the rows returned, so zero rows means zero " +
+         "columns." + rowPathClause + " The response's shape was: " + shape + truncatedClause + "." +
+         hintClause + " This is not a connection or credentials problem — the request itself " +
+         "succeeded. If this is unexpected, check the parameters (especially any date range or id " +
+         "filter) against the endpoint's actual data.";
+   }
+
+   /**
+    * Collapse to one line. {@code WorksheetTableService.rootMessage} truncates a thrown message at
+    * the first '\n', so a refusal assembled from connector- or caller-controlled text is sanitized
+    * once, on the fully-assembled message, at its single return point.
+    */
+   public static String singleLine(String message) {
+      return message.replace('\n', ' ').replace('\r', ' ');
+   }
+
+   /**
+    * The connector's own answer to "where are the rows", when it has one — reflective, so core never
+    * imports a connector type such as {@code RestJsonQuery}. Returns null for any connector with no
+    * such method (ServerFile, a generic non-JSON connector, ...), which the caller must treat as
+    * "omit the clause," never as "assume '$'."
+    */
+   private static String effectiveRowPath(TabularQuery query) {
+      try {
+         Object path = query.getClass().getMethod("getValidJsonPath").invoke(query);
+         return path instanceof String s && !s.isBlank() ? s : null;
+      }
+      catch(Exception ex) {
+         return null;
+      }
+   }
+
+   /**
+    * A best-effort suggestion for where rows actually are, used only when the response's shape
+    * names exactly one top-level field holding an array — an object with two or more array-valued
+    * fields, or none, is ambiguous and returns null rather than guess: a wrong guess is worse than
+    * no hint. Also null when the candidate is already what {@code rowPath} points to, since then
+    * there is nothing new to tell the caller.
+    */
+   private static String singleArrayFieldHint(Object shape, String rowPath) {
+      if(shape instanceof List<?>) {
+         return "$".equals(rowPath) ? null : "$";
+      }
+
+      if(!(shape instanceof Map<?, ?> map)) {
+         return null;
+      }
+
+      String onlyArrayField = null;
+
+      for(Map.Entry<?, ?> entry : map.entrySet()) {
+         if(entry.getValue() instanceof List) {
+            if(onlyArrayField != null) {
+               return null;
+            }
+
+            onlyArrayField = String.valueOf(entry.getKey());
+         }
+      }
+
+      if(onlyArrayField == null) {
+         return null;
+      }
+
+      String candidate = "$." + onlyArrayField + "[*]";
+      return candidate.equals(rowPath) ? null : candidate;
    }
 
    private final int timedOutSeconds;

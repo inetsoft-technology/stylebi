@@ -230,6 +230,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.vs.addActionListener(metarep);
       updateRootSandboxMap(vs.getAbsoluteName(), vs);
 
+      // The worksheet sandbox reads the viewsheet's own variables (a condition's variable) through
+      // this provider. Left pointing at the replaced viewsheet, it keeps reporting that one's
+      // variables until the next resetRuntime() re-sets it -- e.g. after a save swapped the
+      // runtime viewsheet and an edit followed, with no render in between.
+      if(wbox != null) {
+         wbox.setAdditionalVariableProvider(vs);
+      }
+
       if(resetRuntime) {
          ViewsheetSandbox[] boxes = getSandboxes();
 

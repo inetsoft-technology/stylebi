@@ -396,6 +396,25 @@ class SelectionBindingServiceTest {
    }
 
    @Test
+   void refusesAStringColumnOnACalendar() throws Exception {
+      CalendarVSAssembly assembly = mock(CalendarVSAssembly.class);
+      CalendarPropertyDialogService calendarService = mock(CalendarPropertyDialogService.class);
+      when(calendarService.getCalendarPropertyModel(eq("rt1"), eq("Calendar1"), any()))
+         .thenReturn(new CalendarPropertyDialogModel());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, null, null, calendarService)
+            .setSource("tok", principal(), "Calendar1", "ORDERS", List.of("STATE"), null, null,
+                      null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("STATE"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("string"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("ORDERS"), thrown.getMessage());
+      verify(calendarService, never()).setCalendarPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
    void refusesAnUnknownTableNamingWhatIsAvailable() {
       SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
 
@@ -2051,14 +2070,14 @@ class SelectionBindingServiceTest {
          new BindableField("STATE", "string", "dimension"),
          new BindableField("CITY", "string", "dimension"),
          new BindableField("AMOUNT", "double", "measure"),
-         new BindableField("ORDER_DATE", "timestamp", "dimension")));
+         new BindableField("ORDER_DATE", "timeInstant", "dimension")));
       // CUSTOMERS shares STATE/CITY/ORDER_DATE with ORDERS, so it is a compatible additional
       // table for those columns (#78473).
       BindableTable customers = new BindableTable("CUSTOMERS", null, List.of(
          new BindableField("NAME", "string", "dimension"),
          new BindableField("STATE", "string", "dimension"),
          new BindableField("CITY", "string", "dimension"),
-         new BindableField("ORDER_DATE", "timestamp", "dimension")));
+         new BindableField("ORDER_DATE", "timeInstant", "dimension")));
       // Incompatible additional-table fixtures (#78473).
       BindableTable products = new BindableTable("PRODUCTS", null, List.of(
          new BindableField("NAME", "string", "dimension"),

@@ -282,6 +282,41 @@ public final class ConditionVocabulary {
       }
    }
 
+   /**
+    * An expression that evaluates to a list only works under one_of: every other operator reads
+    * just the first element (Condition.normalizeValue), so the condition silently compares
+    * against one value. The list is detected the way ConditionGroup does at refresh time, as an
+    * {@code Object[]}. An empty list is refused too, since it matches nothing under those
+    * operators; a one-element list is the same as its element and passes. This checks the value
+    * the expression has now, so an expression that is a list only later is not caught.
+    *
+    * @param value the value the expression evaluated to at set time.
+    * @throws IllegalArgumentException when the operator would use only part of the list.
+    */
+   public static void requireScalarExpressionResult(ConditionModel condition, String expression,
+                                                    Object value)
+   {
+      int operation = condition.getOperation();
+
+      if(!(value instanceof Object[] list) || list.length == 1 ||
+         !SINGLE_VALUED.contains(operation) && operation != XCondition.BETWEEN)
+      {
+         return;
+      }
+
+      String field = condition.getField() == null ? "" : " on field '" +
+         condition.getField().getName() + "'";
+      String operator = operatorToken(operation);
+
+      throw new IllegalArgumentException(
+         "The expression '" + expression + "'" + field + " currently evaluates to " +
+         (list.length == 0 ? "an empty list" : "a list of " + list.length + " values " +
+            Arrays.toString(list)) + ", but '" + operator + "' uses only the first value of a " +
+         "list, so the condition would silently compare against one value. Use operator " +
+         "one_of to match every value, or make the expression return a single value. " +
+         "Nothing was changed.");
+   }
+
    private static final String DATE_FORMS_HINT =
       "Pass a date string such as '2024-01-01', '2024-01-01 00:00:00', {d '2024-01-01'}, " +
       "{ts '2024-01-01 00:00:00'} or {t '12:30:00'}.";
@@ -397,6 +432,22 @@ public final class ConditionVocabulary {
       value.setValue(raw);
       value.setType(ConditionValueModel.VALUE);
       return value;
+   }
+
+   /**
+    * Why {@code raw} would be refused as a literal value for {@code field} under {@code operation},
+    * or {@code null} when it fits. Runs the same checks {@link #value} applies to a literal, so a
+    * variable's resolved value is judged by one rule set (bug #79535). The leading
+    * {@code Condition N's} of the refusal text is dropped: the caller words its own prefix.
+    */
+   static String literalMismatch(Object raw, DataRefModel field, int operation) {
+      try {
+         value(raw, 0, Map.of(), field, operation);
+         return null;
+      }
+      catch(IllegalArgumentException e) {
+         return e.getMessage().replaceFirst("^Condition 0's ", "");
+      }
    }
 
    private static String rawToString(Object raw) {
@@ -768,7 +819,7 @@ public final class ConditionVocabulary {
       return value.getValue();
    }
 
-   private static String variableName(Object value) {
+   static String variableName(Object value) {
       if(value instanceof String str && str.startsWith("$(") && str.endsWith(")")) {
          return str.substring(2, str.length() - 1);
       }
@@ -777,7 +828,7 @@ public final class ConditionVocabulary {
    }
 
    /** An unmapped operation reads back as itself rather than as a guessed token. */
-   private static String operatorToken(int operation) {
+   static String operatorToken(int operation) {
       for(Map.Entry<String, Integer> entry : OPERATORS.entrySet()) {
          if(entry.getValue() == operation && !isAlias(entry.getKey())) {
             return entry.getKey();

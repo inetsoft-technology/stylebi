@@ -111,6 +111,10 @@ final class ListInputEditorGuard {
          return;
       }
 
+      if(writes(resolvedPaths, editorPath + ".defaultValue")) {
+         requireValidDefault(editor, editorPath);
+      }
+
       String dataType = editor.getDataType();
       boolean calendarChanged = before.calendar() != editor.isCalendar();
       boolean queryChanged = before.query() != editor.isQuery();
@@ -150,6 +154,93 @@ final class ListInputEditorGuard {
       if(boundsInPlay) {
          requireValidBounds(editor, editorPath, dataType);
       }
+   }
+
+   /**
+    * The dialog offers the default as a {@code <select>} over the list's values, so it can only
+    * produce a listed value (or none); a calendar's default is a date inside min/max. Judged on
+    * the post-patch editor, only when the patch writes {@code defaultValue}. Not checked: blank
+    * (no default), {@code $(variable)}/{@code =script}, a query-populated or no-source list
+    * (its values are not known here), and a date/time list (its value strings are formatted by
+    * the store).
+    */
+   private static void requireValidDefault(ComboBoxEditorModel editor, String editorPath) {
+      String value = editor.getDefaultValue();
+
+      if(isBlank(value) || VSUtil.isVariableValue(value) || VSUtil.isScriptValue(value)) {
+         return;
+      }
+
+      String dataType = editor.getDataType();
+
+      if(editor.isCalendar()) {
+         if(isBoundType(dataType)) {
+            requireDefaultInBounds(editor, editorPath, value, dataType);
+         }
+
+         return;
+      }
+
+      if(!editor.isEmbedded() || editor.isQuery() || isCalendarType(dataType) ||
+         editor.getVariableListDialogModel() == null)
+      {
+         return;
+      }
+
+      String[] values = editor.getVariableListDialogModel().getValues();
+      String[] labels = editor.getVariableListDialogModel().getLabels();
+
+      for(String listed : values) {
+         if(value.equals(listed)) {
+            return;
+         }
+      }
+
+      String hint = "";
+
+      for(int i = 0; i < labels.length && i < values.length; i++) {
+         if(value.equals(labels[i])) {
+            hint = " '" + value + "' is the label of the value '" + values[i] +
+               "'; the default is matched by value.";
+            break;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "set_assembly_properties: ComboBox '" + editorPath + ".defaultValue' ('" + value +
+         "') is not one of the list's values " + java.util.Arrays.toString(values) + "." + hint +
+         " Use a listed value, or clear the default.");
+   }
+
+   private static void requireDefaultInBounds(ComboBoxEditorModel editor, String editorPath,
+                                              String value, String dataType)
+   {
+      LocalDateTime date = parseBound(editorPath, "defaultValue", value, dataType);
+      LocalDateTime min = parseBoundOrNull(editor.getMinDate(), dataType);
+      LocalDateTime max = parseBoundOrNull(editor.getMaxDate(), dataType);
+
+      if(date != null && ((min != null && date.isBefore(min)) ||
+                          (max != null && date.isAfter(max))))
+      {
+         throw new IllegalArgumentException(
+            "set_assembly_properties: ComboBox '" + editorPath + ".defaultValue' (" + value +
+            ") is outside the calendar's range " + blankToEmpty(editor.getMinDate()) + " .. " +
+            blankToEmpty(editor.getMaxDate()) + ".");
+      }
+   }
+
+   /** A stored bound that no longer parses is left to the bounds check, not this one. */
+   private static LocalDateTime parseBoundOrNull(String bound, String dataType) {
+      try {
+         return parseBound("", "", bound, dataType);
+      }
+      catch(IllegalArgumentException ignore) {
+         return null;
+      }
+   }
+
+   private static String blankToEmpty(String value) {
+      return value == null ? "" : value;
    }
 
    /** The dialog's {@code updateType}, minus every field the patch writes itself. */
