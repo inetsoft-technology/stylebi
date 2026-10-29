@@ -1317,6 +1317,62 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * edit_table restates the whole query, so omitting lookupExpandArrays / lookupTopLevelOnly
+    * resets them to the connector default (true) instead of keeping the live query's earlier
+    * false -- the same default add_table gives a fresh query.
+    */
+   @Test
+   void editTableOmittedLookupFlagsResetToConnectorDefault() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of("Repos", List.of("repoId")));
+      liveQuery.setEndpoint("Repos");
+      liveQuery.setLookupExpanded(false);
+      liveQuery.setLookupTopLevelOnly(false);
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET11b"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest(
+         "Calendars", "Repos", Map.of("id", "42"), List.of("Issues"), null, null, null, null);
+
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET11b", req, agent));
+
+      FakeColumnProducingNamedConnectorQuery updatedQuery = (FakeColumnProducingNamedConnectorQuery)
+         ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertTrue(updatedQuery.isLookupExpanded(),
+         "an omitted lookupExpandArrays must reset to the connector default, not keep false");
+      assertTrue(updatedQuery.isLookupTopLevelOnly(),
+         "an omitted lookupTopLevelOnly must reset to the connector default, not keep false");
+   }
+
+   /**
     * Code-review follow-up (PR #5391, finding 2): the customLookups analogue of
     * {@link #editTableAppliesLookupChain}, for the suffix form.
     */

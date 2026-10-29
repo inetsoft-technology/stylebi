@@ -280,6 +280,54 @@ class TabularEndpointBindingSupportTest {
       assertFalse(query.isLookupTopLevelOnly());
    }
 
+   @Test
+   void applyLookupChainOmittedFlagsResetPreviousFalseToConnectorDefault() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", null, null, null, null, "myds");
+      TabularEndpointBindingSupport.applyLookupChain(
+         query, pmap, List.of("Issues"), false, false, "Repos", "myds");
+
+      // edit_table works on a clone of the live query, which still carries the earlier false
+      FakeLegacyEndpointQuery clone = (FakeLegacyEndpointQuery) query.clone();
+      TabularEndpointBindingSupport.applyLookupChain(
+         clone, pmap, List.of("Issues"), null, null, "Repos", "myds");
+
+      assertTrue(clone.isLookupExpanded());
+      assertTrue(clone.isLookupTopLevelOnly());
+   }
+
+   @Test
+   void applyLookupChainExplicitFalseOverridesPreviousTrue() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", null, null, null, null, "myds");
+
+      TabularEndpointBindingSupport.applyLookupChain(
+         query, pmap, List.of("Issues"), true, true, "Repos", "myds");
+      TabularEndpointBindingSupport.applyLookupChain(
+         query, pmap, List.of("Issues"), false, false, "Repos", "myds");
+
+      assertFalse(query.isLookupExpanded());
+      assertFalse(query.isLookupTopLevelOnly());
+   }
+
+   @Test
+   void applyLookupChainExplicitTrueIsKept() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", null, null, null, null, "myds");
+
+      TabularEndpointBindingSupport.applyLookupChain(
+         query, pmap, List.of("Issues"), true, true, "Repos", "myds");
+
+      assertTrue(query.isLookupExpanded());
+      assertTrue(query.isLookupTopLevelOnly());
+   }
+
    // ─── applyCustomSuffix (generic/custom) ───────────────────────────────────
 
    @Test
