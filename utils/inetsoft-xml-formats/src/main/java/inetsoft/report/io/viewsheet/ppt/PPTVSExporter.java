@@ -1122,11 +1122,37 @@ public class PPTVSExporter extends AbstractVSExporter {
          textPos.y = (int) Math.max(bounds.getY() + bounds.getHeight(), textPos.y);
       }
 
-      Dimension size = new Dimension(220, 18);
+      // bug #79684, the text is not wrapped and PPTValueHelper chops a line at the box
+      // width (and drops lines past the box height), so the box must fit the text
+      Dimension size = getWarningTextSize(warning, format);
       textPos.x -= Math.min(size.width, textPos.x);
       Rectangle2D bounds = new Rectangle2D.Double(textPos.x, textPos.y,
                                                   size.width, size.height);
       writeText(warning, bounds, format);
+   }
+
+   /**
+    * Get the size of the warning text box: at least the default 220x18, grown to fit the
+    * text measured with the font PPTValueHelper writes it with.
+    */
+   private Dimension getWarningTextSize(String warning, VSCompositeFormat format) {
+      Dimension size = new Dimension(220, 18);
+
+      if(warning == null || warning.isEmpty()) {
+         return size;
+      }
+
+      Font font = format == null || format.getFont() == null ?
+         VSFontHelper.getDefaultFont() : format.getFont();
+      font = font.deriveFont((float) VSFontHelper.getFontSize(font));
+      FontMetrics fm = Common.getFractionalFontMetrics(font);
+      // 2 for the margin PPTValueHelper reserves, plus a safety gap since ppt font
+      // metrics differ slightly from the server's
+      int width = (int) Math.ceil(Common.stringWidth(warning, font, fm)) + 2 + 4;
+      int height = (int) Math.ceil(Common.getHeight(font)) * 2 + 2;
+      size.width = Math.max(size.width, width);
+      size.height = Math.max(size.height, height);
+      return size;
    }
 
    /**
