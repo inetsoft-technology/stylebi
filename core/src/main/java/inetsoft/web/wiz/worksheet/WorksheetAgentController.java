@@ -578,6 +578,12 @@ public class WorksheetAgentController {
          && !req.datasource().isBlank())
       {
          if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
+            if(req.schema() != null || req.catalog() != null) {
+               throw new PairingException("add_table cannot carry schema/catalog together with " +
+                  "logicalModel -- those name a physical table; a logical model entity has no " +
+                  "schema/catalog.");
+            }
+
             addLogicalModelTable(sessionToken, req, user, resolvedNameHolder);
          }
          else {
@@ -956,6 +962,9 @@ public class WorksheetAgentController {
          throw new PairingException("table is required for add_table.");
       }
 
+      // Validate before any permission or metadata probe so a refusal leaves nothing behind.
+      WorksheetEditService.requireNonNegativeMaxRows(req.maxRows());
+
       // Verify ACCESS permission on physical-table binding ("Visual Composer -> Physical
       // Table"), mirroring the checks in OpenWorksheetController.checkPermission() and
       // TableAssemblyModelFactory.createModelFrom().
@@ -1029,6 +1038,10 @@ public class WorksheetAgentController {
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
 
+         if(req.maxRows() != null) {
+            WorksheetEditService.applyAssemblyMaxRows(assembly, req.maxRows());
+         }
+
          positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
@@ -1054,6 +1067,9 @@ public class WorksheetAgentController {
       if(entityName == null || entityName.isBlank()) {
          throw new PairingException("table (entity name) is required for add_table with a logical model.");
       }
+
+      // Validate before any permission or metadata probe so a refusal leaves nothing behind.
+      WorksheetEditService.requireNonNegativeMaxRows(req.maxRows());
 
       // Verify READ permission on the datasource and logical model,
       // mirroring the checks in DatasourceMetaApiController.listLogicalModels().
@@ -1122,6 +1138,10 @@ public class WorksheetAgentController {
             SourceInfo.MODEL, datasourceName, logicalModelName);
          assembly.setSourceInfo(sinfo);
          assembly.setColumnSelection(columns);
+
+         if(req.maxRows() != null) {
+            WorksheetEditService.applyAssemblyMaxRows(assembly, req.maxRows());
+         }
 
          positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);

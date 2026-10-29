@@ -10543,6 +10543,202 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // add_table maxRows / schema on the physical-table and logical-model forms (Bug #79759)
+   // ---------------------------------------------------------------------------
+
+   /** Builds an {@code add_table} EditRequest for the datasource forms, with optional maxRows. */
+   private static EditRequest addDatasourceTableRequest(
+      String table, String datasource, String logicalModel, String schema, Integer maxRows)
+      throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      body.put("table", table);
+      body.put("datasource", datasource);
+      if(logicalModel != null) body.put("logicalModel", logicalModel);
+      if(schema != null) body.put("schema", schema);
+      if(maxRows != null) body.put("maxRows", maxRows);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /** Runs add_table against a logical model and returns the resulting worksheet. */
+   private Worksheet runAddLogicalModelTable(String token, EditRequest req, Principal agent)
+      throws Exception
+   {
+      XEntity customerEntity = new XEntity("Customer");
+      customerEntity.addAttribute(new XAttribute("Name", "SA.CUSTOMERS", "NAME", XSchema.STRING));
+      XLogicalModel orderModel = new XLogicalModel("Order Model");
+      orderModel.addEntity(customerEntity);
+
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModel("Order Model")).thenReturn(orderModel);
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("Examples/Orders"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(dataSourceService.getDataModel("Examples/Orders")).thenReturn(dataModel);
+      when(dataSourceService.getModelAssetEntry(any())).thenAnswer(inv -> inv.getArgument(0));
+      when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      ctrl.edit(token, req, agent);
+      return ws;
+   }
+
+   @Test
+   void addLogicalModelTableAppliesMaxRows79759() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditRequest req = addDatasourceTableRequest("Customer", "Examples/Orders", "Order Model",
+                                                  null, 4);
+
+      Worksheet ws = runAddLogicalModelTable("TOK-79759-LM1", req, agent);
+
+      assertEquals(4, ((TableAssembly) ws.getAssembly("Customer")).getMaxRows());
+   }
+
+   @Test
+   void addLogicalModelTableZeroMaxRowsMeansNoCap79759() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditRequest req = addDatasourceTableRequest("Customer", "Examples/Orders", "Order Model",
+                                                  null, 0);
+
+      Worksheet ws = runAddLogicalModelTable("TOK-79759-LM2", req, agent);
+
+      assertTrue(((TableAssembly) ws.getAssembly("Customer")).getMaxRows() <= 0);
+   }
+
+   @Test
+   void addLogicalModelTableRefusesNegativeMaxRowsBeforeAnyProbe79759() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addDatasourceTableRequest("Customer", "Examples/Orders", "Order Model",
+                                                  null, -3);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-79759-LM3", req, agent));
+      assertTrue(ex.getMessage().contains("maxRows cannot be negative (got -3)"), ex.getMessage());
+      verifyNoInteractions(dataSourceService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addLogicalModelTableRefusesSchema79759() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         mock(DataSourceService.class), mock(SecurityEngine.class),
+         mock(MetadataApiService.class), mock(XRepository.class),
+         mock(QueryManagerService.class));
+
+      EditRequest req = addDatasourceTableRequest("Product", "Examples/Orders", "Order Model",
+                                                  "SA", null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-79759-LM4", req, agent));
+      assertTrue(ex.getMessage().contains("schema/catalog"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("logicalModel"), ex.getMessage());
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addBoundTableRefusesNegativeMaxRowsBeforeAnyProbe79759() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      MetadataApiService metadataApiService = mock(MetadataApiService.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         mock(DataSourceService.class), securityEngine, metadataApiService,
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addDatasourceTableRequest("ORDERS", "MyDatasource", null, "SA", -3);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-79759-BT1", req, agent));
+      assertTrue(ex.getMessage().contains("maxRows cannot be negative (got -3)"), ex.getMessage());
+      verifyNoInteractions(securityEngine);
+      verifyNoInteractions(metadataApiService);
+      verifyNoInteractions(editSvc);
+   }
+
+   @Test
+   void addBoundTableAppliesMaxRows79759() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      MetadataApiService metadataApiService = mock(MetadataApiService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.PHYSICAL_TABLE),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(metadataApiService.getJDBCDatasource("MyDatasource")).thenReturn(jdbcDs);
+
+      XNode tableMetaData = new XNode("ORDERS");
+      tableMetaData.setAttribute("type", "TABLE");
+      when(metadataApiService.getTableMetaData(eq(jdbcDs), isNull(), eq("SA"), eq("ORDERS")))
+         .thenReturn(tableMetaData);
+
+      DatabaseTableMeta tableMeta = new DatabaseTableMeta();
+      tableMeta.setColumns(new ArrayList<>());
+      when(metadataApiService.getTableDetails(eq("MyDatasource"), eq("ORDERS"), isNull(),
+                                              eq("SA"), eq(agent)))
+         .thenReturn(tableMeta);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-79759-BT2"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, metadataApiService,
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addDatasourceTableRequest("ORDERS", "MyDatasource", null, "SA", 5);
+
+      try(MockedStatic<SQLTypes> sqlTypes = mockStatic(SQLTypes.class)) {
+         SQLTypes types = mock(SQLTypes.class);
+         sqlTypes.when(() -> SQLTypes.getSQLTypes(jdbcDs)).thenReturn(types);
+         when(types.getQualifiedName(eq(tableMetaData), eq(jdbcDs))).thenReturn("ORDERS");
+
+         ctrl.edit("TOK-79759-BT2", req, agent);
+      }
+
+      assertEquals(5, ((TableAssembly) ws.getAssembly("ORDERS")).getMaxRows());
+   }
+
+   // ---------------------------------------------------------------------------
    // add_named_group — datasource-scoped "Only For" mode (Bug #76097)
    // ---------------------------------------------------------------------------
 
