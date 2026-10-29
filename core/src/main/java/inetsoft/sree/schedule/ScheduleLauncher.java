@@ -80,8 +80,15 @@ public final class ScheduleLauncher {
       }
    }
 
-   private static BufferedReader getClasspathReader() {
-      return new BufferedReader(new InputStreamReader(
-         ScheduleLauncher.class.getResourceAsStream("ScheduleLauncher.txt")));
+   private static BufferedReader getClasspathReader() throws IOException {
+      InputStream input = ScheduleLauncher.class.getResourceAsStream("ScheduleLauncher.txt");
+
+      if(input == null) {
+         throw new FileNotFoundException(
+            "Classpath resource ScheduleLauncher.txt not found next to " +
+            ScheduleLauncher.class.getName());
+      }
+
+      return new BufferedReader(new InputStreamReader(input));
    }
 }
