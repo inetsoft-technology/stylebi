@@ -12532,9 +12532,9 @@ class WorksheetAgentControllerTest {
       assertEquals("Orders description", saved.getValue().getProperty("description"));
    }
 
-   /** Bug #79733: a worksheet whose info is unset (re-opened) must not wipe the stored values. */
+   /** Bug #79733: Save-As of a re-opened worksheet (info unset) keeps the session entry's values. */
    @Test
-   void saveInPlaceKeepsStoredAliasWhenWorksheetInfoIsUnset() throws Exception {
+   void saveAsOfReopenedWorksheetKeepsSessionEntryAliasAndDescription() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
       AssetEntry storedEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
@@ -12556,15 +12556,14 @@ class WorksheetAgentControllerTest {
       WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
          mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
 
-      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
-         dependencyTool.when(() -> DependencyTool.getDependencies(anyString()))
-            .thenReturn(List.of());
-         ctrl.save("TOK-79733B", new WorksheetAgentController.SaveRequest(null, null), agent);
-      }
+      ctrl.save("TOK-79733B", new WorksheetAgentController.SaveRequest("Orders WS Copy", null),
+                agent);
 
-      verify(ws).setWorksheet(any(), same(storedEntry), any(), anyBoolean(), anyBoolean());
-      assertEquals("Stored Alias", storedEntry.getAlias());
-      assertEquals("Stored description", storedEntry.getProperty("description"));
+      ArgumentCaptor<AssetEntry> saved = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(ws).setWorksheet(any(), saved.capture(), any(), anyBoolean(), anyBoolean());
+      assertNotSame(storedEntry, saved.getValue());
+      assertEquals("Stored Alias", saved.getValue().getAlias());
+      assertEquals("Stored description", saved.getValue().getProperty("description"));
    }
 
    /**
