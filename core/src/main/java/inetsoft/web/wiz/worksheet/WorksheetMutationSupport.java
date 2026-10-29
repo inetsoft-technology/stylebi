@@ -31,6 +31,7 @@ import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.jdbc.JDBCSelection;
 import inetsoft.uql.jdbc.SelectTable;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
@@ -2076,8 +2077,9 @@ public final class WorksheetMutationSupport {
     * selection only types select items that resolve to a physical table field; expressions,
     * aggregates, window functions, literals and CASTs get no type and {@link ColumnRef} then
     * defaults them to "string", which hides numeric measures from aggregate/condition tools.
-    * The result-set metadata is only fetched when at least one column is untyped, and only the
-    * untyped columns are overwritten. Columns are matched by index when the counts are equal,
+    * A bare reference to a derived-table column is untyped too: the parser has no inner type
+    * for it and fills in the "string" default. The result-set metadata is only fetched when at
+    * least one column is untyped, and only the untyped columns are overwritten. Columns are matched by index when the counts are equal,
     * else by case-insensitive name. A metadata failure never fails the caller.
     *
     * @return the names of the columns whose type could not be determined (left as string).
@@ -2099,7 +2101,7 @@ public final class WorksheetMutationSupport {
 
       // Name each parsed item the way getColumnSelection does. A repeated output name is dropped
       // there (ColumnSelection.addAttribute is exclusive by name), so the first occurrence wins.
-      XSelection selection = sql.getSelection();
+      JDBCSelection selection = (JDBCSelection) sql.getSelection();
       Map<String, String> parsedTypes = new HashMap<>();
 
       for(int i = 0; i < selection.getColumnCount(); i++) {
@@ -2107,7 +2109,16 @@ public final class WorksheetMutationSupport {
          String alias = selection.getAlias(i);
          String name = alias != null && !alias.isEmpty() ? alias
             : fullname.substring(fullname.lastIndexOf('.') + 1);
-         parsedTypes.putIfAbsent(name, selection.getType(fullname));
+         String type = selection.getType(fullname);
+
+         // the string a derived-table column gets by default is not a parsed type (Bug #79762)
+         if(XSchema.STRING.equals(type) &&
+            sql.getTableName(selection.getTable(fullname)) instanceof UniformSQL)
+         {
+            type = null;
+         }
+
+         parsedTypes.putIfAbsent(name, type);
       }
 
       Set<Integer> untyped = new LinkedHashSet<>();
