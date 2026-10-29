@@ -749,6 +749,8 @@ public class ViewsheetFormatService {
    private static final String CALENDAR_HEADER = "calendarheader";
    /** Normalized (lower-cased) form of target {@code calendarGrid}, see requireTarget. */
    private static final String CALENDAR_GRID = "calendargrid";
+   /** Target that formats the viewsheet itself rather than a named assembly. */
+   private static final String VIEWSHEET = "viewsheet";
    /** Normalized (lower-cased) form of target {@code activeTab}, see requireTarget. */
    private static final String ACTIVE_TAB = "activetab";
 
@@ -767,7 +769,18 @@ public class ViewsheetFormatService {
    public FormatResult setFormat(String sessionToken, Principal user, FormatRequest request,
                                  String linkUri) throws Exception
    {
-      if(request.assemblies() == null || request.assemblies().isEmpty()) {
+      String target = requireTarget(request.target());
+      boolean sheet = VIEWSHEET.equals(target);
+
+      if(sheet) {
+         if(request.assemblies() != null && !request.assemblies().isEmpty()) {
+            throw new IllegalArgumentException(
+               "set_format: target 'viewsheet' formats the dashboard itself, so 'assemblies' " +
+               "must be omitted or empty; got " + request.assemblies() + ". To format those " +
+               "assemblies use target 'object'.");
+         }
+      }
+      else if(request.assemblies() == null || request.assemblies().isEmpty()) {
          throw new IllegalArgumentException(
             "set_format requires 'assemblies' with at least one assembly name.");
       }
@@ -777,8 +790,11 @@ public class ViewsheetFormatService {
             "set_format requires 'format' unless 'reset' is true.");
       }
 
-      String target = requireTarget(request.target());
       requireLevelTarget(target, request.level());
+
+      if(sheet) {
+         requireSheetFormatKeys(request.formatKeys());
+      }
 
       if("text".equals(target)) {
          if(request.assemblies().size() != 1) {
@@ -869,6 +885,11 @@ public class ViewsheetFormatService {
             event.setRegions(new String[]{ ChartFormatConstants.TEXT });
             event.setColumnNames(new String[][]{ { request.field() } });
             event.setIndexes(new int[][]{ { -1 } });
+         }
+         else if(sheet) {
+            // An empty object list is FormatPainterService's route to the viewsheet's own format.
+            event.setObjects(new String[0]);
+            event.setCharts(new String[0]);
          }
          else {
             event.setObjects(request.assemblies().toArray(new String[0]));
@@ -975,7 +996,8 @@ public class ViewsheetFormatService {
 
          List<FormatVSObjectEvent> events = "text".equals(target) ? List.of(event) :
             seededEvents(rvs, request.format(), request.reset(), request.formatKeys(),
-                         request.assemblies(), event.getData(), event);
+                         sheet ? Arrays.asList((String) null) : request.assemblies(),
+                         event.getData(), event);
 
          for(FormatVSObjectEvent part : events) {
             List<String> names = Arrays.asList(part.getObjects());
@@ -1000,7 +1022,11 @@ public class ViewsheetFormatService {
 
             warnings.addAll(engineMessages);
 
-            if(requested != null && !"text".equals(target)) {
+            if(sheet && !request.reset()) {
+               readBackSheetBackground(rvs, request.format(), warnings);
+            }
+
+            if(requested != null && !"text".equals(target) && !sheet) {
                readBack(rvs, names, target, part, requested, warnings);
             }
 
@@ -1014,8 +1040,10 @@ public class ViewsheetFormatService {
          // failure (and uses up an armed one), so a failing chart reads as plain success unless
          // it is asked here. Only a chart this sandbox already saw fail can be reported: a
          // failure never recorded cannot be told from an empty chart once the painter consumed it.
-         for(String name : request.assemblies()) {
-            ChartRenderCheck.warnIfChartScriptFails(rvs, name, dispatcher);
+         if(!sheet) {
+            for(String name : request.assemblies()) {
+               ChartRenderCheck.warnIfChartScriptFails(rvs, name, dispatcher);
+            }
          }
       });
 
@@ -1082,8 +1110,10 @@ public class ViewsheetFormatService {
 
       for(int i = 0; i < assemblies.size(); i++) {
          String name = assemblies.get(i);
-         VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
-         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+         VSAssembly assembly = viewsheet == null || name == null ? null :
+            viewsheet.getAssembly(name);
+         VSAssemblyInfo info = name == null && viewsheet != null ? viewsheet.getVSAssemblyInfo() :
+            assembly == null ? null : assembly.getVSAssemblyInfo();
          TableDataPath[] paths = data != null && data.size() > i ? data.get(i) : null;
 
          if(paths == null || paths.length == 0) {
@@ -1114,7 +1144,9 @@ public class ViewsheetFormatService {
          event.setFormat(model);
          event.setOrigFormat(perturbedOrig(model, keys, border));
          event.setReset(false);
-         event.setObjects(group.getValue().stream().map(Unit::assembly).toArray(String[]::new));
+         // A null name is the viewsheet itself, which the painter reaches through an empty list.
+         event.setObjects(group.getValue().stream().map(Unit::assembly).filter(Objects::nonNull)
+                             .toArray(String[]::new));
          event.setCharts(new String[0]);
 
          if(data != null) {
@@ -2823,19 +2855,67 @@ public class ViewsheetFormatService {
       }
    }
 
+   /**
+    * Bug #79736: the dashboard's own format is reachable only for its background, which is what
+    * the Composer's no-selection Format pane edits; any other key is refused by name rather than
+    * written to a sheet-level format nothing reads.
+    */
+   private static void requireSheetFormatKeys(Set<String> keys) {
+      if(keys == null) {
+         return;
+      }
+
+      List<String> unsupported = keys.stream()
+         .filter(k -> !"backgroundColor".equals(k) && !"backgroundAlpha".equals(k)).toList();
+
+      if(!unsupported.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'viewsheet' supports only 'backgroundColor' and " +
+            "'backgroundAlpha'; got " + unsupported + ". The request was not applied.");
+      }
+   }
+
+   /** Warns when the viewsheet's stored background does not match what was just written. */
+   private static void readBackSheetBackground(RuntimeViewsheet rvs,
+                                               VSObjectFormatInfoModel requested,
+                                               Set<String> warnings)
+   {
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+      FormatInfo formatInfo = viewsheet == null ? null :
+         viewsheet.getVSAssemblyInfo().getFormatInfo();
+      VSCompositeFormat stored = formatInfo == null ? null :
+         formatInfo.getFormat(VSAssemblyInfo.OBJECTPATH);
+      VSFormat user = stored == null ? null : stored.getUserDefinedFormat();
+      String background = user == null ? null : user.getBackgroundValue();
+
+      if(requested != null && requested.getBackgroundColor() != null &&
+         !requested.getBackgroundColor().equalsIgnoreCase(background == null ? "" : background))
+      {
+         warnings.add("set_format: requested viewsheet background " +
+                      requested.getBackgroundColor() + ", but the sheet stored " +
+                      (background == null ? "no background" : background) + ".");
+      }
+   }
+
    /** Bug 76325 item 3: distinguishes a chart's own title from its whole-object format. */
    private static String requireTarget(String target) {
       String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
 
+      if("sheet".equals(name) || "dashboard".equals(name)) {
+         name = VIEWSHEET;
+      }
+
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
+         !VIEWSHEET.equals(name) &&
          !"data".equals(name) && !"header".equals(name) && !"field".equals(name) &&
          !isCalendarTarget(name) && !isSelectionRegionTarget(name) && !ACTIVE_TAB.equals(name))
       {
          throw new IllegalArgumentException(
             "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', 'field', " +
-            "'cell', 'measureText', 'measureBar', 'calendarHeader', 'calendarGrid' or 'activeTab', " +
-            "got '" +
-            target + "'. 'cell', 'measureText' " +
+            "'cell', 'measureText', 'measureBar', 'calendarHeader', 'calendarGrid', 'activeTab' " +
+            "or 'viewsheet', got '" +
+            target + "'. 'viewsheet' formats the dashboard itself (its background colour and " +
+            "alpha) and takes no 'assemblies'. 'cell', 'measureText' " +
             "and 'measureBar' format a Selection List/Tree's item labels, measure numbers and " +
             "measure bar separately (optional 'level' picks one tree level). 'calendarHeader' " +
             "formats a Calendar's month/year header text; 'calendarGrid' formats its date grid " +
