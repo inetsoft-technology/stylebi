@@ -33,6 +33,7 @@ import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.MessageException;
 import inetsoft.web.admin.schedule.ScheduleConditionService;
@@ -1001,6 +1002,168 @@ class AdminScheduleGatewayTest {
       condition.setSecond(0);
       condition.setInterval(1);
       return condition;
+   }
+
+   // -------------------------------------------------------------------------
+   // requireOwnerResolves -- Bug #79828, owner kind x existence x organization
+   // -------------------------------------------------------------------------
+
+   @Test
+   void requireOwnerResolves_acceptsExistingUser() {
+      SecurityProvider provider = ownerProvider("host-org", "admin");
+
+      assertDoesNotThrow(() -> gateway.requireOwnerResolves(otherOwner, user));
+      verify(provider).getUser(otherOwner);
+   }
+
+   @Test
+   void requireOwnerResolves_acceptsExistingUserOfAnotherOrganization() {
+      IdentityID owner = new IdentityID("bob", "org2");
+      SecurityProvider provider = ownerProvider("org2");
+      when(provider.getUser(owner)).thenReturn(new User(owner));
+
+      assertDoesNotThrow(() -> gateway.requireOwnerResolves(owner, user));
+   }
+
+   @Test
+   void requireOwnerResolves_acceptsCallerEvenWhenProviderDoesNotKnowIt() {
+      ownerProvider("host-org");
+
+      assertDoesNotThrow(() -> gateway.requireOwnerResolves(callerOwner, user));
+   }
+
+   @Test
+   void requireOwnerResolves_acceptsTheOwnerTheTaskEditorDerivesForAnAdminlessOrganization() {
+      ownerProvider("org2");
+      IdentityID fallback = new IdentityID("caller", "org2");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(() -> SUtil.getOwnerForNewTask(callerOwner, "org2")).thenReturn(fallback);
+         assertDoesNotThrow(() -> gateway.requireOwnerResolves(fallback, user));
+      }
+   }
+
+   @Test
+   void requireOwnerResolves_refusesUnknownUserNamingTheField() {
+      ownerProvider("host-org", "admin");
+      IdentityID owner = new IdentityID("no-such-user", "host-org");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         MessageException ex = assertThrows(
+            MessageException.class, () -> gateway.requireOwnerResolves(owner, user));
+         assertTrue(ex.getMessage().contains("no-such-user"));
+         assertTrue(ex.getMessage().contains("does not exist"));
+         assertTrue(ex.getMessage().contains("host-org"));
+      }
+   }
+
+   @Test
+   void requireOwnerResolves_refusesGroupOrRoleName() {
+      // a group or role name isn't a user, so the provider's user lookup returns null for it
+      SecurityProvider provider = ownerProvider("host-org");
+      IdentityID owner = new IdentityID("Sales", "host-org");
+      when(scheduleService.isSecurityEnabled()).thenReturn(true);
+      when(provider.getGroup(owner)).thenReturn(new Group(owner));
+      when(provider.getRole(owner)).thenReturn(new Role(owner));
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         MessageException ex = assertThrows(
+            MessageException.class, () -> gateway.requireOwnerResolves(owner, user));
+         assertTrue(ex.getMessage().contains("a group or role cannot own a task"));
+      }
+   }
+
+   @Test
+   void requireOwnerResolves_refusesUnknownOrganization() {
+      ownerProvider("host-org", "admin");
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> gateway.requireOwnerResolves(new IdentityID("admin", "no-such-org"), user));
+      assertTrue(ex.getMessage().contains("organization \"no-such-org\" does not exist"));
+   }
+
+   @Test
+   void requireOwnerResolves_refusesBlankOrMissingOrganizationId() {
+      ownerProvider("host-org", "admin");
+
+      for(String orgID : new String[] { null, "", "  " }) {
+         MessageException ex = assertThrows(MessageException.class,
+            () -> gateway.requireOwnerResolves(new IdentityID("admin", orgID), user));
+         assertTrue(ex.getMessage().contains("orgID"));
+      }
+   }
+
+   @Test
+   void requireOwnerResolves_refusesBlankName() {
+      ownerProvider("host-org", "admin");
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> gateway.requireOwnerResolves(new IdentityID(" ", "host-org"), user));
+      assertTrue(ex.getMessage().contains("name"));
+   }
+
+   @Test
+   void requireOwnerResolves_refusesSystemAndAnonymousEvenWhenTheProviderReportsThem() {
+      // the virtual provider (security disabled) reports both as existing users
+      SecurityProvider provider = ownerProvider("host-org");
+      IdentityID system = new IdentityID(XPrincipal.SYSTEM, "host-org");
+      IdentityID anonymous = new IdentityID(XPrincipal.ANONYMOUS, "host-org");
+      when(provider.getUser(system)).thenReturn(new User(system));
+      when(provider.getUser(anonymous)).thenReturn(new User(anonymous));
+
+      for(IdentityID owner : new IdentityID[] { system, anonymous }) {
+         MessageException ex = assertThrows(
+            MessageException.class, () -> gateway.requireOwnerResolves(owner, user));
+         assertTrue(ex.getMessage().contains("built-in user"));
+      }
+   }
+
+   @Test
+   void requireOwnerResolves_refusesUnknownUserWithSecurityDisabled() {
+      ownerProvider("host-org", "admin");
+      IdentityID owner = new IdentityID("no-such-user", "host-org");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         MessageException ex = assertThrows(
+            MessageException.class, () -> gateway.requireOwnerResolves(owner, user));
+         assertTrue(ex.getMessage().contains("security is disabled"));
+      }
+   }
+
+   // Bug #79828, apply re-checks the owner, for a user removed between preview and apply
+   @Test
+   void checkAddScheduleTaskAllowed_refusesOwnerThatNoLongerExistsBeforeAnyOtherCheck()
+      throws Exception
+   {
+      ownerProvider("host-org", "admin");
+      IdentityID owner = new IdentityID("no-such-user", "host-org");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         assertThrows(MessageException.class,
+            () -> gateway.checkAddScheduleTaskAllowed(owner, null, user));
+      }
+
+      verify(repository, never())
+         .checkPermission(any(Principal.class), eq(ResourceType.SECURITY_USER), any(IdentityID.class),
+                          any(ResourceAction.class));
+   }
+
+   /**
+    * Makes the security engine report a provider with the given organizations and, in the first
+    * organization, the given user names.
+    */
+   private SecurityProvider ownerProvider(String firstOrgID, String... userNames) {
+      SecurityProvider provider = mock(SecurityProvider.class, withSettings().lenient());
+      when(securityEngine.getSecurityProvider()).thenReturn(provider);
+      when(provider.getOrganization(anyString())).thenReturn(null);
+      when(provider.getOrganization(firstOrgID)).thenReturn(mock(Organization.class));
+
+      for(String name : userNames) {
+         IdentityID id = new IdentityID(name, firstOrgID);
+         when(provider.getUser(id)).thenReturn(new User(id));
+      }
+
+      return provider;
    }
 
    private static SRPrincipal createPrincipal(String name, String orgId) {
