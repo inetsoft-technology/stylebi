@@ -152,6 +152,15 @@ public class FormTableRow implements Serializable {
    }
 
    /**
+    * Commit this row at the position it was written to, so that its base row index follows it.
+    * @param index the new base row index.
+    */
+   public void commit(int index) {
+      state = OLD;
+      this.index = index;
+   }
+
+   /**
     * Get base row index.
     */
    public int getBaseRowIndex() {
