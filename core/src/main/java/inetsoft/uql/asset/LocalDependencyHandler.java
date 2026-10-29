@@ -1235,6 +1235,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       AssetEntry base = vs.getBaseEntry();
       updateRunQueryDependencies(vs, entry, add, cache);
       updateScriptDependencies(vs, entry, add, cache);
+      updateViewsheetScriptDependencies(vs, entry, add, cache);
       updateDeviceDependencies(vs, entry, add, cache);
 
       if(!vs.getCalcFieldSources().isEmpty()) {
@@ -1546,6 +1547,21 @@ public class LocalDependencyHandler implements DependencyHandler {
       VSAssemblyInfo vinfo = assembly.getVSAssemblyInfo();
       String script = vinfo.getScript();
       updateScriptDependencies(script, entry, add, cache);
+   }
+
+   /**
+    * Register the functions called from the onInit and onLoad scripts of the viewsheet. An
+    * embedded viewsheet is not covered, its own onInit and onLoad scripts are not run.
+    */
+   private void updateViewsheetScriptDependencies(Viewsheet vs, AssetEntry entry,
+                                                  boolean add, boolean cache)
+   {
+      ViewsheetInfo vinfo = vs.getViewsheetInfo();
+
+      if(vinfo != null) {
+         updateScriptDependencies(vinfo.getOnInit(), entry, add, cache);
+         updateScriptDependencies(vinfo.getOnLoad(), entry, add, cache);
+      }
    }
 
    private void updateScriptDependencies(Viewsheet vs, String tname, AssetEntry entry,

@@ -55,7 +55,18 @@ public class AssetScriptDependencyTransformer extends AssetDependencyTransformer
    @Override
    protected void renameScript(Element doc, RenameInfo info) {
       renameAssemblyScript(doc, info);
+      renameViewsheetScript(doc, info);
       renameExpressions(doc, info);
+   }
+
+   /**
+    * Rename the function in the scripts of the viewsheet itself: its own script, onInit and
+    * onLoad. The paths are relative to the root, an embedded viewsheet's scripts are not run.
+    */
+   private void renameViewsheetScript(Element doc, RenameInfo info) {
+      renameScript(getChildNodes(doc, "./assemblyInfo/script"), info);
+      renameScript(getChildNodes(doc, "./viewsheetInfo/viewsheetInfo/initScript"), info);
+      renameScript(getChildNodes(doc, "./viewsheetInfo/viewsheetInfo/loadScript"), info);
    }
 
    private void renameAssemblyScript(Element doc, RenameInfo info) {

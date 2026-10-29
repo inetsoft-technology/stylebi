@@ -99,6 +99,26 @@ class AssetScriptDependencyTransformerRenameTest {
                    Tool.getValue(DependencyTransformer.getChildNodes(doc, "//script").item(0)));
    }
 
+   /** Bug #79718: the viewsheet's own script, onInit and onLoad are rewritten like assembly scripts. */
+   @Test
+   void viewsheetOwnScriptOnInitAndOnLoadAreRewrittenByIdentifier() throws Exception {
+      Element doc = parse("<assembly><assemblyInfo><script><![CDATA[ab(0); abc(0);]]></script>" +
+         "</assemblyInfo><viewsheetInfo><viewsheetInfo>" +
+         "<initScript><![CDATA[ab(1); abc(1); x.ab(1);]]></initScript>" +
+         "<loadScript><![CDATA[ab(2);]]></loadScript>" +
+         "</viewsheetInfo></viewsheetInfo></assembly>");
+
+      new AssetScriptDependencyTransformer(null).renameScript(doc, info());
+
+      assertEquals("cd(0); abc(0);",
+                   Tool.getValue(DependencyTransformer.getChildNodes(doc, "./assemblyInfo/script")
+                                    .item(0)));
+      assertEquals("cd(1); abc(1); x.ab(1);", Tool.getValue(DependencyTransformer.getChildNodes(
+         doc, "./viewsheetInfo/viewsheetInfo/initScript").item(0)));
+      assertEquals("cd(2);", Tool.getValue(DependencyTransformer.getChildNodes(
+         doc, "./viewsheetInfo/viewsheetInfo/loadScript").item(0)));
+   }
+
    /** Serialize a column the way StyleBI does, so the fixture carries the real attributes. */
    private static String serialize(ColumnRef column, String script) {
       ExpressionRef expr = new ExpressionRef(null, "c");
