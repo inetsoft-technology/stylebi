@@ -76,6 +76,16 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Check if the table is rendered with a table style, either one assigned to
+    * the table or one provided by the viewsheet CSS. A styled table takes its
+    * borders from the style rather than from the table object's own border.
+    */
+   public boolean isStyled() {
+      return getTableStyle() != null ||
+         CSSDictionary.getDictionary().checkPresent("TableStyle");
+   }
+
+   /**
     * Set the style of the target table.
     * @param style the specified style of the target table.
     */

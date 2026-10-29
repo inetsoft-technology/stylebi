@@ -433,6 +433,13 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          return;
       }
 
+      // a styled table takes its borders from the table style, as in the viewer
+      if(info instanceof TableDataVSAssemblyInfo &&
+         ((TableDataVSAssemblyInfo) info).isStyled())
+      {
+         return;
+      }
+
       Insets borders = cellfmt.getBorders();
       BorderColors colors = cellfmt.getBorderColors();
       Insets tborders = info.getFormat().getBorders();

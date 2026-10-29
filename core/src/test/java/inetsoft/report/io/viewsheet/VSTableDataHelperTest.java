@@ -148,4 +148,51 @@ class VSTableDataHelperTest {
 
       return assembly;
    }
+   @Test
+   void applyTableBordersKeepsStyleBordersOnStyledTable() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle("style1");
+      info.getFormat().getUserDefinedFormat().setBorders(new Insets(1, 1, 1, 1));
+      info.getFormat().getUserDefinedFormat().setBorderColors(
+         new BorderColors(Color.GREEN, Color.GREEN, Color.GREEN, Color.GREEN));
+      VSFormat cellfmt = styleBorderFormat();
+
+      helper().applyTableBorders(cellfmt, info, true, true, true, true);
+
+      assertEquals(new Insets(4, 4, 4, 4), cellfmt.getBorders());
+      assertEquals(Color.RED, cellfmt.getBorderColors().leftColor);
+      assertEquals(Color.BLUE, cellfmt.getBorderColors().rightColor);
+   }
+
+   @Test
+   void applyTableBordersMergesObjectBorderOnUnstyledTable() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle(null);
+      info.getFormat().getUserDefinedFormat().setBorders(new Insets(1, 1, 1, 1));
+      info.getFormat().getUserDefinedFormat().setBorderColors(
+         new BorderColors(Color.GREEN, Color.GREEN, Color.GREEN, Color.GREEN));
+      VSFormat cellfmt = styleBorderFormat();
+
+      helper().applyTableBorders(cellfmt, info, true, false, true, false);
+
+      // left/right flags set: replaced by the object border
+      assertEquals(1, cellfmt.getBorders().left);
+      assertEquals(1, cellfmt.getBorders().right);
+      assertEquals(Color.GREEN, cellfmt.getBorderColors().leftColor);
+      assertEquals(Color.GREEN, cellfmt.getBorderColors().rightColor);
+      // top/bottom flags not set: left as the cell had them
+      assertEquals(4, cellfmt.getBorders().top);
+      assertEquals(4, cellfmt.getBorders().bottom);
+   }
+
+   private VSTableDataHelper helper() {
+      return Mockito.mock(VSTableDataHelper.class, Mockito.CALLS_REAL_METHODS);
+   }
+
+   private VSFormat styleBorderFormat() {
+      VSFormat fmt = new VSFormat();
+      fmt.setBorders(new Insets(4, 4, 4, 4));
+      fmt.setBorderColors(new BorderColors(Color.RED, Color.RED, Color.RED, Color.BLUE));
+      return fmt;
+   }
 }
