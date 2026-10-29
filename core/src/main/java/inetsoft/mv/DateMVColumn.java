@@ -279,6 +279,15 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
    }
 
    /**
+    * Clear the date range. The range only grows through convert(), so an update that removes
+    * rows must clear it before the remaining rows are converted again (Bug #79747).
+    */
+   public synchronized void resetRange() {
+      min0 = null;
+      max0 = null;
+   }
+
+   /**
     * Get the original min value.
     */
    public synchronized Date getMin() {
