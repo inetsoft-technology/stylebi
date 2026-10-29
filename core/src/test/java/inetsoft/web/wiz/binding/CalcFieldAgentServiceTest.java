@@ -31,7 +31,16 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.report.Hyperlink;
+import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
@@ -53,6 +62,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -859,6 +869,13 @@ class CalcFieldAgentServiceTest {
             .modify("tok", principal(), req, "").rewrittenDependents());
    }
 
+   private static Hyperlink webLink(String link) {
+      Hyperlink hyperlink = new Hyperlink();
+      hyperlink.setLinkType(Hyperlink.WEB_LINK);
+      hyperlink.setLink(link);
+      return hyperlink;
+   }
+
    private CalcFieldAgentService serviceOver(Viewsheet vs, ModifyCalculateFieldServiceProxy proxy)
       throws Exception
    {
@@ -1364,5 +1381,68 @@ class CalcFieldAgentServiceTest {
    void anIdentifierEndingInFieldIsNotAFieldAccess() {
       assertDoesNotThrow(() -> CalcFieldAgentService.checkAggregateReferences(
          "C", "subfield['X'] + field['Sum(X)']"));
+   }
+
+   /**
+    * Bug #79650: a rename leaves a chart measure link's parameter, a table's row link parameter and
+    * a "hyperlink:<field>" web link on the old name; every one of them must follow the rename,
+    * wrapped (Sum(...)) and bare spellings alike, and links to other fields stay untouched.
+    */
+   @Test
+   void renameRewritesChartParamRowLinkParamAndFieldWebLink() throws Exception {
+      Hyperlink measureLink = webLink("https://x");
+      measureLink.setParameterField("net", "Sum(Net Revenue)");
+      measureLink.setParameterField("other", "Sum(Tax)");
+      Hyperlink fieldLink = webLink("hyperlink:Net Revenue");
+      Hyperlink wrappedFieldLink = webLink("hyperlink:Sum(Net Revenue)");
+      Hyperlink otherLink = webLink("hyperlink:Tax");
+      Hyperlink rowLink = webLink("https://x");
+      rowLink.setParameterField("net", "Net Revenue");
+
+      ChartVSAssemblyInfo chartInfo = mock(ChartVSAssemblyInfo.class);
+      VSChartInfo cinfo = mock(VSChartInfo.class);
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.getHyperlink()).thenReturn(measureLink);
+      when(cinfo.getFields()).thenReturn(new VSDataRef[] { measure });
+      when(chartInfo.getVSChartInfo()).thenReturn(cinfo);
+      when(chartInfo.getTitleLinkValue()).thenReturn(fieldLink);
+      when(chartInfo.getEmptyPlotLinkValue()).thenReturn(otherLink);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getTableName()).thenReturn("ORDERS");
+      when(chart.getVSAssemblyInfo()).thenReturn(chartInfo);
+
+      TableVSAssemblyInfo tableInfo = mock(TableVSAssemblyInfo.class);
+      when(tableInfo.getRowHyperlink()).thenReturn(rowLink);
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getTableName()).thenReturn("ORDERS");
+      when(table.getVSAssemblyInfo()).thenReturn(tableInfo);
+      TableVSAssemblyInfo wrappedInfo = mock(TableVSAssemblyInfo.class);
+      TableHyperlinkAttr attr = mock(TableHyperlinkAttr.class);
+      when(attr.getAllHyperlinks()).thenReturn(Collections.enumeration(List.of(wrappedFieldLink)));
+      when(wrappedInfo.getHyperlinkAttr()).thenReturn(attr);
+      TableVSAssembly wrappedTable = mock(TableVSAssembly.class);
+      when(wrappedTable.getTableName()).thenReturn("ORDERS");
+      when(wrappedTable.getVSAssemblyInfo()).thenReturn(wrappedInfo);
+
+      ChartVSAssembly elsewhere = mock(ChartVSAssembly.class);
+      when(elsewhere.getTableName()).thenReturn("OTHER");
+      Hyperlink untouched = webLink("hyperlink:Net Revenue");
+      ChartVSAssemblyInfo elsewhereInfo = mock(ChartVSAssemblyInfo.class);
+      when(elsewhereInfo.getTitleLinkValue()).thenReturn(untouched);
+      when(elsewhere.getVSAssemblyInfo()).thenReturn(elsewhereInfo);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssemblies()).thenReturn(
+         new Assembly[] { chart, table, wrappedTable, elsewhere });
+
+      CalcFieldAgentService.renameHyperlinkReferences(vs, "ORDERS", "Net Revenue", "Net Sales");
+
+      assertEquals("Sum(Net Sales)", measureLink.getParameterField("net"));
+      assertEquals("Sum(Tax)", measureLink.getParameterField("other"));
+      assertEquals("hyperlink:Net Sales", fieldLink.getLink());
+      assertEquals("hyperlink:Tax", otherLink.getLink());
+      assertEquals("Net Sales", rowLink.getParameterField("net"));
+      assertEquals("hyperlink:Sum(Net Sales)", wrappedFieldLink.getLink());
+      assertEquals("hyperlink:Net Revenue", untouched.getLink());
    }
 }

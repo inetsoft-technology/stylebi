@@ -24,8 +24,18 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.report.Hyperlink;
+import inetsoft.report.internal.table.TableHyperlinkAttr;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.InputVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.HyperlinkRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
@@ -42,6 +52,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -304,6 +315,12 @@ public class CalcFieldAgentService {
          if(req.assembly() != null) {
             ChartRenderCheck.warnIfChartScriptFails(rvs, req.assembly(), dispatcher);
          }
+
+         // Bug #79650: the native rename leaves chart link parameters, row-link parameters and
+         // "hyperlink:<field>" web links on the old name.
+         if(!req.create() && !req.remove() && !newName.equals(req.name())) {
+            renameHyperlinkReferences(rvs.getViewsheet(), tableName, req.name(), newName);
+         }
       });
 
       if(!aggregateWarnings.isEmpty()) {
@@ -317,6 +334,78 @@ public class CalcFieldAgentService {
       }
 
       return new CalcFieldResult(warnings, rewrittenDependents);
+   }
+
+   /**
+    * Bug #79650: points the hyperlinks of the assemblies bound to {@code table} that still name the
+    * renamed calc field {@code oname} at {@code nname}. The native rename already rewrites the
+    * parameters of table/crosstab cell links, but not a chart measure link's parameters (they are
+    * only visited when the measure also has a highlight), a table's row link, nor a
+    * {@code hyperlink:<field>} web link. Rewriting is idempotent, so links the native path already
+    * handled are left as they are.
+    */
+   static void renameHyperlinkReferences(Viewsheet vs, String table, String oname, String nname) {
+      Assembly[] assemblies = vs == null ? null : vs.getAssemblies();
+
+      if(assemblies == null) {
+         return;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(!(assembly instanceof BindableVSAssembly bind) ||
+            assembly instanceof InputVSAssembly || !Objects.equals(table, bind.getTableName()))
+         {
+            continue;
+         }
+
+         List<Hyperlink> links = new ArrayList<>();
+         Object info = bind.getVSAssemblyInfo();
+
+         if(info instanceof ChartVSAssemblyInfo chart) {
+            links.add(chart.getTitleLinkValue());
+            links.add(chart.getEmptyPlotLinkValue());
+            VSChartInfo cinfo = chart.getVSChartInfo();
+
+            if(cinfo != null) {
+               links.add(cinfo.getHyperlink());
+
+               for(VSDataRef ref : cinfo.getFields()) {
+                  if(ref instanceof HyperlinkRef) {
+                     links.add(((HyperlinkRef) ref).getHyperlink());
+                  }
+               }
+            }
+         }
+         else if(info instanceof TableDataVSAssemblyInfo table0) {
+            links.add(table0.getRowHyperlink());
+            TableHyperlinkAttr attr = table0.getHyperlinkAttr();
+
+            if(attr != null) {
+               for(Enumeration<?> e = attr.getAllHyperlinks(); e.hasMoreElements();) {
+                  links.add((Hyperlink) e.nextElement());
+               }
+            }
+         }
+
+         for(Hyperlink link : links) {
+            renameHyperlinkReference(link, oname, nname);
+         }
+      }
+   }
+
+   private static void renameHyperlinkReference(Hyperlink link, String oname, String nname) {
+      if(link == null) {
+         return;
+      }
+
+      VSUtil.renameHyperlinkRef(link, oname, nname);
+      String target = link.getLink();
+
+      if(target != null && target.startsWith("hyperlink:") &&
+         VSUtil.matchRefName(target.substring(10), oname))
+      {
+         link.setLink("hyperlink:" + VSUtil.getMatchRefName(target.substring(10), nname));
+      }
    }
 
    /**
