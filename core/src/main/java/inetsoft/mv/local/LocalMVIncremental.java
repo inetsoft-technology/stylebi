@@ -267,6 +267,10 @@ public class LocalMVIncremental extends MVIncremental {
             }
          }
 
+         // the date range of the date level columns is used by the time slider and calendar
+         // and is not reset by setRange, the re-scan below grows it again
+         resetDateRanges(mvdef.getColumns());
+
          int b = 0;
 
          // Expand the range for each column by the data values
@@ -302,6 +306,9 @@ public class LocalMVIncremental extends MVIncremental {
          }
       }
       else {
+         // no rows are left, so no date range is left either
+         resetDateRanges(mvdef.getColumns());
+
          // if there is no data in the table, then null the dictionary ranges
          for(int b = 0; b < mv.getBlockSize(); b++) {
             for(int c = 0; c < mv.getHeaders().length; c++) {
@@ -313,6 +320,18 @@ public class LocalMVIncremental extends MVIncremental {
       }
 
       mv.save(MVStorage.getFile(mvdef.getName()));
+   }
+
+   /**
+    * Clear the date range of the date level columns, which is separate from the range reset by
+    * {@link MVColumn#setRange(Number, Number)} (Bug #79747).
+    */
+   static void resetDateRanges(List<MVColumn> cols) {
+      for(MVColumn col : cols) {
+         if(col instanceof DateMVColumn) {
+            ((DateMVColumn) col).resetRange();
+         }
+      }
    }
 
    /**
