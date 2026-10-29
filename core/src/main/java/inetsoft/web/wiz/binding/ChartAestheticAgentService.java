@@ -127,6 +127,8 @@ public class ChartAestheticAgentService {
          try {
             ChartBindingService.requireAestheticCalculatorResolved(
                requireChart(rvs, assemblyName).getVSChartInfo(), name, field);
+            ChartBindingService.requireAestheticNamedGroupKept(
+               requireChart(rvs, assemblyName).getVSChartInfo(), name, field);
          }
          catch(IllegalArgumentException e) {
             // The write is already committed and mutate() does not undo a thrown mutation; see
