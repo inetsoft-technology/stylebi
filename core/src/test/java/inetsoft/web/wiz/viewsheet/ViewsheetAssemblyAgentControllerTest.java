@@ -74,6 +74,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.Map;
 import java.util.Optional;
 
@@ -6894,4 +6895,184 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
    }
 
+   /**
+    * Bug #79530: every plugin request carries a wiz-tagged principal, which the real strategy
+    * approves for every check, so the engine's own WRITE checks in setSheet never refuse a
+    * READ-only user. The save pre-check repeats them on a copy of the principal without the tag.
+    */
+   @Nested
+   class SaveWritePermission79530 {
+      private org.mockito.MockedStatic<XSessionService> sessionService;
+      private AssetRepository repo;
+      private inetsoft.analytic.composition.ViewsheetService viewsheetService;
+      private RuntimeViewsheet rvs;
+      private ViewsheetSessionService sessions;
+      private SRPrincipal wiz;
+
+      @BeforeEach
+      void setUp() {
+         sessionService = mockStatic(XSessionService.class);
+         sessionService.when(XSessionService::getService).thenReturn(new XSessionService());
+         IdentityID id = IdentityID.getIdentityIDFromKey("reader");
+         wiz = new SRPrincipal(id, new IdentityID[] {new IdentityID("Everyone", id.orgID)},
+                               new String[0], id.orgID, 1L);
+         wiz.setProperty("wiz", "true");
+         repo = mock(AssetRepository.class);
+         viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
+         when(viewsheetService.getAssetRepository()).thenReturn(repo);
+         rvs = mock(RuntimeViewsheet.class);
+         sessions = mock(ViewsheetSessionService.class);
+      }
+
+      @AfterEach
+      void tearDown() {
+         sessionService.close();
+      }
+
+      private ViewsheetAssemblyAgentController controller(AssetEntry current) throws Exception {
+         when(rvs.getEntry()).thenReturn(current);
+         when(rvs.getID()).thenReturn("rt-vs-79530");
+         when(sessions.resolve(eq("tok"), any())).thenReturn(rvs);
+         return controllerWith(sessions, viewsheetService, mock(SheetAgentBroadcastService.class));
+      }
+
+      private AssetEntry saved(String path) {
+         return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, null);
+      }
+
+      private AssetEntry temp() {
+         return new AssetEntry(AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.VIEWSHEET,
+                               "__TEMPORARY__/vs-1", null);
+      }
+
+      private void stored(String... paths) throws Exception {
+         List<String> list = List.of(paths);
+         when(repo.containsEntry(any())).thenAnswer(
+            inv -> list.contains(inv.<AssetEntry>getArgument(0).getPath()));
+      }
+
+      private void denyWriteOn(Predicate<AssetEntry> target) throws Exception {
+         doAnswer(inv -> {
+            AssetEntry e = inv.getArgument(1);
+            throw new MessageException("Write access denied: " + e.getPath());
+         }).when(repo).checkAssetPermission(any(), argThat(target::test),
+                                            eq(ResourceAction.WRITE));
+      }
+
+      private void verifyNothingWritten() throws Exception {
+         verify(viewsheetService, never())
+            .setViewsheet(any(), any(), any(), anyBoolean(), anyBoolean());
+      }
+
+      @Test
+      void overwriteWithoutWriteIsRefusedAndNothingIsWritten() throws Exception {
+         stored("D");
+         denyWriteOn(e -> e.getPath().equals("D"));
+         ViewsheetAssemblyAgentController controller = controller(saved("D"));
+
+         PairingException ex = assertThrows(PairingException.class, () -> controller.save(
+            "tok", new ViewsheetAssemblyAgentController.SaveRequest(null, null), wiz));
+
+         assertTrue(ex.getMessage().contains("Write access denied: D"), ex.getMessage());
+         verifyNothingWritten();
+      }
+
+      @Test
+      void checkRunsOnANonWizCopyThatSkipsTheLoginCheckAndKeepsTheRoles() throws Exception {
+         stored("D");
+         ViewsheetAssemblyAgentController controller = controller(saved("D"));
+
+         controller.save("tok", new ViewsheetAssemblyAgentController.SaveRequest(null, null), wiz);
+
+         ArgumentCaptor<Principal> checked = ArgumentCaptor.forClass(Principal.class);
+         verify(repo).checkAssetPermission(checked.capture(), any(), eq(ResourceAction.WRITE));
+         SRPrincipal real = (SRPrincipal) checked.getValue();
+         assertFalse(SRPrincipal.isWizPrincipal(real));
+         assertTrue(real.isIgnoreLogin());
+         assertEquals(wiz.getName(), real.getName());
+         assertArrayEquals(wiz.getRoles(), real.getRoles());
+         // the original stays tagged, and the write itself still runs as it
+         assertTrue(SRPrincipal.isWizPrincipal(wiz));
+         verify(viewsheetService).setViewsheet(any(), any(), same(wiz), eq(true), eq(true));
+      }
+
+      @Test
+      void saveAsIntoAFolderWithoutWriteIsRefused() throws Exception {
+         stored("Dir");
+         denyWriteOn(e -> e.getPath().equals("Dir"));
+         ViewsheetAssemblyAgentController controller = controller(temp());
+
+         PairingException ex = assertThrows(PairingException.class, () -> controller.save(
+            "tok", new ViewsheetAssemblyAgentController.SaveRequest("Dir/New", null), wiz));
+
+         assertTrue(ex.getMessage().contains("Write access denied: Dir"), ex.getMessage());
+         verifyNothingWritten();
+      }
+
+      @Test
+      void saveAsAtTheRootChecksWriteOnTheRoot() throws Exception {
+         stored();
+         denyWriteOn(AssetEntry::isRoot);
+         ViewsheetAssemblyAgentController controller = controller(temp());
+
+         PairingException ex = assertThrows(PairingException.class, () -> controller.save(
+            "tok", new ViewsheetAssemblyAgentController.SaveRequest("New", null), wiz));
+
+         assertTrue(ex.getMessage().contains("Write access denied"), ex.getMessage());
+         verifyNothingWritten();
+      }
+
+      @Test
+      void saveAsIntoAMissingFolderChecksTheNearestAncestorBeforeCreatingAnything()
+         throws Exception
+      {
+         stored("A");
+         denyWriteOn(e -> e.getPath().equals("A"));
+         // no repletRegistryService is wired in this harness: reaching ensureParentFolder would
+         // fail with a different message instead of the engine's denial
+         ViewsheetAssemblyAgentController controller = controller(temp());
+
+         PairingException ex = assertThrows(PairingException.class, () -> controller.save(
+            "tok", new ViewsheetAssemblyAgentController.SaveRequest("A/B/New", null), wiz));
+
+         assertTrue(ex.getMessage().contains("Write access denied: A"), ex.getMessage());
+         verifyNothingWritten();
+      }
+
+      @Test
+      void confirmOverwriteOverAnExistingNameWithoutWriteIsRefused() throws Exception {
+         stored("Existing");
+         denyWriteOn(e -> e.getPath().equals("Existing"));
+         when(viewsheetService.isDuplicatedEntry(any(), any())).thenReturn(true);
+         ViewsheetAssemblyAgentController controller = controller(temp());
+
+         PairingException ex = assertThrows(PairingException.class, () -> controller.save(
+            "tok", new ViewsheetAssemblyAgentController.SaveRequest("Existing", null, true), wiz));
+
+         assertTrue(ex.getMessage().contains("Write access denied: Existing"), ex.getMessage());
+         verifyNothingWritten();
+      }
+
+      @Test
+      void saveAsWithWriteOnTheParentProceeds() throws Exception {
+         stored("Dir");
+         ViewsheetAssemblyAgentController controller = controller(temp());
+
+         controller.save("tok", new ViewsheetAssemblyAgentController.SaveRequest("Dir/New", null),
+                         wiz);
+
+         verify(viewsheetService).setViewsheet(any(), any(), same(wiz), eq(true), eq(true));
+      }
+
+      @Test
+      void aNonWizPrincipalIsLeftToTheEnginesOwnChecks() throws Exception {
+         stored("D");
+         ViewsheetAssemblyAgentController controller = controller(saved("D"));
+
+         controller.save("tok", new ViewsheetAssemblyAgentController.SaveRequest(null, null),
+                         TestPrincipals.user("alice", "host-org"));
+
+         verify(repo, never()).checkAssetPermission(any(), any(), any());
+      }
+   }
 }

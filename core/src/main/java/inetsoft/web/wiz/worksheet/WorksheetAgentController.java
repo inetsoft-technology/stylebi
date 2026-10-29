@@ -2479,6 +2479,11 @@ public class WorksheetAgentController {
                                     user.getClass().getName() + ")");
       }
 
+      // Bug #79530: the engine's own WRITE checks are approved for a wiz principal; verify the
+      // user's real write permission before anything is written.
+      WizUtil.requireSaveWritePermission(worksheetService.getAssetRepository(), entry, xp,
+                                         "worksheet");
+
       try {
          worksheetService.setWorksheet(rws.getWorksheet(), entry, xp, true, true);
          rws.setEntry(entry);

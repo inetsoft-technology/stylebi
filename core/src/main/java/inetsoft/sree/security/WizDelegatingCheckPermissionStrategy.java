@@ -54,6 +54,15 @@ import java.security.Principal;
  * the plugin. This strategy itself is unchanged: {@code ViewsheetAssemblyAgentController} asks for
  * those two checks on a copy of the principal with the "wiz" tag removed. Every other permission
  * check keeps the bypass above.
+ * <p>
+ * <b>Second narrow carve-out (Redmine bug #79530).</b> The WRITE checks an agent save depends on
+ * ({@code AbstractAssetEngine.setSheet}: WRITE on the sheet being overwritten, or on the parent
+ * folder of a new one) are approved by the bypass, so a user with only READ could overwrite or
+ * Save As through the plugin. The three agent save endpoints ({@code
+ * WizUtil.requireSaveWritePermission}) therefore repeat those checks on a copy of the principal
+ * with the "wiz" tag removed, and with the login check skipped because the copy no longer
+ * satisfies it through the tag, before anything is written or any folder is created. The write
+ * itself still runs as the wiz principal.
  */
 public class WizDelegatingCheckPermissionStrategy implements CheckPermissionStrategy {
    public WizDelegatingCheckPermissionStrategy(CheckPermissionStrategy delegate) {

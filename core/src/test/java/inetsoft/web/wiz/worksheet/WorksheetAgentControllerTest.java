@@ -13766,4 +13766,41 @@ class WorksheetAgentControllerTest {
          ((TabularTableAssemblyInfo) t.getTableInfo()).getQuery()).getEndpoint());
    }
 
+   /**
+    * Bug #79530: a wiz-tagged principal is approved for every permission check, so the engine's
+    * own WRITE check in setSheet never refused a READ-only user; the save pre-check repeats it on
+    * a copy of the principal without the tag.
+    */
+   @Test
+   void saveWithoutWritePermissionIsRefusedAndNothingIsWritten79530() throws Exception {
+      IdentityID id = IdentityID.getIdentityIDFromKey("reader");
+      SRPrincipal wiz = new SRPrincipal(id, new IdentityID[0], new String[0], id.orgID, 1L);
+      wiz.setProperty("wiz", "true");
+
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-79530"), any()))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-79530"));
+
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(any())).thenReturn(true);
+      doThrow(new inetsoft.util.MessageException("Write access denied: Orders WS"))
+         .when(repo).checkAssetPermission(any(), any(), eq(ResourceAction.WRITE));
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getAssetRepository()).thenReturn(repo);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.save("TOK-79530",
+         new WorksheetAgentController.SaveRequest(null, null), wiz));
+
+      assertTrue(ex.getMessage().contains("Write access denied: Orders WS"), ex.getMessage());
+      verify(ws, never()).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+   }
 }

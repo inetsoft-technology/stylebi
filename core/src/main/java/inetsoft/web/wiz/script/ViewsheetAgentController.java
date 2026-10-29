@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.wiz.pairing.*;
@@ -402,6 +403,11 @@ public class ViewsheetAgentController {
          throw new PairingException("Cannot save: agent principal is not an XPrincipal (" +
                                     user.getClass().getName() + ")");
       }
+
+      // Bug #79530: the engine's own WRITE check is approved for a wiz principal; verify the
+      // user's real write permission before overwriting.
+      WizUtil.requireSaveWritePermission(viewsheetService.getAssetRepository(), entry, xp,
+                                         "viewsheet");
 
       try {
          viewsheetService.setViewsheet(rvs.getViewsheet(), entry, xp, true, true);
