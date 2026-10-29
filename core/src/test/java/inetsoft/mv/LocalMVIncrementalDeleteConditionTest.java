@@ -17,16 +17,16 @@
  */
 package inetsoft.mv;
 
-import inetsoft.mv.data.MV;
-import inetsoft.mv.data.MVConditionListHandler;
-import inetsoft.mv.data.MVStorage;
+import inetsoft.mv.data.*;
 import inetsoft.mv.local.LocalMVIncremental;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.*;
@@ -108,9 +108,11 @@ class LocalMVIncrementalDeleteConditionTest {
       List<XNode> filter = fix(mvdef(), mv(), table, conds);
 
       // a period holds days only, and the timestamps are not extended to the end of the last
-      // day: the rows are deleted up to the same time PeriodCondition.evaluate ends at for the
-      // rows that are not in an MV. The start of a day is computed from the raw offset of the
-      // time zone, so it is not 00:00 during daylight saving time; compare with the period.
+      // day. This is intended: the rows deleted from the MV must be the rows that
+      // PeriodCondition.evaluate accepts for the data that is not in an MV, and evaluate also
+      // ends at the start of the last day. A change to either end must change both. The start
+      // of a day is computed from the raw offset of the time zone, so it is not 00:00 during
+      // daylight saving time; compare with the period.
       PeriodCondition period = (PeriodCondition) conds.getConditionItem(0).getXCondition();
       long from = period.getFrom().getTime();
       long to = period.getTo().getTime();
@@ -153,10 +155,28 @@ class LocalMVIncrementalDeleteConditionTest {
       assertInstanceOf(ExpressionValue.class, cond.getValue(0));
    }
 
+   @Test
+   void columnRangeVariableIsTheCurrentRangeOfTheColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly table = table(ws, "T");
+      MVColumn column = new MVColumn(ref("customer_id", XSchema.INTEGER), false);
+      MVDef def = mvdef(column);
+      ConditionList conds = conditions("customer_id", XSchema.INTEGER, XCondition.LESS_THAN,
+                                       new UserVariable("MV.customer_id.Max"));
+      conds.append(new JunctionOperator(JunctionOperator.AND, 0));
+      append(conds, "customer_id", XSchema.INTEGER, XCondition.GREATER_THAN,
+             new UserVariable("MV.customer_id.Min"));
+
+      column.setRange(3, 42);
+
+      assertEquals("(customer_id < 42 and customer_id > 3)",
+                   describe(fix(def, mv(), table, conds).get(0)));
+   }
+
    /**
-    * Call {@code LocalMVIncremental.fixCondition} with the delete conditions set on the table, as
-    * {@code update0} does. The MV returns the filter it is given, so the result is the filter
-    * created from the conditions.
+    * Call {@code LocalMVIncremental.fixCondition} with the delete conditions set on the table and
+    * the variables and handler that {@code update0} prepares. The MV returns the filter it is
+    * given, so the result is the filter created from the conditions.
     */
    @SuppressWarnings("unchecked")
    private static List<XNode> fix(MVDef def, MV mv, TableAssembly table, ConditionList conds)
@@ -175,7 +195,17 @@ class LocalMVIncrementalDeleteConditionTest {
 
       VariableTable vars = new VariableTable();
       vars.put("MV.LastUpdateTime", new Timestamp(def.getLastUpdateTime()));
+
+      for(MVColumn column : def.getColumns()) {
+         MVScriptable script = new MVScriptable(def, column, mv);
+         String prefix = "MV." + column.getName().replaceAll("[^\\p{Alnum}]", "_");
+         vars.put(prefix + ".Min", script.getMember("MinValue"));
+         vars.put(prefix + ".Max", script.getMember("MaxValue"));
+      }
+
       MVConditionListHandler handler = new MVConditionListHandler(table, mv, vars, def);
+      handler.setLikeCaseSensitive(MVConditionListHandler.getLikeCaseSensitivity(
+         table, AssetUtil.getSQLHelper(table)));
       Method method = LocalMVIncremental.class.getDeclaredMethod(
          "fixCondition", ConditionListWrapper.class, ConditionListHandler.class,
          VariableTable.class);
