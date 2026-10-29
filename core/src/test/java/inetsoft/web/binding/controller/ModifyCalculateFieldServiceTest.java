@@ -27,8 +27,15 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.MirrorTableAssembly;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.BoundTableAssembly;
+import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.Assembly;
@@ -107,7 +114,7 @@ import static org.mockito.Mockito.*;
  * before the real binding-tree read ever ran.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -1207,5 +1214,209 @@ class ModifyCalculateFieldServiceTest {
       private VSAssemblyInfoHandler handler;
       private CommandDispatcher dispatcher;
       private ModifyCalculateFieldService service;
+   }
+
+   /**
+    * Bug #79601: a per-row calc field on a worksheet table with its own group/aggregate never
+    * reaches the table's output columns, so anything bound to it was silently dropped. Creating
+    * or editing such a field is refused with a message instead.
+    */
+   @Nested
+   class DetailCalcOnAggregatedTable {
+      @Test
+      void createOnOwnGroupedTableIsRefused() throws Exception {
+         Viewsheet vs = viewsheet(grouped("Grouped", false));
+
+         String message = run(vs, "Grouped", null, calc("PxR", "field['PRICE']", true), true, false);
+
+         assertNull(vs.getCalcField("Grouped", "PxR"));
+         assertNotNull(message);
+         assertTrue(message.contains("PxR") && message.contains("Grouped"), message);
+         assertTrue(message.contains("expression column in the worksheet before the grouping"),
+                    message);
+      }
+
+      @Test
+      void editOfExistingDetailCalcOnOwnGroupedTableIsRefused() throws Exception {
+         Viewsheet vs = viewsheet(grouped("Grouped", false));
+         vs.addCalcField("Grouped", calc("PxR", "field['PRICE']", true));
+
+         String message = run(vs, "Grouped", "PxR", calc("PxR", "field['PRICE'] * 2", true),
+                              false, false);
+
+         assertNotNull(message);
+         assertEquals("field['PRICE']", expression(vs, "Grouped", "PxR"));
+      }
+
+      @Test
+      void aggregateToDetailFlipOnOwnGroupedTableIsRefused() throws Exception {
+         Viewsheet vs = viewsheet(grouped("Grouped", false));
+         vs.addCalcField("Grouped", calc("PxR", "field['Sum(PRICE)']", false));
+
+         String message = run(vs, "Grouped", "PxR", calc("PxR", "field['PRICE']", true),
+                              false, false);
+
+         assertNotNull(message);
+         assertFalse(vs.getCalcField("Grouped", "PxR").isBaseOnDetail());
+      }
+
+      @Test
+      void aggregateCalcOnOwnGroupedTableIsAllowed() throws Exception {
+         Viewsheet vs = viewsheet(grouped("Grouped", false));
+
+         String message = run(vs, "Grouped", null,
+                              calc("PxR", "field['Sum(PRICE)']", false), true, false);
+
+         assertNull(message);
+         assertNotNull(vs.getCalcField("Grouped", "PxR"));
+      }
+
+      @Test
+      void detailToAggregateFlipAndRemoveOnOwnGroupedTableAreAllowed() throws Exception {
+         Viewsheet vs = viewsheet(grouped("Grouped", false));
+         vs.addCalcField("Grouped", calc("PxR", "field['PRICE']", true));
+
+         assertNull(run(vs, "Grouped", "PxR", calc("PxR", "field['Sum(PRICE)']", false),
+                        false, false));
+         assertFalse(vs.getCalcField("Grouped", "PxR").isBaseOnDetail());
+
+         assertNull(run(vs, "Grouped", "PxR", null, false, true));
+         assertNull(vs.getCalcField("Grouped", "PxR"));
+      }
+
+      @Test
+      void mirrorOfGroupedTableWithNoOwnAggregateIsAllowed() throws Exception {
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly base = grouped(ws, "G", false);
+         ws.addAssembly(base);
+         MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", base);
+         ws.addAssembly(mirror);
+         Viewsheet vs = spy(new Viewsheet());
+         doReturn(ws).when(vs).getBaseWorksheet();
+
+         assertNull(run(vs, "M", null, calc("PxR", "field['PRICE']", true), true, false));
+         assertNotNull(vs.getCalcField("M", "PxR"));
+      }
+
+      @Test
+      void crosstabModeUngroupedAndMissingTablesAreAllowed() throws Exception {
+         Viewsheet vs = viewsheet(grouped("Cross", true), plain(new Worksheet(), "Plain"));
+
+         assertNull(run(vs, "Cross", null, calc("A", "field['PRICE']", true), true, false));
+         assertNull(run(vs, "Plain", null, calc("B", "field['PRICE']", true), true, false));
+         assertNull(run(vs, "V_Assembly", null, calc("C", "field['PRICE']", true), true, false));
+         assertNotNull(vs.getCalcField("Cross", "A"));
+         assertNotNull(vs.getCalcField("Plain", "B"));
+         assertNotNull(vs.getCalcField("V_Assembly", "C"));
+      }
+
+      @Test
+      void logicalModelBoundTableIsAllowed() throws Exception {
+         Worksheet ws = new Worksheet();
+         BoundTableAssembly bound = new BoundTableAssembly(ws, "Order Model");
+         AggregateInfo ainfo = new AggregateInfo();
+         ainfo.addGroup(new GroupRef(col("CATEGORY", "string")));
+         bound.setAggregateInfo(ainfo);
+         ws.addAssembly(bound);
+         Viewsheet vs = spy(new Viewsheet());
+         doReturn(ws).when(vs).getBaseWorksheet();
+
+         assertNull(run(vs, "Order Model", null, calc("PxR", "field['PRICE']", true),
+                        true, false));
+         assertNotNull(vs.getCalcField("Order Model", "PxR"));
+      }
+
+      private ColumnRef col(String name, String type) {
+         ColumnRef col = new ColumnRef(new AttributeRef(null, name));
+         col.setDataType(type);
+         return col;
+      }
+
+      private EmbeddedTableAssembly plain(Worksheet ws, String name) {
+         EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, name);
+         ColumnSelection cols = new ColumnSelection();
+         cols.addAttribute(col("CATEGORY", "string"));
+         cols.addAttribute(col("PRICE", "double"));
+         cols.addAttribute(col("REGION", "string"));
+         table.setColumnSelection(cols, false);
+         return table;
+      }
+
+      private EmbeddedTableAssembly grouped(String name, boolean crosstab) {
+         return grouped(new Worksheet(), name, crosstab);
+      }
+
+      private EmbeddedTableAssembly grouped(Worksheet ws, String name, boolean crosstab) {
+         EmbeddedTableAssembly table = plain(ws, name);
+         AggregateInfo ainfo = new AggregateInfo();
+         ainfo.addGroup(new GroupRef(table.getColumnSelection(false).getAttribute("CATEGORY")));
+         ainfo.addAggregate(new AggregateRef(
+            table.getColumnSelection(false).getAttribute("PRICE"), AggregateFormula.SUM));
+         if(crosstab) {
+            // a crosstab aggregate needs at least two groups (see AggregateInfo.isCrosstab)
+            ainfo.addGroup(new GroupRef(table.getColumnSelection(false).getAttribute("REGION")));
+         }
+
+         ainfo.setCrosstab(crosstab);
+         table.setAggregateInfo(ainfo);
+         table.setAggregate(true);
+         return table;
+      }
+
+      private Viewsheet viewsheet(AbstractTableAssembly... tables) {
+         Worksheet ws = new Worksheet();
+
+         for(AbstractTableAssembly table : tables) {
+            ws.addAssembly(table);
+         }
+
+         Viewsheet vs = spy(new Viewsheet());
+         doReturn(ws).when(vs).getBaseWorksheet();
+         return vs;
+      }
+
+      /** Runs modifyCalculateField and returns the error message sent to the client, if any. */
+      private String run(Viewsheet vs, String table, String refName, CalculateRef cref,
+                         boolean create, boolean remove) throws Exception
+      {
+         String id = "rt-79601";
+         Principal principal = mock(Principal.class);
+         CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+         CalculateRefModel model = mock(CalculateRefModel.class);
+         when(model.createDataRef()).thenReturn(cref);
+
+         ModifyCalculateFieldEvent event = mock(ModifyCalculateFieldEvent.class);
+         when(event.calculateRef()).thenReturn(cref == null ? null : model);
+         when(event.tableName()).thenReturn(table);
+         when(event.refName()).thenReturn(refName == null ? cref.getName() : refName);
+         when(event.create()).thenReturn(create);
+         when(event.remove()).thenReturn(remove);
+         when(event.name()).thenReturn(null);
+         when(event.wizard()).thenReturn(false);
+
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         when(rvs.getViewsheet()).thenReturn(vs);
+         when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+         ViewsheetService engine = mock(ViewsheetService.class);
+         when(engine.getViewsheet(eq(id), eq(principal))).thenReturn(rvs);
+
+         ModifyCalculateFieldService service = new ModifyCalculateFieldService(
+            mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
+            mock(VSChartHandler.class), mock(XRepository.class),
+            mock(VSWizardBindingHandler.class), mock(VSRefreshController.class), engine,
+            mock(VSAssemblyInfoHandler.class), mock(DataSourceRegistry.class),
+            mock(QueryManagerService.class));
+
+         service.modifyCalculateField(id, event, principal, dispatcher, "");
+
+         ArgumentCaptor<ViewsheetCommand> sent = ArgumentCaptor.forClass(ViewsheetCommand.class);
+         verify(dispatcher, atLeast(0)).sendCommand(sent.capture());
+         return sent.getAllValues().stream()
+            .filter(c -> c instanceof MessageCommand)
+            .map(c -> (MessageCommand) c)
+            .filter(c -> c.getType() == MessageCommand.Type.ERROR)
+            .map(MessageCommand::getMessage)
+            .findFirst().orElse(null);
+      }
    }
 }
