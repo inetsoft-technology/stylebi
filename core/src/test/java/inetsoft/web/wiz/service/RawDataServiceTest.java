@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -185,6 +186,43 @@ class RawDataServiceTest {
       deps.service().writeLiveWorksheetTableCsvStream(liveRuntimeWorksheet(ws, box), "T", out);
 
       assertEquals("a\n1\n", out.toString(StandardCharsets.UTF_8));
+   }
+
+   /**
+    * Bug #79596: the CSV holds the cut text, so the sink must be told before streaming starts
+    * and the cut-cell user messages must not be left on the pooled thread.
+    */
+   @Test
+   void writeLiveWorksheetTableCsvStreamReportsCellsCutByTheCapBeforeStreaming() throws Exception {
+      Deps deps = new Deps();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "body");
+      ws.addAssembly(t);
+
+      int cap = inetsoft.report.internal.Util.getOrganizationMaxCellSize();
+      org.junit.jupiter.api.Assumptions.assumeTrue(cap > 0);
+      String big = "x".repeat(cap + 100);
+      TableLens lens = new inetsoft.report.lens.TextSizeLimitTableLens(
+         new DefaultTableLens(new Object[][] {{"body"}, {big}}), cap);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(lens);
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      java.util.List<java.util.List<String>> seen = new java.util.ArrayList<>();
+      int[] bytesWhenReported = {-1};
+      deps.service().writeLiveWorksheetTableCsvStream(liveRuntimeWorksheet(ws, box), "T", out,
+         w -> {
+            bytesWhenReported[0] = out.size();
+            seen.add(w);
+         });
+
+      assertEquals(0, bytesWhenReported[0]);
+      assertEquals(1, seen.size());
+      assertEquals(1, seen.get(0).size());
+      assertTrue(seen.get(0).get(0).contains("max.cell.size is " + cap));
+      assertEquals("body\n" + big.substring(0, cap) + "...\n",
+         out.toString(StandardCharsets.UTF_8));
+      assertNull(inetsoft.util.CoreTool.getUserMessage());
    }
 
    @Test

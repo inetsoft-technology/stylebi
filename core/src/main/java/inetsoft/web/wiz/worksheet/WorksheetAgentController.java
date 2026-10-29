@@ -87,6 +87,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.ExportCellCapScanner;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.TabularProbeCause;
 import inetsoft.web.wiz.service.RenderNotReadyException;
@@ -2230,7 +2231,14 @@ public class WorksheetAgentController {
       response.setHeader("Content-Disposition",
          ContentDisposition.attachment().filename(table + ".csv").build().toString());
       try {
-         rawDataService.writeLiveWorksheetTableCsvStream(rws, table, response.getOutputStream());
+         rawDataService.writeLiveWorksheetTableCsvStream(
+            rws, table, response.getOutputStream(), warnings -> {
+               String header = ExportCellCapScanner.toHeaderValue(warnings);
+
+               if(header != null) {
+                  response.setHeader(ExportCellCapScanner.WARNINGS_HEADER, header);
+               }
+            });
       }
       catch(Exception e) {
          // an unhandled RuntimeException is a bare 500 with no body; report the cause instead
