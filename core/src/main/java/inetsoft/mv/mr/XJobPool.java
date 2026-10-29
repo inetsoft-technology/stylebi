@@ -233,13 +233,15 @@ public final class XJobPool extends GroupedThread {
    }
 
    /**
-    * Remove the completed job.
+    * Remove the completed or cancelled job. A cancelled job never reaches COMPLETED
+    * (XJobStatus.complete() ignores a cancelled job), so waiting for completion would leave
+    * it in the pool, re-queued here every 2s, forever.
     */
    private void removeJob(final XJobStatus status) {
       lock.lock();
 
       try {
-         if(status.isCompleted()) {
+         if(status.isCompleted() || status.isCancelled()) {
             smap.remove(status.getID());
          }
          else {

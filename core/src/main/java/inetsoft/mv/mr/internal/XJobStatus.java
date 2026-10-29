@@ -188,6 +188,13 @@ public final class XJobStatus {
    }
 
    /**
+    * Check if the job has been cancelled.
+    */
+   public boolean isCancelled() {
+      return job != null && job.isCancelled();
+   }
+
+   /**
     * Mark the job to be completed.
     * @param all true if all blocks are added, false if still streaming.
     */
