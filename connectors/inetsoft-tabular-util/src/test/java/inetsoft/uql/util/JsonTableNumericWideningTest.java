@@ -199,4 +199,14 @@ class JsonTableNumericWideningTest {
       Map<String, Object> shape = shapeOf(records(1, "x"));
       assertEquals(CoreTool.STRING, ((Map<?, ?>) ((List<?>) shape.get("")).get(0)).get("v"));
    }
+
+   @Test
+   void coercionNeverLosesValueInLongColumn() {
+      assertEquals(12.5, BaseJsonTable.coerceToColumnType(12.5, Long.class));
+      java.math.BigInteger big = java.math.BigInteger.ONE.shiftLeft(70);
+      assertEquals(big, BaseJsonTable.coerceToColumnType(big, Long.class));
+      assertEquals(12L, BaseJsonTable.coerceToColumnType(12.0, Long.class));
+      assertEquals(7L, BaseJsonTable.coerceToColumnType(7, Long.class));
+      assertEquals(1e30, BaseJsonTable.coerceToColumnType(1e30, Long.class));
+   }
 }

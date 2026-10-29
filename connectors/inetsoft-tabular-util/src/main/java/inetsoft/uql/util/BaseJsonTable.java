@@ -107,11 +107,35 @@ abstract public class BaseJsonTable extends XTableNode {
             return ((Number) val).doubleValue();
          }
          else if(type == Long.class && val.getClass() != Long.class) {
-            return ((Number) val).longValue();
+            // never lose value: a later value wider than the sampled type stays as is
+            Long lval = toExactLong((Number) val);
+            return lval != null ? lval : val;
          }
       }
 
       return val;
+   }
+
+   private static Long toExactLong(Number num) {
+      if(num instanceof Byte || num instanceof Short || num instanceof Integer) {
+         return num.longValue();
+      }
+
+      if(num instanceof java.math.BigInteger) {
+         return ((java.math.BigInteger) num).bitLength() <= 63 ? (Long) num.longValue() : null;
+      }
+
+      if(num instanceof java.math.BigDecimal) {
+         try {
+            return ((java.math.BigDecimal) num).longValueExact();
+         }
+         catch(ArithmeticException ex) {
+            return null;
+         }
+      }
+
+      double d = num.doubleValue();
+      return d == Math.rint(d) && d >= -0x1p63 && d < 0x1p63 ? (Long) (long) d : null;
    }
 
    /**
