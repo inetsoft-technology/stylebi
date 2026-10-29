@@ -30,6 +30,7 @@ import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Refuses an explicit {@code timeSeries: true} on a chart dimension where the native Composer
@@ -78,18 +79,41 @@ final class ChartTimeSeriesGuard {
                        ChartDimensionRefModel dim, FieldRef field,
                        List<? extends ChartRefModel> previous)
    {
+      require(model, place, shelf, index, dim, field, previous, Set.of());
+   }
+
+   /**
+    * @param effectiveBefore the refs of {@code previous} whose stored time series was effective
+    *                        (innermost, supported) before this write. Echoing such a ref is not
+    *                        exempt when the write makes it unsupported (e.g. outer, bug #79757);
+    *                        echoing an already dormant true stays accepted. Compared by identity.
+    */
+   static void require(ChartBindingModel model, Place place, String shelf, int index,
+                       ChartDimensionRefModel dim, FieldRef field,
+                       List<? extends ChartRefModel> previous,
+                       Set<? extends ChartRefModel> effectiveBefore)
+   {
       if(!Boolean.TRUE.equals(field.timeSeries())) {
          return;
       }
 
       boolean echo = false;
       boolean sortEcho = false;
+      boolean wasEffective = false;
 
       for(ChartRefModel old : previous) {
          if(old instanceof ChartDimensionRefModel oldDim && oldDim.isTimeSeries() &&
             ChartBindingMutator.matches(oldDim, field))
          {
-            echo = true;
+            // The pre-write check is strict, so a true that was dormant for any reason keeps
+            // the exemption; only a true that was in force and is now lost is refused.
+            if(effectiveBefore.contains(oldDim)) {
+               wasEffective = true;
+            }
+            else {
+               echo = true;
+            }
+
             // Bug #78474: the echo only covers the sort when the stored-true ref carries the
             // same sort state -- another occurrence of the same column storing true must not
             // let a desc carried from a ts:false occurrence through.
@@ -111,7 +135,10 @@ final class ChartTimeSeriesGuard {
             "(year/quarter/month/week/day or a time level) that is the innermost x or y " +
             "dimension of a chart type that supports it. Stored anyway it would never fill " +
             "gaps in the axis, and it would force this dimension's sort back to ascending. " +
-            "Send timeSeries:false (or omit it) for '" + column + "'.");
+            (wasEffective ?
+               "This write would make it outer: put the date dimension last, or send " +
+               "timeSeries:false for '" + column + "'." :
+               "Send timeSeries:false (or omit it) for '" + column + "'."));
       }
    }
 

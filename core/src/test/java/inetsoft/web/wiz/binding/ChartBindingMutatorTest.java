@@ -2736,6 +2736,48 @@ class ChartBindingMutatorTest {
    }
 
    @Test
+   void echoingAnEffectiveTimeSeriesWhileMakingItOuterIsRefusedPerIssue79757() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", true), dimensionWithTimeSeries("Region", null, null))));
+
+      assertTrue(e.getMessage().contains("outer"), e.getMessage());
+      assertTrue(e.getMessage().contains("put the date dimension last"), e.getMessage());
+      assertEquals(1, model.getXFields().size(), "the refused write leaves the shelf untouched");
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void echoingAnEffectiveTimeSeriesWhileKeepingItInnermostIsAccepted() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null), date("month", true)));
+
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries());
+   }
+
+   @Test
+   void echoingAnAlreadyDormantTimeSeriesStaysAcceptedPerIssue79757() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+      // Keyless resend: the carried true is kept on the now-outer dimension (#78214 tolerance).
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", null), dimensionWithTimeSeries("Region", null, null)));
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+
+      // A verbatim get_binding read-back of that dormant true is not a new request for it.
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", true), dimensionWithTimeSeries("Region", null, null)));
+
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
    void sameFieldAtTwoLevelsKeepsEachOwnState() {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "x",
