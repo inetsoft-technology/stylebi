@@ -20,7 +20,8 @@ package inetsoft.web.wiz.script;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
@@ -211,6 +212,72 @@ class ScriptEditServiceTest {
       svc.write(rvs, target, "field['PRICE'] * 2");
 
       assertEquals("field['PRICE'] * 2", inner.getExpression());
+   }
+
+   private static RuntimeViewsheet realAssemblies() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new ChartVSAssembly(vs, "Chart1"));
+      vs.addAssembly(new TableVSAssembly(vs, "Table1"));
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
+   }
+
+   private static ScriptEditService editService() {
+      return new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class));
+   }
+
+   @Test
+   void setEnabledOnClickIsRefusedForAnAssemblyThatCannotReceiveOneAndLeavesTheFlagAlone() {
+      RuntimeViewsheet rvs = realAssemblies();
+      ScriptEditService svc = editService();
+
+      for(String name : new String[]{ "Chart1", "Table1" }) {
+         VSAssemblyInfo info = ((VSAssembly) rvs.getViewsheet().getAssembly(name)).getVSAssemblyInfo();
+         info.setScriptEnabled(true);
+
+         PairingException ex = assertThrows(PairingException.class, () -> svc.setEnabled(
+            rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, name), false));
+         assertEquals("Assembly does not support onClick: " + name, ex.getMessage());
+         assertTrue(info.isScriptEnabled(), "a refused call must not flip the shared flag: " + name);
+      }
+   }
+
+   @Test
+   void setEnabledOnClickStillTogglesAClickableAssembly() throws Exception {
+      RuntimeViewsheet rvs = realAssemblies();
+      VSAssemblyInfo info = ((VSAssembly) rvs.getViewsheet().getAssembly("Text1")).getVSAssemblyInfo();
+      info.setScriptEnabled(true);
+
+      editService().setEnabled(rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Text1"), false);
+
+      assertFalse(info.isScriptEnabled());
+   }
+
+   @Test
+   void setEnabledMainStillTogglesANonClickableAssembly() throws Exception {
+      RuntimeViewsheet rvs = realAssemblies();
+      VSAssemblyInfo info = ((VSAssembly) rvs.getViewsheet().getAssembly("Chart1")).getVSAssemblyInfo();
+
+      editService().setEnabled(rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Chart1"), false);
+
+      assertFalse(info.isScriptEnabled());
+   }
+
+   @Test
+   void setEnabledOnClickForAMissingAssemblyStillSaysNotFound() {
+      PairingException ex = assertThrows(PairingException.class, () -> editService().setEnabled(
+         realAssemblies(), ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Nope1"), false));
+      assertEquals("Assembly not found: Nope1", ex.getMessage());
+   }
+
+   @Test
+   void writeOnClickIsRefusedForAnAssemblyThatCannotReceiveOne() {
+      PairingException ex = assertThrows(PairingException.class, () -> editService().write(
+         realAssemblies(), ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Table1"), "x()"));
+      assertEquals("Assembly does not support onClick: Table1", ex.getMessage());
    }
 
    /** setEnabled's refusal is PERMANENT -- a calc field has no per-field enable flag at all. */

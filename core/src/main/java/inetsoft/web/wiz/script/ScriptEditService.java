@@ -171,7 +171,7 @@ public class ScriptEditService {
          case ASSEMBLY -> ScriptReadService.requireAssemblyInfo(vs, target.assemblyName()).setScript(text);
          case ASSEMBLY_ONCLICK -> {
             VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(vs, target.assemblyName());
-            ScriptReadService.setOnClick(info, text);
+            ScriptReadService.setOnClick(info, target.assemblyName(), text);
          }
          case CALC_FIELD -> calcFields.write(rvs, target.assemblyName(), target.name(), text);
          // This is a switch STATEMENT, not an expression -- with no `default`, a Location this
@@ -194,8 +194,13 @@ public class ScriptEditService {
 
       switch(target.location()) {
          case VS_INIT, VS_LOAD -> vs.getViewsheetInfo().setScriptEnabled(enabled);
-         case ASSEMBLY, ASSEMBLY_ONCLICK ->
+         case ASSEMBLY ->
             ScriptReadService.requireAssemblyInfo(vs, target.assemblyName()).setScriptEnabled(enabled);
+         case ASSEMBLY_ONCLICK -> {
+            VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(vs, target.assemblyName());
+            ScriptReadService.requireOnClickSupport(info, target.assemblyName());
+            info.setScriptEnabled(enabled);
+         }
          // Permanent, unlike write's refusal above: a calculated field has no per-field enable
          // flag at all, so there is nothing for Task 3 (or anyone) to wire in here later.
          case CALC_FIELD -> throw new PairingException(
