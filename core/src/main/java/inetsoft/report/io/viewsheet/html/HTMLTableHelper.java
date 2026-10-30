@@ -333,7 +333,7 @@ public class HTMLTableHelper extends HTMLTableDataHelper {
          }
       }
       else {
-         String value = Tool.toString(lens.getObject(r, c));
+         String value = HTMLEscape.viewerCellText(Tool.toString(lens.getObject(r, c)));
          value = value.replace("\n", "<br>");
          table.append(value);
       }

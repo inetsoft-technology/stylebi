@@ -315,8 +315,9 @@ public class HTMLVSExporter extends AbstractVSExporter {
 
          Rectangle2D bounds = helper.getBounds(info);
          Hyperlink.Ref ref = info.getHyperlinkRef();
+         // Text assembly text is HTML in the viewer, so markup is kept and other text escaped
          helper.writeText(writer, bounds, getTextFormat(info), txt, ref, autoSize,
-                          info.getPadding(), shadow, info.getZIndex());
+                          info.getPadding(), shadow, info.getZIndex(), true);
       }
    }
 
