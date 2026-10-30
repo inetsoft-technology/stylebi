@@ -198,9 +198,13 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
          let lastIndex = this.addedIdentities.findIndex((item) =>
             item.type == identity.type && item.identityID == identity.identityID);
 
-         if(last <= lastIndex) {
+         if(last >= 0 && last <= lastIndex) {
+            // the anchor is already selected; never add an identity twice, a duplicate
+            // would make removeIdentities() look up an identity that is already gone
             for(let i = last; i <= lastIndex; i++) {
-               this.selectedAddedIdentities.push(this.addedIdentities[i]);
+               if(this.findIdentityIndex(this.selectedAddedIdentities, this.addedIdentities[i]) == -1) {
+                  this.selectedAddedIdentities.push(this.addedIdentities[i]);
+               }
             }
          }
          else {
@@ -271,21 +275,17 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
    }
 
    removeIdentities(): void {
-      for(let identity of this.selectedAddedIdentities) {
-         if(identity.type == IdentityType.USER) {
-            let index = this.findIdentityIndex(this.addedIdentities, identity);
-            this.addedIdentities.splice(index, 1);
-            this.addedEmails.splice(index, 1);
-         }
-         else if(identity.type == IdentityType.GROUP) {
-            let index = this.findIdentityIndex(this.addedIdentities, identity);
-            this.addedIdentities.splice(index, 1);
-         }
-         else {
-            let index = this.findIdentityIndex(this.addedIdentities, identity);
-            this.addedIdentities.splice(index, 1);
-         }
+      // Compute the indexes to delete first and filter, so that a selected identity that is
+      // no longer in addedIdentities (duplicate or stale entry) can never remove another row.
+      const keep: boolean[] = this.addedIdentities.map((identity) =>
+         this.findIdentityIndex(this.selectedAddedIdentities, identity) == -1);
+      // addedEmails is index-aligned with addedIdentities only in the non-embedded table. In
+      // embeddedOnly mode it is only filled for users, is never read, and is left as is.
+      if(!this.embeddedOnly && this.addedEmails.length == this.addedIdentities.length) {
+         this.addedEmails = this.addedEmails.filter((email, i) => keep[i]);
       }
+
+      this.addedIdentities = this.addedIdentities.filter((identity, i) => keep[i]);
 
       this.selectedAddedIdentities = this.addedIdentities.length > 0 ? [this.addedIdentities[0]] : [];
       this.addressChange();
