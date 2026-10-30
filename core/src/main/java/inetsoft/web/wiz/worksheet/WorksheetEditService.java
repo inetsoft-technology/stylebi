@@ -1168,6 +1168,8 @@ public class WorksheetEditService {
                   "recursive join.");
             }
 
+            refuseJoinCycle(existingJoin, newTable);
+
             // Seed with the existing join's OWN current operators (mirroring how
             // joinSourceAndTargetTables itself seeds noperator via getOperatorsOfJoinTable
             // before adding the new edge) -- editExistingJoinTable clears every operator table
@@ -2389,6 +2391,7 @@ public class WorksheetEditService {
             throw new PairingException("Table not found in worksheet: " + oldName);
          }
 
+         refuseHiddenCopy(a, oldName);
          requireStorableName(newName, "A table name");
          requireScriptQuotableName(newName, "A table name");
 
@@ -3578,6 +3581,8 @@ public class WorksheetEditService {
             throw new PairingException(
                "\"" + newTable + "\" is already one of \"" + name + "\"'s own source tables.");
          }
+
+         refuseJoinCycle(join, newTableAssembly);
 
          TableAssembly existingTableAssembly = join.getTableAssembly(existingTable);
 
@@ -5366,6 +5371,25 @@ public class WorksheetEditService {
                "a double quote, a backslash or a square bracket. Choose a name without them.");
          }
       }
+      /**
+       * Bug #79830: attaching {@code newTable} as a source of the existing {@code join} closes a
+       * cycle when {@code newTable} already depends on the join (a subquery condition, a mirror).
+       * The write would be committed and checkpointed before the downstream refresh trips over
+       * the cycle, so it has to be refused before anything is mutated.
+       */
+      private void refuseJoinCycle(RelationalJoinTableAssembly join, TableAssembly newTable)
+         throws PairingException
+      {
+         if(WorksheetEventUtil.checkCyclicalDependency(ws, join, newTable)) {
+            throw new PairingException(
+               "Adding \"" + newTable.getName() + "\" to the join \"" + join.getName() +
+               "\" would create a circular dependency: \"" + newTable.getName() +
+               "\" already depends on \"" + join.getName() + "\" (for example through a " +
+               "subquery condition or a mirror). Join a table that does not depend on it " +
+               "instead.");
+         }
+      }
+
       /**
        * Bug #79328: a hidden (outer) assembly is the copy that backs a mirror. The native UI
        * cannot select it, so making it primary or editing its properties would leave a primary

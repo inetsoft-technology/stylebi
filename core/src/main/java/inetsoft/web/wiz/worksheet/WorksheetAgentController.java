@@ -852,6 +852,17 @@ public class WorksheetAgentController {
          }
       }
 
+      // Must be read before the edit: afterwards the renamed variable itself declares the name.
+      boolean targetDeclaredElsewhere = false;
+
+      if("rename_variable".equals(req.op()) && req.newName() != null) {
+         targetDeclaredElsewhere = declaredVariableNames(
+            editService.resolve(sessionToken, user).getWorksheet())
+            .contains(req.newName().toLowerCase());
+      }
+
+      boolean newNameOwned = targetDeclaredElsewhere;
+
       editService.apply(sessionToken, user, editor -> dispatch(editor, req));
 
       if("edit_variable".equals(req.op()) && (!typeEdit || oldType == null)) {
@@ -871,7 +882,13 @@ public class WorksheetAgentController {
          inetsoft.uql.VariableTable vtable = box.getVariableTable();
 
          switch(req.op()) {
-         case "delete_variable" -> removeVariableValue(vtable, name);
+         case "delete_variable" -> {
+            // A mirror or hidden copy may still declare the same variable name; the live value
+            // then belongs to that declaration (Bug #79830).
+            if(!declaredVariableNames(rws.getWorksheet()).contains(name.toLowerCase())) {
+               removeVariableValue(vtable, name);
+            }
+         }
          case "rename_variable" -> {
             String newName = req.newName();
             String oldKey = findVariableKey(vtable, name);
@@ -879,12 +896,24 @@ public class WorksheetAgentController {
             if(oldKey != null) {
                Object value = vtable.get(oldKey);
                boolean asIs = vtable.isAsIs(oldKey);
-               removeVariableValue(vtable, name);
-               removeVariableValue(vtable, newName);
-               vtable.setAsIs(newName, asIs);
-               vtable.put(newName, value);
+               boolean oldStillDeclared =
+                  declaredVariableNames(rws.getWorksheet()).contains(name.toLowerCase());
+
+               if(!oldStillDeclared) {
+                  removeVariableValue(vtable, name);
+               }
+
+               // A name another assembly already declared keeps its own live value (Bug #79830).
+               if(!newNameOwned) {
+                  removeVariableValue(vtable, newName);
+
+                  if(!oldStillDeclared) {
+                     vtable.setAsIs(newName, asIs);
+                     vtable.put(newName, value);
+                  }
+               }
             }
-            else {
+            else if(!newNameOwned) {
                removeVariableValue(vtable, newName);
             }
          }
@@ -894,7 +923,9 @@ public class WorksheetAgentController {
                va.getVariable() != null && va.getVariable().getTypeNode() != null
                ? va.getVariable().getTypeNode().getType() : null;
 
-            if(newType != null && !newType.equals(previousType)) {
+            if(newType != null && !newType.equals(previousType) &&
+               !declaredByAnotherAssembly(rws.getWorksheet(), name))
+            {
                removeVariableValue(vtable, name);
             }
          }
@@ -903,6 +934,30 @@ public class WorksheetAgentController {
          box.reset();
          return null;
       });
+   }
+
+   /**
+    * True when a variable assembly other than {@code assemblyName} declares the same variable
+    * name, so a value keyed by that name is not this assembly's to drop (Bug #79830).
+    */
+   private static boolean declaredByAnotherAssembly(Worksheet ws, String assemblyName) {
+      Assembly self = ws.getAssembly(assemblyName);
+
+      if(!(self instanceof VariableAssembly sva) || !isNamedVariable(sva)) {
+         return false;
+      }
+
+      String key = sva.getVariable().getName();
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(a != self && a instanceof VariableAssembly va && isNamedVariable(va) &&
+            va.getVariable().getName().equalsIgnoreCase(key))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -5831,8 +5886,13 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
+         boolean declaredBefore = declaredVariableNames(ws).contains(varName.toLowerCase());
          createVariable(ws, varName, req.type(), req.label(), req.defaultValue(), req.choices());
-         purgeStaleVariableValue(rws, varName);
+
+         if(!declaredBefore) {
+            purgeStaleVariableValue(rws, varName);
+         }
+
          return null;
       });
    }
@@ -6124,9 +6184,14 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
+         boolean declaredBefore = declaredVariableNames(ws).contains(body.name().toLowerCase());
          createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue(),
                         body.choices());
-         purgeStaleVariableValue(rws, body.name());
+
+         if(!declaredBefore) {
+            purgeStaleVariableValue(rws, body.name());
+         }
+
          return null;
       });
    }

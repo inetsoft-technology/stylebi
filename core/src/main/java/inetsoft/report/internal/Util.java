@@ -3186,8 +3186,11 @@ public class Util implements inetsoft.report.StyleConstants {
          else if(token.type == ScriptIterator.Token.TEXT && token.val.contains("['" + oname + "']")
             && (acceptFunc == null || acceptFunc.apply(sb.toString())))
          {
-            sb.append(new ScriptIterator.Token(token.type, token.val.replace(oname, nname),
-               token.length));
+            // Rewrite only the member read ['old'], never the bare name: the literal can be a
+            // lookup key such as "CATEGORY_NAME? CATEGORY_ID==field['CATEGORY_ID']" whose left
+            // operand names a column of ANOTHER table that must keep its name (Bug #79830).
+            sb.append(new ScriptIterator.Token(token.type,
+               token.val.replace("['" + oname + "']", "['" + nname + "']"), token.length));
          }
          else {
             sb.append(token);
