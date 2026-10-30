@@ -18,6 +18,7 @@
 package inetsoft.graph.guide.form;
 
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,10 @@ class TargetUtil {
     * @return The calculated percentile values
     */
    static double[] getPercentiles(double[] sample, double[] args) {
+      // null cells are encoded as Tool.NULL_DOUBLE by TargetForm; they are not values and
+      // must not take part in the ranking. filter into a copy since the caller reuses sample.
+      sample = removeNulls(sample);
+
       if(sample.length == 0) {
          return new double[0];
       }
@@ -57,6 +62,13 @@ class TargetUtil {
       }
 
       return percentiles;
+   }
+
+   /**
+    * Get a copy of the sample without the null placeholder values.
+    */
+   private static double[] removeNulls(double[] sample) {
+      return Arrays.stream(sample).filter(d -> d != Tool.NULL_DOUBLE).toArray();
    }
 
    /**
