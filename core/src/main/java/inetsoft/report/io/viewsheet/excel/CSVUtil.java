@@ -182,7 +182,7 @@ public class CSVUtil {
          return false;
       }
 
-      return str.contains(delim) || str.contains("\"");
+      return str.contains(delim) || str.contains("\"") || str.contains("\r") || str.contains("\n");
    }
 
    public static boolean needExport(VSAssembly assembly) {
