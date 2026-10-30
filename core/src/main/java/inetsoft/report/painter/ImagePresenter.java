@@ -201,7 +201,9 @@ public class ImagePresenter implements ExpandablePresenter {
             int h2 = image.getHeight();
             double aspectRatio = w2 * 1.0 / h2;
             double w3 = Math.min(w, h * aspectRatio);
-            double h3 = w / aspectRatio;
+            // Bug #79671, derive the height from the clamped width so the image stays
+            // inside the cell when the cell is wider than the image aspect ratio
+            double h3 = w3 / aspectRatio;
             g.drawImage(image, x, y, (int) w3, (int) h3, null);
          }
          else {
