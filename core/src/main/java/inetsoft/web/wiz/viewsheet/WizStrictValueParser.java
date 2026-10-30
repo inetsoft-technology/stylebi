@@ -115,15 +115,15 @@ public final class WizStrictValueParser {
          }
          else if(type.equalsIgnoreCase(Tool.DATE)) {
             requireDate(text, Tool.DATE);
-            return requireTemporal(Tool.getData(Tool.DATE, text, true));
+            return requireTemporal(Tool.getData(Tool.DATE, canonicalTemporalText(text), true));
          }
          else if(type.equalsIgnoreCase(Tool.TIME_INSTANT)) {
             requireDate(text, Tool.TIME_INSTANT);
-            return requireTemporal(Tool.getData(Tool.TIME_INSTANT, text, true));
+            return requireTemporal(Tool.getData(Tool.TIME_INSTANT, canonicalTemporalText(text), true));
          }
          else if(type.equalsIgnoreCase(Tool.TIME)) {
             requireDate(text, Tool.TIME);
-            return requireTemporal(Tool.getData(Tool.TIME, text, true));
+            return requireTemporal(Tool.getData(Tool.TIME, canonicalTemporalText(text), true));
          }
       }
       catch(IllegalArgumentException | ArithmeticException ex) {
@@ -135,13 +135,37 @@ public final class WizStrictValueParser {
          "Unknown data type '" + dataType + "' for value '" + value + "'.");
    }
 
+   /**
+    * Spells a time of day written without seconds (10:30, 2026-03-15 10:30, 2026-03-15T10:30)
+    * as hh:mm:00, the only shape Tool.getData reads for a time/timestamp. Text that already has
+    * seconds, or no time of day, is returned trimmed and otherwise unchanged. It does not
+    * validate; {@link #parse} does.
+    */
+   public static String canonicalTemporalText(String text) {
+      String trimmed = text.trim();
+      Matcher t = DATE_T.matcher(trimmed);
+
+      if(t.matches()) {
+         // Tool.getData reads "yyyy-MM-ddThh:mm:ss" as midnight, so use the space form
+         trimmed = t.group(1) + " " + t.group(2);
+      }
+
+      return NO_SECONDS.matcher(trimmed).matches() ? trimmed + ":00" : trimmed;
+   }
+
    private static final Pattern DECIMAL =
       Pattern.compile("[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?");
    private static final Pattern DATE_PART =
       Pattern.compile("^(\\d{4})-(\\d{1,2})-(\\d{1,2})(?:[ T].*)?$");
    private static final Pattern TIME_ONLY =
       Pattern.compile("(\\d{1,2}):(\\d{1,2})(?::(\\d{1,2})(?:\\.\\d+)?)?");
-   private static final Pattern TIME_PART = Pattern.compile("(\\d{1,2}):(\\d{1,2}):(\\d{1,2})");
+   /** The clock time following the date part; seconds are optional. */
+   private static final Pattern TIME_PART =
+      Pattern.compile("^\\d{4}-\\d{1,2}-\\d{1,2}[ T](\\d{1,2}):(\\d{1,2})(?::(\\d{1,2}))?");
+   private static final Pattern DATE_T =
+      Pattern.compile("^(\\d{4}-\\d{1,2}-\\d{1,2})T(\\d{1,2}:.*)$");
+   private static final Pattern NO_SECONDS =
+      Pattern.compile("(?:\\d{4}-\\d{1,2}-\\d{1,2}[ T])?\\d{1,2}:\\d{1,2}");
 
    /** Java's own double grammar also takes hex floats, "NaN", and "1d"/"1f" suffixes. */
    private static void requireDecimal(String text) {
@@ -175,8 +199,9 @@ public final class WizStrictValueParser {
 
          Matcher time = TIME_PART.matcher(text);
 
-         if(time.find() && (Integer.parseInt(time.group(1)) > 23 ||
-            Integer.parseInt(time.group(2)) > 59 || Integer.parseInt(time.group(3)) > 59))
+         if(time.lookingAt() && (Integer.parseInt(time.group(1)) > 23 ||
+            Integer.parseInt(time.group(2)) > 59 ||
+            time.group(3) != null && Integer.parseInt(time.group(3)) > 59))
          {
             throw new IllegalArgumentException("not a real clock time");
          }
