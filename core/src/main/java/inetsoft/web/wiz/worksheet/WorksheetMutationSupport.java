@@ -3520,9 +3520,10 @@ public final class WorksheetMutationSupport {
          }
 
          SortRef[] sorts = si.getSorts();
+         DataRef target = resolveFieldOrNull(t, field, false);
 
          for(int i = 0; i < sorts.length; i++) {
-            if(field.equals(sorts[i].getName()) || field.equals(sorts[i].getAttribute())) {
+            if(sortMatches(sorts[i], target, field)) {
                si.removeSort(i);
                t.setSortInfo(si);
                return true;
@@ -3538,9 +3539,10 @@ public final class WorksheetMutationSupport {
 
       int order = "DESC".equalsIgnoreCase(direction) ? XConstants.SORT_DESC : XConstants.SORT_ASC;
       SortRef existing = null;
+      DataRef target = resolveFieldOrNull(t, field, false);
 
       for(SortRef sr : si.getSorts()) {
-         if(field.equals(sr.getName()) || field.equals(sr.getAttribute())) {
+         if(sortMatches(sr, target, field)) {
             existing = sr;
             break;
          }
@@ -3553,11 +3555,30 @@ public final class WorksheetMutationSupport {
          DataRef ref = resolveField(t, field);
          SortRef sr = new SortRef(ref);
          sr.setOrder(order);
-         si.addSort(sr);
+
+         // SortRef equality is entity.attribute only, so addSort would overwrite the sort of the
+         // other copy of a duplicated column (self-join CUSTOMER_ID vs CUSTOMER_ID_1).
+         if(si.containsSort(sr)) {
+            si.appendSort(sr);
+         }
+         else {
+            si.addSort(sr);
+         }
       }
 
       t.setSortInfo(si);
       return true;
+   }
+
+   /**
+    * Bug #79834: a sort belongs to exactly the column the caller named. Matching on the column's
+    * attribute as well let {@code CUSTOMER_ID} hit the self-join copy aliased
+    * {@code CUSTOMER_ID_1} (same attribute, different column) whenever the plain column had no
+    * sort of its own. The key is the column's own, alias-aware name; the raw field text is only
+    * used when it resolves to no column (a stale sort on a removed column).
+    */
+   private static boolean sortMatches(SortRef sr, DataRef target, String field) {
+      return target != null ? target.getName().equals(sr.getName()) : field.equals(sr.getName());
    }
 
    // =========================================================================
