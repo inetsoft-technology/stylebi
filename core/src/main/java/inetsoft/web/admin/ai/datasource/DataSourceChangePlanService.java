@@ -239,6 +239,19 @@ public class DataSourceChangePlanService {
       JdbcDataSourceProperties proposed = buildProposedJdbc(
          label, id, name, (JdbcDataSourceProperties) current, spec, user);
 
+      // The probe connects with user/password only and cannot resolve a secret id, so a spec
+      // that names a credential reference on (or for) a credential-mode source would silently
+      // test the saved credentials instead of the requested ones.
+      if((spec.containsKey("useCredentialId") || spec.containsKey("credentialID")) &&
+         (proposed.isUseCredentialId() ||
+          ((JdbcDataSourceProperties) current).isUseCredentialId()))
+      {
+         throw new IllegalArgumentException(
+            label + ".spec.credentialID: testing a stored credential reference is not " +
+            "supported; the probe cannot resolve a secret id -- use user/password, or omit " +
+            "useCredentialId/credentialID to test the saved connection");
+      }
+
       DatabaseSettingsModel model = DatabaseSettingsModel.builder()
          .databaseURL(proposed.getUrl())
          .driver(proposed.getDriver())

@@ -687,6 +687,54 @@ class DataSourceChangePlanServiceTest {
       assertSame(expected, service.testConnection(req, user));
    }
 
+   @Test void testConnectionRefusesAPendingCredentialId() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", true, "******"));
+
+      DataSourceTestConnectionRequest req = new DataSourceTestConnectionRequest();
+      req.setName("Orders");
+      req.setSpec(Map.of("useCredentialId", true, "credentialID", "no-such-secret"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.testConnection(req, user));
+      assertTrue(ex.getMessage().contains("credentialID"), ex.getMessage());
+      verify(databaseSettingsService, never()).testConnection(any(), any());
+   }
+
+   @Test void testConnectionRefusesLeavingCredentialModeOnASavedCredentialSource()
+      throws Exception
+   {
+      JdbcDataSourceProperties saved = jdbc("id-1", "Orders", true, "******");
+      saved.setUseCredentialId(true);
+      saved.setCredentialID("saved-secret");
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", saved);
+
+      DataSourceTestConnectionRequest req = new DataSourceTestConnectionRequest();
+      req.setName("Orders");
+      req.setSpec(Map.of("useCredentialId", false));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.testConnection(req, user));
+      assertTrue(ex.getMessage().contains("credentialID"), ex.getMessage());
+      verify(databaseSettingsService, never()).testConnection(any(), any());
+   }
+
+   @Test void testConnectionStillProbesASavedCredentialSourceWithoutASpec() throws Exception {
+      JdbcDataSourceProperties saved = jdbc("id-1", "Orders", true, "******");
+      saved.setUseCredentialId(true);
+      saved.setCredentialID("saved-secret");
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", saved);
+      ConnectionStatus expected = new ConnectionStatus("ok", true);
+      when(databaseSettingsService.testConnection(any(), eq(user))).thenReturn(expected);
+
+      DataSourceTestConnectionRequest req = new DataSourceTestConnectionRequest();
+      req.setName("Orders");
+
+      assertSame(expected, service.testConnection(req, user));
+   }
+
    @Test void testConnectionRefusesAnUnknownIsolationValue() throws Exception {
       stubList("Orders", "id-1", "jdbc");
       stubGet("id-1", jdbc("id-1", "Orders", false, null));
