@@ -1246,6 +1246,12 @@ public class AssemblyHyperlinkService {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
 
+      // Echoed so a client can tell a text-element read from an older server that ignores the
+      // text flag and answers with the field's plain link (bug #79852).
+      if(asked != null && asked.text()) {
+         out.put("text", true);
+      }
+
       if(model == null) {
          out.put("linkType", "none");
          return out;

@@ -1483,6 +1483,7 @@ public class ViewsheetAssemblyAgentController {
                                            @RequestParam(required = false) Integer col,
                                            @RequestParam(required = false) String colName,
                                            @RequestParam(required = false) boolean axis,
+                                           @RequestParam(required = false) boolean text,
                                            @RequestParam(required = false) boolean titleLink,
                                            @RequestParam(required = false) boolean emptyPlotLink,
                                            Principal user)
@@ -1492,7 +1493,7 @@ public class ViewsheetAssemblyAgentController {
       return hyperlinkService.read(
          sessionToken, user, assembly,
          new AssemblyHyperlinkService.Region(
-            row, col, colName, axis, false, titleLink, emptyPlotLink));
+            row, col, colName, axis, text, titleLink, emptyPlotLink));
    }
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink/types")

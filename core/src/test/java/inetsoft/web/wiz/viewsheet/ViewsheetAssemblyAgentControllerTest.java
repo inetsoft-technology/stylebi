@@ -419,7 +419,28 @@ class ViewsheetAssemblyAgentControllerTest {
       ViewsheetAssemblyAgentController controller = controllerWith(hyperlinkService);
 
       assertSame(expected, controller.getHyperlink(
-         "tok", "Chart1", null, null, null, true, false, true, principal()));
+         "tok", "Chart1", null, null, null, true, false, false, true, principal()));
+   }
+
+   /**
+    * {@code get_hyperlink text:true} must reach the {@code Region} the service reads with, as
+    * {@code HyperlinkRequest.region()} already does for the write; the GET mapping used to
+    * hardcode {@code text=false}, so a text-element link written by set_hyperlink could not be
+    * read back (bug #79852).
+    */
+   @Test
+   void getHyperlinkThreadsTextIntoTheRegion() throws Exception {
+      AssemblyHyperlinkService hyperlinkService = mock(AssemblyHyperlinkService.class);
+      Map<String, Object> expected = Map.of("linkType", "web", "text", true);
+      when(hyperlinkService.read(eq("tok"), any(Principal.class), eq("Chart1"),
+         eq(new AssemblyHyperlinkService.Region(
+            null, null, "SALES", false, true, false, false))))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(hyperlinkService);
+
+      assertSame(expected, controller.getHyperlink(
+         "tok", "Chart1", null, null, "SALES", false, true, false, false, principal()));
    }
 
    /**
