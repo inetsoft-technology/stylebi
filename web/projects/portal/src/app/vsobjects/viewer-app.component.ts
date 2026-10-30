@@ -3121,7 +3121,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    private openViewsheet(runtimeId: string = null): void {
       // wait a tick to ensure that the parent divs are properly sized
       const waitResize = !this.inPortal || (this.scaleToScreen && !this.fitToWidth) ? 100 : 0;
-      setTimeout(() => this.openViewsheet0(runtimeId), waitResize);
+      setTimeout(() => {
+         if(!this._destroyed) {
+            this.openViewsheet0(runtimeId);
+         }
+      }, waitResize);
    }
 
    /**

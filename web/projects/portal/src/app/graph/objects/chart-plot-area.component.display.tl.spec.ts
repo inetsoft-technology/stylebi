@@ -518,11 +518,12 @@ describe("ChartPlotArea — click (mobile double-tap lasso)", () => {
       const { comp } = createComponent();
       (comp as any).mobile = true;
       comp.selectionBoxWithTouch = true;
-      const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
 
       comp.click({} as MouseEvent);
 
-      expect(setTimeoutSpy).not.toHaveBeenCalled();
+      // Count the fake timers instead of spying on globalThis.setTimeout: that spy wraps the fake
+      // setTimeout, and restoreAllMocks (after useRealTimers) would put the fake one back for good.
+      expect(vi.getTimerCount()).toBe(0);
    });
 
    it("should do nothing on non-mobile devices", () => {

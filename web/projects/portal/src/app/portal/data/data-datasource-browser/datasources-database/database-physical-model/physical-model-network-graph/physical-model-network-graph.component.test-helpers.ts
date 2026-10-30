@@ -35,8 +35,8 @@
  *   setRepaintTimer() is also spied before render (then restored) to prevent its zero-delay
  *   setTimeout from firing after ngOnDestroy sets this.jsp = null and crashing.
  *
- *   HTMLElement.prototype.scrollTo is stubbed in beforeAll/restored in afterAll (jsdom
- *   doesn't implement it); ngAfterViewInit calls it on the graphPane div.
+ *   HTMLElement.prototype.scrollTo is stubbed in beforeAll/restored in afterAll by stubScrollTo(),
+ *   which each spec calls (jsdom doesn't implement it); ngAfterViewInit calls it on the graphPane div.
  */
 
 import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
@@ -100,14 +100,34 @@ export const jspMock = {
 // ngAfterViewInit calls it on the graphPane div.
 // ---------------------------------------------------------------------------
 
-let _originalScrollTo: any;
-beforeAll(() => {
-   _originalScrollTo = (HTMLElement.prototype as any).scrollTo;
-   (HTMLElement.prototype as any).scrollTo = vi.fn();
-});
-afterAll(() => {
-   (HTMLElement.prototype as any).scrollTo = _originalScrollTo;
-});
+/**
+ * Registers the scrollTo stub hooks on the calling spec file. Call it at the top level of every
+ * spec that renders PhysicalModelNetworkGraphComponent.
+ *
+ * The hooks are not registered at this module's top level because a module is evaluated only
+ * once per worker when isolate is off: only the first spec file to import it would get them.
+ *
+ * The own property descriptor is restored rather than the old value assigned back: jsdom has no
+ * HTMLElement.prototype.scrollTo, and assigning undefined would leave an own property that hides
+ * any scrollTo on Element.prototype from later spec files in the same worker.
+ */
+export function stubScrollTo(): void {
+   let originalScrollTo: PropertyDescriptor | undefined;
+
+   beforeAll(() => {
+      originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollTo");
+      (HTMLElement.prototype as any).scrollTo = vi.fn();
+   });
+
+   afterAll(() => {
+      if(originalScrollTo) {
+         Object.defineProperty(HTMLElement.prototype, "scrollTo", originalScrollTo);
+      }
+      else {
+         delete (HTMLElement.prototype as any).scrollTo;
+      }
+   });
+}
 
 // ---------------------------------------------------------------------------
 // Stubs

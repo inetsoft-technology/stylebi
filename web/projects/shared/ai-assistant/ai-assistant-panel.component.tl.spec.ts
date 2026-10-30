@@ -88,9 +88,20 @@ async function renderComponent(aiService = makeAiService()) {
    };
 }
 
+// Some tests redefine window.innerWidth; restore it so later spec files in the same worker
+// see jsdom's default viewport again.
+const innerWidthDescriptor = Object.getOwnPropertyDescriptor(window, "innerWidth");
+
 afterEach(() => {
    vi.restoreAllMocks();
    localStorage.clear();
+
+   if(innerWidthDescriptor) {
+      Object.defineProperty(window, "innerWidth", innerWidthDescriptor);
+   }
+   else {
+      delete (window as any).innerWidth;
+   }
 });
 
 // ---------------------------------------------------------------------------
