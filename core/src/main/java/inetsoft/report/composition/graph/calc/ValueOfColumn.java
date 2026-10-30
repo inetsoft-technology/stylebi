@@ -30,6 +30,8 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.DatePeriod;
 import inetsoft.util.Tool;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -699,7 +701,8 @@ public class ValueOfColumn extends AbstractColumn {
       }
 
       if(ctype == ValueOfCalc.PREVIOUS_WEEK) {
-         return new Date(((Date) value).getTime() - 7 * 24 * 60 * 60000);
+         return Date.from(ZonedDateTime.ofInstant(((Date) value).toInstant(), ZoneId.systemDefault())
+                             .minusDays(7).toInstant());
       }
       else {
          int months = ctype == ValueOfCalc.PREVIOUS_YEAR ? 12 : 3;
