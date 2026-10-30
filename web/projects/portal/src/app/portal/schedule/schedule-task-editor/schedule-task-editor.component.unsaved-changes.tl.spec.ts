@@ -279,4 +279,14 @@ describe("ScheduleTaskEditorComponent - unsaved changes after a save (Bug #79750
       edit(opened.comp, "action");
       expect(await leave(opened)).toBe(1);
    });
+
+   it("does not prompt when leaving after an edit that was saved by a second save", async () => {
+      const opened = await openEditor();
+      await showTab(opened, "condition");
+      await saveFrom(opened, "condition");
+      edit(opened.comp, "options");
+      await saveFrom(opened, "condition");
+
+      expect(await leave(opened)).toBe(0);
+   });
 });
