@@ -1,0 +1,25 @@
+# Where the schedule task save checks differ from schedule-task-permission-policy.json
+# (Testing #79042). SchedulePermissionSaveMatrixTest fails when a difference is not listed here
+# and when a listed one is no longer seen. Format:
+#   <check> <actor> <shareTaskInGroup>/<deleteTaskOnlyByOwner> <actual answer> : <reason>
+#
+# ScheduleTaskService.checkTaskIdentityPermission accepts a new owner that is the caller without
+# admin permission on the current owner. Only a group member that may edit the task (sharing on,
+# Modify By Owner Only off) reaches it through the editor; the other actors are stopped by the
+# editor gate first.
+TAKE_OWNERSHIP foreignUser true/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP foreignUser true/false allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP foreignUser false/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP foreignUser false/false allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP grantHolder true/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP grantHolder true/false allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP grantHolder false/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP grantHolder false/false allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP otherUser true/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP otherUser true/false allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP otherUser false/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP otherUser false/false allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP shareMember true/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP shareMember true/false allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP shareMember false/true allows : #79863, the caller may make itself the owner
+TAKE_OWNERSHIP shareMember false/false allows : #79863, the caller may make itself the owner

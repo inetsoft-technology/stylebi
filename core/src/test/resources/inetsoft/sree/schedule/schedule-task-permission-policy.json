@@ -45,14 +45,39 @@
       "basis": "the Portal task list shows only the user's own and the group's tasks (A6)"
     },
     {
+      "id": "mayAssignOwner",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner)",
+      "status": "proposed",
+      "basis": "ScheduleTaskIdentityChecker.isOwnerAllowed for the task owner: the owner itself or an admin of it (C1, C2)"
+    },
+    {
+      "id": "mayTakeOwnership",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner)",
+      "status": "proposed",
+      "basis": "ScheduleTaskService.checkTaskIdentityPermission, the actor makes itself the owner: it must administer the current owner (C3)",
+      "changes": "#79863: any caller may make itself the owner"
+    },
+    {
+      "id": "referenceReadable",
+      "expr": "siteAdmin || sameOrg",
+      "status": "proposed",
+      "basis": "checkSaveRefusals with a sheet / target every user of the org may read: only the owner organization of the task refuses (B1, B2)"
+    },
+    {
+      "id": "ownerPrivateReference",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner)",
+      "status": "proposed",
+      "basis": "checkSaveRefusals with the owner's private sheet: the run principal (the owner) may read it, the saver must too, through the check that lets the sheet's owner and its administrators read it; a site admin saver isn't checked (B2)"
+    },
+    {
       "id": "assignOwner",
-      "expr": "scheduler && (siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner))",
+      "expr": "scheduler && mayAssignOwner",
       "status": "proposed",
       "basis": "ScheduleTaskIdentityChecker.isOwnerAllowed: the task owner may be named only by itself or an admin of it; an import that overwrites the task names its owner (C1)"
     },
     {
       "id": "takeOwnership",
-      "expr": "manage && (siteAdmin || orgAdmin || ownerAdmin || owner)",
+      "expr": "manage && mayTakeOwnership",
       "status": "proposed",
       "basis": "ScheduleTaskService.checkTaskIdentityPermission: admin of the current and the new owner (C3)",
       "changes": "#79863: a group member may make itself the owner"
