@@ -953,7 +953,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       slist.append("'>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio1 +
                       ";white-space:nowrap'>");
-      slist.append(HTMLEscape.text(title));
+      slist.append(HTMLEscape.viewerTitle(title));
       slist.append("  </div>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio2 +
          ";white-space:nowrap'>");
@@ -1018,7 +1018,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(HTMLEscape.text(title));
+            titleStr.append(HTMLEscape.viewerTitle(title));
          }
 
          titleStr.append("</span></div>");
@@ -1039,7 +1039,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(HTMLEscape.text(title));
+            titleStr.append(HTMLEscape.viewerTitle(title));
          }
 
          titleStr.append("</span></div>");
@@ -1143,7 +1143,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          }
 
          slist.append("'>");
-         slist.append(HTMLEscape.text(title));
+         slist.append(HTMLEscape.viewerTitle(title));
          slist.append("</span>");
       }
 
@@ -1159,7 +1159,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          }
 
          slist.append("'>");
-         slist.append(HTMLEscape.text(containerTitle));
+         slist.append(HTMLEscape.viewerTitle(containerTitle));
          slist.append("</span>");
          slist.append("</div>");
       }

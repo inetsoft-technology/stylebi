@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  *   <li>Element text with viewer-HTML semantics (plain table/crosstab cells, selection
  *   labels, Text assembly): {@link #viewerText} and {@link #viewerCellText} keep the
  *   string raw where the portal viewer would render it as markup and escape it otherwise.</li>
- *   <li>Element text without such semantics (titles, input labels, combo box labels,
+ *   <li>Element text without such semantics (input labels, combo box labels,
  *   textarea): {@link #text}.</li>
  *   <li>Single-quoted attribute values: {@link #attribute}.</li>
  * </ul>
@@ -70,6 +70,21 @@ final class HTMLEscape {
    static String viewerText(Object value) {
       String str = value == null ? null : value.toString();
       return str != null && START_TAG.matcher(str).find() ? str : text(str);
+   }
+
+   /**
+    * Mirror of the viewer's title rule (vs-title/title-cell bind GuiTool.getHTMLText with
+    * innerHTML): a title wrapped in html tags is unwrapped and kept as markup, other
+    * text follows the {@link #viewerText} rule.
+    */
+   static String viewerTitle(Object value) {
+      String str = value == null ? null : value.toString();
+
+      if(str != null && str.startsWith("<html>") && str.endsWith("</html>") && str.length() >= 13) {
+         return str.substring(6, str.length() - 7);
+      }
+
+      return viewerText(str);
    }
 
    private static String escape(String str, boolean attribute) {

@@ -72,7 +72,7 @@ class HTMLExportEscapingTest {
 
    @Test
    void tableCellKeepsPlainText() {
-      Document doc = writeTable(false, "a<b", "Smith & Sons", "A&B Corp", "1234", "O'Brien",
+      Document doc = writeTable(null, "a<b", "Smith & Sons", "A&B Corp", "1234", "O'Brien",
                                 "1 < 2 && 3 > 2");
       List<String> texts = cellTexts(doc);
       assertTrue(texts.containsAll(
@@ -82,22 +82,63 @@ class HTMLExportEscapingTest {
 
    @Test
    void tableCellKeepsViewerHtml() {
-      Document doc = writeTable(false, "<b>bold</b>", "x<br>y", "l1\nl2");
+      Document doc = writeTable(null, "<b>bold</b>", "x<br>y", "l1\nl2");
       assertEquals("bold", doc.select("td b").text());
       assertEquals(2, doc.select("td br").size());
    }
 
    @Test
    void tableCellNewlineInPlainTextKeepsText() {
-      Document doc = writeTable(false, "a<b\nc");
+      Document doc = writeTable(null, "a<b\nc");
       assertTrue(doc.select("td br").size() == 1);
       assertTrue(doc.select("td").text().contains("a<b"), doc.select("td").text());
    }
 
    @Test
-   void tableTitleIsEscaped() {
-      Document doc = writeTable(true, "v");
-      assertTrue(doc.text().contains("T<t & 'x'"), doc.text());
+   void tableTitleKeepsViewerMarkupAndEscapesPlainText() {
+      assertEquals("x", writeTable("<b>x</b>", "v").select("b").text());
+      assertEquals("Sales", writeTable("<html><b>Sales</b></html>", "v").select("b").text());
+      assertFalse(writeTable("<html><b>Sales</b></html>", "v").text().contains("<html>"));
+      assertTrue(writeTable("T<t & 'x'", "v").text().contains("T<t & 'x'"));
+      assertTrue(writeTable("a<b", "v").text().contains("a<b"));
+   }
+
+   @Test
+   void selectionTitlesKeepViewerMarkupAndEscapePlainText() {
+      assertEquals("x", writeSelectionList("<b>x</b>").select("b").text());
+      assertEquals("Sales", writeSelectionList("<html><b>Sales</b></html>").select("b").text());
+      assertTrue(writeSelectionList("T<t & 'x'").text().contains("T<t & 'x'"));
+      assertEquals("x", writeSelectionTree("<b>x</b>").select("b").text());
+      assertEquals("Sales", writeSelectionTree("<html><b>Sales</b></html>").select("b").text());
+      assertTrue(writeSelectionTree("T<t & 'x'").text().contains("T<t & 'x'"));
+   }
+
+   @Test
+   void containerTitleFollowsViewerRule() {
+      SelectionListVSAssembly sel = new SelectionListVSAssembly(vs, "SLC");
+      vs.addAssembly(sel);
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) sel.getVSAssemblyInfo();
+      info.setTitleValue("plain");
+      StringBuffer buf = new StringBuffer();
+      coord.appendContainerTitle(buf, info, 20, 0.5, "<html><i>Cont</i></html>");
+      Document doc = Jsoup.parse(buf.toString());
+      assertEquals("Cont", doc.select("i").text());
+      buf = new StringBuffer();
+      coord.appendContainerTitle(buf, info, 20, 0.5, "C<t & 'x'");
+      assertTrue(Jsoup.parse(buf.toString()).text().contains("C<t & 'x'"));
+   }
+
+   @Test
+   void radioTitleFollowsViewerRule() {
+      assertEquals("x", writeRadio("<b>x</b>").select("b").text());
+      assertEquals("Sales", writeRadio("<html><b>Sales</b></html>").select("b").text());
+      assertTrue(writeRadio("T<t & 'x'").text().contains("T<t & 'x'"));
+   }
+
+   @Test
+   void helperTitleRule() {
+      assertEquals("<b>Sales</b> by", HTMLEscape.viewerTitle("<html><b>Sales</b> by</html>"));
+      assertEquals("T&lt;t &amp; 'x'", HTMLEscape.viewerTitle("T<t & 'x'"));
    }
 
    // ---- crosstab ----
@@ -227,13 +268,50 @@ class HTMLExportEscapingTest {
 
    // ---- helpers ----
 
-   private Document writeTable(boolean withTitle, String... values) {
+   private Document writeSelectionList(String title) {
+      SelectionListVSAssembly sel = new SelectionListVSAssembly(vs, "SLT");
+      vs.addAssembly(sel);
+      SelectionList list = new SelectionList();
+      list.addSelectionValue(selValue("v"));
+      sel.setSelectionList(list);
+      ((SelectionListVSAssemblyInfo) sel.getVSAssemblyInfo()).setTitleValue(title);
+      StringWriter sw = new StringWriter();
+      new HTMLSelectionListHelper(coord, vs, sel).write(new PrintWriter(sw), sel);
+      return Jsoup.parse(sw.toString());
+   }
+
+   private Document writeSelectionTree(String title) {
+      SelectionTreeVSAssembly sel = new SelectionTreeVSAssembly(vs, "STT");
+      vs.addAssembly(sel);
+      CompositeSelectionValue root = new CompositeSelectionValue("root", "root");
+      root.getSelectionList().addSelectionValue(compValue("v"));
+      sel.setCompositeSelectionValue(root);
+      ((SelectionTreeVSAssemblyInfo) sel.getVSAssemblyInfo()).setTitleValue(title);
+      StringWriter sw = new StringWriter();
+      new HTMLSelectionTreeHelper(coord, vs, sel).write(new PrintWriter(sw), sel);
+      return Jsoup.parse(sw.toString());
+   }
+
+   private Document writeRadio(String title) {
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RB");
+      vs.addAssembly(radio);
+      RadioButtonVSAssemblyInfo info = (RadioButtonVSAssemblyInfo) radio.getVSAssemblyInfo();
+      info.setValues(new Object[] { "v1" });
+      info.setLabels(new String[] { "l1" });
+      info.setTitleValue(title);
+      info.setTitleVisibleValue(true);
+      StringWriter sw = new StringWriter();
+      coord.writeList(sw, info, true, new Rectangle2D.Double(0, 0, 200, 100));
+      return Jsoup.parse(sw.toString());
+   }
+
+   private Document writeTable(String title, String... values) {
       TableVSAssembly table = new TableVSAssembly(vs, "T1");
       vs.addAssembly(table);
 
-      if(withTitle) {
+      if(title != null) {
          TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
-         info.setTitleValue("T<t & 'x'");
+         info.setTitleValue(title);
          info.setTitleVisibleValue(true);
       }
 
