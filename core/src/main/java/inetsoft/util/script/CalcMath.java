@@ -1001,8 +1001,8 @@ public class CalcMath {
                               Object sum_rangeObj) {
       Object[] range = JavaScriptEngine.split(rangeObj);
       Object[] sum_range = JavaScriptEngine.split(sum_rangeObj);
-      double[] rge = CalcUtil.convertToDoubleArray(range);
-      double[] srge = CalcUtil.convertToDoubleArray(sum_range);
+      // decide "omitted" from the raw array: an all-empty sum_range is still a sum_range
+      boolean sumRangeOmitted = sum_range.length == 0;
 
       String cond = "_value_" + criteria;
       org.graalvm.polyglot.Source condSource;
@@ -1018,22 +1018,32 @@ public class CalcMath {
 
          double sum = 0;
 
-         for(int i = 0; i < rge.length; i++) {
+         // pair range and sum_range by original position; empty or non-numeric cells
+         // keep their position instead of being compacted away
+         for(int i = 0; i < range.length; i++) {
+            Double value = CalcUtil.toDouble(range[i]);
+
+            // an empty or non-numeric range cell never satisfies the criteria. Don't
+            // evaluate it in script, where null would match e.g. "<5"
+            if(value == null) {
+               continue;
+            }
+
             try {
-               cx.getBindings("js").putMember("_value_", rge[i]);
+               cx.getBindings("js").putMember("_value_", value.doubleValue());
                org.graalvm.polyglot.Value result = cx.eval(condSource);
 
                if(result.isBoolean() ? result.asBoolean() : "true".equals(result.toString())) {
-                  try {
-                     if(srge.length > 0 && i < srge.length) {
-                        sum += srge[i];
-                     }
-                     else if(srge.length == 0) {
-                        sum += rge[i];
-                     }
+                  if(sumRangeOmitted) {
+                     sum += value;
                   }
-                  catch(Exception e) {
-                     sum += rge[i];
+                  else if(i < sum_range.length) {
+                     Double sumValue = CalcUtil.toDouble(sum_range[i]);
+
+                     // an empty or non-numeric sum_range cell adds 0
+                     if(sumValue != null) {
+                        sum += sumValue;
+                     }
                   }
                }
             }
