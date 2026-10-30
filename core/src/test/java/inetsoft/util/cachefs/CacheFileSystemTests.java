@@ -38,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -213,6 +214,41 @@ public class CacheFileSystemTests {
          }
 
          assertTrue(found);
+      }
+      finally {
+         Files.deleteIfExists(path);
+      }
+   }
+
+   @Test
+   void newOutputStreamShouldWriteLargePayloadQuickly() throws Exception {
+      // Bug #79604: BlobOutputStream inherited FilterOutputStream's byte-at-a-time
+      // write(byte[],off,len), turning a multi-MB write into millions of single-byte
+      // calls. Before the fix this took far longer than the bound below; after the
+      // fix it completes almost immediately.
+      String key = "/largeWrite.bin";
+      Path path = CacheFS.getPath("testCache", key);
+      byte[] data = new byte[10 * 1024 * 1024];
+      new Random(79604L).nextBytes(data);
+
+      try {
+         long start = System.nanoTime();
+
+         try(OutputStream out = Files.newOutputStream(path)) {
+            out.write(data);
+         }
+
+         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+         assertTrue(elapsedMs < 5000L,
+                    "writing " + data.length + " bytes took " + elapsedMs + "ms, expected < 5000ms");
+
+         byte[] actual;
+
+         try(InputStream in = Files.newInputStream(path)) {
+            actual = IOUtils.toByteArray(in);
+         }
+
+         assertArrayEquals(data, actual);
       }
       finally {
          Files.deleteIfExists(path);
