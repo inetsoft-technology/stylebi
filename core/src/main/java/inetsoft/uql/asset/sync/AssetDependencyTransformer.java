@@ -1501,28 +1501,29 @@ public class AssetDependencyTransformer extends DependencyTransformer {
       if(rankVal != null) {
          String rank = Tool.getValue(rankVal);
 
-         // fix ranking
+         // fix ranking. The wrapped names go in their own locals so that the sort-by block
+         // below still matches against the original column name.
          if(Tool.equals(oname, rank)) {
             replaceChildValue(elem, "rankingColValue", oname, nname, true);
             replaceChildValue(elem, "rankingColRValue", oname, nname, true);
          }
          else if(rank != null && rank.indexOf("(" + oname + ")") != -1) {
-            oname = "(" + oname + ")";
-            nname = "(" + nname + ")";
-            replaceChildValue(elem, "rankingColValue", oname, nname, false);
-            replaceChildValue(elem, "rankingColRValue", oname, nname, false);
+            String ro = "(" + oname + ")";
+            String rn = "(" + nname + ")";
+            replaceChildValue(elem, "rankingColValue", ro, rn, false);
+            replaceChildValue(elem, "rankingColRValue", ro, rn, false);
          }
          else if(rank != null && rank.indexOf("(" + oname + ",") != -1) {
-            oname = "(" + oname + ",";
-            nname = "(" + nname + ",";
-            replaceChildValue(elem, "rankingColValue", oname, nname, false);
-            replaceChildValue(elem, "rankingColRValue", oname, nname, false);
+            String ro = "(" + oname + ",";
+            String rn = "(" + nname + ",";
+            replaceChildValue(elem, "rankingColValue", ro, rn, false);
+            replaceChildValue(elem, "rankingColRValue", ro, rn, false);
          }
          else if(rank != null && rank.indexOf(", " + oname + ")") != -1) {
-            oname = ", " + oname + ")";
-            nname = ", " + nname + ")";
-            replaceChildValue(elem, "rankingColValue", oname, nname, false);
-            replaceChildValue(elem, "rankingColRValue", oname, nname, false);
+            String ro = ", " + oname + ")";
+            String rn = ", " + nname + ")";
+            replaceChildValue(elem, "rankingColValue", ro, rn, false);
+            replaceChildValue(elem, "rankingColRValue", ro, rn, false);
          }
       }
 
