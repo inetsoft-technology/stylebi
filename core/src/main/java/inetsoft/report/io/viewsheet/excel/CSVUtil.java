@@ -110,6 +110,9 @@ public class CSVUtil {
       TableDateComparisonFormat dcDatePartFormat = new TableDateComparisonFormat(null);
 
       for(int r = keepHeader ? 0 : table.getHeaderRowCount(); table.moreRows(r); r++) {
+         // true once a field has been written on this row (hidden columns are skipped)
+         boolean wrote = false;
+
          for(int c = 0; c < cols; c++) {
             Object obj;
             boolean specialType = false;
@@ -126,9 +129,11 @@ public class CSVUtil {
                obj = ExportUtil.getObject(table, r, c, fmt, false);
             }
 
-            if(c > 0) {
+            if(wrote) {
                writer.print(delim);
             }
+
+            wrote = true;
 
             if(obj instanceof DCMergeDatesCell) {
                obj = ((DCMergeDatesCell) obj).getFormatedOriginalDate();
