@@ -491,5 +491,31 @@ describe("AddParameterDialog - single pass", () => {
 
          expect(comp.getErrorMessage()).toBe(message);
       });
+
+      it.each([
+         ["1,2,3", "", false],
+         ["3000000000,1", RANGE, true],
+         ["1,abc", INVALID, true],
+      ])("should validate a stored Integer array %s when the parameter is re-opened for edit",
+         async (text, message, disabled) => {
+            const { comp, fixture, nativeElement } = await renderComponent({
+               index: 0,
+               parameters: [makeParameter({
+                  name: "n",
+                  type: XSchema.INTEGER,
+                  array: true,
+                  value: { value: text, type: ValueTypes.VALUE, dataType: XSchema.INTEGER },
+               })],
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+            fixture.detectChanges();
+
+            const ok = Array.from(nativeElement.querySelectorAll("button"))
+               .find(b => b.textContent.trim() === "_#(OK)") as HTMLButtonElement;
+
+            expect(comp.getErrorMessage()).toBe(message);
+            expect(ok.disabled).toBe(disabled);
+         });
    });
 });
