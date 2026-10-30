@@ -208,9 +208,24 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       return buffer.toString();
    }
 
+   /**
+    * Write plain text (labels). The text is always escaped.
+    */
    public void writeText(Writer writer, Rectangle2D bounds, VSCompositeFormat format,
                          String dispText, Hyperlink.Ref ref, boolean autoSize, Insets padding,
                          boolean shadow, int zIndex)
+   {
+      writeText(writer, bounds, format, dispText, ref, autoSize, padding, shadow, zIndex, false);
+   }
+
+   /**
+    * Write text.
+    * @param viewerHtml true if the text has the viewer's HTML semantics (Text assembly), in
+    *                   which case markup is kept as is, false to always escape the text.
+    */
+   public void writeText(Writer writer, Rectangle2D bounds, VSCompositeFormat format,
+                         String dispText, Hyperlink.Ref ref, boolean autoSize, Insets padding,
+                         boolean shadow, int zIndex, boolean viewerHtml)
    {
       StringBuffer buf = new StringBuffer();
       buf.append("<div style='position:absolute;overflow:hidden;z-index:");
@@ -274,7 +289,8 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       buf.append("'>");
 
       if(dispText != null) {
-         buf.append(dispText.replaceAll("\n", "<br>"));
+         String escaped = viewerHtml ? HTMLEscape.viewerText(dispText) : HTMLEscape.text(dispText);
+         buf.append(escaped.replaceAll("\n", "<br>"));
       }
 
       buf.append("</div></div></div>");
@@ -439,7 +455,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       buf.append("'>");
 
       if(value != null) {
-         buf.append(value == null ? "" : getDataString(assembly.getDataType(), value));
+         buf.append(HTMLEscape.text(getDataString(assembly.getDataType(), value)));
       }
 
       buf.append("</textarea>");
@@ -456,7 +472,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
                            String value, int zIndex)
    {
       try {
-         writer.write("<input type='button' value='" + value + "' style='");
+         writer.write("<input type='button' value='" + HTMLEscape.attribute(value) + "' style='");
          writer.write(getCSSStyles(bounds, fmt));
          writer.write(";z-index:");
          writer.write(String.valueOf(zIndex));
@@ -472,7 +488,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
    {
       try {
          writer.write("<input type='number' value='");
-         writer.write(Tool.toString(value));
+         writer.write(HTMLEscape.attribute(Tool.toString(value)));
          writer.write("' style='");
          writer.write(getCSSStyles(bounds, fmt));
          writer.write(";z-index:");
@@ -509,7 +525,8 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          options.append(";z-index:");
          options.append(info.getZIndex());
          options.append("' value='");
-         options.append((values[0] == null ? "" : getDataString(dataType, values[0])) + "'>");
+         options.append(
+            (values[0] == null ? "" : HTMLEscape.attribute(getDataString(dataType, values[0]))) + "'>");
       }
       else {
          options.append("<select style='");
@@ -521,7 +538,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
 
          for(int i = 0; i < values.length; i++) {
             Object valueStr = values[i] == null ? "" : values[i];
-            options.append("<option value='" + valueStr + "' ");
+            options.append("<option value='" + HTMLEscape.attribute(valueStr) + "' ");
 
             if(Tool.equals(values[i], value)) {
                options.append("selected='selected'");
@@ -529,13 +546,14 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
             }
 
             Object label = labels[i] == null ? "" : labels[i];
-            options.append(">" + labels[i] + "</option>");
+            options.append(">" + HTMLEscape.text(labels[i]) + "</option>");
          }
 
          if(!found) {
             Object valueStr = value == null ? "" : value;
             options.append(
-               "<option value='" + valueStr + "' selected='selected'>" + valueStr + "</option>");
+               "<option value='" + HTMLEscape.attribute(valueStr) + "' selected='selected'>" +
+                  HTMLEscape.text(valueStr) + "</option>");
          }
 
          options.append("</select>");
@@ -659,7 +677,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
                   buf.append(" checked");
                }
 
-               buf.append(">" + labels[count]);
+               buf.append(">" + HTMLEscape.text(labels[count]));
                buf.append("  </label>");
                buf.append(" </div>");
                buf.append("</td>");
@@ -935,11 +953,11 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       slist.append("'>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio1 +
                       ";white-space:nowrap'>");
-      slist.append(title);
+      slist.append(HTMLEscape.viewerTitle(title));
       slist.append("  </div>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio2 +
          ";white-space:nowrap'>");
-      slist.append(value);
+      slist.append(HTMLEscape.text(value));
       slist.append("  </div>");
       slist.append(" </div>");
       slist.append("</div>");
@@ -1000,7 +1018,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(title);
+            titleStr.append(HTMLEscape.viewerTitle(title));
          }
 
          titleStr.append("</span></div>");
@@ -1021,7 +1039,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(title);
+            titleStr.append(HTMLEscape.viewerTitle(title));
          }
 
          titleStr.append("</span></div>");
@@ -1125,7 +1143,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          }
 
          slist.append("'>");
-         slist.append(title);
+         slist.append(HTMLEscape.viewerTitle(title));
          slist.append("</span>");
       }
 
@@ -1141,7 +1159,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          }
 
          slist.append("'>");
-         slist.append(containerTitle);
+         slist.append(HTMLEscape.viewerTitle(containerTitle));
          slist.append("</span>");
          slist.append("</div>");
       }

@@ -156,7 +156,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
 
       slist.append("<input type='");
       slist.append(isSingleSelectionLevel(info, svalue.getLevel()) ? "radio" : "checkbox");
-      slist.append("' value='" + svalue + "'");
+      slist.append("' value='" + HTMLEscape.attribute(svalue) + "'");
 
       if(svalue.isSelected()) {
          slist.append(" checked");
@@ -174,7 +174,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       }
 
       slist.append("'>");
-      slist.append(svalue.getLabel());
+      slist.append(HTMLEscape.viewerText(svalue.getLabel()));
       slist.append("</div>");
 
       if(showText && svalue.getMeasureLabel() != null) {
@@ -191,7 +191,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
          }
 
          slist.append("'>");
-         slist.append(svalue.getMeasureLabel());
+         slist.append(HTMLEscape.text(svalue.getMeasureLabel()));
          slist.append("</span>");
       }
 
