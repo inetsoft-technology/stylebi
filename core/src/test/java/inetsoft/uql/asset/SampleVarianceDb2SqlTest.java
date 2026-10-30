@@ -31,8 +31,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #79477: DB2 VARIANCE/STDDEV are the population (biased) functions, so the sample
- * Variance and Standard Deviation aggregates must be pushed down as VARIANCE_SAMP/STDDEV_SAMP.
+ * Bug #79477: DB2 VARIANCE/STDDEV are the population (biased) functions and VARIANCE_SAMP/
+ * STDDEV_SAMP don't exist before DB2 11.1, so the sample Variance and Standard Deviation
+ * aggregates must use the portable n - 1 formula, not a native function.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -63,15 +64,21 @@ class SampleVarianceDb2SqlTest {
    }
 
    @Test
-   void db2VarianceIsSample() {
-      assertEquals("variance_samp(T.C)",
-                   AggregateFormula.VARIANCE.getExpression("T.C", null, helper("db2")));
+   void db2VarianceUsesPortableSampleFormula() {
+      String v = AggregateFormula.VARIANCE.getExpression("T.C", null, helper("db2"));
+      assertFalse(v.toLowerCase().contains("variance("), v);
+      assertFalse(v.toLowerCase().contains("_samp"), v);
+      // n - 1 denominator (sample), not n
+      assertTrue(v.contains("- 1)"), v);
    }
 
    @Test
-   void db2StandardDeviationIsSample() {
-      assertEquals("stddev_samp(T.C)",
-                   AggregateFormula.STANDARD_DEVIATION.getExpression("T.C", null, helper("db2")));
+   void db2StandardDeviationUsesPortableSampleFormula() {
+      String s = AggregateFormula.STANDARD_DEVIATION.getExpression("T.C", null, helper("db2"));
+      assertFalse(s.toLowerCase().contains("stddev("), s);
+      assertFalse(s.toLowerCase().contains("_samp"), s);
+      assertTrue(s.startsWith("SQRT("), s);
+      assertTrue(s.contains("- 1)"), s);
    }
 
    @Test
