@@ -49,6 +49,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -610,6 +611,146 @@ class RenameTransformQueueReplayTest {
                                                   w.contains(OLD_WS)), warnings().toString());
    }
 
+   /**
+    * Bug #79721: OldWS is renamed to NewWS, the node stops with the dependents still bound to
+    * OldWS, then NewWS is renamed to NewerWS on a node that is running. The later rename must
+    * also move the dependents from OldWS, or the replay of the first rename binds them to the
+    * NewWS that no longer exists.
+    */
+   @Test
+   void renameChainedToAPendingRenameLeavesNoDependentOnTheMissingName() throws Exception {
+      mockRepository();
+      RenameDependencyInfo first = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(first, true);
+      // the node stopped after the index move, before any dependent was rewritten
+      DependencyTransformer.renameDepStorage(first.getRenameInfos().get(0));
+      List<AssetObject> found = DependencyTransformer.getDependencies(NEW_WS);
+      assertTrue(found != null && found.contains(DEPENDENT), String.valueOf(found));
+
+      RenameDependencyInfo second = newerTask(found);
+      handler().addTransformTask(second, true);
+      cluster().dropRenameTransform = false;
+      assertEquals(2, queueSize());
+
+      Map<AssetObject, String> bindings = new HashMap<>();
+      bindings.put(DEPENDENT, OLD_WS);
+      // the later rename runs and finishes first, as it does on the live node
+      new RenameTransformTask.Rename(queued(second)).run(recorder(bindings), () -> false);
+      cluster().awaitTasks();
+      assertEquals(NEWER_WS, bindings.get(DEPENDENT), "bound to the new name");
+      assertEquals(1, queueSize(), "only the first rename is left");
+
+      // the cluster restart replays the first rename
+      new RenameTransformTask.Rename(queued(first), true).run(recorder(bindings), () -> false);
+      cluster().awaitTasks();
+      assertEquals(NEWER_WS, bindings.get(DEPENDENT), "not rebound to the missing NewWS");
+      assertEquals(0, queueSize());
+      assertNull(dss.get(OLD_WS));
+      assertNull(dss.get(NEW_WS));
+      DependenciesInfo index = (DependenciesInfo) dss.get(NEWER_WS);
+      assertNotNull(index, "the reverse index is on the last name");
+      assertTrue(index.getDependencies().contains(DEPENDENT));
+   }
+
+   /**
+    * Bug #79721: the node stopped before the index move too, so the later rename finds no
+    * dependents under NewWS. It takes the dependents of the pending rename and moves the index.
+    */
+   @Test
+   void renameChainedToAPendingRenameWhoseIndexMoveDidNotRunTakesItsDependents()
+      throws Exception
+   {
+      mockRepository();
+      RenameDependencyInfo first = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(first, true);
+      List<AssetObject> none = DependencyTransformer.getDependencies(NEW_WS);
+      assertTrue(none == null || none.isEmpty(), String.valueOf(none));
+
+      RenameDependencyInfo second = newerTask(List.of());
+      handler().addTransformTask(second, true);
+      cluster().dropRenameTransform = false;
+
+      Map<AssetObject, String> bindings = new HashMap<>();
+      bindings.put(DEPENDENT, OLD_WS);
+      new RenameTransformTask.Rename(queued(second)).run(recorder(bindings), () -> false);
+      new RenameTransformTask.Rename(queued(first), true).run(recorder(bindings), () -> false);
+      cluster().awaitTasks();
+
+      assertEquals(NEWER_WS, bindings.get(DEPENDENT));
+      assertEquals(0, queueSize());
+      assertNull(dss.get(OLD_WS));
+      assertNull(dss.get(NEW_WS));
+      DependenciesInfo index = (DependenciesInfo) dss.get(NEWER_WS);
+      assertNotNull(index, "the reverse index moved to the last name");
+      assertTrue(index.getDependencies().contains(DEPENDENT));
+   }
+
+   @Test
+   void renamesThatAreNotAChainAreLeftAlone() {
+      RenameInfo aToB = new RenameInfo(OLD_WS, NEW_WS, RenameInfo.ASSET | RenameInfo.SOURCE);
+      RenameDependencyInfo pending = new RenameDependencyInfo();
+      pending.setRenameInfos(new ArrayList<>(List.of(aToB)));
+      pending.setRenameInfo(DEPENDENT, pending.getRenameInfos());
+      RenameTransformQueue queue = new RenameTransformQueue();
+      queue.add(pending);
+
+      // a rename back, an unrelated asset, another kind of rename: nothing is added
+      for(RenameInfo next : List.of(
+         new RenameInfo(NEW_WS, OLD_WS, RenameInfo.ASSET | RenameInfo.SOURCE),
+         new RenameInfo(NEWER_WS, OLD_WS, RenameInfo.ASSET | RenameInfo.SOURCE),
+         new RenameInfo(NEW_WS, NEWER_WS, RenameInfo.ASSET | RenameInfo.TABLE),
+         new RenameInfo(NEW_WS, NEWER_WS, RenameInfo.VIEWSHEET | RenameInfo.SOURCE)))
+      {
+         RenameDependencyInfo later = new RenameDependencyInfo();
+         later.setRenameInfos(new ArrayList<>(List.of(next)));
+         RenameTransformTask.chainPendingRenames(later, queue);
+         assertEquals(1, later.getRenameInfos().size(), next.getOldName());
+         assertTrue(later.getDependencyMap().isEmpty(), next.getOldName());
+      }
+   }
+
+   private RenameDependencyInfo newerTask(List<AssetObject> dependents) {
+      RenameInfo rinfo = new RenameInfo(NEW_WS, NEWER_WS, RenameInfo.ASSET | RenameInfo.SOURCE);
+      RenameDependencyInfo task = new RenameDependencyInfo();
+      task.setRenameInfos(new ArrayList<>(List.of(rinfo)));
+
+      for(AssetObject dependent : dependents) {
+         task.setRenameInfo(dependent, task.getRenameInfos());
+      }
+
+      return task;
+   }
+
+   /**
+    * Gets the queued copy of a task, which the chaining changed.
+    */
+   private RenameDependencyInfo queued(RenameDependencyInfo task) {
+      RenameTransformQueue queue = engine().get(QUEUE_STORE, QUEUE_KEY);
+      return queue.stream().filter(task::equals).findFirst().orElseThrow();
+   }
+
+   /**
+    * A transform that rewrites the way the real one does: a binding is replaced if it equals the
+    * old name of a rename of its dependent.
+    */
+   private static Function<RenameDependencyInfo, CompletableFuture<Boolean>> recorder(
+      Map<AssetObject, String> bindings)
+   {
+      return info -> {
+         for(AssetObject dependent : info.getAssetObjects()) {
+            for(RenameInfo rinfo : info.getRenameInfo(dependent)) {
+               if(rinfo.getOldName().equals(bindings.get(dependent))) {
+                  bindings.put(dependent, rinfo.getNewName());
+               }
+            }
+         }
+
+         return CompletableFuture.completedFuture(true);
+      };
+   }
+
    @Test
    void attemptsRoundTripThroughJson() throws Exception {
       RenameTransformAttempts attempts = new RenameTransformAttempts();
@@ -764,6 +905,7 @@ class RenameTransformQueueReplayTest {
    private static final String ORG_STORE = ORG.toLowerCase() + "__dependencyStorage";
    private static final String OLD_WS = "1^2^__NULL__^OldWS^" + ORG;
    private static final String NEW_WS = "1^2^__NULL__^NewWS^" + ORG;
+   private static final String NEWER_WS = "1^2^__NULL__^NewerWS^" + ORG;
    private static final AssetEntry DEPENDENT = new AssetEntry(
       AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "DependentVS", null, ORG);
 

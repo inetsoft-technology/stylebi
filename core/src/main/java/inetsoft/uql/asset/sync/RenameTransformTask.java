@@ -80,6 +80,7 @@ public class RenameTransformTask
          attempts = new RenameTransformAttempts();
       }
 
+      chainPendingRenames(info, queue);
       queue.add(info);
       attempts.set(info.getTaskId(), 1);
       putQueue(getEngine(), getMap(), queue, attempts);
@@ -108,6 +109,131 @@ public class RenameTransformTask
       engine.put(DependencyStorageService.QUEUE_STORE, DependencyStorageService.ATTEMPTS_KEY,
                  attempts);
       map.put(DependencyStorageService.ATTEMPTS_KEY, attempts);
+   }
+
+   /**
+    * Chains a new rename to the pending (queued, not yet finished) renames of the same asset.
+    * <p>
+    * A pending rename A to B may not have rewritten its dependents yet, for example because a
+    * node was stopped, so they still name A. A later rename B to C rewrites only the values equal
+    * to B, leaves them on A, and the replay of A to B then binds them to B, which no longer
+    * exists. So for every dependent of a pending task that renames to the old name of this task,
+    * this task also gets the rename of A to C, and the dependents the pending task has but this
+    * task found none (the index may not have been moved yet) are added with both renames. If the
+    * dependency index was not moved either, it is moved from A to C. The pending task stays
+    * queued, its replay finds nothing left to rewrite.
+    * <p>
+    * Only plain renames are chained, see {@link #isChainable(RenameInfo, RenameInfo)}; anything
+    * else is left as it is. A failure leaves the task unchanged.
+    */
+   static void chainPendingRenames(RenameDependencyInfo info, RenameTransformQueue queue) {
+      if(info.getRenameInfos() == null || queue == null || queue.isEmpty()) {
+         return;
+      }
+
+      try {
+         // work on copies so that a failure in the middle leaves the task unchanged
+         Map<AssetObject, List<RenameInfo>> merged = new LinkedHashMap<>();
+         List<RenameInfo> moves = new ArrayList<>();
+         boolean ownDependents = !info.getDependencyMap().isEmpty();
+
+         for(RenameDependencyInfo pending : queue) {
+            if(pending == null || pending.equals(info) || pending.getDependencyMap() == null) {
+               continue;
+            }
+
+            for(Map.Entry<AssetObject, List<RenameInfo>> e : pending.getDependencyMap().entrySet()) {
+               for(RenameInfo prior : e.getValue() == null ? List.<RenameInfo>of() : e.getValue()) {
+                  for(RenameInfo next : info.getRenameInfos()) {
+                     if(!isChainable(prior, next)) {
+                        continue;
+                     }
+
+                     RenameInfo chained = next.copyWithOldName(prior.getOldName());
+                     List<RenameInfo> list = merged.computeIfAbsent(
+                        e.getKey(), k -> new ArrayList<>());
+
+                     if(!containsRename(list, chained)) {
+                        list.add(chained);
+                     }
+
+                     if(!ownDependents && !containsRename(moves, chained)) {
+                        moves.add(chained);
+                     }
+                  }
+               }
+            }
+         }
+
+         if(merged.isEmpty()) {
+            return;
+         }
+
+         for(Map.Entry<AssetObject, List<RenameInfo>> e : merged.entrySet()) {
+            List<RenameInfo> list = new ArrayList<>(info.getRenameInfo(e.getKey()));
+
+            if(list.isEmpty()) {
+               list.addAll(info.getRenameInfos());
+            }
+
+            for(RenameInfo rinfo : e.getValue()) {
+               if(!containsRename(list, rinfo)) {
+                  list.add(rinfo);
+               }
+            }
+
+            info.setRenameInfo(e.getKey(), list);
+         }
+
+         // the index is still under the first name when this task found no dependents of its own
+         List<RenameInfo> rinfos = new ArrayList<>(info.getRenameInfos());
+         moves.stream().filter(m -> !containsRename(rinfos, m)).forEach(rinfos::add);
+         info.setRenameInfos(rinfos);
+         LOG.debug("Rename transform task {} chained to pending renames: {}",
+                   info.getTaskId(), describe(info));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to chain the rename transform task to the pending renames: {}",
+                  info.getTaskId(), e);
+      }
+   }
+
+   /**
+    * Determines if a rename of the old name of {@code next} to the new name of {@code next}
+    * continues the pending rename {@code prior}: {@code prior} renamed an asset to the name that
+    * {@code next} renames. Only plain renames of a whole asset of the same kind, source and
+    * organization are chained, and not a rename back to the first name.
+    */
+   private static boolean isChainable(RenameInfo prior, RenameInfo next) {
+      if(prior == null || next == null || prior.getClass() != RenameInfo.class ||
+         next.getClass() != RenameInfo.class || prior.getType() != next.getType() ||
+         prior.isTable() || prior.isColumn() || prior.isFolder() || prior.isTableOption() ||
+         prior.getOldName() == null || prior.getNewName() == null ||
+         next.getOldName() == null || next.getNewName() == null ||
+         !prior.getNewName().equals(next.getOldName()) ||
+         prior.getOldName().equals(next.getNewName()) ||
+         prior.getOldName().equals(next.getOldName()))
+      {
+         return false;
+      }
+
+      return Objects.equals(prior.getOrganizationId(), next.getOrganizationId()) &&
+         Objects.equals(prior.getSource(), next.getSource()) &&
+         Objects.equals(prior.getTable(), next.getTable()) &&
+         Objects.equals(prior.getEntity(), next.getEntity()) &&
+         Objects.equals(prior.getOldEntity(), next.getOldEntity()) &&
+         Objects.equals(prior.getPrefix(), next.getPrefix()) &&
+         prior.isRest() == next.isRest() &&
+         prior.getParentRenameInfo() == null && next.getParentRenameInfo() == null &&
+         prior.getOldPath() == null && prior.getNewPath() == null &&
+         next.getOldPath() == null && next.getNewPath() == null;
+   }
+
+   private static boolean containsRename(List<RenameInfo> list, RenameInfo rinfo) {
+      return list.stream().anyMatch(r -> r != null && r.getType() == rinfo.getType() &&
+         Objects.equals(r.getOldName(), rinfo.getOldName()) &&
+         Objects.equals(r.getNewName(), rinfo.getNewName()) &&
+         Objects.equals(r.getOrganizationId(), rinfo.getOrganizationId()));
    }
 
    /**
