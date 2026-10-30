@@ -118,7 +118,8 @@ class AssetDependencyTransformerRankingSortRenameTest {
    @ParameterizedTest
    @CsvSource(delimiter = '|', value = {
       "Sum(Customers:Sales)                           | Sum(Customers:Revenue)",
-      "Correlation(Customers:Sales, Customers:Profit) | Correlation(Customers:Revenue, Customers:Profit)"
+      "Correlation(Customers:Sales, Customers:Profit) | Correlation(Customers:Revenue, Customers:Profit)",
+      "Correlation(Customers:Profit, Customers:Sales) | Correlation(Customers:Profit, Customers:Revenue)"
    })
    void chartLogicalModelRename(String ranking, String expectedRanking) throws Exception {
       Viewsheet vs = chart(new SourceInfo(SourceInfo.MODEL, "ds", "model"),
