@@ -130,6 +130,22 @@ public class SortInfo implements AssetObject, ContentObject {
    }
 
    /**
+    * Append one sort ref without the equality check of {@link #addSort(int, SortRef)}. Sort refs
+    * compare by entity and attribute only, so a self-join column and its aliased copy (same
+    * attribute, different column) would otherwise replace each other.
+    * @param ref the sort ref to append.
+    */
+   public synchronized void appendSort(SortRef ref) {
+      sorts.add(ref);
+
+      PropertyChangeListener listener = getListener();
+
+      if(listener != null) {
+         listener.propertyChange(new PropertyChangeEvent(this, "sortRef", ref, ref));
+      }
+   }
+
+   /**
     * Remove the sort ref.
     * @param ref the specified attribute.
     */
