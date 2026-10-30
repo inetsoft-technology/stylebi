@@ -421,4 +421,75 @@ describe("AddParameterDialog - single pass", () => {
          expect(cancelSpy).toHaveBeenCalledWith("cancel");
       });
    });
+
+   describe("Group 6 - integer array per-entry validation (Bug #79748)", () => {
+      const RANGE = "_#(js:em.common.param.number.outNegativeRange)";
+      const INVALID = "_#(js:em.common.param.numberInvalid)";
+
+      async function enter(type: string, array: boolean, text: string) {
+         const { comp, fixture, nativeElement } = await renderComponent({ index: -1, parameters: [] });
+
+         comp.form.controls["type"].setValue(type);
+         comp.form.controls["array"].setValue(array);
+         comp.model.name = "p";
+         comp.form.controls["name"].setValue("p");
+         comp.model.value.value = text;
+         comp.form.controls["value"]?.setValue(text);
+         fixture.detectChanges();
+         await fixture.whenStable();
+         fixture.detectChanges();
+
+         const ok = Array.from(nativeElement.querySelectorAll("button"))
+            .find(b => b.textContent.trim() === "_#(OK)") as HTMLButtonElement;
+         const alert = nativeElement.querySelector(".alert-danger");
+
+         return { comp, ok, alertText: alert?.textContent.trim() ?? "" };
+      }
+
+      it.each(["1,2,3", "5", "-5", "1, 2, 3", "2147483647,-2147483648"])(
+         "should accept in-range Integer array %s", async (text) => {
+            const { ok, alertText, comp } = await enter(XSchema.INTEGER, true, text);
+
+            expect(comp.getErrorMessage()).toBe("");
+            expect(alertText).toBe("");
+            expect(ok.disabled).toBe(false);
+         });
+
+      it.each([
+         ["3000000000,4000000000", RANGE],
+         ["1,3000000000", RANGE],
+         ["3000000000", RANGE],
+         ["-2147483649", RANGE],
+         ["1,abc", INVALID],
+         ["abc", INVALID],
+         ["1.5,2", INVALID],
+         ["1,2,", INVALID],
+         ["1,,2", INVALID],
+      ])("should reject Integer array %s with the matching message", async (text, message) => {
+         const { ok, alertText } = await enter(XSchema.INTEGER, true, text);
+
+         expect(alertText).toBe(message);
+         expect(ok.disabled).toBe(true);
+      });
+
+      it.each([
+         ["5", ""], ["-5", ""], ["3000000000", RANGE], ["abc", INVALID], ["1,2", INVALID],
+      ])("should keep non-array Integer %s unchanged", async (text, message) => {
+         const { comp } = await enter(XSchema.INTEGER, false, text);
+
+         expect(comp.getErrorMessage()).toBe(message);
+      });
+
+      it.each([
+         [XSchema.STRING, true, "1,2,3", ""],
+         [XSchema.FLOAT, true, "1.5,2.5", ""],
+         [XSchema.DOUBLE, true, "1.5, 2", ""],
+         [XSchema.DOUBLE, true, "x,1", INVALID],
+         [XSchema.LONG, true, "1,2,3", ""],
+      ])("should leave %s array=%s %s unchanged", async (type, array, text, message) => {
+         const { comp } = await enter(type, array, text);
+
+         expect(comp.getErrorMessage()).toBe(message);
+      });
+   });
 });
