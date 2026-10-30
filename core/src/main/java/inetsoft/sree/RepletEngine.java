@@ -1408,6 +1408,17 @@ public class RepletEngine extends AbstractAssetEngine
       {
          SharedMVUtil.removeMV(entry);
       }
+
+      // the event path (ScheduleManager.assetRemoved) only strips AssetSupport actions, so
+      // strip the viewsheet actions that point at the removed viewsheet here
+      if(entry.getType() == AssetEntry.Type.VIEWSHEET) {
+         try {
+            ScheduleManager.getScheduleManager().viewsheetRemoved(entry, entry.getOrgID());
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to remove schedule actions of viewsheet {}", entry, ex);
+         }
+      }
    }
 
    /**
