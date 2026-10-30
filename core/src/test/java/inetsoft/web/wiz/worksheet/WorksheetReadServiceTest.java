@@ -41,7 +41,9 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 
 import java.awt.Point;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -2242,6 +2244,51 @@ class WorksheetReadServiceTest {
       ws.addAssembly(t);
 
       assertEquals("QUANTITY", tableNamed(read(ws), "T").postConditions().get(0).field());
+   }
+
+   // Bug #79734: the grouped table's output column types must not depend on whether the public
+   // selection was last rebuilt from AggregateInfo (Sum double) or from an executed result
+   // (Sum over an integer column integer).
+   @Test
+   void aggregateColumnTypesAreStableAcrossExecutedSelection() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "company", "stock", "id");
+
+      for(String col : List.of("stock", "id")) {
+         ((ColumnRef) t.getColumnSelection(false).getAttribute(col)).setDataType(XSchema.INTEGER);
+      }
+
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("company"))
+         .setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("company")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("stock", "SUM", null),
+                 new WorksheetMutationSupport.AggregateSpec("id", "COUNT", null)));
+
+      Map<String, String> before = columnTypes(read(ws));
+      assertEquals(XSchema.STRING, before.get("company"));
+      assertEquals(XSchema.DOUBLE, before.get("stock"));
+      assertEquals(AggregateFormula.getFormula("COUNT").getDataType(), before.get("id"));
+
+      // simulate the executed result: every output column comes back as an integer
+      ColumnSelection pub = t.getColumnSelection(true);
+
+      for(int i = 0; i < pub.getAttributeCount(); i++) {
+         ColumnRef c = (ColumnRef) pub.getAttribute(i);
+
+         if(!"company".equals(c.getAttribute())) {
+            c.setDataType(XSchema.INTEGER);
+         }
+      }
+
+      assertEquals(before, columnTypes(read(ws)));
+   }
+
+   private static Map<String, String> columnTypes(WorksheetModel m) {
+      Map<String, String> types = new HashMap<>();
+      tableNamed(m, "T").columns().forEach(c -> types.put(c.name(), c.type()));
+      return types;
    }
 
    private static ColumnRef aliased(String attribute, String alias) {

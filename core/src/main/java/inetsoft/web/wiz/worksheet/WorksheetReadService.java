@@ -486,6 +486,7 @@ public class WorksheetReadService {
 
       if(type != null) {
          type = WorksheetMutationSupport.columnType(t, ref, t.isAggregate(), merged);
+         type = aggregateMetadataType(t, ref, type);
       }
 
       String alias = ref.getAlias();
@@ -498,6 +499,35 @@ public class WorksheetReadService {
 
       return new WorksheetModel.ColumnModel(name, type, alias, expression, description,
                                             ref.isVisible());
+   }
+
+   /**
+    * Bug #79734: a grouped table's output column type flips between the AggregateInfo metadata
+    * (Sum is a double, Count an integer) and the executed result (a Sum over an integer column
+    * comes back as an integer), depending on which of them last rebuilt the public selection.
+    * Always report the AggregateInfo type, the one {@code setColumnSelection} builds the
+    * selection with. Concatenations keep the merged-subtable type {@code columnType} resolves,
+    * and a crosstab's output columns are pivoted at runtime.
+    */
+   private static String aggregateMetadataType(TableAssembly t, ColumnRef ref, String type) {
+      if(!t.isAggregate() || t instanceof ConcatenatedTableAssembly) {
+         return type;
+      }
+
+      AggregateInfo info = t.getAggregateInfo();
+
+      if(info == null || info.isEmpty() || info.isCrosstab()) {
+         return type;
+      }
+
+      GroupRef group = info.getGroup(ref);
+
+      if(group != null) {
+         return group.getDataType();
+      }
+
+      AggregateRef aggregate = info.getAggregate(ref);
+      return aggregate != null ? aggregate.getDataType() : type;
    }
 
    // -------------------------------------------------------------------------
