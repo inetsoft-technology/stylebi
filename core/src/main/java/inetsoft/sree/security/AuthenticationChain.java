@@ -199,9 +199,11 @@ public class AuthenticationChain
          return new String[0];
       }
 
+      // call each provider once, the call can be expensive (e.g. scans a distributed map)
       return stream()
-         .filter(p -> p.getOrganizationIDs() != null)
-         .flatMap(p -> Arrays.stream(p.getOrganizationIDs()))
+         .map(AuthenticationProvider::getOrganizationIDs)
+         .filter(Objects::nonNull)
+         .flatMap(Arrays::stream)
          .distinct()
          .toArray(String[]::new);
    }
