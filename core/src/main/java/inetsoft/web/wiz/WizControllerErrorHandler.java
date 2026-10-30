@@ -21,6 +21,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
 import inetsoft.web.viewsheet.service.ExportInProgressException;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
+import inetsoft.web.wiz.service.DatasourceNotFoundException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
@@ -101,6 +102,22 @@ public class WizControllerErrorHandler {
       payload.put("error", e.getMessage());
       payload.put("datasourceType", e.getDatasourceType());
       return new ResponseEntity<>(payload, null, HttpStatus.UNPROCESSABLE_ENTITY);
+   }
+
+   // A datasource name that is not registered. Reaches here from WorksheetAgentController's
+   // addBoundTable and named-group attachment lookups, which do not catch it; the other
+   // getJDBCDatasource callers handle it themselves (see the comment above). 400 with errorCode
+   // matches what add_sql_query answers for the same condition.
+   @ExceptionHandler(DatasourceNotFoundException.class)
+   public ResponseEntity<Map<String, String>> handleDatasourceNotFound(
+      DatasourceNotFoundException e)
+   {
+      LOG.warn("Datasource not found: {}", e.getDatasourceName());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      payload.put("errorCode", "INVALID_ARGUMENT");
+      return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
    }
 
    /**

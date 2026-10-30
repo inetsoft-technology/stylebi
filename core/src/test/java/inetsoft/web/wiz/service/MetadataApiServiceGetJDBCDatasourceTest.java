@@ -52,7 +52,9 @@ class MetadataApiServiceGetJDBCDatasourceTest {
    }
 
    @Test
-   void getJDBCDatasource_throwsPlainExceptionWhenDatasourceDoesNotExist() throws Exception {
+   void getJDBCDatasource_throwsDatasourceNotFoundExceptionWhenDatasourceDoesNotExist()
+      throws Exception
+   {
       XRepository xrepository = mock(XRepository.class);
       when(xrepository.getDataSource("nope")).thenReturn(null);
 
@@ -60,9 +62,12 @@ class MetadataApiServiceGetJDBCDatasourceTest {
 
       Exception ex = assertThrows(Exception.class, () -> service.getJDBCDatasource("nope"));
 
+      assertInstanceOf(DatasourceNotFoundException.class, ex);
       assertFalse(ex instanceof UnsupportedDatasourceException,
-         "a missing datasource is a plain not-found, not an unsupported-type condition");
-      assertTrue(ex.getMessage().contains("nope"));
+         "a missing datasource is a not-found, not an unsupported-type condition");
+      assertEquals("nope", ((DatasourceNotFoundException) ex).getDatasourceName());
+      // wiz-services matches /data\s*source\b.*\bnot found/i on this text
+      assertEquals("Data source 'nope' not found.", ex.getMessage());
    }
 
    @Test
