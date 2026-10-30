@@ -266,6 +266,33 @@ class AssemblyHyperlinkServiceTest {
                                               eq(false), any(Principal.class));
    }
 
+   /** A text-element read passes isText to the dialog service and echoes it (bug #79852). */
+   @Test
+   void aTextRegionIsReadAsTheTextElementAndEchoed() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(HyperlinkDialogService.NONE);
+      Harness h = harness(model);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart1",
+         new AssemblyHyperlinkService.Region(null, null, null, false, true, false, false));
+
+      verify(h.links).getHyperlinkDialogModel(eq("rt1"), eq("Chart1"), eq(0), eq(0),
+                                              isNull(), eq(false), eq(true), eq(false),
+                                              eq(false), any(Principal.class));
+      assertEquals(Boolean.TRUE, read.get("text"));
+   }
+
+   /** The echo is only for a text read; every other response keeps its shape. */
+   @Test
+   void aPlainReadDoesNotCarryTheTextEcho() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(HyperlinkDialogService.NONE);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1", null);
+
+      assertFalse(read.containsKey("text"));
+   }
+
    // ── alignment with the real hyperlink-dialog UI ─────────────────────────────
 
    /**
