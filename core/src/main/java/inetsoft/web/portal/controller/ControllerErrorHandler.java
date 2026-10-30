@@ -99,7 +99,7 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
             Catalog.getCatalog().getString("common.cacheStoppedError"), null,
             HttpStatus.SERVICE_UNAVAILABLE);
       }
-      else if(GlobalExceptionHandler.isClientAbortException(e.getClass().getName())) {
+      else if(GlobalExceptionHandler.isClientAbort(e)) {
          LOG.debug("Client closed connection", e);
       }
       else {
