@@ -837,6 +837,14 @@ public class DataCycleManager
    }
 
    /**
+    * Check if the specified data cycle exists. A stored data cycle without any condition exists
+    * too, so this checks the storage entry rather than the conditions.
+    */
+   public boolean containsDataCycle(String name, String orgId) {
+      return getIndexedStorage().contains(getCycleEntry(name, orgId).toIdentifier(), orgId);
+   }
+
+   /**
     * Get the total number of the data cycles.
     */
    public int getDataCycleCount() {
