@@ -799,14 +799,31 @@ public class AssemblyImageService {
                      DimensionD scale = new DimensionD(width / pixelSize.width,
                                                        height / pixelSize.height);
 
+                     // the ratio is a per-render parameter; restore it afterwards so a
+                     // render at a size other than the assembly's own does not leave the
+                     // live assembly scaled for every later render/export
+                     DimensionD oldScale = null;
+
                      if(assembly instanceof ShapeVSAssembly) {
+                        oldScale = ((ShapeVSAssembly) assembly).getScalingRatio();
                         ((ShapeVSAssembly) assembly).setScalingRatio(scale);
                      }
                      else if(assembly instanceof ImageVSAssembly) {
+                        oldScale = ((ImageVSAssembly) assembly).getScalingRatio();
                         ((ImageVSAssembly) assembly).setScalingRatio(scale);
                      }
 
-                     image = getAssemblyImage((VSAssembly) assembly);
+                     try {
+                        image = getAssemblyImage((VSAssembly) assembly);
+                     }
+                     finally {
+                        if(assembly instanceof ShapeVSAssembly) {
+                           ((ShapeVSAssembly) assembly).setScalingRatio(oldScale);
+                        }
+                        else if(assembly instanceof ImageVSAssembly) {
+                           ((ImageVSAssembly) assembly).setScalingRatio(oldScale);
+                        }
+                     }
                   }
                }
                finally {
