@@ -4056,7 +4056,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       for(int i = 0; i < slist.getSelectionValueCount(); i++) {
          String svalue = slist.getSelectionValue(i).getValue();
 
-         for(int j = 0; j < tlist.getSelectionValueCount(); i++) {
+         for(int j = 0; j < tlist.getSelectionValueCount(); j++) {
             String tvalue = tlist.getSelectionValue(j).getValue();
 
             if(Tool.equals(svalue, tvalue)) {
