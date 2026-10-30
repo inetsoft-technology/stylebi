@@ -1,0 +1,134 @@
+{
+  "$comment": "Schedule task permission policy (Testing #79042): the expected allow / deny answer of every actor and operation, as rules over actor attributes and two settings. The Java helper matrix (SchedulePermissionHelperMatrixTest) and the e2e entry-point matrix (stylebi-enterprise e2e/tests/api/schedule/permission-matrix) both read this file. The rules are the ones agreed on 2026-10-30 (stylebi-enterprise e2e/tests/api/schedule/permission-matrix/RULES-TO-DECIDE.md). An expression uses the attributes, the settings share (schedule.options.shareTaskInGroup) and deleteOnlyByOwner (schedule.options.deleteTaskOnlyByOwner, \"Modify By Owner Only\" in the UI), other rule ids, true / false, and && || ! ( ). Every refused request must answer an error and change nothing.",
+  "attributes": {
+    "siteAdmin": "site administrator",
+    "orgAdmin": "organization administrator of the task's org",
+    "owner": "the task owner",
+    "ownerAdmin": "SECURITY_USER ADMIN on the owner",
+    "shareMember": "in a group with the owner",
+    "grantHolder": "explicit SCHEDULE_TASK READ+WRITE+DELETE on the task, from the EM Content > Repository editor that Bug #79853 removes; it grants nothing",
+    "sameOrg": "in the task's org",
+    "scheduler": "SCHEDULER access"
+  },
+  "rules": [
+    {
+      "id": "mayView",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || owner || ownerAdmin || share && shareMember)",
+      "status": "agreed",
+      "basis": "RepletEngine.hasTaskPermission (\"may see\") without the explicit grant (A1)",
+      "changes": "#79853: the EM list and removeScheduleTask still accept an explicit grant"
+    },
+    {
+      "id": "mayManage",
+      "expr": "mayView && (siteAdmin || orgAdmin || owner || ownerAdmin || !deleteOnlyByOwner)",
+      "status": "agreed",
+      "basis": "ScheduleTaskService.canDeleteTask: \"Modify By Owner Only\" stops group members from every change, opening the task included (A2, A4)"
+    },
+    {
+      "id": "see",
+      "expr": "scheduler && mayView",
+      "status": "agreed",
+      "basis": "mayView behind the SCHEDULER gate (A3)",
+      "changes": "#79865: the public API refuses group members and its stop skips SCHEDULER; #79866: EM list / run / stop skip SCHEDULER"
+    },
+    {
+      "id": "manage",
+      "expr": "scheduler && mayManage",
+      "status": "agreed",
+      "basis": "mayManage behind the SCHEDULER gate",
+      "changes": "#79865: the public API refuses group members and ignores deleteOnlyByOwner; #79866: EM delete skips SCHEDULER; #79864: the public API delete doesn't check dependent tasks"
+    },
+    {
+      "id": "portalList",
+      "expr": "scheduler && sameOrg && (owner || share && shareMember)",
+      "status": "agreed",
+      "basis": "the Portal task list shows only the user's own and the group's tasks (A6)"
+    },
+    {
+      "id": "mayAssignOwner",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner)",
+      "status": "agreed",
+      "basis": "ScheduleTaskIdentityChecker.isOwnerAllowed for the task owner: the owner itself or an admin of it (C1, C2)"
+    },
+    {
+      "id": "mayTakeOwnership",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner)",
+      "status": "agreed",
+      "basis": "ScheduleTaskService.checkTaskIdentityPermission, the actor makes itself the owner: it must administer the current owner (C3)",
+      "changes": "#79863: any caller may make itself the owner"
+    },
+    {
+      "id": "referenceReadable",
+      "expr": "siteAdmin || sameOrg",
+      "status": "agreed",
+      "basis": "checkSaveRefusals with a sheet / target every user of the org may read: only the owner organization of the task refuses (B1, B2)"
+    },
+    {
+      "id": "ownerPrivateReference",
+      "expr": "siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner)",
+      "status": "agreed",
+      "basis": "checkSaveRefusals with the owner's private sheet: the run principal (the owner) may read it, the saver must too, through the check that lets the sheet's owner and its administrators read it; a site admin saver isn't checked (B2)"
+    },
+    {
+      "id": "assignOwner",
+      "expr": "scheduler && mayAssignOwner",
+      "status": "agreed",
+      "basis": "ScheduleTaskIdentityChecker.isOwnerAllowed: the task owner may be named only by itself or an admin of it; an import that overwrites the task names its owner (C1)"
+    },
+    {
+      "id": "takeOwnership",
+      "expr": "manage && mayTakeOwnership",
+      "status": "agreed",
+      "basis": "ScheduleTaskService.checkTaskIdentityPermission: admin of the current and the new owner (C3)",
+      "changes": "#79863: a group member may make itself the owner"
+    },
+    {
+      "id": "siteAdminOnly",
+      "expr": "siteAdmin",
+      "status": "agreed",
+      "basis": "internal-task targets and imports (#77531, B3, C2), folder grants a site admin always has"
+    },
+    {
+      "id": "adminOnly",
+      "expr": "scheduler && (siteAdmin || sameOrg && (orgAdmin || ownerAdmin))",
+      "status": "agreed",
+      "basis": "import may name another user of the org as owner only for an admin of that user; an owner of another org is moved to the importer's org first (C2)"
+    },
+    {
+      "id": "never",
+      "expr": "false",
+      "status": "agreed",
+      "basis": "checkSaveRefusals: the run principal (the execute-as identity, or the owner) may not read the sheet / query / target, so even a site admin's save is refused (B2, B3)"
+    }
+  ],
+  "operationRules": {
+    "list": "see",
+    "list@portal": "portalList",
+    "view": "manage",
+    "export": "see",
+    "run": "see",
+    "stop": "see",
+    "editCondition": "manage",
+    "removeCondition": "manage",
+    "rename": "manage",
+    "disable": "manage",
+    "delete": "manage",
+    "importOverwrite": "assignOwner",
+    "changeOwner": "takeOwnership",
+    "move/writableTarget": "manage",
+    "move/deniedTarget": "siteAdminOnly",
+    "addDashboardAction/globalGranted": "manage",
+    "addDashboardAction/globalNotGranted": "never",
+    "addDashboardAction/otherUserPrivate": "never",
+    "addDashboardAction/foreignOrg": "never",
+    "addDashboardAction/hostOrgPrivate": "never",
+    "addBatchAction/ownTarget": "manage",
+    "addBatchAction/otherUserTarget": "never",
+    "addBatchAction/internalTarget": "siteAdminOnly",
+    "addBatchAction/foreignQuery": "never",
+    "importForeignOwner/otherOwner": "adminOnly",
+    "importForeignOwner/foreignOwner": "adminOnly",
+    "importForeignOwner/executeAsAdmin": "adminOnly",
+    "importForeignOwner/internalType": "siteAdminOnly"
+  }
+}
