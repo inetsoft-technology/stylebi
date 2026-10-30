@@ -23,7 +23,7 @@ import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
-import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.credential.CredentialService;
 import org.apache.derby.jdbc.EmbeddedDataSource;
@@ -42,6 +42,8 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -156,8 +158,71 @@ class SQLBoundTableBuiltinVariableTest {
       assertFalse(vars[0].isMultipleSelection());
    }
 
+
+   // a variable of the sql that is in the query but not prompted is missing from the list too
+   @Test
+   void notPromptedVariableWithAnotherVariable() throws Exception {
+      Worksheet ws = worksheet(SELECT + "STATE = $(fixed) and CITY = $(city)");
+      SQLBoundTableAssembly table = (SQLBoundTableAssembly) ws.getAssembly("T1");
+      UserVariable fixed = new UserVariable("fixed");
+      fixed.setPrompt(false);
+      table.getSQLBoundTableInfo().getQuery().addVariable(fixed);
+
+      assertEquals(List.of("city"), names(ws.getAllVariables()));
+   }
+
+   // a variable of the query next to a built-in still takes the type of its column, and so does
+   // the variable assembly of the same name
+   @Test
+   void promptVariableStillTakesColumnType() throws Exception {
+      Worksheet ws = worksheet(SELECT + "STATE = $(_USER_) and CITY = $(city)", typedColumns());
+      VariableAssembly cityVar = new DefaultVariableAssembly(ws, "city");
+      cityVar.setVariable(new AssetVariable("city"));
+      ws.addAssembly(cityVar);
+
+      UserVariable[] vars = ws.getAllVariables();
+      assertEquals(List.of("city"), names(vars));
+      assertNotNull(vars[0].getTypeNode());
+      assertEquals(XSchema.INTEGER, vars[0].getTypeNode().getType());
+      assertEquals(XSchema.INTEGER, cityVar.getVariable().getTypeNode().getType());
+
+      vars = worksheet(SELECT + "STATE in ($(_ROLES_)) and CITY in ($(city))", typedColumns())
+         .getAllVariables();
+      assertEquals(List.of("city"), names(vars));
+      assertTrue(vars[0].isMultipleSelection());
+      assertEquals(XSchema.INTEGER, vars[0].getTypeNode().getType());
+   }
+
+   // the table metadata of a repository: STATE is a string, CITY an integer column. The JDBC
+   // handler isn't installed in the core tests, so XEngine has no column types to give.
+   private static XRepository typedColumns() throws Exception {
+      XRepository repository = mock(XRepository.class);
+      when(repository.getMetaData(any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
+         XNode mtype = inv.getArgument(2);
+
+         if("DBPROPERTIES".equals(mtype.getAttribute("type"))) {
+            return new XNode("properties");
+         }
+
+         XTypeNode result = new XTypeNode("Result");
+         result.addChild(XSchema.createPrimitiveType("STATE", String.class));
+         result.addChild(XSchema.createPrimitiveType("CITY", Integer.class));
+         XTypeNode meta = new XTypeNode("meta");
+         meta.addChild(result);
+         return meta;
+      });
+
+      return repository;
+   }
+
    // a worksheet with a table made in the sql query dialog from the sql string
    private static Worksheet worksheet(String text) throws Exception {
+      return worksheet(text, XRepository.getRepository());
+   }
+
+   // a worksheet with a table of the sql string, whose columns are fixed from the metadata of
+   // the repository
+   private static Worksheet worksheet(String text, XRepository repository) throws Exception {
       JDBCDataSource ds = dataSource();
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(ds);
@@ -172,7 +237,9 @@ class SQLBoundTableBuiltinVariableTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
       assertNotNull(sql.getWhere(), text);
       // the metadata step of the dialog, without it the fields of the sql are empty
-      JDBCUtil.fixUniformSQLInfo(sql, XRepository.getRepository(), null, ds);
+      // the metadata of a table is cached by its name
+      JDBCUtil.clearTableMeta();
+      JDBCUtil.fixUniformSQLInfo(sql, repository, null, ds);
       assertTrue(sql.getFieldList().length > 0, text);
 
       JDBCQuery query = new JDBCQuery();
