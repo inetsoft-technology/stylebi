@@ -251,3 +251,27 @@ describe("group removal in embedded mode", () => {
       expect(comp.addedEmails).toEqual(["uB@x"]);
    });
 });
+
+describe("Remove, re-add and remove again after a shift range", () => {
+   it("keeps the rows that were not selected in either round", async () => {
+      const { comp, fixture, rows, remove } = await renderPane(true);
+      addNodes(comp, ...["uA", "uB", "uC", "uD"].map(userNode));
+      fixture.detectChanges();
+      fireEvent.click(rows()[1]);
+      fireEvent.click(rows()[2], { shiftKey: true });
+      remove();
+      fixture.detectChanges();
+      expect(names(comp)).toEqual(["uA", "uD"]);
+
+      addNodes(comp, userNode("uB"), userNode("uC"));
+      fixture.detectChanges();
+      expect(names(comp).sort()).toEqual(["uA", "uB", "uC", "uD"]);
+
+      // the display is sorted by name, so rows B and C are at index 1 and 2 again
+      fireEvent.click(rows()[1]);
+      fireEvent.click(rows()[2], { shiftKey: true });
+      remove();
+      fixture.detectChanges();
+      expect(names(comp)).toEqual(["uA", "uD"]);
+   });
+});
