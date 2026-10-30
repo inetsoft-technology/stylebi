@@ -760,6 +760,44 @@ class CalcMathTest {
       assertEquals(0.0, CalcMath.sumif(range, criteria, mismatchedRange), 0.0001);
    }
 
+   // bug #79847, empty or non-numeric cells must keep range and sum_range aligned
+   @Test
+   void testSumifWithEmptyCells() {
+      Object range = new Object[]{ 1.0, 2.0, 3.0, 4.0 };
+
+      // control, no holes
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, 20.0, 30.0, 40.0 }), 0.0001);
+
+      // holes in sum_range
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, null, 30.0, 40.0 }), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, "", 30.0, 40.0 }), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, "x", 30.0, 40.0 }), 0.0001);
+      assertEquals(40.0, CalcMath.sumif(range, ">2", new Object[]{ 10.0, 20.0, null, 40.0 }), 0.0001);
+
+      // holes in range never satisfy the criteria, even one like "<5" that null would match
+      Object sumRange = new Object[]{ 10.0, 20.0, 30.0, 40.0 };
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ 1.0, null, 3.0, 4.0 }, ">2", sumRange), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ 1.0, "", 3.0, 4.0 }, ">2", sumRange), 0.0001);
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ 1.0, "x", 3.0, 4.0 }, ">2", sumRange), 0.0001);
+      assertEquals(80.0, CalcMath.sumif(new Object[]{ 1.0, null, 3.0, 4.0 }, "<5", sumRange), 0.0001);
+
+      // comma separated strings, the empty item is a hole
+      assertEquals(70.0, CalcMath.sumif("1,2,3,4", ">2", "10,,30,40"), 0.0001);
+      assertEquals(70.0, CalcMath.sumif("1,,3,4", ">2", "10,20,30,40"), 0.0001);
+
+      // omitted sum_range sums the matching range cells
+      assertEquals(7.0, CalcMath.sumif(range, ">2", null), 0.0001);
+      assertEquals(7.0, CalcMath.sumif(new Object[]{ 1.0, null, 3.0, 4.0 }, ">2", null), 0.0001);
+
+      // a sum_range with only empty or text cells is not an omitted sum_range
+      assertEquals(0.0, CalcMath.sumif(range, ">2", new Object[]{ null, null, null, null }), 0.0001);
+      assertEquals(0.0, CalcMath.sumif(range, ">2", new Object[]{ "a", "b", "c", "d" }), 0.0001);
+
+      // numeric strings are still parsed
+      assertEquals(70.0, CalcMath.sumif(new Object[]{ "1", "2", "3", "4" }, ">2",
+                                        new Object[]{ "10", "20", "30", "40" }), 0.0001);
+   }
+
    @Test
    void testSumproduct() {
       // Test with valid inputs
