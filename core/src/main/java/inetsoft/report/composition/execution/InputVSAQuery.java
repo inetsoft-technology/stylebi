@@ -280,106 +280,92 @@ public class InputVSAQuery extends VSAQuery {
 
       boolean sortByValue = lassembly.isSortByValue();
       int sortType = lassembly.getSortType();
-      Object[] oriLabels = new Object[ldata.getLabels().length];
-      System.arraycopy(ldata.getLabels(), 0, oriLabels, 0,
-                       ldata.getLabels().length);
-      Object[] oriValues = new Object[ldata.getValues().length];
-      System.arraycopy(ldata.getValues(), 0, oriValues, 0,
-                       ldata.getValues().length);
-      Object[] oriFormats = new Object[ldata.getFormats().length];
-      System.arraycopy(ldata.getFormats(), 0, oriFormats, 0,
-         ldata.getFormats().length);
-
-      sortArray(sortByValue ? ldata.getValues() : ldata.getLabels(), sortType,
-                sortByValue);
-
-      Object[] newOrders = sortByValue ? ldata.getValues() : ldata.getLabels();
-      Object[] values = sortByValue ? ldata.getLabels() : ldata.getValues();
-      Object[] oldOrders = sortByValue ? oriValues : oriLabels;
-      Object[] oldValues = sortByValue ? oriLabels : oriValues;
+      Object[] labels = ldata.getLabels();
+      Object[] values = ldata.getValues();
       Object[] formats = ldata.getFormats();
 
-      sortValues(newOrders, values, oldOrders, oldValues, formats, oriFormats);
+      // sort whole rows (label, value, format) together, rows that share the same sort
+      // key must keep their own value and format
+      int[] order = sortOrder(sortByValue ? values : labels, sortType, sortByValue);
+      permute(labels, order);
+      permute(values, order);
+      permute(formats, order);
    }
 
-   private void sortValues(Object[] newOrders, Object[] values, Object[] oldOrders,
-                           Object[] oldValues, Object[] formats, Object[] oriFormats)
-   {
-
-      if(values.length != newOrders.length) {
+   /**
+    * Apply a row order to an array in place. An array of a different length (e.g. an
+    * unset formats array) is left untouched.
+    */
+   static void permute(Object[] arr, int[] order) {
+      if(arr.length != order.length) {
          return;
       }
 
-      Map<Object, Integer> oldOrderIndexMap = new HashMap<>(oldOrders.length);
+      Object[] ori = arr.clone();
 
-      for(int j = 0; j < oldOrders.length; j++) {
-         if (!oldOrderIndexMap.containsKey(oldOrders[j])) {
-            oldOrderIndexMap.put(oldOrders[j], j);
-         }
-      }
-
-      for(int i = 0; i < newOrders.length; i++) {
-         Integer j = oldOrderIndexMap.get(newOrders[i]);
-
-         if(j != null) {
-            values[i] = oldValues[j];
-
-            if(formats.length == newOrders.length) {
-               formats[i] = oriFormats[j];
-            }
-         }
+      for(int i = 0; i < order.length; i++) {
+         arr[i] = ori[order[i]];
       }
    }
 
    /**
-    * Sort arrays with specified type.
+    * Get the sorted order of the rows by the specified sort keys. Empty keys are put
+    * last for ascending order and first for descending order, and rows with equal keys
+    * keep their original relative order.
+    * @return the original index of the row at each position of the sorted rows.
     */
-   private void sortArray(Object[] objs, int sortType, boolean sortByValue) {
+   static int[] sortOrder(Object[] keys, int sortType, boolean sortByValue) {
       final int stype = sortType;
-      List<Object> nonSortArr = new ArrayList<>();
-      List<Object> sortArr = new ArrayList<>();
+      List<Integer> nonSortIdx = new ArrayList<>();
+      List<Integer> sortIdx = new ArrayList<>();
 
-      for(int i = 0; i < objs.length; i++) {
-         if(objs[i] == null || "".equals(("" + objs[i]).trim())) {
-            nonSortArr.add(objs[i]);
+      for(int i = 0; i < keys.length; i++) {
+         if(keys[i] == null || "".equals(("" + keys[i]).trim())) {
+            nonSortIdx.add(i);
          }
          else {
-            sortArr.add(objs[i]);
+            sortIdx.add(i);
          }
       }
 
-      Object[] sort = sortArr.toArray(new Object[0]);
-      final boolean isNumber = !sortByValue && isNumber(sort);
+      Object[] sortKeys = new Object[sortIdx.size()];
 
-      Arrays.sort(sort, new Comparator() {
-         @Override
-         public int compare(Object o1, Object o2) {
-            int v = 0;
+      for(int i = 0; i < sortKeys.length; i++) {
+         sortKeys[i] = keys[sortIdx.get(i)];
+      }
 
-            if(isNumber) {
-               o1 = Double.valueOf((String) o1);
-               o2 = Double.valueOf((String) o2);
-            }
+      final boolean isNumber = !sortByValue && isNumber(sortKeys);
 
-            if(stype == XConstants.SORT_ASC || stype == XConstants.SORT_DESC) {
-               v = Tool.compare(o1, o2);
-               v = stype == XConstants.SORT_ASC ? v : -v;
-            }
+      sortIdx.sort((i1, i2) -> {
+         Object o1 = keys[i1];
+         Object o2 = keys[i2];
+         int v = 0;
 
-            return v;
+         if(isNumber) {
+            o1 = Double.valueOf((String) o1);
+            o2 = Double.valueOf((String) o2);
          }
+
+         if(stype == XConstants.SORT_ASC || stype == XConstants.SORT_DESC) {
+            v = Tool.compare(o1, o2);
+            v = stype == XConstants.SORT_ASC ? v : -v;
+         }
+
+         return v;
       });
 
-      Object[] nonSort = nonSortArr.toArray(new Object[0]);
+      List<Integer> result = new ArrayList<>(keys.length);
 
       if(stype == XConstants.SORT_ASC) {
-         System.arraycopy(sort, 0, objs, 0, sort.length);
-         System.arraycopy(nonSort, 0, objs, sort.length, nonSort.length);
+         result.addAll(sortIdx);
+         result.addAll(nonSortIdx);
       }
       else {
-         System.arraycopy(nonSort, 0, objs, 0, nonSort.length);
-         System.arraycopy(sort, 0, objs, nonSort.length, sort.length);
+         result.addAll(nonSortIdx);
+         result.addAll(sortIdx);
       }
+
+      return result.stream().mapToInt(Integer::intValue).toArray();
    }
 
    /**
@@ -403,7 +389,7 @@ public class InputVSAQuery extends VSAQuery {
    /**
     * Check if the array contains numbers only.
     */
-   private boolean isNumber(Object[] objs) {
+   private static boolean isNumber(Object[] objs) {
       for(int i = 0; i < objs.length; i++) {
          if(objs[i] == null) {
             return false;
