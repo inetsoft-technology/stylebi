@@ -17,6 +17,7 @@
  */
 package inetsoft.graph.internal;
 
+import inetsoft.graph.data.CombinedDataSetComparator;
 import inetsoft.report.filter.DCMergeDatePartFilter.MergePartCell;
 import inetsoft.report.filter.DefaultComparer;
 import inetsoft.report.filter.SortOrder;
@@ -60,6 +61,37 @@ public class FirstDayComparator extends DefaultComparer
    }
 
    /**
+    * Wrap the comparator of a day of week column so the days are ordered from the
+    * configured first day of the week. A null comparator or a plain ascending/descending
+    * comparer is wrapped. A comparator that does not sort by day number (manual order,
+    * value order, others-last) is returned as is. In a combined comparator only the
+    * ascending/descending part is wrapped, so the other part keeps its precedence.
+    *
+    * @param comp the current comparator of the column, may be null.
+    *
+    * @return the comparator to use for the column.
+    */
+   public static Comparator wrap(String col, Comparator comp) {
+      if(comp == null || comp instanceof DefaultComparer &&
+         !(comp instanceof FirstDayComparator))
+      {
+         return new FirstDayComparator(comp);
+      }
+
+      if(comp instanceof CombinedDataSetComparator) {
+         CombinedDataSetComparator combined = (CombinedDataSetComparator) comp;
+         Comparator c1 = combined.getFirstComparator();
+
+         if(c1 instanceof DefaultComparer && !(c1 instanceof FirstDayComparator)) {
+            return new CombinedDataSetComparator(
+               col, new FirstDayComparator(c1), combined.getSecondComparator());
+         }
+      }
+
+      return comp;
+   }
+
+   /**
     * This method should be called when doing an comparison on the
     * Integer value which represents the DayOfWeek and when the user
     * wants Monday to represent the first day of the week. To accomplish
@@ -90,6 +122,9 @@ public class FirstDayComparator extends DefaultComparer
             return ((SortOrder) comp).isDesc() ?
                ((d1 > d2) ? -1 : (d1 == d2 ? 0 : 1)) :
                ((d1 > d2) ? 1 : (d1 == d2 ? 0 : -1));
+         }
+         else if(comp2 != null && !(comp2 instanceof DefaultComparer)) {
+            return comp2.compare(v1, v2);
          }
          else if(comp2 != null) {
             return ((DefaultComparer) comp2).isNegate() ?
