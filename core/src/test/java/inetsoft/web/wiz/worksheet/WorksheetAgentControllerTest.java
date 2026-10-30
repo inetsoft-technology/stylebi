@@ -5737,6 +5737,68 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Bug #79830 -- a value another declaration of the same variable name still owns survives
+   // ---------------------------------------------------------------------------
+
+   /** A mirror M_RATE that declares variable RATE next to the embedded variable RATE. */
+   private static Worksheet ratePlusMirrorDeclaration() {
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "RATE");
+      DefaultVariableAssembly mirrored = new DefaultVariableAssembly(ws, "M_RATE");
+      mirrored.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(mirrored);
+      return ws;
+   }
+
+   @Test
+   void deleteVariableKeepsValueWhileAMirrorStillDeclaresTheName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = ratePlusMirrorDeclaration();
+      VariableTable vtable = new VariableTable();
+      vtable.put("RATE", "0.3");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79830A", ws, vtable, box);
+
+      ctrl.edit("TOK-79830A", deleteVariableRequest("RATE"), agent);
+
+      assertNull(ws.getAssembly("RATE"));
+      assertEquals("0.3", vtable.get("RATE"), "the mirror still declares RATE and owns its value");
+   }
+
+   @Test
+   void addVariableKeepsValueWhileAMirrorAlreadyDeclaresTheName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly mirrored = new DefaultVariableAssembly(ws, "M_RATE");
+      mirrored.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(mirrored);
+      VariableTable vtable = new VariableTable();
+      vtable.put("RATE", "0.3");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79830B", ws, vtable, box);
+
+      ctrl.edit("TOK-79830B", addVariableRequest("RATE", XSchema.STRING), agent);
+
+      assertNotNull(ws.getAssembly("RATE"));
+      assertEquals("0.3", vtable.get("RATE"), "the mirror's live value must not be purged");
+   }
+
+   @Test
+   void renameVariableLeavesValueWithTheRemainingDeclarerOfTheOldName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = ratePlusMirrorDeclaration();
+      VariableTable vtable = new VariableTable();
+      vtable.put("RATE", "0.3");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79830C", ws, vtable, box);
+
+      ctrl.edit("TOK-79830C", renameVariableRequest("RATE", "RATE2"), agent);
+
+      assertEquals("0.3", vtable.get("RATE"));
+      assertFalse(vtable.contains("RATE2"), "the renamed variable starts unset");
+   }
+
+   // ---------------------------------------------------------------------------
    // set_variable_values (L2-Group8)
    // ---------------------------------------------------------------------------
 
