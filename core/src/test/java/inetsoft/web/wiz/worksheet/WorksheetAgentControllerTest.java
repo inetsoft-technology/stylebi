@@ -5798,6 +5798,26 @@ class WorksheetAgentControllerTest {
       assertFalse(vtable.contains("RATE2"), "the renamed variable starts unset");
    }
 
+   @Test
+   void renameVariableOntoANameAMirrorDeclaresKeepsThatValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      addVariable(ws, "OLD");
+      DefaultVariableAssembly mirrored = new DefaultVariableAssembly(ws, "M_RATE");
+      mirrored.setVariable(new AssetVariable("RATE"));
+      ws.addAssembly(mirrored);
+      VariableTable vtable = new VariableTable();
+      vtable.put("RATE", "0.3");
+      vtable.put("OLD", "x");
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = variableSyncController("TOK-79830D", ws, vtable, box);
+
+      ctrl.edit("TOK-79830D", renameVariableRequest("OLD", "RATE"), agent);
+
+      assertEquals("0.3", vtable.get("RATE"), "the mirror's live value must not be wiped");
+      assertFalse(vtable.contains("OLD"));
+   }
+
    // ---------------------------------------------------------------------------
    // set_variable_values (L2-Group8)
    // ---------------------------------------------------------------------------

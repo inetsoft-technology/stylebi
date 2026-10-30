@@ -845,6 +845,17 @@ public class WorksheetAgentController {
          }
       }
 
+      // Must be read before the edit: afterwards the renamed variable itself declares the name.
+      boolean targetDeclaredElsewhere = false;
+
+      if("rename_variable".equals(req.op()) && req.newName() != null) {
+         targetDeclaredElsewhere = declaredVariableNames(
+            editService.resolve(sessionToken, user).getWorksheet())
+            .contains(req.newName().toLowerCase());
+      }
+
+      boolean newNameOwned = targetDeclaredElsewhere;
+
       editService.apply(sessionToken, user, editor -> dispatch(editor, req));
 
       if("edit_variable".equals(req.op()) && (!typeEdit || oldType == null)) {
@@ -885,14 +896,17 @@ public class WorksheetAgentController {
                   removeVariableValue(vtable, name);
                }
 
-               removeVariableValue(vtable, newName);
+               // A name another assembly already declared keeps its own live value (Bug #79830).
+               if(!newNameOwned) {
+                  removeVariableValue(vtable, newName);
 
-               if(!oldStillDeclared) {
-                  vtable.setAsIs(newName, asIs);
-                  vtable.put(newName, value);
+                  if(!oldStillDeclared) {
+                     vtable.setAsIs(newName, asIs);
+                     vtable.put(newName, value);
+                  }
                }
             }
-            else {
+            else if(!newNameOwned) {
                removeVariableValue(vtable, newName);
             }
          }
