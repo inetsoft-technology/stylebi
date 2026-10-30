@@ -44,6 +44,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.*;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
@@ -245,50 +246,66 @@ class SchedulePermissionSaveMatrixTest {
       // dashboard action sheets (B2)
       SHEET_GRANTED("referenceReadable") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.saveWith(principal, viewsheetAction(sheet(ORG, GRANTED_PATH)));
          }
       },
       SHEET_NOT_GRANTED("never") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.saveWith(principal, viewsheetAction(sheet(ORG, "Spm/Hidden")));
          }
       },
       SHEET_OTHER_USER_PRIVATE("never") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.saveWith(principal, viewsheetAction(privateSheet(OTHER)));
          }
       },
       SHEET_OWNER_PRIVATE("ownerPrivateReference") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.saveWith(principal, viewsheetAction(privateSheet(OWNER)));
          }
       },
       SHEET_FOREIGN_ORG("never") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.saveWith(principal, viewsheetAction(sheet(ORG_B, GRANTED_PATH)));
          }
       },
       // batch action targets and queries (B3)
       BATCH_OWN_TARGET("mayView") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.saveWith(principal, batchAction(taskId(OWNER, OWN_TARGET)));
          }
       },
       BATCH_OTHER_USER_TARGET("never") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.saveWith(principal, batchAction(taskId(OTHER, OTHER_TARGET)));
          }
       },
       BATCH_FOREIGN_QUERY("never") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             BatchAction action = new BatchAction();
             action.setQueryEntry(AssetEntry.createAssetEntry(
                "1^2^__NULL__^" + GRANTED_PATH + "^" + ORG_B));
@@ -298,7 +315,9 @@ class SchedulePermissionSaveMatrixTest {
       // the internal-target rule is applied as the editor's action model is read (#77531)
       BATCH_INTERNAL_TARGET("siteAdminOnly") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             BatchActionModel model = BatchActionModel.builder()
                .actionType("BatchAction")
                .actionClass("BatchActionModel")
@@ -309,22 +328,26 @@ class SchedulePermissionSaveMatrixTest {
                return test.scheduleService.getActionFromModel(
                   model, null, List.of(), principal, null) != null;
             }
-            catch(Exception refused) {
-               return false;
+            catch(Exception ex) {
+               return !isRefusal(ex);
             }
          }
       },
       // naming the task's owner, e.g. an import that overwrites the task (C1, C2)
       ASSIGN_OWNER("mayAssignOwner") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             return test.identityChecker.isOwnerAllowed(OWNER, principal);
          }
       },
       // the actor makes itself the owner of the task in the editor (C3)
       TAKE_OWNERSHIP("mayTakeOwnership") {
          @Override
-         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal) {
+         boolean allows(SchedulePermissionSaveMatrixTest test, SRPrincipal principal)
+            throws Exception
+         {
             TaskOptionsPaneModel options = TaskOptionsPaneModel.builder()
                .enabled(true)
                .deleteIfNotScheduledToRun(false)
@@ -337,9 +360,9 @@ class SchedulePermissionSaveMatrixTest {
                                                 options, test.task(), principal);
                return true;
             }
-            // the refusal is a checked SecurityException, rethrown wrapped by the reflection
-            catch(RuntimeException refused) {
-               return false;
+            // the refusal is a checked SecurityException, which the reflection rethrows wrapped
+            catch(UndeclaredThrowableException ex) {
+               return !isRefusal(ex);
             }
          }
       };
@@ -360,7 +383,7 @@ class SchedulePermissionSaveMatrixTest {
    /**
     * Checks a save of the owner's task with an action added, as the actor; nothing is saved.
     */
-   private boolean saveWith(Principal principal, ScheduleAction action) {
+   private boolean saveWith(Principal principal, ScheduleAction action) throws Exception {
       ScheduleTask task = task().clone();
       task.addAction(action);
 
@@ -368,9 +391,33 @@ class SchedulePermissionSaveMatrixTest {
          scheduleManager.checkScheduleTaskSave(TASK_ID, task, principal);
          return true;
       }
-      catch(Exception refused) {
-         return false;
+      catch(Exception ex) {
+         return !isRefusal(ex);
       }
+   }
+
+   /**
+    * Tells a permission refusal from an error, so an error never passes for a refusal of a
+    * check the policy refuses: a SecurityException, or the IOException checkSaveRefusals throws
+    * for the SCHEDULER permission and the owner organization.
+    *
+    * @return {@code true}, the exception is a refusal.
+    *
+    * @throws Exception the exception, if it isn't a refusal.
+    */
+   private static boolean isRefusal(Exception ex) throws Exception {
+      Throwable cause = ex instanceof UndeclaredThrowableException ? ex.getCause() : ex;
+      String message = cause == null ? null : cause.getMessage();
+
+      if(cause instanceof inetsoft.sree.security.SecurityException ||
+         cause instanceof IOException && message != null &&
+            (message.contains("in another organization") ||
+             message.contains("doesn't have schedule permission")))
+      {
+         return true;
+      }
+
+      throw ex;
    }
 
    private ScheduleTask task() {
