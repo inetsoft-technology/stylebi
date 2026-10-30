@@ -219,7 +219,10 @@ public class ExcelUtil implements StyleConstants {
          // append the sign ";" ;
          newPattern.append(";");
 
-         if(negativePrefix.equals("(") && (negativeSuffix.equals(")") ||
+         // Bug #79602: only take the pattern's negative sub-pattern verbatim when there's no
+         // K/M/B scaling to apply - otherwise the negative branch would keep the unscaled
+         // digits and lose the scaling comma/unit label that the positive branch gets below.
+         if(extSymbol == ' ' && negativePrefix.equals("(") && (negativeSuffix.equals(")") ||
             negativeSuffix.equals(")%")))
          {
             newPattern.append(pattern.substring(semiColon + 1));

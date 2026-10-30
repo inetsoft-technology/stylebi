@@ -525,7 +525,10 @@ public class ExportUtil {
             char[] extDataFmt = exFmt.getExtendedDataFormat();
 
             if(Arrays.binarySearch(extDataFmt, suffix) > -1) {
-               return null;
+               // Bug #79602: use the real Excel scaling-comma pattern (e.g. $#,###,"K")
+               // instead of falling back to the literal, unscaled K/M/B pattern.
+               String excelPattern = ExcelUtil.analyze(fmt);
+               return "".equals(excelPattern) ? "General" : excelPattern;
             }
          }
       }
