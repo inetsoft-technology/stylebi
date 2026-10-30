@@ -137,7 +137,8 @@ class XMLAHandlerRequestEscapingTest {
    @ParameterizedTest
    @ValueSource(strings = {
       "R&D", "Sales & Marketing", "a<b", "R&amp;D", "[Dim & <x>].[H]",
-      "Café Été (EU)", "Sales-Marketing_2024 (EU)"
+      "Café Été (EU)", "Sales-Marketing_2024 (EU)", "x>y \"q\" 's' &&&", "销售&研发<2>",
+      "&amp;amp;&lt;", "Very&Long<name>-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789"
    })
    void metadataRequestsAreWellFormedAndCarryNameAsTyped(String name) throws Exception {
       XMLAHandler handler = new XMLAHandler();
@@ -185,6 +186,60 @@ class XMLAHandlerRequestEscapingTest {
       assertEquals(name, received.get(0).get("Catalog"));
       assertEquals(name, received.get(0).get("DataSourceInfo"));
       assertEquals("SELECT [R&D] FROM [c]", statementSeen);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "R&D", "a<b", "R&amp;D", "[Lvl & <x>].[L]" })
+   void membersRequestEscapesLevelUniqueName(String name)
+      throws Exception
+   {
+      DimMember level = new DimMember();
+      level.setName("Lvl");
+      level.setUniqueName(name);
+      Dimension dim = new Dimension();
+      dim.setDimensionName("Dim");
+      dim.setUniqueName("Dim");
+      dim.setLevels(List.of(level));
+      Cube cube = new Cube();
+      cube.setName("C");
+      cube.setDimensions(List.of(dim));
+
+      XMLADataSource ds = dataSource("Cat");
+      XMLAQuery query = new XMLAQuery();
+      query.setDataSource(ds);
+      query.setCube("C");
+      query.setRuntimeCube(cube);
+      query.addMemberRef(new inetsoft.uql.erm.AttributeRef("Dim", "Lvl"));
+
+      XMLAHandler handler = new XMLAHandler();
+      handler.connect(ds, new VariableTable());
+      handler.getMembers(query, null);
+
+      assertTrue(malformed.isEmpty(), "malformed request bodies: " + malformed);
+      assertEquals(1, received.size());
+      Map<String, String> values = received.get(0);
+      assertEquals(name, values.get("LEVEL_UNIQUE_NAME"));
+      assertEquals("Dim", values.get("DIMENSION_UNIQUE_NAME"));
+      assertEquals("Cat", values.get("CATALOG_NAME"));
+   }
+
+   @Test
+   void nullCatalogAndDataSourceInfoStillProduceWellFormedRequests() throws Exception {
+      XMLADataSource ds = dataSource("x");
+      ds.setCatalogName(null);
+      ds.setDatasourceInfo(null);
+      XMLAHandler handler = new XMLAHandler();
+      handler.connect(ds, new VariableTable());
+
+      handler.getMetaData(null);
+
+      assertTrue(malformed.isEmpty(), "malformed request bodies: " + malformed);
+      assertFalse(received.isEmpty());
+
+      for(Map<String, String> values : received) {
+         assertNotEquals("null", values.get("CATALOG_NAME"));
+         assertNotEquals("null", values.get("DataSourceInfo"));
+      }
    }
 
    private XMLADataSource dataSource(String name) {
