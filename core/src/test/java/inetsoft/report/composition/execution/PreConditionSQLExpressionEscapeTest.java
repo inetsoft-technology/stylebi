@@ -163,6 +163,7 @@ class PreConditionSQLExpressionEscapeTest {
          stmt.executeUpdate("insert into people values (1, 'Alice')");
          stmt.executeUpdate("insert into people values (2, 'O''Brien')");
          stmt.executeUpdate("insert into people values (3, 'Bob')");
+         stmt.executeUpdate("insert into people values (4, 'C:\\dir')");
       }
    }
 
@@ -227,6 +228,27 @@ class PreConditionSQLExpressionEscapeTest {
       assertEquals("O''Brien\\\\", VarSQL.escapeSQLLiteralValue("O'Brien\\", '\'', true));
    }
 
+   /**
+    * On a dialect where a backslash is not an escape (Derby), it is kept as is, so a value
+    * with a backslash still matches its row.
+    */
+   @Test
+   void backslashKeptWhenDialectDoesNotEscapeIt() throws Exception {
+      assertEquals(List.of(4), ids("name", XCondition.EQUAL_TO, "trim($(who))", "C:\\dir"));
+      assertTrue(lastSQL().contains("trim('C:\\dir')"), lastSQL());
+   }
+
+   /**
+    * On a dialect where a backslash is an escape (MySQL), the query's own SQL helper is
+    * used, so the backslash is doubled and a {@code \'} in the value can't end the literal.
+    * Only the SQL text is checked, because the database here is Derby.
+    */
+   @Test
+   void backslashDoubledForMySQLDataSource() throws Exception {
+      sqlText("mysql", "name", "trim($(who))", "x\\') OR ('1'='1");
+      assertTrue(lastSQL().contains("trim('x\\\\'') OR (''1''=''1')"), lastSQL());
+   }
+
    /** An expression that is exactly the variable is still bound as a JDBC parameter. */
    @Test
    void bareVariableStillBound() throws Exception {
@@ -240,23 +262,7 @@ class PreConditionSQLExpressionEscapeTest {
     * variable {@code who}.
     */
    private List<Object> ids(String column, int op, String exp, Object who) throws Exception {
-      AssetDataCache.getCache().clearCache();
-      Worksheet ws = new Worksheet();
-      SQLBoundTableAssembly table = sqlTable(ws);
-      ExpressionValue eval = new ExpressionValue();
-      eval.setType(ExpressionValue.SQL);
-      eval.setExpression(exp);
-      AssetCondition cond = new AssetCondition();
-      cond.setOperation(op);
-      cond.setType("id".equals(column) ? XSchema.INTEGER : XSchema.STRING);
-      cond.addValue(eval);
-      ConditionList list = new ConditionList();
-      list.append(new ConditionItem(table.getColumnSelection(false).getAttribute(column), cond, 0));
-      table.setPreConditionList(list);
-
-      AssetQuerySandbox box = new AssetQuerySandbox(ws);
-      box.getVariableTable().put("who", who);
-      TableLens lens = box.getTableLens("T1", AbstractSheet.SHEET_RUNTIME_MODE);
+      TableLens lens = run(null, column, op, exp, who);
       assertTrue(lens != null && lens.getColCount() == 2, "the query failed: " + SENT);
       List<Object> vals = new ArrayList<>();
       lens.moreRows(0);
@@ -270,13 +276,55 @@ class PreConditionSQLExpressionEscapeTest {
       return vals;
    }
 
+   /**
+    * Run T1 with the pre-condition {@code column = [SQL expression]} on a data source whose
+    * dialect is {@code product}, only to record the SQL text sent.
+    */
+   private void sqlText(String product, String column, String exp, Object who)
+      throws Exception
+   {
+      try {
+         run(product, column, XCondition.EQUAL_TO, exp, who);
+      }
+      catch(Exception ignore) {
+         // the dialect's SQL may not run on Derby, the sent text is what is checked
+      }
+   }
+
+   private TableLens run(String product, String column, int op, String exp, Object who)
+      throws Exception
+   {
+      AssetDataCache.getCache().clearCache();
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = sqlTable(ws, product);
+      ExpressionValue eval = new ExpressionValue();
+      eval.setType(ExpressionValue.SQL);
+      eval.setExpression(exp);
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(op);
+      cond.setType("id".equals(column) ? XSchema.INTEGER : XSchema.STRING);
+      cond.addValue(eval);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(table.getColumnSelection(false).getAttribute(column), cond, 0));
+      table.setPreConditionList(list);
+
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      box.getVariableTable().put("who", who);
+      return box.getTableLens("T1", AbstractSheet.SHEET_RUNTIME_MODE);
+   }
+
    private static String lastSQL() {
       assertFalse(SENT.isEmpty(), "no query sent");
       return SENT.get(SENT.size() - 1);
    }
 
-   /** T1: {@code select people.id, people.name from people} on the Derby table. */
-   private static SQLBoundTableAssembly sqlTable(Worksheet ws) throws Exception {
+   /**
+    * T1: {@code select people.id, people.name from people} on the Derby table. A non-null
+    * {@code product} makes the data source's SQL helper that dialect's.
+    */
+   private static SQLBoundTableAssembly sqlTable(Worksheet ws, String product)
+      throws Exception
+   {
       String text = "select people.id, people.name from people";
       UniformSQL usql = new UniformSQL();
       Method parse = UniformSQL.class.getDeclaredMethod("parse", String.class, int.class, long.class);
@@ -288,6 +336,12 @@ class PreConditionSQLExpressionEscapeTest {
       ds.setDriver("org.apache.derby.jdbc.EmbeddedDriver");
       ds.setURL("jdbc:derby:" + DB);
       ds.setRequireLogin(false);
+
+      if(product != null) {
+         ds.setName("bug79742_" + product);
+         ds.setRuntimeProductName(product);
+      }
+
       usql.setDataSource(ds);
       JDBCQuery query = new JDBCQuery();
       query.setName("T1");
