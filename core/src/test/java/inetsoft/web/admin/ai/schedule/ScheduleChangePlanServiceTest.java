@@ -275,6 +275,22 @@ class ScheduleChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("does not exist"));
    }
 
+   // Bug #79828, an owner that isn't an existing user is refused by apply; the plan must refuse it
+   // too, naming the field, before the owner is turned into a task id.
+   @Test void resolveCreateThrowsWhenOwnerIsNotAnExistingUser() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "no-such-user");
+      doThrow(new MessageException("user \"no-such-user\" does not exist in organization " +
+                                   "\"host-org\" (a group or role cannot own a task)"))
+         .when(scheduleGateway).requireOwnerResolves(spec.getOwner(), user);
+      ScheduleChangePlanRequest req = request("task", List.of(createChange(spec)));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("spec.owner"));
+      assertTrue(ex.getMessage().contains("no-such-user"));
+      verify(scheduleManager, never()).getScheduleTask(anyString());
+   }
+
    @Test void resolveCreateSucceedsWhenExecuteAsIdentityResolves() throws Exception {
       CreateScheduleTaskRequest spec = createSpec("t1", "admin");
       ScheduleTask.ExecuteAsID executeAs = new ScheduleTask.ExecuteAsID(

@@ -657,7 +657,61 @@ public class AdminScheduleGateway {
       throws Exception
    {
       checkPermission(user);
+      requireOwnerResolves(owner, user);
       checkOwnerPermission(user, owner, executeAsID);
+   }
+
+   /**
+    * Refuses a task owner that isn't an existing user, so a change plan can reject it at preview
+    * and apply can refuse it again if the user was removed in between (Bug #79828). A group, a
+    * role, an unknown name, an unknown organization, a missing organization, and the built-in
+    * system and anonymous users can't own a task. The check holds with security disabled too,
+    * where the virtual provider reports only its own users. The owner is looked up in its own
+    * organization, since a site admin may own a task of another organization.
+    *
+    * <p>Two owners are accepted without a lookup, the caller itself and the owner the task editor
+    * derives for a new task, which is the caller's name in an organization that has no admin
+    * ({@link SUtil#getOwnerForNewTask(IdentityID, String)}), so a task the editor can create can be
+    * created here as well.
+    *
+    * @throws MessageException if the owner can't own a task, naming the reason.
+    */
+   public void requireOwnerResolves(IdentityID owner, Principal user) {
+      if(owner == null || owner.getName() == null || owner.getName().isBlank()) {
+         throw new MessageException("name is required");
+      }
+
+      if(owner.getOrgID() == null || owner.getOrgID().isBlank()) {
+         throw new MessageException("orgID is required");
+      }
+
+      if(XPrincipal.SYSTEM.equals(owner.getName()) ||
+         XPrincipal.ANONYMOUS.equals(owner.getName()))
+      {
+         throw new MessageException(
+            "user \"" + owner.getName() + "\" is a built-in user and cannot own a task");
+      }
+
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+
+      if(provider == null || provider.getOrganization(owner.getOrgID()) == null) {
+         throw new MessageException("organization \"" + owner.getOrgID() + "\" does not exist");
+      }
+
+      IdentityID callerID = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
+
+      if(Tool.equals(callerID, owner) ||
+         provider.getUser(owner) != null ||
+         Tool.equals(SUtil.getOwnerForNewTask(callerID, owner.getOrgID()), owner))
+      {
+         return;
+      }
+
+      String reason = scheduleService.isSecurityEnabled() ?
+         "a group or role cannot own a task" :
+         "security is disabled, so only the built-in admin user exists";
+      throw new MessageException("user \"" + owner.getName() + "\" does not exist in " +
+                                 "organization \"" + owner.getOrgID() + "\" (" + reason + ")");
    }
 
    /**

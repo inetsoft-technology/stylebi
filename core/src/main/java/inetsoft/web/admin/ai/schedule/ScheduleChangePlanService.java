@@ -147,6 +147,15 @@ public class ScheduleChangePlanService {
          throw new IllegalArgumentException(label + ".spec.owner: required");
       }
 
+      // Bug #79828, apply refuses an owner that isn't an existing user, so refuse it here instead
+      // of planning a change apply can only throw on, and before the owner is made into a taskId.
+      try {
+         scheduleGateway.requireOwnerResolves(spec.getOwner(), user);
+      }
+      catch(MessageException e) {
+         throw new IllegalArgumentException(label + ".spec.owner: " + e.getMessage());
+      }
+
       requireSupportedConditions(label, spec.getConditions());
       requireNoPermissionResets(label, spec.getConditions(), user);
       requireSupportedActions(label, spec.getActions());
