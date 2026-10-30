@@ -17,8 +17,12 @@
  */
 package inetsoft.util.dep;
 
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
+import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
@@ -27,6 +31,9 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Drivers;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.credential.CredentialService;
+import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
+import inetsoft.web.portal.controller.database.*;
+import inetsoft.web.portal.model.database.AssetItem;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +46,7 @@ import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -124,6 +132,101 @@ class XPartitionAssetFolderImportTest {
       assertEquals(List.of("F1"), Arrays.asList(model.getFolders()));
       assertEquals("admin", model.getFolderCreatedBy("F1"));
       assertEquals("F1", model.getPartition("P1").getFolder());
+   }
+
+   // the Portal data model browser shows folder F1 at the root and the imported view under it
+   @Test
+   void portalListsImportedPartitionUnderItsFolder() throws Exception {
+      String ds = "fiE79843";
+      createDataSource(ds);
+
+      importDataSource(ds, "F1", false);
+      importPartition(ds, "F1", "P1", false);
+
+      registry.clearCache();
+      assertEquals(List.of("data_model_folder:F1"), portalItems(ds, null));
+      assertEquals(List.of("physical_model:P1"), portalItems(ds, "F1"));
+   }
+
+   @Test
+   void portalListsPartitionUnderFolderWithOverwrite() throws Exception {
+      String ds = "fiF79843";
+      createDataSource(ds);
+
+      importDataSource(ds, "F1", true);
+      importPartition(ds, "F1", "P1", true);
+
+      registry.clearCache();
+      assertEquals(List.of("data_model_folder:F1"), portalItems(ds, null));
+      assertEquals(List.of("physical_model:P1"), portalItems(ds, "F1"));
+   }
+
+   @Test
+   void portalListsPartitionWithoutFolderAtRoot() throws Exception {
+      String ds = "fiG79843";
+      createDataSource(ds);
+
+      importDataSource(ds, null, false);
+      importPartition(ds, null, "P1", false);
+
+      registry.clearCache();
+      assertEquals(List.of("physical_model:P1"), portalItems(ds, null));
+   }
+
+   // the folder already exists in the target: it is not added again and keeps its creation info
+   @Test
+   void existingFolderIsKept() throws Exception {
+      String ds = "fiH79843";
+      createDataSource(ds);
+      XDataModel model = registry.getDataModel(ds);
+      model.addFolder("F1", "bob", 1000L);
+      registry.setDataModel(model);
+
+      importDataSource(ds, "F1", false);
+      importPartition(ds, "F1", "P1", false);
+
+      model = readModel(ds);
+      assertEquals(List.of("F1"), Arrays.asList(model.getFolders()));
+      assertEquals("bob", model.getFolderCreatedBy("F1"));
+      assertEquals("F1", model.getPartition("P1").getFolder());
+      assertEquals(List.of("data_model_folder:F1"), portalItems(ds, null));
+      assertEquals(List.of("physical_model:P1"), portalItems(ds, "F1"));
+   }
+
+   // the view exists outside any folder and is not overwritten: it stays at the root, no F1
+   @Test
+   void portalKeepsSkippedPartitionAtRoot() throws Exception {
+      String ds = "fiI79843";
+      createDataSource(ds);
+      importPartition(ds, null, "P1", false);
+
+      importDataSource(ds, "F1", false);
+      importPartition(ds, "F1", "P1", false);
+
+      registry.clearCache();
+      assertEquals(0, readModel(ds).getFolders().length);
+      assertEquals(List.of("physical_model:P1"), portalItems(ds, null));
+   }
+
+   // the items of the Portal data model browser (DatabaseModelBrowserController) in a folder
+   private List<String> portalItems(String ds, String folder) throws Exception {
+      SecurityEngine security = mock(SecurityEngine.class, inv ->
+         inv.getMethod().getReturnType() == boolean.class ? Boolean.TRUE :
+            RETURNS_DEFAULTS.answer(inv));
+      doReturn(mock(SecurityProvider.class)).when(security).getSecurityProvider();
+      XRepository repository = mock(XRepository.class);
+      when(repository.getDataModel(anyString()))
+         .thenAnswer(inv -> registry.getDataModel(inv.<String>getArgument(0)));
+      DataSourceService dataSourceService = new DataSourceService(
+         mock(AssetRepository.class), security, repository, registry);
+      DatabaseModelBrowserService browser = new DatabaseModelBrowserService(
+         dataSourceService, repository, mock(PhysicalModelManagerService.class),
+         mock(LogicalModelService.class), security, mock(DataModelFolderManagerService.class),
+         mock(RenameTransformHandler.class));
+      AssetItem[] items =
+         browser.getDataModelBrowseModel(ds, folder, null, false).getListModel().getItems();
+      return Arrays.stream(items).map(i -> i.getType() + ":" + i.getName())
+         .collect(Collectors.toList());
    }
 
    private XDataModel readModel(String ds) {
