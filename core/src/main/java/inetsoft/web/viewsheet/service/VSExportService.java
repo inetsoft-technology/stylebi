@@ -505,23 +505,31 @@ public class VSExportService {
       return name;
    }
 
+   private static final int MAX_FILE_NAME_LENGTH = 60;
+
    public static void setResponseHeader(ExportResponse response, String suffix,
                                   String disposition, String name, String mime)
    {
-      String name0 = name;
-      String fileName = Tool.encodeURL(Tool.normalizeFileName(name0 + "." + suffix, true));
-      fileName = fileName.replaceAll("'", "%27");
-
       // file name too long will cause problem in office 2010
       // @see bug1393467998696
-      while(fileName.length() > 60) {
-         if(name0.length() <= 1) {
+      // the limit applies to the decoded name (incl. extension) in code points, not to the
+      // percent-encoded string, so CJK names are not cut to a few characters (bug #79670)
+      String name0 = name;
+      String decoded = Tool.normalizeFileName(name0 + "." + suffix, true);
+
+      while(decoded.codePointCount(0, decoded.length()) > MAX_FILE_NAME_LENGTH) {
+         int count = name0.codePointCount(0, name0.length());
+
+         if(count <= 1) {
             break;
          }
 
-         name0 = name0.substring(0, name0.length() - 1);
-         fileName = Tool.encodeURL(Tool.normalizeFileName(name0 + "." + suffix));
+         name0 = name0.substring(0, name0.offsetByCodePoints(0, count - 1));
+         decoded = Tool.normalizeFileName(name0 + "." + suffix, true);
       }
+
+      // encode once, with the same flags whether or not the name was cut
+      String fileName = Tool.encodeURL(decoded).replaceAll("'", "%27");
 
       response.setHeader("Content-disposition", StringUtils.normalizeSpace(disposition) +
          "; filename*=utf-8''" + StringUtils.normalizeSpace(fileName) +
