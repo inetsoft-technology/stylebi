@@ -45,6 +45,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.TimeZone;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -959,6 +960,77 @@ public class ValueOfColumnTest {
       Object result = valueOfColumn.calculate((CrossTabFilter.CrosstabDataContext) null,
          (CrossTabFilter.PairN) null);
       assertNull(result);
+   }
+
+   /**
+    * Bug #79740: PREVIOUS_WEEK must subtract 7 calendar days in the default zone, not a fixed
+    * 168 hours, otherwise local-midnight keys in the 7 days after a DST switch find no match.
+    */
+   @Test
+   void testPreviousWeekAcrossDstSpringForward() {
+      assertPreviousWeekFound("America/New_York", "2026-03-01", 21, 1);
+   }
+
+   @Test
+   void testPreviousWeekAcrossDstFallBack() {
+      assertPreviousWeekFound("America/New_York", "2026-10-25", 21, 1);
+   }
+
+   @Test
+   void testPreviousWeekUtcControl() {
+      assertPreviousWeekFound("UTC", "2026-03-01", 21, 1);
+   }
+
+   @Test
+   void testPreviousWeekWeekLevelKeysAcrossDst() {
+      assertPreviousWeekFound("America/New_York", "2026-03-01", 6, 7);
+      assertPreviousWeekFound("America/New_York", "2026-10-25", 6, 7);
+   }
+
+   @Test
+   void testPreviousWeekSqlDateKeysAcrossDst() {
+      assertPreviousWeekFound("America/New_York", "2026-03-01", 21, 1, true);
+      assertPreviousWeekFound("America/New_York", "2026-10-25", 21, 1, true);
+   }
+
+   private void assertPreviousWeekFound(String zone, String start, int count, int step) {
+      assertPreviousWeekFound(zone, start, count, step, false);
+   }
+
+   /**
+    * Rows are local-midnight keys start + i * step days with id = i + 1; every row i >= 7/step
+    * must find the row one week earlier.
+    */
+   private void assertPreviousWeekFound(String zone, String start, int count, int step,
+                                        boolean sqlDate) {
+      TimeZone old = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone(zone));
+         valueOfColumn = new ValueOfColumn("id", "sum(id)");
+         valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_WEEK);
+         valueOfColumn.setDim("date");
+
+         Object[][] rows = new Object[count + 1][];
+         rows[0] = new Object[] { "date", "id" };
+         LocalDate first = LocalDate.parse(start);
+
+         for(int i = 0; i < count; i++) {
+            rows[i + 1] = new Object[] { sqlDate ? new java.sql.Date(toDate(first.plusDays((long) i * step).toString()).getTime())
+               : toDate(first.plusDays((long) i * step).toString()), i + 1 };
+         }
+
+         vsDataSet = createVSDataSet(new DefaultTableLens(rows), "date");
+         int back = 7 / step;
+
+         for(int i = back; i < count; i++) {
+            assertEquals(i + 1 - back, valueOfColumn.calculate(vsDataSet, i, false, false),
+                         zone + " " + first.plusDays((long) i * step));
+         }
+      }
+      finally {
+         TimeZone.setDefault(old);
+      }
    }
 
    private CrossTabFilter.PairN createCrosstabFilterPairN(Object rowValue, Object colValue) {
