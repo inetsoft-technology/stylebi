@@ -137,6 +137,12 @@ public class SortInfo implements AssetObject, ContentObject {
     */
    public synchronized void appendSort(SortRef ref) {
       sorts.add(ref);
+
+      PropertyChangeListener listener = getListener();
+
+      if(listener != null) {
+         listener.propertyChange(new PropertyChangeEvent(this, "sortRef", ref, ref));
+      }
    }
 
    /**

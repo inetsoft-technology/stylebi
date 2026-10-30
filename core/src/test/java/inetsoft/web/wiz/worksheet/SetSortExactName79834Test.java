@@ -137,6 +137,57 @@ class SetSortExactName79834Test {
    }
 
    @Test
+   void bothSortsSurviveAColumnSelectionRefresh() {
+      EmbeddedTableAssembly t = selfJoinTable();
+      addSort(t, t.getColumnSelection().getAttribute(2), XConstants.SORT_DESC);
+      assertTrue(WorksheetMutationSupport.setSort(t, "CUSTOMER_ID", "ASC"));
+
+      // validate() runs on every column selection reset and must not retarget the alias sort
+      t.setColumnSelection(t.getColumnSelection(), false);
+
+      SortRef[] sorts = t.getSortInfo().getSorts();
+      assertEquals(2, sorts.length);
+      assertEquals(XConstants.SORT_DESC, find(sorts, "CUSTOMER_ID_1").getOrder());
+      assertEquals(XConstants.SORT_ASC, find(sorts, "CUSTOMER_ID").getOrder());
+   }
+
+   @Test
+   void bothSortsSurviveAnXmlRoundTrip() throws Exception {
+      EmbeddedTableAssembly t = selfJoinTable();
+      addSort(t, t.getColumnSelection().getAttribute(2), XConstants.SORT_DESC);
+      assertTrue(WorksheetMutationSupport.setSort(t, "CUSTOMER_ID", "ASC"));
+
+      java.io.StringWriter sw = new java.io.StringWriter();
+      java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+      t.getSortInfo().writeXML(pw);
+      pw.flush();
+      org.w3c.dom.Document doc = inetsoft.util.Tool.parseXML(
+         new java.io.StringReader(sw.toString()));
+      SortInfo parsed = new SortInfo();
+      parsed.parseXML(doc.getDocumentElement());
+      parsed.validate(t.getColumnSelection());
+
+      SortRef[] sorts = parsed.getSorts();
+      assertEquals(2, sorts.length);
+      assertEquals(XConstants.SORT_DESC, find(sorts, "CUSTOMER_ID_1").getOrder());
+      assertEquals(XConstants.SORT_ASC, find(sorts, "CUSTOMER_ID").getOrder());
+   }
+
+   @Test
+   void bareAttributeOfADateRangeColumnDoesNotFlipItsSort() {
+      EmbeddedTableAssembly t = selfJoinTable();
+      ColumnRef year = new ColumnRef(new DateRangeRef(
+         "Year(ORDER_DATE)", new AttributeRef(null, "ORDER_DATE"), DateRangeRef.YEAR_INTERVAL));
+      year.setDataType(XSchema.INTEGER);
+      t.getColumnSelection().addAttribute(year);
+      addSort(t, year, XConstants.SORT_ASC);
+
+      WorksheetMutationSupport.setSort(t, "ORDER_DATE", "DESC");
+
+      assertEquals(XConstants.SORT_ASC, find(t.getSortInfo().getSorts(), "Year(ORDER_DATE)").getOrder());
+   }
+
+   @Test
    void noneOnAColumnWithNoSortIsANoOp() {
       EmbeddedTableAssembly t = selfJoinTable();
       assertFalse(WorksheetMutationSupport.setSort(t, "CUSTOMER_ID", "NONE"));

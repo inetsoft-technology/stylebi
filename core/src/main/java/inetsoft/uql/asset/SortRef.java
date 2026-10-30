@@ -163,6 +163,19 @@ public class SortRef extends AbstractDataRef implements AssetObject,
     * @param cols the specified column selection.
     */
    public void refreshDataRef(ColumnSelection cols) {
+      // Refs compare by entity.attribute only, so a self-join column and its aliased copy are
+      // indistinguishable to indexOfAttribute; prefer the column with this ref's exact name.
+      String name = ref.getName();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef col = cols.getAttribute(i);
+
+         if(col instanceof ColumnRef && name.equals(col.getName())) {
+            setDataRef(col);
+            return;
+         }
+      }
+
       int index = cols.indexOfAttribute(ref);
 
       if(index >= 0) {
