@@ -60,6 +60,7 @@ import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.JDBCSelection;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.jdbc.util.SQLTypes;
+import inetsoft.web.wiz.service.TabularProbeCause;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -10121,6 +10122,13 @@ class WorksheetAgentControllerTest {
    private String addTableRefusalMessage(String token, EditRequest req, Object shape)
       throws Exception
    {
+      return addTableRefusalMessage(token, req, shape, null, null);
+   }
+
+   private String addTableRefusalMessage(String token, EditRequest req, Object shape,
+                                         List<String> referenced, VariableTable sandbox)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
@@ -10146,6 +10154,12 @@ class WorksheetAgentControllerTest {
       Worksheet ws = new Worksheet();
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+
+      if(sandbox != null) {
+         AssetQuerySandbox box = sandboxWith(sandbox);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+      }
+
       when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
          WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
          return fn.apply(rws);
@@ -10163,6 +10177,7 @@ class WorksheetAgentControllerTest {
 
       try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
          tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+         stubReferencedVariables(tabularUtil, referenced);
 
          PairingException ex = assertThrows(PairingException.class,
             () -> ctrl.edit(token, req, agent));
@@ -10238,6 +10253,12 @@ class WorksheetAgentControllerTest {
     * the live assembly's query and columns are unchanged.
     */
    private String editTableRefusalMessage(String token, Object shape) throws Exception {
+      return editTableRefusalMessage(token, shape, null, null);
+   }
+
+   private String editTableRefusalMessage(String token, Object shape, List<String> referenced,
+                                          VariableTable sandbox) throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
       FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
@@ -10261,6 +10282,11 @@ class WorksheetAgentControllerTest {
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
 
+      if(sandbox != null) {
+         AssetQuerySandbox box = sandboxWith(sandbox);
+         when(rws.getAssetQuerySandbox()).thenReturn(box);
+      }
+
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
       when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
          WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
@@ -10280,8 +10306,12 @@ class WorksheetAgentControllerTest {
       // "Comments" is a known endpoint with no entry in columnsByEndpoint: zero columns.
       EditRequest req = editTableRequest("Calendars", "Comments", null, null, null, null, null, null);
 
-      PairingException ex = assertThrows(PairingException.class,
-         () -> ctrl.edit(token, req, agent));
+      PairingException ex;
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         stubReferencedVariables(tabularUtil, referenced);
+         ex = assertThrows(PairingException.class, () -> ctrl.edit(token, req, agent));
+      }
 
       assertSame(liveQuery,
          ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery(),
@@ -14472,6 +14502,168 @@ class WorksheetAgentControllerTest {
          editTableRequest("Issues1", "Issues", null, null, null, null, null, null), f.agent());
 
       assertProbeSawSandboxValues(vars);
+   }
+
+   // Bug #79637: a probe that returned no columns while the query references worksheet variables
+   // must name the variable, not blame the credentials. Each add_table / edit_table throw site is
+   // driven end to end so reverting any one of them to the generic advice fails a test.
+
+   private static void stubReferencedVariables(MockedStatic<TabularUtil> tabularUtil,
+                                               List<String> referenced)
+   {
+      if(referenced != null) {
+         List<UserVariable> vars = new ArrayList<>();
+         referenced.forEach(n -> vars.add(new UserVariable(n)));
+         tabularUtil.when(() -> TabularUtil.findVariables(any(), eq(true))).thenReturn(vars);
+      }
+   }
+
+   private static void assertNamesUnsetVariable(String message) {
+      assertTrue(message.contains("returned no columns"), message);
+      assertTrue(message.contains("probeName"), message);
+      assertTrue(message.contains("set_variable_values"), message);
+      assertFalse(message.contains("datasource credentials"), message);
+      assertFalse(message.contains("\n") || message.contains("\r"), message);
+   }
+
+   @Test
+   void addTabularTableEndpointFormNamesAnUnsetVariable() throws Exception {
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null, Map.of("jsonPath", "$.items[*]"), null);
+
+      assertNamesUnsetVariable(addTableRefusalMessage(
+         "TOK-V79637A", req, null, List.of("probeName"), new VariableTable()));
+   }
+
+   @Test
+   void addQueryParamsTableNamesAnUnsetVariable() throws Exception {
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      assertNamesUnsetVariable(addTableRefusalMessage(
+         "TOK-V79637B", req, null, List.of("probeName"), new VariableTable()));
+   }
+
+   @Test
+   void editTableNamesAnUnsetVariable() throws Exception {
+      assertNamesUnsetVariable(editTableRefusalMessage(
+         "TOK-V79637C", null, List.of("probeName"), new VariableTable()));
+   }
+
+   @Test
+   void addQueryParamsTableReportsASetVariableThatMatchedNoRows() throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("probeName", "Customer 1");
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      String message = addTableRefusalMessage(
+         "TOK-V79637D", req, null, List.of("probeName"), vars);
+
+      assertTrue(message.contains("no rows with the current variable values probeName=Customer 1"),
+                 message);
+      assertFalse(message.contains("datasource credentials"), message);
+   }
+
+   @Test
+   void editTableReportsASetVariableThatMatchedNoRows() throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("probeName", "Customer 1");
+
+      String message = editTableRefusalMessage(
+         "TOK-V79637E", null, List.of("probeName"), vars);
+
+      assertTrue(message.contains("probeName=Customer 1"), message);
+      assertFalse(message.contains("datasource credentials"), message);
+   }
+
+   @Test
+   void aSetVariableIsAddedToTheZeroRowsClauseWhenTheResponseShapeIsKnown() throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("probeName", "Customer 1");
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      String message = addTableRefusalMessage(
+         "TOK-V79637F", req, Map.of("data", List.of()), List.of("probeName"), vars);
+
+      assertTrue(message.contains("selected zero rows"), message);
+      assertTrue(message.contains("probeName=Customer 1"), message);
+   }
+
+   private static String refusal(VariableTable sandbox, List<String> referenced, Object loadError,
+                                 int timedOutSeconds)
+   {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.setTimedOutSeconds(timedOutSeconds);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      AssetQuerySandbox box = sandboxWith(sandbox);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         stubReferencedVariables(tabularUtil, referenced);
+         return WorksheetAgentController.emptyColumnsRefusal(
+            query, rws, loadError, TabularProbeCause.read(query, loadError), "LEAD", ". ECHO");
+      }
+   }
+
+   @Test
+   void aRealLoadErrorKeepsItsOwnSignalDespiteASetVariable() {
+      VariableTable vars = new VariableTable();
+      vars.put("probeName", "Customer 1");
+
+      String message = refusal(vars, List.of("probeName"), "HTTP 401", 0);
+
+      assertFalse(message.contains("returned no rows"), message);
+      assertTrue(message.contains("(HTTP 401)"), message);
+      assertTrue(message.contains("datasource credentials"), message);
+   }
+
+   @Test
+   void anUnsetVariableAndALoadErrorKeepTheCredentialsAdvice() {
+      String message = refusal(new VariableTable(), List.of("probeName"), "HTTP 401", 0);
+
+      assertTrue(message.contains("probeName"), message);
+      assertTrue(message.contains("datasource credentials"), message);
+   }
+
+   @Test
+   void aTimeoutKeepsTheTimeoutSentenceWithoutVariableWording() {
+      String message = refusal(new VariableTable(), List.of("probeName"), null, 30);
+
+      assertTrue(message.contains("timed out after 30 s"), message);
+      assertFalse(message.contains("probeName"), message);
+   }
+
+   @Test
+   void noReferencedVariableKeepsTheGenericAdvice() {
+      assertTrue(refusal(new VariableTable(), List.of(), null, 0)
+                    .contains("datasource credentials"));
+   }
+
+   @Test
+   void multiValueAndLongVariableValuesArePrintedReadably() {
+      VariableTable vars = new VariableTable();
+      vars.put("a", new Object[] { "x", "y" });
+      vars.put("b", "z".repeat(500));
+
+      String message = refusal(vars, List.of("a", "b"), null, 0);
+
+      assertTrue(message.contains("a=[x, y]"), message);
+      assertFalse(message.contains("[Ljava"), message);
+      assertTrue(message.contains("b=" + "z".repeat(80) + "..."), message);
+      assertFalse(message.contains("z".repeat(81)), message);
+   }
+
+   @Test
+   void theSandboxVariableTableIsNeverMutatedByTheRefusal() throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("a", 1);
+
+      refusal(vars, List.of("a", "b"), null, 0);
+
+      assertEquals(1, vars.size());
+      assertNull(vars.get("b"));
    }
 
    @Test

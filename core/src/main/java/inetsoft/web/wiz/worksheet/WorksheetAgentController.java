@@ -1341,7 +1341,7 @@ public class WorksheetAgentController {
             Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
             throw new PairingException(emptyColumnsRefusal(
-               query, loadError, cause,
+               query, rws, loadError, cause,
                "The request to '" + target + "' of '" + dsName + "' returned no columns",
                ". URL suffix sent: " + resolvedSuffix +
                (extraApplied == null || extraApplied.isBlank() ? "" :
@@ -1448,7 +1448,7 @@ public class WorksheetAgentController {
             Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
             throw new PairingException(emptyColumnsRefusal(
-               query, loadError, cause, "The request to '" + dsName + "' returned no columns",
+               query, rws, loadError, cause, "The request to '" + dsName + "' returned no columns",
                ". Properties sent: " + applied));
          }
 
@@ -1776,7 +1776,7 @@ public class WorksheetAgentController {
             Object loadError = scratchQuery.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(scratchQuery, loadError);
             throw new PairingException(emptyColumnsRefusal(
-               scratchQuery, loadError, cause,
+               scratchQuery, rws, loadError, cause,
                "The request to '" + target + "' of '" + dsName + "' returned no columns",
                (resolvedSuffix == null ? "" : ". URL suffix sent: " + resolvedSuffix) +
                (applied == null || applied.isBlank() ? "" : ". Properties sent: " + applied)));
@@ -6592,18 +6592,101 @@ public class WorksheetAgentController {
     * connector message closes via {@link TabularProbeCause#advice}, and a request that succeeded
     * with zero rows says so instead of sending the caller to credentials.
     *
+    * <p>Bug #79637: when the query references worksheet variables, those are named too. A variable
+    * with no value is always called out (an empty substitution can cause a failure of any kind),
+    * and the response-shape clause or the connector's own message, when present, is kept after it.
+    * A set variable that matched no rows is reported only when nothing else explains the empty
+    * result (no load error, no connector message, no timeout): it then replaces the generic
+    * credentials advice, which is the only signal a connector that records no response shape
+    * (Mongo) gives.</p>
+    *
     * @param lead  the caller's subject and "returned no columns".
     * @param echoes what the caller sent, each part starting with ". ".
     */
-   private static String emptyColumnsRefusal(TabularQuery query, Object loadError,
-                                             TabularProbeCause cause, String lead, String echoes)
+   static String emptyColumnsRefusal(TabularQuery query, RuntimeWorksheet rws, Object loadError,
+                                     TabularProbeCause cause, String lead, String echoes)
    {
       String zeroRows = TabularProbeCause.zeroRowsClause(query, loadError, cause);
-      String closing = zeroRows == null ? cause.advice(PROBE_GENERIC_ADVICE) :
-         "The request " + zeroRows + cause.detail();
+      List<String> unset = new ArrayList<>();
+      List<String> set = new ArrayList<>();
+
+      if(!cause.isTimeout()) {
+         probeVariableState(query, rws, unset, set);
+      }
+
+      boolean unexplained = loadError == null && cause.detail().isEmpty() && !cause.isTimeout();
+      StringBuilder closing = new StringBuilder();
+
+      if(!unset.isEmpty()) {
+         closing.append("The query references worksheet variable(s) ").
+            append(String.join(", ", unset)).
+            append(" with no value; an unset variable is substituted as an empty value (or null)").
+            append(", so the query may match nothing. Call set_variable_values first, then ").
+            append("retry. ");
+      }
+
+      String setClause = set.isEmpty() ? "" :
+         "The query returned no rows with the current variable values " +
+         String.join(", ", set) + "; adjust the value(s) or the query.";
+
+      if(zeroRows != null) {
+         closing.append("The request ").append(zeroRows).append(cause.detail());
+
+         if(!setClause.isEmpty()) {
+            closing.append(" ").append(setClause);
+         }
+      }
+      else if(unexplained && !setClause.isEmpty()) {
+         closing.append(setClause);
+      }
+      else if(unexplained && !unset.isEmpty()) {
+         // the unset-variable sentence above already is the explanation
+      }
+      else {
+         closing.append(cause.advice(PROBE_GENERIC_ADVICE));
+      }
 
       return TabularProbeCause.singleLine(
-         lead + (loadError == null ? "" : " (" + loadError + ")") + echoes + ". " + closing);
+         lead + (loadError == null ? "" : " (" + loadError + ")") + echoes + ". " +
+         closing.toString().trim());
+   }
+
+   /**
+    * Splits the worksheet variables the query references into those with no value in the
+    * session's variable table and those with one, formatted as {@code name=value}.
+    */
+   private static void probeVariableState(TabularQuery query, RuntimeWorksheet rws,
+                                          List<String> unset, List<String> set)
+   {
+      VariableTable vars = probeVariables(rws);
+
+      for(UserVariable var : TabularUtil.findVariables(query, true)) {
+         String name = var.getName();
+         Object value = null;
+
+         try {
+            value = vars.get(name);
+         }
+         catch(Exception ignore) {
+            // an unreadable value is reported like an unset one
+         }
+
+         if(value == null) {
+            if(!unset.contains(name)) {
+               unset.add(name);
+            }
+         }
+         else if(set.stream().noneMatch(e -> e.startsWith(name + "="))) {
+            set.add(name + "=" + describeVariableValue(value));
+         }
+      }
+   }
+
+   private static String describeVariableValue(Object value) {
+      String text = value instanceof Object[] ? Arrays.toString((Object[]) value) :
+         String.valueOf(value);
+
+      return text.length() > 80 ? text.substring(0, 80) + "..." : text;
    }
 
    /** Bug #78527: ends edit_table's dropped-column refusal. */
