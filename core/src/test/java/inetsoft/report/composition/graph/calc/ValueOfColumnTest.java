@@ -987,11 +987,22 @@ public class ValueOfColumnTest {
       assertPreviousWeekFound("America/New_York", "2026-10-25", 6, 7);
    }
 
+   @Test
+   void testPreviousWeekSqlDateKeysAcrossDst() {
+      assertPreviousWeekFound("America/New_York", "2026-03-01", 21, 1, true);
+      assertPreviousWeekFound("America/New_York", "2026-10-25", 21, 1, true);
+   }
+
+   private void assertPreviousWeekFound(String zone, String start, int count, int step) {
+      assertPreviousWeekFound(zone, start, count, step, false);
+   }
+
    /**
     * Rows are local-midnight keys start + i * step days with id = i + 1; every row i >= 7/step
     * must find the row one week earlier.
     */
-   private void assertPreviousWeekFound(String zone, String start, int count, int step) {
+   private void assertPreviousWeekFound(String zone, String start, int count, int step,
+                                        boolean sqlDate) {
       TimeZone old = TimeZone.getDefault();
 
       try {
@@ -1005,7 +1016,8 @@ public class ValueOfColumnTest {
          LocalDate first = LocalDate.parse(start);
 
          for(int i = 0; i < count; i++) {
-            rows[i + 1] = new Object[] { toDate(first.plusDays((long) i * step).toString()), i + 1 };
+            rows[i + 1] = new Object[] { sqlDate ? new java.sql.Date(toDate(first.plusDays((long) i * step).toString()).getTime())
+               : toDate(first.plusDays((long) i * step).toString()), i + 1 };
          }
 
          vsDataSet = createVSDataSet(new DefaultTableLens(rows), "date");

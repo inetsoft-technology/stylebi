@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.DatePeriod;
 import inetsoft.util.Tool;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -701,7 +702,8 @@ public class ValueOfColumn extends AbstractColumn {
       }
 
       if(ctype == ValueOfCalc.PREVIOUS_WEEK) {
-         return Date.from(ZonedDateTime.ofInstant(((Date) value).toInstant(), ZoneId.systemDefault())
+         return Date.from(ZonedDateTime.ofInstant(Instant.ofEpochMilli(((Date) value).getTime()),
+                                                 ZoneId.systemDefault())
                              .minusDays(7).toInstant());
       }
       else {
