@@ -95,4 +95,57 @@ class WizStrictValueParserTest {
       assertNotNull(WizStrictValueParser.parse("10:30:00.250", "time"));
       assertNull(WizStrictValueParser.parse("__null__", "date"));
    }
+
+   /** Bug #79829: a time without seconds was never clock-checked, and a time-only hh:mm was refused. */
+   @Test
+   void refusesImpossibleClockTimesWithoutSeconds() {
+      for(String[] bad : new String[][] {
+         { "2026-03-15 25:61", "timeInstant" }, { "2026-03-15 10:61", "timeInstant" },
+         { "2026-03-15 24:00", "timeInstant" }, { "2026-03-15T25:61", "timeInstant" },
+         { "2026-03-15 25:61:00", "timeInstant" }, { "2026-03-15 24:00:00", "timeInstant" },
+         { "2026-03-15 25:61", "date" }, { "24:00", "time" }, { "10:61", "time" },
+         { "9:5x", "time" } })
+      {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> WizStrictValueParser.parse(bad[0], bad[1]), bad[0] + " as " + bad[1]);
+         assertTrue(e.getMessage().contains("'" + bad[0] + "'"), e.getMessage());
+      }
+   }
+
+   @Test
+   void acceptsHourMinuteTimesAndStoresThemAsHourMinuteSecond() {
+      assertEquals(parseTime("10:30:00"), WizStrictValueParser.parse("10:30", "time"));
+      assertEquals(parseTime("09:05:00"), WizStrictValueParser.parse("9:05", "time"));
+      assertEquals(parseTimeInstant("2026-03-15 10:30:00"),
+                   WizStrictValueParser.parse("2026-03-15 10:30", "timeInstant"));
+      assertEquals(parseTimeInstant("2026-03-15 10:30:00"),
+                   WizStrictValueParser.parse("2026-03-15T10:30", "timeInstant"));
+      assertEquals(parseTimeInstant("2026-03-15 10:30:15"),
+                   WizStrictValueParser.parse("2026-03-15T10:30:15", "timeInstant"));
+   }
+
+   @Test
+   void canonicalTemporalTextAddsMissingSeconds() {
+      assertEquals("10:30:00", WizStrictValueParser.canonicalTemporalText("10:30"));
+      assertEquals("9:05:00", WizStrictValueParser.canonicalTemporalText(" 9:05 "));
+      assertEquals("2026-03-15 10:30:00",
+                   WizStrictValueParser.canonicalTemporalText("2026-03-15 10:30"));
+      // Tool.getData reads the T form as midnight, so it is rewritten with a space
+      assertEquals("2026-03-15 10:30:00",
+                   WizStrictValueParser.canonicalTemporalText("2026-03-15T10:30"));
+      assertEquals("2026-03-15 10:30:15",
+                   WizStrictValueParser.canonicalTemporalText("2026-03-15T10:30:15"));
+      assertEquals("10:30:15", WizStrictValueParser.canonicalTemporalText("10:30:15"));
+      assertEquals("2026-03-15", WizStrictValueParser.canonicalTemporalText("2026-03-15"));
+      assertEquals("2026-03-15 10:30:00.250",
+                   WizStrictValueParser.canonicalTemporalText("2026-03-15 10:30:00.250"));
+   }
+
+   private static Object parseTime(String text) {
+      return inetsoft.util.Tool.getData(inetsoft.util.Tool.TIME, text, true);
+   }
+
+   private static Object parseTimeInstant(String text) {
+      return inetsoft.util.Tool.getData(inetsoft.util.Tool.TIME_INSTANT, text, true);
+   }
 }

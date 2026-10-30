@@ -641,12 +641,14 @@ public class FormTableRowService {
             return value.trim();
          }
 
-         String message = option == null ? null : option.getErrorMessage(value);
-         throw new IllegalArgumentException(
-            message == null || message.isEmpty() ? ex.getMessage() : message, ex);
+         throw new IllegalArgumentException(refusalMessage(option, value, ex), ex);
       }
 
-      if(temporal || parsed instanceof Double || parsed instanceof Float) {
+      if(temporal) {
+         return WizStrictValueParser.canonicalTemporalText(value);
+      }
+
+      if(parsed instanceof Double || parsed instanceof Float) {
          return value.trim();
       }
 
@@ -711,6 +713,21 @@ public class FormTableRowService {
    }
 
    private static final int MAX_LISTED_LABELS = 20;
+
+   /**
+    * The option's own message only when the author configured one; its generated default text
+    * ("Value doesn't match pattern: null", "range null and null") is about the option, not about
+    * why this value was refused, so the parser's reason (which names the value) is used instead.
+    */
+   static String refusalMessage(ColumnOption option, String value, IllegalArgumentException ex) {
+      String configured = option == null ? null : option.getMessage();
+
+      if(configured == null || configured.isEmpty()) {
+         return ex.getMessage();
+      }
+
+      return option.getErrorMessage(value);
+   }
 
    private static boolean isTemporal(String type) {
       return Tool.DATE.equals(type) || Tool.TIME_INSTANT.equals(type) || Tool.TIME.equals(type);

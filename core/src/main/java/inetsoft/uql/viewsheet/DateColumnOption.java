@@ -55,8 +55,19 @@ public class DateColumnOption extends ColumnOption {
       String msg = getMessage();
 
       if(msg == null || msg.isEmpty()) {
-         msg = Catalog.getCatalog().getString("viewer.valueIsOutsideOfRange",
-                                              minimum, maximum);
+         if(minimum != null && maximum != null) {
+            msg = Catalog.getCatalog().getString("viewer.valueIsOutsideOfRange",
+                                                 minimum, maximum);
+         }
+         else if(maximum != null) {
+            msg = "Value must not be later than " + maximum;
+         }
+         else if(minimum != null) {
+            msg = "Value must not be earlier than " + minimum;
+         }
+         else {
+            msg = "'{0}' is not a valid date";
+         }
       }
 
       return msg;
