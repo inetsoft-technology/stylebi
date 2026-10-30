@@ -17,6 +17,7 @@
  */
 package inetsoft.web;
 
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -41,9 +42,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
       boolean suppressedConnectionException = Arrays.stream(e.getSuppressed())
          .map(t -> t.getClass().getName())
          .anyMatch(CLIENT_ABORT_EXCEPTIONS::contains);
-      Throwable cause = e.getCause();
-      boolean causedByClientAbort = isClientAbortException(e.getClass().getName()) ||
-         (cause != null && isClientAbortException(cause.getClass().getName()));
+      boolean causedByClientAbort = isClientAbort(e);
 
       String message = e.getMessage() == null ? "" : e.getMessage();
 
@@ -83,6 +82,49 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
    public static boolean isClientAbortException(String className) {
       return CLIENT_ABORT_EXCEPTIONS.contains(className);
+   }
+
+   /**
+    * Determines if an exception was caused by the client closing the connection, by class only.
+    * Walks the whole cause chain (and suppressed exceptions), so a wrapper such as Spring's
+    * AsyncRequestNotUsableException around a ClientAbortException is recognized. A wrapper alone
+    * is not enough. This does not look at messages, so it is safe to use anywhere.
+    */
+   public static boolean isClientAbort(Throwable e) {
+      return isClientAbort(e, false, Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   /**
+    * Like {@link #isClientAbort(Throwable)}, and also treats an IOException whose message is the
+    * JDK/OS text for a closed connection ("Broken pipe", "Connection reset", ...) as an abort.
+    * Only use where the failing step is known to be writing to the client response.
+    */
+   public static boolean isClientAbortOnWrite(Throwable e) {
+      return isClientAbort(e, true, Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   private static boolean isClientAbort(Throwable e, boolean byMessage, Set<Throwable> seen) {
+      if(e == null || !seen.add(e)) {
+         return false;
+      }
+
+      if(isClientAbortException(e.getClass().getName()) ||
+         byMessage && e instanceof IOException && Tool.isBrokenPipeMessage(e.getMessage()))
+      {
+         return true;
+      }
+
+      if(isClientAbort(e.getCause(), byMessage, seen)) {
+         return true;
+      }
+
+      for(Throwable suppressed : e.getSuppressed()) {
+         if(isClientAbort(suppressed, byMessage, seen)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    public static boolean isCacheStoppedException(Throwable e) {
