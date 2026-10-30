@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
@@ -147,7 +148,9 @@ class VSBookmarkServiceOwnerTest {
       SecurityEngine security = mock(SecurityEngine.class);
       when(security.isSecurityEnabled()).thenReturn(true);
       when(objectService.getRuntimeViewsheet(anyString(), any())).thenReturn(rvs);
-      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      Viewsheet vsMock = mock(Viewsheet.class);
+      when(vsMock.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      when(rvs.getViewsheet()).thenReturn(vsMock);
       // the bookmark list bob can see does not contain alice's private bookmark
       service = new VSBookmarkService(
          objectService, null, security, scheduleManager, null, null);
@@ -259,5 +262,129 @@ class VSBookmarkServiceOwnerTest {
 
       assertFalse(gotoRejected(svc, request(new IdentityID("anonymous", null),
                                             VSBookmarkInfo.PRIVATE)));
+   }
+
+   // ---- Bug #79737: open by name AND owner, keep the owner's flags, no existence oracle
+
+   private static final IdentityID ZED = new IdentityID("zed", ORG);
+
+   private void openBookmark(String name, IdentityID owner) {
+      try {
+         service.processBookmark("rid", rvs, null, bob, name, owner,
+                                 new OpenViewsheetEvent(), dispatcher);
+      }
+      catch(Exception ignore) {
+         // the mocked runtime viewsheet is too thin to finish the open; only the load matters
+      }
+   }
+
+   @Test
+   void openDoesNotLoadAPrivateBookmarkBecauseAnotherOwnerSharesTheSameName() throws Exception {
+      // zed sorts after alice, so a name-only lookup picks zed's shared entry and passes
+      when(rvs.getBookmarks(any(IdentityID.class))).thenReturn(java.util.List.of(
+         new VSBookmarkInfo("Secret", VSBookmarkInfo.PRIVATE, ALICE, false, 0L),
+         new VSBookmarkInfo("Secret", VSBookmarkInfo.ALLSHARE, ZED, false, 0L)));
+
+      openBookmark("Secret", ALICE);
+
+      verify(rvs, never()).gotoBookmark(anyString(), any(IdentityID.class), any());
+   }
+
+   @Test
+   void openLoadsABookmarkSharedByItsOwnerOrOwnedByTheCaller() throws Exception {
+      when(rvs.getBookmarks(any(IdentityID.class))).thenReturn(java.util.List.of(
+         new VSBookmarkInfo("Shared", VSBookmarkInfo.ALLSHARE, ALICE, false, 0L),
+         new VSBookmarkInfo("Mine", VSBookmarkInfo.PRIVATE, BOB, false, 0L)));
+
+      openBookmark("Shared", ALICE);
+      openBookmark("Mine", BOB);
+
+      verify(rvs, atLeastOnce()).gotoBookmark(eq("Shared"), eq(ALICE), any());
+      verify(rvs, atLeastOnce()).gotoBookmark(eq("Mine"), eq(BOB), any());
+   }
+
+   @Test
+   void openHonorsGroupShareOnlyForTheSameGroup() throws Exception {
+      when(rvs.getBookmarks(any(IdentityID.class))).thenReturn(java.util.List.of(
+         new VSBookmarkInfo("G", VSBookmarkInfo.GROUPSHARE, ALICE, false, 0L)));
+
+      when(rvs.isSameGroup(ALICE, BOB)).thenReturn(false);
+      openBookmark("G", ALICE);
+      verify(rvs, never()).gotoBookmark(anyString(), any(IdentityID.class), any());
+
+      when(rvs.isSameGroup(ALICE, BOB)).thenReturn(true);
+      openBookmark("G", ALICE);
+      verify(rvs, atLeastOnce()).gotoBookmark(eq("G"), eq(ALICE), any());
+   }
+
+   private void saveOver(VSBookmarkInfo stored, int requestType, boolean requestReadOnly,
+                         IdentityID owner) throws Exception
+   {
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.isSecurityEnabled()).thenReturn(true);
+      when(security.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+      VSObjectService objectService = mock(VSObjectService.class);
+      when(objectService.getRuntimeViewsheet(anyString(), any())).thenReturn(rvs);
+      Viewsheet vs = mock(Viewsheet.class);
+      inetsoft.uql.asset.AssetEntry entry = mock(inetsoft.uql.asset.AssetEntry.class);
+      when(vs.getRuntimeEntry()).thenReturn(entry);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getBookmarks(BOB)).thenReturn(java.util.List.of(stored));
+      when(rvs.getBookmarkInfo(stored.getName(), stored.getOwner())).thenReturn(stored);
+      when(rvs.containsBookmark(anyString(), any())).thenReturn(true);
+      VSBookmarkService svc = new VSBookmarkService(
+         objectService, null, security, scheduleManager, null, null);
+      VSBookmarkInfoModel model = VSBookmarkInfoModel.builder()
+         .name(stored.getName()).owner(owner).type(requestType).readOnly(requestReadOnly).build();
+
+      try {
+         svc.saveBookmark("rid", ImmutableVSEditBookmarkEvent.builder()
+                             .vsBookmarkInfoModel(model).confirmed(true).build(),
+                          bob, dispatcher, null);
+      }
+      catch(Exception ignore) {
+         // the audit record after the write is outside the mocked viewsheet
+      }
+   }
+
+   @Test
+   void savingOverAnotherUsersSharedBookmarkKeepsItsTypeAndReadOnly() throws Exception {
+      saveOver(new VSBookmarkInfo("Shared", VSBookmarkInfo.ALLSHARE, ALICE, false, 0L),
+               VSBookmarkInfo.PRIVATE, true, ALICE);
+
+      verify(rvs).addBookmark("Shared", VSBookmarkInfo.ALLSHARE, ALICE, false);
+   }
+
+   @Test
+   void savingOverYourOwnBookmarkTakesTheRequestedTypeAndReadOnly() throws Exception {
+      saveOver(new VSBookmarkInfo("Mine", VSBookmarkInfo.ALLSHARE, BOB, false, 0L),
+               VSBookmarkInfo.PRIVATE, true, BOB);
+
+      verify(rvs).addBookmark("Mine", VSBookmarkInfo.PRIVATE, BOB, true);
+   }
+
+   @Test
+   void checksAnswerAsForAMissingBookmarkWhenTheBookmarkIsNotVisible() throws Exception {
+      ViewsheetService vsService = mock(ViewsheetService.class);
+      when(vsService.getViewsheet(anyString(), any())).thenReturn(rvs);
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.isSecurityEnabled()).thenReturn(true);
+      VSBookmarkService svc = new VSBookmarkService(
+         mock(VSObjectService.class), vsService, security, scheduleManager, null, null);
+      when(rvs.getBookmarks(BOB)).thenReturn(java.util.List.of(
+         new VSBookmarkInfo("Shared", VSBookmarkInfo.ALLSHARE, ALICE, false, 0L)));
+      // what the repository would say about alice's private "Secret" if asked
+      when(rvs.checkBookmark(anyString(), any())).thenReturn(true);
+      when(rvs.bookmarkUpdated(anyString(), any())).thenReturn(true);
+
+      assertEquals("true", svc.checkBookmarkDeleted("rid", "Secret", ALICE.convertToKey(), bob));
+      assertEquals("false", svc.checkBookmarkChanged("rid", "Secret", ALICE.convertToKey(), bob));
+
+      // a bookmark visible to the caller keeps its real answer (the portal calls these before
+      // saving over a shared bookmark)
+      assertEquals("false", svc.checkBookmarkDeleted("rid", "Shared", ALICE.convertToKey(), bob));
+      assertEquals("true", svc.checkBookmarkChanged("rid", "Shared", ALICE.convertToKey(), bob));
+      // own bookmark
+      assertEquals("false", svc.checkBookmarkDeleted("rid", "Mine", BOB.convertToKey(), bob));
    }
 }
