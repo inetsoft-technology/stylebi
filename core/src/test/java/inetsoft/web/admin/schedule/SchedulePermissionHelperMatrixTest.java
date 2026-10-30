@@ -119,7 +119,7 @@ class SchedulePermissionHelperMatrixTest {
       builder.addUserToRole("foreign", SCHEDULE_ROLE, ORG_B);
 
       // the owner's grants are the ones ScheduleManager.setScheduleTask writes; the explicit
-      // grant holder gets the same three actions
+      // grant holder gets the same three actions, which the policy says grant nothing (#79853)
       for(String user : List.of("owner", "granted")) {
          for(ResourceAction action : List.of(ResourceAction.READ, ResourceAction.WRITE,
                                              ResourceAction.DELETE))
