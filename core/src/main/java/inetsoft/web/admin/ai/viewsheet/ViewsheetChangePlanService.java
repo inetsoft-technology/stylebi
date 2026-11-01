@@ -967,8 +967,10 @@ public class ViewsheetChangePlanService {
       String description = "rename folder \"" + normalizedOld + "\" to \"" + normalizedNew +
          "\" -- this rewrites the path/asset-identifier of every viewsheet and worksheet " +
          "currently stored under this folder (recursively, including nested folders) to match " +
-         "the new folder path; any external reference to those viewsheets by full path or " +
-         "asset-id can go stale as a result";
+         "the new folder path. StyleBI re-points schedule-task viewsheet actions to the new " +
+         "asset id (ScheduleManager.assetRenamed), so scheduled tasks follow the rename; only " +
+         "references held outside StyleBI (saved URLs, external links or scripts, other " +
+         "automation) that name the old full path or asset-id can go stale as a result";
       return new PlanChange(key, orgId, beforeProjection, proposedProjection,
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
