@@ -650,6 +650,93 @@ class DataSourceChangesetApplyServiceTest {
                   "rollback must restore the original url");
    }
 
+   // Bug #79891: an update that really lands but whose read-back differs from the proposed value
+   // (server-side normalization) is recorded FAILED. The write already happened, so it must be
+   // reverted and the rollback audited; "rolled-back" must never be claimed over a still-modified
+   // data source.
+   @Test void failedVerificationUpdateIsRolledBackAndAudited() throws Exception {
+      stubWriteNormalizingUrlsStartingWith("jdbc:h2:mem:new");
+
+      DataSourceApplyRequest req = applyRequest("normalized update",
+         false, updateChange("Orders", Map.of("url", "jdbc:h2:mem:new")));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertEquals("jdbc:h2:mem:test", store.get("Orders").getUrl(),
+                  "the landed write must be reverted to the before value");
+      assertTrue(auditedActions().contains(AdminChangeRecord.ACTION_ROLLBACK),
+                 "a ROLLBACK audit row must exist for the reverted write");
+   }
+
+   @Test void failedVerificationUpdateWhoseRollbackAlsoFailsVerificationIsRollbackFailed()
+      throws Exception
+   {
+      stubWriteNormalizingUrlsStartingWith("jdbc:h2:mem:");
+
+      DataSourceApplyRequest req = applyRequest("normalized update",
+         false, updateChange("Orders", Map.of("url", "jdbc:h2:mem:new")));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.rollbackFailures().size());
+      assertEquals("Orders", result.rollbackFailures().get(0).property());
+   }
+
+   @Test void failedVerificationRenameIsRolledBackByItsPostWriteName() throws Exception {
+      stubWriteNormalizingUrlsStartingWith("jdbc:h2:mem:new");
+      DataSourceChangeRequest change =
+         updateChange("Orders", Map.of("name", "Orders2", "url", "jdbc:h2:mem:new"));
+      change.setConfirmRename(true);
+
+      var result = service.apply(applyRequest("rename with normalization", false, change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(store.get("Orders2"), "the renamed entry must be renamed back");
+      assertNotNull(store.get("Orders"));
+      assertEquals("jdbc:h2:mem:test", store.get("Orders").getUrl());
+   }
+
+   @Test void folderCreateThatFailsVerificationIsRemoved() throws Exception {
+      lenient().doNothing().when(dataSourceService)
+         .createDataSourceFolder(eq("Examples/NewFolder"), eq(user));
+
+      var result = service.apply(applyRequest("create folder",
+         false, folderCreateChange("Examples/NewFolder")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      verify(dataSourceService).removeDataSourceFolder("Examples/NewFolder");
+   }
+
+   /** Replaces the fake update with one that persists the write but appends "#norm" to any url
+    * starting with {@code prefix} -- a server-side normalization the proposed value did not
+    * mirror. */
+   private void stubWriteNormalizingUrlsStartingWith(String prefix) throws Exception {
+      doAnswer(inv -> {
+         String id = inv.getArgument(0);
+         JdbcDataSourceProperties written = copy((JdbcDataSourceProperties) inv.getArgument(1));
+
+         if(written.getUrl() != null && written.getUrl().startsWith(prefix) &&
+            !written.getUrl().endsWith("#norm"))
+         {
+            written.setUrl(written.getUrl() + "#norm");
+         }
+
+         store.entrySet().removeIf(e -> e.getValue().getId().equals(id));
+         store.put(written.getName(), written);
+         return null;
+      }).when(dataSourceService).updateDataSource(anyString(), any(), eq(user));
+   }
+
+   private List<String> auditedActions() {
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(audit, atLeastOnce()).auditAdminChange(captor.capture(), any());
+      return captor.getAllValues().stream().map(AdminChangeRecord::getAction).toList();
+   }
+
    @Test void applyIgnoresAStaleIdOnTheRequestAndResolvesByNameInstead() throws Exception {
       DataSourceChangeRequest change = updateChange("Orders", Map.of("url", "jdbc:h2:mem:test2"));
       change.setId("some-stale-cached-id-from-preview");

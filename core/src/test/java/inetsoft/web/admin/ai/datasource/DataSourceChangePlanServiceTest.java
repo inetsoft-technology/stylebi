@@ -367,6 +367,28 @@ class DataSourceChangePlanServiceTest {
       verify(dataSourceService, never()).getCurrentPassword(anyString(), any());
    }
 
+   // Bug #79891: JDBCDataSource.setDefaultDatabase trims and stores blank as null, so the proposed
+   // value must project like the post-write state or verification always fails.
+   @ParameterizedTest
+   @ValueSource(strings = {"", "   "})
+   void buildProposedJdbcNormalizesBlankDefaultDatabaseToNull(String blank) throws Exception {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", false, null);
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc(
+         "changes[0]", "id-1", "Orders", current, Map.of("defaultDatabase", blank), user);
+
+      assertNull(proposed.getDefaultDatabase());
+   }
+
+   @Test void buildProposedJdbcTrimsDefaultDatabase() throws Exception {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", false, null);
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc(
+         "changes[0]", "id-1", "Orders", current, Map.of("defaultDatabase", " SALES "), user);
+
+      assertEquals("SALES", proposed.getDefaultDatabase());
+   }
+
    // -------------------------------------------------------------------------
    // bug 78818: padded / other-length masks are refused, real values stored verbatim
    // -------------------------------------------------------------------------
