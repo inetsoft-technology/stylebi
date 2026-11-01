@@ -335,19 +335,28 @@ public class ViewsheetChangesetApplyService {
       // Re-read via the NEW location to confirm the change landed and capture the viewsheet's NEW
       // assetId for afterValue and for rollback (section 4's identity-changes-on-rename finding).
       Sheet after = planService.findViewsheetByLocation(user, newPath, global, owner);
-      String afterProjection = ViewsheetProjection.projectViewsheet(after);
-      boolean verified = after != null;
-      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
-      results.add(new ViewsheetApplyOutcome(key, beforeProjection, afterProjection, status,
-         verified ? null : "viewsheet not found at the new location after rename", null));
-      writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_DASHBOARD, AdminChangeRecord.RISK_HIGH,
-                AdminChangeRecord.ACTION_APPLY, beforeProjection, afterProjection, status, backupRef,
-                reviewOutcome, user);
 
-      if(verified) {
-         undoable.add(
-            Undo.viewsheetRename(key, after.getAsset(), beforePath, beforeGlobal, beforeOwner));
+      if(after == null) {
+         // The rename call returned normally, so the asset moved, but the verifying lookup is
+         // scoped to the global tree and the caller's own user tree and cannot see it. That is an
+         // unknown state with nothing recorded to undo; throwing routes it to the unknown-state
+         // path (one FAILED outcome plus a rollback failure) instead of claiming a rollback.
+         writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_DASHBOARD, AdminChangeRecord.RISK_HIGH,
+                   AdminChangeRecord.ACTION_APPLY, beforeProjection, null,
+                   AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         throw new IllegalStateException(
+            "viewsheet renamed to \"" + newPath + "\" but not found there afterwards; state " +
+            "unknown, not undone (the new location may be outside the caller's tree)");
       }
+
+      String afterProjection = ViewsheetProjection.projectViewsheet(after);
+      results.add(new ViewsheetApplyOutcome(key, beforeProjection, afterProjection,
+         AdminChangeRecord.STATUS_VERIFIED, null, null));
+      writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_DASHBOARD, AdminChangeRecord.RISK_HIGH,
+                AdminChangeRecord.ACTION_APPLY, beforeProjection, afterProjection,
+                AdminChangeRecord.STATUS_VERIFIED, backupRef, reviewOutcome, user);
+      undoable.add(
+         Undo.viewsheetRename(key, after.getAsset(), beforePath, beforeGlobal, beforeOwner));
    }
 
    // ---------------------------------------------------------------- viewsheet delete
@@ -482,19 +491,28 @@ public class ViewsheetChangesetApplyService {
       worksheetApiService.renameWorksheet(assetId, newPath, global, owner, user);
 
       Sheet after = planService.findWorksheetByLocation(user, newPath, global, owner);
-      String afterProjection = ViewsheetProjection.projectWorksheet(after);
-      boolean verified = after != null;
-      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
-      results.add(new ViewsheetApplyOutcome(key, beforeProjection, afterProjection, status,
-         verified ? null : "worksheet not found at the new location after rename", null));
-      writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_WORKSHEET, AdminChangeRecord.RISK_HIGH,
-                AdminChangeRecord.ACTION_APPLY, beforeProjection, afterProjection, status, backupRef,
-                reviewOutcome, user);
 
-      if(verified) {
-         undoable.add(
-            Undo.worksheetRename(key, after.getAsset(), beforePath, beforeGlobal, beforeOwner));
+      if(after == null) {
+         // The rename call returned normally, so the asset moved, but the verifying lookup is
+         // scoped to the global tree and the caller's own user tree and cannot see it. That is an
+         // unknown state with nothing recorded to undo; throwing routes it to the unknown-state
+         // path (one FAILED outcome plus a rollback failure) instead of claiming a rollback.
+         writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_WORKSHEET, AdminChangeRecord.RISK_HIGH,
+                   AdminChangeRecord.ACTION_APPLY, beforeProjection, null,
+                   AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         throw new IllegalStateException(
+            "worksheet renamed to \"" + newPath + "\" but not found there afterwards; state " +
+            "unknown, not undone (the new location may be outside the caller's tree)");
       }
+
+      String afterProjection = ViewsheetProjection.projectWorksheet(after);
+      results.add(new ViewsheetApplyOutcome(key, beforeProjection, afterProjection,
+         AdminChangeRecord.STATUS_VERIFIED, null, null));
+      writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_WORKSHEET, AdminChangeRecord.RISK_HIGH,
+                AdminChangeRecord.ACTION_APPLY, beforeProjection, afterProjection,
+                AdminChangeRecord.STATUS_VERIFIED, backupRef, reviewOutcome, user);
+      undoable.add(
+         Undo.worksheetRename(key, after.getAsset(), beforePath, beforeGlobal, beforeOwner));
    }
 
    // ---------------------------------------------------------------- worksheet delete
