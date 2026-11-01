@@ -319,7 +319,8 @@ public class ViewsheetChangePlanService {
       boolean force = Boolean.TRUE.equals(change.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
       AssetEntry[] dependencies = findDependencies(entry, user);
-      requireForceIfDependent(label, assetId, dependencies, force);
+      requireForceIfDependent(
+         label, ViewsheetChangeRequest.UNIT_VIEWSHEET, assetId, dependencies, force);
 
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
       auxProjections.put(key, ViewsheetProjection.projectDependencies(dependencies));
@@ -569,7 +570,8 @@ public class ViewsheetChangePlanService {
       boolean force = Boolean.TRUE.equals(change.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
       AssetEntry[] dependencies = findDependencies(entry, user);
-      requireForceIfDependent(label, assetId, dependencies, force);
+      requireForceIfDependent(
+         label, ViewsheetChangeRequest.UNIT_WORKSHEET, assetId, dependencies, force);
 
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);
       auxProjections.put(key, ViewsheetProjection.projectDependencies(dependencies));
@@ -642,12 +644,12 @@ public class ViewsheetChangePlanService {
    }
 
    /** Package-visible for the same apply-time re-check reason as {@link #findDependencies}. */
-   static void requireForceIfDependent(String label, String assetId, AssetEntry[] dependencies,
-                                       boolean force)
+   static void requireForceIfDependent(String label, String unitKind, String assetId,
+                                       AssetEntry[] dependencies, boolean force)
    {
       if(dependencies.length > 0 && !force) {
          throw new IllegalArgumentException(
-            label + ": viewsheet \"" + assetId + "\" is referenced by " + dependencies.length +
+            label + ": " + unitKind + " \"" + assetId + "\" is referenced by " + dependencies.length +
             " other asset(s) (" + ViewsheetProjection.projectDependencies(dependencies) + ") -- " +
             "refusing to delete without force: true (section 0.2: the wrapped Public API's own " +
             "deleteViewsheet has no way to opt into this check at all -- this area's own preflight " +

@@ -378,7 +378,7 @@ public class ViewsheetChangesetApplyService {
       DependencyLookupResult lookup = findDependenciesForAdvisory(entry);
       AssetEntry[] dependencies = lookup.dependencies();
       ViewsheetChangePlanService.requireForceIfDependent(
-         "apply." + assetId, assetId, dependencies, force);
+         "apply." + assetId, ViewsheetChangeRequest.UNIT_VIEWSHEET, assetId, dependencies, force);
       String advisory = buildDeleteAdvisory(lookup, "viewsheet");
 
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
@@ -517,7 +517,7 @@ public class ViewsheetChangesetApplyService {
       DependencyLookupResult lookup = findDependenciesForAdvisory(entry);
       AssetEntry[] dependencies = lookup.dependencies();
       ViewsheetChangePlanService.requireForceIfDependent(
-         "apply." + assetId, assetId, dependencies, force);
+         "apply." + assetId, ViewsheetChangeRequest.UNIT_WORKSHEET, assetId, dependencies, force);
       String advisory = buildDeleteAdvisory(lookup, "worksheet");
 
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);

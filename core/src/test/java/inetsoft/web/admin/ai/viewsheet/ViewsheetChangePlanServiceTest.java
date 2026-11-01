@@ -293,6 +293,44 @@ class ViewsheetChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("force"));
    }
 
+   @Test void resolveViewsheetDeleteRefusalNamesAViewsheet() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      var dep = dependency("Examples/Census Query");
+      dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
+         .thenReturn(List.of(dep));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(deleteViewsheetChange(VS_ASSET_ID))), user));
+
+      assertTrue(ex.getMessage().contains("viewsheet \"" + VS_ASSET_ID + "\""), ex.getMessage());
+      assertFalse(ex.getMessage().contains("worksheet \"" + VS_ASSET_ID + "\""), ex.getMessage());
+   }
+
+   /** Bug #79895: the dependents refusal of a worksheet delete named the asset as a viewsheet. */
+   @Test void resolveWorksheetDeleteRefusalNamesAWorksheet() throws Exception {
+      String wsId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                   "Examples/Sales", null, "host-org").toIdentifier();
+      SheetList list = new SheetList();
+      list.getSheets().add(new Sheet(wsId, "Examples/Sales", "Examples/Sales", true, null, null));
+      lenient().when(worksheetApiService.getWorksheets(eq(user))).thenReturn(list);
+      var dep = dependency("Examples/Census Query");
+      dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
+         .thenReturn(List.of(dep));
+      ViewsheetChangeRequest change = new ViewsheetChangeRequest();
+      change.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      change.setVerb(ViewsheetChangeRequest.VERB_DELETE);
+      change.setAssetId(wsId);
+
+      try(var sutil = mockStatic(inetsoft.sree.internal.SUtil.class, withSettings().lenient())) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", List.of(change)), user));
+
+         assertTrue(ex.getMessage().contains("worksheet \"" + wsId + "\""), ex.getMessage());
+         assertFalse(ex.getMessage().contains("viewsheet \"" + wsId + "\""), ex.getMessage());
+         assertTrue(ex.getMessage().contains("force"), ex.getMessage());
+      }
+   }
+
    @Test void resolveDeleteSucceedsWhenDependenciesExistAndForceTrue() throws Exception {
       stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
       var dep = dependency("Examples/Census Query");
