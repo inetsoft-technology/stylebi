@@ -216,6 +216,30 @@ class ViewsheetServiceTest {
          eq(false));
    }
 
+   // Bug #79898: the probe must look in the owner's user scope, not the global one.
+   @Test
+   void renameViewsheetOntoExistingPathInUserScopeIsRefused() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      IdentityID owner = new IdentityID("bob", "host-org");
+      AssetEntry oldEntry = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "original", owner, "host-org");
+      when(assetRepository.getAssetEntry(any(AssetEntry.class))).thenReturn(oldEntry);
+      when(assetRepository.containsEntry(argThat(e -> e != null && e.getType() == AssetEntry.Type.VIEWSHEET
+         && e.getScope() == AssetRepository.USER_SCOPE && owner.equals(e.getUser())
+         && "taken".equals(e.getPath())))).thenReturn(true);
+
+      assertTrue(service.isRenameTargetTaken(
+         oldEntry.toIdentifier(), "taken", false, owner, principal));
+      assertThrows(ResourceExistsException.class, () ->
+         service.renameViewsheet(oldEntry.toIdentifier(), "taken", false, owner, principal));
+      verify(assetRepository, never()).changeSheet(
+         any(AssetEntry.class), any(AssetEntry.class), any(Principal.class), anyBoolean(),
+         anyBoolean(), anyBoolean());
+      // a global-scope sheet at the same path is a different namespace
+      assertFalse(service.isRenameTargetTaken(
+         oldEntry.toIdentifier(), "free", false, owner, principal));
+   }
+
    private AssetEntry stubStoredEntry(String alias, String description, String path)
       throws Exception
    {

@@ -310,6 +310,32 @@ class ViewsheetChangesetApplyServiceTest {
       assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
    }
 
+   // Bug #79898: preview sees a free destination for both renames; only the apply-time check can
+   // catch the second one, after the first has taken the path.
+   @Test void applyRefusesSecondRenameToTheSameNewPathInOnePlan() throws Exception {
+      String otherId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                      "Examples/Other", null, "host-org").toIdentifier();
+      viewsheetStore.put(otherId,
+         new Sheet(otherId, "Examples/Other", "Examples/Other", true, null, null));
+      lenient().when(viewsheetApiService.isRenameTargetTaken(
+         anyString(), anyString(), anyBoolean(), any(), eq(user))).thenAnswer(inv -> {
+            String path = inv.getArgument(1);
+            return viewsheetStore.values().stream().anyMatch(s -> path.equals(s.getPath()));
+         });
+
+      ViewsheetApplyRequest req = applyRequest("rename two", false,
+         renameViewsheetChange(VS_ASSET_ID, "Examples/Dest", true, null),
+         renameViewsheetChange(otherId, "Examples/Dest", true, null));
+
+      var result = service.apply(req, user);
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals("Examples/Census", viewsheetStore.get(VS_ASSET_ID).getPath());
+      verify(viewsheetApiService, never()).renameViewsheet(
+         eq(otherId), eq("Examples/Dest"), anyBoolean(), any(), any());
+      assertTrue(viewsheetStore.containsKey(otherId));
+      assertEquals("Examples/Other", viewsheetStore.get(otherId).getPath());
+   }
+
    @Test void applyRefusesWorksheetRenameWhenDestinationIsOccupied() throws Exception {
       String assetId = worksheetAssetId("Examples/Sales");
       worksheetStore.put(assetId,
