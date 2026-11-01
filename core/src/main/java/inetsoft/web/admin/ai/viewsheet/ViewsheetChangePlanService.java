@@ -194,7 +194,7 @@ public class ViewsheetChangePlanService {
       Sheet current = findViewsheetById(user, assetId);
 
       if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
-         return resolveViewsheetRename(label, key, assetId, current, change);
+         return resolveViewsheetRename(label, key, assetId, current, change, user);
       }
 
       if(ViewsheetChangeRequest.VERB_UPDATE.equals(verb)) {
@@ -246,8 +246,36 @@ public class ViewsheetChangePlanService {
       return null;
    }
 
+   /** Bug #79898: refuses a rename whose destination is occupied -- the storage layer would
+    * silently overwrite it. Package-visible so apply re-checks fresh at apply time. */
+   void requireViewsheetRenameTargetFree(String label, String assetId, String newPath,
+                                         boolean global, IdentityID owner, Principal user)
+      throws Exception
+   {
+      if(viewsheetApiService.isRenameTargetTaken(assetId, newPath, global, owner, user)) {
+         throw new IllegalArgumentException(
+            label + ".newPath: \"" + newPath + "\" is already used by another viewsheet, " +
+            "snapshot or folder in this scope; the rename would overwrite it -- choose a free " +
+            "path or delete the destination first");
+      }
+   }
+
+   /** Worksheet twin of {@link #requireViewsheetRenameTargetFree}. */
+   void requireWorksheetRenameTargetFree(String label, String assetId, String newPath,
+                                         boolean global, IdentityID owner, Principal user)
+      throws Exception
+   {
+      if(worksheetApiService.isRenameTargetTaken(assetId, newPath, global, owner, user)) {
+         throw new IllegalArgumentException(
+            label + ".newPath: \"" + newPath + "\" is already used by another worksheet or " +
+            "folder in this scope; the rename would overwrite it -- choose a free path or " +
+            "delete the destination first");
+      }
+   }
+
    private PlanChange resolveViewsheetRename(String label, String key, String assetId,
-                                             Sheet current, ViewsheetChangeRequest change)
+                                             Sheet current, ViewsheetChangeRequest change,
+                                             Principal user)
       throws Exception
    {
       requireUnused(label, "force", change.getForce());
@@ -285,6 +313,7 @@ public class ViewsheetChangePlanService {
             "or may already have been deleted/renamed");
       }
 
+      requireViewsheetRenameTargetFree(label, assetId, newPath, global, owner, user);
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
       String proposedProjection = ViewsheetProjection.projectProposedRename(newPath, global, owner);
       String orgId = AssetEntry.createAssetEntry(assetId).getOrgID();
@@ -399,7 +428,7 @@ public class ViewsheetChangePlanService {
       Sheet current = findWorksheetById(user, assetId);
 
       if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
-         return resolveWorksheetRename(label, key, assetId, current, change);
+         return resolveWorksheetRename(label, key, assetId, current, change, user);
       }
 
       if(ViewsheetChangeRequest.VERB_UPDATE.equals(verb)) {
@@ -492,7 +521,8 @@ public class ViewsheetChangePlanService {
    }
 
    private PlanChange resolveWorksheetRename(String label, String key, String assetId,
-                                             Sheet current, ViewsheetChangeRequest change)
+                                             Sheet current, ViewsheetChangeRequest change,
+                                             Principal user)
       throws Exception
    {
       requireUnused(label, "force", change.getForce());
@@ -530,6 +560,7 @@ public class ViewsheetChangePlanService {
             "or may already have been deleted/renamed");
       }
 
+      requireWorksheetRenameTargetFree(label, assetId, newPath, global, owner, user);
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);
       String proposedProjection =
          ViewsheetProjection.projectProposedWorksheetRename(newPath, global, owner);

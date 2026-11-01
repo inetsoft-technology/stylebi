@@ -327,6 +327,8 @@ public class ViewsheetChangesetApplyService {
       IdentityID owner = global ? null : ViewsheetFolderService.parseOwner(original.getOwner());
       String newPath = original.getNewPath();
 
+      planService.requireViewsheetRenameTargetFree(
+         "viewsheet rename \"" + key + "\"", assetId, newPath, global, owner, user);
       mutationEntered.set(true);
       viewsheetApiService.renameViewsheet(assetId, newPath, global, owner, user);
 
@@ -474,6 +476,8 @@ public class ViewsheetChangesetApplyService {
       IdentityID owner = global ? null : ViewsheetFolderService.parseOwner(original.getOwner());
       String newPath = original.getNewPath();
 
+      planService.requireWorksheetRenameTargetFree(
+         "worksheet rename \"" + key + "\"", assetId, newPath, global, owner, user);
       mutationEntered.set(true);
       worksheetApiService.renameWorksheet(assetId, newPath, global, owner, user);
 

@@ -277,6 +277,29 @@ class ViewsheetChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
+   // Bug #79898: a rename onto an occupied path would silently overwrite the destination.
+   @Test void resolveRenameThrowsWhenDestinationIsOccupied() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      when(viewsheetApiService.isRenameTargetTaken(
+         eq(VS_ASSET_ID), eq("Examples/Other"), eq(true), any(), eq(user))).thenReturn(true);
+      ViewsheetChangeRequest change = renameViewsheetChange(VS_ASSET_ID, "Examples/Other", true, null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains(".newPath"));
+      assertTrue(ex.getMessage().contains("Examples/Other"));
+      assertTrue(ex.getMessage().contains("overwrite"));
+   }
+
+   @Test void resolveRenameSucceedsWhenDestinationIsFree() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      when(viewsheetApiService.isRenameTargetTaken(any(), any(), anyBoolean(), any(), any()))
+         .thenReturn(false);
+      ViewsheetChangeRequest change = renameViewsheetChange(VS_ASSET_ID, "Examples/Free", true, null);
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+   }
+
    // -------------------------------------------------------------------------
    // viewsheet delete + section 0.2 dependency preflight
    // -------------------------------------------------------------------------
