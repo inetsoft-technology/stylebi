@@ -28,6 +28,7 @@ import inetsoft.util.ConfigurationContext;
 import inetsoft.web.admin.content.repository.RepletRegistryService;
 import inetsoft.web.admin.sheet.Sheet;
 import inetsoft.web.admin.sheet.SheetList;
+import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
@@ -162,6 +163,57 @@ class ViewsheetServiceTest {
       assertEquals("original", back.getPath());
       assertEquals("AliasX", back.getAlias());
       assertEquals("DescX", back.getProperty("description"));
+   }
+
+   // Bug #79898: changeSheet() silently overwrites whatever sits at the destination, so the
+   // service must refuse a rename onto an occupied path before calling it.
+   @Test
+   void renameViewsheetOntoExistingPathIsRefusedAndDoesNotOverwrite() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = stubStoredEntry("AliasX", "DescX", "original");
+      when(assetRepository.containsEntry(argThat(e -> e != null && e.getType() == AssetEntry.Type.VIEWSHEET
+         && "taken".equals(e.getPath()) && "host-org".equals(e.getOrgID())))).thenReturn(true);
+
+      assertThrows(ResourceExistsException.class, () ->
+         service.renameViewsheet(oldEntry.toIdentifier(), "taken", true, null, principal));
+      verify(assetRepository, never()).changeSheet(
+         any(AssetEntry.class), any(AssetEntry.class), any(Principal.class), anyBoolean(),
+         anyBoolean(), anyBoolean());
+   }
+
+   @Test
+   void renameViewsheetOntoAFolderPathIsRefused() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = stubStoredEntry("AliasX", "DescX", "original");
+      when(assetRepository.containsEntry(argThat(e -> e != null && e.getType() == AssetEntry.Type.REPOSITORY_FOLDER
+         && "taken".equals(e.getPath())))).thenReturn(true);
+
+      assertTrue(service.isRenameTargetTaken(oldEntry.toIdentifier(), "taken", true, null, principal));
+   }
+
+   @Test
+   void renameViewsheetProbeUsesTheSourceOrganizationNotTheCallers() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = AssetEntry.createAssetEntry(
+         "1^128^__NULL__^original^other-org");
+      when(assetRepository.getAssetEntry(any(AssetEntry.class))).thenReturn(oldEntry);
+      when(assetRepository.containsEntry(argThat(e -> e != null && "taken".equals(e.getPath())
+         && "other-org".equals(e.getOrgID())))).thenReturn(true);
+
+      assertTrue(service.isRenameTargetTaken(oldEntry.toIdentifier(), "taken", true, null, principal));
+   }
+
+   @Test
+   void renameViewsheetToItsOwnCurrentPathIsNotACollision() throws Exception {
+      SRPrincipal principal = createPrincipal("user1", "host-org");
+      AssetEntry oldEntry = stubStoredEntry("AliasX", "DescX", "original");
+      when(assetRepository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+
+      assertFalse(service.isRenameTargetTaken(oldEntry.toIdentifier(), "original", true, null, principal));
+      service.renameViewsheet(oldEntry.toIdentifier(), "original", true, null, principal);
+      verify(assetRepository).changeSheet(
+         any(AssetEntry.class), any(AssetEntry.class), any(Principal.class), eq(true), eq(true),
+         eq(false));
    }
 
    private AssetEntry stubStoredEntry(String alias, String description, String path)

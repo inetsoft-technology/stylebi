@@ -153,6 +153,37 @@ public class ViewsheetService {
    }
 
    /**
+    * Checks whether renaming the viewsheet to the given location would land on an occupied path
+    * (another viewsheet, snapshot or repository folder in the same scope/owner/organization).
+    * A rename onto the viewsheet's own current location is not a collision.
+    */
+   public boolean isRenameTargetTaken(String id, String path, boolean global, IdentityID owner,
+                                      Principal user) throws Exception
+   {
+      AssetEntry oldEntry = getAssetEntry(id, user);
+      int scope = global ? AssetRepository.GLOBAL_SCOPE : AssetRepository.USER_SCOPE;
+      IdentityID entryUser = global ? null : owner;
+      AssetEntry newEntry = new AssetEntry(
+         scope, AssetEntry.Type.VIEWSHEET, path, entryUser, oldEntry.getOrgID());
+
+      if(newEntry.equals(oldEntry)) {
+         return false;
+      }
+
+      AssetEntry.Type[] types = { AssetEntry.Type.VIEWSHEET, AssetEntry.Type.VIEWSHEET_SNAPSHOT, AssetEntry.Type.REPOSITORY_FOLDER };
+
+      for(AssetEntry.Type type : types) {
+         if(assetRepository.containsEntry(
+            new AssetEntry(scope, type, path, entryUser, oldEntry.getOrgID())))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Renames a viewsheet.
     */
    public void renameViewsheet(String id, String path, boolean global, IdentityID owner,
@@ -163,6 +194,10 @@ public class ViewsheetService {
          ActionRecord.OBJECT_TYPE_DASHBOARD, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, "");
 
       try {
+         if(isRenameTargetTaken(id, path, global, owner, user)) {
+            throw new ResourceExistsException(path);
+         }
+
          AssetEntry oldEntry = getAssetEntry(id, user);
          AssetEntry newEntry = new AssetEntry(
             global ? AssetRepository.GLOBAL_SCOPE : AssetRepository.USER_SCOPE,
@@ -179,7 +214,7 @@ public class ViewsheetService {
          assetRepository.changeSheet(oldEntry, newEntry, user, true, true, false);
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
       }
-      catch(UnauthorizedAccessException | MissingResourceException e) {
+      catch(UnauthorizedAccessException | MissingResourceException | ResourceExistsException e) {
          record.setActionError("Failed to rename viewsheet: " + id);
          throw e;
       }

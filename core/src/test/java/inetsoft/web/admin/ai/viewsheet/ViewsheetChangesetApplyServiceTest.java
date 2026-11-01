@@ -295,6 +295,41 @@ class ViewsheetChangesetApplyServiceTest {
       assertTrue(ex.getMessage().contains("assetId"));
    }
 
+   // Bug #79898: the destination can become occupied after preview (or by an earlier rename in
+   // the same plan), so apply must re-check and refuse before touching anything.
+   @Test void applyRefusesViewsheetRenameWhenDestinationBecameOccupiedAfterPreview() throws Exception {
+      ViewsheetChangeRequest change = renameViewsheetChange(VS_ASSET_ID, "Examples/Other", true, null);
+      ViewsheetApplyRequest req = applyRequest("rename", false, change);
+      when(viewsheetApiService.isRenameTargetTaken(
+         eq(VS_ASSET_ID), eq("Examples/Other"), eq(true), any(), eq(user))).thenReturn(true);
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(ex.getMessage().contains(".newPath"));
+      verify(viewsheetApiService, never()).renameViewsheet(any(), any(), anyBoolean(), any(), any());
+      assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
+   }
+
+   @Test void applyRefusesWorksheetRenameWhenDestinationIsOccupied() throws Exception {
+      String assetId = worksheetAssetId("Examples/Sales");
+      worksheetStore.put(assetId,
+         new Sheet(assetId, "Examples/Sales", "Examples/Sales", true, null, null));
+      ViewsheetChangeRequest change = new ViewsheetChangeRequest();
+      change.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      change.setVerb(ViewsheetChangeRequest.VERB_RENAME);
+      change.setAssetId(assetId);
+      change.setNewPath("Examples/Other");
+      change.setGlobal(true);
+      ViewsheetApplyRequest req = applyRequest("rename ws", false, change);
+      when(worksheetApiService.isRenameTargetTaken(
+         eq(assetId), eq("Examples/Other"), eq(true), any(), eq(user))).thenReturn(true);
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(ex.getMessage().contains(".newPath"));
+      verify(worksheetApiService, never()).renameWorksheet(any(), any(), anyBoolean(), any(), any());
+   }
+
    // -------------------------------------------------------------------------
    // viewsheet delete + section 0.2 dependency preflight re-run at apply time
    // -------------------------------------------------------------------------
