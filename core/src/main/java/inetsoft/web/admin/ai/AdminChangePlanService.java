@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai;
 
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -73,6 +74,17 @@ public class AdminChangePlanService {
          if(!seen.add(name.key())) {
             throw new IllegalArgumentException(
                "changes: duplicate entry for " + name.key() + "; list each property once");
+         }
+
+         // A global-only setting (swapper, security.enabled, ...) is always read from its global
+         // property, so an organization override is dead data that only looks applied. Enterprise
+         // Manager refuses to store one (PropertiesController.editProperty); a null value is the
+         // reset, which stays allowed so a stray override can still be cleaned up.
+         if(requested.getValue() != null && PropertiesEngine.isExcludedOrgProperty(name.key())) {
+            throw new IllegalArgumentException(
+               name.key() + ": " + name.baseName() + " cannot be set for an organization. The "
+               + "setting applies to the whole server and is always read from its global "
+               + "property.");
          }
 
          boolean credential = AdminPropertyCatalog.isEncryptedCredential(name.baseName());

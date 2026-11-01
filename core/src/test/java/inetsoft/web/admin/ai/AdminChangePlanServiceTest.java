@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai;
 
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
@@ -224,6 +225,75 @@ class AdminChangePlanServiceTest {
       assertTrue(assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("t", "password.encryption.key", "x")))
             .getMessage().contains("password.encryption.key"));
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void refusesAnOrgOverrideOfEveryGlobalOnlyProperty() throws Exception {
+      // Bug #79888: an org override of a global-only setting is never read, yet used to preview
+      // as an ordinary plan. Walk the engine's own list so a new entry is covered automatically.
+      java.lang.reflect.Field f =
+         PropertiesEngine.class.getDeclaredField("EXCLUDED_ORG_PROPERTIES");
+      f.setAccessible(true);
+      java.util.Set<String> excluded = (java.util.Set<String>) f.get(null);
+      assertFalse(excluded.isEmpty());
+
+      for(String base : excluded) {
+         String key = "inetsoft.org.host-org." + base;
+         String message = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("t", key, "1")), key).getMessage();
+         assertTrue(message.contains(key), message);
+         assertTrue(message.contains("organization") && message.contains("whole server")
+            && message.contains("global"), message);
+      }
+   }
+
+   @Test
+   void refusesGlobalOnlyOrgOverrideNamedInThePublicExamples() {
+      assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", "inetsoft.org.host-org.swapper.count", "5")));
+      assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(
+            request("t", "inetsoft.org.host-org.ignore.swapper.memory.state", "true")));
+   }
+
+   @Test
+   void refusesAGlobalOnlyOrgOverrideInAnyCase() {
+      assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", "INETSOFT.ORG.Host-Org.Swapper.Count", "5")));
+   }
+
+   @Test
+   void refusesAnEmptyValueForAGlobalOnlyOrgOverride() {
+      assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", "inetsoft.org.host-org.swapper.count", "")));
+   }
+
+   @Test
+   void allowsResettingAGlobalOnlyOrgOverride() {
+      // Enterprise Manager still lets a stray override be deleted, so null must pass.
+      sreeEnv.when(() -> SreeEnv.getProperty(anyString(), eq(false), eq(false))).thenReturn(null);
+      assertDoesNotThrow(
+         () -> service.resolve(request("t", "inetsoft.org.host-org.swapper.count", null)));
+   }
+
+   @Test
+   void doesNotRefuseSuffixLookAlikesOrNonExcludedOrgOverrides() {
+      sreeEnv.when(() -> SreeEnv.getProperty(anyString(), eq(false), eq(false))).thenReturn(null);
+      // ends with the excluded name security.enabled but is a genuine per-org property
+      assertDoesNotThrow(() -> service.resolve(
+         request("t", "inetsoft.org.host-org.olap.security.enabled", "true")));
+      assertDoesNotThrow(() -> service.resolve(
+         request("t", "inetsoft.org.host-org.query.runtime.timeout", "30")));
+   }
+
+   @Test
+   void doesNotRefuseAGlobalNameOrAnOrgIdWithADot() {
+      sreeEnv.when(() -> SreeEnv.getProperty(anyString(), eq(false), eq(false))).thenReturn(null);
+      assertDoesNotThrow(() -> service.resolve(request("t", "swapper.count", "5")));
+      // same as Enterprise Manager: an org id containing a dot is not matched
+      assertDoesNotThrow(
+         () -> service.resolve(request("t", "inetsoft.org.my.org.swapper.count", "5")));
    }
 
    @Test
