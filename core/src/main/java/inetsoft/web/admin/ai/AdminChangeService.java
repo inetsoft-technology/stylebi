@@ -172,8 +172,33 @@ public class AdminChangeService {
          // for every successful credential write and roll it straight back; getPassword reverses
          // the encryption so like is compared with like.
          String verified = encryptOnWrite ? SreeEnv.getPassword(name.key()) : after;
-         status = Objects.equals(verified, desired)
-            ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+
+         if(desired == null && !encryptOnWrite) {
+            // A reset removes the STORED key. The effective read-back above is not null for a
+            // property with a built-in default, an INETSOFT_* environment value or a system
+            // property (it falls through to those layers), so comparing it with null reported
+            // FAILED for every successful reset of such a property and rolled it back. Verify
+            // what the reset actually does: the key is no longer stored. afterValue stays the
+            // effective read-back for the audit trail.
+            //
+            // Out of scope here: before is also the effective value, so rolling back a reset of
+            // an UNSTORED default-bearing property would write that default into storage.
+            status = SreeEnv.getPropertyFromStorage(name.key()) == null
+               ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+
+            if(AdminChangeRecord.STATUS_FAILED.equals(status)) {
+               error = "reset did not remove the stored value of " + name.key();
+            }
+         }
+         else {
+            status = Objects.equals(verified, desired)
+               ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+
+            if(AdminChangeRecord.STATUS_FAILED.equals(status)) {
+               // Never echo the values: for a credential they are the secret.
+               error = "read-back value of " + name.key() + " does not match the requested value";
+            }
+         }
       }
       catch(Exception ex) {
          error = ex.getMessage();
