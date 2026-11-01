@@ -29,7 +29,9 @@ import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.general.DatabaseSettingsService;
+import inetsoft.uql.service.DataSourceRenameException;
 import inetsoft.web.security.auth.MissingResourceException;
+import inetsoft.web.security.auth.ResourceExistsException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -555,6 +557,84 @@ class DataSourceChangesetApplyServiceTest {
       assertEquals("Orders", result.rollbackFailures().get(0).property());
    }
 
+   // Bug #79893: a rename refused by updateDataSource's own pre-write checks (target path
+   // occupied, target under a data source) changed nothing, so it must report a failure with no
+   // rollbackFailures and a message naming the clash, never ROLLBACK_FAILED ("may be partially
+   // changed").
+   @Test void renameOntoOccupiedPathIsARefusalThatChangedNothing() throws Exception {
+      store.put("sakila", jdbc("id-sakila", "sakila", false, null));
+      doThrow(new ResourceExistsException("sakila")).when(dataSourceService)
+         .validateUpdate(eq("id-orders"), any(), eq(user));
+
+      DataSourceApplyRequest req = applyRequest("rename onto sakila",
+         false, renameChange("Orders", "sakila"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      String error = result.results().get(0).error();
+      assertTrue(error.contains("already exists") && error.contains("sakila") &&
+                 error.contains("Orders"), error);
+      verify(dataSourceService, never()).updateDataSource(any(), any(), any());
+      assertNotNull(store.get("Orders"));
+   }
+
+   @Test void renameUnderADataSourceAncestorIsARefusalThatChangedNothing() throws Exception {
+      doThrow(new ResourceExistsException("sakila")).when(dataSourceService)
+         .validateUpdate(eq("id-orders"), any(), eq(user));
+
+      DataSourceApplyRequest req = applyRequest("rename under sakila",
+         false, renameChange("Orders", "sakila/QA-DS-sub"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertTrue(result.results().get(0).error().contains("already exists"));
+      verify(dataSourceService, never()).updateDataSource(any(), any(), any());
+   }
+
+   // Bug #79893 regression guard: a refusal thrown from INSIDE updateDataSource may follow a
+   // write (DataSourceRenameException after the parent folders were created and the data source
+   // moved), so it must still be ROLLBACK_FAILED. The fix must not map exception types to "not
+   // mutated".
+   @Test void renameRefusedAfterTheWriteStartedStaysRollbackFailed() throws Exception {
+      doThrow(new DataSourceRenameException("Orders", "Moved/Orders", "Orders", Map.of(), null))
+         .when(dataSourceService).updateDataSource(eq("id-orders"), any(), eq(user));
+
+      DataSourceApplyRequest req = applyRequest("rename",
+         false, renameChange("Orders", "Moved/Orders"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.rollbackFailures().size());
+      verify(dataSourceService).updateDataSource(eq("id-orders"), any(), eq(user));
+   }
+
+   // Bug #79893: an earlier verified change plus a later pre-write refusal -> the earlier one is
+   // rolled back and verified, and the refusal itself must not turn that into ROLLBACK_FAILED.
+   @Test void refusalAfterAnEarlierVerifiedChangeIsRolledBack() throws Exception {
+      store.put("sakila", jdbc("id-sakila", "sakila", false, null));
+      doThrow(new ResourceExistsException("sakila")).when(dataSourceService)
+         .validateUpdate(eq("id-orders"), any(), eq(user));
+
+      DataSourceChangeRequest folderCreate = folderCreateChange("Examples/NewFolder");
+      DataSourceChangeRequest rename = renameChange("Orders", "sakila");
+      DataSourceApplyRequest req = applyRequest("folder then refused rename", false,
+                                                folderCreate, rename);
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertFalse(existingFolders.contains("Examples/NewFolder"));
+      verify(dataSourceService).removeDataSourceFolder("Examples/NewFolder");
+      verify(dataSourceService, never()).updateDataSource(any(), any(), any());
+   }
+
    // Bug 76808: a throw strictly BEFORE the mutating call must not by itself force
    // ROLLBACK_FAILED -- the item was never touched, so a fully-verified rollback (of everything
    // that WAS touched, i.e. nothing here) must still report ROLLED_BACK. Mirrors bug 76567's fix
@@ -818,6 +898,12 @@ class DataSourceChangesetApplyServiceTest {
       change.setVerb(DataSourceChangeRequest.VERB_UPDATE);
       change.setName(name);
       change.setSpec(spec);
+      return change;
+   }
+
+   private static DataSourceChangeRequest renameChange(String name, String newName) {
+      DataSourceChangeRequest change = updateChange(name, Map.of("name", newName));
+      change.setConfirmRename(true);
       return change;
    }
 

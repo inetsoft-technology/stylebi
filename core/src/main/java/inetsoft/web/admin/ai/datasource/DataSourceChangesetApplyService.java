@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.datasource;
 
+import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.web.admin.datasource.*;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.Tool;
@@ -272,6 +273,20 @@ public class DataSourceChangesetApplyService {
       }
 
       String beforeProjection = DataSourceProjection.project(before);
+
+      // Bug #79893: updateDataSource refuses an occupied target path, a data source ancestor, a
+      // move it may not make, etc. before it writes anything. Run those refusals first, so one is
+      // reported as a failure that changed nothing and not as an unknown state. A throw from the
+      // call below can still follow a write (e.g. a rename refused after the folders were
+      // created), so the flag stays set for everything thrown inside it.
+      try {
+         dataSourceService.validateUpdate(id, proposed, user);
+      }
+      catch(ResourceExistsException e) {
+         throw new IllegalStateException(name + ": cannot move the data source, a data source or " +
+            "folder already exists at \"" + e.getMessage() + "\"", e);
+      }
+
       mutationEntered.set(true);
       dataSourceService.updateDataSource(id, proposed, user);
 
