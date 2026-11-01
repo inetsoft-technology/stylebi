@@ -669,6 +669,23 @@ class ViewsheetChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
+   // Bug #79896: StyleBI re-points schedule-task actions on rename, so the plan text must not
+   // list schedule tasks among the references that go stale.
+   @Test void resolveFolderRenameDescriptionSaysScheduleTasksFollow() throws Exception {
+      stubFolder("Examples/Old Folder", null, true);
+      ViewsheetChangeRequest change =
+         renameFolderChange("Examples/Old Folder", "Examples/New Folder", null);
+
+      String description = service.resolve(request("task", List.of(change)), user)
+         .changes().get(0).description();
+
+      assertTrue(description.contains("rewrites the path/asset-identifier of every viewsheet"));
+      assertTrue(description.contains("re-points schedule-task viewsheet actions"));
+      assertTrue(description.contains("scheduled tasks follow the rename"));
+      assertTrue(description.contains("held outside StyleBI"));
+      assertFalse(description.contains("any external reference to those viewsheets"));
+   }
+
    // -------------------------------------------------------------------------
    // 03-reconcile.md: per-verb-varying risk/signoff -- the genuine novelty this area introduces
    // -------------------------------------------------------------------------
