@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.datasource;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.uql.XDataSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
@@ -46,7 +47,16 @@ public class DataSourceDescription {
    public DataSourceDescription(XDataSource ds, String id) {
       setId(id);
       setName(ds == null ? null : ds.getFullName());
-      setType(ds == null ? null : ds.getType());
+
+      if(ds != null) {
+         if(XDataSource.JDBC.equals(ds.getType())) {
+            setType(DataSourceProperties.Type.JDBC.toString());
+         }
+         else {
+            setType(DataSourceProperties.Type.TABULAR.toString());
+            setTabularType(ds.getType());
+         }
+      }
    }
 
    /**
@@ -98,8 +108,9 @@ public class DataSourceDescription {
     */
    @NotNull
    @Schema(
-      description = "Type type of the data source.",
-      allowableValues = { "jdbc", "text", "xml", "tabular" },
+      description = "The type of the data source. Every non-JDBC data source is reported " +
+         "as tabular; its connector type is in tabularType.",
+      allowableValues = { "jdbc", "tabular" },
       example = "jdbc")
    public String getType() {
       return type;
@@ -112,6 +123,29 @@ public class DataSourceDescription {
     */
    public void setType(String type) {
       this.type = type;
+   }
+
+   /**
+    * Gets the tabular sub-type of the data source.
+    *
+    * @return the tabular type, or {@code null} if the data source is not a tabular data source.
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   @Schema(
+      description = "The tabular sub-type (connector type) of the data source. Only set when " +
+         "type is tabular.",
+      example = "Rest")
+   public String getTabularType() {
+      return tabularType;
+   }
+
+   /**
+    * Sets the tabular sub-type of the data source.
+    *
+    * @param tabularType the tabular type.
+    */
+   public void setTabularType(String tabularType) {
+      this.tabularType = tabularType;
    }
 
    @Override
@@ -127,12 +161,13 @@ public class DataSourceDescription {
       DataSourceDescription that = (DataSourceDescription) o;
       return Objects.equals(id, that.id) &&
          Objects.equals(name, that.name) &&
-         Objects.equals(type, that.type);
+         Objects.equals(type, that.type) &&
+         Objects.equals(tabularType, that.tabularType);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(id, name, type);
+      return Objects.hash(id, name, type, tabularType);
    }
 
    @Override
@@ -147,4 +182,5 @@ public class DataSourceDescription {
    private String id;
    private String name;
    private String type;
+   private String tabularType;
 }
