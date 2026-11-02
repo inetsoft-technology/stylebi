@@ -1164,12 +1164,18 @@ public class VSInputService {
       sliderAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());
       sliderAssemblyInfo.setMaxValue(numericRangePaneModel.getMaximum());
 
-      if(sliderAssemblyInfo.getSelectedObject() instanceof Number &&
+      // a script or variable bound written just above has no runtime value yet, and getMin()/
+      // getMax() then report the 0/100 fallback instead of the bound, so only a static side
+      // can be clamped against
+      boolean clampMin = !VSUtil.isDynamicValue(sliderAssemblyInfo.getMinValue());
+      boolean clampMax = !VSUtil.isDynamicValue(sliderAssemblyInfo.getMaxValue());
+
+      if(clampMin && sliderAssemblyInfo.getSelectedObject() instanceof Number &&
          ((Number) sliderAssemblyInfo.getSelectedObject()).doubleValue() < sliderAssemblyInfo.getMin()){
          sliderAssemblyInfo.setSelectedObject(sliderAssemblyInfo.getMin());
       }
 
-      if(sliderAssemblyInfo.getSelectedObject() instanceof Number &&
+      if(clampMax && sliderAssemblyInfo.getSelectedObject() instanceof Number &&
          ((Number) sliderAssemblyInfo.getSelectedObject()).doubleValue() > sliderAssemblyInfo.getMax()){
          sliderAssemblyInfo.setSelectedObject(sliderAssemblyInfo.getMax());
       }
