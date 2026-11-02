@@ -443,7 +443,8 @@ public class ExportUtil {
                vsformat = (VSFormatTableLens) filter;
                break;
             }
-            else if(filter instanceof TableFilter && r > 0 && c > 0) {
+            // Bug #79580, column 0 is data too; only the header row (r == 0) is skipped
+            else if(filter instanceof TableFilter && r > 0 && c >= 0) {
                c = ((TableFilter) filter).getBaseColIndex(c);
                r = ((TableFilter) filter).getBaseRowIndex(r);
                filter = ((TableFilter) filter).getTable();
