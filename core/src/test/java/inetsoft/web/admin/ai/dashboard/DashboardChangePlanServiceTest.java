@@ -355,6 +355,60 @@ class DashboardChangePlanServiceTest {
       verify(globalRegistry, never()).getDashboard(anyString());
    }
 
+   // Bug #79928: a rename's TARGET name must be claimed so another change in the plan cannot
+   // create or rename onto the same name (apply would roll back on the second entry).
+   @Test void resolveRenameThenCreateSameTargetIsRefused() throws Exception {
+      stubGlobalDashboard1();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"),
+            createDashboardChange("Dashboard2"))), user));
+      assertTrue(ex.getMessage().contains("changes[1]"));
+      assertTrue(ex.getMessage().contains("duplicate entry") ||
+                 ex.getMessage().contains("target of another change"));
+   }
+
+   @Test void resolveCreateThenRenameSameTargetIsRefused() throws Exception {
+      stubGlobalDashboard1();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            createDashboardChange("Dashboard2"),
+            renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"))), user));
+      assertTrue(ex.getMessage().contains("changes[1].name"));
+      assertTrue(ex.getMessage().contains("target of another change"));
+   }
+
+   @Test void resolveTwoRenamesToSameTargetIsRefused() throws Exception {
+      stubGlobalDashboard1();
+      lenient().when(globalRegistry.getDashboard(eq("Dashboard3__GLOBAL"))).thenReturn(mock(Dashboard.class));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"),
+            renameDashboardChange("Dashboard3__GLOBAL", "Dashboard2"))), user));
+      assertTrue(ex.getMessage().contains("changes[1].name"));
+      assertTrue(ex.getMessage().contains("target of another change"));
+   }
+
+   @Test void resolveNonRenameUpdateDoesNotClaimATargetName() throws Exception {
+      stubGlobalDashboard1();
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         updateDashboardChange("Dashboard1__GLOBAL", null, "new desc"),
+         createDashboardChange("Dashboard2"))), user));
+   }
+
+   @Test void resolveRenameAndCreateSameNameInDifferentOwnerScopesDoNotCollide() throws Exception {
+      stubGlobalDashboard1();
+      DashboardChangeRequest create = createDashboardChange("Dashboard2");
+      create.setOwner("bob:host-org");
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"), create)), user));
+   }
+
    // -------------------------------------------------------------------------
    // dashboard: delete
    // -------------------------------------------------------------------------
@@ -664,6 +718,15 @@ class DashboardChangePlanServiceTest {
       change.setName(name);
       change.setDescription(description);
       return change;
+   }
+
+   private static DashboardChangeRequest renameDashboardChange(String oname, String name) {
+      return updateDashboardChange(oname, name, null);
+   }
+
+   private void stubGlobalDashboard1() {
+      lenient().when(globalRegistry.getDashboard(eq("Dashboard1__GLOBAL"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard1__GLOBAL", null, "Existing desc", vsAssetId(), true);
    }
 
    private static DashboardChangeRequest deleteDashboardChange(String oname) {
