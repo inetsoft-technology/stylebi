@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.ai.repository;
 
+import inetsoft.web.admin.content.repository.model.RequiredAssetModel;
+import inetsoft.web.admin.content.repository.model.RequiredAssetModelList;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -46,5 +48,65 @@ class AdminAssetExportServiceTest {
       String m = AdminAssetExportService.noResolvedEntriesMessage(List.of("Nope"), 2);
       assertTrue(m.contains("not found: Nope"), m);
       assertTrue(m.contains("other given folders exist"), m);
+   }
+
+   private static RequiredAssetModelList dependents(String... names) {
+      RequiredAssetModelList.Builder b = RequiredAssetModelList.builder();
+
+      for(int i = 0; i < names.length; i++) {
+         b.addRequiredAssets(RequiredAssetModel.builder().name(names[i]).index(i)
+            .lastModifiedTime(0L).build());
+      }
+
+      return b.build();
+   }
+
+   private static RepositoryExportRequest request(String mode, List<String> names) {
+      RepositoryExportRequest req = new RepositoryExportRequest();
+      req.setIncludeDependenciesMode(mode);
+      req.setIncludeDependencyNames(names);
+      return req;
+   }
+
+   @Test
+   void listModeRefusesUnknownNameNamingItVerbatim() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> AdminAssetExportService.applyDependencyMode(
+            request("list", List.of("Examples/NoSuchDep")), dependents("Examples/Real")));
+      assertTrue(e.getMessage().contains("Examples/NoSuchDep"), e.getMessage());
+      assertTrue(e.getMessage().contains("Examples/Real"), e.getMessage());
+   }
+
+   @Test
+   void listModeRefusesUnknownEvenWhenMixedWithRealName() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> AdminAssetExportService.applyDependencyMode(
+            request("list", List.of("Examples/Real", "Typo")), dependents("Examples/Real")));
+      assertTrue(e.getMessage().contains("Typo"), e.getMessage());
+   }
+
+   @Test
+   void listModeRefusesBlankName() {
+      assertThrows(IllegalArgumentException.class,
+         () -> AdminAssetExportService.applyDependencyMode(
+            request("list", List.of("")), dependents("Examples/Real")));
+   }
+
+   @Test
+   void listModeKeepsRealNamesAndToleratesDuplicates() {
+      List<RequiredAssetModel> out = AdminAssetExportService.applyDependencyMode(
+         request("list", List.of("B", "B")), dependents("A", "B"));
+      assertEquals(1, out.size());
+      assertEquals("B", out.get(0).name());
+   }
+
+   @Test
+   void listModeEmptyListAndNoneAndAllAreUnchanged() {
+      assertTrue(AdminAssetExportService.applyDependencyMode(
+         request("list", List.of()), dependents("A")).isEmpty());
+      assertTrue(AdminAssetExportService.applyDependencyMode(
+         request("none", List.of("Ignored")), dependents("A")).isEmpty());
+      assertEquals(1, AdminAssetExportService.applyDependencyMode(
+         request("all", List.of("Ignored")), dependents("A")).size());
    }
 }
