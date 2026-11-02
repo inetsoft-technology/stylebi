@@ -80,6 +80,29 @@ class LayoutToolFieldNameByScriptTest {
    }
 
    @Test
+   void callChainedAfterToListWithFieldOptionLast() {
+      assertEquals(COL, LayoutTool.getFieldNameByScript(
+         "toList(data['*'],'sort=asc,field=Customer:Region').map(function(v){ return v; })"));
+      assertEquals(COL, LayoutTool.getFieldNameByScript(
+         "toList(data['*'],'sort=asc,field=Customer:Region').map(function(v){ return v; })"
+         + ".filter(function(v){ return v != null; })"));
+      assertEquals(COL, LayoutTool.getFieldNameByScript(
+         "mapList(data['*'],[[\"USA West\"],\"Region WEST\"],'field=Customer:Region').slice(0)"));
+   }
+
+   @Test
+   void chainedCallWithParenthesizedColumnName() {
+      assertEquals("Sales (USD)", LayoutTool.getFieldNameByScript(
+         "toList(data['*'],'sort=asc,field=Sales (USD)').map(function(v){ return v; })"));
+   }
+
+   @Test
+   void unbalancedScriptFallsBackToOldBehavior() {
+      assertEquals(COL, LayoutTool.getFieldNameByScript(
+         "toList(data['*'],'sort=asc,field=Customer:Region'"));
+   }
+
+   @Test
    void trailingSpaceBeforeCommaIsKept() {
       assertEquals("Sales ", LayoutTool.getFieldNameByScript(
          "toList(data['*'],'field=Sales ,sort=asc')"));

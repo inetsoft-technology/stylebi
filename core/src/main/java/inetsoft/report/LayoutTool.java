@@ -3604,11 +3604,52 @@ public class LayoutTool {
       return col;
    }
 
+   /**
+    * Cut a script down to its first call, dropping anything chained after the matching closing
+    * parenthesis, e.g. toList(data['*'],'field=a').map(function(v) { return v; }) becomes
+    * toList(data['*'],'field=a'). Parentheses inside quoted strings are not counted. The value
+    * is returned unchanged if it has no balanced call.
+    */
+   private static String dropChainedCalls(String value) {
+      int left = value.indexOf('(');
+
+      if(left < 0) {
+         return value;
+      }
+
+      int depth = 0;
+      char quote = 0;
+
+      for(int i = left; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(quote != 0) {
+            if(c == '\\') {
+               i++;
+            }
+            else if(c == quote) {
+               quote = 0;
+            }
+         }
+         else if(c == '\'' || c == '"') {
+            quote = c;
+         }
+         else if(c == '(') {
+            depth++;
+         }
+         else if(c == ')' && --depth == 0) {
+            return value.substring(0, i + 1);
+         }
+      }
+
+      return value;
+   }
+
    public static String getFieldNameByScript(String value) {
       String prefix = "data['";
 
       if(value != null && !value.startsWith(prefix)) {
-         value = getOriginalColumn(value);
+         value = getOriginalColumn(dropChainedCalls(value));
       }
 
       // like data['Customer:State'],'sort=asc'
