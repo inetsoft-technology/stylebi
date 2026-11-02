@@ -955,6 +955,93 @@ class ScriptExecuteServiceTest {
       assertNotGated("function install() { Ns = { count: function() { return runQuery('q'); } }; }", "Ns.count()");
    }
 
+   // --- Review r2: any non-local assignment in a function body that can run fails closed ---
+
+   @Test
+   void failClosedVarAnonymousFunctionInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = function(){ Ns = { count: function() { return runQuery('q'); } }; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedVarArrowInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = () => { Ns = { count: function() { return runQuery('q'); } }; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedExpressionArrowInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = () => Ns = { count: function() { return runQuery('q'); } };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedObjectPropertyFunctionInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var lib = { install: function(){ Ns = { count: function() { return runQuery('q'); } }; } };\nlib.install();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedMethodShorthandInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var lib = { install() { Ns = { count: function() { return runQuery('q'); } }; } };\nlib.install();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedCallbackInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("[1].forEach(function(){ Ns = { count: function() { return runQuery('q'); } }; });", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedFunctionExpressionInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var f = function inst(){ Ns = { count: function() { return runQuery('q'); } }; };\nf();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedLogicalAssignInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("function inst(){ Ns ||= { count: function() { return runQuery('q'); } }; }\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedDestructuringInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("function inst(){ [Ns] = [{ count: function() { return runQuery('q'); } }]; }\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedForOfTargetInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("function inst(){ for(Ns of [{ count: function() { return runQuery('q'); } }]) {} }\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void preciseAnonymousInstallerAssigningOnlyItsOwnLocalsStaysUngated() throws Exception {
+      assertNotGated("var inst = function(a){ var r = 1; a = 2; r = 3; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void preciseArrowAssigningOnlyItsParamStaysUngated() throws Exception {
+      assertNotGated("var inst = (a) => { a = 2; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void preciseCallbackWithOwnVarStaysUngated() throws Exception {
+      assertNotGated("[1].forEach(function(x){ var Ns = { count: function() { return runQuery('q'); } }; Ns = x; });", "Ns.count()");
+   }
+
+   @Test
+   void preciseNeverCalledVarFunctionAssigningGlobalStaysUngated() throws Exception {
+      assertNotGated("var inst = function(){ Ns = { count: function() { return runQuery('q'); } }; };", "Ns.count()");
+   }
+
+   @Test
+   void preciseNeverCalledArrowAssigningGlobalStaysUngated() throws Exception {
+      assertNotGated("var inst = () => { Ns = { count: function() { return runQuery('q'); } }; };", "Ns.count()");
+   }
+
+   @Test
+   void preciseNeverCalledMethodAssigningGlobalStaysUngated() throws Exception {
+      assertNotGated("var lib = { install() { Ns = { count: function() { return runQuery('q'); } }; } };", "Ns.count()");
+   }
+
+   @Test
+   void preciseForHeaderLetCallbackStaysUngated() throws Exception {
+      assertNotGated("[1].forEach(function(){ for(let Ns = 0; Ns < 2; Ns++) {} });", "Ns.count()");
+   }
+
    @Test
    void globalInstallShapeInstallerFunctionExpressionIsGated() throws Exception {
       assertGatedViaNamespace("var inst = function(g) { g.Ns = { count: function() { return runQuery('q'); } }; };\ninst(this);", "Ns.count()");

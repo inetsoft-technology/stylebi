@@ -1095,6 +1095,7 @@ public class ScriptExecuteService {
       final String fnName;
       final boolean function;
       final Set<String> names = new HashSet<>();
+      final Set<String> aliases = new HashSet<>();
 
       ScopeRegion(int start, int end, String fnName, boolean function) {
          this.start = start;
@@ -1114,8 +1115,23 @@ public class ScriptExecuteService {
       "\\bcatch\\s*\\(\\s*(" + ID + ")\\s*\\)\\s*\\{");
    private static final Pattern LOCAL_DECLARATION = Pattern.compile(
       "\\b(?:var|let|const)\\s+(" + ID + ")");
+   private static final String NOT_ID_BEFORE = "(?<![\\p{L}\\p{M}\\p{N}_$.])";
    private static final Pattern BARE_ASSIGNMENT = Pattern.compile(
-      "(?<![\\p{L}\\p{M}\\p{N}_$.])(" + ID + ")\\s*(?:\\*\\*|<<|>>>?|[-+*/%|&^])?=(?![=>])");
+      NOT_ID_BEFORE + "(" + ID + ")\\s*(?:\\*\\*|<<|>>>?|\\|\\||&&|\\?\\?|[-+*/%|&^])?=(?![=>])");
+   private static final Pattern DESTRUCTURE_ASSIGNMENT = Pattern.compile(
+      "[\\[{]([^\\[\\]{}()=]*)[\\]}]\\s*=(?![=>])");
+   private static final Pattern INCREMENT_TARGET = Pattern.compile(
+      "(?:\\+\\+|--)\\s*(" + ID + ")|" + NOT_ID_BEFORE + "(" + ID + ")\\s*(?:\\+\\+|--)");
+   private static final Pattern FOR_TARGET = Pattern.compile(
+      "\\bfor\\s*\\(\\s*(" + ID + ")\\s+(?:of|in)\\b");
+   private static final Pattern ARROW_SCOPE = Pattern.compile(
+      "(?:\\(([^()]*)\\)|(" + ID + "))\\s*=>\\s*(\\{)?");
+   private static final Pattern METHOD_SCOPE = Pattern.compile(
+      NOT_ID_BEFORE + "(" + ID + ")\\s*\\(([^()]*)\\)\\s*\\{");
+   private static final Pattern ALIAS_BEFORE = Pattern.compile(
+      "(" + ID + ")\\s*[:=]\\s*(?:async\\s+)?$");
+   private static final Set<String> NOT_A_METHOD = Set.of(
+      "if", "for", "while", "switch", "catch", "with", "function", "return", "do", "else");
 
    private static int matchingBrace(String t, int open) {
       int depth = 0;
@@ -1150,6 +1166,62 @@ public class ScriptExecuteService {
          }
 
          regions.add(r);
+      }
+
+      m = ARROW_SCOPE.matcher(t);
+
+      while(m.find()) {
+         int end = m.group(3) != null ? matchingBrace(t, m.end() - 1) : exprEnd(t, m.end());
+         ScopeRegion r = new ScopeRegion(m.start(), end, null, true);
+
+         if(m.group(2) != null) {
+            r.names.add(m.group(2));
+         }
+         else if(m.group(1) != null) {
+            for(String p : m.group(1).split(",")) {
+               Matcher id = IDENTIFIER.matcher(p);
+
+               if(id.find()) {
+                  r.names.add(id.group());
+               }
+            }
+         }
+
+         regions.add(r);
+      }
+
+      m = METHOD_SCOPE.matcher(t);
+
+      while(m.find()) {
+         if(NOT_A_METHOD.contains(m.group(1))) {
+            continue;
+         }
+
+         ScopeRegion r = new ScopeRegion(m.start(), matchingBrace(t, m.end() - 1), m.group(1), true);
+
+         for(String p : m.group(2).split(",")) {
+            Matcher id = IDENTIFIER.matcher(p);
+
+            if(id.find()) {
+               r.names.add(id.group());
+            }
+         }
+
+         regions.add(r);
+      }
+
+      for(ScopeRegion r : regions) {
+         if(r.function) {
+            if(r.fnName != null) {
+               r.aliases.add(r.fnName);
+            }
+
+            Matcher al = ALIAS_BEFORE.matcher(t.substring(Math.max(0, r.start - 80), r.start));
+
+            if(al.find()) {
+               r.aliases.add(al.group(1));
+            }
+         }
       }
 
       m = CATCH_SCOPE.matcher(t);
@@ -1238,33 +1310,129 @@ public class ScriptExecuteService {
       return locals;
    }
 
+   private static int exprEnd(String t, int from) {
+      int semi = t.indexOf(';', from);
+      return semi < 0 ? t.length() : semi;
+   }
+
+   private static int countName(String t, String name) {
+      Matcher uses = Pattern.compile("(?<![\\p{L}\\p{M}\\p{N}_$])" + Pattern.quote(name) +
+                                     "(?![\\p{L}\\p{M}\\p{N}_$])").matcher(t);
+      int count = 0;
+
+      while(uses.find()) {
+         count++;
+      }
+
+      return count;
+   }
+
    /**
-    * An assignment to an undeclared name inside a function the entry also names elsewhere (a call,
-    * a callback argument) is an implicit global install the frame scan does not follow.
+    * A function that is anonymous (an argument, an IIFE) may run at load time; a named one (a
+    * declaration, var/property it is assigned to, method) only if its name is used elsewhere.
+    */
+   private static boolean mayRun(String t, ScopeRegion r) {
+      if(r.aliases.isEmpty()) {
+         return true;
+      }
+
+      for(String alias : r.aliases) {
+         if(countName(t, alias) >= 2) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /** Every (name, position) the text assigns to: =, op=, ++/--, for-in/of and destructuring targets. */
+   private static List<Object[]> assignmentTargets(String t) {
+      List<Object[]> targets = new ArrayList<>();
+      Matcher a = BARE_ASSIGNMENT.matcher(t);
+
+      while(a.find()) {
+         targets.add(new Object[] { a.group(1), a.start(1) });
+      }
+
+      a = INCREMENT_TARGET.matcher(t);
+
+      while(a.find()) {
+         targets.add(a.group(1) != null ? new Object[] { a.group(1), a.start(1) }
+                                        : new Object[] { a.group(2), a.start(2) });
+      }
+
+      a = FOR_TARGET.matcher(t);
+
+      while(a.find()) {
+         targets.add(new Object[] { a.group(1), a.start(1) });
+      }
+
+      a = DESTRUCTURE_ASSIGNMENT.matcher(t);
+
+      while(a.find()) {
+         Matcher id = IDENTIFIER.matcher(a.group(1));
+
+         while(id.find()) {
+            targets.add(new Object[] { id.group(), a.start(1) + id.start() });
+         }
+      }
+
+      return targets;
+   }
+
+   private static boolean undeclaredTarget(String name, int pos, List<ScopeRegion> regions) {
+      return !JS_RESERVED.contains(name) && !declaredAt(regions, name, pos);
+   }
+
+   /**
+    * An assignment to a name no enclosing function or catch block declares, written inside a
+    * function body (declaration, expression, arrow, method, callback) that can run at load time, is
+    * an implicit global install the frame scan does not follow. A function that is only ever
+    * stored under a name the entry never mentions again cannot run, so it stays precise.
     */
    private static boolean assignsImplicitGlobalInInvokedFunction(String t, List<ScopeRegion> regions) {
-      for(ScopeRegion r : regions) {
-         if(!r.function || r.fnName == null) {
+      List<Object[]> targets = assignmentTargets(t);
+
+      if(targets.isEmpty() || regions.isEmpty()) {
+         return false;
+      }
+
+      boolean[] runs = new boolean[regions.size()];
+
+      for(int i = 0; i < runs.length; i++) {
+         ScopeRegion r = regions.get(i);
+         runs[i] = r.function && mayRun(t, r);
+      }
+
+      boolean[] effective = runs.clone();
+
+      for(int i = 0; i < runs.length; i++) {
+         if(!runs[i]) {
             continue;
          }
 
-         Matcher uses = Pattern.compile("(?<![\\p{L}\\p{M}\\p{N}_$.])" + Pattern.quote(r.fnName) +
-                                        "(?![\\p{L}\\p{M}\\p{N}_$])").matcher(t);
-         int count = 0;
+         ScopeRegion r = regions.get(i);
 
-         while(uses.find()) {
-            count++;
+         for(int j = 0; j < runs.length; j++) {
+            ScopeRegion q = regions.get(j);
+
+            if(!runs[j] && q.function && q.start <= r.start && r.end <= q.end) {
+               effective[i] = false;
+               break;
+            }
          }
+      }
 
-         if(count < 2) {
+      for(Object[] target : targets) {
+         String name = (String) target[0];
+         int pos = (Integer) target[1];
+
+         if(!undeclaredTarget(name, pos, regions)) {
             continue;
          }
 
-         Matcher a = BARE_ASSIGNMENT.matcher(t);
-         a.region(r.start, r.end);
-
-         while(a.find()) {
-            if(!JS_RESERVED.contains(a.group(1)) && !declaredAt(regions, a.group(1), a.start(1))) {
+         for(int i = 0; i < effective.length; i++) {
+            if(effective[i] && regions.get(i).contains(pos)) {
                return true;
             }
          }
