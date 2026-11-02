@@ -854,18 +854,49 @@ public class ViewsheetChangePlanService {
       }
       else {
          risk = AdminChangeRecord.RISK_HIGH;
+         AssetEntry[] external = findExternalDependents(contents, user);
          description = "delete folder \"" + normalizedPath + "\" -- this PERMANENTLY AND " +
             "IRRECOVERABLY deletes " + contents.length + " contained viewsheet/worksheet(s) " +
-            "(force: true), recursively including nested folders, with no recycle bin and no undo: " +
-            "RepletRegistry.removeFolder's own REMOVE_FOLDER_EVENT is handled by RepletEngine, which " +
-            "calls AbstractAssetEngine#removeFolder0/#removeSheet0 to hard-delete every contained " +
-            "asset from storage (bug #76469) -- re-creating the folder afterward only restores an " +
-            "empty label, never the deleted content: " +
-            ViewsheetProjection.projectVisibleContents(contents, visibleContents);
+            "(force: true), recursively including nested folders, with no recycle bin and no undo. " +
+            "Dashboards are removed by the registry folder delete and worksheets are removed " +
+            "explicitly (they live in a separate folder namespace); apply fails loudly if any " +
+            "contained item is still present afterwards. Re-creating the folder afterward only " +
+            "restores an empty label, never the deleted content: " +
+            ViewsheetProjection.projectVisibleContents(contents, visibleContents) +
+            externalDependentsWarning(external);
       }
 
       return new PlanChange(key, orgId, beforeProjection, null, risk,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
+   }
+
+   /** Assets OUTSIDE {@code contents} that depend on a contained asset and would be left
+    * broken by a folder delete (the per-asset delete runs the same preflight; the folder cascade
+    * previously did not). Package-visible so the apply step can repeat it. */
+   AssetEntry[] findExternalDependents(AssetEntry[] contents, Principal user) throws Exception {
+      Set<String> inside = new HashSet<>();
+
+      for(AssetEntry entry : contents) {
+         inside.add(entry.toIdentifier());
+      }
+
+      List<AssetEntry> external = new ArrayList<>();
+
+      for(AssetEntry entry : contents) {
+         for(AssetEntry dep : findDependencies(entry, user)) {
+            if(!inside.contains(dep.toIdentifier())) {
+               external.add(dep);
+            }
+         }
+      }
+
+      return external.toArray(new AssetEntry[0]);
+   }
+
+   static String externalDependentsWarning(AssetEntry[] external) {
+      return external.length == 0 ? "" :
+         " -- WARNING: " + external.length + " asset(s) outside this folder reference contained " +
+         "items and will be left broken: " + ViewsheetProjection.projectDependencies(external);
    }
 
    /** Walks the real {@link AssetRepository} contents of a (registry-normalized) folder path,
