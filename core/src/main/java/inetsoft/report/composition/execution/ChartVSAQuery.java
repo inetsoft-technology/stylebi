@@ -2362,10 +2362,6 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    }
 
    /**
-    * Shrink number table lens to avoid db covert number to string problem.
-    */
-   @SuppressWarnings("serial")
-   /**
     * Add the alias twin of an aggregate calc's underlying aggregate, unless an aggregate with
     * the same name is already present: addAggregate replaces in place on a name match, which
     * would displace the user's own aggregate and lose the ranking that refers to it (#79900).
@@ -2376,6 +2372,10 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       }
    }
 
+   /**
+    * Shrink number table lens to avoid db covert number to string problem.
+    */
+   @SuppressWarnings("serial")
    public static class ShrinkNumberTableLens extends DefaultTableFilter {
       /**
        * Constructor.
