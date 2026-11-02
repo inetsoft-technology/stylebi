@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.event.calendar.*;
 import org.springframework.stereotype.Service;
@@ -245,6 +246,15 @@ public class CalendarDisplayService {
             runtimeId, assemblyName,
             selectionEvent(requested, info.getCurrentDate1(), info.getCurrentDate2()),
             user, dispatcher, linkUri);
+
+         if(dispatcher != null) {
+            for(String note : ComparisonFilterGuard.notes(rvs.getViewsheet(), assemblyName)) {
+               MessageCommand filterNote = new MessageCommand();
+               filterNote.setType(MessageCommand.Type.WARNING);
+               filterNote.setMessage(note);
+               dispatcher.sendCommand(assemblyName, filterNote);
+            }
+         }
       });
 
       result.put("persistsOnSave", true);

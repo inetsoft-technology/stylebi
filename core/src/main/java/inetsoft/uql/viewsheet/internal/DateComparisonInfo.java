@@ -121,6 +121,75 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the whole-period date bounds of the periods this comparison shows, one
+    * {@code [startOfDay, endOfDay]} pair per period the user asked for (the extra prior period
+    * fetched for a change option is not included). The bounds are the full period, never
+    * narrower than what the query returns, so a range disjoint from a pair is disjoint from
+    * every row of that period: callers may use them to prove a period empty, never to prove it
+    * populated.
+    *
+    * @return the bounds, or null when they can't be stated safely (an invalid comparison, a
+    *         week-aligned interval, an unset end date).
+    */
+   public List<Date[]> getPeriodBounds() {
+      if(invalid() || dcPeriods == null) {
+         return null;
+      }
+
+      List<Date[]> bounds = new ArrayList<>();
+
+      if(dcPeriods instanceof CustomPeriods) {
+         List<DatePeriod> datePeriods = ((CustomPeriods) dcPeriods).getDatePeriods(true);
+
+         if(datePeriods == null) {
+            return null;
+         }
+
+         for(DatePeriod datePeriod : datePeriods) {
+            Date start = datePeriod.getStart();
+            Date end = datePeriod.getEnd();
+
+            if(start == null || end == null || end.compareTo(start) < 0) {
+               continue;
+            }
+
+            bounds.add(new Date[] { resetLowDateLevel(start), setTimeToEndOfDay(end) });
+         }
+
+         return bounds;
+      }
+
+      if(!(dcPeriods instanceof StandardPeriods) || alignWeek()) {
+         return null;
+      }
+
+      StandardPeriods periods = (StandardPeriods) dcPeriods;
+      Date endDay = periods.getRuntimeEndDay();
+      int level = periods.getDateLevel();
+      int calendarLevel = getCalendarLevel(level);
+
+      if(endDay == null || calendarLevel < 0) {
+         return null;
+      }
+
+      boolean isQuarter = level == XConstants.QUARTER_DATE_GROUP;
+      Calendar calendar = getCalendar();
+      calendar.setTime(endDay);
+
+      for(int i = 0; i <= periods.getPreCount(); i++) {
+         if(periods.isInclusive() || i != 0) {
+            Date anchor = calendar.getTime();
+            bounds.add(new Date[] { setDateToLevelStart(anchor, level),
+                                    setDateToEndOfPeriod(anchor, level) });
+         }
+
+         calendar.add(calendarLevel, -(isQuarter ? 3 : 1));
+      }
+
+      return bounds;
+   }
+
+   /**
     * Get the date group level to be used by the date grouping for data series.
     */
    public int getPeriodDateLevel() {
