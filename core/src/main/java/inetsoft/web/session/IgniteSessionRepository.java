@@ -21,6 +21,7 @@ package inetsoft.web.session;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
@@ -684,6 +685,91 @@ public class IgniteSessionRepository
    }
 
    /**
+    * Ends the sessions of an organization that no longer exists (Bug #79542). Deleting an
+    * organization in StyleBI logs its sessions out through an event, but an organization removed
+    * in an external provider, or whose event was missed, leaves its sessions and their license
+    * slots behind. A session is removed when its organization was found deleted in two runs in a
+    * row, so a provider that fails once never ends live sessions; see
+    * {@link OrganizationExistence}. It is removed with {@link #deleteById(String)}, so the user
+    * is logged out, the license slot is released and the web sockets of the session are closed.
+    * Only the master node runs it. The sessions are ended within about two runs (20 seconds) of
+    * the organization disappearing, not on their next request.
+    */
+   @Scheduled(fixedRate = 10000)
+   public void sweepDeletedOrganizationSessions() {
+      if(!cluster.isMaster()) {
+         missingOrganizations.clear();
+         return;
+      }
+
+      try {
+         Map<String, List<String>> sessionIds = new HashMap<>();
+         Iterator<Cache.Entry<String, MapSession>> iter = sessions.iterator();
+
+         try {
+            while(iter.hasNext()) {
+               Cache.Entry<String, MapSession> entry = iter.next();
+               IgniteSession igniteSession = findIteratedSession(entry.getValue());
+
+               if(igniteSession == null) {
+                  continue;
+               }
+
+               Object principal = igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+               if(principal instanceof SRPrincipal srp && !isAnonymous(srp)) {
+                  String orgId = srp.getOrgId();
+
+                  if(orgId != null && !orgId.isEmpty()) {
+                     sessionIds.computeIfAbsent(orgId, k -> new ArrayList<>())
+                        .add(entry.getValue().getId());
+                  }
+               }
+            }
+         }
+         finally {
+            Tool.closeIterator(iter);
+         }
+
+         Set<String> deleted = sessionIds.isEmpty() ?
+            Collections.emptySet() : OrganizationExistence.findDeleted(sessionIds.keySet());
+         Set<String> missing = new HashSet<>();
+
+         for(String orgId : deleted) {
+            if(!missingOrganizations.contains(orgId)) {
+               missing.add(orgId);
+               continue;
+            }
+
+            LOG.info("Ending {} session(s) of the deleted organization {}",
+                     sessionIds.get(orgId).size(), orgId);
+
+            for(String sessionId : sessionIds.get(orgId)) {
+               try {
+                  deleteById(sessionId);
+               }
+               catch(RuntimeException e) {
+                  LOG.warn("Failed to end session {} of the deleted organization {}",
+                           sessionId, orgId, e);
+               }
+            }
+         }
+
+         missingOrganizations.clear();
+         missingOrganizations.addAll(missing);
+      }
+      catch(RuntimeException e) {
+         LOG.warn("Failed to end the sessions of deleted organizations", e);
+      }
+   }
+
+   private static boolean isAnonymous(SRPrincipal principal) {
+      String name = principal.getName();
+      IdentityID id = name == null ? null : IdentityID.getIdentityIDFromKey(name);
+      return id != null && XPrincipal.ANONYMOUS.equals(id.getName());
+   }
+
+   /**
     * Destroys the per-session attribute caches that older versions created, in one partition map
     * exchange per batch. The caches of sessions that are still in the sessions cache are kept.
     */
@@ -784,6 +870,7 @@ public class IgniteSessionRepository
    private final NodeProtectionService nodeProtectionService;
    private final Set<String> loggingOutSessions = ConcurrentHashMap.newKeySet();
    private final Set<String> orphanSessionIds = new HashSet<>();
+   private final Set<String> missingOrganizations = new HashSet<>();
    private boolean legacyMapsDestroyed;
 
    public static final String DEFAULT_SESSION_MAP_NAME = "spring.session.sessions";

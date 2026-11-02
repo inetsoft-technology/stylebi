@@ -20,6 +20,7 @@ package inetsoft.web.admin.user;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.viewsheet.ViewsheetService;
@@ -214,15 +215,47 @@ public class UserService
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       SecurityProvider provider = securityEngine.getSecurityProvider();
 
-      return getModelData(address, u -> u.sessions().stream()
-         .filter(i -> i.user() != null)
-         .filter(i -> Objects.equals(orgID, i.user().getOrgID()))
-         .filter(user -> provider.checkPermission(principal, ResourceType.SECURITY_USER,
-                                                  user.user().convertToKey(), ResourceAction.ADMIN))
-         .map(s -> UserSessionMonitoringTableModel.builder()
-            .from(s, lastAccessEnabled)
-            .build())
-         .collect(Collectors.toList()));
+      return getModelData(address, u -> {
+         // a site admin also sees (and can end) the sessions of an organization that no longer
+         // exists, which no organization admin can reach (Bug #79542)
+         Set<String> deletedOrgs = findDeletedOrgs(u.sessions());
+
+         if(!deletedOrgs.isEmpty() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+            deletedOrgs = Set.of();
+         }
+
+         Set<String> deleted = deletedOrgs;
+
+         return u.sessions().stream()
+            .filter(i -> i.user() != null)
+            .filter(i -> Objects.equals(orgID, i.user().getOrgID()) ||
+                    (deleted.contains(i.organization()) && !isAnonymous(i)))
+            .filter(user -> provider.checkPermission(
+               principal, ResourceType.SECURITY_USER, user.user().convertToKey(),
+               ResourceAction.ADMIN))
+            .map(s -> UserSessionMonitoringTableModel.builder()
+               .from(s, lastAccessEnabled)
+               .build())
+            .collect(Collectors.toList());
+      });
+   }
+
+   private static boolean isAnonymous(SessionModel session) {
+      return XPrincipal.ANONYMOUS.equals(session.user().getName());
+   }
+
+   private static Set<String> findDeletedOrgs(List<SessionModel> sessions) {
+      Set<String> orgs = new HashSet<>();
+
+      for(SessionModel session : sessions) {
+         if(session.user() != null && session.organization() != null &&
+            !isAnonymous(session))
+         {
+            orgs.add(session.organization());
+         }
+      }
+
+      return OrganizationExistence.findDeleted(orgs);
    }
 
    List<UserFailedLoginMonitoringTableModel> getServerFailedModel(String address) {
