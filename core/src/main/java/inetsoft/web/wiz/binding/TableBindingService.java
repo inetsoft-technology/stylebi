@@ -1491,21 +1491,41 @@ public class TableBindingService {
          boolean hadInput = (labels != null && !labels.isEmpty()) ||
                             (entries != null && !entries.isEmpty());
          Map<String, String> remainingLabels = labels;
+         List<ColumnLabelEntry> remainingEntries = entries;
          List<PendingHiddenLabel> pendingHidden = List.of();
 
-         if(table != null && labels != null && !labels.isEmpty()) {
-            HiddenLabelResolution resolution = resolveHiddenColumnLabels(table, labels);
+         // Bug #80016: an entry's index is the get_table_binding position (shown and hidden), and
+         // an entry naming a hidden column goes through the same hidden-label path as 'labels'.
+         Map<String, String> hiddenFromEntries = new LinkedHashMap<>();
+
+         if(table != null && entries != null && !entries.isEmpty()) {
+            remainingEntries = splitHiddenLabelEntries(table, model, labels, entries,
+                                                       hiddenFromEntries);
+         }
+
+         if(table != null && ((labels != null && !labels.isEmpty()) ||
+                              !hiddenFromEntries.isEmpty()))
+         {
+            Map<String, String> combined = new LinkedHashMap<>();
+
+            if(labels != null) {
+               combined.putAll(labels);
+            }
+
+            combined.putAll(hiddenFromEntries);
+            HiddenLabelResolution resolution = resolveHiddenColumnLabels(table, combined);
             remainingLabels = resolution.remaining();
             pendingHidden = resolution.pending();
          }
 
          boolean hasRemaining = (remainingLabels != null && !remainingLabels.isEmpty()) ||
-                                (entries != null && !entries.isEmpty());
+                                (remainingEntries != null && !remainingEntries.isEmpty());
          TableBindingMutator.ColumnLabelWrite write;
 
          if(hasRemaining || !hadInput) {
             try {
-               write = TableBindingMutator.setColumnLabels(model, remainingLabels, entries);
+               write = TableBindingMutator.setColumnLabels(model, remainingLabels,
+                                                       remainingEntries);
             }
             catch(IllegalArgumentException e) {
                throw withHiddenColumns(e, table, "Bound columns: ");
@@ -1551,6 +1571,77 @@ public class TableBindingService {
       });
 
       return new TableWrite(applied, warnings);
+   }
+
+   /**
+    * Bug #80016: aligns {@code set_column_labels}'s {@code entries[].index} on a Table with the
+    * full (shown and hidden) order {@code get_table_binding} reports, the way {@link #removeField}
+    * does since #79493. An entry naming a hidden column (with or without an index) is moved into
+    * {@code hiddenOut} -- label by column -- so it takes the same hidden-label path as {@code
+    * labels}, which {@link TableBindingMutator#setColumnLabels} cannot resolve; every other
+    * entry is returned with its index translated to the shown-only index the mutator reads.
+    * A hidden column named twice (in {@code labels} and an entry, or in two entries) is refused
+    * rather than letting one label silently replace the other.
+    */
+   private static List<ColumnLabelEntry> splitHiddenLabelEntries(
+      TableVSAssembly table, BaseTableBindingModel model, Map<String, String> labels,
+      List<ColumnLabelEntry> entries, Map<String, String> hiddenOut)
+   {
+      List<String> full = fullDetailsOrder(table, null);
+      List<ColumnLabelEntry> remaining = new ArrayList<>();
+
+      for(ColumnLabelEntry entry : entries) {
+         if(entry == null || entry.column() == null || !isHidden(table, entry.column())) {
+            remaining.add(entry == null ? null : withShownIndex(table, full, entry));
+            continue;
+         }
+
+         String shelf = entry.shelf() == null || entry.shelf().isBlank() ? "details" : entry.shelf();
+         TableBindingMutator.requireShelf(model, shelf);
+         requireFullOrderIndex(full, entry.index(), entry.column(), shelf);
+
+         boolean duplicate = hiddenOut.keySet().stream()
+            .anyMatch(k -> k.equalsIgnoreCase(entry.column())) ||
+            (labels != null && labels.keySet().stream()
+               .anyMatch(k -> k.equalsIgnoreCase(entry.column())));
+
+         if(duplicate) {
+            throw new IllegalArgumentException(
+               "'" + entry.column() + "' is hidden and is labelled more than once in this " +
+               "request -- give it one label, in 'labels' or in one 'entries' item.");
+         }
+
+         hiddenOut.put(entry.column(), entry.label());
+      }
+
+      return remaining;
+   }
+
+   private static ColumnLabelEntry withShownIndex(TableVSAssembly table, List<String> full,
+                                                  ColumnLabelEntry entry)
+   {
+      Integer index = entry.index();
+
+      if(full == null || index == null) {
+         return entry;
+      }
+
+      String shelf = entry.shelf() == null || entry.shelf().isBlank() ? "details" : entry.shelf();
+      requireFullOrderIndex(full, index, entry.column(), shelf);
+
+      if(index < 0 || index >= full.size() || !full.get(index).equalsIgnoreCase(entry.column())) {
+         return entry;
+      }
+
+      int shownIndex = 0;
+
+      for(String name : full.subList(0, index)) {
+         if(!isHidden(table, name)) {
+            shownIndex++;
+         }
+      }
+
+      return new ColumnLabelEntry(entry.shelf(), entry.column(), shownIndex, entry.label());
    }
 
    /**
