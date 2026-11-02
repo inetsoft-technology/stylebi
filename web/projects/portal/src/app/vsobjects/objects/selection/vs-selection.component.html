@@ -117,6 +117,7 @@
           [inactive]="!viewer && !model.titleVisible && model.containerType !== 'VSSelectionContainer'"
           [resizable]="!model.container"
           [forceResizable]="model.dropdown"
+          [defaultTextLeft]="getTitleTextLeft()"
           (cellClick)="selectTitle($event)"
           (updateTitle)="updateTitle($event)"
           (onTitleResizeMove)="titleResizeMove($event)"

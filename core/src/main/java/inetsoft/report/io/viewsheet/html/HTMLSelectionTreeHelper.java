@@ -84,7 +84,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       slist.append(";z-index:");
       slist.append(info.getZIndex());
       slist.append("'>");
-      vHelper.appendContainerTitle(slist, info, titleH, titleRatio, null);
+      vHelper.appendContainerTitle(slist, info, titleH, titleRatio, null, getTitlePadding(info));
       appendSelections(slist, info, bounds.getWidth(), (int) bounds.getHeight() - titleH,
                        assembly.getExpandedValues());
       slist.append("</div>");

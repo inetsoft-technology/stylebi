@@ -1446,6 +1446,16 @@ public class VsToReportConverter {
    private Rectangle createTitle(VSAssembly assembly, String title,
                                  String sectionName, boolean onlyTitle)
    {
+      return createTitle(assembly, title, sectionName, onlyTitle, 0);
+   }
+
+   /**
+    * Covert title cell of TitledVSAssembly to report textbox element, its text moved in by
+    * titleIndent when that is positive.
+    */
+   private Rectangle createTitle(VSAssembly assembly, String title,
+                                 String sectionName, boolean onlyTitle, int titleIndent)
+   {
       Rectangle bounds = getPixelBounds(assembly);
       VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
       final int titleH = getTitleHeight(assembly, onlyTitle);
@@ -1462,6 +1472,13 @@ public class VsToReportConverter {
       }
 
       applyFormat(textbox, objfmt, detailfmt, info, true);
+
+      if(titleIndent > 0) {
+         Insets padding = textbox.getPadding() == null ?
+            new Insets(0, 0, 0, 0) : (Insets) textbox.getPadding().clone();
+         padding.left = titleIndent;
+         textbox.setPadding(padding);
+      }
 
       if(assembly instanceof CompoundVSAssembly) {
          textbox.setBackground(Color.WHITE);
@@ -1873,7 +1890,7 @@ public class VsToReportConverter {
             String title = info.getTitle();
             title = text.length() != 0 && dropdown ? title + "*" : title;
             boolean onlytitle = dropdown || text.length() == 0;
-            bounds = createTitle(assembly, title, sectionName, onlytitle);
+            bounds = createTitle(assembly, title, sectionName, onlytitle, getTitleIndent(info));
          }
 
          if(text.length() == 0) {
@@ -1883,6 +1900,12 @@ public class VsToReportConverter {
          TableDataPath path = new TableDataPath(-1, TableDataPath.DETAIL);
          applyCardInset(addTextBoxElement0(info, path, text, bounds, sectionName), info);
       }
+   }
+
+   // a modern selection's printed title starts where its printed values do, at the card inset
+   private static int getTitleIndent(SelectionBaseVSAssemblyInfo info) {
+      Insets inset = info.getPadding();
+      return info.isTitleOverRows() && inset != null ? inset.left : 0;
    }
 
    // the selection's card inset on its printed box; an unmarked selection keeps the box's own
@@ -1923,7 +1946,7 @@ public class VsToReportConverter {
          String title = info.getTitle();
          title = text.length() != 0 && dropdown ? title + "*" : title;
          boolean onlytitle = dropdown || text.length() == 0;
-         bounds = createTitle(assembly, title, sectionName, onlytitle);
+         bounds = createTitle(assembly, title, sectionName, onlytitle, getTitleIndent(info));
       }
 
       if(text.length() == 0) {

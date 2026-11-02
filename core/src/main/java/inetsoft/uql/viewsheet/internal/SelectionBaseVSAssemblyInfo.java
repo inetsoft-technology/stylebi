@@ -422,6 +422,34 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    }
 
    /**
+    * Whether the title text moves in to start over the rows: marked, outside a selection
+    * container, left-aligned, and without a format.css title padding of its own.
+    */
+   public boolean isTitleOverRows() {
+      if(getVizMark() == null || getTitlePadding() != null || isInSelectionContainer()) {
+         return false;
+      }
+
+      VSCompositeFormat format = getFormatInfo().getFormat(TITLEPATH, false);
+
+      if(format == null) {
+         return true;
+      }
+
+      // mirrors VSCSSUtil.gethAlign: left wins, and no horizontal bit at all reads as left
+      int align = format.getAlignment();
+      int notLeft = StyleConstants.H_CENTER | StyleConstants.H_RIGHT | StyleConstants.H_CURRENCY;
+      return (align & StyleConstants.H_LEFT) != 0 || (align & notLeft) == 0;
+   }
+
+   private boolean isInSelectionContainer() {
+      Viewsheet vs = getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(getName());
+
+      return assembly != null && assembly.getContainer() instanceof CurrentSelectionVSAssembly;
+   }
+
+   /**
     * Check if measure value shown as text.
     */
    public boolean isShowText() {

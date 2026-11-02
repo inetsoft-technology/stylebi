@@ -114,7 +114,7 @@ public class PPTSelectionListHelper extends VSSelectionListHelper {
       helper.setBounds(bounds);
       helper.setValue(title);
       helper.setFormat(format);
-      helper.setPadding(info.getTitlePadding());
+      helper.setPadding(getTitlePadding(info, cHelper.getScale()));
       helper.writeTextBox();
    }
 

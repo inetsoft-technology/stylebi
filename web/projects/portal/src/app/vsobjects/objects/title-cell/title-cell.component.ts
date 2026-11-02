@@ -45,6 +45,8 @@ export class TitleCell implements OnChanges {
    @Input() resizable: boolean = true;
    @Input() forceResizable: boolean = false;
    @Input() inSelectionContainer: boolean = false;
+   // the label's left padding when no title padding is set; null keeps the stylesheet's
+   @Input() defaultTextLeft: number = null;
    @Output() updateTitle: EventEmitter<string> = new EventEmitter<string>();
    @Output() cellClick: EventEmitter<MouseEvent> = new EventEmitter<MouseEvent>();
    @Output() onTitleResizeMove: EventEmitter<number> = new EventEmitter<number>();
@@ -72,6 +74,20 @@ export class TitleCell implements OnChanges {
       if(changes["titleSelected"] && !this.titleSelected && this.editingTitle) {
          this.editingTitleChange.emit(this.editingTitle = false);
       }
+   }
+
+   /**
+    * The label's left padding: a format.css title padding wins, then the caller's default.
+    */
+   getTextPaddingLeft(): number {
+      return this.titleFormat?.padding?.left ?? this.defaultTextLeft;
+   }
+
+   /**
+    * The edit input's left padding, so the text stays put; untouched without a default.
+    */
+   getEditPaddingLeft(): number {
+      return this.defaultTextLeft == null ? null : this.getTextPaddingLeft();
    }
 
    changeEditing(editing: boolean) {

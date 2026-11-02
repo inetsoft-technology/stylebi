@@ -106,7 +106,8 @@ public class SVGSelectionListHelper extends VSSelectionListHelper {
 
       ((SVGCoordinateHelper) cHelper).drawTextBox(
          bounds, bounds, format, title,
-         SVGVSExporter.isBackgroundNeed(format, info.getFormat()), info.getTitlePadding());
+         SVGVSExporter.isBackgroundNeed(format, info.getFormat()),
+         getTitlePadding(info, cHelper.getScale()));
    }
 
    @Override
