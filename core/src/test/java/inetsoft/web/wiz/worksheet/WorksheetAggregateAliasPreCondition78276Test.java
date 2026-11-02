@@ -142,7 +142,13 @@ class WorksheetAggregateAliasPreCondition78276Test {
       assertRefused(() -> apply(ed -> ed.setConditions("M", List.of(node))));
       assertRefused(() -> apply(ed -> ed.setMVConditions(
          "M", List.of(node), null, null, null, null)));
-      apply(ed -> ed.setPostConditions("M", List.of(node)));
+      // The post list compares the numeric alias with itself: a string-vs-numeric pair would be
+      // refused by the field type-family rule (#80069), which is not what this test is about.
+      ConditionNode postNode = new ConditionNode(new ConditionSpec(
+         "CNT", "=", List.of("CNT"), false, null,
+         List.of(new WorksheetMutationSupport.ConditionValueSpec(
+            "field", "CNT", null, null, 0))), null, 0);
+      apply(ed -> ed.setPostConditions("M", List.of(postNode)));
    }
 
    @Test
