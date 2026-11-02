@@ -208,6 +208,10 @@ public class ScheduleFolderChangePlanService {
             label + ".path: no schedule-task folder exists at \"" + oldPath + "\"");
       }
 
+      if(!newPath.equals(oldPath)) {
+         requireUnseen(label + ".newPath", newPath, seenPaths);
+      }
+
       if(!newPath.equals(oldPath) && folderGateway.folderExists(newPath)) {
          throw new IllegalArgumentException(
             label + ".newPath: a schedule-task folder already exists at \"" + newPath + "\"");
@@ -255,6 +259,10 @@ public class ScheduleFolderChangePlanService {
       requireNotSelfOrDescendantMove(label, path, targetPath);
 
       String resultingPath = AdminScheduleFolderGateway.joinPath(targetPath, AdminScheduleFolderGateway.leafOf(path));
+
+      if(!resultingPath.equals(path)) {
+         requireUnseen(label + ".targetPath", resultingPath, seenPaths);
+      }
 
       if(!resultingPath.equals(path) && folderGateway.folderExists(resultingPath)) {
          throw new IllegalArgumentException(

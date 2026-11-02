@@ -658,4 +658,70 @@ class ScheduleFolderChangePlanServiceTest {
       change.setForce(true);
       return change;
    }
+
+   // -------------------------------------------------------------------------
+   // bug #80007: a rename/move landing path counts toward the per-submission duplicate rule
+   // -------------------------------------------------------------------------
+
+   private void assertDuplicateOfN(List<ScheduleFolderChangeRequest> changes) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", changes), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"N\""),
+                 ex.getMessage());
+   }
+
+   private void stubFolders(String... paths) throws Exception {
+      for(String p : paths) {
+         lenient().when(folderGateway.findFolder(p)).thenReturn(new AssetFolder());
+      }
+   }
+
+   @Test void renameThenCreateOfTheSamePathIsRefused() throws Exception {
+      stubFolders("A");
+      assertDuplicateOfN(List.of(renameChange("A", "N"), createChange("/", "N")));
+   }
+
+   @Test void createThenRenameToTheSamePathIsRefused() throws Exception {
+      stubFolders("A");
+      assertDuplicateOfN(List.of(createChange("/", "N"), renameChange("A", "N")));
+   }
+
+   @Test void twoRenamesToTheSamePathAreRefused() throws Exception {
+      stubFolders("A", "B");
+      assertDuplicateOfN(List.of(renameChange("A", "N"), renameChange("B", "N")));
+   }
+
+   @Test void twoMovesLandingOnTheSamePathAreRefused() throws Exception {
+      stubFolders("X/N", "Y/N");
+      lenient().when(folderGateway.folderExists("T")).thenReturn(true);
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task",
+            List.of(moveChange("X/N", "T"), moveChange("Y/N", "T"))), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"T/N\""),
+                 ex.getMessage());
+   }
+
+   @Test void moveThenCreateOfTheSameLandingPathIsRefused() throws Exception {
+      stubFolders("X/N");
+      lenient().when(folderGateway.folderExists("T")).thenReturn(true);
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task",
+            List.of(moveChange("X/N", "T"), createChange("T", "N"))), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"T/N\""),
+                 ex.getMessage());
+   }
+
+   @Test void renameAloneAndCreateAloneStillPlan() throws Exception {
+      stubFolders("A");
+      assertEquals(1, service.resolve(request("task", List.of(renameChange("A", "N"))), user)
+         .changes().size());
+      assertEquals(1, service.resolve(request("task", List.of(createChange("/", "N"))), user)
+         .changes().size());
+   }
+
+   @Test void noOpRenameDoesNotClaimTheTargetTwice() throws Exception {
+      stubFolders("A");
+      assertEquals(1, service.resolve(request("task", List.of(renameChange("A", "A"))), user)
+         .changes().size());
+   }
 }
