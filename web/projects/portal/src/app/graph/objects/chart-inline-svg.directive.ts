@@ -19,6 +19,8 @@ import { HttpClient } from "@angular/common/http";
 import { Directive, ElementRef, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
+import { TailAnchor } from "../../widget/tooltip/tooltip-tail-placement";
+import { EdgeFractions, markEdgeFractions } from "./mark-edges";
 
 /**
  * Fetches an SVG URL as bytes and injects it as inline SVG into the host element's innerHTML.
@@ -86,6 +88,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
     *  dim index: line, area and radar tiles empty or prune it, having no per-element dim, but
     *  the tail still needs their vertex markers. Never pruned after the SVG is indexed. */
    private anchorGroupMap = new Map<string, Element>();
+   /** Outline crossings of the marks the tail has pointed at, and the box size found at. */
+   private markEdgeCache =
+      new WeakMap<Element, { width: number, height: number, edges: EdgeFractions }>();
    /** Maps "rowIdx-colIdx" to all glyph elements of the label paired with that data element.
     *  Batik renders each character as a separate <g text-rendering> element with the same
     *  data-row/data-col, so every glyph must be stored and toggled together. */
@@ -374,12 +379,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
    }
 
    /**
-    * Visual middle of the data element at rowIdx+colIdx in viewport coords, or null when this
-    * tile holds no such element. Same key lookup as {@link highlightElements}; anchors the
-    * tooltip tail. Prefers the server's data-anchor fraction, which the renderer writes for
-    * shapes whose box centre misses the mark — a wide donut wedge centres on the hole.
+    * Visual middle of the data element at rowIdx+colIdx in viewport coords, with where its
+    * outline crosses the lines through that middle, or null when this tile holds no such element.
+    * Same key lookup as {@link highlightElements}; anchors the tooltip tail, whose tip lands on the
+    * crossing facing the box. Prefers the server's data-anchor fraction, which the renderer writes
+    * for shapes whose box centre misses the mark — a wide donut wedge centres on the hole.
     */
-   getElementAnchor(rowIdx: number, colIdx: number): { x: number, y: number } | null {
+   getElementAnchor(rowIdx: number, colIdx: number): TailAnchor | null {
       const el = this.anchorGroupMap.get(`${rowIdx}-${colIdx}`);
 
       if(!el) {
@@ -388,12 +394,37 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       const rect = el.getBoundingClientRect();
       const parts = (el.getAttribute("data-anchor") || "").split(",");
-      const fx = parseFloat(parts[0]);
-      const fy = parseFloat(parts[1]);
+      const ax = parseFloat(parts[0]);
+      const ay = parseFloat(parts[1]);
+      const anchored = isFinite(ax) && isFinite(ay);
+      const fx = anchored ? ax : 0.5;
+      const fy = anchored ? ay : 0.5;
+      const edges = this.markEdges(el, rect, fx, fy);
 
-      return isFinite(fx) && isFinite(fy)
-         ? { x: rect.left + fx * rect.width, y: rect.top + fy * rect.height }
-         : { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      return {
+         x: rect.left + fx * rect.width,
+         y: rect.top + fy * rect.height,
+         top: rect.top + edges.top * rect.height,
+         bottom: rect.top + edges.bottom * rect.height,
+         left: rect.left + edges.left * rect.width,
+         right: rect.left + edges.right * rect.width
+      };
+   }
+
+   /**
+    * The tail asks on every hover move and the outline walk costs a few hundred hit tests, so the
+    * result is kept per mark until its box changes size, as it does mid-animation.
+    */
+   private markEdges(el: Element, rect: DOMRect, fx: number, fy: number): EdgeFractions {
+      const cached = this.markEdgeCache.get(el);
+
+      if(cached?.width === rect.width && cached.height === rect.height) {
+         return cached.edges;
+      }
+
+      const edges = markEdgeFractions(el, fx, fy);
+      this.markEdgeCache.set(el, { width: rect.width, height: rect.height, edges });
+      return edges;
    }
 
    /**

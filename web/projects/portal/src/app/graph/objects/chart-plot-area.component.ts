@@ -58,6 +58,7 @@ import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { Point } from "../../common/data/point";
 import { ChartImageDirective } from "./chart-image.directive";
 import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+import { TailAnchor } from "../../widget/tooltip/tooltip-tail-placement";
 
 
 @Component({
@@ -133,8 +134,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    private altDown = false;
    private status: boolean = true;
    panning: Point = null;
-   /** Visual middle of the mark under the cursor, in viewport coords; null when none hovered. */
-   tailAnchor: { x: number, y: number } = null;
+   /** The mark under the cursor, middle and edges in viewport coords; null when none hovered. */
+   tailAnchor: TailAnchor = null;
    panBackground = null;
    panSnapshot = null;
    panX: number = 0;
@@ -881,8 +882,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       }
    }
 
-   /** Visual middle of a mark, from whichever tile holds it, else from the region model. */
-   private markAnchor(rowIdx: number, colIdx: number, region: ChartRegion): { x: number, y: number } {
+   /** A mark's middle and edges from the tile holding it, else its middle from the region model. */
+   private markAnchor(rowIdx: number, colIdx: number, region: ChartRegion): TailAnchor {
       if(colIdx >= 0) {
          for(const tile of this.inlineSvgTiles || []) {
             const anchor = tile.getElementAnchor(rowIdx, colIdx);

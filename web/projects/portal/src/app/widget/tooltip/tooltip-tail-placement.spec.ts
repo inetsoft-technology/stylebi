@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   buildChromePaths, computeTailPlacement, TAIL_HALF_WIDTH, tailRadius, TOOLTIP_INSET
+   buildChromePaths, computeTailPlacement, TailAnchor, TAIL_HALF_WIDTH, tailRadius, TailSide,
+   TOOLTIP_INSET
 } from "./tooltip-tail-placement";
 
 // Host 206x106 => inner box 200x100 once the 3px inset is removed.
@@ -29,22 +30,26 @@ afterEach(() => document.body.classList.remove("viz-shell"));
 const CONTAINER = { x: 0, y: 0, width: 1000, height: 600 };
 
 function vertical(x: number, y: number, container = CONTAINER) {
-   return computeTailPlacement({ anchor: { x, y }, ...HOST, container, axis: "vertical" });
+   return verticalAt({ x, y }, container);
+}
+
+function verticalAt(anchor: TailAnchor, container = CONTAINER) {
+   return computeTailPlacement({ anchor, ...HOST, container, axis: "vertical" });
 }
 
 describe("computeTailPlacement (vertical axis)", () => {
    it("places the box above the anchor when there is room, tail on the bottom edge", () => {
       const p = vertical(500, 400);
-      // box bottom sits TAIL_LENGTH above the anchor: 400 - 8 - 100 = 292, less the inset.
+      // box bottom sits TAIL_LENGTH above the anchor: 400 - 12 - 100 = 288, less the inset.
       expect(p).toEqual({
-         x: 400 - TOOLTIP_INSET, y: 292 - TOOLTIP_INSET, tailSide: "bottom", tailOffset: 100
+         x: 400 - TOOLTIP_INSET, y: 288 - TOOLTIP_INSET, tailSide: "bottom", tailOffset: 100
       });
    });
 
    it("flips below the anchor when there is not enough room above, tail on the top edge", () => {
       const p = vertical(500, 50);
       expect(p.tailSide).toBe("top");
-      expect(p.y).toBe(58 - TOOLTIP_INSET);
+      expect(p.y).toBe(62 - TOOLTIP_INSET);
    });
 
    it("biases sideways away from the nearer edge when placed below", () => {
@@ -58,13 +63,14 @@ describe("computeTailPlacement (vertical axis)", () => {
       const p = vertical(960, 400);
       // box clamped to the right edge, so the tail slides off-centre to stay on the anchor.
       expect(p.x).toBe(797 - TOOLTIP_INSET);
-      expect(p.tailOffset).toBe(163);
+      expect(p.tailOffset).toBeCloseTo(163, 9);
    });
 
-   it("clamps the tail clear of the rounded corners", () => {
+   it("hooks the tip past the last opening the corner leaves room for", () => {
       const p = vertical(995, 400);
-      // 995 - 797 = 198 would overrun the corner; clamped to 200 - 8 - 6.7.
-      expect(p.tailOffset).toBeCloseTo(185.3, 5);
+      // 995 - 797 = 198. The opening stops at 200 - 8 - 6.5 = 185.5 and the tip hooks
+      // 1.8 half-widths past it, so it lands 0.8px short of the anchor.
+      expect(p.tailOffset).toBeCloseTo(197.2, 9);
    });
 
    it("returns null when the container cannot hold the box clear of the anchor", () => {
@@ -74,25 +80,58 @@ describe("computeTailPlacement (vertical axis)", () => {
    it("returns null when the box is larger than the container", () => {
       expect(vertical(500, 400, { x: 0, y: 0, width: 100, height: 600 })).toBeNull();
    });
+
+   it("points at the mark's top edge when the box goes above", () => {
+      const p = verticalAt({ x: 500, y: 400, top: 380, bottom: 420 });
+      // 380 - 12 - 100 = 268: the box clears the mark, not just its middle.
+      expect(p).toEqual({
+         x: 400 - TOOLTIP_INSET, y: 268 - TOOLTIP_INSET, tailSide: "bottom", tailOffset: 100
+      });
+   });
+
+   it("points at the mark's bottom edge when the box goes below", () => {
+      const p = verticalAt({ x: 500, y: 60, top: 40, bottom: 80 });
+      expect(p.tailSide).toBe("top");
+      expect(p.y).toBe(92 - TOOLTIP_INSET);
+   });
+
+   it("measures the room above from the mark's top edge, not its middle", () => {
+      // The middle would leave 127px above, enough for the box; the top edge leaves 97px.
+      const p = verticalAt({ x: 500, y: 130, top: 100, bottom: 160 });
+      expect(p.tailSide).toBe("top");
+      expect(p.y).toBe(172 - TOOLTIP_INSET);
+   });
+
+   it("falls back to the middle when the mark leaves no room past either edge", () => {
+      // A bar from y=20 to y=580 in a 600px window: no edge can clear the box.
+      const p = verticalAt({ x: 500, y: 300, top: 20, bottom: 580 });
+      expect(p).toEqual({
+         x: 400 - TOOLTIP_INSET, y: 188 - TOOLTIP_INSET, tailSide: "bottom", tailOffset: 100
+      });
+   });
 });
 
 describe("computeTailPlacement (horizontal axis)", () => {
    function horizontal(x: number, y: number, container = CONTAINER) {
-      return computeTailPlacement({ anchor: { x, y }, ...HOST, container, axis: "horizontal" });
+      return horizontalAt({ x, y }, container);
+   }
+
+   function horizontalAt(anchor: TailAnchor, container = CONTAINER) {
+      return computeTailPlacement({ anchor, ...HOST, container, axis: "horizontal" });
    }
 
    it("places the box right of the anchor when the right side has more room", () => {
       const p = horizontal(200, 300);
       expect(p).toEqual({
-         x: 208 - TOOLTIP_INSET, y: 250 - TOOLTIP_INSET, tailSide: "left", tailOffset: 50
+         x: 212 - TOOLTIP_INSET, y: 250 - TOOLTIP_INSET, tailSide: "left", tailOffset: 50
       });
    });
 
    it("places the box left of the anchor when the left side has more room", () => {
       const p = horizontal(800, 300);
-      // box right edge sits TAIL_GAP left of the anchor: 800 - 8 - 200 = 592.
+      // box right edge sits TAIL_LENGTH left of the anchor: 800 - 12 - 200 = 588.
       expect(p.tailSide).toBe("right");
-      expect(p.x).toBe(592 - TOOLTIP_INSET);
+      expect(p.x).toBe(588 - TOOLTIP_INSET);
    });
 
    it("centres the box on the anchor vertically", () => {
@@ -102,82 +141,114 @@ describe("computeTailPlacement (horizontal axis)", () => {
    it("keeps the tail over the anchor when the box is clamped by the container top", () => {
       const p = horizontal(200, 20);
       expect(p.y).toBe(3 - TOOLTIP_INSET);
-      expect(p.tailOffset).toBe(17);
+      expect(p.tailOffset).toBeCloseTo(17, 9);
    });
 
-   it("clamps the tail clear of the rounded corners", () => {
+   it("hooks the tip past the last opening the corner leaves room for", () => {
       const p = horizontal(200, 4);
-      expect(p.tailOffset).toBeCloseTo(14.7, 5);
+      // The opening stops at 8 + 6.5 = 14.5 and the tip hooks 11.7px above it.
+      expect(p.tailOffset).toBeCloseTo(2.8, 9);
    });
 
    it("returns null when the container is too narrow to clear the anchor", () => {
       expect(horizontal(120, 300, { x: 0, y: 0, width: 210, height: 600 })).toBeNull();
    });
+
+   it("points at the mark's right edge when the box goes right", () => {
+      const p = horizontalAt({ x: 200, y: 300, left: 180, right: 220 });
+      expect(p.tailSide).toBe("left");
+      expect(p.x).toBe(232 - TOOLTIP_INSET);
+   });
+
+   it("points at the mark's left edge when the box goes left", () => {
+      const p = horizontalAt({ x: 800, y: 300, left: 780, right: 820 });
+      expect(p.tailSide).toBe("right");
+      expect(p.x).toBe(568 - TOOLTIP_INSET);
+   });
 });
 
 describe("buildChromePaths", () => {
+   /** Every coordinate pair in a path, in order. */
+   function points(path: string): [number, number][] {
+      return (path.match(/-?[\d.]+,-?[\d.]+/g) ?? [])
+         .map(pair => pair.split(",").map(Number) as [number, number]);
+   }
+
    it("sizes the viewport to clear the tail on every side", () => {
       const c = buildChromePaths(200, 100, "bottom", 50);
-      expect(c).toMatchObject({
-         width: 216, height: 116, boxX: 8, boxY: 8, boxWidth: 200, boxHeight: 100, radius: 8
-      });
+      expect(c).toMatchObject({ width: 224, height: 124, radius: 8 });
    });
 
-   it("opens the border at the tail and closes it with the tail path (bottom)", () => {
-      const c = buildChromePaths(200, 100, "bottom", 50);
-      expect(c.borderPath).toBe("M64.7,108 L200,108 Q208,108 208,100 L208,16 Q208,8 200,8 L16,8 Q8,8 8,16 L8,100 Q8,108 16,108 L51.3,108");
-      expect(c.tailPath).toBe("M51.3,108 L58,116 L64.7,108");
+   it("traces the box and a hooked tail as one closed outline (bottom)", () => {
+      // Box at (12, 12)-(212, 112). Tip at 50 sweeps toward the left corner, so the opening's
+      // centre sits 1.8 half-widths to its right: 61.7, opening 55.2-68.2. The near leg bends
+      // out of (67.2, 112) and the far leg sweeps in from (80.2, 112) to the tip at (62, 124).
+      expect(buildChromePaths(200, 100, "bottom", 50).outlinePath).toBe(
+         "M67.2,112 L20,112 Q12,112 12,104 L12,20 Q12,12 20,12 L204,12 Q212,12 212,20" +
+         " L212,104 Q212,112 204,112 L80.2,112 Q74.87,120.04 62,124 Q67.2,121 67.2,112 Z");
    });
 
-   it("opens the border at the tail and closes it with the tail path (top)", () => {
-      const c = buildChromePaths(200, 100, "top", 50);
-      expect(c.borderPath).toBe("M51.3,8 L16,8 Q8,8 8,16 L8,100 Q8,108 16,108 L200,108 Q208,108 208,100 L208,16 Q208,8 200,8 L64.7,8");
-      expect(c.tailPath).toBe("M64.7,8 L58,0 L51.3,8");
+   it("closes every side's outline in one path with four corners and two tail legs", () => {
+      for(const side of ["top", "bottom", "left", "right"] as TailSide[]) {
+         const path = buildChromePaths(200, 100, side, 50).outlinePath;
+         expect(path.match(/M/g)?.length).toBe(1);
+         expect(path.match(/Q/g)?.length).toBe(6);
+         expect(path.endsWith(" Z")).toBe(true);
+      }
    });
 
-   it("puts the tail on the left edge with a vertical offset", () => {
-      const c = buildChromePaths(200, 100, "left", 50);
-      expect(c.borderPath).toBe("M8,51.3 L8,16 Q8,8 16,8 L200,8 Q208,8 208,16 L208,100 Q208,108 200,108 L16,108 Q8,108 8,100 L8,64.7");
-      expect(c.tailPath).toBe("M8,64.7 L0,58 L8,51.3");
+   it("lands the tip at the offset, TAIL_LENGTH out from the tailed edge", () => {
+      const tips: Record<TailSide, string> = {
+         top: "62,0", bottom: "62,124", left: "0,62", right: "224,62"
+      };
+
+      for(const side of ["top", "bottom", "left", "right"] as TailSide[]) {
+         expect(buildChromePaths(200, 100, side, 50).outlinePath).toContain(` ${tips[side]} Q`);
+      }
    });
 
-   it("puts the tail on the right edge with a vertical offset", () => {
-      const c = buildChromePaths(200, 100, "right", 50);
-      expect(c.borderPath).toBe("M208,64.7 L208,100 Q208,108 200,108 L16,108 Q8,108 8,100 L8,16 Q8,8 16,8 L200,8 Q208,8 208,16 L208,51.3");
-      expect(c.tailPath).toBe("M208,51.3 L216,58 L208,64.7");
-   });
+   it("hooks the tip toward the nearer corner", () => {
+      // The opening's two ends are the path's first point and the point the tail starts from.
+      for(const [tip, left] of [[50, false], [150, true]] as [number, boolean][]) {
+         const all = points(buildChromePaths(200, 100, "bottom", tip).outlinePath);
+         const opening = [all[0], all[all.length - 5]];
 
-   it("traces all four rounded corners regardless of side", () => {
-      for(const side of ["top", "bottom", "left", "right"] as const) {
-         const c = buildChromePaths(200, 100, side, 50);
-         expect(c.borderPath.match(/Q/g)?.length).toBe(4);
+         for(const [x, y] of opening) {
+            expect(y).toBe(112);
+            expect(x < 12 + tip).toBe(left);
+         }
       }
    });
 
    // An edge shorter than 2 * (radius + half-width) cannot seat the opening between the corner
-   // arcs, and clampToEdge centres the tail there rather than clamping it onto a range that has
-   // gone empty. The radius has to give way, or the opening lands inside the arcs and the border
+   // arcs. The radius has to give way, or the opening lands inside the arcs and the outline
    // doubles back on itself.
    it("keeps the tail opening clear of the corner arcs on a short edge", () => {
-      for(const edge of [4, 10, 20, 25, 29, 30, 60, 200]) {
+      for(const edge of [4, 10, 20, 25, 28, 29, 60, 200]) {
          const halfWidth = Math.min(TAIL_HALF_WIDTH, edge / 2);
 
-         for(const side of ["top", "bottom", "left", "right"] as const) {
+         for(const side of ["top", "bottom", "left", "right"] as TailSide[]) {
             const horizontal = side === "top" || side === "bottom";
             const c = buildChromePaths(horizontal ? edge : 200, horizontal ? 100 : edge,
                                        side, edge / 2);
 
             expect(c.radius).toBeGreaterThanOrEqual(0);
             expect(c.radius + halfWidth).toBeLessThanOrEqual(edge / 2 + 1e-9);
-            expect(c.borderPath.match(/Q/g)?.length).toBe(4);
+            expect(c.outlinePath.match(/Q/g)?.length).toBe(6);
          }
       }
    });
 
    it("leaves the radius alone once the edge can seat the opening", () => {
-      // 2 * (8 + 6.7) = 29.4, so 30 is the first whole edge that keeps the full radius
-      expect(buildChromePaths(30, 100, "top", 15).radius).toBe(8);
-      expect(buildChromePaths(200, 30, "left", 15).radius).toBe(8);
+      // 2 * (8 + 6.5) = 29 is the first edge that keeps the full radius
+      expect(buildChromePaths(29, 100, "top", 14.5).radius).toBe(8);
+      expect(buildChromePaths(200, 29, "left", 14.5).radius).toBe(8);
+   });
+
+   it("draws the tip where the placement put it", () => {
+      const p = vertical(995, 400);
+      const c = buildChromePaths(200, 100, p.tailSide, p.tailOffset);
+      expect(c.outlinePath).toContain(" 209.2,124 Q");
    });
 });
 
@@ -195,9 +266,8 @@ describe("tailRadius (shell state)", () => {
       document.body.classList.add("viz-shell");
       const c = buildChromePaths(200, 100, "bottom", 50);
       expect(c.radius).toBe(6);
-      expect(c.borderPath).toBe(
-         "M64.7,108 L202,108 Q208,108 208,102 L208,14 Q208,8 202,8 L14,8 Q8,8 8,14 L8,102 Q8,108 14,108 L51.3,108"
-      );
-      expect(c.tailPath).toBe("M51.3,108 L58,116 L64.7,108");
+      expect(c.outlinePath).toBe(
+         "M67.2,112 L18,112 Q12,112 12,106 L12,18 Q12,12 18,12 L206,12 Q212,12 212,18" +
+         " L212,106 Q212,112 206,112 L80.2,112 Q74.87,120.04 62,124 Q67.2,121 67.2,112 Z");
    });
 });
