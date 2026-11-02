@@ -129,6 +129,10 @@
     "importForeignOwner/otherOwner": "adminOnly",
     "importForeignOwner/foreignOwner": "adminOnly",
     "importForeignOwner/executeAsAdmin": "adminOnly",
-    "importForeignOwner/internalType": "siteAdminOnly"
+    "importForeignOwner/internalType": "siteAdminOnly",
+    "delete/withDependent": "never",
+    "view/unreadableFolder": "siteAdminOnly",
+    "move/unreadableSource": "siteAdminOnly",
+    "changeOwner/self": "takeOwnership"
   }
 }
