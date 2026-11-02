@@ -1041,9 +1041,6 @@ public class ScriptExecuteService {
       "\\bFunction\\s*\\(");
    private static final Pattern DIRECT_GLOBAL_ASSIGN = Pattern.compile(
       "(?<![\\p{L}\\p{M}\\p{N}_$.])(?:globalThis|window|self)\\s*\\.\\s*[\\p{L}_$][\\p{L}\\p{N}_$]*\\s*=(?!=)");
-   // catch parameters, function parameter lists and var/let/const names are locals, not globals
-   private static final Pattern LOCAL_DECLARATION = Pattern.compile(
-      "(?:\\bcatch\\s*\\(|\\bfunction\\b[^(]*\\(|\\b(?:var|let|const)\\s+)([\\p{L}\\p{N}_$,\\s]*)");
    private static final Set<String> JS_RESERVED = Set.of(
       "window", "globalThis", "self", "Reflect",
       "var", "let", "const", "function", "return", "if", "else", "for", "while", "do", "switch",
@@ -1063,23 +1060,18 @@ public class ScriptExecuteService {
       Set<String> names = new LinkedHashSet<>();
 
       try {
+         String stripped = stripCommentsAndStrings(source, false);
          // a direct "<global>.Name = ..." is already followed precisely by collectRoots
-         String marked = DIRECT_GLOBAL_ASSIGN.matcher(stripCommentsAndStrings(source, false))
-            .replaceAll(" ");
+         String marked = DIRECT_GLOBAL_ASSIGN.matcher(stripped).replaceAll(" ");
+         List<ScopeRegion> regions = scopeRegions(stripped);
 
-         if(!OPAQUE_INSTALL_MARKER.matcher(marked).find()) {
+         if(!OPAQUE_INSTALL_MARKER.matcher(marked).find() &&
+            !assignsImplicitGlobalInInvokedFunction(stripped, regions))
+         {
             return names;
          }
 
-         Set<String> locals = new HashSet<>();
-         Matcher d = LOCAL_DECLARATION.matcher(marked);
-
-         while(d.find()) {
-            for(String part : d.group(1).split("[,\s]+")) {
-               locals.add(part);
-            }
-         }
-
+         Set<String> locals = scopedLocals(source, stripped, regions);
          // the unstripped source, so a computed key (var k = "Ns"; this[k] = ...) is covered
          Matcher m = IDENTIFIER.matcher(source);
 
@@ -1094,6 +1086,191 @@ public class ScriptExecuteService {
       }
 
       return names;
+   }
+
+   /** A function (or catch block) whose parameters and declarations are local to its text span. */
+   private static final class ScopeRegion {
+      final int start;
+      final int end;
+      final String fnName;
+      final boolean function;
+      final Set<String> names = new HashSet<>();
+
+      ScopeRegion(int start, int end, String fnName, boolean function) {
+         this.start = start;
+         this.end = end;
+         this.fnName = fnName;
+         this.function = function;
+      }
+
+      boolean contains(int pos) {
+         return pos >= start && pos < end;
+      }
+   }
+
+   private static final Pattern FUNCTION_SCOPE = Pattern.compile(
+      "\\bfunction\\b\\s*(" + ID + ")?\\s*\\(([^()]*)\\)\\s*\\{");
+   private static final Pattern CATCH_SCOPE = Pattern.compile(
+      "\\bcatch\\s*\\(\\s*(" + ID + ")\\s*\\)\\s*\\{");
+   private static final Pattern LOCAL_DECLARATION = Pattern.compile(
+      "\\b(?:var|let|const)\\s+(" + ID + ")");
+   private static final Pattern BARE_ASSIGNMENT = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(" + ID + ")\\s*(?:\\*\\*|<<|>>>?|[-+*/%|&^])?=(?![=>])");
+
+   private static int matchingBrace(String t, int open) {
+      int depth = 0;
+
+      for(int i = open; i < t.length(); i++) {
+         char c = t.charAt(i);
+
+         if(c == '{') {
+            depth++;
+         }
+         else if(c == '}' && --depth == 0) {
+            return i + 1;
+         }
+      }
+
+      return t.length();
+   }
+
+   private static List<ScopeRegion> scopeRegions(String t) {
+      List<ScopeRegion> regions = new ArrayList<>();
+      Matcher m = FUNCTION_SCOPE.matcher(t);
+
+      while(m.find()) {
+         ScopeRegion r = new ScopeRegion(m.start(), matchingBrace(t, m.end() - 1), m.group(1), true);
+
+         for(String p : m.group(2).split(",")) {
+            Matcher id = IDENTIFIER.matcher(p);
+
+            if(id.find()) {
+               r.names.add(id.group());
+            }
+         }
+
+         regions.add(r);
+      }
+
+      m = CATCH_SCOPE.matcher(t);
+
+      while(m.find()) {
+         ScopeRegion r = new ScopeRegion(m.start(), matchingBrace(t, m.end() - 1), null, false);
+         r.names.add(m.group(1));
+         regions.add(r);
+      }
+
+      // a var/let/const belongs to its innermost enclosing function; at the top level it is global
+      m = LOCAL_DECLARATION.matcher(t);
+
+      while(m.find()) {
+         ScopeRegion inner = null;
+
+         for(ScopeRegion r : regions) {
+            if(r.function && r.contains(m.start()) && (inner == null || r.start > inner.start)) {
+               inner = r;
+            }
+         }
+
+         if(inner != null) {
+            inner.names.add(m.group(1));
+         }
+      }
+
+      return regions;
+   }
+
+   private static boolean declaredAt(List<ScopeRegion> regions, String name, int pos) {
+      for(ScopeRegion r : regions) {
+         if(r.contains(pos) && r.names.contains(name)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Names that are local wherever they appear: every occurrence is a bare reference lying inside
+    * a function or catch block that declares it. A property name or object key (g.Ns, {Ns: 1}) or a
+    * name read from a string never counts, nor does a same-named local in an unrelated function.
+    */
+   private static Set<String> scopedLocals(String raw, String stripped, List<ScopeRegion> regions) {
+      Set<String> seen = new HashSet<>();
+      Set<String> uncovered = new HashSet<>();
+      Map<String, Integer> strippedCount = new java.util.HashMap<>();
+      Matcher m = IDENTIFIER.matcher(stripped);
+
+      while(m.find()) {
+         String name = m.group();
+         int p = m.start() - 1;
+         int q = m.end();
+
+         while(p >= 0 && Character.isWhitespace(stripped.charAt(p))) {
+            p--;
+         }
+
+         while(q < stripped.length() && Character.isWhitespace(stripped.charAt(q))) {
+            q++;
+         }
+
+         boolean property = p >= 0 && stripped.charAt(p) == '.';
+         boolean key = q < stripped.length() && stripped.charAt(q) == ':';
+         seen.add(name);
+         strippedCount.merge(name, 1, Integer::sum);
+
+         if(property || key || !declaredAt(regions, name, m.start())) {
+            uncovered.add(name);
+         }
+      }
+
+      Map<String, Integer> rawCount = new java.util.HashMap<>();
+      m = IDENTIFIER.matcher(raw);
+
+      while(m.find()) {
+         rawCount.merge(m.group(), 1, Integer::sum);
+      }
+
+      Set<String> locals = new HashSet<>(seen);
+      locals.removeAll(uncovered);
+      // an occurrence that only exists inside a string literal (this["Ns"]) is not covered
+      locals.removeIf(n -> !strippedCount.get(n).equals(rawCount.get(n)));
+      return locals;
+   }
+
+   /**
+    * An assignment to an undeclared name inside a function the entry also names elsewhere (a call,
+    * a callback argument) is an implicit global install the frame scan does not follow.
+    */
+   private static boolean assignsImplicitGlobalInInvokedFunction(String t, List<ScopeRegion> regions) {
+      for(ScopeRegion r : regions) {
+         if(!r.function || r.fnName == null) {
+            continue;
+         }
+
+         Matcher uses = Pattern.compile("(?<![\\p{L}\\p{M}\\p{N}_$.])" + Pattern.quote(r.fnName) +
+                                        "(?![\\p{L}\\p{M}\\p{N}_$])").matcher(t);
+         int count = 0;
+
+         while(uses.find()) {
+            count++;
+         }
+
+         if(count < 2) {
+            continue;
+         }
+
+         Matcher a = BARE_ASSIGNMENT.matcher(t);
+         a.region(r.start, r.end);
+
+         while(a.find()) {
+            if(!JS_RESERVED.contains(a.group(1)) && !declaredAt(regions, a.group(1), a.start(1))) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    private static Set<String> declaredFunctions(String source) {

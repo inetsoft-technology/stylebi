@@ -908,6 +908,53 @@ class ScriptExecuteServiceTest {
       assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
    }
 
+   // --- Review r1 (04-review-r1.md): the opaque path must fail closed ---
+
+   @Test
+   void failClosedVarNsEqualsAliasNsInNestedIifeIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { var Ns = g.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedAliasInstallWithSameNamedParamElsewhereIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();\nfunction other(Ns) { return Ns; }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedAliasInstallWithSameNamedIifeParamElsewhereIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();\n(function(Ns) { })();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedAliasInstallWithSameNamedVarInOtherFunctionIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();\nfunction other() { var Ns = 1; return Ns; }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedChainedAliasInNestedIifeIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\nvar h = g;\n(function() { h.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedImplicitGlobalAssignedInInvokedFunctionIsGated() throws Exception {
+      assertGatedViaNamespace("function install() { Ns = { count: function() { return runQuery('q'); } }; }\ninstall();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedImplicitGlobalInFunctionPassedAsCallbackIsGated() throws Exception {
+      assertGatedViaNamespace("function inst() { Ns = { count: function() { return runQuery('q'); } }; }\n[1].forEach(inst);", "Ns.count()");
+   }
+
+   @Test
+   void failClosedImplicitGlobalInNestedBlockOfInvokedFunctionIsGated() throws Exception {
+      assertGatedViaNamespace("function install() { if(true) { Ns = { count: function() { return runQuery('q'); } }; } }\ninstall();", "Ns.count()");
+   }
+
+   @Test
+   void neverInvokedFunctionWithImplicitGlobalAssignmentStaysUngated() throws Exception {
+      assertNotGated("function install() { Ns = { count: function() { return runQuery('q'); } }; }", "Ns.count()");
+   }
+
    @Test
    void globalInstallShapeInstallerFunctionExpressionIsGated() throws Exception {
       assertGatedViaNamespace("var inst = function(g) { g.Ns = { count: function() { return runQuery('q'); } }; };\ninst(this);", "Ns.count()");
