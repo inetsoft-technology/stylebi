@@ -44,7 +44,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * header at the one-segment path [agg]; with a second measure the header paths are
  * [row dims..., agg] and [ROW_GRAND_TOTAL, agg]. {@code VSUtil.syncCrosstabPath} never re-keyed the
  * one-segment path, so a label (or header format, highlight, hyperlink) vanished when a second
- * measure was added. Only 1 to 2+ is migrated; 2 to 1 stays as it was.
+ * measure was added. Bug #80016 migrates the mirror direction too: 2 to 1 copies the surviving measure's header
+ * setting from its detail-level key to the one-segment key.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -133,17 +134,133 @@ class VSUtilSyncCrosstabSoleHeaderTest {
       assertEquals(2, map.size());
    }
 
-   /** 2 to 1 is deliberately unchanged: the label stays at the 2-aggregate keys. */
+   /**
+    * Bug #80016: #79452 left 2 to 1 unchanged on purpose, which dropped the label of the measure
+    * that stays (the header of a single measure is read from the one-segment [agg] key). The
+    * mirror direction now copies it from the detail-level [row dims..., agg] key.
+    */
    @Test
-   void twoToOneIsNotMigrated() {
+   void twoToOneCarriesTheSurvivingMeasureLabel() {
       Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(path(TableDataPath.HEADER, "Region", "Total"), "Sales");
+      map.put(path(TableDataPath.GROUP_HEADER, "Region", "Total"), "Sales");
+      map.put(path(TableDataPath.HEADER, "ROW_GRAND_TOTAL", "Total"), "Sales");
+
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Total")),
+           map);
+
+      assertEquals("Sales", map.get(path(TableDataPath.HEADER, "Total")));
+      assertEquals("Sales", map.get(path(TableDataPath.GROUP_HEADER, "Total")));
+      assertEquals(5, map.size(), "the 2-measure keys stay, so 2 to 1 to 2 round-trips");
+   }
+
+   @Test
+   void twoToOneCarriesTheLabelOfTheSurvivingMeasureWhicheverSlotItHad() {
+      Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(path(TableDataPath.HEADER, "Region", "Num"), "Qty");
+      map.put(path(TableDataPath.HEADER, "Region", "Total"), "Sales");
+
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Num")), map);
+
+      assertEquals("Qty", map.get(path(TableDataPath.HEADER, "Num")));
+      assertNull(map.get(path(TableDataPath.HEADER, "Total")), "the dropped measure's label");
+   }
+
+   @Test
+   void twoToOneKeepsALabelAlreadyOnTheSoleKeyWhenThereIsNoDetailKey() {
+      Map<TableDataPath, Object> map = soleLabelled("Sales");
+
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Total")),
+           map);
+
+      assertEquals("Sales", map.get(path(TableDataPath.HEADER, "Total")));
+      assertEquals(2, map.size());
+   }
+
+   @Test
+   void twoToOneLetsTheDetailLabelReplaceAStaleSoleLabel() {
+      Map<TableDataPath, Object> map = soleLabelled("Old");
       map.put(path(TableDataPath.HEADER, "Region", "Total"), "Sales");
 
       sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Total")),
            map);
 
+      assertEquals("Sales", map.get(path(TableDataPath.HEADER, "Total")));
+      assertEquals("Old", map.get(path(TableDataPath.GROUP_HEADER, "Total")),
+                   "only the twin that has a detail key is overwritten");
+   }
+
+   @Test
+   void twoToOneKeepsASettingAlreadyOnTheSoleKeyForSetInput() {
+      Map<TableDataPath, Object> map = soleLabelled("USER");
+      map.put(path(TableDataPath.HEADER, "Region", "Total"), "Sales");
+
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Total")),
+           map, true, false, false);
+
+      assertEquals("USER", map.get(path(TableDataPath.HEADER, "Total")));
+   }
+
+   @Test
+   void twoToOneCoversEveryNestingLevelOfTheOldShape() {
+      Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(path(TableDataPath.HEADER, "Region", "Country", "Total"), "Sales");
+
+      sync(rows("Region", "Country"), aggs(sum("Total"), sum("Num")), rows("Region", "Country"),
+           aggs(sum("Total")), map);
+
+      assertEquals("Sales", map.get(path(TableDataPath.HEADER, "Total")));
+   }
+
+   @Test
+   void twoToOneCarriesHighlightAndHyperlinkMapsToo() {
+      Map<TableDataPath, Object> hl = new HashMap<>();
+      HighlightGroup group = new HighlightGroup();
+      hl.put(path(TableDataPath.HEADER, "Region", "Total"), group);
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Total")), hl);
+      assertSame(group, hl.get(path(TableDataPath.HEADER, "Total")));
+
+      Map<TableDataPath, Object> links = new HashMap<>();
+      Hyperlink link = new Hyperlink("http://x", Hyperlink.WEB_LINK);
+      links.put(path(TableDataPath.HEADER, "Region", "Total"), link);
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Total")),
+           links);
+      assertSame(link, links.get(path(TableDataPath.HEADER, "Total")));
+   }
+
+   @Test
+   void twoToOneDoesNotShareAFormatObjectWithTheOldKey() {
+      Map<TableDataPath, Object> map = new HashMap<>();
+      VSCompositeFormat format = new VSCompositeFormat();
+      map.put(path(TableDataPath.HEADER, "Region", "Total"), format);
+
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Total")),
+           map);
+
+      Object sole = map.get(path(TableDataPath.HEADER, "Total"));
+      assertNotNull(sole);
+      assertNotSame(format, sole);
+   }
+
+   @Test
+   void twoToOneWithAColumnDimensionMigratesNothing() {
+      Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(path(TableDataPath.HEADER, "Region", "Total"), "Sales");
+
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), cols("Category"),
+           aggs(sum("Total")), map);
       assertNull(map.get(path(TableDataPath.HEADER, "Total")));
-      assertNull(map.get(path(TableDataPath.GROUP_HEADER, "Total")));
+
+   }
+
+   @Test
+   void twoToOneDoesNotCarryTheLabelOfAMeasureThatIsNotBoundAnyMore() {
+      Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(path(TableDataPath.HEADER, "Region", "Total"), "Sales");
+
+      sync(rows("Region"), aggs(sum("Total"), sum("Num")), rows("Region"), aggs(sum("Other")),
+           map);
+
       assertEquals(1, map.size());
    }
 
