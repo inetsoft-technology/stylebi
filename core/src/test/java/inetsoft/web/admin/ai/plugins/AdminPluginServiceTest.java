@@ -308,7 +308,8 @@ class AdminPluginServiceTest {
    @Test
    void installReportsPendingWhenThePluginIsNotRegisteredWithinTheWait() throws Exception {
       AdminPluginService shortWait =
-         new AdminPluginService(pluginsService, uploadService, securityEngine, 50L, 10L);
+         new AdminPluginService(pluginsService, uploadService, securityEngine);
+      shortWait.setInstallWait(50L, 10L);
       AdminInstallDriverOrPluginRequest request = new AdminInstallDriverOrPluginRequest();
       request.setUploadId("upload-123");
       request.setAcknowledgeServerCodeExecution(true);

@@ -61,18 +61,17 @@ public class AdminPluginService {
    public AdminPluginService(PluginsService pluginsService, UploadService uploadService,
                               SecurityEngine securityEngine)
    {
-      this(pluginsService, uploadService, securityEngine,
-           DEFAULT_INSTALL_WAIT_MS, DEFAULT_INSTALL_POLL_MS);
-   }
-
-   AdminPluginService(PluginsService pluginsService, UploadService uploadService,
-                      SecurityEngine securityEngine, long installWaitMs, long installPollMs)
-   {
-      this.installWaitMs = installWaitMs;
-      this.installPollMs = installPollMs;
       this.pluginsService = pluginsService;
       this.uploadService = uploadService;
       this.securityEngine = securityEngine;
+   }
+
+   /**
+    * Shortens the install wait, for tests.
+    */
+   void setInstallWait(long waitMs, long pollMs) {
+      this.installWaitMs = waitMs;
+      this.installPollMs = pollMs;
    }
 
    public PluginsModel list(Principal principal) throws Exception {
@@ -419,8 +418,8 @@ public class AdminPluginService {
    private final PluginsService pluginsService;
    private final UploadService uploadService;
    private final SecurityEngine securityEngine;
-   private final long installWaitMs;
-   private final long installPollMs;
+   private long installWaitMs = DEFAULT_INSTALL_WAIT_MS;
+   private long installPollMs = DEFAULT_INSTALL_POLL_MS;
 
    private static final Logger LOG = LoggerFactory.getLogger(AdminPluginService.class);
 }
