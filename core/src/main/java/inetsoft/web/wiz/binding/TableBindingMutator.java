@@ -1886,8 +1886,15 @@ public final class TableBindingMutator {
     *   <li>from 4-7 (Previous Year/Quarter/Week/Month), target a date part level
     *       (month_of_year, ...) or a non-date dimension, on rows or cols: the engine throws.
     *   <li>rows only, from 4 on a year target followed by a month dimension: every cell is blank.
-    *   <li>rows only, from 7 on a year target: every cell is blank.
+    *   <li>on rows or cols, a shift that is not a whole number of the target's buckets (Bug
+    *       #80016): the engine looks the shifted date up among the target's own values, which are
+    *       one bucket apart, so no key matches and every cell is blank. That is year with from
+    *       5/6/7, quarter with from 6/7, and month with from 6. Week and finer are never refused.
     * </ul>
+    *
+    * A full-date target nested under an outer full-date dimension with from 4/5 is probably
+    * blank too (the lookup keeps the outer value) but that is not verified, so it only adds a
+    * warning to {@link #drainNotes}.
     *
     * @throws IllegalArgumentException naming the field, the calculator and the level
     */
@@ -1948,6 +1955,7 @@ public final class TableBindingMutator {
          String where = "'" + (dim.getFullName() != null ? dim.getFullName() : dim.getColumnValue()) + "'";
          boolean onRows = axis == rows;
          String reason = null;
+         String advice = null;
 
          if(level == LEVEL_NON_DATE) {
             reason = where + " is not a date";
@@ -1956,10 +1964,11 @@ public final class TableBindingMutator {
             reason = where + " is bound at " + DateLevels.name(String.valueOf(level)) +
                ", a date part";
          }
-         else if(onRows && level == XConstants.YEAR_DATE_GROUP &&
-            calc.getFrom() == ValueOfCalc.PREVIOUS_MONTH)
-         {
-            reason = where + " is bound at year, so every cell would be blank";
+         else if(shiftSmallerThanBucket(level, calc.getFrom())) {
+            reason = where + " is bound at " + DateLevels.name(String.valueOf(level)) +
+               ", a bucket the " + previousName(calc.getFrom()) + " shift does not land on, so " +
+               "every cell would be blank";
+            advice = shiftAdvice(calc.getFrom());
          }
          else if(onRows && level == XConstants.YEAR_DATE_GROUP &&
             calc.getFrom() == ValueOfCalc.PREVIOUS_YEAR && followedByMonth(axis, index))
@@ -1972,9 +1981,73 @@ public final class TableBindingMutator {
             throw new IllegalArgumentException(
                "calculateInfo.from " + calc.getFrom() + " (" + previousName(calc.getFrom()) +
                ") on " + name + " cannot be computed: its calculator dimension " + reason +
-               ". Use a flat full-date level that matches the calculator (for Previous Month, " +
-               "rows = [the date field at month level], which compares January with the " +
-               "previous December) or remove the calculateInfo.");
+               (advice != null ? ". " + advice :
+                  ". Use a flat full-date level that matches the calculator (for Previous " +
+                  "Month, rows = [the date field at month level], which compares January with " +
+                  "the previous December) or remove the calculateInfo."));
+         }
+
+         warnNestedFullDateTarget(name, calc.getFrom(), axis, index, level, where);
+      }
+   }
+
+   /**
+    * Bug #80016: the (target level, from) pairs whose shift is not a whole number of the level's
+    * buckets, so the previous-date lookup never finds a key. year: 5/6/7, quarter: 6/7, month: 6.
+    */
+   private static boolean shiftSmallerThanBucket(int level, int from) {
+      return switch(level) {
+         case XConstants.YEAR_DATE_GROUP -> from == ValueOfCalc.PREVIOUS_QUARTER ||
+            from == ValueOfCalc.PREVIOUS_WEEK || from == ValueOfCalc.PREVIOUS_MONTH;
+         case XConstants.QUARTER_DATE_GROUP -> from == ValueOfCalc.PREVIOUS_WEEK ||
+            from == ValueOfCalc.PREVIOUS_MONTH;
+         case XConstants.MONTH_DATE_GROUP -> from == ValueOfCalc.PREVIOUS_WEEK;
+         default -> false;
+      };
+   }
+
+   private static String shiftAdvice(int from) {
+      return switch(from) {
+         case ValueOfCalc.PREVIOUS_QUARTER ->
+            "Bind the date at quarter level or finer so the Previous Quarter value exists, use " +
+            "from 4 (Previous Year) on a year dimension, or remove the calculateInfo.";
+         case ValueOfCalc.PREVIOUS_WEEK ->
+            "Bind the date at day level so the Previous Week value exists, or remove the " +
+            "calculateInfo.";
+         default ->
+            "Bind the date at month level or finer (rows = [the date field at month level] " +
+            "compares January with the previous December), use from 4 (Previous Year) on a " +
+            "year dimension, or remove the calculateInfo.";
+      };
+   }
+
+   /**
+    * Warns, without refusing, about a quarter or month target with from 4/5 that sits after an
+    * outer full-date dimension: the previous-period lookup replaces only the target value of the
+    * tuple, so the shifted date probably has no key. Inferred from the year + month rule, not
+    * verified live. From 7 on an inner month is deliberately not warned (it computes, with a
+    * blank January).
+    */
+   private static void warnNestedFullDateTarget(String name, int from, List<BDimensionRefModel> axis,
+                                                int index, int level, String where)
+   {
+      if((level != XConstants.QUARTER_DATE_GROUP && level != XConstants.MONTH_DATE_GROUP) ||
+         from != ValueOfCalc.PREVIOUS_YEAR && from != ValueOfCalc.PREVIOUS_QUARTER)
+      {
+         return;
+      }
+
+      for(int i = 0; i < index; i++) {
+         int outer = calculatorTargetLevel(axis.get(i));
+
+         if(outer != LEVEL_UNKNOWN && outer != LEVEL_NON_DATE &&
+            (outer & XConstants.PART_DATE_GROUP) == 0 && outer != XConstants.NONE_DATE_GROUP)
+         {
+            notes().add(WARNING_PREFIX + "calculateInfo.from " + from + " (" + previousName(from) +
+               ") on " + name + " may render blank: " + where + " is a full-date dimension " +
+               "nested under another full-date dimension, and the previous-period lookup keeps " +
+               "the outer value. Check the result; a flat date dimension computes.");
+            return;
          }
       }
    }

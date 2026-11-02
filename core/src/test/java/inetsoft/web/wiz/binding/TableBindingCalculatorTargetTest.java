@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TableBindingCalculatorTargetTest {
    private static final int YEAR = XConstants.YEAR_DATE_GROUP;
    private static final int MONTH = XConstants.MONTH_DATE_GROUP;
+   private static final int QUARTER = XConstants.QUARTER_DATE_GROUP;
    private static final int MOY = XConstants.MONTH_OF_YEAR_DATE_GROUP;
 
    private static BDimensionRefModel date(String name, int level) {
@@ -148,11 +149,120 @@ class TableBindingCalculatorTargetTest {
                        true));
    }
 
+   /**
+    * Bug #80016 flips the second assertion of the former rowsOnlyRulesAreNotClaimedOnColumns:
+    * cols [year, MOY] with from 7 on the year target was pinned as allowed, but it is blank live
+    * (the year bucket has keys only 12 months apart), exactly like the rows shape. The year +
+    * from 4 + month dimension after it rule stays rows only: it was never verified on cols.
+    */
    @Test
-   void rowsOnlyRulesAreNotClaimedOnColumns() {
+   void theYearFromSevenRuleNowAppliesToColsToo() {
       allowed(crosstab(List.of(), List.of(date("Year", YEAR), date("Month", MONTH)), 4, "Year",
                        true));
-      allowed(crosstab(List.of(), List.of(date("Year", YEAR), date("MOY", MOY)), 7, "Year", true));
+      refused(crosstab(List.of(), List.of(date("Year", YEAR), date("MOY", MOY)), 7, "Year", true),
+              "from 7", "year");
+   }
+
+   /** Bug #80016: the shapes that rendered an all-blank column although #79450 left them allowed. */
+   @Test
+   void aShiftSmallerThanTheBucketIsRefusedOnRowsAndCols() {
+      // S1: rows [year] + from 5 (Previous Quarter)
+      refused(crosstab(List.of(date("Year", YEAR)), List.of(), 5, null, true),
+              "Sum(Total)", "from 5", "Previous Quarter", "year", "blank");
+      // S2: rows [month] + from 6 (Previous Week)
+      refused(crosstab(List.of(date("Month", MONTH)), List.of(), 6, null, true),
+              "from 6", "Previous Week", "month", "blank");
+      // S3: cols [year] + from 7 (Previous Month)
+      refused(crosstab(List.of(), List.of(date("Year", YEAR)), 7, null, true),
+              "from 7", "Previous Month", "year", "blank");
+
+      refused(crosstab(List.of(date("Year", YEAR)), List.of(), 6, null, true), "from 6");
+      refused(crosstab(List.of(), List.of(date("Year", YEAR)), 5, null, true), "from 5");
+      refused(crosstab(List.of(date("Year", YEAR)), List.of(), 7, null, true), "from 7");
+      refused(crosstab(List.of(date("Qtr", QUARTER)), List.of(), 6, null, true), "from 6",
+              "quarter");
+      refused(crosstab(List.of(date("Qtr", QUARTER)), List.of(), 7, null, true), "from 7",
+              "quarter");
+      refused(crosstab(List.of(), List.of(date("Qtr", QUARTER)), 7, null, true), "quarter");
+      refused(crosstab(List.of(), List.of(date("Month", MONTH)), 6, null, true), "month");
+   }
+
+   @Test
+   void theValueOfCalculatorIsRefusedToo() {
+      refused(crosstab(List.of(date("Year", YEAR)), List.of(), 5, null, false), "from 5");
+   }
+
+   @Test
+   void aShiftThatIsAWholeNumberOfBucketsStillComputes() {
+      allowed(crosstab(List.of(date("Year", YEAR)), List.of(), 4, null, true));
+      allowed(crosstab(List.of(), List.of(date("Year", YEAR)), 4, null, true));
+      allowed(crosstab(List.of(date("Qtr", QUARTER)), List.of(), 4, null, true));
+      allowed(crosstab(List.of(date("Qtr", QUARTER)), List.of(), 5, null, true));
+      allowed(crosstab(List.of(date("Month", MONTH)), List.of(), 4, null, true));
+      allowed(crosstab(List.of(date("Month", MONTH)), List.of(), 5, null, true));
+      allowed(crosstab(List.of(date("Month", MONTH)), List.of(), 7, null, true));
+      allowed(crosstab(List.of(), List.of(date("Month", MONTH)), 7, null, true));
+   }
+
+   /** Week and finer are not claimed: the week bucket was not demonstrated blank. */
+   @Test
+   void weekAndFinerTargetsAreNeverRefused() {
+      for(int level : new int[] { XConstants.WEEK_DATE_GROUP, XConstants.DAY_DATE_GROUP,
+                                  XConstants.HOUR_DATE_GROUP, XConstants.NONE_DATE_GROUP })
+      {
+         for(int from = 4; from <= 7; from++) {
+            allowed(crosstab(List.of(date("D", level)), List.of(), from, null, true));
+            allowed(crosstab(List.of(), List.of(date("D", level)), from, null, true));
+         }
+      }
+   }
+
+   @Test
+   void theAdviceMatchesTheShiftNotOnlyPreviousMonth() {
+      IllegalArgumentException quarter = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.refuseUnsupportedCalculatorTarget(
+            crosstab(List.of(date("Year", YEAR)), List.of(), 5, null, true)));
+      assertTrue(quarter.getMessage().contains("quarter level"), quarter.getMessage());
+      assertFalse(quarter.getMessage().contains("previous December"), quarter.getMessage());
+
+      IllegalArgumentException week = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.refuseUnsupportedCalculatorTarget(
+            crosstab(List.of(date("Month", MONTH)), List.of(), 6, null, true)));
+      assertTrue(week.getMessage().contains("day level"), week.getMessage());
+      assertFalse(week.getMessage().contains("previous December"), week.getMessage());
+      assertTrue(week.getMessage().contains("remove the calculateInfo"), week.getMessage());
+   }
+
+   /**
+    * A finer full-date dimension nested under an outer full-date one probably renders blank for a
+    * from 4/5 shift too (the lookup keeps the outer value), but that is inferred, not verified:
+    * it is allowed with a warning, never refused.
+    */
+   @Test
+   void aNestedFullDateTargetIsAllowedWithAWarning() {
+      TableBindingMutator.drainNotes();
+      allowed(crosstab(List.of(date("Year", YEAR), date("Qtr", QUARTER)), List.of(), 5, null,
+                       true));
+      List<String> notes = TableBindingMutator.drainNotes();
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).startsWith(TableBindingMutator.WARNING_PREFIX), notes.get(0));
+      assertTrue(notes.get(0).contains("may render blank"), notes.get(0));
+      assertTrue(notes.get(0).contains("Sum(Total)"), notes.get(0));
+
+      allowed(crosstab(List.of(date("Year", YEAR), date("Month", MONTH)), List.of(), 4, null,
+                       true));
+      assertEquals(1, TableBindingMutator.drainNotes().size());
+   }
+
+   @Test
+   void noWarningForAFlatTargetOrTheInnerMonthFromSeven() {
+      TableBindingMutator.drainNotes();
+      allowed(crosstab(List.of(date("Qtr", QUARTER)), List.of(), 5, null, true));
+      // inner month under year, from 7: computes, only January is blank
+      allowed(crosstab(List.of(date("Year", YEAR), date("Month", MONTH)), List.of(), 7, null,
+                       true));
+      allowed(crosstab(List.of(date("Year", YEAR), date("MOY", MOY)), List.of(), 4, "Year", true));
+      assertEquals(List.of(), TableBindingMutator.drainNotes());
    }
 
    @Test
