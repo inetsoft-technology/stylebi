@@ -955,6 +955,13 @@ public class ScriptExecuteService {
          for(String root : topLevelRoots(e.getValue())) {
             index.computeIfAbsent(root, k -> new LinkedHashSet<>()).add(e.getKey());
          }
+
+         // Bug #80053: an entry whose global-install shape the scan above cannot resolve is
+         // indexed under every name it mentions, so a script calling whatever namespace it
+         // installs is gated instead of silently run.
+         for(String name : opaqueInstallNames(e.getValue())) {
+            index.computeIfAbsent(name, k -> new LinkedHashSet<>()).add(e.getKey());
+         }
       }
 
       Deque<String> work = new ArrayDeque<>(identifiers(stripCommentsAndStrings(scriptText, true), true));
@@ -1021,6 +1028,72 @@ public class ScriptExecuteService {
       }
 
       return sources;
+   }
+
+   // Bug #80053: constructs through which a library entry can bind a name on the global object in
+   // ways the frame scan in collectRoots does not follow (an alias used from a nested function,
+   // an installer function or arrow called with the global, a conditional/UMD root, a comma or
+   // keyword-prefixed IIFE, defineProperty/Reflect/eval/Function, a computed key). Any reference
+   // to the global object or to one of these APIs makes the entry "opaque".
+   private static final Pattern OPAQUE_INSTALL_MARKER = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(?:this|globalThis|window|self)(?![\\p{L}\\p{M}\\p{N}_$])|" +
+      "\\bReflect\\s*\\.|\\bdefineProperties?\\b|\\bsetPrototypeOf\\b|\\beval\\s*\\(|" +
+      "\\bFunction\\s*\\(");
+   private static final Pattern DIRECT_GLOBAL_ASSIGN = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(?:globalThis|window|self)\\s*\\.\\s*[\\p{L}_$][\\p{L}\\p{N}_$]*\\s*=(?!=)");
+   // catch parameters, function parameter lists and var/let/const names are locals, not globals
+   private static final Pattern LOCAL_DECLARATION = Pattern.compile(
+      "(?:\\bcatch\\s*\\(|\\bfunction\\b[^(]*\\(|\\b(?:var|let|const)\\s+)([\\p{L}\\p{N}_$,\\s]*)");
+   private static final Set<String> JS_RESERVED = Set.of(
+      "window", "globalThis", "self", "Reflect",
+      "var", "let", "const", "function", "return", "if", "else", "for", "while", "do", "switch",
+      "case", "default", "break", "continue", "new", "delete", "typeof", "instanceof", "in", "of",
+      "void", "this", "null", "true", "false", "undefined", "try", "catch", "finally", "throw",
+      "async", "await", "yield", "class", "extends", "super", "with", "static", "get", "set");
+
+   /**
+    * Bug #80053: the conservative fail-safe for global-install shapes the structured scan cannot
+    * resolve. A sound answer to "which names does this entry bind on the global object" needs a
+    * real parse; short of one, an entry that touches the global object (or reflects/evals) is
+    * treated as exposing every identifier it mentions. Over-gating is the safe failure mode: the
+    * names only matter when the entry reaches a destructive global, and the cost is one
+    * confirmation, never a silently run destructive call.
+    */
+   private static Set<String> opaqueInstallNames(String source) {
+      Set<String> names = new LinkedHashSet<>();
+
+      try {
+         // a direct "<global>.Name = ..." is already followed precisely by collectRoots
+         String marked = DIRECT_GLOBAL_ASSIGN.matcher(stripCommentsAndStrings(source, false))
+            .replaceAll(" ");
+
+         if(!OPAQUE_INSTALL_MARKER.matcher(marked).find()) {
+            return names;
+         }
+
+         Set<String> locals = new HashSet<>();
+         Matcher d = LOCAL_DECLARATION.matcher(marked);
+
+         while(d.find()) {
+            for(String part : d.group(1).split("[,\s]+")) {
+               locals.add(part);
+            }
+         }
+
+         // the unstripped source, so a computed key (var k = "Ns"; this[k] = ...) is covered
+         Matcher m = IDENTIFIER.matcher(source);
+
+         while(m.find()) {
+            if(!JS_RESERVED.contains(m.group()) && !locals.contains(m.group())) {
+               names.add(m.group());
+            }
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Could not scan a Script Library entry for opaque global installs", ex);
+      }
+
+      return names;
    }
 
    private static Set<String> declaredFunctions(String source) {
@@ -1476,6 +1549,13 @@ public class ScriptExecuteService {
             // its catch body in EVERY frame kind, IIFE or not -- recorded directly on this block's
             // own frame (not routed through the var/let/const declaration scan, which never visits
             // "catch (...)" at all).
+            // Bug #80053: likewise a for header's let/const (for (let C = 0; ...), for-in/of) is
+            // block-scoped to the loop body; the header frame is popped before the body opens, so
+            // it must be recorded here or C reads as a global root.
+            if("for".equals(word)) {
+               addForHeaderDeclarations(text, match[p] + 1, p, frame.locals);
+            }
+
             if("catch".equals(word)) {
                int paramStart = skipWhitespaceForward(text, match[p] + 1);
 
@@ -1634,6 +1714,40 @@ public class ScriptExecuteService {
       }
 
       return frame;
+   }
+
+   private static final Pattern FOR_HEADER_DECL = Pattern.compile("\\b(?:let|const)\\b");
+
+   /** Names declared by a for header's let/const clauses between {@code from} and {@code to}. */
+   private static void addForHeaderDeclarations(String text, int from, int to, Set<String> locals) {
+      String header = text.substring(from, to);
+      Matcher decl = FOR_HEADER_DECL.matcher(header);
+
+      if(!decl.find()) {
+         return;
+      }
+
+      int start = decl.end();
+      int end = header.length();
+      int semi = header.indexOf(';', start);
+      Matcher ofIn = Pattern.compile("\\s(?:of|in)\\s").matcher(header);
+      ofIn.region(start, header.length());
+
+      if(semi >= 0) {
+         end = semi;
+      }
+      else if(ofIn.find()) {
+         end = ofIn.start();
+      }
+
+      for(String declarator : splitTopLevel(header, start, end)) {
+         int eq = declarator.indexOf('=');
+         Matcher id = IDENTIFIER.matcher(eq >= 0 ? declarator.substring(0, eq) : declarator);
+
+         while(id.find()) {
+            locals.add(id.group());
+         }
+      }
    }
 
    /**
