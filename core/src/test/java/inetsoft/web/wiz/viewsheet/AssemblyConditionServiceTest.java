@@ -458,7 +458,7 @@ class AssemblyConditionServiceTest {
 
    @Test
    void acceptsAnSqlExpressionThatEvaluates() throws Exception {
-      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult(null, null));
+      Harness h = harness(model(), (exp, box) -> value(11));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
          "tok", principal(), "Table1", List.of(expression("10 + 1", "sql")), "");
@@ -467,6 +467,85 @@ class AssemblyConditionServiceTest {
       assertTrue(result.warnings().isEmpty());
    }
 
+
+   private static final java.util.regex.Pattern NULL_RESULT = java.util.regex.Pattern.compile(
+      "(evaluat|return|result|yield)\\w*[^.]*(null|NaN|undefined|no value)",
+      java.util.regex.Pattern.CASE_INSENSITIVE);
+
+   /** Bug #79976: an expression that runs but yields null/NaN is applied with a warning. */
+   @Test
+   void warnsWhenAnExpressionEvaluatesToNullWithoutThrowing() throws Exception {
+      Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult(null, null));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("null", "js")), "");
+
+      assertEquals(1, result.applied());
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+      assertTrue(result.warnings().get(0).contains("'null'"), result.warnings().get(0));
+      assertTrue(NULL_RESULT.matcher(result.warnings().get(0)).find(), result.warnings().get(0));
+   }
+
+   @Test
+   void warnsWhenAnExpressionEvaluatesToAOneElementListHoldingNull() throws Exception {
+      Harness h = harness(model(), (exp, box) -> value(new Object[] { null }));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("[null]", "js")), "");
+
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+   }
+
+   @Test
+   void doesNotWarnWhenAnExpressionEvaluatesToANumber() throws Exception {
+      Harness h = harness(model(), (exp, box) -> value(10.5254));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("10.5254", "js")), "");
+
+      assertEquals(1, result.applied());
+      assertTrue(result.warnings().isEmpty(), result.warnings().toString());
+   }
+
+   /** An unset parameter is a designed skip (the renderer compares the column with itself). */
+   @Test
+   void doesNotWarnWhenTheNullComesFromAnUnsetParameter() throws Exception {
+      inetsoft.report.composition.execution.AssetQuerySandbox sandbox =
+         mock(inetsoft.report.composition.execution.AssetQuerySandbox.class);
+      when(sandbox.getVariableTable()).thenReturn(new inetsoft.uql.VariableTable());
+
+      for(String[] c : new String[][] { { "parameter.foo + 1", "js" }, { "$(foo)", "sql" } }) {
+         Harness h = harness(model(), (exp, box) -> {
+            when(box.getAssetQuerySandbox()).thenReturn(sandbox);
+            return new VSAQuery.ExpressionResult(null, null);
+         });
+
+         AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+            "tok", principal(), "Table1", List.of(expression(c[0], c[1])), "");
+
+         assertEquals(1, result.applied());
+         assertTrue(result.warnings().isEmpty(), c[0] + " " + result.warnings());
+      }
+   }
+
+   /** A parameter that has a value does run, so a null result is a real one. */
+   @Test
+   void warnsWhenTheNullComesFromAParameterThatIsSet() throws Exception {
+      inetsoft.uql.VariableTable vars = new inetsoft.uql.VariableTable();
+      vars.put("foo", "x");
+      inetsoft.report.composition.execution.AssetQuerySandbox sandbox =
+         mock(inetsoft.report.composition.execution.AssetQuerySandbox.class);
+      when(sandbox.getVariableTable()).thenReturn(vars);
+      Harness h = harness(model(), (exp, box) -> {
+         when(box.getAssetQuerySandbox()).thenReturn(sandbox);
+         return new VSAQuery.ExpressionResult(null, null);
+      });
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("parameter.foo * 2", "js")), "");
+
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+   }
    @Test
    void refusesAnSqlExpressionThatFailsWithTheJavaScriptNote() throws Exception {
       Harness h = harness(model(), (exp, box) -> new VSAQuery.ExpressionResult("ReferenceError: NOSUCHFN is not defined", null));
