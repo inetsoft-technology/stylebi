@@ -561,9 +561,14 @@ public class ProviderChangePlanService {
       builder.rootDN(spec.getRootDN() != null ? spec.getRootDN() : current.rootDN());
       builder.useCredential(spec.getUseCredential() != null ? spec.getUseCredential() :
                             current.useCredential());
-      builder.adminID(spec.getAdminID() != null ? spec.getAdminID() : current.adminID());
-      builder.secretId(spec.getSecretId() != null ? spec.getSecretId() : current.secretId());
-      builder.password(spec.getPassword() != null ? spec.getPassword() : current.password());
+      boolean ldapSecretMode = spec.getUseCredential() != null ? spec.getUseCredential() :
+         current.useCredential();
+      builder.adminID(spec.getAdminID() != null ? spec.getAdminID() :
+                      ldapSecretMode ? null : current.adminID());
+      builder.secretId(spec.getSecretId() != null ? spec.getSecretId() :
+                       ldapSecretMode ? current.secretId() : null);
+      builder.password(spec.getPassword() != null ? spec.getPassword() :
+                       ldapSecretMode ? null : current.password());
       builder.userFilter(spec.getUserFilter() != null ? spec.getUserFilter() : current.userFilter());
       builder.userBase(spec.getUserBase() != null ? spec.getUserBase() : current.userBase());
       builder.userAttr(spec.getUserAttr() != null ? spec.getUserAttr() : current.userAttr());

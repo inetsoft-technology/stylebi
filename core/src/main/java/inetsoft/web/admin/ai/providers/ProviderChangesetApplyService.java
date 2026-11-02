@@ -271,11 +271,14 @@ public class ProviderChangesetApplyService {
          tryGet(() -> authenticationProviderService.getAuthenticationProvider(name),
                list -> indexOfName(list, name) >= 0,
                authenticationProviderService.getProviderListModel().providers());
-      boolean verified = after != null;
+      AuthenticationProviderModel expected = builder.build();
+      boolean found = after != null;
+      boolean verified = found && credentialModeMatches(expected, after);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
-      String afterProjection = verified ? ProviderProjection.projectAuthenticationProvider(after) : null;
+      String afterProjection = found ? ProviderProjection.projectAuthenticationProvider(after) : null;
       results.add(new ProviderApplyOutcome(key, null, afterProjection, status,
-                                           verified ? null : "provider not found after create", null));
+                                           verified ? null : found ? CREDENTIAL_MODE_MISMATCH :
+                                              "provider not found after create", null));
       writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
                 null, afterProjection, status, backupRef, reviewOutcome, user);
 
@@ -389,11 +392,13 @@ public class ProviderChangesetApplyService {
          tryGet(() -> authenticationProviderService.getAuthenticationProvider(newName),
                list -> indexOfName(list, newName) >= 0,
                authenticationProviderService.getProviderListModel().providers());
-      boolean verified = after != null;
+      boolean found = after != null;
+      boolean verified = found && credentialModeMatches(duplicated, after);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
-      String afterProjection = verified ? ProviderProjection.projectAuthenticationProvider(after) : null;
+      String afterProjection = found ? ProviderProjection.projectAuthenticationProvider(after) : null;
       results.add(new ProviderApplyOutcome(key, null, afterProjection, status,
-                                           verified ? null : "duplicated provider not found after create",
+                                           verified ? null : found ? CREDENTIAL_MODE_MISMATCH :
+                                              "duplicated provider not found after create",
                                            null));
       writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
                 null, afterProjection, status, backupRef, reviewOutcome, user);
@@ -471,6 +476,31 @@ public class ProviderChangesetApplyService {
       if(verified) {
          undoable.add(Undo.createdAuthorization(key, newName));
       }
+   }
+
+   private static final String CREDENTIAL_MODE_MISMATCH =
+      "provider read back with a different credential mode (useCredential/secretId) than proposed";
+
+   /** True when the read-back provider carries the same credential mode (useCredential and, when
+    * true, secretId) as the proposed model. Non-LDAP/DATABASE providers always match. */
+   private static boolean credentialModeMatches(AuthenticationProviderModel expected,
+                                                AuthenticationProviderModel after)
+   {
+      if(expected.ldapProviderModel() != null && after.ldapProviderModel() != null) {
+         LdapAuthenticationProviderModel e = expected.ldapProviderModel();
+         LdapAuthenticationProviderModel a = after.ldapProviderModel();
+         return e.useCredential() == a.useCredential() &&
+            (!e.useCredential() || Objects.equals(e.secretId(), a.secretId()));
+      }
+
+      if(expected.dbProviderModel() != null && after.dbProviderModel() != null) {
+         DatabaseAuthenticationProviderModel e = expected.dbProviderModel();
+         DatabaseAuthenticationProviderModel a = after.dbProviderModel();
+         return e.useCredential() == a.useCredential() &&
+            (!e.useCredential() || Objects.equals(e.secretId(), a.secretId()));
+      }
+
+      return true;
    }
 
    private static LdapAuthenticationProviderModel buildLdapModel(ProviderLdapSpec spec) {
@@ -646,11 +676,13 @@ public class ProviderChangesetApplyService {
          tryGet(() -> authenticationProviderService.getAuthenticationProvider(name),
                list -> indexOfName(list, name) >= 0,
                authenticationProviderService.getProviderListModel().providers());
-      boolean verified = after != null;
+      boolean found = after != null;
+      boolean verified = found && credentialModeMatches(proposed, after);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
-      String afterProjection = verified ? ProviderProjection.projectAuthenticationProvider(after) : null;
+      String afterProjection = found ? ProviderProjection.projectAuthenticationProvider(after) : null;
       results.add(new ProviderApplyOutcome(key, beforeProjection, afterProjection, status,
-                                           verified ? null : "provider not found after update", null));
+                                           verified ? null : found ? CREDENTIAL_MODE_MISMATCH :
+                                              "provider not found after update", null));
       writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
                 beforeProjection, afterProjection, status, backupRef, reviewOutcome, user);
 
