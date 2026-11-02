@@ -645,6 +645,64 @@ public class VSLayoutTool extends LayoutTool {
    }
 
    /**
+    * Find an aggregate whose header carries a percent calculator prefix. A PercentCalc is a
+    * calculator on the VSAggregateRef, not the legacy percentage option, so
+    * {@link #findAggregateRef} skips it. The returned ref carries the legacy percentage option the
+    * calculator stands for (of group / of grand total), so a freehand cell built from it keeps the
+    * percent semantic instead of silently turning into a plain sum.
+    *
+    * @param vrefs the runtime aggregates of the crosstab.
+    * @param refs  the aggregate refs created from {@code vrefs}, in the same order.
+    * @param name  the measure header to match.
+    *
+    * @return the matching ref, or null if no percent calculator produced that header.
+    *
+    * @throws IllegalArgumentException if the calculator is a percent of a specific dimension,
+    *         which the freehand table cannot express.
+    */
+   public static AggregateRef findPercentCalcAggregateRef(DataRef[] vrefs, AggregateRef[] refs,
+                                                          String name)
+   {
+      if(vrefs == null || refs == null || name == null) {
+         return null;
+      }
+
+      for(int i = 0; i < refs.length && i < vrefs.length; i++) {
+         if(!(vrefs[i] instanceof VSAggregateRef) || refs[i] == null ||
+            !(((VSAggregateRef) vrefs[i]).getCalculator() instanceof PercentCalc))
+         {
+            continue;
+         }
+
+         PercentCalc calc = (PercentCalc) ((VSAggregateRef) vrefs[i]).getCalculator();
+         String prefix = calc.getPrefix();
+
+         if(!Tool.equals(prefix + BindingTool.getFieldName(refs[i]), name) &&
+            !Tool.equals(prefix + guessPreferName(refs, refs[i], i), name) &&
+            !Tool.equals(prefix + refs[i].getName(), name))
+         {
+            continue;
+         }
+
+         String column = calc.getColumnName();
+
+         if(column != null && !column.isEmpty()) {
+            throw new IllegalArgumentException(
+               "The percent calculator on '" + vrefs[i].getName() + "' is a percent of '" + column +
+               "', which a freehand table cannot express. Remove the calculator (clear " +
+               "calculateInfo) before converting, or use a percent of grand total / sub total.");
+         }
+
+         refs[i].setPercentage(true);
+         refs[i].setPercentageOption(calc.getLevel() == PercentCalc.SUB_TOTAL ?
+            XConstants.PERCENTAGE_OF_GROUP : XConstants.PERCENTAGE_OF_GRANDTOTAL);
+         return refs[i];
+      }
+
+      return null;
+   }
+
+   /**
     * Find a field by its name from the specifield fields idx.
     */
    private static int findAttributeIndex(DataRef[] refs, String name) {

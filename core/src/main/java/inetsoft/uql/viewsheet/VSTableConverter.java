@@ -421,9 +421,20 @@ public class VSTableConverter extends TableConverter {
                aref = VSLayoutTool.findAggregateRef(arefs, realName, perBy);
             }
 
+            if(aref == null) {
+               aref = VSLayoutTool.findPercentCalcAggregateRef(
+                  cinfo.getRuntimeAggregates(), arefs, realName);
+            }
+
             if(arefs == null || arefs.length == 0) {
                nbinding.setExpansion(TableCellBinding.EXPAND_V);
                continue;
+            }
+
+            if(aref == null) {
+               throw new IllegalArgumentException(
+                  "Cannot convert '" + assembly.getName() + "' to a freehand table: the " +
+                  "measure '" + realName + "' does not match any aggregate of the crosstab.");
             }
 
             int percent = aref.getPercentageOption();
