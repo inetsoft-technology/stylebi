@@ -192,6 +192,20 @@ class ImportAssetOwnershipTest {
    }
 
    @Test
+   void unknownImportIdReportsStagedImportNotFound() {
+      assertThrows(StagedImportNotFoundException.class,
+                   () -> service.getJarFileInfo("no-such-import", owner));
+   }
+
+   @Test
+   void foreignOwnedImportIdReportsStagedImportNotFound() {
+      putOwnerContext();
+
+      assertThrows(StagedImportNotFoundException.class,
+                   () -> service.getJarFileInfo(ID, foreignOrgAdmin));
+   }
+
+   @Test
    void ownerOrgMatchIgnoresCase() throws Exception {
       putOwnerContext();
 

@@ -17,13 +17,23 @@
  */
 package inetsoft.web.admin.ai.repository;
 
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.web.admin.ai.AdminBackupService;
+import inetsoft.web.admin.content.repository.ImportAssetServiceProxy;
+import inetsoft.web.admin.content.repository.StagedImportNotFoundException;
 import inetsoft.web.admin.content.repository.model.RequiredAssetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.security.Principal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Tag("core")
 class RepositoryImportChangePlanServiceTest {
@@ -72,5 +82,75 @@ class RepositoryImportChangePlanServiceTest {
          List.of(asset("A", 1)), List.of()).isEmpty());
       assertTrue(RepositoryImportChangePlanService.ignoreListIndices(
          List.of(asset("A", 1)), null).isEmpty());
+   }
+
+   // ---- Bug #79937: an unknown/expired stagingToken must be a designed 400, not a 500 ----
+
+   private static final String DESIGNED = "stagingToken: no staged import found for this token";
+
+   private final ImportAssetServiceProxy importService = mock(ImportAssetServiceProxy.class);
+   private final Principal principal = mock(Principal.class);
+   private final RepositoryImportChangePlanService planService =
+      new RepositoryImportChangePlanService(importService, mock(AssetRepository.class));
+
+   private static RepositoryImportRequest request(String targetFolderPath) {
+      RepositoryImportRequest req = new RepositoryImportRequest();
+      req.setTask("t");
+      req.setStagingToken("gone");
+      req.setTargetFolderPath(targetFolderPath);
+      return req;
+   }
+
+   private static StagedImportNotFoundException notFound() {
+      return new StagedImportNotFoundException("Current session is missing the imported jar info.");
+   }
+
+   private void assertDesigned400(RepositoryImportRequest req) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> planService.resolve(req, principal));
+      assertTrue(e.getMessage().startsWith(DESIGNED), e.getMessage());
+   }
+
+   @Test
+   void previewWithUnknownTokenIsADesigned400() throws Exception {
+      when(importService.getJarFileInfo(eq("gone"), any())).thenThrow(notFound());
+      assertDesigned400(request(null));
+   }
+
+   @Test
+   void previewWithTargetFolderAndUnknownTokenIsADesigned400() throws Exception {
+      when(importService.getJarFileInfo(eq("gone"), any())).thenThrow(notFound());
+      assertDesigned400(request("/Some/Folder"));
+   }
+
+   @Test
+   void unknownTokenWrappedByTheClusterProxyIsStillADesigned400() throws Exception {
+      when(importService.getJarFileInfo(eq("gone"), any()))
+         .thenThrow(new RuntimeException("proxy call failed", notFound()));
+      assertDesigned400(request(null));
+   }
+
+   @Test
+   void unrelatedIllegalStateIsNotMistakenForAnUnknownToken() throws Exception {
+      when(importService.getJarFileInfo(eq("gone"), any()))
+         .thenThrow(new IllegalStateException("boom"));
+      assertThrows(IllegalStateException.class, () -> planService.resolve(request(null), principal));
+   }
+
+   @Test
+   void applyWithUnknownTokenIsADesigned400BeforeAnythingIsWritten() throws Exception {
+      when(importService.getJarFileInfo(eq("gone"), any())).thenThrow(notFound());
+      AdminBackupService backup = mock(AdminBackupService.class);
+      AdminAssetImportApplyService apply =
+         new AdminAssetImportApplyService(planService, importService, backup);
+      RepositoryImportApplyRequest req = new RepositoryImportApplyRequest();
+      req.setTask("t");
+      req.setStagingToken("gone");
+      req.setPlanHash("h");
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> apply.apply(req, principal));
+      assertTrue(e.getMessage().startsWith(DESIGNED), e.getMessage());
+      org.mockito.Mockito.verifyNoInteractions(backup);
    }
 }
