@@ -5558,7 +5558,7 @@ public final class XUtil {
                }
 
                if(message != null) {
-                  throw new ScriptException(message);
+                  throw new PermissionDeniedException(message);
                }
             }
             // @by jasonshobe, fix bug1400096326732: don't check permissions if
@@ -5588,7 +5588,7 @@ public final class XUtil {
                   }
 
                   if(message != null) {
-                     throw new ScriptException(message);
+                     throw new PermissionDeniedException(message);
                   }
                }
             }
@@ -5626,7 +5626,15 @@ public final class XUtil {
             queryRecord.setExecError(ex.getMessage());
          }
 
-         LOG.error("Failed to run query: " + name, ex);
+         if(ex instanceof PermissionDeniedException) {
+            // expected, user-facing condition (reported via addUserWarning or rethrow)
+            LOG.warn("Failed to run query: {}: {}", name, ex.getMessage());
+            LOG.debug("Failed to run query: {}", name, ex);
+         }
+         else {
+            LOG.error("Failed to run query: " + name, ex);
+         }
+
 
          if(ex instanceof ScriptException) {
             // vs
@@ -6682,6 +6690,16 @@ public final class XUtil {
 
    private static final class PartitionCacheHolder {
       static final DataCache<String, XPartition> CACHE = new DataCache<>(5, 1000);
+   }
+
+   /**
+    * Marks the permission denial thrown by runQuery, so its catch can tell an expected denial
+    * from any other failure (worksheet script failures are also ScriptExceptions).
+    */
+   private static final class PermissionDeniedException extends ScriptException {
+      PermissionDeniedException(String message) {
+         super(message);
+      }
    }
 
    @FunctionalInterface
