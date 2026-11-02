@@ -3604,6 +3604,12 @@ public class LayoutTool {
       return col;
    }
 
+   private static int indexOfQuote(String str) {
+      int single = str.indexOf('\'');
+      int dbl = str.indexOf('"');
+      return single == -1 ? dbl : dbl == -1 ? single : Math.min(single, dbl);
+   }
+
    /**
     * Cut a script down to its first call, dropping anything chained after the matching closing
     * parenthesis, e.g. toList(data['*'],'field=a').map(function(v) { return v; }) becomes
@@ -3675,6 +3681,13 @@ public class LayoutTool {
             if(idx != -1) {
                fname = value.substring(idx + key.length());
                int end = fname.indexOf(",");
+               int quote = indexOfQuote(fname);
+
+               // a value already cut at its last parenthesis keeps the text of a chained call
+               // after the closing quote of the option string
+               if(quote != -1 && (end == -1 || quote < end)) {
+                  end = quote;
+               }
 
                if(end != -1) {
                   fname = fname.substring(0, end);

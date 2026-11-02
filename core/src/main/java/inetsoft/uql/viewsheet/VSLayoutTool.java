@@ -592,7 +592,9 @@ public class VSLayoutTool extends LayoutTool {
       }
 
       if(ref == null) {
-         String fname = getFieldNameByScript(value);
+         // the raw script, not value: value has been cut at its last ")" above, which keeps the
+         // text of a call chained after toList(...) in the middle of the field= option
+         String fname = getFieldNameByScript(binding.getValue());
 
          if(fname != null && !Tool.equals(fname, cname)) {
             ref = findAttribute(table, binding, fname);

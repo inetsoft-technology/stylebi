@@ -97,6 +97,15 @@ class LayoutToolFieldNameByScriptTest {
    }
 
    @Test
+   void valueAlreadyCutAtLastParenthesisKeepsTheColumn() {
+      // VSLayoutTool.getOriginalColumn cuts a binding value at its last ")" before the lookup
+      assertEquals(COL, LayoutTool.getFieldNameByScript(
+         "data['*'],'sort=asc,field=Customer:Region').map(function(v){ return v; }"));
+      assertEquals(COL, LayoutTool.getFieldNameByScript(
+         "data['*'],'sort=asc,field=Customer:Region'"));
+   }
+
+   @Test
    void unbalancedScriptFallsBackToOldBehavior() {
       assertEquals(COL, LayoutTool.getFieldNameByScript(
          "toList(data['*'],'sort=asc,field=Customer:Region'"));
