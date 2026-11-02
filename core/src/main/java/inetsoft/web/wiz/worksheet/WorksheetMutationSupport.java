@@ -671,6 +671,7 @@ public final class WorksheetMutationSupport {
       String refType = columnType(t, ref, false);
       String dtype = refType != null && !refType.isBlank() ? refType : XSchema.STRING;
       requireNoNumericTextMatch(field, dtype, op);
+      requireDateTypeForDateIn(field, ref, refType, op);
 
       ConditionItem item;
       // Bug #78394: add_filter/edit_condition had no value-count check at all.
@@ -4046,6 +4047,13 @@ public final class WorksheetMutationSupport {
             String dtype = conditionType(t, spec, post);
             requireNoNumericTextMatch(spec.field(), dtype, op);
 
+            if(op == XCondition.DATE_IN) {
+               // judged on the column's own type, never on the caller-declared spec.type()
+               DataRef dateInRef = resolveField(t, spec.field(), post);
+               requireDateTypeForDateIn(spec.field(), dateInRef,
+                                        columnType(t, dateInRef, post), op);
+            }
+
             // A value an indexed valueSpec replaces is a field/expression/variable reference
             // whose values() entry is only display text, so it is not a literal to judge.
             java.util.Set<Integer> replaced = new java.util.HashSet<>();
@@ -5343,6 +5351,40 @@ public final class WorksheetMutationSupport {
       }
 
       return XSchema.BOOLEAN.equals(type) ? "boolean" : null;
+   }
+
+   /**
+    * Bug #80075 (1): refuses DATE_IN on a column whose type is known and is not date or
+    * timeInstant, the rule the viewsheet condition writer already applies. A DateCondition range
+    * compared with a text or numeric column was stored without a word and matched no row. A column
+    * with no type of its own (it reports {@code "string"} with {@link DataRef#isDataTypeSet()}
+    * false, e.g. an untyped expression column) is not judged.
+    *
+    * @param field      the field as the caller spelled it
+    * @param ref        the resolved column
+    * @param columnType the column's resolved type, which may differ from {@code ref}'s own for a
+    *                   concatenation
+    */
+   private static void requireDateTypeForDateIn(String field, DataRef ref, String columnType,
+                                                int op)
+   {
+      if(op != XCondition.DATE_IN || columnType == null || columnType.isBlank()) {
+         return;
+      }
+
+      // an AttributeRef under the ColumnRef keeps its own declared type
+      boolean known = isTypeKnown(ref) || !XSchema.STRING.equals(columnType) ||
+         ref instanceof ColumnRef cr && cr.getDataRef() instanceof AttributeRef ar &&
+            ar.hasDataType();
+
+      if(!known || XSchema.DATE.equals(columnType) || XSchema.TIME_INSTANT.equals(columnType)) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "The condition on \"" + field + "\" uses DATE_IN, but the column's type is " +
+         columnType + ". DATE_IN applies only to date and timeInstant columns; for a " + columnType +
+         " column use =, ONE_OF, BETWEEN, <, > or a text match. Nothing was changed.");
    }
 
    private static boolean isNumericConditionType(String dtype) {
