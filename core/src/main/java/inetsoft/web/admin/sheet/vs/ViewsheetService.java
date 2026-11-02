@@ -385,7 +385,7 @@ public class ViewsheetService {
    private void removeContainedWorksheets(String path, IdentityID owner, Principal principal)
       throws Exception
    {
-      AssetRepository repository = AssetUtil.getAssetRepository(false);
+      AssetRepository repository = assetRepository;
       List<String> failures = new ArrayList<>();
 
       try {
