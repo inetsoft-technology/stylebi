@@ -21,16 +21,24 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MultiMap;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
-import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.*;
 
-public class BookmarkLockManager implements AutoCloseable {
+public class BookmarkLockManager {
    public BookmarkLockManager() {
-      this.lockMap = Cluster.getInstance().getMultiMap(BOOKMARK_LOCK_MAP_NAME);
+   }
+
+   /**
+    * Get the cluster-wide lock map. The map is shared by every node, so it is looked up on each
+    * use instead of being held in a field: a proxy held across a cache stop (a node that
+    * destroyed the cache, or a cluster that recreated it) throws CacheStoppedException for
+    * the life of the JVM, while a fresh lookup re-attaches to the live cache.
+    */
+   private MultiMap<String, BookmarkLock> getLockMap() {
+      return Cluster.getInstance().getMultiMap(BOOKMARK_LOCK_MAP_NAME);
    }
 
    /**
@@ -42,6 +50,7 @@ public class BookmarkLockManager implements AutoCloseable {
 
    public void lock(String key, String user, String runtimeId) {
       BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId);
+      MultiMap<String, BookmarkLock> lockMap = getLockMap();
       Collection<BookmarkLock> locks = lockMap.get(key);
 
       // already locked
@@ -61,7 +70,7 @@ public class BookmarkLockManager implements AutoCloseable {
     */
    public void unlock(String key, String user, String runtimeId) {
       BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId);
-      lockMap.remove(key, bookmarkLock);
+      getLockMap().remove(key, bookmarkLock);
    }
 
    /**
@@ -69,6 +78,7 @@ public class BookmarkLockManager implements AutoCloseable {
     */
    public void unlockAll(String user, String runtimeId) {
       BookmarkLock bookmarkLock = new BookmarkLock(user, runtimeId);
+      MultiMap<String, BookmarkLock> lockMap = getLockMap();
 
       for(Map.Entry<String, BookmarkLock> entry : lockMap.entrySet()) {
          if(Tool.equals(entry.getValue(), bookmarkLock)) {
@@ -85,7 +95,7 @@ public class BookmarkLockManager implements AutoCloseable {
     *             return user name of the first found lock.
     */
    public String getLockedBookmarkUser(String key, String user) {
-      Collection<BookmarkLock> locks = lockMap.get(key);
+      Collection<BookmarkLock> locks = getLockMap().get(key);
 
       if(locks == null) {
          return null;
@@ -100,14 +110,6 @@ public class BookmarkLockManager implements AutoCloseable {
       return null;
    }
 
-   @Override
-   @PreDestroy
-   public void close() throws Exception {
-      lockMap.clear();
-      Cluster.getInstance().destroyMap(BOOKMARK_LOCK_MAP_NAME);
-   }
-
-   private MultiMap<String, BookmarkLock> lockMap;
    private static final String BOOKMARK_LOCK_MAP_NAME = "BOOKMARK_LOCK_MAP";
    private static final Logger LOG = LoggerFactory.getLogger(BookmarkLockManager.class);
 
