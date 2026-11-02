@@ -86,7 +86,10 @@ class ScriptLibraryChangesetApplyServiceTest {
    void setUp() throws Exception {
       lenient().when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
       scriptLibraryService = new ScriptLibraryService(libManagerProvider, securityEngine);
+      // the save gate's syntax check needs the live script engine, absent here; these tests are about
+      // plan/apply behavior, not text validity (ScriptLibraryValidatorTest and the bad-input cases cover that)
       planService = new ScriptLibraryChangePlanService(scriptLibraryService);
+      planService.setSyntaxChecker(text -> {});
       service = new ScriptLibraryChangesetApplyService(planService, scriptLibraryService,
                                                        libManagerProvider, backupService);
 

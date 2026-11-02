@@ -59,6 +59,15 @@ public class ScriptLibraryChangePlanService {
    }
 
    /**
+    * Test seam: replaces the parse-only check applied to the text a create or rename would store.
+    * A setter rather than a constructor so the bean keeps one constructor whose parameters are all
+    * Spring beans (AdminAiBeanGraphTest).
+    */
+   void setSyntaxChecker(ScriptLibraryValidator.SyntaxChecker syntaxChecker) {
+      this.syntaxChecker = syntaxChecker;
+   }
+
+   /**
     * @throws IllegalArgumentException with a field-named message on a blank task, an empty
     *                                 change list, an unrecognized verb, a blank/duplicate name, a
     *                                 {@code create}/{@code rename} colliding with an existing
@@ -116,6 +125,8 @@ public class ScriptLibraryChangePlanService {
                                     Principal user, Set<String> seenKeys)
    {
       String name = requireNonBlank(label + ".name", change.getName());
+      // the raw name is what apply stores, so it is the one validated
+      ScriptLibraryValidator.requireValidName(label + ".name", change.getName());
       requireUnused(label, "newName", change.getNewName());
       requireUnused(label, "force", change.getForce());
       claim(label, "scriptlibrary:" + name, seenKeys);
@@ -129,6 +140,7 @@ public class ScriptLibraryChangePlanService {
 
       String description = change.getDescription() == null ? "" : change.getDescription();
       String text = change.getText() == null ? "" : change.getText();
+      requireCompiles(label + ".text", text);
       String proposed = project(name, description, text);
       return new PlanChange("scriptlibrary:" + name, null, null, proposed,
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
@@ -141,6 +153,7 @@ public class ScriptLibraryChangePlanService {
    {
       String name = requireNonBlank(label + ".name", change.getName());
       String newName = requireNonBlank(label + ".newName", change.getNewName());
+      ScriptLibraryValidator.requireValidName(label + ".newName", change.getNewName());
       requireUnused(label, "description", change.getDescription());
       requireUnused(label, "text", change.getText());
       requireUnused(label, "force", change.getForce());
@@ -164,8 +177,9 @@ public class ScriptLibraryChangePlanService {
       }
 
       String before = project(entry);
-      String after = project(newName, entry.description(),
-                             renamedText(name, newName, entry.text()));
+      String renamed = renamedText(name, newName, entry.text());
+      requireCompiles(label + ".newName", renamed);
+      String after = project(newName, entry.description(), renamed);
       return new PlanChange("scriptlibrary:" + name, null, before, after,
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
                             "rename script library entry \"" + name + "\" to \"" + newName +
@@ -272,6 +286,17 @@ public class ScriptLibraryChangePlanService {
       }
    }
 
+   private void requireCompiles(String field, String text) {
+      try {
+         ScriptLibraryValidator.requireCompiles(syntaxChecker, field, text);
+      }
+      catch(ScriptLibraryValidator.EngineUnavailableException e) {
+         // AdminScriptLibraryController maps IllegalArgumentException to 400 {status, error} and
+         // has no handler for ResponseStatusException, whose reason would be dropped
+         throw new IllegalArgumentException(field + ": " + e.getMessage(), e.getCause());
+      }
+   }
+
    private static void requireUnused(String label, String field, Object value) {
       if(value != null) {
          throw new IllegalArgumentException(
@@ -375,4 +400,5 @@ public class ScriptLibraryChangePlanService {
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final ScriptLibraryService scriptLibraryService;
+   private ScriptLibraryValidator.SyntaxChecker syntaxChecker = ScriptLibraryValidator.engineChecker();
 }
