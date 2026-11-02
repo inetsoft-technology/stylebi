@@ -1735,8 +1735,21 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                // headers stay text, so numeric labels (e.g. year headers) keep their form
                boolean header = r < headerRows || c < headerCols;
 
-               if(!header && obj instanceof Number && isFiniteNumber((Number) obj)) {
-                  cell.setCellValue(((Number) obj).doubleValue());
+               if(!header && obj instanceof Number && isExactNumber((Number) obj)) {
+                  double value = ((Number) obj).doubleValue();
+                  cell.setCellValue(value);
+
+                  if(Math.abs(value) >= 1E11 && Math.abs(value) < 1E15 &&
+                     value == Math.rint(value))
+                  {
+                     // General format shows 12+ digit integers in scientific notation
+                     cellStyle = dateStyles.computeIfAbsent("0", f -> {
+                        CellStyle intStyle = book.createCellStyle();
+                        intStyle.cloneStyleFrom(style);
+                        intStyle.setDataFormat(book.createDataFormat().getFormat(f));
+                        return intStyle;
+                     });
+                  }
                }
                else if(!header && obj instanceof Boolean) {
                   cell.setCellValue((Boolean) obj);
@@ -1770,10 +1783,22 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    }
 
    /**
-    * Whether the number can be stored in a numeric cell. NaN and infinity cannot, so they
-    * stay as text.
+    * Whether the number can be stored in a numeric cell without losing digits. NaN and
+    * infinity cannot, and a Long, BigInteger or BigDecimal of more than 15 significant digits
+    * does not fit an Excel double, so those stay text.
     */
-   private static boolean isFiniteNumber(Number num) {
+   private static boolean isExactNumber(Number num) {
+      if(num instanceof Long) {
+         return Math.abs(num.longValue()) < 1000000000000000L;
+      }
+      else if(num instanceof java.math.BigInteger) {
+         return ((java.math.BigInteger) num).abs().compareTo(
+            java.math.BigInteger.valueOf(1000000000000000L)) < 0;
+      }
+      else if(num instanceof java.math.BigDecimal) {
+         return ((java.math.BigDecimal) num).precision() <= 15;
+      }
+
       double value = num.doubleValue();
       return !Double.isNaN(value) && !Double.isInfinite(value);
    }

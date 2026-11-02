@@ -89,6 +89,37 @@ class ExcelDataTabCellTypeTest {
    }
 
    @Test
+   void largeLongStaysExactText() {
+      Cell cell = write(new Object[][] {{"a"}, {Long.MAX_VALUE}}).getRow(1).getCell(0);
+      assertEquals(CellType.STRING, cell.getCellType());
+      assertEquals("9223372036854775807", cell.getStringCellValue());
+   }
+
+   @Test
+   void twelveDigitLongIsNumericAndNotScientific() {
+      Cell cell = write(new Object[][] {{"a"}, {123456789012L}}).getRow(1).getCell(0);
+      assertEquals(CellType.NUMERIC, cell.getCellType());
+      assertEquals("123456789012", new DataFormatter().formatCellValue(cell));
+      assertEquals(BorderStyle.THIN, cell.getCellStyle().getBorderTop());
+   }
+
+   @Test
+   void bigDecimalBeyondFifteenDigitsStaysText() {
+      Cell cell = write(new Object[][] {{"a"}, {new BigDecimal("1234567890.123456789")}})
+         .getRow(1).getCell(0);
+      assertEquals(CellType.STRING, cell.getCellType());
+      assertEquals("1234567890.123456789", cell.getStringCellValue());
+   }
+
+   @Test
+   void shortAndFloatAreNumeric() {
+      Row row = write(new Object[][] {{"a", "b"}, {(short) 7, 2.5f}}).getRow(1);
+      assertEquals(CellType.NUMERIC, row.getCell(0).getCellType());
+      assertEquals(CellType.NUMERIC, row.getCell(1).getCellType());
+      assertEquals(2.5, row.getCell(1).getNumericCellValue());
+   }
+
+   @Test
    void nanAndInfinityStayText() {
       Row row = write(new Object[][] {{"a", "b"}, {Double.NaN, Double.POSITIVE_INFINITY}}).getRow(1);
       assertEquals(CellType.STRING, row.getCell(0).getCellType());
