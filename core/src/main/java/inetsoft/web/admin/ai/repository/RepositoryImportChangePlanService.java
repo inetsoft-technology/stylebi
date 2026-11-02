@@ -163,12 +163,27 @@ public class RepositoryImportChangePlanService {
    static List<String> ignoreListIndices(List<RequiredAssetModel> dependentAssets,
                                          List<String> ignoreAssetNames)
    {
-      if(dependentAssets == null || ignoreAssetNames == null || ignoreAssetNames.isEmpty()) {
+      if(ignoreAssetNames == null || ignoreAssetNames.isEmpty()) {
          return Collections.emptyList();
       }
 
       Set<String> wanted = new HashSet<>(ignoreAssetNames);
-      return dependentAssets.stream()
+      List<RequiredAssetModel> assets = dependentAssets == null
+         ? Collections.emptyList() : dependentAssets;
+      Set<String> valid = assets.stream()
+         .map(RequiredAssetModel::name)
+         .collect(Collectors.toCollection(TreeSet::new));
+      List<String> unknown = wanted.stream().filter(n -> !valid.contains(n)).sorted()
+         .collect(Collectors.toList());
+
+      if(!unknown.isEmpty()) {
+         throw new IllegalArgumentException(
+            "ignoreAssetNames: the staged package has no dependent asset named: " +
+            String.join(", ", unknown) + " (valid names: " +
+            (valid.isEmpty() ? "none" : String.join(", ", valid)) + ")");
+      }
+
+      return assets.stream()
          .filter(a -> wanted.contains(a.name()))
          .map(a -> Integer.toString(a.index()))
          .collect(Collectors.toList());
