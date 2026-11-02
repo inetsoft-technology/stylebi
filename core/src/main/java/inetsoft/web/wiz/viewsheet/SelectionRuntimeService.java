@@ -596,6 +596,22 @@ public class SelectionRuntimeService {
                result.put("reselectedBySingleSelect", reselected);
             }
          }
+
+         // A single-select tree can hold a requested path deeper than asked: the apply extends a
+         // path that stops above its deepest single level, and the refresh selects the first child
+         // under a single level when no other assembly holds a selection (bug-79904). Reported
+         // from the applied state, so the caller sees the filter that is really in force.
+         if(values != null && !applySkipped && !idMode && info.isSingleSelection() &&
+            assembly instanceof SelectionTreeVSAssembly)
+         {
+            List<Map<String, Object>> extended = extendedBySetSelection(
+               requestedValues, selectedPaths(assembly));
+
+            if(!extended.isEmpty()) {
+               result.put("extendedBySingleSelect", extended);
+            }
+         }
+
          reportOthersChanged(result, rvs, othersBefore, assembly);
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
@@ -989,6 +1005,35 @@ public class SelectionRuntimeService {
       }
 
       return reselected;
+   }
+
+   /**
+    * The requested paths a single-select tree applied deeper than they were asked: each entry
+    * names the {@code requested} path and an {@code applied} selected path that strictly extends
+    * it. {@link #reselectedBySetSelection} cannot report this, because it treats an after-path
+    * that starts with a requested path as the request itself (bug-79904). A path applied exactly
+    * as requested, or not selected at all, is not an extension.
+    *
+    * @param requested the paths the apply selected.
+    * @param after     the selected paths after the apply (node paths, not ID-mode ids).
+    */
+   static List<Map<String, Object>> extendedBySetSelection(List<List<String>> requested,
+                                                           List<List<String>> after)
+   {
+      List<Map<String, Object>> extended = new ArrayList<>();
+
+      for(List<String> path : requested.stream().distinct().toList()) {
+         for(List<String> applied : after) {
+            if(applied.size() > path.size() && startsWithPath(applied, path)) {
+               Map<String, Object> entry = new LinkedHashMap<>();
+               entry.put("requested", path);
+               entry.put("applied", applied);
+               extended.add(entry);
+            }
+         }
+      }
+
+      return extended;
    }
 
    private static boolean covers(List<List<String>> entries, List<String> path, boolean idMode) {
@@ -1938,8 +1983,15 @@ public class SelectionRuntimeService {
 
    // ── other-assembly side effects ───────────────────────────────────────────
 
-   /** One other filter's applied selection, with its type captured at snapshot time. */
-   record OtherSelection(String type, List<List<String>> paths) {
+   /**
+    * One other filter's applied selection, with its type captured at snapshot time.
+    * {@code paths} is the applied (filtering) set; {@code selected} is every value that still
+    * carries the SELECTED bit, including ones Association has merely excluded.
+    */
+   record OtherSelection(String type, List<List<String>> paths, List<List<String>> selected) {
+      OtherSelection(String type, List<List<String>> paths) {
+         this(type, paths, paths);
+      }
    }
 
    /**
@@ -2005,7 +2057,8 @@ public class SelectionRuntimeService {
             if(list != null) {
                boolean multi = !((SelectionVSAssemblyInfo) selection.getInfo()).isSingleSelection();
                snapshot.put(selection.getAbsoluteName(), new OtherSelection(
-                  describe(selection), selectedPaths(list.getSelectionValues(), multi)));
+                  describe(selection), selectedPaths(list.getSelectionValues(), multi),
+                  selectedPaths(list.getSelectionValues(), false)));
             }
          }
          catch(RuntimeException ex) {
@@ -2041,7 +2094,12 @@ public class SelectionRuntimeService {
       }
    }
 
-   /** Entries for each assembly present in both snapshots whose applied paths differ. */
+   /**
+    * Entries for each assembly present in both snapshots whose applied paths differ. {@code
+    * before}/{@code after} are the applied sets; {@code removed}/{@code added} are values truly
+    * deselected/selected, {@code excluded}/{@code restored} are values that stay selected but
+    * left/re-entered the applied set through Association.
+    */
    static List<Map<String, Object>> diffOthers(Map<String, OtherSelection> before,
                                                Map<String, OtherSelection> after)
    {
@@ -2066,8 +2124,19 @@ public class SelectionRuntimeService {
          entry.put("type", was.type());
          entry.put("before", was.paths());
          entry.put("after", now.paths());
-         entry.put("removed", was.paths().stream().filter(p -> !nowSet.contains(p)).toList());
-         entry.put("added", now.paths().stream().filter(p -> !wasSet.contains(p)).toList());
+         // A value that left the applied set but still carries SELECTED was only excluded by
+         // Association (it applies again when the excluding selection is gone); one that
+         // lost SELECTED was truly deselected. Likewise for entering the applied set.
+         Set<List<String>> wasSelected = new HashSet<>(was.selected());
+         Set<List<String>> nowSelected = new HashSet<>(now.selected());
+         List<List<String>> leftApplied =
+            was.paths().stream().filter(p -> !nowSet.contains(p)).toList();
+         List<List<String>> enteredApplied =
+            now.paths().stream().filter(p -> !wasSet.contains(p)).toList();
+         entry.put("removed", leftApplied.stream().filter(p -> !nowSelected.contains(p)).toList());
+         entry.put("added", enteredApplied.stream().filter(p -> !wasSelected.contains(p)).toList());
+         entry.put("excluded", leftApplied.stream().filter(nowSelected::contains).toList());
+         entry.put("restored", enteredApplied.stream().filter(wasSelected::contains).toList());
          changed.add(entry);
       });
 

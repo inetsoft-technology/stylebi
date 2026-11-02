@@ -26,10 +26,12 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.security.auth.ResourceExistsException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -242,6 +244,111 @@ class DataSourceChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
+   // Bug #79892: a rename the apply would refuse is refused at preview too, naming the clash.
+   @Test void resolveUpdateRefusesRenameOntoOccupiedPath() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      doThrow(new ResourceExistsException("sakila")).when(dataSourceService)
+         .checkRenameTarget(eq("Orders"), eq("sakila"), any(), anySet());
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "sakila"));
+      change.setConfirmRename(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.name"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"sakila\" is already"), ex.getMessage());
+   }
+
+   @Test void resolveUpdateRefusesRenameUnderAnotherDataSourceNamingTheAncestor()
+      throws Exception
+   {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      doThrow(new ResourceExistsException("ancestorDs")).when(dataSourceService)
+         .checkRenameTarget(eq("Orders"), eq("ancestorDs/Orders"), any(), anySet());
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "ancestorDs/Orders"));
+      change.setConfirmRename(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("\"ancestorDs\" is already"), ex.getMessage());
+   }
+
+   @Test void resolveUpdateWrapsMessageExceptionAsIllegalArgument() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      doThrow(new MessageException("path clash"))
+         .when(dataSourceService).checkRenameTarget(eq("Orders"), eq("Orders2"), any(), anySet());
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "Orders2"));
+      change.setConfirmRename(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].spec.name: path clash"), ex.getMessage());
+   }
+
+   @Test void resolveUpdateDoesNotCheckTargetWhenNameUnchanged() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("url", "jdbc:h2:mem:test"));
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+      verify(dataSourceService, never()).checkRenameTarget(any(), any(), any(), any());
+   }
+
+   @Test void resolveUpdateStillPreviewsRenameToAnUnusedName() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "Orders2"));
+      change.setConfirmRename(true);
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+      verify(dataSourceService).checkRenameTarget(eq("Orders"), eq("Orders2"), any(), anySet());
+   }
+
+   // the apply runs the changes in order, so a name freed by an earlier delete or rename of the
+   // same plan is a valid target and must not be refused because it is still registered now
+   @Test void resolveUpdatePassesNamesVacatedByEarlierChangesOfThePlan() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubList("Other", "id-2", "jdbc");
+      stubGet("id-2", jdbc("id-2", "Other", false, null));
+      DataSourceChangeRequest delete = deleteChange("Other");
+      DataSourceChangeRequest rename = updateChange("Orders", Map.of("name", "Other"));
+      rename.setConfirmRename(true);
+
+      java.util.concurrent.atomic.AtomicBoolean vacatedAtCall =
+         new java.util.concurrent.atomic.AtomicBoolean(false);
+      doAnswer(inv -> {
+         vacatedAtCall.set(((java.util.Set<?>) inv.getArgument(3)).contains("Other"));
+         return null;
+      }).when(dataSourceService).checkRenameTarget(eq("Orders"), eq("Other"), any(), anySet());
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(delete, rename)), user));
+      assertTrue(vacatedAtCall.get());
+   }
+
+   @Test void resolveUpdateDoesNotTreatLaterChangesAsVacated() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      stubList("Other", "id-2", "jdbc");
+      stubGet("id-2", jdbc("id-2", "Other", false, null));
+      DataSourceChangeRequest rename = updateChange("Orders", Map.of("name", "Other"));
+      rename.setConfirmRename(true);
+      DataSourceChangeRequest delete = deleteChange("Other");
+
+      // the set is mutated as the plan resolves, so record what it held at call time
+      java.util.concurrent.atomic.AtomicBoolean vacatedAtCall =
+         new java.util.concurrent.atomic.AtomicBoolean(true);
+      doAnswer(inv -> {
+         vacatedAtCall.set(((java.util.Set<?>) inv.getArgument(3)).contains("Other"));
+         return null;
+      }).when(dataSourceService).checkRenameTarget(eq("Orders"), eq("Other"), any(), anySet());
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(rename, delete)), user));
+      assertFalse(vacatedAtCall.get());
+   }
+
    @Test void resolveUpdateDoesNotRequireConfirmRenameWhenNameUnchanged() throws Exception {
       stubList("Orders", "id-1", "jdbc");
       stubGet("id-1", jdbc("id-1", "Orders", false, null));
@@ -387,6 +494,61 @@ class DataSourceChangePlanServiceTest {
          "changes[0]", "id-1", "Orders", current, Map.of("defaultDatabase", " SALES "), user);
 
       assertEquals("SALES", proposed.getDefaultDatabase());
+   }
+
+   // Bug 79890: the proposed value must equal what updateDataSource persists for requireLogin=false.
+   @Test void buildProposedJdbcClearsUserAndCredentialIdWhenDisablingRequireLogin()
+      throws Exception
+   {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+      current.setCredentialID("stale-ref");
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc(
+         "changes[0]", "id-1", "Orders", current, Map.of("requireLogin", false), user);
+
+      assertFalse(proposed.isRequireLogin());
+      assertNull(proposed.getUser());
+      assertNull(proposed.getPassword());
+      assertNull(proposed.getCredentialID());
+   }
+
+   @Test void buildProposedJdbcLeavesUseCredentialIdAloneWhenDisablingRequireLogin()
+      throws Exception
+   {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+      current.setUseCredentialId(true);
+      current.setCredentialID("secret-ref-1");
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc(
+         "changes[0]", "id-1", "Orders", current, Map.of("requireLogin", false), user);
+
+      assertTrue(proposed.isUseCredentialId());
+      assertNull(proposed.getCredentialID());
+      assertNull(proposed.getUser());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"user", "credentialID", "useCredentialId"})
+   void buildProposedJdbcRefusesLoginFieldsTogetherWithRequireLoginFalse(String field) {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+      Map<String, Object> spec = new LinkedHashMap<>();
+      spec.put("requireLogin", false);
+      spec.put(field, "useCredentialId".equals(field) ? (Object) Boolean.FALSE : "x");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.buildProposedJdbc("changes[0]", "id-1", "Orders", current, spec, user));
+      assertTrue(ex.getMessage().contains("requireLogin"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(field), ex.getMessage());
+   }
+
+   @Test void previewProposesClearedUserWhenDisablingRequireLogin() throws Exception {
+      stubLoginSource();
+
+      String proposed = resolveUpdate(Map.of("requireLogin", false))
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("requireLogin=false"), proposed);
+      assertFalse(proposed.contains("user=sa"), proposed);
    }
 
    // -------------------------------------------------------------------------
@@ -1018,7 +1180,7 @@ class DataSourceChangePlanServiceTest {
    private static final String PINNED_URL_UPDATE_HASH =
       "fb09f601e6de45f8bf8be53a13231adaff649557f0f2e005c2252bbc4c4a6031";
    private static final String PINNED_LOGIN_OFF_HASH =
-      "09ae2241dbbc6ee5900b1ed84c996f7b73d977f0b9c4e0157194e17c06ea85cc";
+      "3ff89496e4476bcc4f13c2360699b62e739964a20c60fd3de9b2cc9d947997fb";
    private static final String PINNED_DELETE_HASH =
       "03562d80611956fa23cdd70320245a51f837acdd9ff7c475cea4cb3dca58b227";
 

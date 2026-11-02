@@ -69,6 +69,7 @@ class ViewsheetChangePlanServiceTest {
    private inetsoft.sree.security.SecurityProvider ownerProvider;
    private MockedStatic<DependencyTool> dependencyToolStatic;
    private MockedStatic<Tool> tool;
+   private MockedStatic<inetsoft.sree.internal.SUtil> sutilStatic;
 
    private static final String VS_ASSET_ID =
       new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
@@ -94,6 +95,7 @@ class ViewsheetChangePlanServiceTest {
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
+      lenient().when(user.getName()).thenReturn("bob~;~host-org");
 
       dependencyToolStatic = mockStatic(DependencyTool.class, withSettings().lenient());
       dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
@@ -110,6 +112,10 @@ class ViewsheetChangePlanServiceTest {
       securityEngineStatic.close();
       dependencyToolStatic.close();
       tool.close();
+
+      if(sutilStatic != null) {
+         sutilStatic.close();
+      }
    }
 
    // -------------------------------------------------------------------------
@@ -298,6 +304,58 @@ class ViewsheetChangePlanServiceTest {
       ViewsheetChangeRequest change = renameViewsheetChange(VS_ASSET_ID, "Examples/Free", true, null);
 
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+   }
+
+   // Bug #79897: a move into another user's tree cannot be listed, verified or undone afterwards
+
+   @ParameterizedTest
+   @ValueSource(strings = { "alice", "alice:host-org", "bob:other-org" })
+   void resolveRenameRefusesAnOwnerThatIsNotTheCaller(String ownerRef) throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(renameViewsheetChange(
+            VS_ASSET_ID, "My Dashboards/Census2", false, ownerRef))), user));
+      assertTrue(ex.getMessage().contains(".owner"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(ownerRef.split(":")[0]), ex.getMessage());
+      assertTrue(ex.getMessage().contains("not supported"), ex.getMessage());
+   }
+
+   @Test void resolveRenameAcceptsTheCallersOwnOrgQualifiedOwner() throws Exception {
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(renameViewsheetChange(
+         VS_ASSET_ID, "My Dashboards/Census2", false, "bob:host-org"))), user));
+   }
+
+   @Test void resolveWorksheetRenameRefusesAnOwnerThatIsNotTheCaller() throws Exception {
+      String wsId = stubWorksheetList();
+      ViewsheetChangeRequest change = renameViewsheetChange(wsId, "Examples/Sales2", false, "alice");
+      change.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains(".owner"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("alice"), ex.getMessage());
+   }
+
+   @Test void resolveWorksheetRenameAcceptsTheCallersOwnOwner() throws Exception {
+      String wsId = stubWorksheetList();
+      ViewsheetChangeRequest change = renameViewsheetChange(wsId, "Examples/Sales2", false, "bob");
+      change.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+   }
+
+   private String stubWorksheetList() throws Exception {
+      // getFilteredWorksheets casts the Principal to XPrincipal inside SUtil; the plain mock is not one
+      sutilStatic = mockStatic(inetsoft.sree.internal.SUtil.class, withSettings().lenient());
+      String wsId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                   "Examples/Sales", null, "host-org").toIdentifier();
+      SheetList list = new SheetList();
+      list.getSheets().add(new Sheet(wsId, "Examples/Sales", "Examples/Sales", true, null, null));
+      lenient().when(worksheetApiService.getWorksheets(any())).thenReturn(list);
+      return wsId;
    }
 
    // -------------------------------------------------------------------------

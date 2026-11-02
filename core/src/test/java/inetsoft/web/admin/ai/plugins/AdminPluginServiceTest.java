@@ -287,12 +287,15 @@ class AdminPluginServiceTest {
       spec.setDrivers(List.of("com.mycompany.Driver"));
       request.setAsDriverPlugin(spec);
 
-      PluginsModel refreshed = PluginsModel.builder().plugins(List.of()).build();
+      PluginModel installed = PluginModel.builder()
+         .id("mycompany.mydriver").name("My Driver").version("1.0.0").readOnly(false).build();
+      PluginsModel refreshed = PluginsModel.builder().plugins(List.of(installed)).build();
       when(pluginsService.getModel(principal)).thenReturn(refreshed);
 
       PluginsModel result = service.install(request, principal);
 
       assertSame(refreshed, result);
+      assertTrue(result.pendingPluginIds().isEmpty());
       ArgumentCaptor<CreateDriverPluginRequest> captor =
          ArgumentCaptor.forClass(CreateDriverPluginRequest.class);
       verify(pluginsService).createDriverPlugin(captor.capture(), eq(principal));
@@ -300,6 +303,43 @@ class AdminPluginServiceTest {
       assertEquals("mycompany.mydriver", captor.getValue().pluginId());
       assertEquals(List.of("com.mycompany.Driver"), captor.getValue().drivers());
       verify(pluginsService, never()).installPlugins(any(), any());
+   }
+
+   @Test
+   void installReportsPendingWhenThePluginIsNotRegisteredWithinTheWait() throws Exception {
+      AdminPluginService shortWait =
+         new AdminPluginService(pluginsService, uploadService, securityEngine);
+      shortWait.setInstallWait(50L, 10L);
+      AdminInstallDriverOrPluginRequest request = new AdminInstallDriverOrPluginRequest();
+      request.setUploadId("upload-123");
+      request.setAcknowledgeServerCodeExecution(true);
+      request.setReviewOutcome("human approved");
+      AdminDriverPluginSpec spec = new AdminDriverPluginSpec();
+      spec.setPluginId("mycompany.mydriver");
+      spec.setPluginName("My Driver");
+      spec.setPluginVersion("1.0.0");
+      spec.setDrivers(List.of("com.mycompany.Driver"));
+      request.setAsDriverPlugin(spec);
+
+      when(pluginsService.getModel(principal))
+         .thenReturn(PluginsModel.builder().plugins(List.of()).build());
+
+      Audit auditInstance = mock(Audit.class);
+      PluginsModel result;
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
+          MockedStatic<Tool> tool = mockStatic(Tool.class))
+      {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         tool.when(Tool::getHost).thenReturn("test-host");
+         result = shortWait.install(request, principal);
+      }
+
+      assertEquals(List.of("mycompany.mydriver"), result.pendingPluginIds());
+      assertFalse(result.message().isEmpty());
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(principal));
+      assertEquals(AdminChangeRecord.STATUS_PENDING, captor.getValue().getStatus());
    }
 
    @Test

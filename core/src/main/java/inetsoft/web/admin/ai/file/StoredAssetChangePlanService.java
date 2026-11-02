@@ -21,6 +21,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.DataSpace;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
+import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.apache.commons.io.IOUtils;
@@ -37,8 +38,10 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -76,7 +79,7 @@ public class StoredAssetChangePlanService {
 
       String task = req.getTask().trim();
       List<PlanChange> immutableChanges = Collections.unmodifiableList(changes);
-      String planHash = hash(immutableChanges);
+      String planHash = hash(immutableChanges, hiddenInputs(resolved));
       boolean signoff = resolved.stream()
          .anyMatch(r -> AdminChangeRecord.RISK_HIGH.equals(r.planChange().risk()));
       return new ResolvedPlan(task, immutableChanges, true, signoff, planHash,
@@ -153,7 +156,7 @@ public class StoredAssetChangePlanService {
          "exists=true (folder)", AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
          "create folder \"" + path + "\"");
       return new ResolvedChange(StoredAssetChangeRequest.UNIT_FOLDER,
-         StoredAssetChangeRequest.VERB_CREATE, path, null, null, true, null, planChange);
+         StoredAssetChangeRequest.VERB_CREATE, path, null, null, true, null, planChange, Map.of());
    }
 
    private ResolvedChange resolveWrite(String label, String path, StoredAssetChangeRequest raw) {
@@ -182,7 +185,8 @@ public class StoredAssetChangePlanService {
       }
 
       boolean exists = dataSpace.exists(null, path);
-      String priorText = exists ? tryReadText(path) : null;
+      byte[] currentBytes = exists ? tryReadBytes(path) : null;
+      String priorText = decodeUtf8(currentBytes);
       boolean compensable = !exists || priorText != null;
       String currentSignature = exists
          ? "exists=true;size=" + dataSpace.getFileLength(null, path) : "exists=false";
@@ -193,8 +197,17 @@ public class StoredAssetChangePlanService {
          : "create file \"" + path + "\" (" + byteLength + " bytes)";
       PlanChange planChange = new PlanChange(path, currentOrgId(), currentSignature,
          "exists=true;size=" + byteLength, risk, AdminChangeRecord.SCOPE_STORAGE, true, description);
+      // The projection above carries only exists/size, so the reviewed content and the current
+      // file's bytes are bound into the plan hash through hidden digests (Bug #79930, mirroring
+      // #79429): a same-length swap of content, or a same-size concurrent edit, must not hash alike.
+      Map<String, String> hidden = new LinkedHashMap<>();
+      PlanHashInputs.addHidden(hidden, path, "proposed",
+         sha256Hex(content.getBytes(StandardCharsets.UTF_8)));
+      PlanHashInputs.addHidden(hidden, path, "current",
+         !exists ? PlanHashInputs.digest(WRITE_DOMAIN, null)
+            : currentBytes == null ? UNREADABLE_MARKER : sha256Hex(currentBytes));
       return new ResolvedChange(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE,
-         path, null, content, compensable, priorText, planChange);
+         path, null, content, compensable, priorText, planChange, hidden);
    }
 
    private ResolvedChange resolveRename(String label, String unitType, String path,
@@ -228,7 +241,7 @@ public class StoredAssetChangePlanService {
               "this one name)"
             : ""));
       return new ResolvedChange(unitType, StoredAssetChangeRequest.VERB_RENAME, path, newPath, null,
-         true, null, planChange);
+         true, null, planChange, Map.of());
    }
 
    private ResolvedChange resolveDelete(String label, String unitType, String path,
@@ -267,7 +280,7 @@ public class StoredAssetChangePlanService {
       PlanChange planChange = new PlanChange(path, currentOrgId(), "exists=true", "exists=false",
          AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true, description);
       return new ResolvedChange(unitType, StoredAssetChangeRequest.VERB_DELETE, path, null, null,
-         compensable, priorText, planChange);
+         compensable, priorText, planChange, Map.of());
    }
 
    // ---------------------------------------------------------------- validation helpers
@@ -313,13 +326,47 @@ public class StoredAssetChangePlanService {
    }
 
    private String tryReadText(String path) {
+      return decodeUtf8(tryReadBytes(path));
+   }
+
+   /** Reads the whole file once; {@code null} when it cannot be read. */
+   private byte[] tryReadBytes(String path) {
       try(InputStream in = dataSpace.getInputStream(null, path)) {
-         byte[] bytes = IOUtils.toByteArray(in);
+         return IOUtils.toByteArray(in);
+      }
+      catch(Exception e) {
+         return null;
+      }
+   }
+
+   /** Strict UTF-8 decode; {@code null} for unreadable or non-UTF-8 bytes. */
+   private static String decodeUtf8(byte[] bytes) {
+      if(bytes == null) {
+         return null;
+      }
+
+      try {
          Charset.availableCharsets().get("UTF-8").newDecoder().decode(ByteBuffer.wrap(bytes));
          return new String(bytes, StandardCharsets.UTF_8);
       }
       catch(Exception e) {
          return null;
+      }
+   }
+
+   private static String sha256Hex(byte[] bytes) {
+      try {
+         byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+         StringBuilder hex = new StringBuilder(digest.length * 2);
+
+         for(byte b : digest) {
+            hex.append(String.format("%02x", b));
+         }
+
+         return hex.toString();
+      }
+      catch(NoSuchAlgorithmException e) {
+         throw new IllegalStateException("SHA-256 is required to hash a stored asset change plan", e);
       }
    }
 
@@ -343,7 +390,7 @@ public class StoredAssetChangePlanService {
     * StoredAssetChangesetApplyService} can recompute the identical hash from a freshly re-resolved
     * entry list. Deliberately does NOT take {@code task} -- same rationale as every prior area's
     * own {@code hash} (a free-text paraphrase must never trip a false plan-hash conflict). */
-   static String hash(List<PlanChange> changes) {
+   static String hash(List<PlanChange> changes, Map<String, String> hidden) {
       StringBuilder canonical = new StringBuilder();
 
       for(PlanChange change : changes) {
@@ -352,6 +399,7 @@ public class StoredAssetChangePlanService {
             .append(canonicalValue(change.proposedValue())).append(SEP)
             .append(change.risk()).append(SEP)
             .append(change.snapshotScope()).append(SEP);
+         PlanHashInputs.appendHidden(canonical, SEP, hidden, change.property());
       }
 
       try {
@@ -370,10 +418,24 @@ public class StoredAssetChangePlanService {
       }
    }
 
+   /** Collects every resolved entry's hidden hash inputs, keyed by the change's path. */
+   static Map<String, String> hiddenInputs(List<ResolvedChange> resolved) {
+      Map<String, String> all = new LinkedHashMap<>();
+
+      for(ResolvedChange entry : resolved) {
+         all.putAll(entry.hidden());
+      }
+
+      return all;
+   }
+
    private static String canonicalValue(String value) {
       return value == null ? NULL_MARKER : value;
    }
 
+   private static final String WRITE_DOMAIN = "storedAsset.write.";
+   /** Fixed (not a digest of an error) so a read failure hashes the same on preview and apply. */
+   private static final String UNREADABLE_MARKER = "unreadable";
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    static final int WRITE_CONTENT_CAP_BYTES = 5_000_000;
@@ -385,7 +447,8 @@ public class StoredAssetChangePlanService {
     * {@code priorText} together determine whether a live rollback exists for this entry (see
     * 01-design.md section 6.3's per-verb rollback table). */
    record ResolvedChange(String unitType, String verb, String path, String newPath, String content,
-                        boolean compensable, String priorText, PlanChange planChange)
+                        boolean compensable, String priorText, PlanChange planChange,
+                        Map<String, String> hidden)
    {
    }
 }

@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.datasource;
 import inetsoft.web.admin.datasource.*;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.util.MessageException;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.util.Tool;
@@ -31,6 +32,7 @@ import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.general.model.DatabaseSettingsModel;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.web.wiz.controller.WizDatasourceNames;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -98,6 +100,9 @@ public class DataSourceChangePlanService {
 
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenNames = new HashSet<>();
+      // Bug #79892: names an earlier change of this plan frees (rename away / delete); a later
+      // rename may legitimately take such a name, since apply runs the changes in order.
+      Set<String> vacatedNames = new HashSet<>();
       Map<String, String> dependencyProjections = new LinkedHashMap<>();
       // Bug 78819: hidden per-change hash input for a supplied JDBC password (see hash()).
       Map<String, String> passwordHashInputs = new LinkedHashMap<>();
@@ -105,8 +110,8 @@ public class DataSourceChangePlanService {
 
       for(DataSourceChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, seenNames, dependencyProjections,
-                                passwordHashInputs));
+         changes.add(resolveOne(label, change, user, seenNames, vacatedNames,
+                                dependencyProjections, passwordHashInputs));
       }
 
       String task = req.getTask().trim();
@@ -118,7 +123,8 @@ public class DataSourceChangePlanService {
    }
 
    private PlanChange resolveOne(String label, DataSourceChangeRequest change, Principal user,
-                                 Set<String> seenNames, Map<String, String> dependencyProjections,
+                                 Set<String> seenNames, Set<String> vacatedNames,
+                                 Map<String, String> dependencyProjections,
                                  Map<String, String> passwordHashInputs)
       throws Exception
    {
@@ -142,10 +148,12 @@ public class DataSourceChangePlanService {
       }
 
       if(DataSourceChangeRequest.VERB_UPDATE.equals(verb)) {
-         return resolveUpdate(label, name, change, user, passwordHashInputs);
+         return resolveUpdate(label, name, change, user, vacatedNames, passwordHashInputs);
       }
 
-      return resolveDelete(label, name, change, user, dependencyProjections);
+      PlanChange deleted = resolveDelete(label, name, change, user, dependencyProjections);
+      vacatedNames.add(name);
+      return deleted;
    }
 
    // ---------------------------------------------------------------- folder create
@@ -345,7 +353,8 @@ public class DataSourceChangePlanService {
    // ---------------------------------------------------------------- update
 
    private PlanChange resolveUpdate(String label, String name, DataSourceChangeRequest change,
-                                    Principal user, Map<String, String> passwordHashInputs)
+                                    Principal user, Set<String> vacatedNames,
+                                    Map<String, String> passwordHashInputs)
       throws Exception
    {
       if(change.getForce() != null) {
@@ -394,6 +403,11 @@ public class DataSourceChangePlanService {
             "spec.name to leave the name unchanged");
       }
 
+      if(proposedName != null && !proposedName.equals(name)) {
+         checkRenameTarget(label, name, proposedName, user, vacatedNames);
+         vacatedNames.add(name);
+      }
+
       String beforeProjection = DataSourceProjection.project(before);
       String proposedProjection = DataSourceProjection.project(proposed);
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
@@ -422,6 +436,31 @@ public class DataSourceChangePlanService {
       return new PlanChange(name, orgId, beforeProjection, proposedProjection,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
+   }
+
+   /**
+    * Bug #79892: refuses a rename the apply would refuse -- onto an occupied data source or folder
+    * path, under another data source, or one XEngine or the caller's permissions reject -- by
+    * running the same checks {@code DataSourceService#updateDataSource} runs at write time.
+    */
+   private void checkRenameTarget(String label, String name, String proposedName, Principal user,
+                                  Set<String> vacatedNames)
+      throws Exception
+   {
+      String field = label + ".spec.name: ";
+
+      try {
+         dataSourceService.checkRenameTarget(name, proposedName, user, vacatedNames);
+      }
+      catch(ResourceExistsException e) {
+         throw new IllegalArgumentException(
+            field + "\"" + proposedName + "\" is not available: \"" + e.getMessage() +
+            "\" is already a data source or data source folder, and a data source cannot be " +
+            "renamed onto it or under it");
+      }
+      catch(MessageException e) {
+         throw new IllegalArgumentException(field + e.getMessage());
+      }
    }
 
    /**
@@ -489,7 +528,15 @@ public class DataSourceChangePlanService {
       }
 
       if(!proposed.isRequireLogin()) {
+         // Mirror DataSourceService.updateDataSource's requireLogin=false branch exactly, so the
+         // proposed value equals what the write persists and the apply verification matches.
+         // useCredentialId is left alone: it is derived from the stored credential type, which
+         // updateDataSource never changes.
+         requireNoLoginFieldsWhenLoginOff(label, spec);
+         proposed.setUser(null);
          proposed.setPassword(null);
+         proposed.setCredentialID(null);
+         return proposed;
       }
       else if(spec.containsKey("password")) {
          String value = requireStringOrNull(label, "password", spec);
@@ -547,6 +594,16 @@ public class DataSourceChangePlanService {
       copy.setUseCredentialId(src.isUseCredentialId());
       copy.setCredentialID(src.getCredentialID());
       return copy;
+   }
+
+   private static void requireNoLoginFieldsWhenLoginOff(String label, Map<String, Object> spec) {
+      for(String field : List.of("user", "credentialID", "useCredentialId")) {
+         if(spec.containsKey(field)) {
+            throw new IllegalArgumentException(
+               label + ".spec." + field + ": not allowed while requireLogin is false -- turning " +
+               "login off clears the user and credentialID, so this value could not be stored");
+         }
+      }
    }
 
    private static void requireCredentialCrossValidation(String label, Map<String, Object> spec,

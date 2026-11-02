@@ -134,6 +134,61 @@ class SelectionRuntimeServiceAppliedPathsTest {
       assertEquals(List.of(List.of("CA")), entry.get("added"));
    }
 
+   private static Map<String, SelectionRuntimeService.OtherSelection> snap3(
+      List<List<String>> applied, List<List<String>> selected)
+   {
+      Map<String, SelectionRuntimeService.OtherSelection> map = new LinkedHashMap<>();
+      map.put("Price", new SelectionRuntimeService.OtherSelection("a list", applied, selected));
+      return map;
+   }
+
+   private static final List<List<String>> PRICES =
+      List.of(List.of("200"), List.of("210"), List.of("235"));
+   private static final List<List<String>> P200 = List.of(List.of("200"));
+   private static final List<List<String>> P210_235 = List.of(List.of("210"), List.of("235"));
+
+   @Test
+   void selectedButExcludedIsReportedAsExcludedNotRemoved() {
+      Map<String, Object> entry = SelectionRuntimeService.diffOthers(
+         snap3(PRICES, PRICES), snap3(P200, PRICES)).get(0);
+
+      assertEquals(PRICES, entry.get("before"));
+      assertEquals(P200, entry.get("after"));
+      assertEquals(NONE, entry.get("removed"));
+      assertEquals(NONE, entry.get("added"));
+      assertEquals(P210_235, entry.get("excluded"));
+      assertEquals(NONE, entry.get("restored"));
+   }
+
+   @Test
+   void liftingTheExclusionIsReportedAsRestoredNotAdded() {
+      Map<String, Object> entry = SelectionRuntimeService.diffOthers(
+         snap3(P200, PRICES), snap3(PRICES, PRICES)).get(0);
+
+      assertEquals(NONE, entry.get("added"));
+      assertEquals(NONE, entry.get("removed"));
+      assertEquals(P210_235, entry.get("restored"));
+   }
+
+   @Test
+   void lostSelectedBitIsStillRemoved() {
+      // e.g. a single-selection tree level: the excluded node loses SELECTED for real.
+      Map<String, Object> entry = SelectionRuntimeService.diffOthers(
+         snap3(PRICES, PRICES), snap3(P200, P200)).get(0);
+
+      assertEquals(P210_235, entry.get("removed"));
+      assertEquals(NONE, entry.get("excluded"));
+   }
+
+   @Test
+   void mixedExcludedAndRemoved() {
+      Map<String, Object> entry = SelectionRuntimeService.diffOthers(
+         snap3(PRICES, PRICES), snap3(P200, List.of(List.of("200"), List.of("210")))).get(0);
+
+      assertEquals(List.of(List.of("235")), entry.get("removed"));
+      assertEquals(List.of(List.of("210")), entry.get("excluded"));
+   }
+
    @Test
    void diffIgnoresUnchangedAndReorderedSelection() {
       assertTrue(SelectionRuntimeService.diffOthers(

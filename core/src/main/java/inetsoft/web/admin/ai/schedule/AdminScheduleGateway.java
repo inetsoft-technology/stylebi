@@ -151,36 +151,9 @@ public class AdminScheduleGateway {
          throw new MissingResourceException(taskMetaData.getTaskOwnerId());
       }
 
-      String name = taskMetaData.getTaskName();
-      Identity identity = checkOwnerPermission(user, owner, executeAsID);
-      task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID), identity);
-
-      conditions.stream()
-         .map(ScheduleConditionConverter::convertCondition)
-         .filter(Objects::nonNull)
-         .forEach(task::addCondition);
-
-      inetsoft.sree.schedule.ScheduleTask finalTask = task;
-
-      for(ScheduleAction action : actions) {
-         checkActionOrgBoundary(action, user);
-         checkBackupAssetsPermitted(action, user);
-      }
-
-      actions.stream()
-         .map(this::convertAction)
-         .filter(Objects::nonNull)
-         .forEach(action -> finalTask.addAction(action, linkUri));
-
-      // Enforce schedule option permissions -- same sanitization applied by the UI.
-      // A new task has no prior state, so pass an empty task as the "original".
-      inetsoft.sree.schedule.ScheduleTask emptyTask = new inetsoft.sree.schedule.ScheduleTask();
-      scheduleTaskService.sanitizeConditions(task, emptyTask, user);
-
-      for(int i = 0; i < task.getActionCount(); i++) {
-         scheduleTaskService.sanitizeAction(task.getAction(i), null, user);
-      }
-
+      task = buildNewTask(taskMetaData, owner, enabled, deleteIfNotScheduledToRun, startDate,
+                          endDate, description, locale, executeAsID, conditions, actions, linkUri,
+                          user);
       scheduleManager.setScheduleTask(task.getTaskId(), task, user);
    }
 
@@ -642,6 +615,80 @@ public class AdminScheduleGateway {
          requireExecuteAsResolved(owner, executeAsID,
             SUtil.getIdentity(executeAsID.getIdentityID(), getIdentityType(executeAsID)));
       }
+   }
+
+   /**
+    * Builds the task {@link #addScheduleTask} saves, running every refusal it makes before the
+    * save. Changes nothing persistent.
+    */
+   private inetsoft.sree.schedule.ScheduleTask buildNewTask(
+      ScheduleTaskMetaData taskMetaData, IdentityID owner, boolean enabled,
+      boolean deleteIfNotScheduledToRun, long startDate, long endDate, String description,
+      String locale, ScheduleTask.ExecuteAsID executeAsID, List<ScheduleCondition> conditions,
+      List<ScheduleAction> actions, String linkUri, Principal user)
+      throws Exception
+   {
+      String name = taskMetaData.getTaskName();
+      Identity identity = checkOwnerPermission(user, owner, executeAsID);
+      inetsoft.sree.schedule.ScheduleTask task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID), identity);
+
+      conditions.stream()
+         .map(ScheduleConditionConverter::convertCondition)
+         .filter(Objects::nonNull)
+         .forEach(task::addCondition);
+
+      inetsoft.sree.schedule.ScheduleTask finalTask = task;
+
+      for(ScheduleAction action : actions) {
+         checkActionOrgBoundary(action, user);
+         checkBackupAssetsPermitted(action, user);
+      }
+
+      actions.stream()
+         .map(this::convertAction)
+         .filter(Objects::nonNull)
+         .forEach(action -> finalTask.addAction(action, linkUri));
+
+      // Enforce schedule option permissions -- same sanitization applied by the UI.
+      // A new task has no prior state, so pass an empty task as the "original".
+      inetsoft.sree.schedule.ScheduleTask emptyTask = new inetsoft.sree.schedule.ScheduleTask();
+      scheduleTaskService.sanitizeConditions(task, emptyTask, user);
+
+      for(int i = 0; i < task.getActionCount(); i++) {
+         scheduleTaskService.sanitizeAction(task.getAction(i), null, user);
+      }
+
+      return task;
+   }
+
+   /**
+    * Runs, without saving, every refusal {@link #addScheduleTask} makes up to and including the
+    * save's own (org boundary, backup assets, secrets, the scheduler permission and the read right
+    * of the run principal on the action viewsheets), so a caller can tell a refusal that wrote
+    * nothing apart from a failure of the write itself (Bug #79974). Silent when security is
+    * disabled.
+    *
+    * @throws Exception if the task would be refused.
+    */
+   public void checkAddScheduleTaskSavable(ScheduleTaskMetaData taskMetaData, boolean enabled,
+                                           boolean deleteIfNotScheduledToRun, long startDate,
+                                           long endDate, String description, String locale,
+                                           ScheduleTask.ExecuteAsID executeAsID,
+                                           List<ScheduleCondition> conditions,
+                                           List<ScheduleAction> actions, String linkUri,
+                                           Principal user)
+      throws Exception
+   {
+      IdentityID owner = IdentityID.getIdentityIDFromKey(taskMetaData.getTaskOwnerId());
+
+      if(owner == null) {
+         throw new MissingResourceException(taskMetaData.getTaskOwnerId());
+      }
+
+      inetsoft.sree.schedule.ScheduleTask task = buildNewTask(taskMetaData, owner, enabled,
+         deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID,
+         conditions, actions, linkUri, user);
+      scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, user);
    }
 
    /**

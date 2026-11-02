@@ -181,6 +181,30 @@ public class AutoSaveRecycleBinService {
    }
 
    /**
+    * Whether the folder a restore destination would be written into exists. A destination with no
+    * "/" lives at the root, which always exists. EM's restore dialog can only pick an existing
+    * folder, so a destination under a missing folder is refused rather than written blind.
+    */
+   public boolean parentFolderExists(AutoSaveRecycleBinEntryProjection entry, String assetName,
+                                     Principal user)
+      throws Exception
+   {
+      int slash = assetName.lastIndexOf('/');
+
+      if(slash < 0) {
+         return true;
+      }
+
+      AssetEntry.Type folderType =
+         AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET.equals(entry.type()) ?
+            AssetEntry.Type.FOLDER : AssetEntry.Type.REPOSITORY_FOLDER;
+      IdentityID actingUser = IdentityID.getIdentityIDFromKey(user.getName());
+      AssetEntry folder = new AssetEntry(AssetRepository.GLOBAL_SCOPE, folderType,
+                                         assetName.substring(0, slash), actingUser);
+      return assetRepository.containsEntry(folder);
+   }
+
+   /**
     * Parses a bare (recycle-prefix-stripped) Auto Save storage key's {@code scope^TYPE^owner^
     * path^ip~} fields, mirroring {@code AutoSaveController}'s own inline parsing
     * ({@code path.contains("^WORKSHEET^")}) and {@code AutoSaveUtils.getUserAutoSaveFiles}'s own

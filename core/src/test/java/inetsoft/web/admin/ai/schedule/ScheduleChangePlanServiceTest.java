@@ -291,6 +291,25 @@ class ScheduleChangePlanServiceTest {
       verify(scheduleManager, never()).getScheduleTask(anyString());
    }
 
+   // Bug #79974, the save refuses a task whose run principal can't read an action viewsheet; the
+   // plan must refuse it too, naming the owner and viewsheet, instead of planning it.
+   @Test void resolveCreateThrowsWhenSaveWouldBeRefused() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      doThrow(new inetsoft.web.security.auth.UnauthorizedAccessException(
+         "Unauthorized access to viewsheet X"))
+         .when(scheduleGateway).checkAddScheduleTaskSavable(any(), anyBoolean(), anyBoolean(),
+            anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), eq(user));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(createChange(spec))), user));
+      assertTrue(ex.getMessage().contains("spec"));
+      assertTrue(ex.getMessage().contains("owner \"" + spec.getOwner().getName() + "\""));
+      assertTrue(ex.getMessage().contains("Unauthorized access to viewsheet X"));
+   }
+
    @Test void resolveCreateSucceedsWhenExecuteAsIdentityResolves() throws Exception {
       CreateScheduleTaskRequest spec = createSpec("t1", "admin");
       ScheduleTask.ExecuteAsID executeAs = new ScheduleTask.ExecuteAsID(

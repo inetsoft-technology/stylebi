@@ -26,6 +26,7 @@ import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.web.admin.content.repository.RepositoryDashboardService;
 import inetsoft.web.admin.content.repository.model.RepositoryDashboardSettingsModel;
 import inetsoft.web.admin.content.repository.model.RepositoryFolderDashboardSettingsModel;
@@ -69,10 +70,12 @@ class DashboardChangePlanServiceTest {
    private MockedStatic<inetsoft.sree.security.SecurityEngine> securityEngineStatic;
    private inetsoft.sree.security.SecurityProvider ownerProvider;
    private MockedStatic<inetsoft.util.Tool> tool;
+   private MockedStatic<AssetUtil> assetUtilStatic;
 
    private static final IdentityID OWNER = new IdentityID("bob", "host-org");
+   private static final String EXISTING_VS_PATH = "Examples/Census";
 
-   @BeforeEach void setUp() {
+   @BeforeEach void setUp() throws Exception {
       service = new DashboardChangePlanService(
          repositoryDashboardService, dashboardRegistryManager, dashboardManager);
 
@@ -98,6 +101,15 @@ class DashboardChangePlanServiceTest {
       tool.when(() -> inetsoft.util.Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
 
+      // Bug #79929: only the Examples/Census viewsheet exists in the repository fixture
+      AssetRepository assetRepository = mock(AssetRepository.class, withSettings().lenient());
+      when(assetRepository.getAssetEntry(any(AssetEntry.class))).thenAnswer(inv -> {
+         AssetEntry e = inv.getArgument(0);
+         return EXISTING_VS_PATH.equals(e.getPath()) ? e : null;
+      });
+      assetUtilStatic = mockStatic(AssetUtil.class, withSettings().lenient());
+      assetUtilStatic.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
       lenient().when(dashboardRegistryManager.getRegistry()).thenReturn(globalRegistry);
       lenient().when(dashboardRegistryManager.getRegistry(eq(OWNER))).thenReturn(ownerRegistry);
       lenient().when(globalRegistry.getDashboardNames()).thenReturn(new String[0]);
@@ -108,6 +120,7 @@ class DashboardChangePlanServiceTest {
       orgManagerStatic.close();
       securityEngineStatic.close();
       tool.close();
+      assetUtilStatic.close();
    }
 
    // -------------------------------------------------------------------------
@@ -243,6 +256,89 @@ class DashboardChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("viewsheet"));
    }
 
+   // Bug #79929: a well-formed id for a viewsheet that does not exist must be refused at preview
+
+   @Test void resolveCreateThrowsWhenViewsheetDoesNotExist() throws Exception {
+      DashboardChangeRequest change = createDashboardChange("Dashboard1");
+      change.setViewsheet(missingVsAssetId());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].viewsheet"), ex.getMessage());
+   }
+
+   @Test void resolveCreateOwnerScopedThrowsWhenViewsheetDoesNotExist() throws Exception {
+      DashboardChangeRequest change = createDashboardChange("Dashboard1");
+      change.setOwner("bob:host-org");
+      change.setViewsheet(missingVsAssetId());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].viewsheet"), ex.getMessage());
+   }
+
+   @Test void resolveCreateThrowsWhenViewsheetIdIsNotAViewsheet() throws Exception {
+      DashboardChangeRequest change = createDashboardChange("Dashboard1");
+      change.setViewsheet(new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                         EXISTING_VS_PATH, null, "host-org").toIdentifier());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].viewsheet"), ex.getMessage());
+   }
+
+   @Test void resolveCreateAcceptsExistingViewsheet() throws Exception {
+      var plan = service.resolve(
+         request("task", List.of(createDashboardChange("Dashboard1"))), user);
+
+      assertNotNull(plan.planHash());
+   }
+
+   @Test void resolveUpdateThrowsWhenReboundToNonexistentViewsheet() throws Exception {
+      when(globalRegistry.getDashboard(eq("Dashboard1__GLOBAL"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard1__GLOBAL", null, "Existing desc", vsAssetId(), true);
+      DashboardChangeRequest change = updateDashboardChange("Dashboard1__GLOBAL", null, null);
+      change.setViewsheet(missingVsAssetId());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].viewsheet"), ex.getMessage());
+   }
+
+   @Test void resolveUpdateOwnerScopedThrowsWhenReboundToNonexistentViewsheet() throws Exception {
+      when(ownerRegistry.getDashboard(eq("Dashboard1"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard1", OWNER, "Existing desc", vsAssetId(), true);
+      DashboardChangeRequest change = updateDashboardChange("Dashboard1", null, null);
+      change.setOwner("bob:host-org");
+      change.setViewsheet(missingVsAssetId());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].viewsheet"), ex.getMessage());
+   }
+
+   @Test void resolveUpdateAcceptsReboundToExistingViewsheet() throws Exception {
+      when(globalRegistry.getDashboard(eq("Dashboard1__GLOBAL"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard1__GLOBAL", null, "Existing desc", missingVsAssetId(), true);
+      DashboardChangeRequest change = updateDashboardChange("Dashboard1__GLOBAL", null, null);
+      change.setViewsheet(vsAssetId());
+
+      assertNotNull(service.resolve(request("task", List.of(change)), user).planHash());
+   }
+
+   /** A dashboard whose stored binding already dangles stays editable: re-sending the unchanged
+    * binding (or not sending one) must not be newly rejected. */
+   @Test void resolveUpdateDoesNotRejectAnUnchangedDanglingBinding() throws Exception {
+      when(globalRegistry.getDashboard(eq("Dashboard1__GLOBAL"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard1__GLOBAL", null, "Existing desc", missingVsAssetId(), true);
+      DashboardChangeRequest same = updateDashboardChange("Dashboard1__GLOBAL", null, "new desc");
+      same.setViewsheet(missingVsAssetId());
+      DashboardChangeRequest omitted = updateDashboardChange("Dashboard1__GLOBAL", null, "new desc");
+
+      assertNotNull(service.resolve(request("task", List.of(same)), user).planHash());
+      assertNotNull(service.resolve(request("task", List.of(omitted)), user).planHash());
+   }
+
    /** Owner-scoped dashboards are stored WITHOUT the {@code __GLOBAL} suffix (only global ones carry
     * it) -- confirms the create path resolves against the OWNER's own registry, not the global one,
     * and does not append the suffix. */
@@ -353,6 +449,60 @@ class DashboardChangePlanServiceTest {
       assertEquals("host-org", plan.changes().get(0).orgId());
       verify(ownerRegistry).getDashboard(eq("Dashboard1"));
       verify(globalRegistry, never()).getDashboard(anyString());
+   }
+
+   // Bug #79928: a rename's TARGET name must be claimed so another change in the plan cannot
+   // create or rename onto the same name (apply would roll back on the second entry).
+   @Test void resolveRenameThenCreateSameTargetIsRefused() throws Exception {
+      stubGlobalDashboard1();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"),
+            createDashboardChange("Dashboard2"))), user));
+      assertTrue(ex.getMessage().contains("changes[1]"));
+      assertTrue(ex.getMessage().contains("duplicate entry") ||
+                 ex.getMessage().contains("target of another change"));
+   }
+
+   @Test void resolveCreateThenRenameSameTargetIsRefused() throws Exception {
+      stubGlobalDashboard1();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            createDashboardChange("Dashboard2"),
+            renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"))), user));
+      assertTrue(ex.getMessage().contains("changes[1].name"));
+      assertTrue(ex.getMessage().contains("target of another change"));
+   }
+
+   @Test void resolveTwoRenamesToSameTargetIsRefused() throws Exception {
+      stubGlobalDashboard1();
+      lenient().when(globalRegistry.getDashboard(eq("Dashboard3__GLOBAL"))).thenReturn(mock(Dashboard.class));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"),
+            renameDashboardChange("Dashboard3__GLOBAL", "Dashboard2"))), user));
+      assertTrue(ex.getMessage().contains("changes[1].name"));
+      assertTrue(ex.getMessage().contains("target of another change"));
+   }
+
+   @Test void resolveNonRenameUpdateDoesNotClaimATargetName() throws Exception {
+      stubGlobalDashboard1();
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         updateDashboardChange("Dashboard1__GLOBAL", null, "new desc"),
+         createDashboardChange("Dashboard2"))), user));
+   }
+
+   @Test void resolveRenameAndCreateSameNameInDifferentOwnerScopesDoNotCollide() throws Exception {
+      stubGlobalDashboard1();
+      DashboardChangeRequest create = createDashboardChange("Dashboard2");
+      create.setOwner("bob:host-org");
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"), create)), user));
    }
 
    // -------------------------------------------------------------------------
@@ -604,6 +754,11 @@ class DashboardChangePlanServiceTest {
                             "Examples/Census", null, "host-org").toIdentifier();
    }
 
+   private static String missingVsAssetId() {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                            "QA-No-Such-Viewsheet-PD", null, "host-org").toIdentifier();
+   }
+
    private void stubCurrentSettings(String registryName, IdentityID owner, String description,
                                     String viewsheet, boolean enable)
    {
@@ -664,6 +819,15 @@ class DashboardChangePlanServiceTest {
       change.setName(name);
       change.setDescription(description);
       return change;
+   }
+
+   private static DashboardChangeRequest renameDashboardChange(String oname, String name) {
+      return updateDashboardChange(oname, name, null);
+   }
+
+   private void stubGlobalDashboard1() {
+      lenient().when(globalRegistry.getDashboard(eq("Dashboard1__GLOBAL"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard1__GLOBAL", null, "Existing desc", vsAssetId(), true);
    }
 
    private static DashboardChangeRequest deleteDashboardChange(String oname) {

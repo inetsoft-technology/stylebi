@@ -28,6 +28,7 @@ public class AdminChangeRecord implements AuditRecord {
    public static final String ACTION_RESTORE = "restore";
    public static final String STATUS_VERIFIED = "verified";
    public static final String STATUS_FAILED = "failed";
+   public static final String STATUS_PENDING = "pending";
    public static final String RISK_LOW = "low";
    public static final String RISK_HIGH = "high";
    public static final String SCOPE_VALUE = "value";

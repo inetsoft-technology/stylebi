@@ -39,6 +39,16 @@ public interface PluginsModel {
 
    List<PluginModel> plugins();
 
+   /**
+    * Ids of just-installed plugins that were not yet registered when the list was read.
+    */
+   List<String> pendingPluginIds();
+
+   @Value.Default
+   default String message() {
+      return "";
+   }
+
    static Builder builder() {
       return new Builder();
    }

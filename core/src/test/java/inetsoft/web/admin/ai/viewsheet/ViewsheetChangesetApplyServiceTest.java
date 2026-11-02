@@ -974,6 +974,74 @@ class ViewsheetChangesetApplyServiceTest {
       assertTrue(result.rollbackFailures().get(0).property().startsWith("viewsheet:"));
    }
 
+   /** Bug #79897: the rename call returns normally but the asset is no longer visible to the
+    * caller-scoped verification lookup (it moved into a tree the caller cannot list). Nothing was
+    * recorded to undo, so reporting rolled-back would claim an undo that never happened. */
+   @Test void viewsheetRenameThatCannotBeVerifiedIsRollbackFailedNotRolledBack() throws Exception {
+      tool.when(Tool::getHost).thenReturn("test-host");
+      doAnswer(inv -> {
+         viewsheetStore.remove((String) inv.getArgument(0));
+         return null;
+      }).when(viewsheetApiService)
+        .renameViewsheet(eq(VS_ASSET_ID), anyString(), anyBoolean(), any(), eq(user));
+      ViewsheetApplyRequest req = applyRequest("rename", false,
+         renameViewsheetChange(VS_ASSET_ID, "Examples/Census2", true, null));
+      Audit auditInstance = mock(Audit.class);
+
+      ViewsheetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.results().size());
+      assertEquals("viewsheet:" + VS_ASSET_ID, result.results().get(0).property());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertEquals(1, result.rollbackFailures().size());
+      assertEquals("viewsheet:" + VS_ASSET_ID, result.rollbackFailures().get(0).property());
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(user));
+      assertEquals(AdminChangeRecord.STATUS_FAILED, captor.getValue().getStatus());
+   }
+
+   @Test void worksheetRenameThatCannotBeVerifiedIsRollbackFailedNotRolledBack() throws Exception {
+      tool.when(Tool::getHost).thenReturn("test-host");
+      String assetId = worksheetAssetId("Examples/Sales");
+      worksheetStore.put(assetId,
+         new Sheet(assetId, "Examples/Sales", "Examples/Sales", true, null, null));
+      doAnswer(inv -> {
+         worksheetStore.remove((String) inv.getArgument(0));
+         return null;
+      }).when(worksheetApiService)
+        .renameWorksheet(eq(assetId), anyString(), anyBoolean(), any(), eq(user));
+      ViewsheetChangeRequest change = new ViewsheetChangeRequest();
+      change.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      change.setVerb(ViewsheetChangeRequest.VERB_RENAME);
+      change.setAssetId(assetId);
+      change.setNewPath("Examples/Sales2");
+      change.setGlobal(true);
+      ViewsheetApplyRequest req = applyRequest("rename worksheet", false, change);
+      Audit auditInstance = mock(Audit.class);
+
+      ViewsheetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class)) {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.results().size());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertEquals(1, result.rollbackFailures().size());
+      assertEquals("worksheet:" + assetId, result.rollbackFailures().get(0).property());
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(user));
+      assertEquals(AdminChangeRecord.STATUS_FAILED, captor.getValue().getStatus());
+   }
+
    /** Bug #76856: a throw carrying no verifiable evidence for ITS OWN item was forcing
     * STATUS_ROLLBACK_FAILED unconditionally, even when that item's own mutating call was never
     * entered and every other entry in the plan rolled back cleanly. Reproduced here via a second

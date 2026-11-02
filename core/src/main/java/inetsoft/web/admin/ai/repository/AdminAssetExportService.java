@@ -125,8 +125,8 @@ public class AdminAssetExportService {
       return message.toString();
    }
 
-   private static List<RequiredAssetModel> applyDependencyMode(RepositoryExportRequest req,
-                                                                RequiredAssetModelList dependents)
+   static List<RequiredAssetModel> applyDependencyMode(RepositoryExportRequest req,
+                                                        RequiredAssetModelList dependents)
    {
       String mode = req.getIncludeDependenciesMode() == null ? "all"
          : req.getIncludeDependenciesMode().trim().toLowerCase(Locale.ROOT);
@@ -139,6 +139,19 @@ public class AdminAssetExportService {
          Set<String> wanted = new HashSet<>(
             req.getIncludeDependencyNames() == null ? Collections.emptyList()
                : req.getIncludeDependencyNames());
+         Set<String> valid = dependents.requiredAssets().stream()
+            .map(RequiredAssetModel::name)
+            .collect(Collectors.toCollection(TreeSet::new));
+         List<String> unknown = wanted.stream().filter(n -> !valid.contains(n)).sorted()
+            .collect(Collectors.toList());
+
+         if(!unknown.isEmpty()) {
+            throw new IllegalArgumentException(
+               "includeDependencies: not a dependency of the exported (permission-filtered) " +
+               "selection: " + String.join(", ", unknown) + " (valid names: " +
+               (valid.isEmpty() ? "none" : String.join(", ", valid)) + ")");
+         }
+
          return dependents.requiredAssets().stream()
             .filter(a -> wanted.contains(a.name()))
             .collect(Collectors.toList());

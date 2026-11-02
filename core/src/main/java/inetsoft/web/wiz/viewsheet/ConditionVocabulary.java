@@ -317,6 +317,64 @@ public final class ConditionVocabulary {
          "Nothing was changed.");
    }
 
+   /**
+    * True when a successfully evaluated expression produced nothing to compare against. The
+    * script engine maps JS null/undefined and NaN/Infinity to a Java null, so a null here covers
+    * all of them; a one-element list holding null is the same.
+    */
+   public static boolean isNullExpressionResult(Object value) {
+      return value == null ||
+         value instanceof Object[] list && list.length == 1 && list[0] == null;
+   }
+
+   /** The parameter an expression reads (parameter.X, or $(X) for sql), or null. */
+   public static String referencedParameter(String exp, boolean sql) {
+      if(exp == null) {
+         return null;
+      }
+
+      String name;
+
+      if(sql) {
+         int idx1 = exp.indexOf("$(");
+         int idx2 = exp.indexOf(")");
+
+         if(idx1 < 0 || idx2 <= idx1 + 2) {
+            return null;
+         }
+
+         name = exp.substring(idx1 + 2, idx2);
+      }
+      else {
+         int idx1 = exp.indexOf("parameter.");
+
+         if(idx1 < 0) {
+            return null;
+         }
+
+         String rest = exp.substring(idx1 + 10);
+         int j = 0;
+
+         while(j < rest.length() &&
+            (Character.isLetterOrDigit(rest.charAt(j)) || rest.charAt(j) == '_'))
+         {
+            j++;
+         }
+
+         name = rest.substring(0, j);
+      }
+
+      return name.isEmpty() ? null : name;
+   }
+
+   /** The warning for an expression that evaluated without throwing to null/NaN/undefined. */
+   public static String nullExpressionResultWarning(String expression) {
+      return "The expression '" + expression + "' evaluated to null/NaN (no value), so the " +
+         "condition has nothing to compare against and the table may show no rows. Check the " +
+         "names it reads (for example the table suffix of a runQuery result); a script that " +
+         "already hit its error limit also yields null silently.";
+   }
+
    private static final String DATE_FORMS_HINT =
       "Pass a date string such as '2024-01-01', '2024-01-01 00:00:00', {d '2024-01-01'}, " +
       "{ts '2024-01-01 00:00:00'} or {t '12:30:00'}.";

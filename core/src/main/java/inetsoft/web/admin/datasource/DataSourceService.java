@@ -47,6 +47,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -253,11 +254,48 @@ public class DataSourceService {
          properties.setName(newName);
       }
 
+      checkRenameTarget(oldName, newName, user);
+      String password = null;
+
+      if(XDataSource.JDBC.equals(ds.getType())) {
+         checkSecretId((JDBCDataSource) ds, (JdbcDataSourceProperties) properties, user);
+         password = resolvePassword((JDBCDataSource) ds, (JdbcDataSourceProperties) properties);
+      }
+
+      return password;
+   }
+
+   /**
+    * Checks that a data source can be renamed/moved from {@code oldName} to {@code newName}: the
+    * target path must be free, no parent segment may be a data source, XEngine must accept the
+    * move, and the caller must be allowed to move it. Shared by {@link #updateDataSource} and the
+    * admin change planner so a preview refuses exactly what the apply would (Bug #79892).
+    *
+    * @throws ResourceExistsException if the target path, or a parent segment, is already a data
+    *                                  source (or the target path is a data source folder).
+    */
+   public void checkRenameTarget(String oldName, String newName, Principal user)
+      throws Exception
+   {
+      checkRenameTarget(oldName, newName, user, Collections.emptySet());
+   }
+
+   /**
+    * @param vacatedPaths paths that an earlier change of the same plan frees (a rename away or a
+    *                     delete), which therefore do not block {@code newName} even though they
+    *                     are still registered when the plan is resolved.
+    */
+   public void checkRenameTarget(String oldName, String newName, Principal user,
+                                 Set<String> vacatedPaths)
+      throws Exception
+   {
       if(!oldName.equals(newName)) {
          // Bug #77673, a data source moved onto the path of a data source or a data source
          // folder would overwrite it, or take the data sources of the folder as its
          // additional connections
-         if(dataSourceRegistry.isDataSourcePathInUse(newName)) {
+         if(!vacatedPaths.contains(newName) &&
+            dataSourceRegistry.isDataSourcePathInUse(newName))
+         {
             throw new ResourceExistsException(newName);
          }
 
@@ -265,7 +303,7 @@ public class DataSourceService {
          // source would become an additional connection of that data source
          String dataSource = dataSourceRegistry.getDataSourceAncestor(newName);
 
-         if(dataSource != null) {
+         if(dataSource != null && !vacatedPaths.contains(dataSource)) {
             throw new ResourceExistsException(dataSource);
          }
 
@@ -275,14 +313,6 @@ public class DataSourceService {
       }
 
       checkMovePermissions(user, oldName, newName);
-      String password = null;
-
-      if(XDataSource.JDBC.equals(ds.getType())) {
-         checkSecretId((JDBCDataSource) ds, (JdbcDataSourceProperties) properties, user);
-         password = resolvePassword((JDBCDataSource) ds, (JdbcDataSourceProperties) properties);
-      }
-
-      return password;
    }
 
    private void checkMovePermissions(Principal user, String oldName, String newName) throws Exception {
