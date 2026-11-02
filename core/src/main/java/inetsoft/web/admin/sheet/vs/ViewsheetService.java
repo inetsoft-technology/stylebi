@@ -49,9 +49,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * {@code ViewsheetService} implements the viewsheet management logic shared by the enterprise
@@ -360,10 +358,6 @@ public class ViewsheetService {
             throw new MissingResourceException(path);
          }
 
-         // Worksheets live in a separate (Type.FOLDER) namespace that the registry folder-removal
-         // event does not cascade into, so remove them explicitly, as the native repository delete
-         // (RepletRegistryService.removeFile, FOLDER branch) does.
-         removeContainedWorksheets(path, owner, principal);
          registry.removeFolder(path);
       }
       catch(Exception e) {
@@ -373,81 +367,6 @@ public class ViewsheetService {
       }
       finally {
          Audit.getInstance().auditAction(record, principal);
-      }
-   }
-
-   /**
-    * Removes every worksheet (and worksheet sub-folder) stored under the dashboard folder, depth
-    * first. Unlike the native delete this does not swallow per-sheet failures: if anything could
-    * not be removed an exception naming it is thrown before the registry folder label is touched,
-    * so the caller never reports a folder as deleted while worksheets remain.
-    */
-   private void removeContainedWorksheets(String path, IdentityID owner, Principal principal)
-      throws Exception
-   {
-      AssetRepository repository = assetRepository;
-      List<String> failures = new ArrayList<>();
-
-      try {
-         AssetRepository.IGNORE_PERM.set(true);
-         removeWorksheetsUnder(path, owner, principal, repository, failures, 0);
-
-         String assetPath = RepletRegistryService.splitMyReportPath(path);
-         AssetEntry folder = new AssetEntry(
-            owner != null ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE,
-            AssetEntry.Type.FOLDER, assetPath, owner);
-
-         if(repository.containsEntry(folder)) {
-            try {
-               repository.removeFolder(folder, principal, true);
-            }
-            catch(Exception e) {
-               failures.add("worksheet folder " + assetPath + ": " + e.getMessage());
-            }
-         }
-      }
-      finally {
-         AssetRepository.IGNORE_PERM.remove();
-      }
-
-      if(!failures.isEmpty()) {
-         throw new IllegalStateException(
-            "folder \"" + path + "\" was NOT fully deleted: " + failures.size() +
-            " contained worksheet item(s) could not be removed (" + String.join("; ", failures) +
-            "); the folder and any items not listed here may be partially deleted");
-      }
-   }
-
-   private void removeWorksheetsUnder(String path, IdentityID owner, Principal principal,
-                                      AssetRepository repository, List<String> failures,
-                                      int depth)
-      throws Exception
-   {
-      if(depth > 64) {
-         failures.add(path + ": folder nesting too deep");
-         return;
-      }
-
-      for(AssetEntry entry : repletRegistryService.getWorksheetEntries(path, owner, principal)) {
-         if(entry.isFolder()) {
-            removeWorksheetsUnder(entry.getPath(), owner, principal, repository, failures,
-                                  depth + 1);
-
-            try {
-               repository.removeFolder(entry, principal, true);
-            }
-            catch(Exception e) {
-               failures.add("worksheet folder " + entry.getPath() + ": " + e.getMessage());
-            }
-         }
-         else {
-            try {
-               repository.removeSheet(entry, principal, true);
-            }
-            catch(Exception e) {
-               failures.add(entry.getPath() + ": " + e.getMessage());
-            }
-         }
       }
    }
 

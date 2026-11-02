@@ -76,7 +76,7 @@ public class ViewsheetChangeRequest {
 
    /** {@code unitType: "viewsheet", verb: "delete"}: default {@code false} (section 0.2/11).
     * Also {@code unitType: "folder", verb: "delete"}: default {@code false}, required when the
-    * folder contains any viewsheet/worksheet (bug #76469) -- folder delete is NOT metadata-only. */
+    * folder contains any viewsheet (bug #76469; worksheets are kept) -- folder delete is NOT metadata-only. */
    public Boolean getForce() { return force; }
    public void setForce(Boolean v) { this.force = v; }
 

@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * storage-scoped area's own signoff requirement was. {@code acknowledgeIrreversibleDelete} must be
  * exactly {@code true} whenever the plan contains a viewsheet delete entry (section 4's
  * non-compensable declaration, section 11) OR a folder delete of a non-empty folder (bug #76469:
- * folder delete recursively hard-deletes every contained viewsheet/worksheet, exactly as
+ * folder delete recursively hard-deletes every contained viewsheet (worksheets are kept), exactly as
  * irreversible as a viewsheet delete when the folder is non-empty) -- checked in
  * {@link ViewsheetChangesetApplyService#apply}, not silently defaulted. An empty-folder delete has
  * a complete live inverse (recreating the label) and never requires this acknowledgement.

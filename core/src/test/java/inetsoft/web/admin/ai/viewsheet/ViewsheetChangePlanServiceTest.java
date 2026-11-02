@@ -582,7 +582,7 @@ class ViewsheetChangePlanServiceTest {
 
       var plan = service.resolve(request("task", List.of(change)), user);
 
-      assertTrue(plan.changes().get(0).description().contains("contains no viewsheet or worksheet"));
+      assertTrue(plan.changes().get(0).description().contains("contains no viewsheet"));
       assertFalse(plan.changes().get(0).description().contains("does NOT delete or move"));
       assertFalse(plan.changes().get(0).description().contains("fully compensable"));
    }
@@ -727,7 +727,7 @@ class ViewsheetChangePlanServiceTest {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(change)), user));
 
-      assertTrue(ex.getMessage().contains("contains 2 viewsheet/worksheet(s)"));
+      assertTrue(ex.getMessage().contains("contains 2 viewsheet(s)"));
       assertTrue(ex.getMessage().contains("Examples/Old Folder/Visible"));
       assertFalse(ex.getMessage().contains("Examples/Old Folder/Hidden"));
       assertTrue(ex.getMessage().contains("1 of which you do not have permission to view"));
@@ -753,7 +753,7 @@ class ViewsheetChangePlanServiceTest {
       assertTrue(description.contains("1 of which you do not have permission to view"));
       // the count driving the gate/risk decision must still reflect the full, bypassed content --
       // only the human-readable enumeration is restricted to what the caller can see
-      assertTrue(description.contains("deletes 2 contained viewsheet/worksheet(s)"));
+      assertTrue(description.contains("deletes 2 contained viewsheet(s)"));
       assertEquals("high", plan.changes().get(0).risk());
    }
 
