@@ -39,8 +39,11 @@ import inetsoft.web.binding.controller.SwapXYBindingService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.event.ChangeChartTypeEvent;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
+import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.GroupCondition;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
@@ -59,6 +62,10 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Chart data-binding mutations: shelves, chart type, and axis swap.
@@ -276,6 +283,120 @@ public class ChartBindingService {
             "that shelf dimension with set_chart_shelf first (the " + channel + " channel then " +
             "follows it), or bind the " + channel + " channel without a named group.");
       }
+   }
+
+   /**
+    * Pre-write check (bug #80062): a named group sent on an aesthetic dimension must not differ
+    * from the group of a shelf (x/y/group) dimension on the same column.
+    * {@code ChangeChartProcessor.syncNamedGroup} copies the shelf group onto the aesthetic ref
+    * whenever the two differ, so the sent group would be replaced silently by the shelf's and the
+    * write reported as success. A chart keeps one grouping per column; the shelf's wins, so the
+    * write is refused instead. Groups are compared structurally (group names and member values,
+    * order ignored), so sending the identical group on the shelf and the channel stays allowed.
+    * A shelf dimension without a group is left to {@link #requireAestheticNamedGroupKept}.
+    *
+    * @param model the chart model after the aesthetic field was applied, before it is written
+    */
+   static void requireAestheticNamedGroupAgreesWithShelf(ChartBindingModel model, String channel,
+                                                         FieldRef field)
+   {
+      if(model == null || field == null || channel == null ||
+         !"dimension".equalsIgnoreCase(field.type()))
+      {
+         return;
+      }
+
+      boolean groupSent = field.namedGroupValues() != null ||
+         field.namedGroup() != null && !field.namedGroup().isBlank();
+
+      if(!groupSent) {
+         return;
+      }
+
+      AestheticInfo aesthetic = ChartAestheticMutator.read(model, channel.toLowerCase());
+
+      if(aesthetic == null || !(aesthetic.getDataInfo() instanceof BDimensionRefModel sent) ||
+         sent.getNamedGroupInfo() == null)
+      {
+         return;
+      }
+
+      List<ChartRefModel> shelves = new ArrayList<>();
+
+      if(model.getXFields() != null) {
+         shelves.addAll(model.getXFields());
+      }
+
+      if(model.getYFields() != null) {
+         shelves.addAll(model.getYFields());
+      }
+
+      if(model.getGroupFields() != null) {
+         shelves.addAll(model.getGroupFields());
+      }
+
+      for(ChartRefModel shelf : shelves) {
+         if(!(shelf instanceof BDimensionRefModel dimension) ||
+            dimension.getNamedGroupInfo() == null ||
+            !field.column().equals(dimension.getFullName()) ||
+            namedGroupSignature(sent.getNamedGroupInfo())
+               .equals(namedGroupSignature(dimension.getNamedGroupInfo())))
+         {
+            continue;
+         }
+
+         throw new IllegalArgumentException(
+            "The named group sent for the " + channel + " channel on '" + field.column() + "' (" +
+            describeNamedGroup(sent.getNamedGroupInfo()) + ") conflicts with the group on the " +
+            "chart shelf's '" + field.column() + "' (" +
+            describeNamedGroup(dimension.getNamedGroupInfo()) + "): a chart keeps one grouping " +
+            "per column and the shelf's wins, so the " + channel + " channel would silently " +
+            "show the shelf's group instead. Change the group on the shelf with set_chart_shelf " +
+            "first (the " + channel + " channel then follows it), or send the identical group " +
+            "for the " + channel + " channel.");
+      }
+   }
+
+   /** Order-insensitive content of a named group: its group names and their member values. */
+   private static Object namedGroupSignature(NamedGroupInfoModel group) {
+      Map<String, Set<String>> members = new TreeMap<>();
+
+      if(group.getGroups() != null) {
+         for(GroupCondition condition : group.getGroups()) {
+            Set<String> values = new TreeSet<>();
+
+            if(condition.getValue() != null) {
+               for(Object value : condition.getValue()) {
+                  values.add(String.valueOf(value));
+               }
+            }
+
+            members.put(String.valueOf(condition.getName()), values);
+         }
+      }
+
+      // A group with no members (a worksheet named group, referenced by name) is identified by
+      // its kind and name instead.
+      return members.isEmpty()
+         ? List.of(group.getType(), String.valueOf(group.getName()))
+         : members;
+   }
+
+   private static String describeNamedGroup(NamedGroupInfoModel group) {
+      Object signature = namedGroupSignature(group);
+
+      if(signature instanceof Map<?, ?> members) {
+         StringBuilder text = new StringBuilder();
+
+         for(Map.Entry<?, ?> entry : members.entrySet()) {
+            text.append(text.length() == 0 ? "" : "; ").append(entry.getKey()).append(": ")
+               .append(entry.getValue());
+         }
+
+         return text.toString();
+      }
+
+      return "named group '" + group.getName() + "'";
    }
 
    /**
