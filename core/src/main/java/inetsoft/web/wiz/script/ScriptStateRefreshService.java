@@ -17,12 +17,15 @@
  */
 package inetsoft.web.wiz.script;
 
+import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
@@ -151,6 +154,22 @@ public class ScriptStateRefreshService {
 
       Boolean previous = ViewsheetSandbox.keepRuntimeValuesRefresh.get();
       ViewsheetSandbox.keepRuntimeValuesRefresh.set(true);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      // Bug #80034: the refresh below calls refreshViewsheet, which eventually calls
+      // ViewsheetSandbox.syncFormData for every Form table on the sheet; syncFormData drops the
+      // table's cached FormTableLens (so the next read rebuilds it from the raw data, losing
+      // every ADDED/CHANGED row) unless the table is in the box's scriptChangedFormSet. The
+      // native OnClickService protects a table this way, but only when the script text itself
+      // names the table (hasFormScript) -- too narrow here, since a wiz script run that never
+      // mentions a table (an unrelated read-only probe) still reaches this same refresh and must
+      // not discard a pending form_table_set_cell edit made before it ran. Protect every Form
+      // table that already has pending changes, regardless of whether this run's script
+      // mentions it, and let OnClickService's own finally-clearScriptChangedFormSet discipline
+      // apply here too so the protection doesn't leak into some other, later refresh.
+      if(box != null) {
+         protectChangedFormTables(box, rvs.getViewsheet());
+      }
 
       try {
          CapturingCommandDispatcher.withCapturingDispatcher(user, dispatcher -> {
@@ -163,8 +182,33 @@ public class ScriptStateRefreshService {
       finally {
          ViewsheetSandbox.keepRuntimeValuesRefresh.set(previous);
 
+         if(box != null) {
+            box.clearScriptChangedFormSet();
+         }
+
          for(SelectionListVSAssembly list : applied) {
             list.setScriptSelectedValues(null);
+         }
+      }
+   }
+
+   /**
+    * Marks every Form table that already has an uncommitted edit (appended/changed/deleted row)
+    * as script-changed, so the refresh's own syncFormData call does not drop its cached
+    * FormTableLens and lose that edit (Bug #80034).
+    */
+   private static void protectChangedFormTables(ViewsheetSandbox box, Viewsheet vs) throws Exception {
+      for(Assembly assembly : vs.getAssemblies(true)) {
+         if(!(assembly instanceof TableVSAssembly table) ||
+            !(table.getInfo() instanceof TableVSAssemblyInfo info) || !info.isForm())
+         {
+            continue;
+         }
+
+         FormTableLens lens = box.getFormTableLens(table.getAbsoluteName());
+
+         if(lens != null && lens.isChanged()) {
+            box.addScriptChangedForm(table.getAbsoluteName());
          }
       }
    }

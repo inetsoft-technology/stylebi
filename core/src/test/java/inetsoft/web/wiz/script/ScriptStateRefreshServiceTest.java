@@ -17,13 +17,16 @@
  */
 package inetsoft.web.wiz.script;
 
+import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
@@ -32,8 +35,10 @@ import inetsoft.web.wiz.script.model.ScriptExecResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.security.Principal;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.List;
 
@@ -144,6 +149,67 @@ class ScriptStateRefreshServiceTest {
       service.runAndRefresh(rvs, user, "", () -> OK);
 
       verify(refreshService).refreshViewsheet(any(), any(), any(), any(), any());
+   }
+
+   /**
+    * Bug #80034: the refresh's own syncFormData call drops a Form table's cached FormTableLens
+    * (losing every ADDED/CHANGED row) unless the table is protected first -- regardless of
+    * whether this run's script text mentions the table, since an unrelated read-only probe must
+    * not discard a pending form_table_set_cell edit made before it ran.
+    */
+   @Test
+   void protectsAFormTableWithPendingEditsAcrossTheRefresh() throws Exception {
+      TableVSAssembly table = new TableVSAssembly(vs, "AdminTable");
+      ((TableVSAssemblyInfo) table.getInfo()).setForm(true);
+      vs.addAssembly(table);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      FormTableLens lens = mock(FormTableLens.class);
+      when(lens.isChanged()).thenReturn(true);
+      when(box.getFormTableLens("AdminTable")).thenReturn(lens);
+
+      service.runAndRefresh(rvs, user, "", () -> OK);
+
+      InOrder order = inOrder(box, refreshService);
+      order.verify(box).addScriptChangedForm("AdminTable");
+      order.verify(refreshService).refreshViewsheet(any(), any(), any(), any(), any());
+      order.verify(box).clearScriptChangedFormSet();
+   }
+
+   /** A Form table with nothing pending is left unprotected -- no reason to hold the set open. */
+   @Test
+   void doesNotProtectAFormTableWithNoPendingEdits() throws Exception {
+      TableVSAssembly table = new TableVSAssembly(vs, "AdminTable");
+      ((TableVSAssemblyInfo) table.getInfo()).setForm(true);
+      vs.addAssembly(table);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      FormTableLens lens = mock(FormTableLens.class);
+      when(lens.isChanged()).thenReturn(false);
+      when(box.getFormTableLens("AdminTable")).thenReturn(lens);
+
+      service.runAndRefresh(rvs, user, "", () -> OK);
+
+      verify(box, never()).addScriptChangedForm(any());
+      verify(box).clearScriptChangedFormSet();
+   }
+
+   /** A non-Form table is never asked about pending edits at all. */
+   @Test
+   void ignoresANonFormTable() throws Exception {
+      TableVSAssembly table = new TableVSAssembly(vs, "Plain");
+      vs.addAssembly(table);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+
+      service.runAndRefresh(rvs, user, "", () -> OK);
+
+      verify(box, never()).getFormTableLens(any());
+      verify(box, never()).addScriptChangedForm(any());
+      verify(box).clearScriptChangedFormSet();
    }
 
    @Test
