@@ -407,6 +407,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          Principal user0 = ThreadContext.getContextPrincipal();
          Catalog ucata = Catalog.getCatalog(user0, Catalog.REPORT);
 
+         // check the storage timestamp once per listing, not once per child sheet
+         if(!oneoff) {
+            checkStorageModified();
+         }
+
          for(AssetEntry childEntry : entries) {
             AssetEntry.Type type = childEntry.getType();
 
@@ -415,7 +420,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                   if(!oneoff) {
                      if(childEntry.isVSSnapshot()) {
                         VSSnapshot snap = (VSSnapshot) getSheet(
-                           childEntry, user, false, AssetContent.CONTEXT);
+                           childEntry, user, false, AssetContent.CONTEXT, true, false);
 
                         if(snap != null) {
                            childEntry.setProperty(AssetEntry.SHEET_DESCRIPTION,
@@ -429,7 +434,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                      }
                      else if(childEntry.isViewsheet()) {
                         Viewsheet vs = (Viewsheet) getSheet(
-                           childEntry, user, false, AssetContent.CONTEXT);
+                           childEntry, user, false, AssetContent.CONTEXT, true, false);
 
                         if(vs != null) {
                            ViewsheetInfo vinfo = vs.getViewsheetInfo();
@@ -2596,6 +2601,35 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                                  boolean permission, AssetContent ctype, boolean useCache)
       throws Exception
    {
+      return getSheet(entry, user, permission, ctype, useCache, true);
+   }
+
+   /**
+    * Checks whether the storage was modified since the last check and, if so, records the new
+    * timestamp and clears the node-local sheet caches. This is the only cross-node invalidation
+    * of those caches, so it must run at least once per request that reads cached sheets.
+    */
+   private void checkStorageModified() {
+      long modified = istore.lastModified();
+
+      if(modified != lastMod) {
+         lastMod = modified;
+         contextmap.clear();
+         sheetmap.clear();
+         foldermap.clear();
+         bookmarkmap.clear();
+      }
+   }
+
+   /**
+    * @param checkModified false if the caller has already called checkStorageModified for the
+    *                      current operation (e.g. a folder listing), so the (expensive) storage
+    *                      timestamp is not re-read for every sheet.
+    */
+   private AbstractSheet getSheet(AssetEntry entry, Principal user, boolean permission,
+                                  AssetContent ctype, boolean useCache, boolean checkModified)
+      throws Exception
+   {
       if(entry == null) {
          return null;
       }
@@ -2633,14 +2667,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             checkAssetPermission(user, entry, ResourceAction.READ, true);
          }
 
-         long modified = istore.lastModified();
-
-         if(modified != lastMod) {
-            lastMod = modified;
-            contextmap.clear();
-            sheetmap.clear();
-            foldermap.clear();
-            bookmarkmap.clear();
+         if(checkModified) {
+            checkStorageModified();
          }
 
          copyEntryProperty(entry, storage);
