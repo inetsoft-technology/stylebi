@@ -1749,6 +1749,7 @@ class CalcFieldAgentServiceTest {
       Viewsheet vs = new Viewsheet();
       inetsoft.uql.viewsheet.GaugeVSAssembly gauge =
          new inetsoft.uql.viewsheet.GaugeVSAssembly(vs, "NetGauge");
+      gauge.setScalarBindingInfo(new inetsoft.uql.viewsheet.ScalarBindingInfo());
       gauge.setTableName("ORDERS");
       Hyperlink link = webLink("hyperlink:Net Revenue");
       link.setParameterField("p", "Net Revenue");
