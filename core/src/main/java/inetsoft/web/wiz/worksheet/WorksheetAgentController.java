@@ -76,6 +76,7 @@ import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.MessageException;
 import inetsoft.util.TimedQueue;
+import inetsoft.util.UserMessage;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -387,9 +388,13 @@ public class WorksheetAgentController {
       String[] resolvedNameHolder = new String[2];
       boolean[] madeVisibleHolder = new boolean[1];
       boolean[] sortNoOpHolder = new boolean[1];
-      editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder, sortNoOpHolder);
+      String[] refreshNoteHolder = new String[1];
+      editOp(sessionToken, req, user, resolvedNameHolder, madeVisibleHolder, sortNoOpHolder,
+             refreshNoteHolder);
 
-      if(resolvedNameHolder[0] == null && !madeVisibleHolder[0] && !sortNoOpHolder[0]) {
+      if(resolvedNameHolder[0] == null && !madeVisibleHolder[0] && !sortNoOpHolder[0] &&
+         refreshNoteHolder[0] == null)
+      {
          return ResponseEntity.noContent().build();
       }
 
@@ -399,7 +404,7 @@ public class WorksheetAgentController {
          sortNoOpHolder[0]
             ? "Column '" + req.field() + "' has no sort on table '" + req.table()
                + "'; nothing was removed."
-            : null));
+            : refreshNoteHolder[0]));
    }
 
    /**
@@ -419,7 +424,7 @@ public class WorksheetAgentController {
    public void editOp(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      editOp(sessionToken, req, user, null, null, null);
+      editOp(sessionToken, req, user, null, null, null, null);
    }
 
    /**
@@ -431,7 +436,7 @@ public class WorksheetAgentController {
     */
    private void editOp(String sessionToken, EditRequest req, Principal user,
                        String[] resolvedNameHolder, boolean[] madeVisibleHolder,
-                       boolean[] sortNoOpHolder)
+                       boolean[] sortNoOpHolder, String[] refreshNoteHolder)
       throws Exception
    {
       requireEnabled();
@@ -719,7 +724,7 @@ public class WorksheetAgentController {
 
       // refresh_data clears the query cache and forces re-execution.
       if("refresh_data".equals(req.op())) {
-         refreshData(sessionToken, req, user);
+         refreshData(sessionToken, req, user, refreshNoteHolder);
          return;
       }
 
@@ -5220,9 +5225,14 @@ public class WorksheetAgentController {
     * resetting the table lens. If {@code req.table()} is specified, only that assembly is
     * refreshed; otherwise all table assemblies are refreshed.
     */
-   private void refreshData(String sessionToken, EditRequest req, Principal user)
+   private void refreshData(String sessionToken, EditRequest req, Principal user,
+                            String[] noteHolder)
       throws Exception
    {
+      // Bug #79595: drop any message a pooled request thread left pending, so only warnings
+      // raised by this refresh are reported back.
+      CoreTool.clearUserMessage();
+
       editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
          AssetQuerySandbox box = rws.getAssetQuerySandbox();
 
@@ -5332,6 +5342,12 @@ public class WorksheetAgentController {
                   tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
                }
 
+               // Bug #79595: a mirror/join/concat over a tabular source reads that source's STORED
+               // column selection, which only loadColumnSelection re-discovers; refreshing just the
+               // dependent left it listing a column the source no longer has, so nothing noticed
+               // the vanished column.
+               loadUpstreamTabularColumns(ws, table, box);
+
                // WSQueryService.runQuery also drops a BoundQuery/TabularBoundQuery's own
                // XSessionManager cache entry via a fresh AssetQuery.createAssetQuery(...) +
                // BoundQuery.clearQueryCache(...); do it here too, best-effort. NOTE: confirmed
@@ -5386,6 +5402,9 @@ public class WorksheetAgentController {
             try {
                RenderWaitSupport.awaitOrRetry(() -> {
                   try {
+                     // Bug #79595: the reload runs on its own virtual thread and the pending user
+                     // messages are thread-local, so they must be read here, on that same thread.
+                     CoreTool.clearUserMessage();
                      WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
                      WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
 
@@ -5409,6 +5428,10 @@ public class WorksheetAgentController {
                      // caches around it invalidated and left to some later caller's lazy reload.
                      if(mode >= 0 && mode != AssetQuerySandbox.RUNTIME_MODE) {
                         forceRuntimeRead(box, req.table());
+                     }
+
+                     if(noteHolder != null) {
+                        noteHolder[0] = takePendingWarning();
                      }
                   }
                   finally {
@@ -5521,6 +5544,10 @@ public class WorksheetAgentController {
                   }
                }
 
+               if(noteHolder != null) {
+                  noteHolder[0] = takePendingWarning();
+               }
+
                if(!failures.isEmpty()) {
                   throw new PairingException("Refreshed the other tables, but " + failures.size() +
                                              " could not be reloaded: " +
@@ -5534,6 +5561,57 @@ public class WorksheetAgentController {
 
          return null;
       });
+   }
+
+   /**
+    * Bug #79595: reads and clears the user messages pending on the CURRENT thread, merged into one
+    * text, or {@code null} when there are none. Must be called on the thread that did the work.
+    */
+   private static String takePendingWarning() {
+      UserMessage msg = CoreTool.getUserMessage();
+
+      if(msg == null || msg.getMessage() == null || msg.getMessage().isBlank()) {
+         return null;
+      }
+
+      return msg.getMessage();
+   }
+
+   /**
+    * Bug #79595: re-discovers the columns of every tabular source below {@code table} (through
+    * mirror/join/concat tables), so a column dropped at the source is seen by the dependent
+    * table's input check. Best-effort per source, like the rest of the refresh.
+    */
+   private static void loadUpstreamTabularColumns(Worksheet ws, TableAssembly table,
+                                                  AssetQuerySandbox box)
+   {
+      loadUpstreamTabularColumns(ws, table, box, new HashSet<>());
+   }
+
+   private static void loadUpstreamTabularColumns(Worksheet ws, TableAssembly table,
+                                                  AssetQuerySandbox box, Set<String> visited)
+   {
+      if(!(table instanceof ComposedTableAssembly composed)) {
+         return;
+      }
+
+      for(String name : composed.getTableNames()) {
+         if(name == null || !visited.add(name) || !(ws.getAssembly(name) instanceof TableAssembly source))
+         {
+            continue;
+         }
+
+         if(source instanceof TabularTableAssembly tabular) {
+            try {
+               tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to reload the columns of upstream table: " + name, e);
+            }
+         }
+
+         loadUpstreamTabularColumns(ws, source, box, visited);
+      }
    }
 
    /**

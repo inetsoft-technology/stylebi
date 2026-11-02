@@ -30,6 +30,8 @@ import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.util.QueryManager;
+import inetsoft.util.CoreTool;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
@@ -3349,6 +3351,144 @@ class WorksheetAgentControllerTest {
       // Bug #76711 round 4 also clears the RUNTIME_MODE slot for this DESIGN_MODE table (see
       // refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable), so this is now 2 calls.
       verify(assetDataCache, atLeastOnce()).remove(any());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79595: refresh_data must relay the warning raised while it reloads, and a refresh of a
+   // dependent table must re-discover the columns of its tabular source.
+   // ---------------------------------------------------------------------------
+
+   /** TabularTableAssembly whose column discovery is only counted (it has no real query). */
+   private static final class CountingTabular extends TabularTableAssembly {
+      final java.util.concurrent.atomic.AtomicInteger loads =
+         new java.util.concurrent.atomic.AtomicInteger();
+
+      CountingTabular(Worksheet ws, String name) {
+         super(ws, name);
+      }
+
+      @Override
+      public void loadColumnSelection(VariableTable vtable, boolean addnew, QueryManager manager) {
+         loads.incrementAndGet();
+      }
+   }
+
+   private static WorksheetAgentController refreshController(Worksheet ws, AssetQuerySandbox box)
+      throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-79595"), any())).thenReturn(session("TOK-79595"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+
+      return controller(featureOn(), mock(SheetJoinService.class),
+                        mock(SheetSessionService.class), mock(WorksheetReadService.class),
+                        editSvc, mock(WorksheetService.class),
+                        mock(inetsoft.report.composition.execution.AssetDataCache.class));
+   }
+
+   /** Single-table refresh reloads on a virtual thread; its warning must still reach the caller. */
+   @Test
+   void refreshDataSingleTableReturnsTheWarningRaisedOnTheReloadThread() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table1 = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table1.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table1);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      doAnswer(inv -> {
+         CoreTool.addUserWarning("Table1: aggregate column 'v' no longer exists upstream");
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("Table1"), agent);
+      }
+
+      assertNotNull(response.getBody(), "a refresh that raised a warning must not be a bare 204");
+      assertTrue(response.getBody().note().contains("'v' no longer exists"),
+                 "note: " + response.getBody().note());
+   }
+
+   @Test
+   void refreshDataBulkReturnsTheWarningRaisedWhileReloading() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table1 = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table1.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table1);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      doAnswer(inv -> {
+         CoreTool.addUserWarning("Table1: aggregate column 'v' no longer exists upstream");
+         return null;
+      }).when(box).getTableLens(eq("Table1"), anyInt());
+
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertNotNull(response.getBody());
+      assertTrue(response.getBody().note().contains("'v' no longer exists"),
+                 "note: " + response.getBody().note());
+   }
+
+   /** A stale message left on the pooled request thread must not be reported as this refresh's. */
+   @Test
+   void refreshDataDoesNotReportAMessageLeftPendingByAnEarlierRequest() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table1 = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table1.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table1);
+      WorksheetAgentController ctrl = refreshController(ws, mock(AssetQuerySandbox.class));
+      CoreTool.addUserWarning("left behind by an earlier request");
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertNull(response.getBody());
+   }
+
+   @Test
+   void refreshDataOfAMirrorReloadsTheColumnsOfItsTabularSource() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      CountingTabular source = new CountingTabular(ws, "T");
+      source.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(source);
+      ws.addAssembly(new MirrorTableAssembly(ws, "M", source));
+      CountingTabular unrelated = new CountingTabular(ws, "Other");
+      ws.addAssembly(unrelated);
+
+      WorksheetAgentController ctrl = refreshController(ws, mock(AssetQuerySandbox.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-79595", refreshDataRequest("M"), agent);
+      }
+
+      assertEquals(1, source.loads.get(), "the mirror's tabular source must be re-discovered");
+      assertEquals(0, unrelated.loads.get(), "tables outside the refreshed chain stay untouched");
    }
 
    /** Bug 76873: refreshing a table must also drop the cached results of its dependents. */
