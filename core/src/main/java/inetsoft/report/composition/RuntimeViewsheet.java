@@ -994,7 +994,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       bm.setBookmarkData(name, data);
       bm.setBookmarkInfo(name, ninfo);
 
-      if(name.equals(VSBookmark.HOME_BOOKMARK) && confirmed) {
+      if(name.equals(VSBookmark.HOME_BOOKMARK) && confirmed && ibookmark != null) {
          ibookmark.setBookmarkData(VSBookmark.INITIAL_STATE, data);
          ibookmark.setBookmarkInfo(VSBookmark.INITIAL_STATE, ninfo);
       }
@@ -1096,7 +1096,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       Viewsheet processedViewsheet = vs.clone();
       // @by stephenwebster, For bug1428907012145, retrieve the proper
       // viewsheet representing the initial state for the home bookmark.
-      if(VSBookmark.HOME_BOOKMARK.equals(name)) {
+      if(VSBookmark.HOME_BOOKMARK.equals(name) && ibookmark != null) {
          processedViewsheet = ibookmark.getBookmark(VSBookmark.INITIAL_STATE,
                                                     processedViewsheet);
       }
