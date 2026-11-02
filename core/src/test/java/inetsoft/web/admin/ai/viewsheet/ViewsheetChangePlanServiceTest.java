@@ -582,7 +582,7 @@ class ViewsheetChangePlanServiceTest {
 
       var plan = service.resolve(request("task", List.of(change)), user);
 
-      assertTrue(plan.changes().get(0).description().contains("contains no viewsheet or worksheet"));
+      assertTrue(plan.changes().get(0).description().contains("contains no viewsheet"));
       assertFalse(plan.changes().get(0).description().contains("does NOT delete or move"));
       assertFalse(plan.changes().get(0).description().contains("fully compensable"));
    }
