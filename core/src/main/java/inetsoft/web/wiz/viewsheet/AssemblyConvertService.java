@@ -230,6 +230,17 @@ public class AssemblyConvertService {
                throw new IllegalArgumentException(
                   illegal(assemblyName, from, target, "a table or a crosstab"));
             }
+
+            // The Composer disables Convert to Freehand Table on a form Table
+            // (table-actions.ts: enabled: !model.form); the endpoint would silently drop the
+            // form/insert/delete/edit/write-back state.
+            if(assembly.getInfo() instanceof TableVSAssemblyInfo ti && ti.isForm()) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is a form Table and cannot be converted to a " +
+                  "freehand table: the Composer disables this action for it, and the " +
+                  "conversion would silently drop its form state. Turn form off first " +
+                  "(set_assembly_properties form:false).");
+            }
          }
       }
    }

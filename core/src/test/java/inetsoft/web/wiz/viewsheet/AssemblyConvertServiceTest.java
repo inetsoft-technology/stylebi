@@ -81,6 +81,38 @@ class AssemblyConvertServiceTest {
       verifyNoInteractions(h.table);
    }
 
+   /** Bug #79999: the Composer disables Convert to Freehand Table on a form Table. */
+   @Test
+   void refusesConvertingAFormTableToFreehand() {
+      TableVSAssembly table = formTable(true);
+      Harness h = harness(table, "Table1");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.convert("tok", principal(), "Table1", "freehand_table", ""));
+
+      assertTrue(e.getMessage().contains("form"), e.getMessage());
+      verifyNoInteractions(h.table);
+   }
+
+   @Test
+   void convertsATableWhoseFormIsOff() throws Exception {
+      Harness h = harness(formTable(false), "Table1");
+
+      Map<String, Object> result =
+         h.service.convert("tok", principal(), "Table1", "freehand_table", "");
+
+      assertEquals("freehand_table", result.get("to"));
+   }
+
+   private static TableVSAssembly formTable(boolean form) {
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
+      when(info.isEmbedded()).thenReturn(false);
+      when(info.isForm()).thenReturn(form);
+      doReturn(info).when(assembly).getInfo();
+      return assembly;
+   }
+
    /**
     * <b>The NPE guard.</b> A standalone selection list passes the endpoint's own
     * {@code &&} guard and then dereferences a null container. This is the case the Composer hides by
