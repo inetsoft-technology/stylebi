@@ -1437,7 +1437,10 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                         }
                      }
 
-                     ainfo.addAggregate(aref);
+                     if(!ainfo.containsAggregate(aref)) {
+                        ainfo.addAggregate(aref);
+                     }
+
                      aggr2calc.put(aref.getName(), aggr.getName());
                   }
                }
