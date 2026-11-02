@@ -1349,10 +1349,79 @@ class PresentationChangePlanServiceTest {
 
    @Test
    void otherSubModelsAreNotAffectedByValueValidation() throws Exception {
-      acceptValue(PresentationSubModel.LOGIN_BANNER, "global",
-         currentFor(PresentationSubModel.LOGIN_BANNER), obj().put("bannerType", "9"));
+      // loginBanner.bannerType is validated since Bug #80002; FORMATS stays unvalidated
       acceptValue(PresentationSubModel.FORMATS, "global",
          currentFor(PresentationSubModel.FORMATS), obj().put("dateFormat", ""));
+   }
+
+   private static PresentationLoginBannerSettingsModel banner(String bannerType) {
+      return PresentationLoginBannerSettingsModel.builder().bannerType(bannerType)
+         .loginBanner("").build();
+   }
+
+   private static PresentationPdfGenerationSettingsModel pdf(String openFirst) {
+      return PresentationPdfGenerationSettingsModel.builder()
+         .compressText(true).compressImage(true).asciiOnly(false).mapSymbols(false)
+         .pdfEmbedCmap(false).pdfEmbedFont(false).browserEmbedPdf(false).pdfHyperlinks(true)
+         .openFirst(openFirst).build();
+   }
+
+   @Test
+   void bannerTypeOutsideTheEmOptionsIsRefusedAtBothScopes() throws Exception {
+      for(String scope : new String[] {"global", "organization"}) {
+         for(String bad : new String[] {"7", "x", ""}) {
+            IllegalArgumentException e = refuseValue(PresentationSubModel.LOGIN_BANNER, scope,
+               banner("0"), obj().put("bannerType", bad));
+            assertTrue(e.getMessage().contains("changes[0].spec.bannerType"), e.getMessage());
+         }
+      }
+   }
+
+   @Test
+   void bannerTypeTextHtmlAndJsonNumberAreAccepted() throws Exception {
+      acceptValue(PresentationSubModel.LOGIN_BANNER, "global", banner("0"),
+                  obj().put("bannerType", "1"));
+      acceptValue(PresentationSubModel.LOGIN_BANNER, "global", banner("1"),
+                  obj().put("bannerType", "0"));
+      acceptValue(PresentationSubModel.LOGIN_BANNER, "global", banner("0"),
+                  obj().put("bannerType", 1));
+   }
+
+   @Test
+   void storedLegacyBannerTypeIsNotBlockedWhenUnchanged() throws Exception {
+      acceptValue(PresentationSubModel.LOGIN_BANNER, "global", banner("9"),
+                  obj().put("bannerType", "9").put("loginBanner", "x"));
+      acceptValue(PresentationSubModel.LOGIN_BANNER, "global", banner("9"),
+                  obj().put("loginBanner", "x"));
+   }
+
+   @Test
+   void openFirstOutsideTheEmOptionsIsRefusedAtBothScopes() throws Exception {
+      for(String scope : new String[] {"global", "organization"}) {
+         for(String bad : new String[] {"cover", "Bookmark"}) {
+            IllegalArgumentException e = refuseValue(PresentationSubModel.PDF_GENERATION, scope,
+               pdf(null), obj().put("openFirst", bad));
+            assertTrue(e.getMessage().contains("changes[0].spec.openFirst"), e.getMessage());
+         }
+      }
+   }
+
+   @Test
+   void openFirstBookmarkThumbnailAndNullAreAccepted() throws Exception {
+      acceptValue(PresentationSubModel.PDF_GENERATION, "global", pdf(null),
+                  obj().put("openFirst", "bookmark"));
+      acceptValue(PresentationSubModel.PDF_GENERATION, "global", pdf(null),
+                  obj().put("openFirst", "thumbnail"));
+      acceptValue(PresentationSubModel.PDF_GENERATION, "global", pdf("bookmark"),
+                  obj().putNull("openFirst"));
+   }
+
+   @Test
+   void storedLegacyOpenFirstIsNotBlockedWhenUnchanged() throws Exception {
+      acceptValue(PresentationSubModel.PDF_GENERATION, "global", pdf("cover"),
+                  obj().put("openFirst", "cover").put("compressText", false));
+      acceptValue(PresentationSubModel.PDF_GENERATION, "global", pdf("cover"),
+                  obj().put("compressText", false));
    }
 
    private static final String LAF_EXPAND_GLOBAL_HASH =

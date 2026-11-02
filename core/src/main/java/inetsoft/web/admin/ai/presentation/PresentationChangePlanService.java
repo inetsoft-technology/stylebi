@@ -26,6 +26,8 @@ import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.presentation.model.PresentationLoginBannerSettingsModel;
+import inetsoft.web.admin.presentation.model.PresentationPdfGenerationSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationTimeSettingsModel;
 import inetsoft.web.admin.presentation.model.WelcomePageSettingsModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -274,8 +276,9 @@ public class PresentationChangePlanService {
       "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday");
 
    /**
-    * Refuses the {@code welcomePage} and {@code time} values the Enterprise Manager editors forbid
-    * (Bug #79430): neither the services nor the legacy REST endpoints validate them, so without this a
+    * Refuses the {@code welcomePage}, {@code time}, {@code loginBanner.bannerType} and
+    * {@code pdfGeneration.openFirst} values the Enterprise Manager editors forbid
+    * (Bug #79430, #80002): neither the services nor the legacy REST endpoints validate them, so without this a
     * type-1 welcome page with a blank source or a week start of "Funday" would be previewed and
     * written. Judged on the TYPED merged model, so a Jackson coercion is judged by its final value,
     * and only when that value differs from the current one: an unchanged echo of a read-back value
@@ -333,6 +336,33 @@ public class PresentationChangePlanService {
             throw new IllegalArgumentException(
                label + ".spec.weekStart: must be one of Sunday..Saturday (case-insensitive) or \"\" " +
                "for the default, got " + (weekStart == null ? "null" : "\"" + weekStart + "\""));
+         }
+      }
+      else if(subModel == PresentationSubModel.LOGIN_BANNER && spec.has("bannerType")) {
+         // Bug #80002: EM offers only 0 (Text) and 1 (HTML); the write does Integer.parseInt
+         String bannerType = ((PresentationLoginBannerSettingsModel) proposed).bannerType();
+         JsonNode curNode = currentNode.get("bannerType");
+         String cur = curNode == null || curNode.isNull() ? null : curNode.asText();
+
+         if(!Objects.equals(bannerType, cur) && !"0".equals(bannerType) && !"1".equals(bannerType)) {
+            throw new IllegalArgumentException(
+               label + ".spec.bannerType: must be \"0\" (Text) or \"1\" (HTML), got " +
+               (bannerType == null ? "null" : "\"" + bannerType + "\""));
+         }
+      }
+      else if(subModel == PresentationSubModel.PDF_GENERATION && spec.has("openFirst")) {
+         // Bug #80002: the write only recognizes "bookmark" and "thumbnail"; anything else
+         // silently clears both flags while the signed plan promises the unknown value
+         String openFirst = ((PresentationPdfGenerationSettingsModel) proposed).openFirst();
+         JsonNode curNode = currentNode.get("openFirst");
+         String cur = curNode == null || curNode.isNull() ? null : curNode.asText();
+
+         if(!Objects.equals(openFirst, cur) && openFirst != null && !"bookmark".equals(openFirst) &&
+            !"thumbnail".equals(openFirst))
+         {
+            throw new IllegalArgumentException(
+               label + ".spec.openFirst: must be \"bookmark\", \"thumbnail\" or null (none), got \"" +
+               openFirst + "\"");
          }
       }
    }
