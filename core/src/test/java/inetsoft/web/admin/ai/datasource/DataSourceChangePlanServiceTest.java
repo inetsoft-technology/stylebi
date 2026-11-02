@@ -389,6 +389,61 @@ class DataSourceChangePlanServiceTest {
       assertEquals("SALES", proposed.getDefaultDatabase());
    }
 
+   // Bug 79890: the proposed value must equal what updateDataSource persists for requireLogin=false.
+   @Test void buildProposedJdbcClearsUserAndCredentialIdWhenDisablingRequireLogin()
+      throws Exception
+   {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+      current.setCredentialID("stale-ref");
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc(
+         "changes[0]", "id-1", "Orders", current, Map.of("requireLogin", false), user);
+
+      assertFalse(proposed.isRequireLogin());
+      assertNull(proposed.getUser());
+      assertNull(proposed.getPassword());
+      assertNull(proposed.getCredentialID());
+   }
+
+   @Test void buildProposedJdbcLeavesUseCredentialIdAloneWhenDisablingRequireLogin()
+      throws Exception
+   {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+      current.setUseCredentialId(true);
+      current.setCredentialID("secret-ref-1");
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc(
+         "changes[0]", "id-1", "Orders", current, Map.of("requireLogin", false), user);
+
+      assertTrue(proposed.isUseCredentialId());
+      assertNull(proposed.getCredentialID());
+      assertNull(proposed.getUser());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"user", "credentialID", "useCredentialId"})
+   void buildProposedJdbcRefusesLoginFieldsTogetherWithRequireLoginFalse(String field) {
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+      Map<String, Object> spec = new LinkedHashMap<>();
+      spec.put("requireLogin", false);
+      spec.put(field, "useCredentialId".equals(field) ? (Object) Boolean.FALSE : "x");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.buildProposedJdbc("changes[0]", "id-1", "Orders", current, spec, user));
+      assertTrue(ex.getMessage().contains("requireLogin"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(field), ex.getMessage());
+   }
+
+   @Test void previewProposesClearedUserWhenDisablingRequireLogin() throws Exception {
+      stubLoginSource();
+
+      String proposed = resolveUpdate(Map.of("requireLogin", false))
+         .changes().get(0).proposedValue();
+
+      assertTrue(proposed.contains("requireLogin=false"), proposed);
+      assertFalse(proposed.contains("user=sa"), proposed);
+   }
+
    // -------------------------------------------------------------------------
    // bug 78818: padded / other-length masks are refused, real values stored verbatim
    // -------------------------------------------------------------------------
@@ -1018,7 +1073,7 @@ class DataSourceChangePlanServiceTest {
    private static final String PINNED_URL_UPDATE_HASH =
       "fb09f601e6de45f8bf8be53a13231adaff649557f0f2e005c2252bbc4c4a6031";
    private static final String PINNED_LOGIN_OFF_HASH =
-      "09ae2241dbbc6ee5900b1ed84c996f7b73d977f0b9c4e0157194e17c06ea85cc";
+      "3ff89496e4476bcc4f13c2360699b62e739964a20c60fd3de9b2cc9d947997fb";
    private static final String PINNED_DELETE_HASH =
       "03562d80611956fa23cdd70320245a51f837acdd9ff7c475cea4cb3dca58b227";
 

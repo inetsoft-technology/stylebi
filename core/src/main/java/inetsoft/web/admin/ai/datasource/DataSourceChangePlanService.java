@@ -489,7 +489,15 @@ public class DataSourceChangePlanService {
       }
 
       if(!proposed.isRequireLogin()) {
+         // Mirror DataSourceService.updateDataSource's requireLogin=false branch exactly, so the
+         // proposed value equals what the write persists and the apply verification matches.
+         // useCredentialId is left alone: it is derived from the stored credential type, which
+         // updateDataSource never changes.
+         requireNoLoginFieldsWhenLoginOff(label, spec);
+         proposed.setUser(null);
          proposed.setPassword(null);
+         proposed.setCredentialID(null);
+         return proposed;
       }
       else if(spec.containsKey("password")) {
          String value = requireStringOrNull(label, "password", spec);
@@ -547,6 +555,16 @@ public class DataSourceChangePlanService {
       copy.setUseCredentialId(src.isUseCredentialId());
       copy.setCredentialID(src.getCredentialID());
       return copy;
+   }
+
+   private static void requireNoLoginFieldsWhenLoginOff(String label, Map<String, Object> spec) {
+      for(String field : List.of("user", "credentialID", "useCredentialId")) {
+         if(spec.containsKey(field)) {
+            throw new IllegalArgumentException(
+               label + ".spec." + field + ": not allowed while requireLogin is false -- turning " +
+               "login off clears the user and credentialID, so this value could not be stored");
+         }
+      }
    }
 
    private static void requireCredentialCrossValidation(String label, Map<String, Object> spec,

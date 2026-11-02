@@ -919,6 +919,35 @@ class DataSourceChangesetApplyServiceTest {
 
    // -------------------------------------------------------------------------
    // helpers
+   // Bug 79890: turning login off must propose the same cleared user/credentialID that
+   // DataSourceService.updateDataSource persists, or the post-write verification never matches.
+   @Test void turningLoginOffIsVerifiedWhenTheWriteClearsTheUser() throws Exception {
+      store.put("Orders", jdbc("id-orders", "Orders", true, "******"));
+      lenient().doAnswer(inv -> {
+         String id = inv.getArgument(0);
+         JdbcDataSourceProperties written = copy((JdbcDataSourceProperties) inv.getArgument(1));
+
+         if(!written.isRequireLogin()) {
+            written.setUser(null);
+            written.setPassword(null);
+            written.setCredentialID(null);
+         }
+
+         store.entrySet().removeIf(e -> e.getValue().getId().equals(id));
+         store.put(written.getName(), written);
+         return null;
+      }).when(dataSourceService).updateDataSource(anyString(), any(), eq(user));
+
+      DataSourceApplyRequest req = applyRequest("turn login off", false,
+         updateChange("Orders", Map.of("requireLogin", false)));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      assertNull(store.get("Orders").getUser());
+   }
+
    // -------------------------------------------------------------------------
 
    private DataSourceApplyRequest applyRequest(String task, boolean acknowledgeDelete,
