@@ -1257,6 +1257,7 @@ public class LocalDependencyHandler implements DependencyHandler {
          updateHyperlinkDependencies(assembly, entry, add, cache);
          updateCubeSourceDependencies(assembly, entry, add, cache);
          updateCalcTableNamedGroupDependencies(assembly, entry, add, cache);
+         updateCalcTableFormulaDependencies(assembly, entry, add, cache);
       }
 
       if(base == null) {
@@ -1775,6 +1776,30 @@ public class LocalDependencyHandler implements DependencyHandler {
     * @param add whether add.
     * @param cache whether update cache.
     */
+   private void updateCalcTableFormulaDependencies(Assembly assembly, AssetEntry entry,
+                                                   boolean add, boolean cache)
+   {
+      if(!(assembly instanceof CalcTableVSAssembly)) {
+         return;
+      }
+
+      List<CellBindingInfo> cellInfos =
+         ((CalcTableVSAssembly) assembly).getTableLayout().getCellInfos(true);
+
+      if(cellInfos == null) {
+         return;
+      }
+
+      for(CellBindingInfo cellInfo : cellInfos) {
+         if(cellInfo instanceof TableLayout.TableCellBindingInfo tableCellInfo &&
+            tableCellInfo.getCellBinding() != null &&
+            tableCellInfo.getCellBinding().getType() == TableCellBinding.BIND_FORMULA)
+         {
+            updateScriptDependencies(tableCellInfo.getCellBinding().getValue(), entry, add, cache);
+         }
+      }
+   }
+
    private void updateCalcTableNamedGroupDependencies(Assembly assembly, AssetEntry entry,
                                                              boolean add, boolean cache)
    {

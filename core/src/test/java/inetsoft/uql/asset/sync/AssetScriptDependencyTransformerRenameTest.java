@@ -17,7 +17,12 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.report.BaseLayout;
+import inetsoft.report.CellBinding;
 import inetsoft.report.LibManager;
+import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableLayout;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.lib.logical.NoopLibrarySecurity;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -38,6 +43,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.io.ByteArrayInputStream;
 import java.io.PrintWriter;
@@ -117,6 +123,67 @@ class AssetScriptDependencyTransformerRenameTest {
          doc, "./viewsheetInfo/viewsheetInfo/initScript").item(0)));
       assertEquals("cd(2);", Tool.getValue(DependencyTransformer.getChildNodes(
          doc, "./viewsheetInfo/viewsheetInfo/loadScript").item(0)));
+   }
+
+   private static TableCellBinding cell(int type, String value, String formula) {
+      TableCellBinding cell = new TableCellBinding(type, value);
+      cell.setFormula(formula);
+      return cell;
+   }
+
+   /** Serialize a real calc table layout, one cell per column, in a stored viewsheet. */
+   private static String calcTableXml(TableCellBinding... cells) {
+      TableLayout layout = new TableLayout();
+      layout.setColCount(cells.length);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(new DefaultTableLens(new Object[][] { { "A" }, { 1 } })
+                          .getDescriptor().getRowDataPath(0), region);
+
+      for(int i = 0; i < cells.length; i++) {
+         layout.setCellBinding(0, i, cells[i]);
+      }
+
+      StringWriter out = new StringWriter();
+      PrintWriter writer = new PrintWriter(out);
+      layout.writeXML(writer);
+      writer.flush();
+      return "<viewsheet><assemblies><oneAssembly><assembly><assemblyInfo>" + out +
+         "</assemblyInfo></assembly></oneAssembly></assemblies></viewsheet>";
+   }
+
+   /** Bug #80071: a calc table formula cell is rewritten, no other kind of cell is. */
+   @Test
+   void calcTableFormulaCellIsRewrittenButOtherCellsAreNot() throws Exception {
+      String xml = calcTableXml(
+         cell(CellBinding.BIND_FORMULA, "ab(3300000)", null),
+         cell(CellBinding.BIND_FORMULA, "ab(field['x']) + abc(1) + myab(2) + x.ab(3)", null),
+         cell(CellBinding.BIND_TEXT, "ab(1)", null),
+         cell(CellBinding.BIND_COLUMN, "ab(", "ab("));
+      Element doc = parse(xml);
+
+      new AssetScriptDependencyTransformer(null).renameScript(doc, info());
+
+      NodeList values = DependencyTransformer.getChildNodes(doc, "//cellBinding/value");
+      assertEquals(4, values.getLength());
+      assertEquals("cd(3300000)", Tool.getValue(values.item(0)));
+      assertEquals("cd(field['x']) + abc(1) + myab(2) + x.ab(3)", Tool.getValue(values.item(1)));
+      assertEquals("ab(1)", Tool.getValue(values.item(2)));
+      assertEquals("ab(", Tool.getValue(values.item(3)));
+      NodeList formulas = DependencyTransformer.getChildNodes(doc, "//cellBinding/formula");
+      assertEquals("ab(", Tool.getValue(formulas.item(formulas.getLength() - 1)));
+   }
+
+   /** A cell formula outside the root sheet's own assemblies is not visited. */
+   @Test
+   void calcTableFormulaOutsideAssembliesIsNotRewritten() throws Exception {
+      Element doc = parse("<viewsheet><cellBinding type=\"3\"><value><![CDATA[ab(1)]]></value>" +
+                          "</cellBinding></viewsheet>");
+
+      new AssetScriptDependencyTransformer(null).renameScript(doc, info());
+
+      assertEquals("ab(1)", Tool.getValue(
+         DependencyTransformer.getChildNodes(doc, "//cellBinding/value").item(0)));
    }
 
    /** Serialize a column the way StyleBI does, so the fixture carries the real attributes. */

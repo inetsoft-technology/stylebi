@@ -57,6 +57,16 @@ public class AssetScriptDependencyTransformer extends AssetDependencyTransformer
       renameAssemblyScript(doc, info);
       renameViewsheetScript(doc, info);
       renameExpressions(doc, info);
+      renameCellFormulas(doc, info);
+   }
+
+   /**
+    * Rename the function in the formulas of calc table cells. Only a formula cell (type 3) holds
+    * script, a text, column or aggregate cell is left alone.
+    */
+   private void renameCellFormulas(Element doc, RenameInfo info) {
+      renameScript(getChildNodes(doc,
+         "//assemblies/oneAssembly/assembly//cellBinding[@type='3']/value"), info);
    }
 
    /**

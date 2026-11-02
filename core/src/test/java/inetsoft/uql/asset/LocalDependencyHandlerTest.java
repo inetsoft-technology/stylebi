@@ -24,8 +24,13 @@ package inetsoft.uql.asset;
  * the file-level comment doesn't have to be rewritten every time a new scenario is added.
  */
 
+import inetsoft.report.BaseLayout;
+import inetsoft.report.CellBinding;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableLayout;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -37,6 +42,7 @@ import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.RenameTransformObject;
 import inetsoft.uql.erm.XEntity;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.AfterEach;
@@ -271,6 +277,48 @@ class LocalDependencyHandlerTest {
                    capturedDependencies(scriptEntry(SCRIPT_NAME).toIdentifier()));
       assertEquals(List.of(sheet.toIdentifier()),
                    capturedDependencies(scriptEntry(HELPER_SCRIPT_NAME).toIdentifier()));
+   }
+
+   /**
+    * Bug #80071: a viewsheet that calls a library function only from a calc table formula cell
+    * was not recorded as a dependent of the function, so renaming or deleting it never saw it.
+    */
+   @Test
+   void calcTableFormulaCellIsRegisteredAsDependentOfTheFunction() throws Exception {
+      ThreadContext.setContextPrincipal(mockPrincipal());
+      LibManager manager = mock(LibManager.class);
+      when(manager.findScriptName(anyString())).thenAnswer(
+         invocation -> invocation.getArgument(0));
+      AssetEntry sheet = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                        "80071/vs", null);
+      TableLayout layout = new TableLayout();
+      layout.setColCount(2);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(new DefaultTableLens(new Object[][] { { "A" }, { 1 } })
+                          .getDescriptor().getRowDataPath(0), region);
+      layout.setCellBinding(0, 0, new TableCellBinding(
+         CellBinding.BIND_FORMULA, SCRIPT_NAME + "(field['x'])"));
+      // a text cell is not script
+      layout.setCellBinding(0, 1, new TableCellBinding(
+         CellBinding.BIND_TEXT, HELPER_SCRIPT_NAME + "(2)"));
+      Viewsheet vs = new Viewsheet();
+      CalcTableVSAssembly calc = new CalcTableVSAssembly(vs, "CalcTable1");
+      calc.setTableLayout(layout);
+      vs.addAssembly(calc);
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
+         provider.when(LibManagerProvider::getInstance).thenReturn(libManagerProvider);
+         when(libManagerProvider.getManager()).thenReturn(manager);
+
+         handler.updateSheetDependencies(vs, sheet, true, false);
+      }
+
+      assertEquals(List.of(sheet.toIdentifier()),
+                   capturedDependencies(scriptEntry(SCRIPT_NAME).toIdentifier()));
+      verify(dependencyStorageService, never())
+         .put(eq(scriptEntry(HELPER_SCRIPT_NAME).toIdentifier()), any());
    }
 
    private AssetEntry scriptEntry(String name) {
