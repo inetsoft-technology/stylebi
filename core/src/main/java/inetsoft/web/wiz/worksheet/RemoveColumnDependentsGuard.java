@@ -24,6 +24,8 @@ import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.web.wiz.pairing.PairingException;
 
+import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 
 /**
@@ -39,16 +41,79 @@ import java.util.List;
  * not yet saved can be missed). It cannot live in {@code Editor}, which has no worksheet entry or
  * repository.</p>
  *
- * <p>Known gap (parity with the Composer's delete-column check, deliberately not closed here):
- * only saved dependents bound directly to {@code table} are seen. A dependent bound to a join,
- * mirror or concatenation built on this table, which exposes the column from it, is not found,
- * so removing the column there is not refused.</p>
+ * <p>Bug #80035 widened this from {@code remove_column} alone to every other op that can produce
+ * the same silent data exposure: {@code delete_table} (every column the table exposes) and
+ * {@code set_column_visibility} (hiding a column stops it filtering, same as removing it). Two
+ * related gaps are still open, deliberately not closed here (each needs its own design, not a
+ * mechanical reuse of this check):</p>
+ * <ul>
+ *   <li>Only saved dependents bound directly to {@code table} are seen. A dependent bound to a
+ *       join, mirror or concatenation built on this table, which exposes the column from it, is
+ *       not found, so an edit there is not refused (parity gap with the Composer's own
+ *       delete-column check, noted since #79526).</li>
+ *   <li>{@code edit_sql_query} rewriting a table's SQL so it no longer selects a filtered column
+ *       is not covered -- doing so needs diffing the table's column set before and after the
+ *       rewrite, which this per-table/per-column check does not do.</li>
+ * </ul>
  */
 final class RemoveColumnDependentsGuard {
    private RemoveColumnDependentsGuard() {
    }
 
    static void requireNoSavedDependents(RuntimeWorksheet rws, String table, String column)
+      throws PairingException
+   {
+      requireNoSavedDependents(rws, table, column,
+         name -> "remove column '" + name + "' from table '" + table + "'", "changed");
+   }
+
+   /**
+    * Same check as {@link #requireNoSavedDependents(RuntimeWorksheet, String, String)}, worded
+    * for {@code set_column_visibility}'s hide rather than {@code remove_column}'s removal --
+    * hiding a column a saved dependent filters or binds on has the same silent effect.
+    */
+   static void requireNoSavedDependentsForHide(RuntimeWorksheet rws, String table, String column)
+      throws PairingException
+   {
+      requireNoSavedDependents(rws, table, column,
+         name -> "hide column '" + name + "' on table '" + table + "'", "hidden");
+   }
+
+   /**
+    * {@code delete_table}'s shape: every column the table currently exposes is checked, since
+    * deleting the table breaks a saved dependent on any one of them. Refuses on the first column
+    * with a saved dependent rather than collecting every one, matching how the single-column
+    * checks above refuse on the first dependency error {@code DeleteDependencyHandler} reports.
+    */
+   static void requireNoSavedDependentsForTable(RuntimeWorksheet rws, String table)
+      throws PairingException
+   {
+      if(rws == null || rws.getWorksheet() == null || table == null) {
+         return;
+      }
+
+      if(!(rws.getWorksheet().getAssembly(table) instanceof TableAssembly t)) {
+         return;
+      }
+
+      List<String> columns = new ArrayList<>();
+      Enumeration<DataRef> refs = t.getColumnSelection().getAttributes();
+
+      while(refs.hasMoreElements()) {
+         DataRef ref = refs.nextElement();
+         columns.add(ref.getAttribute());
+      }
+
+      for(String column : columns) {
+         requireNoSavedDependents(rws, table, column,
+            name -> "delete table '" + table + "', which still carries column '" + name + "'",
+            "deleted");
+      }
+   }
+
+   private static void requireNoSavedDependents(RuntimeWorksheet rws, String table, String column,
+                                                java.util.function.Function<String, String> action,
+                                                String pastTense)
       throws PairingException
    {
       if(rws == null || rws.getWorksheet() == null || table == null || column == null) {
@@ -69,7 +134,7 @@ final class RemoveColumnDependentsGuard {
       DataRef ref = WorksheetMutationSupport.resolveFieldOrNull(t, column, false);
 
       // Editor raises its own "Column not found" / composed-table refusal for these, and a
-      // dependency error must not be reported for a removal that is refused regardless
+      // dependency error must not be reported for an edit that is refused regardless
       if(!(ref instanceof ColumnRef cr) ||
          t instanceof ComposedTableAssembly && !cr.isExpression())
       {
@@ -88,9 +153,9 @@ final class RemoveColumnDependentsGuard {
       }
 
       throw new PairingException(
-         "Cannot remove column '" + name + "' from table '" + table + "' without confirmation: " +
-         ex.getMessage(false) + " The saved asset(s) above use this column (binding, " +
-         "condition, calc field, ...), so they would lose it or stop filtering on it. " +
-         "Nothing was changed. Confirm with the user before retrying with confirmed:true.");
+         "Cannot " + action.apply(name) + " without confirmation: " + ex.getMessage(false) +
+         " The saved asset(s) above use this column (binding, condition, calc field, ...), so " +
+         "they would lose it or stop filtering on it. Nothing was " + pastTense + ". Confirm " +
+         "with the user before retrying with confirmed:true.");
    }
 }

@@ -756,6 +756,20 @@ public class WorksheetAgentController {
             editService.resolve(sessionToken, user), req.table(), req.column());
       }
 
+      // Bug #80035: the same silent data exposure as #79526, reachable through two more ops --
+      // hiding a column a saved dependent filters/binds on, and deleting a table one is bound to.
+      if("set_column_visibility".equals(req.op()) && !Boolean.TRUE.equals(req.confirmed()) &&
+         !(req.visible() != null && req.visible()))
+      {
+         RemoveColumnDependentsGuard.requireNoSavedDependentsForHide(
+            editService.resolve(sessionToken, user), req.table(), req.column());
+      }
+
+      if("delete_table".equals(req.op()) && !Boolean.TRUE.equals(req.confirmed())) {
+         RemoveColumnDependentsGuard.requireNoSavedDependentsForTable(
+            editService.resolve(sessionToken, user), req.table());
+      }
+
       RuntimeWorksheet before = editService.resolve(sessionToken, user);
       java.util.Set<String> declaredBefore =
          declaredVariableNames(before == null ? null : before.getWorksheet());

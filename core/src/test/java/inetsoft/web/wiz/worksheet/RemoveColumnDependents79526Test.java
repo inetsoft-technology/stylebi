@@ -134,6 +134,72 @@ class RemoveColumnDependents79526Test {
       assertTrue(ex.getMessage().contains("Column not found"), ex.getMessage());
    }
 
+   /** Bug #80035: hiding a column a saved dependent filters on is the same silent exposure. */
+   @Test
+   void unconfirmedHideOfAFilteredColumnIsRefusedNamingTheDependent() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.controller().edit("TOK", hideRequest("STATE", false), agent));
+
+      assertTrue(ex.getMessage().contains("'STATE'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Nothing was hidden"), ex.getMessage());
+      assertNotNull(f.table().getColumnSelection(false).getAttribute("STATE"),
+                    "a refused hide must leave the column visible");
+   }
+
+   @Test
+   void confirmedHideProceeds() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      f.controller().edit("TOK", hideRequest("STATE", true), agent);
+
+      assertFalse(((ColumnRef) f.table().getColumnSelection(false).getAttribute("STATE"))
+         .isVisible());
+   }
+
+   @Test
+   void showingAColumnIsNeverCheckedEvenUnconfirmed() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+      f.controller().edit("TOK", hideRequest("STATE", true), agent);
+
+      f.controller().edit("TOK", showRequest("STATE"), agent);
+
+      assertTrue(((ColumnRef) f.table().getColumnSelection(false).getAttribute("STATE"))
+         .isVisible());
+   }
+
+   /** Bug #80035: deleting a table a saved dependent is bound to is the same silent exposure. */
+   @Test
+   void unconfirmedDeleteOfATableWithADependentIsRefused() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.controller().edit("TOK", deleteTableRequest(false), agent));
+
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Nothing was deleted"), ex.getMessage());
+   }
+
+   @Test
+   void confirmedDeleteProceeds() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      f.controller().edit("TOK", deleteTableRequest(true), agent);
+
+      assertNull(f.table().getWorksheet().getAssembly("T"));
+   }
+
+   @Test
+   void deletingATableNoDependentUsesIsNotRefused() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE, "U"); // dependent bound to "U", not "T"
+
+      f.controller().edit("TOK", deleteTableRequest(false), agent);
+
+      assertNull(f.table().getWorksheet().getAssembly("T"));
+   }
+
    // ---------------------------------------------------------------------------
 
    private record Fixture(WorksheetAgentController controller, EmbeddedTableAssembly table,
@@ -220,6 +286,24 @@ class RemoveColumnDependents79526Test {
    private EditRequest request(String column, boolean confirmed) throws Exception {
       return mapper.readValue("{\"op\":\"remove_column\",\"table\":\"T\",\"column\":\"" + column +
                               "\",\"confirmed\":" + confirmed + "}", EditRequest.class);
+   }
+
+   private EditRequest hideRequest(String column, boolean confirmed) throws Exception {
+      return mapper.readValue(
+         "{\"op\":\"set_column_visibility\",\"table\":\"T\",\"column\":\"" + column +
+         "\",\"visible\":false,\"confirmed\":" + confirmed + "}", EditRequest.class);
+   }
+
+   private EditRequest showRequest(String column) throws Exception {
+      return mapper.readValue(
+         "{\"op\":\"set_column_visibility\",\"table\":\"T\",\"column\":\"" + column +
+         "\",\"visible\":true}", EditRequest.class);
+   }
+
+   private EditRequest deleteTableRequest(boolean confirmed) throws Exception {
+      return mapper.readValue(
+         "{\"op\":\"delete_table\",\"table\":\"T\",\"confirmed\":" + confirmed + "}",
+         EditRequest.class);
    }
 
    @Configuration
