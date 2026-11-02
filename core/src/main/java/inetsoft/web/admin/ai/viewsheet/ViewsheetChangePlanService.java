@@ -63,8 +63,8 @@ import java.util.*;
  * under the folder via {@code AbstractAssetEngine#removeFolder0}/{@code removeSheet0} --
  * permanently, with no recycle bin and no undo (bug #76469). Worksheets live in a separate folder
  * namespace that this cascade never reaches (and a worksheet can be shared by many viewsheets), so
- * a folder delete leaves them in place and the plan lists them separately as kept (bug #79871) -- so {@link #resolveFolderDelete
- * resolveFolderDelete} now walks the real {@link AssetRepository} contents of the target path
+ * a folder delete leaves them in place and the plan lists them separately as kept (bug #79871).
+ * So {@link #resolveFolderDelete resolveFolderDelete} now walks the real {@link AssetRepository} contents of the target path
  * (mirroring {@link #resolveViewsheetDelete resolveViewsheetDelete}'s own dependency preflight) and
  * requires {@code force: true} whenever the folder is non-empty, classifying the entry {@code
  * RISK_HIGH} in that case; folder rename similarly recursively rewrites the path/asset-identifier of
@@ -872,10 +872,12 @@ public class ViewsheetChangePlanService {
       if(contents.length == 0) {
          risk = AdminChangeRecord.RISK_LOW;
          description = "delete folder \"" + normalizedPath + "\" -- the folder currently contains " +
-            "no viewsheet, so this only removes the empty registry folder label" + keptNote;
+            "no viewsheet, so this only removes the empty registry folder label" +
+            (keptNote.isEmpty() ? "" : " -- " + keptNote);
       }
       else {
          risk = AdminChangeRecord.RISK_HIGH;
+         AssetEntry[] external = findExternalDependents(contents, user);
          description = "delete folder \"" + normalizedPath + "\" -- this PERMANENTLY AND " +
             "IRRECOVERABLY deletes " + contents.length + " contained viewsheet(s) " +
             "(force: true), recursively including nested folders, with no recycle bin and no undo: " +
@@ -883,11 +885,42 @@ public class ViewsheetChangePlanService {
             "calls AbstractAssetEngine#removeFolder0/#removeSheet0 to hard-delete every contained " +
             "viewsheet from storage (bug #76469) -- re-creating the folder afterward only restores " +
             "an empty label, never the deleted content: " +
-            ViewsheetProjection.projectVisibleContents(contents, visibleContents) + keptNote;
+            ViewsheetProjection.projectVisibleContents(contents, visibleContents) +
+            externalDependentsWarning(external) +
+            (keptNote.isEmpty() ? "" : " -- " + keptNote);
       }
 
       return new PlanChange(key, orgId, beforeProjection, null, risk,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
+   }
+
+   /** Assets OUTSIDE {@code contents} that depend on a contained viewsheet and would be left
+    * broken by a folder delete (the per-asset delete runs the same preflight; the folder cascade
+    * does not). Package-visible so the apply step can repeat it. */
+   AssetEntry[] findExternalDependents(AssetEntry[] contents, Principal user) throws Exception {
+      Set<String> inside = new HashSet<>();
+
+      for(AssetEntry entry : contents) {
+         inside.add(entry.toIdentifier());
+      }
+
+      List<AssetEntry> external = new ArrayList<>();
+
+      for(AssetEntry entry : contents) {
+         for(AssetEntry dep : findDependencies(entry, user)) {
+            if(!inside.contains(dep.toIdentifier())) {
+               external.add(dep);
+            }
+         }
+      }
+
+      return external.toArray(new AssetEntry[0]);
+   }
+
+   static String externalDependentsWarning(AssetEntry[] external) {
+      return external.length == 0 ? "" :
+         " -- WARNING: " + external.length + " asset(s) outside this folder reference contained " +
+         "viewsheets and will be left broken: " + ViewsheetProjection.projectDependencies(external);
    }
 
    /** Plain-wording note listing worksheets stored under the same path: a folder delete does not
@@ -897,7 +930,7 @@ public class ViewsheetChangePlanService {
          return "";
       }
 
-      return " -- " + worksheets.length + " worksheet(s) stored under the same path are NOT deleted " +
+      return worksheets.length + " worksheet(s) stored under the same path are NOT deleted " +
          "and are kept in place (worksheets can be shared by other viewsheets): " +
          ViewsheetProjection.projectVisibleContents(worksheets,
                                                     visibleFolderContents(worksheets, user));

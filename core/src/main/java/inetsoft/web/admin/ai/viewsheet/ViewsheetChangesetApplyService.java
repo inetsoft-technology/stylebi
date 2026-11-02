@@ -154,8 +154,8 @@ public class ViewsheetChangesetApplyService {
                (hasViewsheetDelete ? "a viewsheet or worksheet delete" : "a folder delete of a non-empty folder") +
                " -- deleting " + (hasViewsheetDelete ? "a viewsheet/worksheet" : "a non-empty folder") +
                " has NO live inverse in this cut (section 4; bug #76469 for the folder case: its " +
-               "own contained viewsheets/worksheets are permanently destroyed, not merely the " +
-               "folder label); the Tier-2 snapshot taken for this apply is the only recovery path, " +
+               "own contained viewsheets are permanently destroyed, not merely the " +
+               "folder label; worksheets are kept); the Tier-2 snapshot taken for this apply is the only recovery path, " +
                "not merely the path of last resort");
          }
 
@@ -738,11 +738,13 @@ public class ViewsheetChangesetApplyService {
       String advisory = contents.length == 0 ? null :
          "deleted with force: true, permanently and irrecoverably destroying " + contents.length +
          " contained viewsheet(s): " +
-         ViewsheetProjection.projectVisibleContents(contents, visibleContents);
+         ViewsheetProjection.projectVisibleContents(contents, visibleContents) +
+         ViewsheetChangePlanService.externalDependentsWarning(
+            planService.findExternalDependents(contents, user));
       String keptNote = planService.keptWorksheetsNote(
          planService.findFolderWorksheets(normalizedPath, owner, user), user);
       advisory = keptNote.isEmpty() ? advisory :
-         (advisory == null ? keptNote.substring(4) : advisory + keptNote);
+         (advisory == null ? keptNote : advisory + " -- " + keptNote);
 
       String beforeProjection = ViewsheetProjection.projectFolder(before);
 
