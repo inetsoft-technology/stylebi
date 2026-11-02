@@ -818,6 +818,8 @@ public class IdentityChangePlanService {
       final Set<String> allCreates;
       final Set<String> createdSoFar = new HashSet<>();
       final Set<String> deletedSoFar = new HashSet<>();
+      // Bug #80008: old name -> new name of identities an update renamed earlier in the plan
+      final java.util.Map<String, String> renamedAway = new java.util.HashMap<>();
    }
 
    private Set<String> plannedCreates(IdentityChangePlanRequest req, String currentOrgId) {
@@ -928,6 +930,15 @@ public class IdentityChangePlanService {
       if(create) {
          state.createdSoFar.add(property);
       }
+
+      String newName = create || spec.getName() == null ? null : spec.getName().trim();
+
+      if(newName != null && !newName.isEmpty() && !newName.equals(self.getName())) {
+         // a renamed identity is live under its new name, so a rename onto a name another
+         // change renamed away frees that name again
+         state.renamedAway.remove(key(unitType, new IdentityID(newName, self.getOrgID()).convertToKey()));
+         state.renamedAway.put(property, newName);
+      }
    }
 
    /** {@code self} re-homed to the calling principal's organization, or {@code self}. */
@@ -986,6 +997,15 @@ public class IdentityChangePlanService {
             throw new IllegalArgumentException(
                field + ": " + what + " is deleted earlier in this plan, so apply cannot add it to " +
                fieldName + "; reference an identity that will exist");
+         }
+
+         String renamedTo = state.renamedAway.get(refKey);
+
+         if(renamedTo != null) {
+            throw new IllegalArgumentException(
+               field + ": " + what + " is renamed earlier in this plan (to \"" + renamedTo +
+               "\"), so apply cannot add it to " + fieldName + "; reference the new name or " +
+               "move this change before the rename");
          }
 
          if(state.createdSoFar.contains(refKey)) {
