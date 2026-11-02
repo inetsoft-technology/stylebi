@@ -39,6 +39,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
@@ -1028,9 +1029,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
     * Get the specified rows, if state equals to UNDEFINED, return all.
     * @param state the table row state.
     */
-   public TableFormRowScriptable[] getFormRows(Object state) {
+   public Object getFormRows(Object state) {
       if(disableForm) {
-         return new TableFormRowScriptable[0];
+         return new FormRowArray(new TableFormRowScriptable[0]);
       }
 
       FormTableLens ftable = initFormTableLens();
@@ -1049,10 +1050,57 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             rows = ftable.rows(getRowState((String) state));
          }
 
-         return convertFormTableRows(rows);
+         return new FormRowArray(convertFormTableRows(rows));
       }
 
       return null;
+   }
+
+   /**
+    * Array-shaped scope wrapping getFormRows()'s TableFormRowScriptable[] so that indexed
+    * access (rows[i]) routes each element through ScriptValueConverter.toGuest and exposes it
+    * as an ArrayProxy. A plain TableFormRowScriptable[] return value is handed to GraalJS as a
+    * raw host array whose elements bypass the converter and are exposed via default HostAccess
+    * instead of TableFormRowScriptable's own getMember/getArrayElement, leaving
+    * rows[i].rowIndex / rowState / column-by-name / rows[i][0] all undefined (Bug #80033; same
+    * shape as VSAScriptable.TipDataConditionArray, Bug #75569).
+    */
+   static class FormRowArray implements ScriptArrayScope {
+      FormRowArray(TableFormRowScriptable[] rows) {
+         this.rows = rows;
+      }
+
+      @Override
+      public long getArraySize() {
+         return rows.length;
+      }
+
+      @Override
+      public Object getArrayElement(long index) {
+         return index >= 0 && index < rows.length ? rows[(int) index] : null;
+      }
+
+      @Override
+      public Object getMember(String id) {
+         return "length".equals(id) ? rows.length : null;
+      }
+
+      @Override
+      public boolean hasMember(String id) {
+         return "length".equals(id);
+      }
+
+      @Override
+      public void putMember(String id, Object value) {
+         // read-only
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return new Object[] {"length"};
+      }
+
+      private final TableFormRowScriptable[] rows;
    }
 
    /**
@@ -1071,7 +1119,20 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          ColumnSelection columns = info.getColumnSelection();
          ColumnRef column = (ColumnRef) columns.getAttribute(col);
 
-         if(column == null || column.isVisible()) {
+         if(column != null && column.isVisible()) {
+            // the caller asked for a column that is not actually hidden
+            return null;
+         }
+
+         if(column == null) {
+            // set_table_field_visibility/HideColumnsDialogModel moves a hidden column OUT of
+            // getColumnSelection() into its own getHiddenColumns() selection rather than leaving
+            // it there with isVisible():false (Bug #80033) -- look it up there too before giving
+            // up, or every hidden column reads back null regardless of row.
+            column = (ColumnRef) info.getHiddenColumns().getAttribute(col);
+         }
+
+         if(column == null) {
             return null;
          }
 

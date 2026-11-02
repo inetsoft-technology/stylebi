@@ -343,17 +343,29 @@ public class TableVSAScriptableTest {
       tableVSAScriptable2.setObject(1, 1, "999");
       assertEquals("999", tableLens2.getObject(1, 1));
 
-      assertEquals(1, Arrays.stream(tableVSAScriptable2.getFormRows("changed")).count());
-      assertEquals(1, Arrays.stream(tableVSAScriptable2.getFormRows("deleted")).count());
-      assertEquals(2, Arrays.stream(tableVSAScriptable2.getFormRows("added")).count());
-      assertEquals(34, Arrays.stream(tableVSAScriptable2.getFormRows(FormTableRow.OLD)).count());
+      assertEquals(1, formRowCount(tableVSAScriptable2.getFormRows("changed")));
+      assertEquals(1, formRowCount(tableVSAScriptable2.getFormRows("deleted")));
+      assertEquals(2, formRowCount(tableVSAScriptable2.getFormRows("added")));
+      assertEquals(34, formRowCount(tableVSAScriptable2.getFormRows(FormTableRow.OLD)));
 
       //commit changed and appended row
       tableVSAScriptable2.commit("changed");
-      assertEquals(0, Arrays.stream(tableVSAScriptable2.getFormRows("changed")).count());
+      assertEquals(0, formRowCount(tableVSAScriptable2.getFormRows("changed")));
       tableVSAScriptable2.commit(2);//index 2 is appended row
-      assertEquals(1, Arrays.stream(tableVSAScriptable2.getFormRows("added")).count());
-      assertEquals(36, Arrays.stream(tableVSAScriptable2.getFormRows(FormTableRow.OLD)).count());
+      assertEquals(1, formRowCount(tableVSAScriptable2.getFormRows("added")));
+      assertEquals(36, formRowCount(tableVSAScriptable2.getFormRows(FormTableRow.OLD)));
+   }
+
+   /**
+    * getFormRows() returns a TableDataVSAScriptable.FormRowArray (a ScriptArrayScope), not a
+    * plain array, since Bug #80033: GraalJS's HostAccess bypasses ScriptValueConverter.toGuest
+    * for a raw TableFormRowScriptable[] return value, leaving every row's rowIndex/rowState/
+    * column members undefined to script. Wrapping the array itself as a ScriptArrayScope makes
+    * the whole getFormRows() return value route through ArrayProxy, which re-applies toGuest to
+    * each element on indexed access.
+    */
+   private static long formRowCount(Object formRows) {
+      return ((TableDataVSAScriptable.FormRowArray) formRows).getArraySize();
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
