@@ -761,7 +761,7 @@ public class VSLayoutService {
     */
    public int pushDownToNextPage(VSAssemblyLayout layout, Dimension pageSize, int action) {
       int pageNum = getPageNumber(layout, pageSize);
-      int targetY = (pageNum + 1) * pageSize.height + GAP;
+      int targetY = pageNum * pageSize.height + GAP;
       int old_y = layout.getPosition().y;
       layout.getPosition().y = targetY;
       int pushDownHeight = targetY - old_y;
@@ -799,7 +799,7 @@ public class VSLayoutService {
       int page2 = getPageNumber(targetY + size.height, pageHeight);
 
       if(isPageBreak(layout) && page2 > page1) {
-         targetY = page2 * pageHeight + GAP;
+         targetY = (page2 - 1) * pageHeight + GAP;
          pushDownHeight = targetY - pos.y;
       }
 
@@ -868,7 +868,7 @@ public class VSLayoutService {
    public Rectangle getForceBlankRegion(Dimension pageSize, VSAssemblyLayout pageBreak) {
       Point pos = pageBreak.getPosition();
       int pageNum = getPageNumber(pageBreak, pageSize);
-      int height = (pageNum + 1) * pageSize.height - pos.y;
+      int height = pageNum * pageSize.height - pos.y;
 
       return new Rectangle(pos.x, pos.y, pageSize.width, height);
    }
