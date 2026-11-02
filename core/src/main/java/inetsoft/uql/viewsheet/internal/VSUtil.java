@@ -6497,6 +6497,7 @@ public final class VSUtil {
 
       if(hasRuntimeRowHeader(ocinfo)) {
          syncSoleAggregateHeader(ocinfo, cinfo, removed, added, synMap, fromSetInput);
+         syncRemainingAggregateHeader(ocinfo, cinfo, added, synMap, fromSetInput);
          syncSummaryHeader(ocinfo, cinfo, aggNameMap, dimNameMap, removed, added, synMap, fromSetInput);
          syncSummaryCell(ocinfo, cinfo, aggNameMap, dimNameMap, removed, added, synMap,
             clearFormats, fromSetInput);
@@ -6810,6 +6811,65 @@ public final class VSUtil {
                add.put(ntp, obj instanceof VSCompositeFormat ?
                   (V) ((VSCompositeFormat) obj).clone() : obj);
             }
+         }
+      }
+   }
+
+   /**
+    * The mirror of {@link #syncSoleAggregateHeader}, for 2+ aggregates going down to one (Bug
+    * #80016): the header of the aggregate that stays is now read from the one-segment [agg] path,
+    * but its label (or header format, highlight, hyperlink) sits at the detail-level
+    * [row dims..., agg] path, so it vanished. The detail-level setting is copied to [agg] only if
+    * it exists, so a setting already on [agg] (made while there was one aggregate) is kept
+    * otherwise. The old multi-segment keys are left in place, so going back to 2+ aggregates
+    * restores them. Same guards as the 1 to 2+ direction: row dimensions, no column dimension,
+    * not side by side, and the surviving aggregate must have been bound by the same name.
+    */
+   private static <V> void syncRemainingAggregateHeader(VSCrosstabInfo ocinfo, VSCrosstabInfo cinfo,
+                                                        Map<TableDataPath, V> add,
+                                                        Map<TableDataPath, V> synMap,
+                                                        boolean fromSetInput)
+   {
+      DataRef[] oaggs = ocinfo.getRuntimeAggregates();
+      DataRef[] aggs = cinfo.getRuntimeAggregates();
+      DataRef[] orows = ocinfo.getRuntimeRowHeaders();
+      DataRef[] rows = cinfo.getRuntimeRowHeaders();
+      DataRef[] ocols = ocinfo.getRuntimeColHeaders();
+      DataRef[] cols = cinfo.getRuntimeColHeaders();
+
+      if(oaggs == null || aggs == null || oaggs.length < 2 || aggs.length != 1 ||
+         rows == null || rows.length == 0 || orows == null || orows.length == 0 ||
+         ocols != null && ocols.length > 0 || cols != null && cols.length > 0 ||
+         ocinfo.isSummarySideBySide() || cinfo.isSummarySideBySide())
+      {
+         return;
+      }
+
+      String[] odims = buildNames(ocinfo, false);
+      String agg = buildNames(cinfo, true)[0];
+
+      if(!Arrays.asList(buildNames(ocinfo, true)).contains(agg)) {
+         return;
+      }
+
+      String[] detail = Arrays.copyOf(odims, odims.length + 1);
+      detail[odims.length] = agg;
+
+      for(TableDataPath tp : new ArrayList<>(synMap.keySet())) {
+         String[] arr = tp.getPath();
+
+         if(arr == null || !Arrays.equals(detail, arr) ||
+            tp.getType() != TableDataPath.HEADER && tp.getType() != TableDataPath.GROUP_HEADER)
+         {
+            continue;
+         }
+
+         V obj = synMap.get(tp);
+         TableDataPath ntp = (TableDataPath) tp.clone(new String[] { agg });
+
+         if(obj != null && (!fromSetInput || synMap.get(ntp) == null)) {
+            add.put(ntp, obj instanceof VSCompositeFormat ?
+               (V) ((VSCompositeFormat) obj).clone() : obj);
          }
       }
    }
