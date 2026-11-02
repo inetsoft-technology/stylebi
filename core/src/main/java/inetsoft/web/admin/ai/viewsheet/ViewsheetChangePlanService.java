@@ -59,9 +59,11 @@ import java.util.*;
  * touch, move, or delete any viewsheet, since {@code RepletRegistry} is a metadata label layer
  * decoupled from {@code AssetRepository}'s own storage). Folder delete and rename do NOT share that
  * property: {@code RepletRegistry.removeFolder}'s own {@code REMOVE_FOLDER_EVENT} is listened to by
- * {@code RepletEngine}, whose handler recursively hard-deletes every viewsheet/worksheet actually
- * stored under the folder via {@code AbstractAssetEngine#removeFolder0}/{@code removeSheet0} --
- * permanently, with no recycle bin and no undo (bug #76469) -- so {@link #resolveFolderDelete
+ * {@code RepletEngine}, whose handler recursively hard-deletes every viewsheet actually stored
+ * under the folder via {@code AbstractAssetEngine#removeFolder0}/{@code removeSheet0} --
+ * permanently, with no recycle bin and no undo (bug #76469). Worksheets live in a separate folder
+ * namespace that this cascade never reaches (and a worksheet can be shared by many viewsheets), so
+ * a folder delete leaves them in place and the plan lists them separately as kept (bug #79871) -- so {@link #resolveFolderDelete
  * resolveFolderDelete} now walks the real {@link AssetRepository} contents of the target path
  * (mirroring {@link #resolveViewsheetDelete resolveViewsheetDelete}'s own dependency preflight) and
  * requires {@code force: true} whenever the folder is non-empty, classifying the entry {@code
@@ -865,61 +867,44 @@ public class ViewsheetChangePlanService {
       String orgId = orgIdFor(owner);
       String risk;
       String description;
+      String keptNote = keptWorksheetsNote(findFolderWorksheets(normalizedPath, owner, user), user);
 
       if(contents.length == 0) {
          risk = AdminChangeRecord.RISK_LOW;
          description = "delete folder \"" + normalizedPath + "\" -- the folder currently contains " +
-            "no viewsheet or worksheet, so this only removes the empty registry folder label";
+            "no viewsheet, so this only removes the empty registry folder label" + keptNote;
       }
       else {
          risk = AdminChangeRecord.RISK_HIGH;
-         AssetEntry[] external = findExternalDependents(contents, user);
          description = "delete folder \"" + normalizedPath + "\" -- this PERMANENTLY AND " +
-            "IRRECOVERABLY deletes " + contents.length + " contained viewsheet/worksheet(s) " +
-            "(force: true), recursively including nested folders, with no recycle bin and no undo. " +
-            "Dashboards are removed by the registry folder delete and worksheets are removed " +
-            "explicitly (they live in a separate folder namespace); apply fails loudly if any " +
-            "contained item is still present afterwards. Re-creating the folder afterward only " +
-            "restores an empty label, never the deleted content: " +
-            ViewsheetProjection.projectVisibleContents(contents, visibleContents) +
-            externalDependentsWarning(external);
+            "IRRECOVERABLY deletes " + contents.length + " contained viewsheet(s) " +
+            "(force: true), recursively including nested folders, with no recycle bin and no undo: " +
+            "RepletRegistry.removeFolder's own REMOVE_FOLDER_EVENT is handled by RepletEngine, which " +
+            "calls AbstractAssetEngine#removeFolder0/#removeSheet0 to hard-delete every contained " +
+            "viewsheet from storage (bug #76469) -- re-creating the folder afterward only restores " +
+            "an empty label, never the deleted content: " +
+            ViewsheetProjection.projectVisibleContents(contents, visibleContents) + keptNote;
       }
 
       return new PlanChange(key, orgId, beforeProjection, null, risk,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
    }
 
-   /** Assets OUTSIDE {@code contents} that depend on a contained asset and would be left
-    * broken by a folder delete (the per-asset delete runs the same preflight; the folder cascade
-    * previously did not). Package-visible so the apply step can repeat it. */
-   AssetEntry[] findExternalDependents(AssetEntry[] contents, Principal user) throws Exception {
-      Set<String> inside = new HashSet<>();
-
-      for(AssetEntry entry : contents) {
-         inside.add(entry.toIdentifier());
+   /** Plain-wording note listing worksheets stored under the same path: a folder delete does not
+    * touch them because a worksheet can be shared by many viewsheets (bug #79871). */
+   String keptWorksheetsNote(AssetEntry[] worksheets, Principal user) {
+      if(worksheets.length == 0) {
+         return "";
       }
 
-      List<AssetEntry> external = new ArrayList<>();
-
-      for(AssetEntry entry : contents) {
-         for(AssetEntry dep : findDependencies(entry, user)) {
-            if(!inside.contains(dep.toIdentifier())) {
-               external.add(dep);
-            }
-         }
-      }
-
-      return external.toArray(new AssetEntry[0]);
-   }
-
-   static String externalDependentsWarning(AssetEntry[] external) {
-      return external.length == 0 ? "" :
-         " -- WARNING: " + external.length + " asset(s) outside this folder reference contained " +
-         "items and will be left broken: " + ViewsheetProjection.projectDependencies(external);
+      return " -- " + worksheets.length + " worksheet(s) stored under the same path are NOT deleted " +
+         "and are kept in place (worksheets can be shared by other viewsheets): " +
+         ViewsheetProjection.projectVisibleContents(worksheets,
+                                                    visibleFolderContents(worksheets, user));
    }
 
    /** Walks the real {@link AssetRepository} contents of a (registry-normalized) folder path,
-    * recursively, for every viewsheet/worksheet actually stored under it -- the same content
+    * recursively, for every viewsheet actually stored under it -- the same content
     * {@code RepletEngine}'s {@code REMOVE_FOLDER_EVENT} listener destroys when the folder is
     * deleted (bug #76469; {@code RepletRegistry} itself is only a metadata label layer and cannot
     * answer this question on its own). Mirrors the scope/path conversion {@code RepletEngine}
@@ -943,6 +928,22 @@ public class ViewsheetChangePlanService {
    AssetEntry[] findFolderContents(String normalizedPath, IdentityID owner, Principal user)
       throws Exception
    {
+      return findFolderEntries(normalizedPath, owner, user, AssetEntry.Type.VIEWSHEET);
+   }
+
+   /** Worksheets stored under the same (registry-normalized) folder path. A folder delete does NOT
+    * remove these (a worksheet can be shared by many viewsheets); they are only listed so the plan
+    * and advisory can say they are kept in place (bug #79871). */
+   AssetEntry[] findFolderWorksheets(String normalizedPath, IdentityID owner, Principal user)
+      throws Exception
+   {
+      return findFolderEntries(normalizedPath, owner, user, AssetEntry.Type.WORKSHEET);
+   }
+
+   private AssetEntry[] findFolderEntries(String normalizedPath, IdentityID owner, Principal user,
+                                          AssetEntry.Type type)
+      throws Exception
+   {
       String assetPath = owner != null && normalizedPath.startsWith(Tool.MY_DASHBOARD + "/")
          ? normalizedPath.substring(Tool.MY_DASHBOARD.length() + 1) : normalizedPath;
       int scope = owner != null ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
@@ -953,13 +954,19 @@ public class ViewsheetChangePlanService {
       try {
          AssetRepository.IGNORE_PERM.set(true);
          entries = assetRepository.getAllEntries(root, user, ResourceAction.READ,
-            new AssetEntry.Selector(AssetEntry.Type.VIEWSHEET, AssetEntry.Type.WORKSHEET));
+            new AssetEntry.Selector(type));
       }
       finally {
          AssetRepository.IGNORE_PERM.remove();
       }
 
-      return entries == null ? new AssetEntry[0] : entries;
+      if(entries == null) {
+         return new AssetEntry[0];
+      }
+
+      return Arrays.stream(entries)
+         .filter(e -> type == AssetEntry.Type.VIEWSHEET ? e.isViewsheet() : e.isWorksheet())
+         .toArray(AssetEntry[]::new);
    }
 
    /** Filters an {@link #findFolderContents} result down to the subset the calling principal can
@@ -1000,10 +1007,10 @@ public class ViewsheetChangePlanService {
       if(contents.length > 0 && !force) {
          throw new IllegalArgumentException(
             label + ": folder \"" + normalizedPath + "\" contains " + contents.length +
-            " viewsheet/worksheet(s) (" +
+            " viewsheet(s) (" +
             ViewsheetProjection.projectVisibleContents(contents, visibleContents) +
             ") -- refusing to delete without force: true (folder delete recursively and " +
-            "permanently deletes every contained viewsheet/worksheet, with no recycle bin and no " +
+            "permanently deletes every contained viewsheet, with no recycle bin and no " +
             "undo; bug #76469)");
       }
    }
