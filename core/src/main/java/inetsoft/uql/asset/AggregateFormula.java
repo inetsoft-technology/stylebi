@@ -1839,13 +1839,10 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             }
          }
 
-         String zero = getZeroLiteral(helper);
-         return "((" + zero + "+" + SUMSQ.getExpression(column, null, helper) + ") * " +
-            COUNT_ALL.getExpression(column, null, helper) + " - ((" + zero + " + " +
-            SUM.getExpression(column, null, helper) + ") * " +
-            SUM.getExpression(column, null, helper) + " ))/((" + zero + " + " +
-            COUNT_ALL.getExpression(column, null, helper) + ") * " +
-            COUNT_ALL.getExpression(column, null, helper) + ")";
+         return build(getDenominatorZeroLiteral(helper),
+                      SUMSQ.getExpression(column, null, helper),
+                      COUNT_ALL.getExpression(column, null, helper),
+                      SUM.getExpression(column, null, helper), helper);
       }
 
       /**
@@ -1864,25 +1861,46 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2,
                                      AggregateHelper helper) {
-         String zero = getZeroLiteral(helper);
-         return "((" + zero + "+" + SUMSQ.getExpressionSub(column, null, helper) +
-            ") * " +
-            COUNT_ALL.getExpressionSub(column, null, helper) + " - ((" + zero + " + " +
-            SUM.getExpressionSub(column, col2, helper) + ") * " +
-            SUM.getExpressionSub(column, col2, helper) + " ))/((" + zero + " + " +
-            COUNT_ALL.getExpressionSub(column, null, helper) + ") * " +
-            COUNT_ALL.getExpressionSub(column, null, helper) + ")";
+         return build(getDenominatorZeroLiteral(helper),
+                      SUMSQ.getExpressionSub(column, null, helper),
+                      COUNT_ALL.getExpressionSub(column, null, helper),
+                      SUM.getExpressionSub(column, col2, helper), helper);
+      }
+
+      private static boolean isDb2(AggregateHelper helper) {
+         return helper != null && "db2".equals(helper.getDBType());
       }
 
       /**
-       * Get the zero literal used to coerce the population variance
-       * arithmetic. DB2 types the plain literal 0.0 as DECIMAL(2,1), so the
-       * final division keeps only one decimal digit (the fraction is
-       * truncated). 0.0E0 is a DOUBLE literal on DB2, which forces the
-       * arithmetic to floating point. Other databases are unchanged.
+       * Build the population variance expression from its aggregate terms.
+       * Other databases get the original expression. On DB2 the numerator
+       * n*SUM(x^2)-SUM(x)^2 keeps the exact DECIMAL literal 0.0 so a constant group
+       * gives exactly 0, only the denominator is DOUBLE so the division is not
+       * truncated, and the numerator is clamped at 0 (CASE, since DB2 10.5 has no
+       * GREATEST) so DOUBLE columns or scale-capped DECIMAL arithmetic can never
+       * produce a negative variance, which would make SQRT fail with SQLCODE -802.
        */
-      private static String getZeroLiteral(AggregateHelper helper) {
-         return helper != null && "db2".equals(helper.getDBType()) ? "0.0E0" : "0.0";
+      private static String build(String zeroDen, String sumsq, String count,
+                                  String sum, AggregateHelper helper)
+      {
+         String num = "((0.0+" + sumsq + ") * " + count + " - ((0.0 + " +
+            sum + ") * " + sum + " ))";
+
+         if(isDb2(helper)) {
+            num = "(CASE WHEN " + num + " < 0 THEN 0.0E0 ELSE " + num + " END)";
+         }
+
+         return num + "/((" + zeroDen + " + " + count + ") * " + count + ")";
+      }
+
+      /**
+       * Get the zero literal used in the denominator. DB2 types 0.0 as DECIMAL(2,1),
+       * so the final division would keep only one decimal digit (truncated). 0.0E0
+       * is a DOUBLE literal on DB2 and makes the division floating point (Bug #79479).
+       * Other databases are unchanged.
+       */
+      private static String getDenominatorZeroLiteral(AggregateHelper helper) {
+         return isDb2(helper) ? "0.0E0" : "0.0";
       }
 
       /**
