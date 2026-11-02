@@ -87,7 +87,9 @@ class ScriptLibraryRenameDeclarationTest {
 
       ScriptLibraryService scriptLibraryService =
          new ScriptLibraryService(provider, securityEngine);
-      planService = new ScriptLibraryChangePlanService(scriptLibraryService);
+      // the save gate's syntax check needs the live script engine, absent here; these tests are about
+      // plan/apply behavior, not text validity (ScriptLibraryValidatorTest and the bad-input cases cover that)
+      planService = new ScriptLibraryChangePlanService(scriptLibraryService, text -> {});
       service = new ScriptLibraryChangesetApplyService(planService, scriptLibraryService,
                                                        provider, backupService);
 

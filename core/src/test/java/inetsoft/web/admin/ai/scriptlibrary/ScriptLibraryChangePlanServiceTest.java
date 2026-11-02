@@ -71,7 +71,9 @@ class ScriptLibraryChangePlanServiceTest {
    void setUp() throws Exception {
       lenient().when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
       scriptLibraryService = new ScriptLibraryService(libManagerProvider, securityEngine);
-      service = new ScriptLibraryChangePlanService(scriptLibraryService);
+      // the save gate's syntax check needs the live script engine, absent here; these tests are about
+      // plan/apply behavior, not text validity (ScriptLibraryValidatorTest and the bad-input cases cover that)
+      service = new ScriptLibraryChangePlanService(scriptLibraryService, text -> {});
 
       // Default every caller to holding ADMIN on every script name -- individual permission tests
       // override this to specific denials.
@@ -205,9 +207,9 @@ class ScriptLibraryChangePlanServiceTest {
    @Test void resolveRenameProducesARiskLowChangeAndRequiresPermission() throws Exception {
       when(lib.getScript("old")).thenReturn("return 1;");
       when(lib.getScriptComment("old")).thenReturn("desc");
-      when(lib.getScript("new")).thenReturn(null);
+      when(lib.getScript("renamedFn")).thenReturn(null);
       ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
-      c.setNewName("new");
+      c.setNewName("renamedFn");
 
       ResolvedPlan plan = service.resolve(request(c), user);
 
@@ -236,7 +238,7 @@ class ScriptLibraryChangePlanServiceTest {
          eq(user), eq(ResourceType.SCRIPT), eq("old"), eq(ResourceAction.ADMIN)))
          .thenReturn(false);
       ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
-      c.setNewName("new");
+      c.setNewName("renamedFn");
 
       assertThrows(MissingResourceException.class, () -> service.resolve(request(c), user));
    }
@@ -339,7 +341,7 @@ class ScriptLibraryChangePlanServiceTest {
    @Test void resolveRenameFailsWithMissingResourceExceptionWhenNameDoesNotExist() {
       when(lib.getScript("ghost")).thenReturn(null);
       ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "ghost");
-      c.setNewName("new");
+      c.setNewName("renamedFn");
 
       assertThrows(MissingResourceException.class,
          () -> service.resolve(request(c), user));

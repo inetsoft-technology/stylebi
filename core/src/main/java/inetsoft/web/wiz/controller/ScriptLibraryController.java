@@ -27,9 +27,7 @@ import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.sync.DependencyTransformer;
-import inetsoft.util.script.ScriptEnvRepository;
-import org.graalvm.polyglot.PolyglotException;
-import org.graalvm.polyglot.SourceSection;
+import inetsoft.web.admin.ai.scriptlibrary.ScriptLibraryValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -37,7 +35,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.regex.Pattern;
 
 /**
  * Wraps StyleBI's Script Library asset (LibManager, AssetEntry.Type.SCRIPT) -- a reusable script
@@ -64,7 +61,7 @@ public class ScriptLibraryController {
                                   SecurityEngine securityEngine)
    {
       this(libManagerProvider, securityEngine,
-           text -> ScriptEnvRepository.getScriptEnv().checkFunction("script", text));
+           ScriptLibraryValidator.engineChecker()::check);
    }
 
    ScriptLibraryController(LibManagerProvider libManagerProvider, SecurityEngine securityEngine,
@@ -79,8 +76,7 @@ public class ScriptLibraryController {
     * Parse-only syntax check of a function text; throws when the text does not compile.
     */
    @FunctionalInterface
-   interface ScriptSyntaxChecker {
-      void check(String text) throws Exception;
+   interface ScriptSyntaxChecker extends ScriptLibraryValidator.SyntaxChecker {
    }
 
    /**
@@ -115,19 +111,6 @@ public class ScriptLibraryController {
    public record CheckScriptSyntaxResult(boolean ok, String message, Integer line, Integer column) {}
 
    public record CheckScriptSyntaxRequest(String script) {}
-
-   /**
-    * The native Script Library dialog's name rule (form-validators.ts), enforced here because that
-    * check runs only in the browser.
-    */
-   private static final Pattern IDENTIFIER = Pattern.compile("^[\\p{L}_$][\\p{L}\\p{N}_$]*$");
-
-   // ES reserved words only; contextual names (let, static, yield, await, async, of) stay legal.
-   private static final Set<String> RESERVED_WORDS = Set.of(
-      "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
-      "do", "else", "enum", "export", "extends", "false", "finally", "for", "function", "if",
-      "import", "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw",
-      "true", "try", "typeof", "var", "void", "while", "with");
 
    private static final String RESYNC_WARNING =
       "Viewsheet sessions that were already open before this call may not see this change in " +
@@ -350,29 +333,10 @@ public class ScriptLibraryController {
     * text compiles. Shared by {@link #checkSyntax} and the save gate so both report identically.
     */
    SyntaxError diagnose(String text) {
-      try {
-         syntaxChecker.check(text);
-         return null;
-      }
-      catch(Exception e) {
-         int line = 0;
-         int column = 0;
-         Throwable cause = e;
-
-         // unwrap to the GraalJS PolyglotException to recover source location, same as
-         // OpenScriptController.checkScript.
-         while(cause != null && !(cause instanceof PolyglotException)) {
-            cause = cause.getCause();
-         }
-
-         if(cause instanceof PolyglotException polyglot && polyglot.getSourceLocation() != null) {
-            SourceSection loc = polyglot.getSourceLocation();
-            line = loc.getStartLine();
-            column = loc.getStartColumn();
-         }
-
-         return new SyntaxError(e.getMessage(), line, column, e);
-      }
+      ScriptLibraryValidator.SyntaxError error =
+         ScriptLibraryValidator.diagnose(syntaxChecker, text);
+      return error == null ? null :
+         new SyntaxError(error.message(), error.line(), error.column(), error.cause());
    }
 
    /**
@@ -383,43 +347,19 @@ public class ScriptLibraryController {
     * let-to-var rewrite.
     */
    private void requireCompiles(String text) {
-      SyntaxError error = diagnose(text);
-
-      if(error == null) {
-         return;
+      try {
+         ScriptLibraryValidator.requireCompiles(syntaxChecker, "text", text);
       }
-
-      if(error.cause() instanceof IllegalStateException) {
+      catch(ScriptLibraryValidator.EngineUnavailableException e) {
          // 503 through WizControllerErrorHandler's ResponseStatusException mapping; a bare
          // IllegalStateException would surface as a generic 500
          throw new ResponseStatusException(
-            HttpStatus.SERVICE_UNAVAILABLE,
-            "The script engine is not available, so the function text could not be checked: " +
-            firstLine(error.message()) + ". Nothing was saved.", error.cause());
+            HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e.getCause());
       }
-
-      String location = error.line() > 0
-         ? " (line " + error.line() + ", column " + error.column() + ")" : "";
-      throw new IllegalArgumentException(
-         "text does not compile: " + firstLine(error.message()) + location +
-         ". Nothing was saved.");
    }
 
    private void requireValidName(String field, String name) {
-      if(!IDENTIFIER.matcher(name).matches() || RESERVED_WORDS.contains(name)) {
-         throw new IllegalArgumentException(
-            field + " \"" + name + "\" is not a valid JavaScript identifier (letters, digits, " +
-            "'_' and '$', not starting with a digit, not a reserved word). Nothing was saved.");
-      }
-   }
-
-   private static String firstLine(String message) {
-      if(message == null) {
-         return "";
-      }
-
-      int nl = message.indexOf('\n');
-      return (nl < 0 ? message : message.substring(0, nl)).strip();
+      ScriptLibraryValidator.requireValidName(field, name);
    }
 
    private void requireExists(LibManager lib, String name) {
