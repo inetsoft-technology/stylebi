@@ -273,6 +273,21 @@ public class ViewsheetChangePlanService {
       }
    }
 
+   /** A rename with global=false places the asset in that owner's user tree. Only the calling
+    * user's own tree is visible to this area (see {@link ViewsheetService#getViewsheets}), so a
+    * move into another user's tree could not be verified, listed or undone afterwards. */
+   private static void requireOwnerIsCaller(String label, IdentityID owner, Principal user) {
+      IdentityID caller =
+         user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
+
+      if(owner != null && !owner.equals(caller)) {
+         throw new IllegalArgumentException(
+            label + ".owner: \"" + owner.getLabel() + "\" is not the calling user; moving a " +
+            "dashboard or worksheet into another user's tree is not supported (admin-chat " +
+            "cannot read, list or undo it there). Use global=true or your own identity.");
+      }
+   }
+
    private PlanChange resolveViewsheetRename(String label, String key, String assetId,
                                              Sheet current, ViewsheetChangeRequest change,
                                              Principal user)
@@ -305,6 +320,7 @@ public class ViewsheetChangePlanService {
       }
 
       IdentityID owner = global ? null : ViewsheetFolderService.parseOwner(ownerRaw);
+      requireOwnerIsCaller(label, owner, user);
       String newPath = requireNonBlank(label + ".newPath", change.getNewPath());
 
       if(current == null) {
@@ -553,6 +569,7 @@ public class ViewsheetChangePlanService {
       }
 
       IdentityID owner = global ? null : ViewsheetFolderService.parseOwner(ownerRaw);
+      requireOwnerIsCaller(label, owner, user);
       String newPath = requireNonBlank(label + ".newPath", change.getNewPath());
 
       if(current == null) {
