@@ -1887,7 +1887,13 @@ public class RuntimeViewsheet extends RuntimeSheet {
     */
    @Override
    public void dispose() {
-      clearLock();
+      try {
+         clearLock();
+      }
+      catch(Exception ex) {
+         // a lock-store failure must not leave the sandbox and viewsheet undisposed
+         LOG.warn("Failed to clear bookmark locks of runtime viewsheet {}", getID(), ex);
+      }
 
       super.dispose();
 
