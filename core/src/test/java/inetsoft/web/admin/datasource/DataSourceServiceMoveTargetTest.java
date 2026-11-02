@@ -42,6 +42,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -128,6 +130,37 @@ class DataSourceServiceMoveTargetTest {
       assertTrue(ex.getMessage().contains("other"), ex.getMessage());
 
       verifyNothingChanged();
+   }
+
+   // Bug #79892: the check the admin change planner runs at preview time is the one the update
+   // runs at write time
+   @Test
+   void checkRenameTargetRefusesOccupiedPathAndAncestor() throws Exception {
+      when(registry.isDataSourcePathInUse("sakila")).thenReturn(true);
+      when(registry.getDataSourceAncestor("sakila2/db")).thenReturn("sakila2");
+
+      assertTrue(assertThrows(ResourceExistsException.class,
+         () -> service.checkRenameTarget("db", "sakila", principal)).getMessage()
+                    .contains("sakila"));
+      assertTrue(assertThrows(ResourceExistsException.class,
+         () -> service.checkRenameTarget("db", "sakila2/db", principal)).getMessage()
+                    .contains("sakila2"));
+   }
+
+   @Test
+   void checkRenameTargetAllowsPathsVacatedByEarlierChanges() throws Exception {
+      when(registry.isDataSourcePathInUse("sakila")).thenReturn(true);
+
+      assertDoesNotThrow(
+         () -> service.checkRenameTarget("db", "sakila", principal, Set.of("sakila")));
+   }
+
+   @Test
+   void checkRenameTargetDoesNothingWhenNameUnchanged() throws Exception {
+      service.checkRenameTarget("db", "db", principal);
+
+      verify(registry, never()).isDataSourcePathInUse(any());
+      verify(registry, never()).checkDataSourceMovePathClash(any());
    }
 
    // a move to a free path in a new folder still works
