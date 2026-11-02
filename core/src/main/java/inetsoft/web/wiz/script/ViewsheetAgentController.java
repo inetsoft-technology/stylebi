@@ -40,7 +40,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -224,17 +226,25 @@ public class ViewsheetAgentController {
 
    /** Toggles whether the script at {@code target} is enabled and broadcasts a refresh. */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/enable")
-   public void setEnabled(@PathVariable String sessionToken,
-                          @RequestBody SetEnabledRequest req, Principal user)
+   public SetEnabledResult setEnabled(@PathVariable String sessionToken,
+                                      @RequestBody SetEnabledRequest req, Principal user)
       throws Exception
    {
       requireEnabled();
+      List<ScriptEditService.SharedFlagTarget> siblings = new ArrayList<>();
       editService.apply(sessionToken, user, rvs -> {
          ScriptTarget t = target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
          requirePaneScope(sessionToken, user, t);
          editService.setEnabled(rvs, t, req.enabled());
+         // Named from the written location, not from a grant-scoped listing, so a pane-scoped
+         // session is told about a sibling it is not allowed to list.
+         siblings.addAll(editService.flagSiblings(rvs, t, req.enabled()));
       });
+      return new SetEnabledResult(siblings);
    }
+
+   /** Targets that share the written target's enable flag and so changed with it. */
+   public record SetEnabledResult(List<ScriptEditService.SharedFlagTarget> alsoChanged) {}
 
    public record ExecuteRequest(String target, String id, String kind, String assembly,
                                 String name) {}

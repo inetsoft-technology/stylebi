@@ -901,6 +901,263 @@ class ScriptExecuteServiceTest {
          "Ns.count()");
    }
 
+   // Bug #80053 (SSL-019): shape matrix of global-install forms. Each must gate a script that calls
+   // the installed namespace; none may be silently run.
+   @Test
+   void globalInstallShapeAliasUsedInNestedIifeIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   // --- Review r1 (04-review-r1.md): the opaque path must fail closed ---
+
+   @Test
+   void failClosedVarNsEqualsAliasNsInNestedIifeIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { var Ns = g.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedAliasInstallWithSameNamedParamElsewhereIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();\nfunction other(Ns) { return Ns; }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedAliasInstallWithSameNamedIifeParamElsewhereIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();\n(function(Ns) { })();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedAliasInstallWithSameNamedVarInOtherFunctionIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();\nfunction other() { var Ns = 1; return Ns; }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedChainedAliasInNestedIifeIsGated() throws Exception {
+      assertGatedViaNamespace("var g = this;\nvar h = g;\n(function() { h.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedImplicitGlobalAssignedInInvokedFunctionIsGated() throws Exception {
+      assertGatedViaNamespace("function install() { Ns = { count: function() { return runQuery('q'); } }; }\ninstall();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedImplicitGlobalInFunctionPassedAsCallbackIsGated() throws Exception {
+      assertGatedViaNamespace("function inst() { Ns = { count: function() { return runQuery('q'); } }; }\n[1].forEach(inst);", "Ns.count()");
+   }
+
+   @Test
+   void failClosedImplicitGlobalInNestedBlockOfInvokedFunctionIsGated() throws Exception {
+      assertGatedViaNamespace("function install() { if(true) { Ns = { count: function() { return runQuery('q'); } }; } }\ninstall();", "Ns.count()");
+   }
+
+   @Test
+   void neverInvokedFunctionWithImplicitGlobalAssignmentStaysUngated() throws Exception {
+      assertNotGated("function install() { Ns = { count: function() { return runQuery('q'); } }; }", "Ns.count()");
+   }
+
+   // --- Review r2: any non-local assignment in a function body that can run fails closed ---
+
+   @Test
+   void failClosedVarAnonymousFunctionInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = function(){ Ns = { count: function() { return runQuery('q'); } }; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedVarArrowInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = () => { Ns = { count: function() { return runQuery('q'); } }; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedExpressionArrowInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = () => Ns = { count: function() { return runQuery('q'); } };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedObjectPropertyFunctionInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var lib = { install: function(){ Ns = { count: function() { return runQuery('q'); } }; } };\nlib.install();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedMethodShorthandInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var lib = { install() { Ns = { count: function() { return runQuery('q'); } }; } };\nlib.install();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedCallbackInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("[1].forEach(function(){ Ns = { count: function() { return runQuery('q'); } }; });", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedFunctionExpressionInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("var f = function inst(){ Ns = { count: function() { return runQuery('q'); } }; };\nf();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedLogicalAssignInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("function inst(){ Ns ||= { count: function() { return runQuery('q'); } }; }\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedDestructuringInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("function inst(){ [Ns] = [{ count: function() { return runQuery('q'); } }]; }\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void failClosedForOfTargetInstallerIsGated() throws Exception {
+      assertGatedViaNamespace("function inst(){ for(Ns of [{ count: function() { return runQuery('q'); } }]) {} }\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void preciseAnonymousInstallerAssigningOnlyItsOwnLocalsStaysUngated() throws Exception {
+      assertNotGated("var inst = function(a){ var r = 1; a = 2; r = 3; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void preciseArrowAssigningOnlyItsParamStaysUngated() throws Exception {
+      assertNotGated("var inst = (a) => { a = 2; };\ninst();", "Ns.count()");
+   }
+
+   @Test
+   void preciseCallbackWithOwnVarStaysUngated() throws Exception {
+      assertNotGated("[1].forEach(function(x){ var Ns = { count: function() { return runQuery('q'); } }; Ns = x; });", "Ns.count()");
+   }
+
+   @Test
+   void preciseNeverCalledVarFunctionAssigningGlobalStaysUngated() throws Exception {
+      assertNotGated("var inst = function(){ Ns = { count: function() { return runQuery('q'); } }; };", "Ns.count()");
+   }
+
+   @Test
+   void preciseNeverCalledArrowAssigningGlobalStaysUngated() throws Exception {
+      assertNotGated("var inst = () => { Ns = { count: function() { return runQuery('q'); } }; };", "Ns.count()");
+   }
+
+   @Test
+   void preciseNeverCalledMethodAssigningGlobalStaysUngated() throws Exception {
+      assertNotGated("var lib = { install() { Ns = { count: function() { return runQuery('q'); } }; } };", "Ns.count()");
+   }
+
+   @Test
+   void preciseForHeaderLetCallbackStaysUngated() throws Exception {
+      assertNotGated("[1].forEach(function(){ for(let Ns = 0; Ns < 2; Ns++) {} });", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedCallbackInForEachIsGated() throws Exception {
+      assertGatedViaNamespace("[1].forEach(function inst(){ Ns = { count: function() { return runQuery('q'); } }; });", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedCallbackPassedToLocalSetupIsGated() throws Exception {
+      assertGatedViaNamespace("setup(function init(){ Ns = { count: function() { return runQuery('q'); } }; });\nfunction setup(cb){ cb(); }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedCallbackInNewIsGated() throws Exception {
+      assertGatedViaNamespace("new Foo(function init(){ Ns = { count: function() { return runQuery('q'); } }; });\nfunction Foo(cb){ cb(); }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedFunctionExpressionInArrayLiteralIsGated() throws Exception {
+      assertGatedViaNamespace("[function init(){ Ns = { count: function() { return runQuery('q'); } }; }].forEach(function(f){ f(); });", "Ns.count()");
+   }
+
+   @Test
+   void preciseNamedFunctionExpressionBoundToUnusedVarStaysUngated() throws Exception {
+      assertNotGated("var f = function inst(){ Ns = { count: function() { return runQuery('q'); } }; };", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeInstallerFunctionExpressionIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = function(g) { g.Ns = { count: function() { return runQuery('q'); } }; };\ninst(this);", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeInstallerArrowIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = (g) => { g.Ns = { count: function() { return runQuery('q'); } }; };\ninst(this);", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeConditionalUmdRootIsGated() throws Exception {
+      assertGatedViaNamespace("var root = typeof self == 'object' ? self : this;\nroot.Ns = { count: function() { return runQuery('q'); } };", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeCommaIifeIsGated() throws Exception {
+      assertGatedViaNamespace("0, function(g) { g.Ns = { count: function() { return runQuery('q'); } }; }(this);", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeArrowIifeWithOuterAliasIsGated() throws Exception {
+      assertGatedViaNamespace("var g = window;\n(() => { g.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeChainedAliasIsGated() throws Exception {
+      assertGatedViaNamespace("var a = this; var b = a;\n(function() { b.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeAliasFromCommaThisIsGated() throws Exception {
+      assertGatedViaNamespace("var g = (0, this);\n(function() { g.Ns = { count: function() { return runQuery('q'); } }; })();", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapePlainInvokedInstallerUsingThisIsGated() throws Exception {
+      assertGatedViaNamespace("function f() { this.Ns = { count: function() { return runQuery('q'); } }; }\nf();", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeInstallerCalledWithApplyIsGated() throws Exception {
+      assertGatedViaNamespace("var inst = function() { this.Ns = { count: function() { return runQuery('q'); } }; };\ninst.call(this);", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeDefinePropertyIsGated() throws Exception {
+      assertGatedViaNamespace("Object.defineProperty(this, 'Ns', { value: { count: function() { return runQuery('q'); } } });", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeReflectSetIsGated() throws Exception {
+      assertGatedViaNamespace("Reflect.set(this, 'Ns', { count: function() { return runQuery('q'); } });", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeComputedKeyIsGated() throws Exception {
+      assertGatedViaNamespace("var k = 'Ns';\nthis[k] = { count: function() { return runQuery('q'); } };", "Ns.count()");
+   }
+
+   @Test
+   void globalInstallShapeInstallerCalledWithAliasArgumentIsGated() throws Exception {
+      assertGatedViaNamespace("var G = this;\nfunction inst(g, x) { g.Ns = { count: function() { return runQuery('q'); } }; }\ninst(G, 1);", "Ns.count()");
+   }
+
+   @Test
+   void forHeaderLetReassignedInTheLoopBodyIsNotIndexedAsARoot() throws Exception {
+      assertNotGated("for (let C5 = 0; C5 < 1; C5++) { C5 = runQuery('q'); }", "var C5 = 2; C5");
+   }
+
+   @Test
+   void forOfAndForInHeaderDeclarationsAreNotIndexedAsRoots() throws Exception {
+      assertNotGated("for (const C6 of [1]) { C6 = runQuery('q'); }", "var C6 = 2; C6");
+      assertNotGated("for (let C7 in {a: 1}) { C7 = runQuery('q'); }", "var C7 = 2; C7");
+      assertNotGated("for (let i = 0, C8 = 0; i < 1; i++) { C8 = runQuery('q'); }", "var C8 = 2; C8");
+   }
+
+   @Test
+   void forBodyBareAssignmentWithADifferentHeaderLetStaysGated() throws Exception {
+      assertGatedViaNamespace(
+         "for (let j = 0; j < 1; j++) { Ns = { count: function() { return runQuery('q'); } }; }",
+         "Ns.count()");
+   }
+
+   @Test
+   void libraryEntryThatNeverTouchesTheGlobalObjectKeepsItsPreciseIndex() throws Exception {
+      // control for the fail-safe: no global-object reference, so a name the entry merely mentions
+      // locally must not gate an unrelated script
+      assertNotGated("function f() { var result = 1; return runQuery('q'); }", "var result = 2; result");
+   }
+
    // --- Adversarial tests added during independent re-verification (Bug #79346 / 04-verify.md) ---
    // None of these shapes are covered by the 16 tests above: they either combine two gaps at once
    // (A+D) or are the refuter's own live-tried stress shapes (for/switch-case let|const
@@ -1954,6 +2211,76 @@ class ScriptExecuteServiceTest {
 
       assertEquals(List.of(), result.changed());
       assertEquals(List.of("position", "Submit2.position"), result.unrecognizedProperties());
+   }
+
+   /**
+    * Bug 80053: the closing get_script_context pointer must not name the script's own assembly
+    * when every dropped write is another assembly's, including a REJECTED (recognized property)
+    * write, which the unrecognized loop never fed into the ownership flag.
+    */
+   @Test
+   void executeDoesNotPointAtOwnAssemblyForAnotherAssembliesRejectedWrite() throws Exception {
+      String script = "Submit2.position = [200, 200];";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of("position")));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("Submit2.position"), result.unrecognizedProperties());
+      assertFalse(result.summary().contains("Submit1's"), result.summary());
+      assertTrue(result.summary().contains("the named assembly's"), result.summary());
+   }
+
+   @Test
+   void executeStillPointsAtOwnAssemblyForItsOwnRejectedWrite() throws Exception {
+      String script = "Submit1.position = [1, 2];";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of("position")));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertTrue(result.summary().contains("Submit1's"), result.summary());
+   }
+
+   /**
+    * Two flags, not one: an own unrecognized write keeps its "for this assembly type" clause
+    * even when another assembly's rejected write is mixed in; only the closing pointer
+    * generalizes.
+    */
+   @Test
+   void executeKeepsAssemblyTypeClauseForOwnUnrecognizedWhenOtherRejectedIsMixedIn()
+      throws Exception
+   {
+      String script = "Submit1.bogus = 1; Submit2.position = [1, 2];";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of("bogus"), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of("position")));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertTrue(result.summary().contains("for this assembly type"), result.summary());
+      assertFalse(result.summary().contains("Submit1's"), result.summary());
    }
 
    @Test
