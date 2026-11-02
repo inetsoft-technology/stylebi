@@ -415,6 +415,14 @@ public class DataSourceChangePlanService {
          ? "update data source \"" + name + "\" (renaming to \"" + proposedName + "\")"
          : "update data source \"" + name + "\"";
 
+      if(proposedName != null && !proposedName.equals(name)) {
+         String implicitFolders = describeImplicitlyCreatedFolders(proposedName);
+
+         if(implicitFolders != null) {
+            description += implicitFolders;
+         }
+      }
+
       // Bug 78819: the shared projection masks the password, so without this a plan that supplies
       // password A hashed the same as one supplying B, or as a no-op, and apply accepted a
       // different password than the one reviewed. When (and only when) the spec supplies a
@@ -436,6 +444,55 @@ public class DataSourceChangePlanService {
       return new PlanChange(name, orgId, beforeProjection, proposedProjection,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
+   }
+
+   /** Appended wherever a folder is created, whether by a bare verb="create" ({@link
+    * #resolveFolderCreate}) or as a side effect of an update's rename/move: the data source area
+    * has no verb that deletes, renames or moves a folder (only an in-apply rollback of a failed
+    * apply removes the leaf), so a reviewer who only reads the data-source-level plan text would
+    * never learn a folder was created at all. */
+   private static final String FOLDER_CREATE_PERMANENCE =
+      "A data source folder created here cannot be deleted, renamed or moved through admin-chat " +
+      "afterwards (only in Enterprise Manager), so warn the user before applying.";
+
+   /** Bug #80028: an update whose proposed name moves the data source under a folder path that
+    * does not exist yet auto-creates every missing ancestor folder as a side effect (same as
+    * {@link #resolveFolderCreate}'s own nested-ancestor auto-creation), but unlike a bare
+    * verb="create" entry, that side effect previously never appeared in the plan at all -- the
+    * update's own description named only the rename, not the folder(s) it silently brings into
+    * existence. Returns a description suffix naming every such folder plus {@link
+    * #FOLDER_CREATE_PERMANENCE}, or {@code null} if {@code proposedName} has no folder component
+    * or every ancestor folder it implies already exists.
+    */
+   private String describeImplicitlyCreatedFolders(String proposedName) throws Exception {
+      int lastSlash = proposedName.lastIndexOf('/');
+
+      if(lastSlash < 0) {
+         return null;
+      }
+
+      String[] segments = proposedName.substring(0, lastSlash).split("/");
+      List<String> missing = new ArrayList<>();
+      StringBuilder prefix = new StringBuilder();
+
+      for(String segment : segments) {
+         prefix.append(prefix.isEmpty() ? "" : "/").append(segment);
+         String path = prefix.toString();
+
+         if(!dataSourceService.dataSourceFolderExists(path)) {
+            missing.add(path);
+         }
+      }
+
+      if(missing.isEmpty()) {
+         return null;
+      }
+
+      String noun = missing.size() == 1 ? "folder" : "folders";
+      String named = String.join(", ", missing.stream().map(p -> "\"" + p + "\"").toList());
+
+      return ", which also creates data source " + noun + " " + named + ". " +
+         FOLDER_CREATE_PERMANENCE;
    }
 
    /**
