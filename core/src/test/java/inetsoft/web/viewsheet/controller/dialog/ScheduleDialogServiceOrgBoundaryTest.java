@@ -208,6 +208,55 @@ class ScheduleDialogServiceOrgBoundaryTest {
          "not stored");
    }
 
+   // Bug #79236, the start time of the viewer's schedule dialog is range checked: an hour out of
+   // range is refused and nothing is stored, the same condition in range is stored
+   @Test
+   void scheduleVS_startHourOutOfRange_isRefused() throws Exception {
+      SRPrincipal caller = builder.principalOf("sdsUser", ORG_A);
+      allowScheduling(caller);
+      when(securityEngine.checkPermission(eq(caller), eq(ResourceType.SCHEDULE_OPTION),
+                                          eq("startTime"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry ownEntry = AssetEntry.createAssetEntry("1^128^__NULL__^Own/Dashboard^" + ORG_A);
+      when(rvs.getEntry()).thenReturn(ownEntry);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+      when(viewsheetService.getViewsheet("vsid4", caller)).thenReturn(rvs);
+
+      for(int hour : new int[] { 24, 90 }) {
+         ScheduleDialogModel bad = timeDialogModel("sdsDialogHour" + hour, hour, 15);
+         assertThrows(inetsoft.util.MessageException.class,
+            () -> service.scheduleVS("vsid4", bad, caller, mock(CommandDispatcher.class)));
+         assertNull(scheduleManager.getScheduleTask(
+            new IdentityID("sdsUser", ORG_A).convertToKey() + ":sdsDialogHour" + hour, ORG_A),
+            "not stored");
+      }
+
+      ScheduleDialogModel ok = timeDialogModel("sdsDialogHourOk", 5, 15);
+      service.scheduleVS("vsid4", ok, caller, mock(CommandDispatcher.class));
+      assertNotNull(scheduleManager.getScheduleTask(
+         new IdentityID("sdsUser", ORG_A).convertToKey() + ":sdsDialogHourOk", ORG_A));
+   }
+
+   private ScheduleDialogModel timeDialogModel(String taskName, int hour, int minute) {
+      TimeConditionModel time = TimeConditionModel.builder()
+         .label("t")
+         .type(inetsoft.sree.schedule.TimeCondition.EVERY_DAY)
+         .hour(hour)
+         .minute(minute)
+         .second(0)
+         .build();
+      SimpleScheduleDialogModel simple = SimpleScheduleDialogModel.builder()
+         .startTimeEnabled(true)
+         .timeRangeEnabled(false)
+         .taskName(taskName)
+         .actionModel(ViewsheetActionModel.builder().build())
+         .timeConditionModel(time)
+         .build();
+      return ScheduleDialogModel.builder().simpleScheduleDialogModel(simple).build();
+   }
+
    private void allowScheduling(SRPrincipal caller) throws inetsoft.sree.security.SecurityException {
       when(securityEngine.checkPermission(eq(caller), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION),
                                           eq("Schedule"), eq(ResourceAction.READ)))

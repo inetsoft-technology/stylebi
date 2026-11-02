@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.tabular;
 
+import inetsoft.report.XSessionManager;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.uql.*;
 import inetsoft.util.Tool;
@@ -103,16 +104,9 @@ public abstract class TabularRuntime {
    protected XTableNode handleError(VariableTable vars, Throwable e,
                                     Supplier<XTableNode> supplier)
    {
-      boolean isScheduler = false;
-
-      try {
-         isScheduler = "true".equals(vars.get("__is_scheduler__"));
-      }
-      catch(Exception schedEx) {
-         LOG.warn("Cannot check scheduler: " + schedEx);
-      }
-
-      if(isScheduler) {
+      // the flag is Boolean.TRUE at export time, so a String-only check would turn a scheduled
+      // run's query error into an empty table (Bug #78494)
+      if(XSessionManager.isScheduler(vars)) {
          throw new RuntimeException("Query failed", e);
       }
 

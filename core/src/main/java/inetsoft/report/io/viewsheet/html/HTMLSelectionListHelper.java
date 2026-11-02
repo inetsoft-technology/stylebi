@@ -216,7 +216,7 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
       slist.append("'>");
       slist.append("<input type='");
       slist.append(info.isSingleSelection() ? "radio" : "checkbox");
-      slist.append("' value='" + svalue + "'");
+      slist.append("' value='" + HTMLEscape.attribute(svalue) + "'");
       boolean showBar = info.isShowBar();
       boolean showText = info.isShowText();
       String measure = info.getMeasure();
@@ -244,7 +244,7 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
 
       slist.append("'>");
 
-      slist.append(svalue.getLabel());
+      slist.append(HTMLEscape.viewerText(svalue.getLabel()));
       slist.append("</div>");
 
       if(showText && svalue.getMeasureLabel() != null) {
@@ -257,7 +257,7 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
          barWidth + "px;text-align:right;");
          slist.append(vHelper.getCSSStyles(null, formatMT));
          slist.append(";align-items: center'>");
-         slist.append(svalue.getMeasureLabel());
+         slist.append(HTMLEscape.text(svalue.getMeasureLabel()));
          slist.append("</div>");
       }
 

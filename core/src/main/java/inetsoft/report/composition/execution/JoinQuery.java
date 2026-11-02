@@ -685,7 +685,10 @@ public class JoinQuery extends AssetQuery {
          JDBCQuery query0 = queries[0].getQuery();
          nquery = (JDBCQuery) query0.clone();
          nquery.setSQLDefinition(new UniformSQL());
-         nquery.setMaxRows(Integer.parseInt(SreeEnv.getProperty("join.table.maxrows", "0")));
+         int maxRows = Integer.parseInt(SreeEnv.getProperty("join.table.maxrows", "0"));
+         nquery.setMaxRows(maxRows);
+         // read by JDBCHandler so XNodeTableLens can warn when the merged join is truncated
+         nquery.setProperty("join.table.maxrows", maxRows);
          nquery.setName(box.getWSName() + "." + getTableDescription(table.getName()));
       }
 

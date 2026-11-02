@@ -17,7 +17,7 @@
  */
 
 import { CommonModule } from "@angular/common";
-import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component, Input, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatExpansionModule } from "@angular/material/expansion";
@@ -42,6 +42,23 @@ const tableInfo: TableInfo = {
 class TestHostComponent {
    data: any[] = [];
    info: TableInfo = { columns: [], selectionEnabled: false, title: "My Title" };
+}
+
+@Component({
+   standalone: true,
+   imports: [TableView],
+   template: `<em-table-view [dataSource]="data" [tableInfo]="info" [trackByProp]="key"
+      (selectionChanged)="selected = $event.selected"></em-table-view>`
+})
+class SelectionHostComponent {
+   @Input() data: any[] = [];
+   @Input() key = "id";
+   selected: any[] = [];
+   info: TableInfo = {
+      columns: [{ header: "Name", field: "name" }],
+      selectionEnabled: true,
+      title: ""
+   };
 }
 
 describe("TableViewComponent", () => {
@@ -91,5 +108,83 @@ describe("TableViewComponent", () => {
       expect(header).toBeTruthy();
       // The header must not be nested inside the collapsible content region.
       expect(content?.contains(header)).toBeFalsy();
+   });
+
+   describe("selection carry-over on a new data source (Bug #78721)", () => {
+      let host: ComponentFixture<SelectionHostComponent>;
+
+      const settle = async () => {
+         for(let i = 0; i < 3; i++) {
+            host.detectChanges();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+         }
+
+         host.detectChanges();
+      };
+
+      const rows = (): HTMLElement[] =>
+         Array.from(host.nativeElement.querySelectorAll("tr.mat-mdc-row"));
+
+      const checkbox = (row: HTMLElement): HTMLInputElement =>
+         row.querySelector("input[type=checkbox]");
+
+      const rowName = (row: HTMLElement): string =>
+         row.querySelectorAll("td")[1].textContent.trim();
+
+      const checkedNames = (): string[] =>
+         rows().filter((row) => checkbox(row).checked).map(rowName);
+
+      const selectedNames = (): string[] =>
+         host.componentInstance.selected.map((row) => row.name);
+
+      async function selectThenReplace(key: string, first: any[], pick: string[], second: any[]) {
+         host = TestBed.createComponent(SelectionHostComponent);
+         host.componentRef.setInput("key", key);
+         host.componentRef.setInput("data", first);
+         await settle();
+         rows().filter((row) => pick.includes(rowName(row)))
+            .forEach((row) => checkbox(row).click());
+         await settle();
+         expect(checkedNames()).toEqual(pick);
+         host.componentRef.setInput("data", second);
+         await settle();
+      }
+
+      it("starts a keyless table unchecked after a new list", async () => {
+         await selectThenReplace("id",
+            [{ name: "a" }, { name: "b" }, { name: "c" }], ["a"],
+            [{ name: "b" }, { name: "c" }]);
+
+         expect(checkedNames()).toEqual([]);
+         expect(selectedNames()).toEqual([]);
+      });
+
+      it("keeps the selected row of a keyed table after a new list", async () => {
+         await selectThenReplace("id",
+            [{ id: "a", name: "a" }, { id: "b", name: "b" }, { id: "c", name: "c" }], ["b"],
+            [{ id: "a", name: "a" }, { id: "b", name: "b" }]);
+
+         expect(checkedNames()).toEqual(["b"]);
+         expect(selectedNames()).toEqual(["b"]);
+      });
+
+      it("keeps rows keyed by 0 and the empty string", async () => {
+         await selectThenReplace("id",
+            [{ id: 0, name: "zero" }, { id: "", name: "empty" }, { id: "x", name: "x" }],
+            ["zero", "empty"],
+            [{ id: 0, name: "zero" }, { id: "", name: "empty" }, { id: "x", name: "x" }]);
+
+         expect(checkedNames()).toEqual(["zero", "empty"]);
+         expect(selectedNames()).toEqual(["zero", "empty"]);
+      });
+
+      it("does not sweep keyless rows into a keyed selection", async () => {
+         await selectThenReplace("id",
+            [{ id: "a", name: "a" }, { name: "nokey" }], ["a", "nokey"],
+            [{ id: "a", name: "a" }, { name: "nokey2" }, { name: "nokey3" }]);
+
+         expect(checkedNames()).toEqual(["a"]);
+         expect(selectedNames()).toEqual(["a"]);
+      });
    });
 });

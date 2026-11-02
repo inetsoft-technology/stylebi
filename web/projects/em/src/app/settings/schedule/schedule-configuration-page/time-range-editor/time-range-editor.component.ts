@@ -17,11 +17,12 @@
  */
 import {
    Component,
-   HostListener,
    Inject,
+   OnDestroy,
    OnInit,
    ViewEncapsulation
 } from "@angular/core";
+import { Subscription } from "rxjs";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
@@ -39,6 +40,7 @@ import { MatCard, MatCardContent } from "@angular/material/card";
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
 import { ErrorStateMatcher } from "@angular/material/core";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { onDialogEscape } from "../../../../common/util/dialog-escape";
 import { EmErrorStateMatcher } from "../../../../common/util/error/em-error-state-matcher";
 import { NgIf } from "@angular/common";
 
@@ -58,10 +60,12 @@ export interface TimeRangeData {
     providers: [{ provide: ErrorStateMatcher, useClass: EmErrorStateMatcher }],
     imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
 })
-export class TimeRangeEditorComponent implements OnInit {
+export class TimeRangeEditorComponent implements OnInit, OnDestroy {
    form: UntypedFormGroup;
    permissions: ResourcePermissionModel;
    protected readonly copyPasteContext = COPY_PASTE_CONTEXT_SCHEDULE;
+
+   private escapeSubscription: Subscription;
 
    constructor(private dialogRef: MatDialogRef<TimeRangeEditorComponent>,
                @Inject(MAT_DIALOG_DATA) data: TimeRangeData,
@@ -77,6 +81,7 @@ export class TimeRangeEditorComponent implements OnInit {
          defaultRange: [data.range.defaultRange]
       });
       this.permissions = data.range.permissions ? Tool.clone(data.range.permissions) : null;
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
    }
 
    ngOnInit() {
@@ -86,9 +91,8 @@ export class TimeRangeEditorComponent implements OnInit {
       this.dialogRef.close(Object.assign({ permissions: this.permissions }, this.form.value));
    }
 
-   @HostListener("window:keyup.esc", [])
-   onKeyUp() {
-      this.cancel();
+   ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
    }
 
    cancel(): void {

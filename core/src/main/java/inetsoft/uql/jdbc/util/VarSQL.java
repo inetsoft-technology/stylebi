@@ -372,6 +372,20 @@ public class VarSQL {
          return escapeJsonStringValue(value, stringValue);
       }
 
+      return escapeSQLLiteralValue(value, quoteChar, backslashIsEscapeChar);
+   }
+
+   /**
+    * Escape a value spliced into a SQL string literal delimited by
+    * {@code quoteChar}: doubles the quote character, and also doubles
+    * backslashes when {@code backslashIsEscapeChar} is set (see
+    * {@link #setBackslashIsEscapeChar}). This is the SQL-style escaping of
+    * {@link #replaceVariables}, for callers that splice a value into SQL text
+    * themselves (Bug #79742).
+    */
+   public static String escapeSQLLiteralValue(String value, char quoteChar,
+                                              boolean backslashIsEscapeChar)
+   {
       StringBuilder escaped = new StringBuilder(value.length());
 
       for(int i = 0; i < value.length(); i++) {

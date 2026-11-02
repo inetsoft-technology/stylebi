@@ -20,6 +20,7 @@ package inetsoft.util.dep;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.Resource;
 import inetsoft.util.Tool;
 import inetsoft.util.TransformerManager;
@@ -150,7 +151,8 @@ public class DataCycleAsset extends AbstractXAsset {
       DataCycleManager manager = DataCycleManager.getDataCycleManager();
       boolean overwriting = config != null && config.isOverwriting();
 
-      if(manager.getConditions(cycle, orgId) != null && !overwriting) {
+      // Bug #79842, getConditions() never returns null, check whether the cycle is stored
+      if(manager.containsDataCycle(cycle, orgId) && !overwriting) {
          return;
       }
 
@@ -179,6 +181,8 @@ public class DataCycleAsset extends AbstractXAsset {
          if(Tool.equals("TimeCondition", cond.getAttribute("type"))) {
             TimeCondition tc = new TimeCondition();
             tc.parseXML(cond);
+            // Bug #79236, an hour or minute out of range can repeat a fire of the cycle
+            tc.validateRanges();
             conds.add(tc);
          }
          else {
@@ -194,7 +198,8 @@ public class DataCycleAsset extends AbstractXAsset {
          DataCycleManager.CycleInfo cycleInfo = new DataCycleManager.CycleInfo();
          cycleInfo.parseXML(cinfo);
          cycleInfo.setName(cycle);
-         cycleInfo.setName(orgId);
+         cycleInfo.setOrgId(orgId != null ? orgId :
+                               OrganizationManager.getInstance().getCurrentOrgID());
          manager.setCycleInfo(cycle, orgId, cycleInfo);
       }
 
@@ -209,9 +214,11 @@ public class DataCycleAsset extends AbstractXAsset {
    public synchronized boolean writeContent(OutputStream output) throws Exception {
       DataCycleManager manager = DataCycleManager.getDataCycleManager();
 
-      int count = manager.getConditionCount(cycle, orgId);
+      // read the conditions once; a separate count and indexed read can disagree when the
+      // cycle is deleted in between (Bug #79265)
+      Vector<ScheduleCondition> conditions = manager.getConditions(cycle, orgId);
 
-      if(count == 0) {
+      if(conditions == null || conditions.isEmpty()) {
          return false;
       }
 
@@ -222,9 +229,7 @@ public class DataCycleAsset extends AbstractXAsset {
       String encodedCycle = Encode.forXmlAttribute(cycle);
       writer.println("<DataCycle name=\"" + encodedCycle + "\">");
 
-      for(int i = 0; i < count; i++) {
-         ScheduleCondition cond = manager.getCondition(cycle, orgId, i);
-
+      for(ScheduleCondition cond : conditions) {
          if(cond instanceof TimeCondition) {
             ((TimeCondition) cond).writeXML(writer);
          }
@@ -243,7 +248,7 @@ public class DataCycleAsset extends AbstractXAsset {
 
    @Override
    public boolean exists() {
-      return DataCycleManager.getDataCycleManager().getConditions(cycle, orgId) != null;
+      return DataCycleManager.getDataCycleManager().containsDataCycle(cycle, orgId);
    }
 
    @Override

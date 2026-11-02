@@ -21,7 +21,8 @@ import { UntypedFormBuilder, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
-import { EMPTY, of } from "rxjs";
+import { HttpErrorResponse } from "@angular/common/http";
+import { EMPTY, of, throwError } from "rxjs";
 import { GeneralActionModel } from "../../../../../../shared/schedule/model/general-action-model";
 import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
 import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/schedule/model/time-condition-model";
@@ -350,6 +351,44 @@ describe("ScheduleTaskEditorPageComponent", () => {
    });
 
    // Bug #77856, a task name made only of whitespace is required, like an empty one
+   // Bug #75342, a rejected save (409 for a duplicate task name) shows the server message in the
+   // snackbar and is handled, so the subscriber does not report a second, unhandled error
+   describe("save() failure", () => {
+      let saveTask: any;
+      let consoleError: any;
+
+      beforeEach(() => {
+         saveTask = TestBed.inject(ScheduleTaskEditorDataService).saveTask;
+         (TestBed.inject(MatDialog).open as any).mockReturnValue({ afterClosed: () => of(true) });
+         component.form.controls["taskName"].setValue("Test Task");
+         consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      });
+
+      afterEach(() => consoleError.mockRestore());
+
+      it("should show the server message and complete without an unhandled error", () => {
+         const error = new HttpErrorResponse({
+            status: 409,
+            error: { type: "ResourceExistsException", message: "The specified task name exists." }
+         });
+         saveTask.mockReturnValue(throwError(() => error));
+         vi.useFakeTimers();
+
+         try {
+            // rxjs reports an unhandled subscriber error asynchronously through setTimeout
+            component.save();
+            expect(() => vi.runAllTimers()).not.toThrow();
+         }
+         finally {
+            vi.useRealTimers();
+         }
+
+         const snackBar = TestBed.inject(MatSnackBar).open as any;
+         expect(snackBar).toHaveBeenCalledTimes(1);
+         expect(snackBar.mock.calls[0][0]).toContain("The specified task name exists.");
+      });
+   });
+
    describe("taskName validation", () => {
       it.each([" ", "   "])("should reject the whitespace-only name %j as required", (name) => {
          const control = component.form.controls["taskName"];

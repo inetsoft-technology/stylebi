@@ -4791,6 +4791,22 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if the LIKE operator of the database is case sensitive by default. This is
+    * used by the materialized view to match contains/starts with/like conditions the
+    * same way as the database would. The answer is per product, not per database: a
+    * case-insensitive collation or column type (e.g. H2 IGNORECASE/varchar_ignorecase,
+    * Oracle NLS_COMP, PostgreSQL citext) can make a particular database differ from
+    * the product default, so only products with a well-known case-sensitive default
+    * answer TRUE.
+    *
+    * @return TRUE if LIKE is case sensitive, null if unknown or collation dependent,
+    * in which case the global string comparison setting applies.
+    */
+   public Boolean getLikeCaseSensitivity() {
+      return null;
+   }
+
+   /**
     * Check if is case sensitive when quote table or column.
     */
    @Override
@@ -5762,6 +5778,54 @@ public class SQLHelper implements KeywordProvider {
     */
    public boolean isBackslashEscapeChar() {
       return false;
+   }
+
+   /**
+    * Get the character this dialect accepts in a {@code LIKE ... ESCAPE 'c'} clause, used to
+    * match a contains / starting with value literally instead of as a pattern. Returns
+    * {@code null} (the default) for a dialect not known to support the clause, in which
+    * case the value is spliced unescaped.
+    *
+    * @return the escape character, or {@code null} if the ESCAPE clause is not used.
+    */
+   public Character getLikeEscapeChar() {
+      return null;
+   }
+
+   /**
+    * Get the characters, besides the escape character itself, that are special in a LIKE
+    * pattern of this dialect and must be escaped to be matched literally.
+    */
+   protected String getLikeSpecialChars() {
+      return "%_";
+   }
+
+   /**
+    * Escape a value so that a LIKE pattern built from it matches the value literally.
+    * Only meaningful when {@link #getLikeEscapeChar()} is not {@code null}; the pattern must
+    * then be followed by the matching ESCAPE clause.
+    */
+   public String escapeLikeValue(String value) {
+      Character esc = getLikeEscapeChar();
+
+      if(esc == null || value == null) {
+         return value;
+      }
+
+      String special = getLikeSpecialChars();
+      StringBuilder escaped = new StringBuilder(value.length() + 4);
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == esc || special.indexOf(c) >= 0) {
+            escaped.append(esc.charValue());
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
    }
 
    /**

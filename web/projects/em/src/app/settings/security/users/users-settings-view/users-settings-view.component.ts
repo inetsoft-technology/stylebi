@@ -98,7 +98,12 @@ export class UsersSettingsViewComponent implements OnInit {
       this._selectedNodes = selectedNodes;
 
       if(selectedNodes.length == 1) {
-         this.pageChanged = false;
+         // Bug #78726, the page re-sends the same node when a switch is cancelled or the
+         // identity being edited is clicked again: the editor keeps its edits, so keep the flag
+         if(selectedNodes[0] !== this.selectedIdentity) {
+            this.pageChanged = false;
+         }
+
          this.selectedIdentity = this.selectedNodes[0];
       }
       else if(selectedNodes.length == 0) {

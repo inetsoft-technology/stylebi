@@ -38,6 +38,8 @@
  *   Group 8  [Risk 2] — processRemoveVSObjectCommand: removes from vsObjects +
  *                        vsObjectActions; clears selectedActions; emits
  *                        onLoadingStateChanged when globalLoadingIndicator
+ *   Group 8c [Risk 2] — selectedAssemblies (indexes into vsObjects) follow their objects
+ *                        when vsObjects is spliced/unshifted/cleared (Bug #79420)
  *   Group 9  [Risk 2] — cancelViewsheetLoading: cancelled flag; assetLoadingService;
  *                        STOMP cancel event
  *   Group 10 [baseline] — setServerUpdateInterval / clearServerUpdateInterval
@@ -48,6 +50,7 @@
 import { Subject, of } from "rxjs";
 import { waitFor } from "@testing-library/angular";
 import { VSObjectModel } from "./model/vs-object-model";
+import { RemoveAnnotationEvent } from "./event/annotation/remove-annotation-event";
 
 import {
    VS_CLIENT_MOCK,
@@ -61,6 +64,8 @@ import {
    ASSET_LOADING_SERVICE_MOCK,
    HEARTBEAT_WORKER_SERVICE_MOCK,
    ASSEMBLY_ACTION_FACTORY_MOCK,
+   SELECTION_MOBILE_SERVICE_MOCK,
+   commandsSubject,
    fullScreenChangeSubject,
    resetMocks,
    renderComponent,
@@ -830,6 +835,167 @@ describe("ViewerAppComponent — processAddVSObjectCommand() selectedActions res
       comp.processAddVSObjectCommand({ name: "Chart1", model: makeObj("Chart1") } as any);
 
       expect(comp.selectedActions).toBeNull();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 8c — selectedAssemblies remap on vsObjects position changes [Risk 2]
+// ---------------------------------------------------------------------------
+
+// 🔁 Regression-sensitive (Bug #79420): selectedAssemblies holds positions in vsObjects.
+// Every writer that shifts positions (RemoveVSObjectCommand splice, VSGroupContainer
+// unshift, reopenExpiredViewsheet clear) must remap it, or the selection silently moves
+// to another object and the Delete key removes an annotation the user never selected.
+describe("ViewerAppComponent — selectedAssemblies follow vsObjects position changes", () => {
+   function obj(name: string, type: string): VSObjectModel {
+      return {
+         absoluteName: name,
+         objectType: type,
+         visible: true,
+         objectFormat: { top: 0, left: 0, width: 100, height: 100 } as any,
+      } as unknown as VSObjectModel;
+   }
+
+   // 10 objects: AnnoA@3, AnnoB@5, AnnoC@7, the rest charts
+   function layout(): VSObjectModel[] {
+      const names = ["C0", "C1", "C2", "AnnoA", "C4", "AnnoB", "C6", "AnnoC", "C8", "C9"];
+      return names.map(n => obj(n, n.startsWith("Anno") ? "VSAnnotation" : "VSChart"));
+   }
+
+   async function setup() {
+      const { comp, fixture } = await renderComponent();
+      const c: any = comp;
+      // keep the array reference shared with vsInfo, as the real viewer does
+      c.vsObjects.splice(0, c.vsObjects.length, ...layout());
+      c.vsObjectActions = c.vsObjects.map((o: any) => ({ getModel: () => o }));
+      c.popComponentService.getPopComponent = vi.fn().mockReturnValue(null);
+      (SELECTION_MOBILE_SERVICE_MOCK as any).toggleSelectionMaxMode = vi.fn();
+      return { c, fixture };
+   }
+
+   function click(c: any, i: number, ctrl = false) {
+      const ev: any = { ctrlKey: ctrl, button: 0, target: document.body };
+      c.selectAssembly([i, c.vsObjectActions[i], ev]);
+   }
+
+   // global RemoveVSObjectCommand through the real CommandProcessor dispatch
+   function remove(name: string) {
+      commandsSubject.next({ type: "RemoveVSObjectCommand", command: { name } });
+   }
+
+   function pressDelete(fixture: any) {
+      const ev = new KeyboardEvent("keyup", { bubbles: true });
+      Object.defineProperty(ev, "keyCode", { get: () => 46 });
+      fixture.nativeElement.dispatchEvent(ev);
+   }
+
+   function sentNames(): string[][] {
+      return VS_CLIENT_MOCK.sendEvent.mock.calls
+         .filter((call: any[]) => call[0] === RemoveAnnotationEvent.REMOVE_ANNOTATION_URI)
+         .map((call: any[]) => call[1].names);
+   }
+
+   function selectedNames(c: any): string[] {
+      return (c.selectedAssemblies || []).map((i: number) => c.vsObjects[i]?.absoluteName);
+   }
+
+   it("should leave an empty selection after an ascending multi-select delete", async () => {
+      const { c, fixture } = await setup();
+      click(c, 3);
+      click(c, 5, true);
+
+      pressDelete(fixture);
+      expect(sentNames()).toEqual([["AnnoA", "AnnoB"]]);
+      // the server removes the annotations in event order
+      sentNames()[0].forEach(remove);
+
+      expect(c.selectedAssemblies).toEqual([]);
+   });
+
+   it("should not remove an unselected annotation on a second Delete", async () => {
+      const { c, fixture } = await setup();
+      click(c, 3);
+      click(c, 5, true);
+      pressDelete(fixture);
+      sentNames()[0].forEach(remove);
+
+      pressDelete(fixture);
+
+      expect(sentNames()).toEqual([["AnnoA", "AnnoB"]]);
+      expect(c.vsObjects.map((o: any) => o.absoluteName)).toContain("AnnoC");
+   });
+
+   it("should leave an empty selection after a descending multi-select delete", async () => {
+      const { c, fixture } = await setup();
+      click(c, 5);
+      click(c, 3, true);
+
+      pressDelete(fixture);
+      sentNames()[0].forEach(remove);
+
+      expect(c.selectedAssemblies).toEqual([]);
+   });
+
+   it("should keep the selection on the same annotation when lower objects are removed", async () => {
+      const { c, fixture } = await setup();
+      click(c, 5); // AnnoB
+
+      remove("C1");
+      remove("C2");
+
+      expect(selectedNames(c)).toEqual(["AnnoB"]);
+      pressDelete(fixture);
+      expect(sentNames()).toEqual([["AnnoB"]]);
+   });
+
+   it("should keep the selection on the same annotation when the object just before it is removed", async () => {
+      const { c } = await setup();
+      click(c, 5); // AnnoB
+      const before = c.selectedAssemblies;
+
+      remove("C4");
+
+      expect(selectedNames(c)).toEqual(["AnnoB"]);
+      // VSViewsheetComponent only reacts to a new array reference
+      expect(c.selectedAssemblies).not.toBe(before);
+   });
+
+   it("should not move the selection when a higher object is removed", async () => {
+      const { c } = await setup();
+      click(c, 3); // AnnoA
+      click(c, 5, true); // AnnoB
+
+      remove("C8");
+
+      expect(selectedNames(c)).toEqual(["AnnoA", "AnnoB"]);
+   });
+
+   it("should keep the selection on the same object when a group container is unshifted", async () => {
+      const { c } = await setup();
+      click(c, 5); // AnnoB
+      const before = c.selectedAssemblies;
+
+      c.processAddVSObjectCommand({
+         name: "Group1",
+         model: { ...obj("Group1", "VSGroupContainer"), genTime: 1 },
+      } as any);
+
+      expect(c.vsObjects[0].absoluteName).toBe("Group1");
+      expect(selectedNames(c)).toEqual(["AnnoB"]);
+      expect(c.selectedAssemblies).not.toBe(before);
+   });
+
+   it("should clear the selection when an expired viewsheet is reopened", async () => {
+      const { c } = await setup();
+      click(c, 5);
+      c.openViewsheet = vi.fn();
+      c.openPreviewViewsheet = vi.fn();
+
+      c.reopenExpiredViewsheet();
+
+      expect(c.vsObjects).toHaveLength(0);
+      expect(c.selectedAssemblies).toBeNull();
+      expect(c.selectedActions).toBeNull();
    });
 });
 

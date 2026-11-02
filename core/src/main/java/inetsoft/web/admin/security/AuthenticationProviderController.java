@@ -20,6 +20,8 @@ package inetsoft.web.admin.security;
 import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.security.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.util.Tool;
 import inetsoft.util.data.MapModel;
@@ -118,6 +120,15 @@ public class AuthenticationProviderController {
          .orElseThrow(() -> new Exception("The authentication chain has not been initialized."));
 
       List<AuthenticationProvider> providerList = chain.getProviders();
+
+      if(index < 0 || index >= providerList.size()) {
+         // the list this admin sees is not the one of this node any more
+         throw new MessageException(
+            Catalog.getCatalog(principal).getString("em.security.providerListChanged"));
+      }
+
+      // the name of the provider the admin chose: the service removes the entry at the index only
+      // if it has this name in the list of the file, and audits this name
       String providerName = providerList.get(index).getProviderName();
       authenticationProviderService.removeAuthenticationProvider(index, providerName, principal);
    }

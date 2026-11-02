@@ -27,11 +27,17 @@ import inetsoft.sree.security.Organization;
 import inetsoft.storage.*;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.util.ConfigurationContext;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -42,10 +48,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #77897: the rename transform queue must be replayed after a full cluster restart, exactly
@@ -90,6 +100,13 @@ class RenameTransformQueueReplayTest {
    void tearDown() throws Exception {
       logger.detachAppender(appender);
       cluster().dropRenameTransform = false;
+
+      if(repository != null) {
+         cluster().awaitTasks();
+         AssetUtil.setAssetRepository(false, null);
+         repository = null;
+      }
+
       // the context closes the stores after the last test
       dss.awaitQueueOpen();
    }
@@ -326,6 +343,414 @@ class RenameTransformQueueReplayTest {
       assertEquals(0, queueSize());
    }
 
+   /**
+    * Bug #79519: a server stopping in the middle of a transform interrupts the renameTransform
+    * service thread. The unfinished task must stay in the queue and be replayed at the next start.
+    */
+   @Test
+   void interruptedTransformStaysQueuedAndIsReplayed() throws Exception {
+      CountDownLatch entered = new CountDownLatch(1);
+      AtomicBoolean workerInterrupted = new AtomicBoolean();
+      AssetRepository repository = mockRepository();
+      doAnswer(inv -> {
+         entered.countDown();
+
+         try {
+            // the dependent takes until the stopping server interrupts the transform
+            new CountDownLatch(1).await(30, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            workerInterrupted.set(true);
+            throw e;
+         }
+
+         return null;
+      }).when(repository).getStorage(any());
+      RenameDependencyInfo task = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(task, true);
+      cluster().dropRenameTransform = false;
+
+      Thread service = new Thread(() -> new RenameTransformTask.Rename(task).run(),
+                                  "cluster-service-renameTransform");
+      service.start();
+
+      try {
+         assertTrue(entered.await(10, TimeUnit.SECONDS), "the transform started");
+         service.interrupt(); // Ignite cancels the service when the server stops
+      }
+      finally {
+         service.join(20000L);
+      }
+
+      assertFalse(service.isAlive(), "the interrupted task returns");
+      cluster().awaitTasks();
+      assertEquals(1, queueSize(), "the unfinished task stays in the queue");
+      assertTrue(workerInterrupted.get(), "the transform threads are stopped");
+
+      // the next full start replays and finishes it; the dependent has nothing to rewrite
+      doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
+      restart();
+
+      assertEquals(1, renameSubmissions(), "replayed");
+      assertEquals(0, queueSize(), "dequeued once finished");
+      assertNotNull(dss.get(NEW_WS));
+   }
+
+   /**
+    * Bug #79519: a stopping server may close the Spring context and the storage without
+    * interrupting the renameTransform service thread. The dependent then fails fast and the
+    * transform returns normally; the unfinished task must still stay in the queue, because the
+    * context is closed, and be replayed at the next start.
+    */
+   @Test
+   void transformFailingOnAClosedContextStaysQueuedAndIsReplayed() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ApplicationContext running = context.getApplicationContext();
+      // closed, but its beans are still reachable, as they are through the bean cache of a
+      // stopping server
+      ConfigurableApplicationContext closed = mock(
+         ConfigurableApplicationContext.class, AdditionalAnswers.delegatesTo(running));
+      doReturn(true).when(closed).isClosed();
+      AssetRepository repository = mockRepository();
+      doAnswer(inv -> {
+         // the server starts stopping in the middle of the transform
+         context.setApplicationContext(closed);
+         throw new IllegalStateException("storage closed");
+      }).when(repository).getStorage(any());
+      RenameDependencyInfo task = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(task, true);
+      cluster().dropRenameTransform = false;
+
+      try {
+         new RenameTransformTask.Rename(task).run();
+         assertFalse(Thread.currentThread().isInterrupted(), "no interrupt involved");
+      }
+      finally {
+         context.setApplicationContext(running);
+      }
+
+      verify(repository, atLeastOnce()).getStorage(any());
+      cluster().awaitTasks();
+      assertEquals(1, queueSize(), "the unfinished task stays in the queue");
+
+      // the next full start replays and finishes it
+      doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
+      restart();
+
+      assertEquals(1, renameSubmissions(), "replayed");
+      assertEquals(0, queueSize(), "dequeued once finished");
+      assertNotNull(dss.get(NEW_WS));
+   }
+
+   /**
+    * Bug #79521: the worksheet was renamed back to the old name after the task was queued, so the
+    * replay of the task must not bind the dependents to the new name again.
+    */
+   @Test
+   void replayOfARenamedBackTaskIsSkipped() throws Exception {
+      AssetRepository repository = mockRepository();
+      doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
+      doAnswer(inv -> isOldWs(inv.getArgument(0))).when(repository).containsEntry(any());
+      RenameDependencyInfo task = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(task, true);
+      cluster().dropRenameTransform = false;
+      Logger taskLogger = (Logger) LoggerFactory.getLogger(RenameTransformTask.class);
+      taskLogger.addAppender(appender);
+
+      try {
+         restart();
+      }
+      finally {
+         taskLogger.detachAppender(appender);
+      }
+
+      assertEquals(1, renameSubmissions(), "replayed");
+      assertEquals(0, queueSize(), "the stale task is dequeued");
+      assertNotNull(dss.get(OLD_WS), "the reverse index stays on the old name");
+      assertNull(dss.get(NEW_WS));
+      verify(repository, never()).getStorage(any());
+      assertTrue(warnings().stream().anyMatch(w -> w.contains("exists again") &&
+                                                  w.contains(OLD_WS)), warnings().toString());
+   }
+
+   @Test
+   void replayIsAppliedWhenTheOldAssetCannotBeLookedUp() throws Exception {
+      AssetRepository repository = mockRepository();
+      doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
+      doThrow(new IllegalStateException("not ready")).when(repository).containsEntry(any());
+      RenameDependencyInfo task = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(task, true);
+      cluster().dropRenameTransform = false;
+
+      restart();
+
+      assertEquals(1, renameSubmissions());
+      assertEquals(0, queueSize());
+      assertNull(dss.get(OLD_WS));
+      assertNotNull(dss.get(NEW_WS), "applied");
+      verify(repository, atLeastOnce()).getStorage(any());
+   }
+
+   /**
+    * A live task always applies, even if the asset was renamed again after it was queued; only a
+    * replay is checked.
+    */
+   @Test
+   void liveTaskIsNotCheckedForStaleness() throws Exception {
+      AssetRepository repository = mockRepository();
+      doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
+      doReturn(true).when(repository).containsEntry(any());
+
+      handler().addTransformTask(newTaskWithDependent(), true);
+      cluster().awaitTasks();
+
+      assertNotNull(dss.get(NEW_WS), "applied");
+      assertEquals(0, queueSize());
+      verify(repository, never()).containsEntry(any());
+   }
+
+   /**
+    * Bug #79521: the reverse index moves before the dependents are rewritten, so that the ones
+    * rewritten before a failure or stop are found under the new name by a later rename.
+    */
+   @Test
+   void indexMovesBeforeTheDependentsAreRewritten() throws Exception {
+      AssetRepository repository = mockRepository();
+      AtomicBoolean movedFirst = new AtomicBoolean();
+      doAnswer(inv -> {
+         movedFirst.set(dss.get(NEW_WS) != null && dss.get(OLD_WS) == null);
+         return mock(IndexedStorage.class);
+      }).when(repository).getStorage(any());
+
+      handler().addTransformTask(newTaskWithDependent(), true);
+      cluster().awaitTasks();
+
+      verify(repository, atLeastOnce()).getStorage(any());
+      assertTrue(movedFirst.get(), "the index had moved when the dependent was rewritten");
+      assertEquals(0, queueSize());
+   }
+
+   /**
+    * Bug #79521, the reported sequence: the transform of OldWS -> NewWS is cut short by a stop,
+    * NewWS is renamed back to OldWS while the first task is still queued, and the whole cluster
+    * restarts. The rename back must find the dependents under NewWS, and the replay of the first
+    * task must not bind them to NewWS again.
+    */
+   @Test
+   void renameBackAfterAnInterruptedTransformIsNotUndoneByTheReplay() throws Exception {
+      CountDownLatch entered = new CountDownLatch(1);
+      AssetRepository repository = mockRepository();
+      doAnswer(inv -> {
+         entered.countDown();
+         new CountDownLatch(1).await(30, TimeUnit.SECONDS); // until the stop interrupts it
+         return null;
+      }).when(repository).getStorage(any());
+      RenameDependencyInfo first = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(first, true);
+      cluster().dropRenameTransform = false;
+
+      Thread service = new Thread(() -> new RenameTransformTask.Rename(first).run(),
+                                  "cluster-service-renameTransform");
+      service.start();
+
+      try {
+         assertTrue(entered.await(10, TimeUnit.SECONDS), "the transform started");
+         service.interrupt();
+      }
+      finally {
+         service.join(20000L);
+      }
+
+      cluster().awaitTasks();
+      assertEquals(1, queueSize(), "the interrupted task stays queued");
+      // a later rename looks its dependents up under the new name
+      List<AssetObject> found = DependencyTransformer.getDependencies(NEW_WS);
+      assertTrue(found != null && found.contains(DEPENDENT), String.valueOf(found));
+
+      // NewWS is renamed back to OldWS on a node that is still running, and that transform
+      // finishes while the first task is still queued
+      doReturn(mock(IndexedStorage.class)).when(repository).getStorage(any());
+      doAnswer(inv -> isOldWs(inv.getArgument(0))).when(repository).containsEntry(any());
+      RenameInfo back = new RenameInfo(NEW_WS, OLD_WS, RenameInfo.ASSET | RenameInfo.SOURCE);
+      RenameDependencyInfo second = new RenameDependencyInfo();
+      second.setRenameInfos(new ArrayList<>(List.of(back)));
+
+      for(AssetObject dependent : found) {
+         second.setRenameInfo(dependent, second.getRenameInfos());
+      }
+
+      handler().addTransformTask(second, true);
+      cluster().awaitTasks();
+      assertEquals(1, queueSize(), "only the interrupted task is left");
+      assertNull(dss.get(NEW_WS), "the rename back moved the reverse index");
+      assertNotNull(dss.get(OLD_WS));
+
+      // the full cluster restart replays the first task; OldWS exists again
+      Logger taskLogger = (Logger) LoggerFactory.getLogger(RenameTransformTask.class);
+      taskLogger.addAppender(appender);
+
+      try {
+         restart();
+      }
+      finally {
+         taskLogger.detachAppender(appender);
+      }
+
+      assertEquals(1, renameSubmissions(), "replayed");
+      assertEquals(0, queueSize(), "the stale task is dequeued");
+      assertNull(dss.get(NEW_WS), "the reverse index doesn't go back to NewWS");
+      DependenciesInfo index = (DependenciesInfo) dss.get(OLD_WS);
+      assertNotNull(index, "the reverse index is on OldWS again");
+      assertTrue(index.getDependencies().contains(DEPENDENT));
+      assertTrue(warnings().stream().anyMatch(w -> w.contains("exists again") &&
+                                                  w.contains(OLD_WS)), warnings().toString());
+   }
+
+   /**
+    * Bug #79721: OldWS is renamed to NewWS, the node stops with the dependents still bound to
+    * OldWS, then NewWS is renamed to NewerWS on a node that is running. The later rename must
+    * also move the dependents from OldWS, or the replay of the first rename binds them to the
+    * NewWS that no longer exists.
+    */
+   @Test
+   void renameChainedToAPendingRenameLeavesNoDependentOnTheMissingName() throws Exception {
+      mockRepository();
+      RenameDependencyInfo first = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(first, true);
+      // the node stopped after the index move, before any dependent was rewritten
+      DependencyTransformer.renameDepStorage(first.getRenameInfos().get(0));
+      List<AssetObject> found = DependencyTransformer.getDependencies(NEW_WS);
+      assertTrue(found != null && found.contains(DEPENDENT), String.valueOf(found));
+
+      RenameDependencyInfo second = newerTask(found);
+      handler().addTransformTask(second, true);
+      cluster().dropRenameTransform = false;
+      assertEquals(2, queueSize());
+
+      Map<AssetObject, String> bindings = new HashMap<>();
+      bindings.put(DEPENDENT, OLD_WS);
+      // the later rename runs and finishes first, as it does on the live node
+      new RenameTransformTask.Rename(queued(second)).run(recorder(bindings), () -> false);
+      cluster().awaitTasks();
+      assertEquals(NEWER_WS, bindings.get(DEPENDENT), "bound to the new name");
+      assertEquals(1, queueSize(), "only the first rename is left");
+
+      // the cluster restart replays the first rename
+      new RenameTransformTask.Rename(queued(first), true).run(recorder(bindings), () -> false);
+      cluster().awaitTasks();
+      assertEquals(NEWER_WS, bindings.get(DEPENDENT), "not rebound to the missing NewWS");
+      assertEquals(0, queueSize());
+      assertNull(dss.get(OLD_WS));
+      assertNull(dss.get(NEW_WS));
+      DependenciesInfo index = (DependenciesInfo) dss.get(NEWER_WS);
+      assertNotNull(index, "the reverse index is on the last name");
+      assertTrue(index.getDependencies().contains(DEPENDENT));
+   }
+
+   /**
+    * Bug #79721: the node stopped before the index move too, so the later rename finds no
+    * dependents under NewWS. It takes the dependents of the pending rename and moves the index.
+    */
+   @Test
+   void renameChainedToAPendingRenameWhoseIndexMoveDidNotRunTakesItsDependents()
+      throws Exception
+   {
+      mockRepository();
+      RenameDependencyInfo first = newTaskWithDependent();
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(first, true);
+      List<AssetObject> none = DependencyTransformer.getDependencies(NEW_WS);
+      assertTrue(none == null || none.isEmpty(), String.valueOf(none));
+
+      RenameDependencyInfo second = newerTask(List.of());
+      handler().addTransformTask(second, true);
+      cluster().dropRenameTransform = false;
+
+      Map<AssetObject, String> bindings = new HashMap<>();
+      bindings.put(DEPENDENT, OLD_WS);
+      new RenameTransformTask.Rename(queued(second)).run(recorder(bindings), () -> false);
+      new RenameTransformTask.Rename(queued(first), true).run(recorder(bindings), () -> false);
+      cluster().awaitTasks();
+
+      assertEquals(NEWER_WS, bindings.get(DEPENDENT));
+      assertEquals(0, queueSize());
+      assertNull(dss.get(OLD_WS));
+      assertNull(dss.get(NEW_WS));
+      DependenciesInfo index = (DependenciesInfo) dss.get(NEWER_WS);
+      assertNotNull(index, "the reverse index moved to the last name");
+      assertTrue(index.getDependencies().contains(DEPENDENT));
+   }
+
+   @Test
+   void renamesThatAreNotAChainAreLeftAlone() {
+      RenameInfo aToB = new RenameInfo(OLD_WS, NEW_WS, RenameInfo.ASSET | RenameInfo.SOURCE);
+      RenameDependencyInfo pending = new RenameDependencyInfo();
+      pending.setRenameInfos(new ArrayList<>(List.of(aToB)));
+      pending.setRenameInfo(DEPENDENT, pending.getRenameInfos());
+      RenameTransformQueue queue = new RenameTransformQueue();
+      queue.add(pending);
+
+      // a rename back, an unrelated asset, another kind of rename: nothing is added
+      for(RenameInfo next : List.of(
+         new RenameInfo(NEW_WS, OLD_WS, RenameInfo.ASSET | RenameInfo.SOURCE),
+         new RenameInfo(NEWER_WS, OLD_WS, RenameInfo.ASSET | RenameInfo.SOURCE),
+         new RenameInfo(NEW_WS, NEWER_WS, RenameInfo.ASSET | RenameInfo.TABLE),
+         new RenameInfo(NEW_WS, NEWER_WS, RenameInfo.VIEWSHEET | RenameInfo.SOURCE)))
+      {
+         RenameDependencyInfo later = new RenameDependencyInfo();
+         later.setRenameInfos(new ArrayList<>(List.of(next)));
+         RenameTransformTask.chainPendingRenames(later, queue);
+         assertEquals(1, later.getRenameInfos().size(), next.getOldName());
+         assertTrue(later.getDependencyMap().isEmpty(), next.getOldName());
+      }
+   }
+
+   private RenameDependencyInfo newerTask(List<AssetObject> dependents) {
+      RenameInfo rinfo = new RenameInfo(NEW_WS, NEWER_WS, RenameInfo.ASSET | RenameInfo.SOURCE);
+      RenameDependencyInfo task = new RenameDependencyInfo();
+      task.setRenameInfos(new ArrayList<>(List.of(rinfo)));
+
+      for(AssetObject dependent : dependents) {
+         task.setRenameInfo(dependent, task.getRenameInfos());
+      }
+
+      return task;
+   }
+
+   /**
+    * Gets the queued copy of a task, which the chaining changed.
+    */
+   private RenameDependencyInfo queued(RenameDependencyInfo task) {
+      RenameTransformQueue queue = engine().get(QUEUE_STORE, QUEUE_KEY);
+      return queue.stream().filter(task::equals).findFirst().orElseThrow();
+   }
+
+   /**
+    * A transform that rewrites the way the real one does: a binding is replaced if it equals the
+    * old name of a rename of its dependent.
+    */
+   private static Function<RenameDependencyInfo, CompletableFuture<Boolean>> recorder(
+      Map<AssetObject, String> bindings)
+   {
+      return info -> {
+         for(AssetObject dependent : info.getAssetObjects()) {
+            for(RenameInfo rinfo : info.getRenameInfo(dependent)) {
+               if(rinfo.getOldName().equals(bindings.get(dependent))) {
+                  bindings.put(dependent, rinfo.getNewName());
+               }
+            }
+         }
+
+         return CompletableFuture.completedFuture(true);
+      };
+   }
+
    @Test
    void attemptsRoundTripThroughJson() throws Exception {
       RenameTransformAttempts attempts = new RenameTransformAttempts();
@@ -408,6 +833,26 @@ class RenameTransformQueueReplayTest {
       return dinfo;
    }
 
+   private RenameDependencyInfo newTaskWithDependent() throws Exception {
+      RenameDependencyInfo task = newTask();
+      task.setRenameInfo(DEPENDENT, task.getRenameInfos());
+      return task;
+   }
+
+   /**
+    * Installs a mock runtime asset repository, which the transform and the replay check use.
+    */
+   private AssetRepository mockRepository() {
+      repository = mock(AssetRepository.class);
+      AssetUtil.setAssetRepository(false, repository);
+      return repository;
+   }
+
+   private static boolean isOldWs(AssetEntry entry) {
+      return entry != null && "OldWS".equals(entry.getPath()) && ORG.equals(entry.getOrgID()) &&
+         entry.getScope() == AssetRepository.GLOBAL_SCOPE;
+   }
+
    private int queueSize() {
       RenameTransformQueue queue = engine().get(QUEUE_STORE, QUEUE_KEY);
       return queue == null ? 0 : queue.size();
@@ -450,6 +895,8 @@ class RenameTransformQueueReplayTest {
    private DependencyStorageService dss;
    private Logger logger;
    private ListAppender<ILoggingEvent> appender;
+   // held here: the configuration context keeps only a weak reference
+   private AssetRepository repository;
 
    private static final String QUEUE_STORE = "dependencyStorage";
    private static final String QUEUE_KEY = "1^0^__NULL__^rename_queue_v2";
@@ -458,6 +905,7 @@ class RenameTransformQueueReplayTest {
    private static final String ORG_STORE = ORG.toLowerCase() + "__dependencyStorage";
    private static final String OLD_WS = "1^2^__NULL__^OldWS^" + ORG;
    private static final String NEW_WS = "1^2^__NULL__^NewWS^" + ORG;
+   private static final String NEWER_WS = "1^2^__NULL__^NewerWS^" + ORG;
    private static final AssetEntry DEPENDENT = new AssetEntry(
       AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "DependentVS", null, ORG);
 

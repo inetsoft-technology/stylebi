@@ -63,6 +63,7 @@ public class GenericLdapAuthenticationProvider extends LdapAuthenticationProvide
 
       String url = getLdapProtocol() + getHost() + ':' + getPort() + '/' + getRootDn();
       env.put(Context.PROVIDER_URL, url);
+      applyTimeouts(env);
 
       if(startTls) {
          LdapContext context = new InitialLdapContext(env, null);

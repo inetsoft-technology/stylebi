@@ -148,6 +148,7 @@ public class RemoveAssetController {
             RecycleUtils.moveAssetFolderToRecycleBin(entry, principal, recycleBin, event.confirmed());
          }
          else if(entry.getScope() == AssetRepository.REPORT_SCOPE) {
+            RecycleUtils.checkScheduledTasks(entry);
             assetRepository.removeSheet(entry, principal, event.confirmed());
          }
          else {

@@ -203,6 +203,7 @@ public class ExcelSelectionListHelper extends ExporterHelper {
       PoiExcelVSExporter exporter = (PoiExcelVSExporter) getExporter();
       VSCompositeFormat parentformat = info.getFormat();
       Dimension size = info.getPixelSize();
+      int rawHeight = size.height;
 
       if(size.height > 0) {
          size.height = PoiExcelVSUtil.floorY(size.height);
@@ -210,7 +211,16 @@ public class ExcelSelectionListHelper extends ExporterHelper {
       }
 
       Point position = info.getViewsheet().getPixelPosition(info);
+      int rawY = position.y;
       position.y = PoiExcelVSUtil.floorY(position.y);
+
+      if(size.height > 0) {
+         // the box occupies the grid from floorY(y) to floorY(y + height), which can be up to
+         // 19px more than floorY(height) alone; rows may use that space without overlapping
+         // the next assembly (which starts at or below floorY(y + height))
+         size.height = Math.max(size.height, PoiExcelVSUtil.floorY(rawY + rawHeight) - position.y);
+      }
+
       Row row;
       Cell cell;
       SelectionValue value;

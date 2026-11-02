@@ -290,7 +290,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
       test.style.overflowWrap = this.model.objectFormat.wrapping.wordWrap;
       test.style.whiteSpace = this.model.objectFormat.wrapping.whiteSpace;
       test.style.font = this.model.objectFormat.font;
-      test.innerHTML = ostr;
+      this.setMeasureHtml(test, ostr);
       window.document.body.appendChild(test);
 
       test.style.width = "99999999px";
@@ -331,13 +331,13 @@ export class VSText extends AbstractVSObject<VSTextModel>
       let actualH = 0;
 
       // If only one string, should calculate according to every characters.
-      test.innerHTML = "";
+      this.setMeasureHtml(test, "");
       let lastString = "";
       let textCut = false;
 
       for(let str of ostr) {
          nstring += str;
-         test.innerHTML = nstring + "...";
+         this.setMeasureHtml(test, nstring + "...");
          actualH = test.clientHeight;
 
          // if new html is large, should revert to old strings.
@@ -362,7 +362,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
 
    getWordString(ostr: string, test: HTMLElement, textH: number): string {
       let wordArray = ostr.split(" ");
-      test.innerHTML = "";
+      this.setMeasureHtml(test, "");
       let lastString = "";
       let nstring = "";
       let actualH = 0;
@@ -373,7 +373,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
       for(let i = 0; i < wordArray.length; i++) {
          let prefix = i == 0 ? "" : " ";
          nstring += prefix + wordArray[i];
-         test.innerHTML = nstring + "...";
+         this.setMeasureHtml(test, nstring + "...");
          actualH = test.clientHeight;
 
          // If current word is larger than text height, add one character by character to check.
@@ -381,7 +381,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
          if(actualH >= textH) {
             textCut = true;
             nstring = lastString + prefix;
-            test.innerHTML = nstring + "...";
+            this.setMeasureHtml(test, nstring + "...");
             actualH = test.clientHeight;
 
             // If can not add one characters, should only return old string.
@@ -392,7 +392,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
 
             for(let char of wordArray[i]) {
                nstring += char;
-               test.innerHTML = nstring + "...";
+               this.setMeasureHtml(test, nstring + "...");
                actualH = test.clientHeight;
 
                if(actualH >= textH) {
@@ -415,9 +415,10 @@ export class VSText extends AbstractVSObject<VSTextModel>
    }
 
    isHTMLContent(str): boolean {
-      let test = document.createElement("div");
-      test.innerHTML = str;
-      let c = test.childNodes;
+      // parse in an inert document so the text is never executed (e.g. <img onerror>)
+      const doc = new DOMParser().parseFromString("<!DOCTYPE html><body>" + (str ?? ""),
+                                                  "text/html");
+      const c = doc.body.childNodes;
 
       for(let i = c.length; i--; i > -1) {
          // if only enter in text, support it to cut and add ellipsis
@@ -427,6 +428,15 @@ export class VSText extends AbstractVSObject<VSTextModel>
       }
 
       return false;
+   }
+
+   /**
+    * Put text into the measuring element. The text is sanitized first (the same sanitizer the
+    * final [innerHTML] binding applies) so that markup such as <img onerror> is never parsed
+    * live by the measuring element; the measured height matches what is finally displayed.
+    */
+   private setMeasureHtml(el: HTMLElement, html: string): void {
+      el.innerHTML = this.domSanitizer.sanitize(SecurityContext.HTML, html) ?? "";
    }
 
    modelChanged() {

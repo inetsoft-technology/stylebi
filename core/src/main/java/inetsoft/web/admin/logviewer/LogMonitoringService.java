@@ -32,6 +32,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -45,7 +46,14 @@ import java.util.concurrent.*;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipOutputStream;
 
+/**
+ * Not lazy: this bean is the only responder to {@link GetLogFilesRequest}, and it registers as a
+ * cluster listener when it is created. Under lazy initialization it would exist (and answer) only
+ * on nodes that had already served a log request, so listing the logs from any other node waited
+ * out {@link #LOG_LIST_TIMEOUT_SECONDS} for the nodes that never answered.
+ */
 @Service
+@Lazy(false)
 public class LogMonitoringService implements MessageListener {
    /**
     * Timeout for fetching log content from cluster nodes. Kept short so that a node under heavy

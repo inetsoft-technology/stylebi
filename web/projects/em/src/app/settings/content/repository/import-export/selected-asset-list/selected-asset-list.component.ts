@@ -119,10 +119,13 @@ export class SelectedAssetListComponent implements OnInit {
    }
 
    onSelectedAssets(row: SelectedAssetModel, event: MouseEvent) {
-      if(event.ctrlKey && this.selectedAssets?.indexOf(row) != -1) {
+      // Bug #78732, Cmd is the toggle modifier on a Mac
+      const toggle = event.ctrlKey || event.metaKey;
+
+      if(toggle && this.selectedAssets?.indexOf(row) != -1) {
          this.selectedAssets.splice(this.selectedAssets.indexOf(row), 1);
       }
-      else if(event.ctrlKey && this.selectedAssets?.indexOf(row) == -1) {
+      else if(toggle && this.selectedAssets?.indexOf(row) == -1) {
          this.selectedAssets = [...this.selectedAssets, row];
       }
       else if(event.shiftKey) {

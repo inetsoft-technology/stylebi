@@ -58,7 +58,11 @@ export namespace ComponentTool {
          return;
       }
 
-      if(err.message) {
+      if(err == null) {
+         // The server sent no error body (e.g. a 500 with an empty response).
+         msg = `${message} [${error.status}]`;
+      }
+      else if(err.message) {
          // A client-side or network error occurred. Handle it accordingly.
          msg = `${message}: ${err.message}`;
       }

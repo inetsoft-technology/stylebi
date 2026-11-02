@@ -25,11 +25,11 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.DCMergeDatePartFilter;
 import inetsoft.test.*;
+import inetsoft.test.dc.DcInMemoryViewsheetFixture;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -39,20 +39,20 @@ import inetsoft.web.viewsheet.controller.VSDataTipService;
 import inetsoft.web.viewsheet.controller.chart.VSChartBrushService;
 import inetsoft.web.viewsheet.controller.chart.VSChartFlyoverService;
 import inetsoft.web.viewsheet.event.OpenDataTipEvent;
-import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.event.chart.VSChartBrushEvent;
 import inetsoft.web.viewsheet.event.chart.VSChartFlyoverEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -68,26 +68,36 @@ import static org.mockito.Mockito.*;
  * 2020), and the selection then held two contradictory WeekOfYear(D) values, so brush, data tip
  * and flyover filtered every target to nothing.
  * <p>
- * Fixture: EmbeddedVS1, calc D = new Date(2019 + day % 3, 0, day), so the chart has bars in
- * several periods and weeks. Each case clicks the first bar of 2020 and of 2021 and checks the
- * targets show that bar's own Sum(wind).
- * <p>
- * Tags are per method: the brush case is fast and runs with {@code core}; the data tip and
- * flyover cases take about 4-5 s each and run with {@code slow}.
+ * Fixture: an in-memory runtime viewsheet ({@link DcInMemoryViewsheetFixture#openRuntime}) with
+ * one row per day of 2019 to 2021 (D, wind, name), so the chart has bars in several periods and
+ * weeks. Each case clicks the first bar of 2020 and of 2021 and checks the targets show that
+ * bar's own Sum(wind).
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  LibManagerTestConfiguration.class, PluginsTestConfiguration.class,
+                                  DcInMemoryViewsheetFixture.Config.class },
                       initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("integration")
+@SreeHome
+@Tag("core")
 class DateComparisonBarClickViewsheetTest {
+   private final DcInMemoryViewsheetFixture dcFixture = new DcInMemoryViewsheetFixture();
+
+   @BeforeEach
+   void setUp() {
+      dcFixture.setUp();
+   }
+
+   @AfterEach
+   void tearDown() {
+      dcFixture.tearDown();
+   }
+
    /**
     * VSChartBrushService: brushing a bar filters chart and crosstab targets to that bar, in
     * the current and in a previous period.
     */
    @Test
-   @Tag("core")
    void barClickBrushFiltersTargetsInEveryPeriod() throws Exception {
       Fixture f = new Fixture();
 
@@ -116,7 +126,6 @@ class DateComparisonBarClickViewsheetTest {
     * previous period.
     */
    @Test
-   @Tag("slow")
    void barClickDataTipFiltersTipViewInEveryPeriod() throws Exception {
       Fixture f = new Fixture();
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) f.chart2.getVSAssemblyInfo();
@@ -147,7 +156,6 @@ class DateComparisonBarClickViewsheetTest {
     * previous period.
     */
    @Test
-   @Tag("slow")
    void barClickFlyoverFiltersViewsInEveryPeriod() throws Exception {
       Fixture f = new Fixture();
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) f.chart2.getVSAssemblyInfo();
@@ -241,20 +249,23 @@ class DateComparisonBarClickViewsheetTest {
       final ChartVSAssembly chart2;
 
       Fixture() throws Exception {
-         rvs = vsResource.getRuntimeViewsheet();
-         box = rvs.getViewsheetSandbox().orElseThrow();
-         vs = box.getViewsheet();
-         SourceInfo source =
-            (SourceInfo) ((TableVSAssembly) vs.getAssembly("TableView1")).getSourceInfo().clone();
+         List<Object[]> rows = new ArrayList<>();
 
-         CalculateRef dateCalc = new CalculateRef(true);
-         dateCalc.setName("D");
-         ExpressionRef dateExpr = new ExpressionRef(null, "D");
-         dateExpr.setExpression("new Date(2019 + field['day'] % 3, 0, field['day'])");
-         dateExpr.setDataType(XSchema.DATE);
-         dateCalc.setDataRef(dateExpr);
-         dateCalc.setSQL(false);
-         vs.addCalcField(source.getSource(), dateCalc);
+         for(LocalDate day = LocalDate.of(2019, 1, 1); day.isBefore(LocalDate.of(2022, 1, 1));
+             day = day.plusDays(1))
+         {
+            rows.add(new Object[] { java.sql.Date.valueOf(day),
+                                    DcInMemoryViewsheetFixture.dayValue(day),
+                                    "n" + day.getDayOfYear() % 3 });
+         }
+
+         DcInMemoryViewsheetFixture.RuntimeSheet sheet = dcFixture.openRuntime(
+            new String[] { "D", "wind", "name" },
+            new String[] { XSchema.DATE, XSchema.INTEGER, XSchema.STRING }, rows);
+         rvs = sheet.rvs();
+         box = sheet.box();
+         vs = sheet.vs();
+         SourceInfo source = sheet.source();
 
          chart2 = chart(source, DC_CHART, XConstants.YEAR_DATE_GROUP, reporterDc());
          chart(source, "ChartYear", XConstants.YEAR_DATE_GROUP, null);
@@ -374,16 +385,6 @@ class DateComparisonBarClickViewsheetTest {
       agg.setFormulaValue("Sum");
       return agg;
    }
-
-   private static OpenViewsheetEvent openViewsheetEvent() {
-      OpenViewsheetEvent event = new OpenViewsheetEvent();
-      event.setEntryId("1^128^__NULL__^EmbeddedVS1^host-org");
-      event.setViewer(true);
-      return event;
-   }
-
-   @RegisterExtension
-   RuntimeViewsheetExtension vsResource = new RuntimeViewsheetExtension(openViewsheetEvent());
 
    private static final String DC_CHART = "Chart2";
    // 2021 is the current period (week part equivalence 124), 2020 a previous one (125)

@@ -46,7 +46,7 @@ import { render } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { server } from "@test-mocks/server";
 import { jsPlumbLib } from "../../../../../../composer/gui/ws/jsplumb/jsplumb";
-import { jspMock } from "../physical-model-network-graph/physical-model-network-graph.component.test-helpers";
+import { jspMock, stubScrollTo } from "../physical-model-network-graph/physical-model-network-graph.component.test-helpers";
 import { PhysicalGraphPane } from "./physical-graph-pane.component";
 import { PhysicalModelNetworkGraphComponent } from "../physical-model-network-graph/physical-model-network-graph.component";
 import { JoinNodeGraphComponent } from "../../common-components/join-node-graph/join-node-graph.component";
@@ -154,6 +154,9 @@ interface FakeConnection {
    created: { type: string, data: any };
    setType: ReturnType<typeof vi.fn>;
 }
+
+// the real PhysicalModelNetworkGraphComponent calls scrollTo, which jsdom lacks
+stubScrollTo();
 
 describe("PhysicalGraphPane - Bug #77995 join highlight without a graph reload", () => {
    let moves: any[];

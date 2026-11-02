@@ -444,7 +444,8 @@ public class ExportUtil {
                vsformat = (VSFormatTableLens) filter;
                break;
             }
-            else if(filter instanceof TableFilter && r > 0 && c > 0) {
+            // Bug #79580, column 0 is data too; only the header row (r == 0) is skipped
+            else if(filter instanceof TableFilter && r > 0 && c >= 0) {
                c = ((TableFilter) filter).getBaseColIndex(c);
                r = ((TableFilter) filter).getBaseRowIndex(r);
                filter = ((TableFilter) filter).getTable();
@@ -526,7 +527,10 @@ public class ExportUtil {
             char[] extDataFmt = exFmt.getExtendedDataFormat();
 
             if(Arrays.binarySearch(extDataFmt, suffix) > -1) {
-               return null;
+               // Bug #79602: use the real Excel scaling-comma pattern (e.g. $#,###,"K")
+               // instead of falling back to the literal, unscaled K/M/B pattern.
+               String excelPattern = ExcelUtil.analyze(fmt);
+               return "".equals(excelPattern) ? "General" : excelPattern;
             }
          }
       }

@@ -130,16 +130,6 @@ public class VSExportService {
       boolean exportEnabled = securityEngine.checkPermission(
          req.principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export", ResourceAction.READ);
 
-      if(!req.previewPrintLayout && !exportEnabled) {
-         LOG.error(
-            "Failed to export viewsheet since {} have no permission for viewsheet export.",
-            req.principal.getName());
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(req.principal.getName());
-         String user = identityID != null ? identityID.getName() : req.principal.getName();
-         throw new MessageException(Catalog.getCatalog().getString(
-            "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
-      }
-
       //if there is an outtype param, its value overrides the format value
       if(req.type != null) {
          format = getFormatNumberFromExtension(req.type);
@@ -147,6 +137,16 @@ public class VSExportService {
          if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
             match = false;
          }
+      }
+
+      if(!isExportAllowed(exportEnabled, req.previewPrintLayout, format)) {
+         LOG.error(
+            "Failed to export viewsheet since {} have no permission for viewsheet export.",
+            req.principal.getName());
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(req.principal.getName());
+         String user = identityID != null ? identityID.getName() : req.principal.getName();
+         throw new MessageException(Catalog.getCatalog().getString(
+            "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
       }
 
       RuntimeViewsheet rvs;
@@ -505,23 +505,31 @@ public class VSExportService {
       return name;
    }
 
+   private static final int MAX_FILE_NAME_LENGTH = 60;
+
    public static void setResponseHeader(ExportResponse response, String suffix,
                                   String disposition, String name, String mime)
    {
-      String name0 = name;
-      String fileName = Tool.encodeURL(Tool.normalizeFileName(name0 + "." + suffix, true));
-      fileName = fileName.replaceAll("'", "%27");
-
       // file name too long will cause problem in office 2010
       // @see bug1393467998696
-      while(fileName.length() > 60) {
-         if(name0.length() <= 1) {
+      // the limit applies to the decoded name (incl. extension) in code points, not to the
+      // percent-encoded string, so CJK names are not cut to a few characters (bug #79670)
+      String name0 = name;
+      String decoded = Tool.normalizeFileName(name0 + "." + suffix, true);
+
+      while(decoded.codePointCount(0, decoded.length()) > MAX_FILE_NAME_LENGTH) {
+         int count = name0.codePointCount(0, name0.length());
+
+         if(count <= 1) {
             break;
          }
 
-         name0 = name0.substring(0, name0.length() - 1);
-         fileName = Tool.encodeURL(Tool.normalizeFileName(name0 + "." + suffix));
+         name0 = name0.substring(0, name0.offsetByCodePoints(0, count - 1));
+         decoded = Tool.normalizeFileName(name0 + "." + suffix, true);
       }
+
+      // encode once, with the same flags whether or not the name was cut
+      String fileName = Tool.encodeURL(decoded).replaceAll("'", "%27");
 
       response.setHeader("Content-disposition", StringUtils.normalizeSpace(disposition) +
          "; filename*=utf-8''" + StringUtils.normalizeSpace(fileName) +
@@ -964,6 +972,18 @@ public class VSExportService {
       }
 
       return sandbox;
+   }
+
+   /**
+    * Whether a viewsheet export may proceed. The Export toolbar action is required, except
+    * that the print preview flag exempts a PDF export (the viewer Print button and the
+    * composer print layout preview send only the default PDF format). Any other effective
+    * format (after the outtype override) needs Export even when the flag is set.
+    */
+   public static boolean isExportAllowed(boolean exportEnabled, boolean previewPrintLayout,
+                                         int format)
+   {
+      return exportEnabled || previewPrintLayout && format == FileFormatInfo.EXPORT_TYPE_PDF;
    }
 
    public static int getFormatNumberFromExtension(String ext) {

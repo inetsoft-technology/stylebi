@@ -241,6 +241,51 @@ class SecurityConfigControllerTest {
       assertFalse(result.warning().isEmpty());
    }
 
+   // [enable: LDAP provider exists] Bug #79234: not enabled; the warning names the providers
+   @Test
+   void setEnableMultiTenancy_enable_ldapProviderExists_refusedWithWarning() {
+      when(securityEngine.getLdapAuthenticationProviderNames())
+         .thenReturn(java.util.List.of("corp-ldap", "corp-ad"));
+      lenient().when(catalog.getString(eq("em.security.multitenant.ldapProviderExists"),
+                                       any(Object[].class)))
+         .thenAnswer(i -> "exists:" + i.getArguments()[1]);
+      SecurityEnabledEvent event = SecurityEnabledEvent.builder().enable(true).build();
+
+      SecurityEnabledEvent result = controller.setEnableMultiTenancy(event, principal);
+
+      sUtilStatic.verify(() -> SUtil.setMultiTenant(anyBoolean()), never());
+      assertNotNull(result.warning());
+      assertTrue(result.warning().contains("corp-ldap, corp-ad"), result.warning());
+   }
+
+   // [enable: already on, legacy LDAP provider] re-enabling stays a no-op without the new warning
+   @Test
+   void setEnableMultiTenancy_enable_alreadyOn_ldapProviderExists_noNewWarning() {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("security.users.multiTenant", "false"))
+         .thenReturn("true");
+      lenient().when(securityEngine.getLdapAuthenticationProviderNames())
+         .thenReturn(java.util.List.of("corp-ldap"));
+      when(licenseManager.hasNamedUserKeys()).thenReturn(false);
+      SecurityEnabledEvent event = SecurityEnabledEvent.builder().enable(true).build();
+
+      SecurityEnabledEvent result = controller.setEnableMultiTenancy(event, principal);
+
+      sUtilStatic.verify(() -> SUtil.setMultiTenant(true));
+      assertTrue(result.warning() == null || result.warning().isEmpty());
+   }
+
+   // [disable: LDAP provider exists] disabling is not affected by the LDAP check
+   @Test
+   void setEnableMultiTenancy_disable_ldapProviderExists_stillDisables() {
+      lenient().when(securityEngine.getLdapAuthenticationProviderNames())
+         .thenReturn(java.util.List.of("corp-ldap"));
+      SecurityEnabledEvent event = SecurityEnabledEvent.builder().enable(false).build();
+
+      controller.setEnableMultiTenancy(event, principal);
+
+      sUtilStatic.verify(() -> SUtil.setMultiTenant(false));
+   }
+
    // [disable: clean state] no added orgs, no self-org users → SUtil.setMultiTenant(false) called
    @Test
    void setEnableMultiTenancy_disable_cleanState_setsMultiTenantFalse() {

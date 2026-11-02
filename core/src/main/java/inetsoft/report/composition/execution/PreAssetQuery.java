@@ -33,6 +33,7 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
 import inetsoft.uql.jdbc.util.SQLTypes;
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
@@ -4306,21 +4307,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
                      vval = null;
                   }
 
-                  if(vval instanceof Object[]) {
-                     Object[] objs = (Object[]) vval;
-
-                     if(objs.length > 0) {
-                        for(int i = 0; i < objs.length - 1; i++) {
-                           valStr += AbstractCondition.getValueSQLString(
-                              objs[i]) + ",";
-                        }
-
-                        valStr += AbstractCondition.getValueSQLString(
-                           objs[objs.length - 1]);
-                     }
-                  }
-                  else if(vval != null){
-                     valStr = AbstractCondition.getValueSQLString(vval);
+                  if(vval != null) {
+                     // the value is spliced as SQL text that VarSQL never sees,
+                     // so escape its string literals here (Bug #79742)
+                     valStr = getSQLLiteral(vval, isBackslashEscapeChar());
                   }
 
                   exp = valStr == null || valStr.length() == 0 ? exp :
@@ -4351,6 +4341,44 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             String text = AbstractCondition.getValueSQLString(val);
             return new XExpression(text, XExpression.EXPRESSION);
          }
+      }
+
+      /**
+       * Get the SQL text of a variable value spliced into an SQL expression. It is
+       * {@link AbstractCondition#getValueSQLString} with every string escaped for the
+       * query's dialect, also inside an array (an IN list).
+       */
+      private String getSQLLiteral(Object value, boolean backslashEscape) {
+         if(value instanceof String) {
+            return "'" + VarSQL.escapeSQLLiteralValue((String) value, '\'', backslashEscape) +
+               "'";
+         }
+         else if(value instanceof Object[]) {
+            Object[] arr = (Object[]) value;
+            StringBuilder builder = new StringBuilder();
+
+            for(int i = 0; i < arr.length; i++) {
+               if(i != 0) {
+                  builder.append(",");
+               }
+
+               builder.append(getSQLLiteral(arr[i], backslashEscape));
+            }
+
+            return builder.toString();
+         }
+
+         return AbstractCondition.getValueSQLString(value);
+      }
+
+      /**
+       * Check if the dialect of the query's data source treats a backslash as an
+       * escape character in a string literal (e.g. MySQL), as JDBCHandler does for VarSQL.
+       */
+      private boolean isBackslashEscapeChar() {
+         UniformSQL sql = getUniformSQL();
+         SQLHelper helper = sql == null ? null : PreAssetQuery.this.getSQLHelper(sql);
+         return helper != null && helper.isBackslashEscapeChar();
       }
 
       /**

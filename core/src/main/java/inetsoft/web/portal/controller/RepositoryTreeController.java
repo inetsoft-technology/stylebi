@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.util.audit.ActionRecord;
@@ -584,7 +585,13 @@ public class RepositoryTreeController {
             }
          }
          else {
-            LOG.error("Failed to remove asset", e);
+            if(e instanceof MessageException) {
+               LOG.debug("Failed to remove asset", e);
+            }
+            else {
+               LOG.error("Failed to remove asset", e);
+            }
+
             String message = e.getMessage();
 
             if(message == null) {

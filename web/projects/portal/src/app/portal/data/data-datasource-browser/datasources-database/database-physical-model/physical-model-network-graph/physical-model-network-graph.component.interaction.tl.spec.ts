@@ -46,12 +46,14 @@ import { Rectangle } from "../../../../../../common/data/rectangle";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { MessageDialog } from "../../../../../../widget/dialog/message-dialog/message-dialog.component";
 import {
-   jspMock, makeGraph, makeViewModel, renderComp, setupNodes,
+   jspMock, makeGraph, makeViewModel, renderComp, setupNodes, stubScrollTo,
 } from "./physical-model-network-graph.component.test-helpers";
 
 // ---------------------------------------------------------------------------
 // Global lifecycle
 // ---------------------------------------------------------------------------
+
+stubScrollTo();
 
 afterEach(() => {
    vi.restoreAllMocks();

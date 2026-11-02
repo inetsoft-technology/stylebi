@@ -626,7 +626,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       eventExecutor.shutdown();
       // the events already queued still run after the shutdown, on the event thread, and are not
       // waited for here. The executor is kept until they have run, see awaitClosedEventExecutors()
-      CLOSED_EVENT_EXECUTORS.removeIf(ExecutorService::isTerminated);
+      CLOSED_EVENT_EXECUTORS.removeIf(ThreadPoolExecutor::isTerminated);
 
       if(!eventExecutor.isTerminated()) {
          CLOSED_EVENT_EXECUTORS.add(eventExecutor);
@@ -663,12 +663,42 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    static boolean awaitClosedEventExecutors(long timeout, TimeUnit unit)
       throws InterruptedException
    {
+      return awaitClosedEventExecutors(timeout, unit, null);
+   }
+
+   /**
+    * Bug #79131. Same as {@link #awaitClosedEventExecutors(long, TimeUnit)}, and gives a stuck
+    * executor a worker. A submit that races {@code shutdown()} can leave a shut-down executor with
+    * queued events and no worker (the submitter reserved the worker slot, the other submit queued
+    * without adding a worker, then {@code shutdown()} landed and the slot was released), which
+    * would never terminate. {@code prestartCoreThread()} starts the worker that drains the queue,
+    * and is repeated every slice because the slot may be reserved at that moment.
+    *
+    * @param stuck receives the {@code toString()} of the executors that did not terminate, may
+    *              be {@code null}.
+    */
+   static boolean awaitClosedEventExecutors(long timeout, TimeUnit unit, StringBuilder stuck)
+      throws InterruptedException
+   {
       long deadline = System.nanoTime() + unit.toNanos(timeout);
+      long slice = TimeUnit.MILLISECONDS.toNanos(50);
 
-      for(ExecutorService executor : CLOSED_EVENT_EXECUTORS) {
-         long remaining = Math.max(deadline - System.nanoTime(), 0L);
+      for(ThreadPoolExecutor executor : CLOSED_EVENT_EXECUTORS) {
+         boolean terminated;
 
-         if(!executor.awaitTermination(remaining, TimeUnit.NANOSECONDS)) {
+         do {
+            executor.prestartCoreThread();
+            long remaining = Math.max(deadline - System.nanoTime(), 0L);
+            terminated = executor.awaitTermination(Math.min(remaining, slice),
+                                                   TimeUnit.NANOSECONDS);
+         }
+         while(!terminated && System.nanoTime() < deadline);
+
+         if(!terminated) {
+            if(stuck != null) {
+               stuck.append(executor);
+            }
+
             CLOSED_EVENT_EXECUTORS.clear();
             return false;
          }
@@ -677,6 +707,14 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       }
 
       return true;
+   }
+
+   private static ThreadPoolExecutor createEventExecutor() {
+      ThreadPoolExecutor executor = new ThreadPoolExecutor(
+         1, 1, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(),
+         r -> new GroupedThread(r, "BlobStorageEvent"));
+      executor.allowCoreThreadTimeOut(true);
+      return executor;
    }
 
    /**
@@ -741,10 +779,13 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final String lockHost;
    private volatile boolean isClosed = false;
-   private final ExecutorService eventExecutor =
-      Executors.newSingleThreadExecutor(r -> new GroupedThread(r, "BlobStorageEvent"));
+   // a ThreadPoolExecutor, not Executors.newSingleThreadExecutor(), so that a test barrier can
+   // call prestartCoreThread() (bug #79131). The core thread is not kept alive when idle, which
+   // also lets a storage that is never closed release its thread once it is unreachable (the
+   // newSingleThreadExecutor wrapper shut the pool down from a cleaner).
+   private final ThreadPoolExecutor eventExecutor = createEventExecutor();
    // the event executors of the closed storages that may still be running queued events
-   private static final Set<ExecutorService> CLOSED_EVENT_EXECUTORS =
+   private static final Set<ThreadPoolExecutor> CLOSED_EVENT_EXECUTORS =
       ConcurrentHashMap.newKeySet();
    private static final Logger LOG = LoggerFactory.getLogger(BlobStorage.class);
 

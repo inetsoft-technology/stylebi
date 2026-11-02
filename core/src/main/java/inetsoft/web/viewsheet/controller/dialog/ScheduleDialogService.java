@@ -40,6 +40,8 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.MessageException;
+import inetsoft.util.log.LogLevel;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.schedule.ScheduleService;
@@ -403,6 +405,14 @@ public class ScheduleDialogService {
          int type = timeConditionModel.type();
          condition.setType(type == TimeCondition.AT || type == TimeCondition.EVERY_HOUR
                               ? TimeCondition.EVERY_DAY : type);
+      }
+
+      // Bug #79236, an hour or minute out of range can repeat a fire of the task
+      try {
+         condition.validateRanges();
+      }
+      catch(IllegalArgumentException e) {
+         throw new MessageException(e.getMessage(), LogLevel.WARN, false);
       }
 
       if(condition.getType() == TimeCondition.EVERY_DAY) {

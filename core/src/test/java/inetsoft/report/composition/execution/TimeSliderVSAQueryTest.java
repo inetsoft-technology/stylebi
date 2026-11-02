@@ -18,6 +18,7 @@
 
 package inetsoft.report.composition.execution;
 
+import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.util.XSourceInfo;
@@ -137,6 +138,52 @@ public class TimeSliderVSAQueryTest {
       }));
 
       assertEquals(List.of("a::x", CoreTool.FAKE_NULL + "::y", "b::z"), getSelectionValues());
+   }
+
+   /**
+    * Bug #79506: a database may return nulls last for ORDER BY (e.g. DB2) while the MV puts
+    * them first. The composite slider data must be null-first either way so min/max and the
+    * bookmark range comparison agree with and without an MV.
+    */
+   @Test
+   void testCompositeDataSortedNullFirstWhenDatabaseReturnsNullLast() {
+      TableLens nullLast = new DefaultTableLens(new Object[][] {
+         { MEASURE, OTHER },
+         { 0.0, "AZ" },
+         { 0.0, "WA" },
+         { 0.25, "WA" },
+         { null, "AZ" },
+         { null, "FL" }
+      });
+
+      TableLens result = TimeSliderVSAQuery.sortNullFirst(nullLast);
+
+      assertEquals(6, result.getRowCount());
+      Object[][] expected = {
+         { null, "AZ" }, { null, "FL" }, { 0.0, "AZ" }, { 0.0, "WA" }, { 0.25, "WA" }
+      };
+
+      for(int r = 0; r < expected.length; r++) {
+         assertEquals(expected[r][0], result.getObject(r + 1, 0), "row " + (r + 1));
+         assertEquals(expected[r][1], result.getObject(r + 1, 1), "row " + (r + 1));
+      }
+
+      assertEquals(MEASURE, result.getObject(0, 0));
+   }
+
+   /**
+    * An already null-first table (MV result, or a database that sorts nulls first) is kept.
+    */
+   @Test
+   void testCompositeDataAlreadyNullFirstIsUnchanged() {
+      TableLens nullFirst = new DefaultTableLens(new Object[][] {
+         { MEASURE, OTHER },
+         { null, "AZ" },
+         { 0.0, "AZ" },
+         { 0.25, "WA" }
+      });
+
+      assertSame(nullFirst, TimeSliderVSAQuery.sortNullFirst(nullFirst));
    }
 
    /**

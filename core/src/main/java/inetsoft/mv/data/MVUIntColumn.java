@@ -409,7 +409,7 @@ public class MVUIntColumn extends MVDecimalColumn {
          }
 
          arr[index] = (val == Tool.NULL_DOUBLE) ? NULL_UINT
-            : (int) (val / factor);
+            : (int) (long) (val / factor); // via long so 2^31..2^32-1 wraps into the unsigned int
       }
 
       @Override

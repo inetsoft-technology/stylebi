@@ -83,6 +83,21 @@ export class ComboBoxEditor implements OnInit, OnChanges {
       }));
    }
 
+   /**
+    * Text shown in the collapsed virtual-scroll default value box (more than 500 values):
+    * the displayed text of the entry matching the default value, else the raw value.
+    */
+   get defaultValueText(): string {
+      const value = this.model?.defaultValue;
+      const entry = this.valueList?.find(e => e.value === value);
+
+      if(entry) {
+         return entry.formatValue;
+      }
+
+      return value == null ? "" : String(value);
+   }
+
    get datePrompt(): string {
       if(this.model.dataType != XSchema.TIME) {
          return this.isDate ? "yyyy-mm-dd" : "yyyy-MM-dd HH:mm:ss";

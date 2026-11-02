@@ -217,9 +217,11 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       // the locale configured.
       if(firstDayOfWeek != Calendar.SUNDAY && dayOfWeekCols != null) {
          for(String mondayCol : dayOfWeekCols) {
-            if(!(dataset.getComparator(mondayCol) instanceof ValueOrderComparer)) {
-               dataset.setComparator(mondayCol,
-                  new FirstDayComparator(dataset.getComparator(mondayCol)));
+            Comparator comp = dataset.getComparator(mondayCol);
+            Comparator wrapped = FirstDayComparator.wrap(mondayCol, comp);
+
+            if(wrapped != comp) {
+               dataset.setComparator(mondayCol, wrapped);
             }
          }
       }

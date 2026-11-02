@@ -795,14 +795,26 @@ public class Scheduler {
                trigger.setName(String.format("%s-%d",task.getTaskId(), i + 1));
                trigger.setCondition((TimeCondition) condition);
 
-               long next = (lastRun > 0) ? ((TimeCondition) condition).getRetryTime(now, lastRun)
-                  : condition.getRetryTime(now);
+               // a never-run task anchors on now, in the task's organization like the later fires
+               String orgId = task.getOrgId();
+               long next = (lastRun > 0 || orgId != null) ?
+                  ((TimeCondition) condition).getRetryTime(
+                     now, lastRun > 0 ? lastRun : now, orgId) :
+                  condition.getRetryTime(now);
 
                if(next > 0) {
                   setStartAndEndTime(next, trigger, task);
                   triggers.add(trigger);
                }
                else {
+                  TimeCondition timeCondition = (TimeCondition) condition;
+
+                  // an AT condition in the past is normal; any other condition with no next
+                  // time is empty or impossible, and the task is saved without a next run
+                  if(timeCondition.getType() != TimeCondition.AT) {
+                     LOG.warn(getNoNextRunMessage(task.getTaskId(), i + 1, timeCondition));
+                  }
+
                   LOG.debug("Time condition skipped: " +
                                task.getTaskId() + " " + condition +
                                " current time: " + (new Date(now)));
@@ -883,6 +895,26 @@ public class Scheduler {
             LOG.warn("Failed to notify cluster of task status change", e);
          }
       }
+   }
+
+   /**
+    * Gets the warning for a repeating time condition that has no next run time. Builds the text
+    * from the fields, not from toString(), which needs a Spring bean.
+    */
+   static String getNoNextRunMessage(String taskId, int conditionIndex, TimeCondition condition) {
+      return "Time condition " + conditionIndex + " of task " + taskId +
+         " can never fire (empty or impossible schedule), the task is saved but has no next" +
+         " run: type=" + condition.getType() +
+         ", daysOfWeek=" + Arrays.toString(condition.getDaysOfWeek()) +
+         ", monthsOfYear=" + Arrays.toString(condition.getMonthsOfYear()) +
+         ", dayOfMonth=" + condition.getDayOfMonth() +
+         ", weekOfMonth=" + condition.getWeekOfMonth() +
+         ", dayOfWeek=" + condition.getDayOfWeek() +
+         ", weekOfYear=" + condition.getWeekOfYear() +
+         ", interval=" + condition.getInterval() +
+         ", hourlyInterval=" + condition.getHourlyInterval() +
+         ", time=" + condition.getHour() + ":" + condition.getMinute() + ":" +
+         condition.getSecond();
    }
 
    /**

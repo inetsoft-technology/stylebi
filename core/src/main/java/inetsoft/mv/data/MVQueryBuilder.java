@@ -24,6 +24,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.jdbc.XFilterNode;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
@@ -350,8 +351,12 @@ public final class MVQueryBuilder {
       XFilterNode filter = null;
       ConditionListWrapper wrapper = table.getPreRuntimeConditionList();
 
+      // get the helper once, it's also used by the query
+      SQLHelper helper = AssetUtil.getSQLHelper(table);
+
       if(wrapper != null && mv != null) {
-         ConditionListHandler handler = new MVConditionListHandler(table, mv, vars, def);
+         MVConditionListHandler handler = new MVConditionListHandler(table, mv, vars, def);
+         handler.setLikeCaseSensitive(MVConditionListHandler.getLikeCaseSensitivity(table, helper));
          ConditionList cond = wrapper.getConditionList();
 
          if(cond != null) {
@@ -367,7 +372,7 @@ public final class MVQueryBuilder {
 
       MVQuery query = new MVQuery(mv, groups, order, aggregates, subrefs, filter);
       query.setDetail(detail);
-      query.setSQLHelper(AssetUtil.getSQLHelper(table));
+      query.setSQLHelper(helper);
 
       SubMVQuery subquery = new SubMVQuery(groups, order, subrefs, filters);
       subquery.setDetail(detail);

@@ -267,7 +267,13 @@ public class MVRow2 extends MVRow {
          int gcnt = row1.groups2.length;
 
          for(int i = 0; i < gcnt; i++) {
-            long rc = Tool.compare(row1.groups2[i], row2.groups2[i], true, true);
+            // follow the same case sensitivity as the non-MV sort (string.compare.casesensitive)
+            long rc = Tool.compare(row1.groups2[i], row2.groups2[i], Tool.isCaseSensitive(), true);
+
+            // values that differ only by case are distinct groups, keep the order total
+            if(rc == 0) {
+               rc = Tool.compare(row1.groups2[i], row2.groups2[i], true, true);
+            }
 
             if(rc != 0) {
                // make sure the result is not out of integer bounds

@@ -23,6 +23,9 @@
     </mat-card-title>
   </mat-card>
 } @else {
+  @if (loadingLogFiles) {
+    <div class="log-files-loading" role="status">_#(js:Loading)...</div>
+  }
   @if (!!model) {
     <em-log-monitoring-view
       [model]="model"

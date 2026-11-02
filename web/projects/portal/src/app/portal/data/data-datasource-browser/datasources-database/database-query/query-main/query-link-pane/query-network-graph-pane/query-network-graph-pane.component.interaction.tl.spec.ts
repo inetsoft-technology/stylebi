@@ -150,13 +150,21 @@ const jspMock = {
 // ngAfterViewInit calls it on the #graphPane div.
 // ---------------------------------------------------------------------------
 
-let _originalScrollTo: any;
+// Restore the own property descriptor rather than assigning the old value back: jsdom has no
+// HTMLElement.prototype.scrollTo, and assigning undefined would leave an own property that hides
+// any scrollTo on Element.prototype from later spec files in the same worker.
+let _originalScrollTo: PropertyDescriptor | undefined;
 beforeAll(() => {
-   _originalScrollTo = (HTMLElement.prototype as any).scrollTo;
+   _originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollTo");
    (HTMLElement.prototype as any).scrollTo = vi.fn();
 });
 afterAll(() => {
-   (HTMLElement.prototype as any).scrollTo = _originalScrollTo;
+   if(_originalScrollTo) {
+      Object.defineProperty(HTMLElement.prototype, "scrollTo", _originalScrollTo);
+   }
+   else {
+      delete (HTMLElement.prototype as any).scrollTo;
+   }
 });
 
 function resetMocks() {

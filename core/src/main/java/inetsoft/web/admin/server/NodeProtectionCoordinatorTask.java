@@ -26,7 +26,11 @@ import java.util.*;
 
 /**
  * Computes which nodes should have protection enabled based on the number of local
- * runtime sheets
+ * runtime sheets. Only a node that holds runtime sheets needs protection from scale-in, so a
+ * node without any is never protected. This lets a rolling deployment replace the old nodes
+ * (the coordinator cannot tell old from new) and lets a node that is already draining, but
+ * still a cluster member, be removed. If every node holds sheets, the one with the fewest is
+ * left unprotected so a scale-in is still possible.
  */
 public class NodeProtectionCoordinatorTask implements Runnable, Serializable {
    private void init() {
@@ -71,7 +75,7 @@ public class NodeProtectionCoordinatorTask implements Runnable, Serializable {
       // set node protections
       for(String node : nodes) {
          boolean oldValue = nodeProtectionMap.getOrDefault(node, false);
-         boolean newValue = !node.equals(minNode);
+         boolean newValue = sheetCountMap.getOrDefault(node, 0) > 0 && !node.equals(minNode);
 
          // reduce the number of update events
          if(oldValue != newValue) {

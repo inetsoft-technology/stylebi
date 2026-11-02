@@ -1060,11 +1060,14 @@ public class LocalDependencyHandler implements DependencyHandler {
       Assembly[] arr = ws.getAssemblies();
 
       for(Assembly assembly : arr) {
-         if(assembly instanceof MirrorTableAssembly &&
-            ((MirrorTableAssembly) assembly).isOuterMirror())
-         {
-            AssetEntry dep = ((MirrorTableAssembly) assembly).getEntry();
-            updateEmbedWSSourceDependency(dep.toIdentifier(), entry, add, cache);
+         // every outer mirror (table, variable, named group, condition, date range) depends
+         // on the worksheet it mirrors, the same set Worksheet.getOuterDependents() walks
+         if(assembly instanceof MirrorAssembly mirror && mirror.isOuterMirror()) {
+            AssetEntry dep = mirror.getEntry();
+
+            if(dep != null) {
+               updateEmbedWSSourceDependency(dep.toIdentifier(), entry, add, cache);
+            }
          }
 
          // Check formula columns for script dependencies in all table assembly types.

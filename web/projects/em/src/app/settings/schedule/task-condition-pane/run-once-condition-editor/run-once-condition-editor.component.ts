@@ -127,6 +127,11 @@ export class RunOnceConditionEditorComponent implements OnInit {
          time, this.timeZoneService.calculateTimezoneOffset(this.condition.timeZone),
          this.condition);
 
+      // Bug #78728, this runs inside a control's valueChanges (the datepicker's date control or
+      // startTime), before the nested date group and the form have recomputed their status, so
+      // form.valid would be stale. Updating the date group also recomputes the form.
+      this.form.get("date").updateValueAndValidity();
+
       this.modelChanged.emit({
          valid: this.form.valid,
          model: this.condition

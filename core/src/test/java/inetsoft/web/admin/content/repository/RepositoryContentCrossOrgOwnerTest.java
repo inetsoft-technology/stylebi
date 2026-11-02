@@ -26,6 +26,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
@@ -107,6 +108,11 @@ class RepositoryContentCrossOrgOwnerTest {
       recycleUtils = mockStatic(RecycleUtils.class, CALLS_REAL_METHODS);
       recycleUtils.when(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(
          anyString(), any(), any(), any(), any(), anyBoolean())).thenAnswer(inv -> null);
+      // Bug #77599, the scheduled task check reads the ScheduleManager bean, none is in play here
+      recycleUtils.when(() -> RecycleUtils.checkScheduledTasks(any(AssetEntry.class)))
+         .thenAnswer(inv -> null);
+      recycleUtils.when(() -> RecycleUtils.checkScheduledTasks(any(), any()))
+         .thenAnswer(inv -> null);
       // stubbing a static with CALLS_REAL_METHODS records the stubbing call itself
       recycleUtils.clearInvocations();
       // addFolder creates an XPrincipal for the folder owner, which needs a session service

@@ -502,6 +502,21 @@ public class LinearScale extends Scale {
          if(increment != null && increment.doubleValue() < smax * 1.5) {
             inc = increment.doubleValue();
          }
+         // the check above compares against the max coordinate instead of the range, so it
+         // rejects every increment when the axis is not above zero (max <= 0, or a small
+         // positive max). accept the increment if it fits in the range (+50%) too, and
+         // align the range to the increment grid anchored at zero so the ticks are
+         // multiples of the increment and don't overshoot zero. (79661)
+         else if(increment != null && increment.doubleValue() > 0 &&
+                 increment.doubleValue() < Math.abs(smax - smin) * 1.5)
+         {
+            inc = increment.doubleValue();
+
+            if(!alignZero) {
+               smin = Math.floor(smin / inc + 1E-9) * inc;
+               smax = Math.ceil(smax / inc - 1E-9) * inc;
+            }
+         }
 
          // if range don't include ticks, use data min/max or user set values
          if(!includeTicks) {

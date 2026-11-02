@@ -158,6 +158,16 @@ public final class ScriptHostAccess {
       "java.lang.Package",
       "java.lang.Compiler",
       "java.util.ServiceLoader",
+      // Bug #79846: Formatter(String fileName) creates/truncates a server file with
+      // script-chosen content, and out() hands back the raw java.io Writer. Use
+      // String.format instead. The type deny also covers Formatter instances.
+      "java.util.Formatter",
+      // Bug #79846: ICC_Profile.write(String) creates/overwrites a server file and
+      // getInstance(String) opens any path (existence oracle). The type deny covers
+      // subclass instances; the subclass names are listed so lookups fail by name too.
+      "java.awt.color.ICC_Profile",
+      "java.awt.color.ICC_ProfileRGB",
+      "java.awt.color.ICC_ProfileGray",
       "java.awt.Desktop",
       // Bug #78490: Toolkit.getImage/createImage(String) read a local image file
       "java.awt.Toolkit",

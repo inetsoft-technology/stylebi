@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 @RestController
@@ -106,10 +107,24 @@ public class SecurityConfigController {
       String warning = "";
 
       if(event.enable()) {
-         SUtil.setMultiTenant(true);
+         // Re-enabling while already on stays a no-op, so a legacy LDAP provider is not reported.
+         boolean alreadyOn =
+            Boolean.parseBoolean(SreeEnv.getProperty("security.users.multiTenant", "false"));
+         List<String> ldapProviders =
+            alreadyOn ? List.of() : securityEngine.getLdapAuthenticationProviderNames();
 
-         if(licenseManager.hasNamedUserKeys()) {
-            warning = Catalog.getCatalog().getString("em.security.namedUserKeyError");
+         // LDAP and Active Directory providers only return the default organization, so they
+         // cannot be used with multi-tenancy. Reported as a warning, which is what the EM shows.
+         if(!ldapProviders.isEmpty()) {
+            warning = Catalog.getCatalog().getString("em.security.multitenant.ldapProviderExists",
+                                                     String.join(", ", ldapProviders));
+         }
+         else {
+            SUtil.setMultiTenant(true);
+
+            if(licenseManager.hasNamedUserKeys()) {
+               warning = Catalog.getCatalog().getString("em.security.namedUserKeyError");
+            }
          }
       }
       else {

@@ -1534,6 +1534,8 @@ public class ConditionUtil {
     * "   xx is one of [a, b]"
     * "   or"
     * "   xx is one of [c, d]"
+    *
+    * A negated (is not one of) condition is split into chunks joined by "and" instead of "or".
     */
    public static ConditionList splitOneOfCondition(ConditionList conditionList, SQLHelper helper) {
       return splitOneOfCondition(conditionList, helper.getInClauseLimit());
@@ -1610,6 +1612,9 @@ public class ConditionUtil {
 
       int count = (int) Math.ceil(values.size() / (double) limit);
       int j = index;
+      // "not in (a) and not in (b)" equals "not in (a, b)"; joining negated chunks
+      // with OR would match every row and exclude nothing
+      int junction = cond.isNegated() ? JunctionOperator.AND : JunctionOperator.OR;
 
       for(int i = 0; i < count; i++) {
          ConditionItem ncitem = (ConditionItem) citem.clone();
@@ -1629,7 +1634,7 @@ public class ConditionUtil {
          j++;
 
          if(i < count - 1) {
-            JunctionOperator op = new JunctionOperator(JunctionOperator.OR, level);
+            JunctionOperator op = new JunctionOperator(junction, level);
             items.add(j, op);
             j++;
          }

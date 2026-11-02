@@ -111,6 +111,16 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    }
 
    /**
+    * Whether the lens of a table in a mode is built on the public column selection
+    * ({@code table.getColumnSelection(true)}, without the invisible columns) rather than the
+    * full one. The lens columns follow this selection, so a lens column index maps to it.
+    */
+   public static boolean isPublicSelection(TableAssembly table, int mode) {
+      return isRuntimeMode(mode) ||
+         (isLiveMode(mode) && (table.isAggregate() || table.getAggregateInfo().isEmpty()));
+   }
+
+   /**
     * Check if is a live mode.
     */
    public static boolean isLiveMode(int mode) {
@@ -909,8 +919,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
       TableAssembly table = (TableAssembly) assembly;
       AggregateInfo ainfo = table.getAggregateInfo();
-      boolean pub = isRuntimeMode(mode) ||
-         (isLiveMode(mode) && (table.isAggregate() || ainfo.isEmpty()));
+      boolean pub = isPublicSelection(table, mode);
       TableLens data;
 
       // For EmbeddedTableAssembly, keep the entire setup+execution atomic under

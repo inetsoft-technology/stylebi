@@ -779,7 +779,7 @@ public final class MVBuilder {
 
                         future.complete(null);
                      }
-                     catch(Exception ex) {
+                     catch(Throwable ex) {
                         future.completeExceptionally(ex);
                      }
                   }
@@ -812,7 +812,7 @@ public final class MVBuilder {
 
                         future.complete(null);
                      }
-                     catch(Exception ex) {
+                     catch(Throwable ex) {
                         future.completeExceptionally(ex);
                      }
                   }

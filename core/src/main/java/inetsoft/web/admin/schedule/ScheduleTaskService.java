@@ -588,6 +588,12 @@ public class ScheduleTaskService {
          checkTaskIdentityPermission(model.options(), existingTask, principal);
          checkContentChangeAllowed(model, existingTask, owner, taskName, linkURI, catalog,
                                    principal, em);
+         // Bug #79236, the conditions are range checked before the rename is committed, so a
+         // refused condition leaves the task as it was
+         for(ScheduleConditionModel condition : model.conditions()) {
+            scheduleConditionService.validateModel(condition);
+         }
+
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
          task = scheduleManager.getScheduleTask(taskName) == null ? null :
             scheduleManager.getScheduleTask(taskName).clone();
@@ -834,7 +840,7 @@ public class ScheduleTaskService {
       ScheduleConditionModel model =
          scheduleConditionService.getConditionModel(condition, principal);
       ScheduleCondition resaved =
-         model == null ? null : scheduleConditionService.getConditionFromModel(model);
+         model == null ? null : scheduleConditionService.getConditionFromModel(model, false);
       return resaved == null ?
          model : scheduleConditionService.getConditionModel(resaved, principal);
    }

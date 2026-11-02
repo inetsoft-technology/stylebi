@@ -28,6 +28,13 @@ import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
 import { HelpLinkDirective } from "../../widget/help-link/help-link.directive";
 import { ToolbarGroup } from "../../widget/toolbar/toolbar-group/toolbar-group.component";
 
+/**
+ * The assembly the full editor opens, as the server resolved it.
+ */
+interface FullEditorAssembly {
+   absoluteName: string;
+   objectType: string;
+}
 
 @Component({
     selector: "object-wizard-tool-bar",
@@ -77,11 +84,33 @@ export class ObjectWizardToolBarComponent {
          params = params.set("assemblyName", this.vsObject.absoluteName);
       }
 
-      this.http.get("../api/vswizard/object/toolbar/full-editor", {params: params})
-         .subscribe(() => this.onFullEditor.emit(this.vsObject),
+      this.http.get<FullEditorAssembly>("../api/vswizard/object/toolbar/full-editor",
+                                        {params: params})
+         .subscribe((assembly) => this.onFullEditor.emit(this.getFullEditorObject(assembly)),
             (error: HttpErrorResponse) => {
                ComponentTool.showHttpError("_#(js:Error)", error, this.modalService);
             });
+   }
+
+   /**
+    * Bug #78734, the preview object may not have reached the client when Full Editor was
+    * clicked, or may arrive only after the response. Open the assembly the server resolved
+    * then, with its own type, which may differ from the original's. Without an answer from the
+    * server (no preview assembly), emit null so that the original object is opened.
+    */
+   private getFullEditorObject(assembly: FullEditorAssembly): VSObjectModel {
+      if(!!this.vsObject) {
+         return this.vsObject;
+      }
+
+      if(!!assembly?.absoluteName && !!assembly.objectType) {
+         return <VSObjectModel> {
+            absoluteName: assembly.absoluteName,
+            objectType: assembly.objectType
+         };
+      }
+
+      return null;
    }
 
    getAssemblyTypeIcon(): string {

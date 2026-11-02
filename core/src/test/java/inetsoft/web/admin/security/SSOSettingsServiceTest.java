@@ -52,6 +52,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -310,21 +311,158 @@ class SSOSettingsServiceTest {
       verify(customConfig).setClassName("com.example.MyCustomSSOFilter");
    }
 
-   @Test
-   void switchToCustom_validInlineGroovy_succeeds() {
-      SSOSettingsModel model = new SSOSettingsModel.Builder()
+   private static final String VALID_FILTER = String.join("\n",
+      "import jakarta.servlet.*",
+      "",
+      "class CustomSSOFilter implements Filter {",
+      "    @Override",
+      "    void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)",
+      "            throws IOException, ServletException {",
+      "        chain.doFilter(request, response)",
+      "    }",
+      "}");
+
+   private SSOSettingsModel inlineGroovyModel(String source) {
+      return new SSOSettingsModel.Builder()
          .activeFilterType(SSOType.CUSTOM)
          .customAttributesModel(CustomSSOAttributesModel.builder()
             .useInlineGroovy(true)
-            .inlineGroovyClass("class Foo {}")
+            .inlineGroovyClass(source)
+            .build())
+         .build();
+   }
+
+   private MessageException assertInlineGroovyRefused(SSOSettingsModel model) {
+      MessageException ex =
+         assertThrows(MessageException.class, () -> service.updateSSOSettings(model));
+      verify(publisher, never()).changeSSOFilterType(SSOType.CUSTOM);
+      verify(customConfig, never()).setInlineGroovyClass(any());
+      verify(customConfig, never()).setClassName(any());
+      sreeEnvMock.verify(() -> SreeEnv.setProperty(eq("sso.protocol.type"), anyString()), never());
+      return ex;
+   }
+
+   // Bug #79146: the inline script is compiled and shape-checked before anything is stored
+
+   @Test
+   void switchToCustom_validInlineGroovy_succeeds() {
+      assertTrue(service.updateSSOSettings(inlineGroovyModel(VALID_FILTER)));
+      verify(publisher).changeSSOFilterType(SSOType.CUSTOM);
+      verify(customConfig).setInlineGroovyClass(VALID_FILTER);
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyCompileError_refusedWithFirstErrorLine() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel(
+         "import javax.servlet.*" + "\n" +
+         "class CustomSSOFilter implements Filter {" + "\n" +
+         "    void doFilter(ServletRequest r, ServletResponse s, FilterChain c) { c.doFilter(r, s) }" +
+         "\n}"));
+
+      assertTrue(ex.getMessage().contains("does not compile"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("unable to resolve class"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("startup failed"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("\n"), "single line message");
+   }
+
+   @Test
+   void switchToCustom_inlineGroovySyntaxError_refused() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel("class {{{"));
+      assertTrue(ex.getMessage().contains("does not compile"), ex.getMessage());
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyAbstractFilter_refused() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel(
+         "import jakarta.servlet.*\n" +
+         "abstract class AbstractOne implements Filter {\n" +
+         "    void doFilter(ServletRequest r, ServletResponse s, FilterChain c) {}\n}"));
+      assertTrue(ex.getMessage().contains("abstract"), ex.getMessage());
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyHelperClassFirst_refused() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel(
+         "class Helper {}\n" + VALID_FILTER));
+      assertTrue(ex.getMessage().contains("first class"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Helper"), ex.getMessage());
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyFilterFirstThenHelper_succeeds() {
+      assertTrue(service.updateSSOSettings(inlineGroovyModel(VALID_FILTER + "\nclass Helper {}")));
+      verify(publisher).changeSSOFilterType(SSOType.CUSTOM);
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyPlainScript_refused() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel("println 'hello'"));
+      assertTrue(ex.getMessage().contains("must implement jakarta.servlet.Filter"),
+                 ex.getMessage());
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyPrivateConstructor_refused() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel(
+         "import jakarta.servlet.*\n" +
+         "class PrivateCtor implements Filter {\n" +
+         "    private PrivateCtor() {}\n" +
+         "    void doFilter(ServletRequest r, ServletResponse s, FilterChain c) {}\n}"));
+      assertTrue(ex.getMessage().contains("constructor"), ex.getMessage());
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyConstructorWithArgumentsOnly_refused() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel(
+         "import jakarta.servlet.*\n" +
+         "class ArgCtor implements Filter {\n" +
+         "    ArgCtor(String name) {}\n" +
+         "    void doFilter(ServletRequest r, ServletResponse s, FilterChain c) {}\n}"));
+      assertTrue(ex.getMessage().contains("constructor"), ex.getMessage());
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyInterfaceNotFilter_refused() {
+      MessageException ex = assertInlineGroovyRefused(inlineGroovyModel(
+         "interface NotAFilter { void run() }"));
+      assertTrue(ex.getMessage().contains("must implement jakarta.servlet.Filter"),
+                 ex.getMessage());
+   }
+
+   @Test
+   void switchToCustom_inlineGroovyNotInstantiated() {
+      String key = "inetsoft.test.sso79146.ran";
+      System.clearProperty(key);
+
+      try {
+         // valid shape whose constructor and static initializer would leave a trace and throw
+         assertTrue(service.updateSSOSettings(inlineGroovyModel(
+            "import jakarta.servlet.*\n" +
+            "class Boom implements Filter {\n" +
+            "    static { System.setProperty('" + key + "', 'static'); throw new Error('x') }\n" +
+            "    Boom() { System.setProperty('" + key + "', 'ctor') }\n" +
+            "    void doFilter(ServletRequest r, ServletResponse s, FilterChain c) {}\n}")));
+         assertNull(System.getProperty(key), "the script must be parsed, not run");
+      }
+      finally {
+         System.clearProperty(key);
+      }
+   }
+
+   @Test
+   void switchToCustom_javaClassNameAndBrokenScript_refused() {
+      // the script wins when stored, so it must be checked even when a class name is present
+      SSOSettingsModel model = new SSOSettingsModel.Builder()
+         .activeFilterType(SSOType.CUSTOM)
+         .customAttributesModel(CustomSSOAttributesModel.builder()
+            .useJavaClass(true)
+            .javaClassName("com.example.MyCustomSSOFilter")
+            .useInlineGroovy(true)
+            .inlineGroovyClass("class Broken implements Nope {}")
             .build())
          .build();
 
-      boolean result = service.updateSSOSettings(model);
-
-      assertTrue(result);
-      verify(publisher).changeSSOFilterType(SSOType.CUSTOM);
-      verify(customConfig).setInlineGroovyClass("class Foo {}");
+      assertInlineGroovyRefused(model);
    }
 
    @Test

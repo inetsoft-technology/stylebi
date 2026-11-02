@@ -1,0 +1,1 @@
+<Condition type="TimeCondition" timeType="1" timezone="0:UTC" hour="9" minute="0" second="0" hour_end="-1" minute_end="-1" second_end="-1" weekday="false" interval="2"></Condition>

@@ -132,25 +132,25 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
          Map<String, String> newRoleDns = provider.getClient().getRoles();
 
          try(DistributedTransaction tx = cluster.startTx()) {
-            lists.removeAll();
+            lists.removeAll(new HashSet<>(lists.keySet()));
             lists.put(USER_LIST, new TreeSet<>(Arrays.asList(newIndividualUsers)));
             lists.put(EMAIL_LIST, new TreeSet<>(Arrays.asList(newIndividualEmails)));
 
-            userDns.removeAll();
+            userDns.removeAll(new HashSet<>(userDns.keySet()));
             userDns.putAll(newUserDns);
 
-            groupDns.removeAll();
+            groupDns.removeAll(new HashSet<>(groupDns.keySet()));
             groupDns.putAll(newGroupDns);
 
-            roleDns.removeAll();
+            roleDns.removeAll(new HashSet<>(roleDns.keySet()));
             roleDns.putAll(newRoleDns);
 
-            emailsMap.removeAll();
-            usersMap.removeAll();
-            groupsMap.removeAll();
-            rolesMap.removeAll();
-            identityMap.removeAll();
-            identityRoleMap.removeAll();
+            emailsMap.removeAll(new HashSet<>(emailsMap.keySet()));
+            usersMap.removeAll(new HashSet<>(usersMap.keySet()));
+            groupsMap.removeAll(new HashSet<>(groupsMap.keySet()));
+            rolesMap.removeAll(new HashSet<>(rolesMap.keySet()));
+            identityMap.removeAll(new HashSet<>(identityMap.keySet()));
+            identityRoleMap.removeAll(new HashSet<>(identityRoleMap.keySet()));
 
             tx.commit();
             lastLoad.set(System.currentTimeMillis());

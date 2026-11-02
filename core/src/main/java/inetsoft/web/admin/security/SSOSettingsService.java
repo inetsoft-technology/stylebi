@@ -19,12 +19,17 @@ package inetsoft.web.admin.security;
 
 import com.onelogin.saml2.settings.Saml2Settings;
 import com.onelogin.saml2.settings.SettingsBuilder;
+import groovy.lang.GroovyClassLoader;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.admin.model.NameLabelTuple;
+import jakarta.servlet.Filter;
+import org.codehaus.groovy.control.CompilationFailedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +37,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Modifier;
 import java.security.Principal;
 import java.util.*;
 
@@ -359,20 +365,102 @@ public class SSOSettingsService {
 
    /**
     * Check whether the Custom SSO attributes are valid before applying changes so we don't get
-    * locked out
+    * locked out.
+    *
+    * @throws MessageException if an inline Groovy script does not compile or is not a usable
+    *                          servlet filter.
     */
    private boolean validateCustomAttributes(CustomSSOAttributesModel model) {
+      boolean valid = false;
+
       if(model.useJavaClass() && !Tool.isEmptyString(model.javaClassName())) {
-         return true;
+         valid = true;
       }
 
+      // checked independently of the Java class branch: the inline script wins when the
+      // configuration is stored, so a broken script must not hide behind a valid class name
       if(model.useInlineGroovy() && !Tool.isEmptyString(model.inlineGroovyClass())) {
-         return true;
+         validateInlineGroovy(model.inlineGroovyClass());
+         valid = true;
       }
 
-      LOG.error("Invalid Custom SSO properties: a Java class name or inline Groovy script " +
-                "is required");
-      return false;
+      if(!valid) {
+         LOG.error("Invalid Custom SSO properties: a Java class name or inline Groovy script " +
+                   "is required");
+      }
+
+      return valid;
+   }
+
+   /**
+    * Compiles the inline Groovy script the same way the custom SSO filter does when it is
+    * initialized (a plain {@code GroovyClassLoader}, the first class in the script) and checks that
+    * the result can be used as a filter. The class is parsed but never instantiated, so no
+    * constructor or static initializer of the script runs. This only checks on the saving node;
+    * the other nodes compile the script when the property change reaches them.
+    */
+   private void validateInlineGroovy(String source) {
+      String problem;
+
+      try(GroovyClassLoader loader = new GroovyClassLoader()) {
+         Class<?> cls = loader.parseClass(source);
+         problem = checkFilterShape(cls);
+      }
+      catch(CompilationFailedException e) {
+         problem = "the script does not compile: " + firstErrorLine(e.getMessage());
+      }
+      catch(LinkageError e) {
+         problem = "the script does not compile: " + firstErrorLine(e.toString());
+      }
+      catch(Exception e) {
+         problem = "the script could not be loaded: " + firstErrorLine(e.toString());
+      }
+
+      if(problem != null) {
+         LOG.warn("Invalid Custom SSO inline Groovy script: {}", problem);
+         throw new MessageException("Invalid Custom SSO inline Groovy script: " + problem,
+                                    LogLevel.WARN, false);
+      }
+   }
+
+   private String checkFilterShape(Class<?> cls) {
+      if(!Filter.class.isAssignableFrom(cls) || cls.isInterface()) {
+         return "the first class in the script (" + cls.getSimpleName() +
+            ") must implement jakarta.servlet.Filter";
+      }
+
+      if(Modifier.isAbstract(cls.getModifiers())) {
+         return "the filter class " + cls.getSimpleName() + " must not be abstract";
+      }
+
+      try {
+         cls.getConstructor();
+      }
+      catch(NoSuchMethodException | LinkageError e) {
+         return "the filter class " + cls.getSimpleName() +
+            " must have a public constructor without arguments";
+      }
+
+      return null;
+   }
+
+   private static String firstErrorLine(String message) {
+      if(message == null) {
+         return "unknown error";
+      }
+
+      for(String line : message.split("\\R")) {
+         line = line.trim();
+
+         if(line.isEmpty() || line.startsWith("startup failed:")) {
+            continue;
+         }
+
+         // drop the generated "Script_<hash>.groovy: " prefix
+         return line.replaceFirst("^Script_[0-9a-f]+\\.groovy: ?", "");
+      }
+
+      return "unknown error";
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());

@@ -21,7 +21,7 @@ import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule 
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
-import { Observable, throwError } from "rxjs";
+import { EMPTY, Observable } from "rxjs";
 import { catchError } from "rxjs/operators";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 import { GeneralActionModel } from "../../../../../../shared/schedule/model/general-action-model";
@@ -511,6 +511,7 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       // left stuck disabled. Force a resync here.
       this.editorPanel?.changeApplyDisabledState(!this.valid);
 
-      return throwError(error);
+      // handled here (snackbar), do not rethrow or the subscriber reports an unhandled error
+      return EMPTY;
    }
 }

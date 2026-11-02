@@ -52,4 +52,12 @@ public class SnowflakeHelper extends SQLHelper {
    protected String quoteColumnAlias(String alias, boolean same, boolean part) {
       return XUtil.quoteAlias(alias, this);
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

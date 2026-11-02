@@ -19,6 +19,7 @@
 package inetsoft.setup;
 
 import java.io.File;
+import java.util.Comparator;
 import java.util.Map;
 
 /**
@@ -34,8 +35,42 @@ import java.util.Map;
  *    <li>{@link #installAssets(Context)}</li>
  *    <li>{@link #afterAssetsInstalled(Context)}</li>
  * </ol>
+ * <p>
+ * Within each phase, the extensions are called in the order defined by {@link #ORDER}: ascending
+ * {@link #getOrder()} (lower values are called earlier), then by fully qualified class name. The
+ * same order is used for every phase. The order does not depend on the order in which the
+ * extensions are discovered on the class path.
  */
 public interface SetupExtension {
+   /**
+    * The order of an extension that must be called before all other extensions in every phase,
+    * e.g. one that replaces the directories in the context during {@link #start(Context)}.
+    */
+   int EARLIEST_ORDER = Integer.MIN_VALUE;
+
+   /**
+    * The default order of an extension.
+    */
+   int DEFAULT_ORDER = 0;
+
+   /**
+    * The order in which the extensions are called in each phase: ascending
+    * {@link #getOrder()}, then by fully qualified class name.
+    */
+   Comparator<SetupExtension> ORDER = Comparator.comparingInt(SetupExtension::getOrder)
+      .thenComparing(e -> e.getClass().getName());
+
+   /**
+    * Gets the order of this extension relative to the other extensions. Extensions with a lower
+    * order are called earlier in each phase. Extensions with the same order are called in order of
+    * their fully qualified class names.
+    *
+    * @return the order of this extension. The default is {@link #DEFAULT_ORDER}.
+    */
+   default int getOrder() {
+      return DEFAULT_ORDER;
+   }
+
    /**
     * Called at the start of setup before any other actions have been performed.
     *

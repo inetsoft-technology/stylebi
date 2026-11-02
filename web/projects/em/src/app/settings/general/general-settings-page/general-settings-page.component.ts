@@ -210,6 +210,9 @@ export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
       this.model = Tool.clone(this.modelClone);
       this.saveModel = {};
       this.changed = false;
+      // Bug #78724, the section views take the restored model without reporting their
+      // validity again
+      this.validModels.clear();
    }
 
    onNavigationScrolled(event: string[]) {

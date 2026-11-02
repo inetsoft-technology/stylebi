@@ -1,0 +1,1 @@
+<Condition type="TimeCondition" timeType="6" timezone="0:Europe/London" hour="1" minute="30" second="0" hour_end="-1" minute_end="-1" second_end="-1" daysOfWeek="2,4,6" interval="1"></Condition>

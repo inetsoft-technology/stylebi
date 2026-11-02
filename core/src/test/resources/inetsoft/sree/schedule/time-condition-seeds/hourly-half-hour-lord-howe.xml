@@ -1,0 +1,1 @@
+<Condition type="TimeCondition" timeType="8" timezone="37800000:Australia/Lord_Howe" hour="0" minute="30" second="0" hour_end="3" minute_end="30" second_end="0" daysOfWeek="1,2,3,4,5,6,7" hourlyInterval="0.5"></Condition>

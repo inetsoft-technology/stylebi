@@ -27,6 +27,7 @@ import inetsoft.sree.schedule.*;
 import java.time.LocalTime;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -405,7 +406,8 @@ public class ScheduleService {
       }
 
       if(scheduleManager.getScheduleTask(newId) != null || contained) {
-         throw new MessageException(catalog.getString("em.schedule.task.duplicateName"));
+         // Bug #75342, a duplicate name is a conflict (409), not an unexpected server error
+         throw new ResourceExistsException(catalog.getString("em.schedule.task.duplicateName"));
       }
 
       if(!newId.equals(oldId)) {

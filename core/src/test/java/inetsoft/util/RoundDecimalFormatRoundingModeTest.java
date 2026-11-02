@@ -146,9 +146,12 @@ class RoundDecimalFormatRoundingModeTest {
 
    /**
     * format(double) must match the StringBuffer overload, and the StringBuffer overload must
-    * round the value at the last displayed digit (see expected()). ROUND_HALF_EVEN keeps the
-    * JDK's own format(double), whose fast path can differ from its StringBuffer overload
-    * (e.g. 0.0005).
+    * round the value at the last displayed digit (see expected()). Bug #78496: ROUND_HALF_EVEN
+    * is no longer special. It used to keep the JDK's own binary-double rounding (1.015 gave 1.01,
+    * 0.0005 with #,##0.### gave the JDK's fast path text and -0.0005 gave "-0"); it now rounds
+    * the decimal string like the other modes and like the table (ExtendedDecimalFormat), so the
+    * old "equals a plain DecimalFormat" assertion for HALF_EVEN is replaced by the same
+    * assertions as every other mode.
     */
    @Test
    void doubleOutputRoundsAtDisplayedDigit() {
@@ -182,11 +185,10 @@ class RoundDecimalFormatRoundingModeTest {
                   assertEquals(expected, buffer, where);
                }
 
-               if(fmt.getRounding() == BigDecimal.ROUND_HALF_EVEN) {
-                  // unchanged: the JDK's own format(double), fast path included
-                  assertEquals(new DecimalFormat(pattern, US).format(value), plain, where);
-               }
-               else {
+               // the final NumberFormat.format(double) lets the JDK round a ROUND_HALF_EVEN
+               // "#,##0.###"-style (or two digit currency) pattern first, as the old test noted
+               // for 0.0005; see halfEvenFastPathPatternNeedsTheBufferOverload
+               if(fmt.getRounding() != BigDecimal.ROUND_HALF_EVEN) {
                   assertEquals(buffer, plain, where);
                }
 
@@ -275,6 +277,60 @@ class RoundDecimalFormatRoundingModeTest {
       RoundDecimalFormat fmt = new RoundDecimalFormat(pattern, US);
       fmt.setRoundingByName(mode);
       assertEquals(expected, format(fmt, new BigDecimal(value)));
+   }
+
+   /**
+    * Bug #78496: script formatNumber and the table (format.number.round) must agree in every
+    * rounding mode, including ROUND_HALF_EVEN at decimal ties whose double is just below the tie
+    * (1.015 is 1.01499999999999990...). The decimal string is what is rounded, so HALF_EVEN of
+    * 1.015 is 1.02 (2 is even) and of 2.675 is 2.68 (7 is odd).
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "ROUND_UP, 1.015, 1.02", "ROUND_DOWN, 1.015, 1.01", "ROUND_CEILING, 1.015, 1.02",
+      "ROUND_FLOOR, 1.015, 1.01", "ROUND_HALF_UP, 1.015, 1.02", "ROUND_HALF_DOWN, 1.015, 1.01",
+      "ROUND_HALF_EVEN, 1.015, 1.02",
+      "ROUND_UP, 2.675, 2.68", "ROUND_DOWN, 2.675, 2.67", "ROUND_CEILING, 2.675, 2.68",
+      "ROUND_FLOOR, 2.675, 2.67", "ROUND_HALF_UP, 2.675, 2.68", "ROUND_HALF_DOWN, 2.675, 2.67",
+      "ROUND_HALF_EVEN, 2.675, 2.68",
+      "ROUND_UP, -1.015, -1.02", "ROUND_DOWN, -1.015, -1.01", "ROUND_CEILING, -1.015, -1.01",
+      "ROUND_FLOOR, -1.015, -1.02", "ROUND_HALF_UP, -1.015, -1.02",
+      "ROUND_HALF_DOWN, -1.015, -1.01", "ROUND_HALF_EVEN, -1.015, -1.02",
+      // even preceding digit: half-even rounds down
+      "ROUND_HALF_EVEN, 1.005, 1.00", "ROUND_HALF_EVEN, 1.025, 1.02"
+   })
+   void scriptFormatNumberRoundsDecimalTies(String mode, double value, String expected) {
+      assertEquals(expected, JavaScriptEngine.formatNumber(value, "0.00", mode));
+      assertEquals(expected, JavaScriptEngine.formatNumber(value, "#,##0.00", mode));
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "1.015, 1.02E0", "2.675, 2.68E0", "-1.015, -1.02E0"
+   })
+   void scriptFormatNumberHalfEvenExponentTie(double value, String expected) {
+      assertEquals(expected, JavaScriptEngine.formatNumber(value, "0.00E0", "ROUND_HALF_EVEN"));
+   }
+
+   /**
+    * Bug #78496: HALF_EVEN no longer shows a negative zero, as in the other modes and in the
+    * table (a rounded BigDecimal has no sign when it is zero).
+    */
+   @Test
+   void halfEvenFastPathPatternNeedsTheBufferOverload() {
+      // 0.0005 is a decimal tie (even digit 0) but its double is just above it
+      RoundDecimalFormat fmt = new RoundDecimalFormat("#,##0.###", US);
+      assertEquals("0", fmt.format(0.0005, new StringBuffer(), new FieldPosition(0)).toString());
+      assertEquals("0", format(fmt, Double.valueOf(0.0005)));
+      assertEquals("0", JavaScriptEngine.formatNumber(0.0005, "#,##0.###", "ROUND_HALF_EVEN"));
+      assertEquals("2", JavaScriptEngine.formatNumber(2.0005, "#,##0.###", "ROUND_HALF_EVEN"));
+   }
+
+   @Test
+   void halfEvenHasNoNegativeZero() {
+      assertEquals("0", JavaScriptEngine.formatNumber(-0.0005, "#,##0.###", "ROUND_HALF_EVEN"));
+      assertEquals("0.00", JavaScriptEngine.formatNumber(-0.004, "0.00", "ROUND_HALF_EVEN"));
+      assertEquals("0.00", JavaScriptEngine.formatNumber(-0.0, "0.00", "ROUND_HALF_EVEN"));
    }
 
    @Test
@@ -403,8 +459,7 @@ class RoundDecimalFormatRoundingModeTest {
    }
 
    /**
-    * The expected double output, computed without the class. ROUND_HALF_EVEN is the JDK's own
-    * StringBuffer overload. A fixed-point pattern rounds the decimal string of the value at its
+    * The expected double output, computed without the class. A fixed-point pattern rounds the decimal string of the value at its
     * maximum fraction digits plus the digits of its multiplier, and the exact result is formatted
     * (the JDK rounding mode can't be the oracle: it drops 0.0004 to 0.00 for ROUND_UP).
     * "0.###E0" rounds to 4 significant digits. Engineering notation is checked by hand, so it
@@ -412,10 +467,6 @@ class RoundDecimalFormatRoundingModeTest {
     */
    private static String expected(String pattern, int rounding, double num) {
       DecimalFormat fmt = new DecimalFormat(pattern, US);
-
-      if(rounding == BigDecimal.ROUND_HALF_EVEN) {
-         return fmt.format(num, new StringBuffer(), new FieldPosition(0)).toString();
-      }
 
       if("##0.##E0".equals(pattern)) {
          return null;

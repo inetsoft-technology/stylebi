@@ -128,7 +128,17 @@ public class PPTValueHelper {
    }
 
    public void setPadding(Insets padding) {
+      setPadding(padding, 1);
+   }
+
+   /**
+    * Set the padding of the text box, applied as the text box insets.
+    * @param padding the padding, or null to use the default 1pt insets.
+    * @param scale   the factor converting the padding units to points.
+    */
+   public void setPadding(Insets padding, double scale) {
       this.padding = padding;
+      this.paddingScale = scale;
    }
 
    /**
@@ -329,10 +339,10 @@ public class PPTValueHelper {
       }
 
       if(padding != null) {
-         textbox.setLeftInset(padding.left);
-         textbox.setRightInset(padding.right);
-         textbox.setTopInset(padding.top);
-         textbox.setBottomInset(padding.bottom);
+         textbox.setLeftInset(padding.left * paddingScale);
+         textbox.setRightInset(padding.right * paddingScale);
+         textbox.setTopInset(padding.top * paddingScale);
+         textbox.setBottomInset(padding.bottom * paddingScale);
       }
       else {
          textbox.setLeftInset(1);
@@ -548,4 +558,5 @@ public class PPTValueHelper {
    private int WRAP_GAP = 4;
    private boolean shadowed;
    private Insets padding;
+   private double paddingScale = 1;
 }

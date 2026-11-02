@@ -30,6 +30,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -38,6 +39,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.web.binding.VSScriptableController;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.ws.ExpressionDialogModel;
@@ -61,6 +63,33 @@ public class ExpressionDialogService extends WorksheetControllerService {
    {
       super(viewsheetService, dataSourceRegistry);
       this.scriptController = scriptController;
+   }
+
+   /**
+    * Find the column of a lens column index without reading the table: the lens columns are
+    * the table's column selection that the sandbox builds the lens on, see
+    * {@link AssetQuerySandbox#isPublicSelection}. The columns of an aggregate table are not that
+    * selection, and an index out of it is not found.
+    *
+    * @return the column of {@code columns}, or null if it can not be found.
+    */
+   public static ColumnRef findColumnWithoutData(TableAssembly table, int mode, int columnIndex,
+                                          ColumnSelection columns)
+   {
+      if(table.isAggregate()) {
+         return null;
+      }
+
+      ColumnSelection lensColumns = table.getColumnSelection(
+         AssetQuerySandbox.isPublicSelection(table, mode));
+
+      if(columnIndex < 0 || columnIndex >= lensColumns.getAttributeCount()) {
+         return null;
+      }
+
+      DataRef ref = lensColumns.getAttribute(columnIndex);
+      int index = columns.indexOfAttribute(ref);
+      return index < 0 ? null : (ColumnRef) columns.getAttribute(index);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -89,8 +118,21 @@ public class ExpressionDialogService extends WorksheetControllerService {
       ColumnRef column = null;
 
       if(columnIndex >= 0) {
-         XTable data = box.getTableLens(tableName, AssetEventUtil.getMode(table));
-         column = AssetUtil.findColumn(data, columnIndex, columns);
+         int mode = AssetEventUtil.getMode(table);
+
+         try {
+            XTable data = box.getTableLens(tableName, mode);
+            column = AssetUtil.findColumn(data, columnIndex, columns);
+         }
+         catch(Exception ex) {
+            // an expression column that was stopped (a script timeout or cancel) fails the
+            // read of the table, but its editor must open to correct the expression (#78379)
+            if(!ScriptTimeoutGuard.isStop(ex)) {
+               throw ex;
+            }
+
+            column = findColumnWithoutData(table, mode, columnIndex, columns);
+         }
       }
 
       List<TreeNodeModel> fieldChildren = new ArrayList<>();

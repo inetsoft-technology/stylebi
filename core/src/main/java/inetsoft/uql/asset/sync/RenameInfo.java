@@ -484,6 +484,21 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
       return organizationId;
    }
 
+   /**
+    * Gets a copy of this rename that starts from another old name, for chaining it to a pending
+    * rename of that name.
+    */
+   RenameInfo copyWithOldName(String oldName) {
+      try {
+         RenameInfo copy = clone();
+         copy.oname = oldName;
+         return copy;
+      }
+      catch(CloneNotSupportedException e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
    public boolean isAlias() {
       return alias;
    }

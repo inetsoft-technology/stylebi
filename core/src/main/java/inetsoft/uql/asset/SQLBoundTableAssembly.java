@@ -322,10 +322,15 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
             return;
          }
 
-         UserVariable var = getVariable(varName, list);
-         String type = condition.getExpression1().getType();
+         UserVariable userVariable = getVariable(varName, list);
 
-         UserVariable userVariable = (UserVariable) var;
+         // Bug #79841, a variable missing from the list (e.g. a built-in variable such as
+         // _USER_ or _ROLES_, which is never prompted) has nothing to fix
+         if(userVariable == null) {
+            return;
+         }
+
+         String type = condition.getExpression1().getType();
 
          if("IN".equals(condition.getOp())) {
             userVariable.setMultipleSelection(true);

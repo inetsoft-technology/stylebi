@@ -73,7 +73,9 @@ export class LoggingSettingsPageComponent implements OnInit {
    setConfiguration() {
       this.http.post("../api/em/log/setting/set-configuration", this.newModel).subscribe({
          next: () => {
-            this.model = this.newModel;
+            // keep the saved state a separate copy: the view edits newModel in place, so
+            // sharing the reference would make Reset and the leave-page check see no change
+            this.model = Tool.clone(this.newModel);
             this.valid = false;
          },
          // without this the server's rejection is swallowed and the page simply fails to

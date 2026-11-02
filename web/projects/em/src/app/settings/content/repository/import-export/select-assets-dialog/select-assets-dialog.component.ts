@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Component, HostListener, Inject, OnInit } from "@angular/core";
+import { Component, Inject, OnDestroy, OnInit } from "@angular/core";
+import { Subscription } from "rxjs";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { CommonKVModel } from "../../../../../../../../portal/src/app/common/data/common-kv-model";
 import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
 import { Tool } from "../../../../../../../../shared/util/tool";
+import { onDialogEscape } from "../../../../../common/util/dialog-escape";
 import { MessageDialog, MessageDialogType } from "../../../../../common/util/message-dialog";
 import { FlatTreeNode } from "../../../../../common/util/tree/flat-tree-model";
 import { RepositoryTreeDataSource } from "../../repository-tree-data-source";
@@ -45,10 +47,12 @@ export interface SelectAssetsDialogData {
     providers: [RepositoryTreeDataSource, ExportAssetsService],
     imports: [ModalHeaderComponent, MatDialogContent, FlatTreeViewComponent, MultiSelectTreeNodeDirective, MatProgressBar, MatDialogActions, MatButton]
 })
-export class SelectAssetsDialogComponent implements OnInit {
+export class SelectAssetsDialogComponent implements OnInit, OnDestroy {
    selectedNodes: FlatTreeNode<RepositoryTreeNode>[] = [];
    loading = false;
    private selectedAssets: SelectedAssetModel[] = [];
+
+   private escapeSubscription: Subscription;
 
    constructor(public dataSource: RepositoryTreeDataSource, private http: HttpClient,
                private dialog: MatDialog,
@@ -61,6 +65,7 @@ export class SelectAssetsDialogComponent implements OnInit {
          this.dataSource.data = this.filterDataSource();
       });
       this.dataSource.loading.subscribe((loading) => this.loading = loading);
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
    }
 
    private filterDataSource(): RepositoryFlatNode[] {
@@ -154,9 +159,8 @@ export class SelectAssetsDialogComponent implements OnInit {
       }
    }
 
-   @HostListener("window:keyup.esc", [])
-   onKeyUp() {
-      this.cancel();
+   ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
    }
 
    cancel(): void {

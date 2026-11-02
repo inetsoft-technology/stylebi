@@ -435,6 +435,30 @@ public class CalcUtil {
    }
 
    /**
+    * Converts a single element to a double the same way
+    * {@link #convertToDoubleArray(Object[])} converts each element, but returns
+    * null instead of dropping the element, so callers can keep its position.
+    * @param value the element to convert.
+    * @return the numeric value, or null if the element is null, non-numeric or NaN.
+    */
+   public static Double toDouble(Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      try {
+         double d = value instanceof Number
+            ? ((Number) value).doubleValue()
+            : Double.parseDouble(value.toString());
+
+         return Double.isNaN(d) ? null : d;
+      }
+      catch(Exception e) {
+         return null;
+      }
+   }
+
+   /**
     * Converts an Object array to 2D double array
     */
    public static double[][] convertToDoubleArray2D(Object[] array) {

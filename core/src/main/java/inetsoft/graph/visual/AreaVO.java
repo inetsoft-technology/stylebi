@@ -184,7 +184,13 @@ public class AreaVO extends LineVO {
             }
          }
          else {
-            Area shapeArea = new Area();
+            // Without a border the union is only filled, so the segments are appended to one
+            // path (non-zero winding fills the same pixels as the union) instead of unioning
+            // one Area per segment, which is super-linear in the point count (Bug #79663).
+            // With a border the outline of the union must be stroked, so keep the Area.
+            boolean unionArea = borderColor != null;
+            Area shapeArea = unionArea ? new Area() : null;
+            Path2D.Float shapePath = unionArea ? null : new Path2D.Float(Path2D.WIND_NON_ZERO);
 
             for(int i = 0; i < pts.length; i++) {
                int next = i + 1;
@@ -209,7 +215,12 @@ public class AreaVO extends LineVO {
                   // ignore
                }
                else if(singleShape) {
-                  shapeArea.add(new Area(shape));
+                  if(unionArea) {
+                     shapeArea.add(new Area(shape));
+                  }
+                  else {
+                     shapePath.append(shape, false);
+                  }
                }
                else {
                   Color startColor = colors[i];
@@ -223,8 +234,8 @@ public class AreaVO extends LineVO {
             }
 
             if(singleShape && pts.length > 0) {
-               fillArea(g2, getLowestXPoint(pts), getHighestXPoint(pts), shapeArea,
-                        colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
+               fillArea(g2, getLowestXPoint(pts), getHighestXPoint(pts),
+                        unionArea ? shapeArea : shapePath, colors[0], colors[0], textures[0], textures[0], lines[0], borderColor);
             }
          }
       }

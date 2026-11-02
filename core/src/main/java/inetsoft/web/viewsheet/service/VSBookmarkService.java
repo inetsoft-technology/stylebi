@@ -56,6 +56,7 @@ import java.security.Principal;
 import java.sql.Date;
 import java.util.*;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -89,6 +90,131 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
    }
 
+   /**
+    * The kind of access a bookmark request needs on the bookmark it names.
+    */
+   enum BookmarkAccess {
+      /** Load or reference the bookmark: own, or shared with the caller. */
+      READ,
+      /** Overwrite the bookmark: own, or shared with the caller and not read-only. */
+      WRITE,
+      /** Delete or edit the bookmark: own only. */
+      OWNER
+   }
+
+   private static IdentityID getCaller(Principal principal) {
+      return principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+   }
+
+   /**
+    * Get the effective bookmark owner of a request. An empty owner (older clients) means the
+    * caller.
+    */
+   static IdentityID resolveBookmarkOwner(IdentityID owner, IdentityID caller) {
+      return owner == null || Tool.isEmptyString(owner.name) ? caller : owner;
+   }
+
+   /**
+    * Decide whether a caller may access a bookmark of the given owner. The owner of a bookmark
+    * event is supplied by the client, so it must always be validated against the caller.
+    *
+    * @param caller    the principal that sent the request.
+    * @param owner     the owner named in the request.
+    * @param info      the bookmark as visible to the caller, or null if the caller can not see
+    *                  a bookmark of that name and owner.
+    * @param sameGroup tells whether caller and owner share a group.
+    * @param access    the access needed.
+    */
+   static boolean isBookmarkAccessAllowed(IdentityID caller, IdentityID owner,
+                                          VSBookmarkInfo info, BooleanSupplier sameGroup,
+                                          BookmarkAccess access)
+   {
+      if(caller == null || owner == null) {
+         return false;
+      }
+
+      // IdentityID.equals compares both the name and the organization
+      if(caller.equals(owner)) {
+         return true;
+      }
+
+      if(access == BookmarkAccess.OWNER || info == null) {
+         return false;
+      }
+
+      int type = info.getType();
+
+      if(type != VSBookmarkInfo.ALLSHARE &&
+         !(type == VSBookmarkInfo.GROUPSHARE && sameGroup.getAsBoolean()))
+      {
+         return false;
+      }
+
+      return access != BookmarkAccess.WRITE || !info.isReadOnly();
+   }
+
+   /**
+    * Find the bookmark of the given name and owner among the bookmarks visible to the caller.
+    * The same name can appear for several owners, so the owner must be compared too.
+    */
+   private static VSBookmarkInfo findVisibleBookmark(RuntimeViewsheet rvs, String name,
+                                                     IdentityID owner, IdentityID caller)
+   {
+      for(VSBookmarkInfo bminfo : rvs.getBookmarks(caller)) {
+         if(bminfo != null && Tool.equals(name, bminfo.getName()) &&
+            owner.equals(bminfo.getOwner()))
+         {
+            return bminfo;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Tell whether the caller may access the bookmark of the given name and owner, without
+    * reporting anything to the client.
+    */
+   private boolean isBookmarkAllowed(RuntimeViewsheet rvs, String name, IdentityID owner,
+                                     IdentityID caller, BookmarkAccess access)
+   {
+      if(caller != null && owner != null && !owner.equals(caller) &&
+         !securityEngine.isSecurityEnabled() && Tool.equals(owner.name, caller.name))
+      {
+         // security is off: every user is the shared anonymous user, not a boundary
+         return true;
+      }
+
+      VSBookmarkInfo info = null;
+
+      if(caller != null && owner != null && !owner.equals(caller) &&
+         access != BookmarkAccess.OWNER)
+      {
+         info = findVisibleBookmark(rvs, name, owner, caller);
+      }
+
+      return isBookmarkAccessAllowed(
+         caller, owner, info, () -> rvs.isSameGroup(owner, caller), access);
+   }
+
+   private boolean checkBookmarkAccess(RuntimeViewsheet rvs, String name, IdentityID owner,
+                                       IdentityID caller, BookmarkAccess access,
+                                       CommandDispatcher commandDispatcher)
+   {
+      boolean allowed = isBookmarkAllowed(rvs, name, owner, caller, access);
+
+      if(!allowed) {
+         LOG.warn("Rejected {} access to bookmark '{}' of user {} for user {}", access, name,
+                  owner, caller);
+         MessageCommand command = new MessageCommand();
+         command.setMessage(catalog.getString("common.noPermission"));
+         command.setType(MessageCommand.Type.ERROR);
+         commandDispatcher.sendCommand(command);
+      }
+
+      return allowed;
+   }
+
    @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void saveBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
@@ -99,11 +225,30 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       Viewsheet vs = rvs.getViewsheet();
       VSBookmarkInfoModel vsBookmarkInfoModel = value.vsBookmarkInfoModel();
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(), "");
-      IdentityID ownerId = Tool.defaultIfNull(vsBookmarkInfoModel.owner(),new IdentityID("",""));
+      IdentityID caller = getCaller(principal);
+      IdentityID ownerId = resolveBookmarkOwner(vsBookmarkInfoModel.owner(), caller);
       boolean readOnly = vsBookmarkInfoModel.readOnly();
       int type = vsBookmarkInfoModel.type();
       String originalAction = value.instruction();
       AssetEntry vsEntry = vs.getRuntimeEntry();
+
+      // the owner comes from the request, never trust it (Bug #79436)
+      if(!checkBookmarkAccess(rvs, name, ownerId, caller, BookmarkAccess.WRITE,
+                              commandDispatcher))
+      {
+         return null;
+      }
+
+      if(!ownerId.equals(caller)) {
+         // saving over another user's shared bookmark replaces its content only; its sharing
+         // type and read-only flag belong to the owner (Bug #79737)
+         VSBookmarkInfo stored = rvs.getBookmarkInfo(name, ownerId);
+
+         if(stored != null) {
+            type = stored.getType();
+            readOnly = stored.isReadOnly();
+         }
+      }
 
       if(vsEntry == null) {
          return null;
@@ -275,9 +420,14 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       VSBookmarkInfoModel vsBookmarkInfoModel = value.vsBookmarkInfoModel();
       assert vsBookmarkInfoModel != null;
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(), "");
-      IdentityID owner = Tool.defaultIfNull(vsBookmarkInfoModel.owner(), new IdentityID("", ""));
+      IdentityID user = getCaller(principal);
+      IdentityID owner = resolveBookmarkOwner(vsBookmarkInfoModel.owner(), user);
 
-      IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      // only the owner can delete a bookmark, and it must be validated before the scheduled
+      // task check below, which is keyed by the caller (Bug #79436)
+      if(!checkBookmarkAccess(rvs, name, owner, user, BookmarkAccess.OWNER, commandDispatcher)) {
+         return null;
+      }
 
       if(!value.confirmed()) {
          final List<ScheduleTask> tasksUsingBookmark =
@@ -421,10 +571,18 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       RuntimeViewsheet rvs = vsObjectService.getRuntimeViewsheet(runtimeId, principal);
       VSBookmarkInfoModel vsBookmarkInfoModel = value.vsBookmarkInfoModel();
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(), "");
-      IdentityID owner = Tool.defaultIfNull(vsBookmarkInfoModel.owner(), new IdentityID("",""));
+      IdentityID caller = getCaller(principal);
+      IdentityID owner = resolveBookmarkOwner(vsBookmarkInfoModel.owner(), caller);
       int type = vsBookmarkInfoModel.type();
       boolean readOnly = vsBookmarkInfoModel.readOnly();
       String oldName = value.oldName();
+
+      // only the owner can edit a bookmark (Bug #79436)
+      if(!checkBookmarkAccess(rvs, oldName, owner, caller, BookmarkAccess.OWNER,
+                              commandDispatcher))
+      {
+         return null;
+      }
 
       if(!Tool.equals(name, oldName) && rvs.containsBookmark(name, owner)) {
          throw new RuntimeException(Catalog.getCatalog().getString(
@@ -534,7 +692,12 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       VSBookmarkInfoModel vsBookmarkInfoModel = value.vsBookmarkInfoModel();
       assert vsBookmarkInfoModel != null;
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(),"");
-      IdentityID owner = Tool.defaultIfNull(vsBookmarkInfoModel.owner(), new IdentityID("",""));
+      IdentityID caller = getCaller(principal);
+      IdentityID owner = resolveBookmarkOwner(vsBookmarkInfoModel.owner(), caller);
+
+      if(!checkBookmarkAccess(rvs, name, owner, caller, BookmarkAccess.READ, commandDispatcher)) {
+         return null;
+      }
 
       processBookmark(
          name, owner, rvs, (XPrincipal) principal, value, linkUri, rvs.getID(), commandDispatcher);
@@ -551,7 +714,12 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       Viewsheet vs = rvs.getViewsheet();
       VSBookmarkInfoModel vsBookmarkInfoModel = value.vsBookmarkInfoModel();
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(), "");
-      IdentityID owner = Tool.defaultIfNull(vsBookmarkInfoModel.owner(), new IdentityID("",""));
+      IdentityID caller = getCaller(principal);
+      IdentityID owner = resolveBookmarkOwner(vsBookmarkInfoModel.owner(), caller);
+
+      if(!checkBookmarkAccess(rvs, name, owner, caller, BookmarkAccess.READ, commandDispatcher)) {
+         return null;
+      }
 
       if(vs.getRuntimeEntry().getScope() == AssetRepository.TEMPORARY_SCOPE) {
          MessageCommand command = new MessageCommand();
@@ -574,6 +742,12 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       IdentityID ownerId = IdentityID.getIdentityIDFromKey(owner);
       ViewsheetService vsService = viewsheetService;
       RuntimeViewsheet rvs = vsService.getViewsheet(runtimeId, principal);
+
+      // a bookmark the caller can not see answers like one that does not exist (Bug #79737)
+      if(!isBookmarkAllowed(rvs, name, ownerId, getCaller(principal), BookmarkAccess.READ)) {
+         return Boolean.FALSE.toString();
+      }
+
       return rvs.bookmarkUpdated(name, ownerId) ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
    }
 
@@ -583,6 +757,12 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    {
       IdentityID ownerId = IdentityID.getIdentityIDFromKey(owner);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      // a bookmark the caller can not see answers like one that does not exist (Bug #79737)
+      if(!isBookmarkAllowed(rvs, name, ownerId, getCaller(principal), BookmarkAccess.READ)) {
+         return Boolean.TRUE.toString();
+      }
+
       return rvs.checkBookmark(name, ownerId) ? Boolean.FALSE.toString() : Boolean.TRUE.toString();
    }
 
@@ -921,28 +1101,16 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          return;
       }
 
-      //@temp get type and readonly from bookmark info by name and user.
-      for(VSBookmarkInfo bminfo : rvs.getBookmarks(bookmarkUser)) {
-         if(bminfo != null && bookmarkName.equals(bminfo.getName())) {
-            info = bminfo;
-         }
-      }
+      // resolve the bookmark by name AND owner among those visible to the caller; the name
+      // alone can match another owner's shared bookmark (Bug #79737)
+      info = findVisibleBookmark(rvs, bookmarkName, bookmarkUser, currUser);
 
-      if(info == null) {
+      if(info == null ||
+         !isBookmarkAccessAllowed(currUser, bookmarkUser, info,
+                                  () -> rvs.isSameGroup(bookmarkUser, currUser),
+                                  BookmarkAccess.READ))
+      {
          return;
-      }
-
-      int bookmarkType = info.getType();
-
-      if(!currUser.equals(bookmarkUser)) {
-         if(VSBookmarkInfo.PRIVATE == bookmarkType) {
-            return;
-         }
-         else if(VSBookmarkInfo.GROUPSHARE == bookmarkType &&
-            !rvs.isSameGroup(bookmarkUser, currUser))
-         {
-            return;
-         }
       }
 
       processBookmark(bookmarkName, bookmarkUser, rvs, (XPrincipal) principal,

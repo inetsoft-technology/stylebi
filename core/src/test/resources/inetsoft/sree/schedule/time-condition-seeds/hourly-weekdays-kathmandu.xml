@@ -1,0 +1,1 @@
+<Condition type="TimeCondition" timeType="8" timezone="20700000:Asia/Kathmandu" hour="1" minute="0" second="0" hour_end="23" minute_end="0" second_end="0" daysOfWeek="2,3,4,5,6" hourlyInterval="1.5"></Condition>

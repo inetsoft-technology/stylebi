@@ -18,8 +18,12 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from "@angular/material/dialog";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { NEVER } from "rxjs";
+import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
+import { pressEscape, settle, trackDialog } from "../../../../testing/escape-press";
 import { MaterializeSheetDialogComponent } from "./materialize-sheet-dialog.component";
 
 describe("MaterializeSheetDialogComponent", () => {
@@ -32,7 +36,7 @@ describe("MaterializeSheetDialogComponent", () => {
             HttpClientTestingModule,
          ],
          providers: [
-            { provide: MatDialogRef, useValue: { close: vi.fn() } },
+            { provide: MatDialogRef, useValue: { close: vi.fn(), keydownEvents: () => NEVER } },
             { provide: MAT_DIALOG_DATA, useValue: [] },
          ],
          schemas: [NO_ERRORS_SCHEMA]
@@ -43,5 +47,52 @@ describe("MaterializeSheetDialogComponent", () => {
       const fixture = TestBed.createComponent(MaterializeSheetDialogComponent);
       fixture.detectChanges();
       expect(fixture.componentInstance).toBeTruthy();
+   });
+});
+
+/**
+ * Bug #78722: Escape that closes the open Full Data list must not also close Materialize.
+ */
+describe("MaterializeSheetDialogComponent Escape", () => {
+   let dialog: MatDialog;
+
+   beforeEach(() => {
+      TestBed.configureTestingModule({
+         imports: [NoopAnimationsModule, HttpClientTestingModule],
+         providers: [{ provide: StompClientService, useValue: { connect: () => NEVER } }]
+      });
+      dialog = TestBed.inject(MatDialog);
+   });
+
+   afterEach(async () => {
+      dialog.closeAll();
+      await settle();
+   });
+
+   // opened as ContentRepositoryPageComponent opens it; a viewsheet shows the Full Data list
+   const openDialog = async () => {
+      const ref = dialog.open(MaterializeSheetDialogComponent, {
+         disableClose: true,
+         data: [{ type: RepositoryEntryType.VIEWSHEET, path: "vs1", label: "vs1", owner: null }]
+      });
+      await settle(10);
+      return ref;
+   };
+
+   it("closes only the open Full Data list when Escape is pressed in it", async () => {
+      const state = trackDialog(await openDialog());
+      const select = document.querySelector("mat-select") as HTMLElement;
+      select.focus();
+      (select.querySelector(".mat-mdc-select-trigger") as HTMLElement).click();
+      await settle();
+      expect(document.querySelector(".mat-mdc-select-panel")).not.toBeNull();
+
+      await pressEscape();
+
+      expect(document.querySelector(".mat-mdc-select-panel")).toBeNull();
+      expect(state.closed).toBe(false);
+
+      await pressEscape();
+      expect(state).toEqual({ closed: true, result: null });
    });
 });

@@ -433,6 +433,12 @@ public class JDBCTableNode extends XTableNode {
                         throw new RuntimeException(ex);
                      }
 
+                     // the row buffer is reused across rows, so the failed cell would keep the
+                     // previous row's value (bug #79484). a failed cell is null, as on the first
+                     // row; true for every column type and every row. the cancelled path rethrows
+                     // above and never reaches here.
+                     row[i] = null;
+
                      //avoid endless loop, add the index.
                      i++;
                   }

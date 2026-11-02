@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { AfterViewInit, Component, HostListener, Inject, OnInit, ViewChild } from "@angular/core";
+import { AfterViewInit, Component, Inject, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { Subscription } from "rxjs";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { MatSort, MatSortHeader } from "@angular/material/sort";
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
@@ -29,6 +30,7 @@ import { MatIconButton, MatButton } from "@angular/material/button";
 
 import { MatCheckbox } from "@angular/material/checkbox";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { onDialogEscape } from "../../../../common/util/dialog-escape";
 
 interface FontFamilyElement {
    select: boolean;
@@ -70,7 +72,7 @@ interface FontFamilyElement {
     MatDialogClose
 ]
 })
-export class EditFontsDialogComponent implements OnInit, AfterViewInit {
+export class EditFontsDialogComponent implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild(MatSort, { static: true }) sort: MatSort;
 
    title: string;
@@ -84,6 +86,8 @@ export class EditFontsDialogComponent implements OnInit, AfterViewInit {
    matTableDataSource: MatTableDataSource<FontFamilyElement>;
    expandedElement: FontFamilyElement | null = null;
 
+   private escapeSubscription: Subscription;
+
    constructor(private dialogRef: MatDialogRef<EditFontsDialogComponent>,
                @Inject(MAT_DIALOG_DATA) public data: any, private dialog: MatDialog)
    {
@@ -92,6 +96,7 @@ export class EditFontsDialogComponent implements OnInit, AfterViewInit {
       this.deleteFontFaces = data.deleteFontFaces.slice();
       this.newFontFaces = data.newFontFaces.slice();
       this.initDataSource();
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.dialogRef.close(null));
    }
 
    ngAfterViewInit() {
@@ -183,9 +188,8 @@ export class EditFontsDialogComponent implements OnInit, AfterViewInit {
       });
    }
 
-   @HostListener("window:keyup.esc", [])
-   onKeyUp() {
-      this.dialogRef.close(null);
+   ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
    }
 
    clickRow(row: FontFamilyElement): void {

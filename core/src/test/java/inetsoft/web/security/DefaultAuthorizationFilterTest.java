@@ -197,6 +197,62 @@ class DefaultAuthorizationFilterTest {
          response.getRedirectedUrl());
    }
 
+   // (#79713) the servlet path is container-decoded; the redirect must re-encode it so the
+   // login page accepts it and the browser returns to the same resource
+   @Test
+   void doFilter_redirect_pathWithSpace_requestedUrlEncodedAndAccepted() throws Exception {
+      assertRequestedUrlRoundTrip("/app/viewer/view/global/My Folder/My Dash", null,
+         "http://localhost/app/viewer/view/global/My%20Folder/My%20Dash");
+   }
+
+   @Test
+   void doFilter_redirect_chinesePath_requestedUrlAccepted() throws Exception {
+      assertRequestedUrlRoundTrip("/app/viewer/view/global/报表/销售", null,
+         "http://localhost/app/viewer/view/global/%E6%8A%A5%E8%A1%A8/%E9%94%80%E5%94%AE");
+   }
+
+   @Test
+   void doFilter_redirect_pathWithReservedChars_keptInPathNotQuery() throws Exception {
+      // '?' in the name must not flip the separator or end the path
+      assertRequestedUrlRoundTrip("/app/viewer/view/global/a?b#c%d/e f", "x=1&y=2",
+         "http://localhost/app/viewer/view/global/a%3Fb%23c%25d/e%20f?x=1&y=2");
+   }
+
+   private void assertRequestedUrlRoundTrip(String decodedPath, String query, String expected)
+      throws Exception
+   {
+      MockHttpServletRequest request = request("GET", decodedPath);
+      request.setQueryString(query);
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      String redirect = response.getRedirectedUrl();
+      String prefix = "http://localhost/login.html?requestedUrl=";
+      assertNotNull(redirect);
+      assertTrue(redirect.startsWith(prefix), redirect);
+      // Spring decodes the parameter once, as LoginController receives it
+      String requestedUrl = java.net.URLDecoder.decode(
+         redirect.substring(prefix.length()), StandardCharsets.UTF_8);
+      assertEquals(expected, requestedUrl);
+      assertEquals(requestedUrl,
+         RequestedUrlValidator.sanitize(requestedUrl, "http://localhost/", null));
+
+      // decoding the encoded path returns the original path
+      String path = requestedUrl.substring("http://localhost".length());
+      int q = path.indexOf(query == null ? ' ' : '?');
+      path = q < 0 ? path : path.substring(0, q);
+      assertEquals(decodedPath, java.net.URI.create("http://localhost" + path).getPath());
+   }
+
+   @Test
+   void requestedUrlValidator_stillRejectsRawSpaceAndLeadingSpaceTricks() {
+      assertNull(RequestedUrlValidator.sanitize("http://localhost/a b", "http://localhost/", null));
+      assertNull(RequestedUrlValidator.sanitize(" //evil.com", "http://localhost/", null));
+      assertNull(RequestedUrlValidator.sanitize("/a	b", "http://localhost/", null));
+   }
+
    @Test
    void doFilter_xhrRequest_unauthorized_returns401InsteadOfRedirect() throws Exception {
       MockHttpServletRequest request = request("GET", "/em/settings");

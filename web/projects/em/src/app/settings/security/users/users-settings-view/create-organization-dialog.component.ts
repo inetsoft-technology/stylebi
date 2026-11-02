@@ -17,12 +17,13 @@
  */
 
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, HostListener, Inject, OnDestroy, OnInit } from "@angular/core";
+import { Component, Inject, OnDestroy, OnInit } from "@angular/core";
 import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogActions } from "@angular/material/dialog";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { onDialogEscape } from "../../../../common/util/dialog-escape";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { convertToKey, IdentityId } from "../identity-id";
 import { MatSelect } from "@angular/material/select";
@@ -54,12 +55,15 @@ export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
    private searchQuery$ = new BehaviorSubject<string>("");
    providerName: string = "";
 
+   private escapeSubscription: Subscription;
+
    constructor(@Inject(MAT_DIALOG_DATA) data: any,
                private dialogRef: MatDialogRef<CreateOrganizationDialogComponent>,
                private dialog: MatDialog,
                private http: HttpClient)
    {
       this.providerName = data.name;
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
    }
 
    ngOnInit(): void {
@@ -98,6 +102,8 @@ export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
+
       if(!!this.subscriptions) {
          this.subscriptions.unsubscribe();
       }
@@ -173,11 +179,6 @@ export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
       this.copyFromOrgID = event.option.value;
       this.searchOpen = false;
       this.searchQuery = "";
-   }
-
-   @HostListener("window:keyup.esc", [])
-   onKeyUp() {
-      this.cancel();
    }
 
    cancel(): void {

@@ -137,12 +137,19 @@ public class XMLAHandler extends XHandler {
    }
 
    /**
+    * Escape a value interpolated as XML text into a request body.
+    */
+   private static String xml(String value) {
+      return XMLAUtil.encodingXML(value, XMLAUtil.encoding1);
+   }
+
+   /**
     * Retrieve cubes within the connector's domain.
     * @return an XNode containing the Cubes.
     * @throws Exception
     */
    private Collection getCubes() throws Exception {
-      String restrictions = "<CATALOG_NAME>" + datasource.getCatalogName() +
+      String restrictions = "<CATALOG_NAME>" + xml(datasource.getCatalogName()) +
          "</CATALOG_NAME>";
       Collection cubes = discover(XMLAUtil.CUBES_REQUEST, restrictions);
       Iterator it = cubes.iterator();
@@ -164,8 +171,8 @@ public class XMLAHandler extends XHandler {
     */
    private Collection getDimensions(Cube cube) throws Exception {
       String cubeName = cube.getName();
-      String restrictions = "<CATALOG_NAME>" + datasource.getCatalogName() +
-         "</CATALOG_NAME> <CUBE_NAME>" + cubeName + "</CUBE_NAME>";
+      String restrictions = "<CATALOG_NAME>" + xml(datasource.getCatalogName()) +
+         "</CATALOG_NAME> <CUBE_NAME>" + xml(cubeName) + "</CUBE_NAME>";
       Collection dims = discover(XMLAUtil.DIMENSIONS_REQUEST, restrictions);
       Iterator it = dims.iterator();
       List dimensions = new ArrayList();
@@ -204,8 +211,8 @@ public class XMLAHandler extends XHandler {
     * @throws Exception
    */
    private Collection getMeasures(String cubeName) throws Exception {
-      String restrictions = "<CATALOG_NAME>" + datasource.getCatalogName() +
-         "</CATALOG_NAME> <CUBE_NAME>" + cubeName + "</CUBE_NAME>";
+      String restrictions = "<CATALOG_NAME>" + xml(datasource.getCatalogName()) +
+         "</CATALOG_NAME> <CUBE_NAME>" + xml(cubeName) + "</CUBE_NAME>";
 
       return discover(XMLAUtil.MEASURES_REQUEST, restrictions);
    }
@@ -221,9 +228,9 @@ public class XMLAHandler extends XHandler {
     */
    private Collection getHierarchies(String dimName, String cubeName)
                                      throws Exception {
-      String restrictions = "<CATALOG_NAME>" + datasource.getCatalogName() +
-         "</CATALOG_NAME> <CUBE_NAME>" + cubeName + "</CUBE_NAME>" +
-         " <DIMENSION_UNIQUE_NAME>" + dimName + "</DIMENSION_UNIQUE_NAME>";
+      String restrictions = "<CATALOG_NAME>" + xml(datasource.getCatalogName()) +
+         "</CATALOG_NAME> <CUBE_NAME>" + xml(cubeName) + "</CUBE_NAME>" +
+         " <DIMENSION_UNIQUE_NAME>" + xml(dimName) + "</DIMENSION_UNIQUE_NAME>";
 
       return discover(XMLAUtil.HIERARCHIES_REQUEST, restrictions);
    }
@@ -240,12 +247,12 @@ public class XMLAHandler extends XHandler {
     */
    private Collection getLevels(String dimName, String hierarchyName,
                                 String cubeName) throws Exception {
-      String restrictions = "<CATALOG_NAME>" + datasource.getCatalogName() +
-         "</CATALOG_NAME> <CUBE_NAME>" + cubeName + "</CUBE_NAME>" +
-         " <DIMENSION_UNIQUE_NAME>" + dimName + "</DIMENSION_UNIQUE_NAME>";
+      String restrictions = "<CATALOG_NAME>" + xml(datasource.getCatalogName()) +
+         "</CATALOG_NAME> <CUBE_NAME>" + xml(cubeName) + "</CUBE_NAME>" +
+         " <DIMENSION_UNIQUE_NAME>" + xml(dimName) + "</DIMENSION_UNIQUE_NAME>";
 
       if(hierarchyName != null) {
-         restrictions += " <HIERARCHY_UNIQUE_NAME>" + hierarchyName +
+         restrictions += " <HIERARCHY_UNIQUE_NAME>" + xml(hierarchyName) +
             "</HIERARCHY_UNIQUE_NAME>";
       }
 
@@ -272,16 +279,16 @@ public class XMLAHandler extends XHandler {
       String dimName = dim.getUniqueName();
       StringBuilder buffer = new StringBuilder();
       buffer.append("<CATALOG_NAME>");
-      buffer.append(ds.getCatalogName());
+      buffer.append(xml(ds.getCatalogName()));
       buffer.append("</CATALOG_NAME> <CUBE_NAME>");
-      buffer.append(cubeName);
+      buffer.append(xml(cubeName));
       buffer.append("</CUBE_NAME> <DIMENSION_UNIQUE_NAME>");
-      buffer.append(dimName);
+      buffer.append(xml(dimName));
       buffer.append("</DIMENSION_UNIQUE_NAME>");
 
       if(dim instanceof HierDimension) {
          buffer.append("<HIERARCHY_UNIQUE_NAME>");
-         buffer.append(((HierDimension) dim).getHierarchyUniqueName());
+         buffer.append(xml(((HierDimension) dim).getHierarchyUniqueName()));
          buffer.append("</HIERARCHY_UNIQUE_NAME>");
       }
 
@@ -289,7 +296,7 @@ public class XMLAHandler extends XHandler {
          DimMember level = XMLAUtil.getLevel(
             query, cubeName, query.getMemberRef(0));
          buffer.append("<LEVEL_UNIQUE_NAME>");
-         buffer.append(level.getUniqueName());
+         buffer.append(xml(level.getUniqueName()));
          buffer.append("</LEVEL_UNIQUE_NAME>");
       }
 
@@ -307,7 +314,7 @@ public class XMLAHandler extends XHandler {
     */
    private String[] getCatalogs(String catalogName) throws Exception {
       String restrictions = catalogName == null ? "" :
-         "<CATALOG_NAME>" + catalogName + "</CATALOG_NAME>";
+         "<CATALOG_NAME>" + xml(catalogName) + "</CATALOG_NAME>";
       Collection c = discover(XMLAUtil.CATALOGS_REQUEST, restrictions);
       String[] catalogs = new String[c.size()];
       c.toArray(catalogs);
@@ -343,12 +350,12 @@ public class XMLAHandler extends XHandler {
       body.append("</RestrictionList></Restrictions>");
       body.append("<Properties><PropertyList>");
       body.append("<DataSourceInfo>");
-      body.append(ds.getDatasourceInfo());
+      body.append(xml(ds.getDatasourceInfo()));
       body.append("</DataSourceInfo>");
 
       if(restrictions != null && restrictions.trim().length() > 0) {
          body.append("<Catalog>");
-         body.append(ds.getCatalogName());
+         body.append(xml(ds.getCatalogName()));
          body.append("</Catalog>");
       }
 
@@ -667,12 +674,12 @@ public class XMLAHandler extends XHandler {
       body.append("</Statement></Command>");
       body.append("<Properties><PropertyList>");
       body.append("<DataSourceInfo>");
-      body.append(datasource.getDatasourceInfo());
+      body.append(xml(datasource.getDatasourceInfo()));
       body.append("</DataSourceInfo>");
       body.append("<Format>");
       body.append(format);
       body.append("</Format><Catalog>");
-      body.append(datasource.getCatalogName());
+      body.append(xml(datasource.getCatalogName()));
       body.append("</Catalog>");
       body.append("<AxisFormat>TupleFormat</AxisFormat>");
       body.append("</PropertyList></Properties>");

@@ -29,9 +29,10 @@
  *   Group 4  [Risk 2] — recommender(): sends REFRESH_NODES_URI with selectedEntries mapped
  *                        from selectedNodes.data; tableName forwarded
  *   Group 5  [Risk 3] — processVSTrapCommand: "yes" → resends events with confirmed=true;
- *                        other result → pops selectedNodes
+ *                        other result or dismissal → assigns selectedNodes minus the last node
  *   Group 6  [Risk 3] — processVSWizardSourceChangeCommand: "ok" → sends REFRESH_FIELDS_URI;
- *                        other result → does NOT send REFRESH_FIELDS_URI
+ *                        other result or dismissal → does NOT send REFRESH_FIELDS_URI and
+ *                        assigns selectedNodes minus the last node
  *   Group 7  [Risk 2] — processRefreshWizardTreeCommand: calls resetTreeModel + reloadSelectedBinding;
  *                        forceRefresh+unchanged-paths → early return (no reset);
  *                        flatternTree merges Dimensions/Measures and sorts alphabetically
@@ -390,22 +391,49 @@ describe("WizardBindingTree — processVSTrapCommand()", () => {
       }
    });
 
-   it("should pop selectedNodes when user does not confirm trap", async () => {
-      const { comp } = await renderComponent();
-      const popSpy = vi.fn();
-      BINDING_TREE_SERVICE_MOCK.selectedNodes = { pop: popSpy } as any;
-      const showTrapSpy = vi.spyOn(ComponentTool, "showTrapAlert").mockResolvedValue("no" as any);
+   // Bug #78715: the unconfirmed column must be dropped by assigning a new array through the
+   // selectedNodes setter (which also updates selectedPaths), not by mutating it in place.
+   it("should assign selectedNodes without the last node when user does not confirm trap",
+      async () => {
+         const { comp } = await renderComponent();
+         const first = makeNode("a", { path: "/t/a", properties: {} });
+         const nodes = [first, makeNode("b", { path: "/t/b", properties: {} })];
+         BINDING_TREE_SERVICE_MOCK.selectedNodes = nodes;
+         SEND_EVENT_MOCK.mockClear();
+         const showTrapSpy = vi.spyOn(ComponentTool, "showTrapAlert").mockResolvedValue("no" as any);
 
-      try {
-         comp.processVSTrapCommand({ events: {} } as any);
+         try {
+            comp.processVSTrapCommand({ events: {} } as any);
 
-         await waitFor(() => expect(popSpy).toHaveBeenCalled());
-         expect(SEND_EVENT_MOCK).not.toHaveBeenCalled();
-      }
-      finally {
-         showTrapSpy.mockRestore();
-      }
-   });
+            await waitFor(() => expect(BINDING_TREE_SERVICE_MOCK.selectedNodes).toEqual([first]));
+            expect(BINDING_TREE_SERVICE_MOCK.selectedNodes).not.toBe(nodes);
+            expect(SEND_EVENT_MOCK).not.toHaveBeenCalled();
+         }
+         finally {
+            showTrapSpy.mockRestore();
+         }
+      });
+
+   it("should assign selectedNodes without the last node when the trap dialog is dismissed",
+      async () => {
+         const { comp } = await renderComponent();
+         const first = makeNode("a", { path: "/t/a", properties: {} });
+         BINDING_TREE_SERVICE_MOCK.selectedNodes =
+            [first, makeNode("b", { path: "/t/b", properties: {} })];
+         SEND_EVENT_MOCK.mockClear();
+         const showTrapSpy = vi.spyOn(ComponentTool, "showTrapAlert")
+            .mockReturnValue(Promise.reject(1));
+
+         try {
+            comp.processVSTrapCommand({ events: {} } as any);
+
+            await waitFor(() => expect(BINDING_TREE_SERVICE_MOCK.selectedNodes).toEqual([first]));
+            expect(SEND_EVENT_MOCK).not.toHaveBeenCalled();
+         }
+         finally {
+            showTrapSpy.mockRestore();
+         }
+      });
 });
 
 // ---------------------------------------------------------------------------
@@ -437,15 +465,33 @@ describe("WizardBindingTree — processVSWizardSourceChangeCommand()", () => {
    it("should NOT send REFRESH_FIELDS_URI when user cancels source change", async () => {
       const { comp } = await renderComponent();
       SEND_EVENT_MOCK.mockClear();
-      BINDING_TREE_SERVICE_MOCK.selectedNodes = [makeNode("col", { path: "/p", properties: {} })];
+      const first = makeNode("old", { path: "/p/old", properties: {} });
+      BINDING_TREE_SERVICE_MOCK.selectedNodes =
+         [first, makeNode("col", { path: "/p", properties: {} })];
       BINDING_TREE_SERVICE_MOCK.showSourceChangedDialog.mockResolvedValue("cancel");
 
       comp.processVSWizardSourceChangeCommand({} as any);
 
-      // Gate: wait for the dialog to have been shown, then assert no refresh event
-      await waitFor(() =>
-         expect(BINDING_TREE_SERVICE_MOCK.showSourceChangedDialog).toHaveBeenCalled(),
+      // Gate: wait for the new column to be dropped, then assert no refresh event
+      await waitFor(() => expect(BINDING_TREE_SERVICE_MOCK.selectedNodes).toEqual([first]));
+      expect(SEND_EVENT_MOCK).not.toHaveBeenCalledWith(
+         "/events/vswizard/binding/tree/refresh-fields",
+         expect.anything(),
       );
+   });
+
+   it("should drop the new column and NOT send REFRESH_FIELDS_URI when the source change " +
+      "dialog is dismissed", async () => {
+      const { comp } = await renderComponent();
+      SEND_EVENT_MOCK.mockClear();
+      const first = makeNode("old", { path: "/p/old", properties: {} });
+      BINDING_TREE_SERVICE_MOCK.selectedNodes =
+         [first, makeNode("col", { path: "/p", properties: {} })];
+      BINDING_TREE_SERVICE_MOCK.showSourceChangedDialog.mockReturnValue(Promise.reject(1));
+
+      comp.processVSWizardSourceChangeCommand({} as any);
+
+      await waitFor(() => expect(BINDING_TREE_SERVICE_MOCK.selectedNodes).toEqual([first]));
       expect(SEND_EVENT_MOCK).not.toHaveBeenCalledWith(
          "/events/vswizard/binding/tree/refresh-fields",
          expect.anything(),

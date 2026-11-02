@@ -75,12 +75,17 @@ export class CustomSsoFormComponent implements OnInit, AfterViewInit, AfterViewC
          this.model.useJavaClass = !this.model.useInlineGroovy;
 
          if(this.model.useInlineGroovy && !this.model.inlineGroovyClass) {
-            this.model.inlineGroovyClass = `import javax.servlet.*
-import inetsoft.web.security.*
+            this.model.inlineGroovyClass = `import jakarta.servlet.*
 
-class CustomSSOFilter extends AbstractSecurityFilter {
+// The first class in this script must implement jakarta.servlet.Filter and have a
+// public no-argument constructor. To read the user from the request or create the
+// session, see inetsoft.web.security.AbstractSecurityFilter for the helper methods.
+// This sample does not authenticate anyone, so every request that needs a login
+// is still refused until you add your own logic.
+class CustomSSOFilter implements Filter {
     @Override
-    void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+    void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
         // TODO add filter logic
         chain.doFilter(request, response)
     }

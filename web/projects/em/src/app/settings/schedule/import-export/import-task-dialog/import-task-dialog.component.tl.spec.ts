@@ -52,7 +52,7 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { HttpErrorResponse } from "@angular/common/http";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
-import { of } from "rxjs";
+import { NEVER, of } from "rxjs";
 
 import { server } from "@test-mocks/server";
 import { ImportTaskDialogComponent } from "./import-task-dialog.component";
@@ -98,7 +98,7 @@ const IMPORT_URL = "*/api/em/content/schedule/import/*";
 // ---------------------------------------------------------------------------
 
 async function renderComp(opts: { dialogClosesWith?: unknown } = {}) {
-   const dialogRefSpy = { close: vi.fn() };
+   const dialogRefSpy = { close: vi.fn(), keydownEvents: () => NEVER };
    const matDialogSpy = {
       open: vi.fn().mockReturnValue({
          afterClosed: () => of(opts.dialogClosesWith !== undefined ? opts.dialogClosesWith : undefined),

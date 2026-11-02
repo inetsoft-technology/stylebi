@@ -143,15 +143,32 @@ export class DatePickerComponent implements OnInit, OnChanges {
    }
 
    selectYear(year: number) {
-      this.dateTime.years = year;
+      // the select hands over strings; store numbers so later date math is not string concatenation
+      this.dateTime.years = +year;
+      this.dateTime.months = +this.dateTime.months;
+      this.clampDate();
       this.updateCalendar();
       this.dateValueChanged(DateTimeChangeType.YEAR);
    }
 
    selectMonth(month: number) {
-      this.dateTime.months = month;
+      this.dateTime.months = +month;
+      this.dateTime.years = +this.dateTime.years;
+      this.clampDate();
       this.updateCalendar();
       this.dateValueChanged(DateTimeChangeType.MONTH);
+   }
+
+   /**
+    * Keep the day inside the selected month (Jan 31 to Feb, or Feb 29 to a non-leap year);
+    * otherwise formatting rolls it over into the next month.
+    */
+   private clampDate(): void {
+      const lastDay = new Date(this.dateTime.years, this.dateTime.months + 1, 0).getDate();
+
+      if(this.dateTime.date > lastDay) {
+         this.dateTime.date = lastDay;
+      }
    }
 
    private dateValueChanged(changeType: DateTimeChangeType) {

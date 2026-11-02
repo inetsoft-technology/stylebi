@@ -828,7 +828,8 @@ public class UserTreeService {
                identity = new FSUser(id);
                identity.setOrganization(currOrgID);
                addOrganizationMember(currOrgID, name, editProvider);
-               identity.setRoles(getDefaultRoles(editProvider, currOrgID)
+               identity.setRoles(identityService.filterAssignableDefaultRoles(
+                                    getDefaultRoles(editProvider, currOrgID), principal)
                                     .toArray(new IdentityID[0]));
                if(parentGroup != null) {
                   identity.setGroups(new String[] { parentGroup });

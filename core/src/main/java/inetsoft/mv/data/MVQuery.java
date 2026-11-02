@@ -279,6 +279,11 @@ public final class MVQuery {
 
       Object[] arr = new Object[smcnt];
       XSwappableObjectList<MVRow> rows = new XSwappableObjectList<>(MVRow2.class);
+      // the sub block rows are sorted by dictionary index, i.e. the case sensitive order of
+      // the dictionary values. if the string compare is case insensitive, the rows must be
+      // re-sorted by value, which is the order the merged blocks (and non-MV) expect.
+      boolean resort = false;
+      List<MVRow> rowList = new ArrayList<>(Math.max(rcnt, 0));
 
       for(int i = 0; i < rcnt; i++) {
          MVRow row = block.getRow(i);
@@ -288,6 +293,7 @@ public final class MVQuery {
          for(int j = 0; j < dcnt; j++) {
             if(dicts[j] != null) {
                groups[j] = dicts[j].getValue((int) row.getGroups()[j]);
+               resort = resort || groups[j] instanceof String;
             }
             else {
                groups[j] = row.getGroups()[j];
@@ -319,9 +325,15 @@ public final class MVQuery {
          }
 
          nrow.setFormulas(row.getFormulas());
-         rows.add(nrow);
+         rowList.add(nrow);
       }
 
+      // only the grouped merge assumes comparator order; detail rows keep the stored order
+      if(resort && !detail && !Tool.isCaseSensitive()) {
+         rowList.sort(new MVRow2.RowComparator(order));
+      }
+
+      rowList.forEach(rows::add);
       rows.complete();
       block.setRows(rows);
    }

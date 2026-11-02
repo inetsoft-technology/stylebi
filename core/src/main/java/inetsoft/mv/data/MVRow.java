@@ -76,7 +76,9 @@ public class MVRow implements Cloneable, Serializable {
          int h = 0;
 
          for(long elem : groups) {
-            h = 31 * h + (int) (elem + (elem >> 32));
+            // a large odd multiplier keeps hashes of multi-dimension groups with small
+            // dictionary indices apart (31 maps 2 dims x 1000 values to ~32k hashes)
+            h = 1000003 * h + (int) (elem + (elem >> 32));
          }
 
          hash = h;

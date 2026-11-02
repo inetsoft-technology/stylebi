@@ -336,6 +336,9 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          newTask.parseXML(taskElem, isSiteAdmin);
       }
 
+      // Bug #79236, an hour or minute out of range can repeat a fire of the task
+      newTask.validateTimeConditions();
+
       // Bug #77454, the folders are written only after the task is accepted, and only when the
       // importer may create each folder that doesn't exist yet
       if(folders != null) {

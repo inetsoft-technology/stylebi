@@ -70,4 +70,30 @@ describe("CustomSsoFormComponent", () => {
    it("should create", () => {
       expect(component).toBeTruthy();
    });
+
+   // Bug #79146: the inline Groovy template must be a script the server can compile
+   describe("inline Groovy template", () => {
+      function template(): string {
+         component.model = {
+            useJavaClass: true, javaClassName: "", useInlineGroovy: false, inlineGroovyClass: ""
+         } as any;
+         component.classType = "groovy";
+         return component.model.inlineGroovyClass;
+      }
+
+      it("should import jakarta.servlet and implement Filter", () => {
+         const source = template();
+         expect(source).toContain("import jakarta.servlet.*");
+         expect(source).not.toContain("javax.servlet");
+         expect(source).toMatch(/class\s+CustomSSOFilter\s+implements\s+Filter/);
+         expect(source).not.toContain("extends AbstractSecurityFilter");
+         expect(source).toContain("chain.doFilter(request, response)");
+      });
+
+      it("should not contain a backtick or a template placeholder", () => {
+         const source = template();
+         expect(source).not.toContain("`");
+         expect(source).not.toContain("${");
+      });
+   });
 });

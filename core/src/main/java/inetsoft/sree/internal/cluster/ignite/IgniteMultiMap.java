@@ -40,6 +40,12 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
             list = new ArrayList<>();
          }
 
+         // Bug #79262, a value is stored once per key; a second put of the same pair (e.g. a
+         // replace racing on another node) would leave a copy that one remove cannot drop
+         if(list.contains(value)) {
+            return null;
+         }
+
          list.add(value);
          cache.put(key, list);
          return null;
@@ -57,7 +63,8 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
          Collection<V> list = cache.get(key);
 
          if(list != null) {
-            list.remove(value);
+            // drop every copy, a pair stored twice before the put was idempotent included
+            list.removeIf(v -> Objects.equals(v, value));
 
             if(list.isEmpty()) {
                cache.remove(key);

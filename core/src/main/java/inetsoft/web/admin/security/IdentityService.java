@@ -50,6 +50,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
+import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.SnapshotFileGcService;
@@ -736,7 +737,7 @@ public class IdentityService {
                themesManager.save();
                removeStorages(orgID);
                favoritesService.removeFavorites(orgID);
-               dataSourceRegistry.clearCache(orgID);
+               dataSourceRegistry.orgDeleted(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
                repletRegistryManager.clearOrgCache(orgID);
@@ -1787,13 +1788,27 @@ public class IdentityService {
 
       Properties properties = SreeEnv.getProperties();
       Set<Object> orgProperties = properties.keySet().stream()
-         .filter(prop -> ((String) prop).startsWith(prefix) || ((String) prop).startsWith("log.")
-            && ((String) prop).endsWith("^" + orgID))
+         .filter(prop -> ((String) prop).startsWith(prefix) ||
+            LogManager.isOrgLogProperty((String) prop, orgID))
          .collect(Collectors.toSet());
 
       for(Object orgProp : orgProperties) {
          String propName = (String) orgProp;
          SreeEnv.remove(propName);
+      }
+
+      // removing only changes the node's own properties, the other nodes see it after a save
+      if(!orgProperties.isEmpty()) {
+         saveProperties("Unable to save properties after removing the organization's properties");
+      }
+   }
+
+   private void saveProperties(String errorMessage) {
+      try {
+         SreeEnv.save();
+      }
+      catch(IOException e) {
+         LOG.error(errorMessage, e);
       }
    }
 
@@ -1986,21 +2001,30 @@ public class IdentityService {
     */
    private void updateOrgLogProperties(Properties properties, String oId, String id) {
       String oldSuffix = "^" + oId;
+      String orgPrefix = "log." + LogContext.ORGANIZATION + ".level.";
       Set<String> logProperties = properties.keySet().stream()
          .map(prop -> (String) prop)
-         .filter(prop -> prop.startsWith("log.") && prop.endsWith(oldSuffix))
+         .filter(prop -> LogManager.isOrgLogProperty(prop, oId))
          .collect(Collectors.toSet());
 
       for(String oldName : logProperties) {
          String value = properties.getProperty(oldName);
+         String newName = oldName.startsWith(orgPrefix) ? orgPrefix + id :
+            oldName.substring(0, oldName.length() - oldSuffix.length()) + "^" + id;
 
          if(value != null) {
-            String newName =
-               oldName.substring(0, oldName.length() - oldSuffix.length()) + "^" + id;
             SreeEnv.setProperty(newName, value);
          }
 
-         SreeEnv.remove(oldName);
+         // a rename that only changes the case keeps no distinct name to remove
+         if(!oldName.equals(newName)) {
+            SreeEnv.remove(oldName);
+         }
+      }
+
+      // the other nodes see the moved properties only after a save
+      if(!logProperties.isEmpty()) {
+         saveProperties("Unable to save properties after moving the organization's log levels");
       }
    }
 
@@ -2785,6 +2809,78 @@ public class IdentityService {
          parentGroups.stream().filter(Objects::nonNull).distinct().toArray(IdentityID[]::new);
       checkRoleAssignment(securityProvider.getAuthenticationProvider(), roleArr, groupArr, null,
                           principal);
+   }
+
+   /**
+    * Removes from the default roles seeded onto a new user the roles the caller could never
+    * assign. A site administrator keeps every default role. Any other caller loses each default
+    * role that is, or inherits, a system administrator role, and a caller that is not an
+    * organization administrator also loses each one that is, or inherits, an organization
+    * administrator role. Every other default role is kept, whatever assign rights the caller
+    * holds, because default roles are not an explicit assignment. Roles are resolved through the
+    * authentication provider chain, while the defaults themselves normally come from the editable
+    * provider; a role the chain cannot resolve (not found) is not an administrator role and is
+    * kept, but a role whose check fails with an error is dropped (fail closed).
+    * <p>
+    * This never throws, so a default role can never make user creation fail (the caller's
+    * assignment checks are not applied to defaults). A null principal is treated as an
+    * unprivileged caller. Unlike the SSO and OpenID default role guards, this has a caller.
+    *
+    * @param defaultRoles the default roles the new user would receive.
+    * @param principal    the caller creating the user.
+    *
+    * @return the default roles the new user may receive, never null.
+    */
+   public List<IdentityID> filterAssignableDefaultRoles(Collection<IdentityID> defaultRoles,
+                                                        Principal principal)
+   {
+      if(defaultRoles == null || defaultRoles.isEmpty()) {
+         return new ArrayList<>();
+      }
+
+      List<IdentityID> result = new ArrayList<>();
+
+      try {
+         List<IdentityID> candidates =
+            defaultRoles.stream().filter(Objects::nonNull).collect(Collectors.toList());
+         OrganizationManager orgManager = OrganizationManager.getInstance();
+
+         if(!securityEngine.isSecurityEnabled() || orgManager.isSiteAdmin(principal)) {
+            return candidates;
+         }
+
+         AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+         boolean orgAdmin = orgManager.isOrgAdmin(principal);
+         String callerName = principal == null ? "anonymous" : principal.getName();
+
+         for(IdentityID role : candidates) {
+            IdentityID[] single = { role };
+
+            try {
+               if(grantsSystemAdmin(provider, single, null) ||
+                  !orgAdmin && grantsOrgAdmin(provider, single, null))
+               {
+                  LOG.warn("Not giving the administrator default role {} to a new user " +
+                           "created by {}", role, callerName);
+                  continue;
+               }
+            }
+            catch(Exception ex) {
+               // fail closed: a role that cannot be assessed may be an administrator role
+               LOG.warn("Not giving the default role {} to a new user created by {}, it could " +
+                        "not be checked", role, callerName, ex);
+               continue;
+            }
+
+            result.add(role);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to filter the default roles, giving none", ex);
+         return new ArrayList<>();
+      }
+
+      return result;
    }
 
    /**
@@ -4127,7 +4223,7 @@ public class IdentityService {
 
                try {
                   updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId,
-                                   newOrgId, doReplace, type);
+                                   newOrgId, doReplace, type, permissionSetList);
                }
                catch(RuntimeException e) {
                   LOG.error("Failed to update the permission of {} {} from {} to {}, it may not " +
@@ -4201,7 +4297,8 @@ public class IdentityService {
    private void updatePermission(AuthorizationProvider provider,
                                  Tuple4<ResourceType, String, String, Permission> permissionSet,
                                  String oIdentityName, String nIdentityName, String oorgId,
-                                 String norgId, boolean doReplace, int changeIdentityType)
+                                 String norgId, boolean doReplace, int changeIdentityType,
+                                 List<Tuple4<ResourceType, String, String, Permission>> allPermissions)
    {
       ResourceType type = permissionSet.getFirst();
       String resourceOrgID = permissionSet.getSecond();
@@ -4209,7 +4306,7 @@ public class IdentityService {
       Permission permission = permissionSet.getForth();
       updateOrgEditedGrantAll(permission, oorgId, norgId);
       String newPath = getNewPermissionPath(permissionSet.getFirst(), path, oorgId, norgId,
-         oIdentityName, nIdentityName, changeIdentityType);
+         oIdentityName, nIdentityName, changeIdentityType, allPermissions);
 
       if(newPath != null) {
          provider.setPermission(type, newPath, permission, norgId);
@@ -4372,6 +4469,14 @@ public class IdentityService {
       }
    }
 
+   private static boolean hasOrganizationKey(
+      List<Tuple4<ResourceType, String, String, Permission>> permissions, String key)
+   {
+      return permissions != null && permissions.stream()
+         .anyMatch(p -> p.getFirst() == ResourceType.SECURITY_ORGANIZATION &&
+                        Tool.equals(p.getThird(), key));
+   }
+
    private boolean containsOrgID(String path, String oorgID) {
       if(path != null && path.contains(IdentityID.KEY_DELIMITER)) {
          IdentityID identityID = IdentityID.getIdentityIDFromKey(path);
@@ -4384,10 +4489,26 @@ public class IdentityService {
 
    private String getNewPermissionPath(ResourceType type, String path,
                                        String oorgID, String norgID, String oIdentityName,
-                                       String nIdentityName, int changeIdentityType)
+                                       String nIdentityName, int changeIdentityType,
+                                       List<Tuple4<ResourceType, String, String, Permission>> allPermissions)
    {
       if(type == ResourceType.SECURITY_ORGANIZATION &&
          Tool.equals(path, new IdentityID(oIdentityName, oorgID).convertToKey()))
+      {
+         return new IdentityID(nIdentityName, norgID).convertToKey();
+      }
+
+      // Bug #78502, an organization that predates the (name, id) key has its grant under the
+      // legacy (id, id) key, which the permission checks still read when the (name, id) key is
+      // absent. When the name differs from the id, the key is moved to (newName, newId), the key
+      // the checks read, and not to (oldId, newId), which nothing reads. Only for an organization
+      // rename: for a user, group or role rename oIdentityName is that identity's name, not the
+      // organization's, and the organization's own key must be left alone.
+      if(type == ResourceType.SECURITY_ORGANIZATION &&
+         changeIdentityType == Identity.ORGANIZATION && oorgID != null && nIdentityName != null &&
+         norgID != null && !Tool.equals(oIdentityName, oorgID) &&
+         Tool.equals(path, new IdentityID(oorgID, oorgID).convertToKey()) &&
+         !hasOrganizationKey(allPermissions, new IdentityID(oIdentityName, oorgID).convertToKey()))
       {
          return new IdentityID(nIdentityName, norgID).convertToKey();
       }

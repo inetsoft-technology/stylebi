@@ -320,8 +320,8 @@ public abstract class TabularQuery extends XQuery {
 
          for(int i = 0; i < list.getLength(); i++) {
             Element node = (Element) list.item(i);
-            fmtmap.put(Tool.getChildValueByTagName(node, "name"),
-                       Tool.getChildValueByTagName(node, "FormatExtent"));
+            extentmap.put(Tool.getChildValueByTagName(node, "name"),
+                          Tool.getChildValueByTagName(node, "FormatExtent"));
          }
       }
    }

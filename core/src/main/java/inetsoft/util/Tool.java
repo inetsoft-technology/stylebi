@@ -4889,46 +4889,55 @@ public final class Tool extends CoreTool {
       String firstDayProperty = Tool.firstDayProperty.get();
       String key = String.valueOf(firstDayProperty);
 
-      return firstDayOfWeeks.computeIfAbsent(key, k -> {
-         Integer firstDay = null;
+      return firstDayOfWeeks.computeIfAbsent(key, k -> parseFirstDayOfWeek(firstDayProperty));
+   }
 
-         if(firstDayProperty != null) {
-            switch(firstDayProperty.toLowerCase()) {
-            case "sunday":
-               firstDay = Calendar.SUNDAY;
-               break;
-            case "monday":
-               firstDay = Calendar.MONDAY;
-               break;
-            case "tuesday":
-               firstDay = Calendar.TUESDAY;
-               break;
-            case "wednesday":
-               firstDay = Calendar.WEDNESDAY;
-               break;
-            case "thursday":
-               firstDay = Calendar.THURSDAY;
-               break;
-            case "friday":
-               firstDay = Calendar.FRIDAY;
-               break;
-            case "saturday":
-               firstDay = Calendar.SATURDAY;
-               break;
-            }
-         }
+   /**
+    * Convert a <code>week.start</code> value to a {@link Calendar} day-of-week constant.
+    * The day names Sunday through Saturday are accepted, case-insensitively. A missing or
+    * invalid value gives {@link Calendar#SUNDAY}.
+    *
+    * @param firstDayProperty the property value, may be null.
+    */
+   public static int parseFirstDayOfWeek(String firstDayProperty) {
+      Integer firstDay = null;
 
-         if(firstDay == null) {
-            if(firstDayProperty != null && !firstDayProperty.trim().isEmpty()) {
-               LOG.info("Ignoring invalid week.start value \"" + firstDayProperty +
-                           "\", using Sunday. Valid values are Sunday through Saturday.");
-            }
-
+      if(firstDayProperty != null) {
+         switch(firstDayProperty.toLowerCase()) {
+         case "sunday":
             firstDay = Calendar.SUNDAY;
+            break;
+         case "monday":
+            firstDay = Calendar.MONDAY;
+            break;
+         case "tuesday":
+            firstDay = Calendar.TUESDAY;
+            break;
+         case "wednesday":
+            firstDay = Calendar.WEDNESDAY;
+            break;
+         case "thursday":
+            firstDay = Calendar.THURSDAY;
+            break;
+         case "friday":
+            firstDay = Calendar.FRIDAY;
+            break;
+         case "saturday":
+            firstDay = Calendar.SATURDAY;
+            break;
+         }
+      }
+
+      if(firstDay == null) {
+         if(firstDayProperty != null && !firstDayProperty.trim().isEmpty()) {
+            LOG.info("Ignoring invalid week.start value \"" + firstDayProperty +
+                        "\", using Sunday. Valid values are Sunday through Saturday.");
          }
 
-         return firstDay;
-      });
+         firstDay = Calendar.SUNDAY;
+      }
+
+      return firstDay;
    }
 
    /**

@@ -73,5 +73,14 @@ export default defineConfig({
       // Automatically restore vi.spyOn mocks after each test so static-method
       // spies (e.g. ComponentTool.showMessageDialog) cannot bleed between tests.
       restoreMocks: true,
+      // On CI (the PR build sets CI=true) the web module's tests run while the core tests run in
+      // two 2 GB JVMs on the same 4 vCPU / 16 GB runner. With isolate off, a worker runs many spec
+      // files in one process, and by default each worker may grow its heap to about 4 GB before
+      // the GC holds it back; three of them exhausted the runner's memory and it was shut down.
+      // Use two workers and cap each heap at 2 GB. The web tests still finish well before core.
+      ...(process.env.CI ? {
+         maxWorkers: 2,
+         execArgv: ["--max-old-space-size=2048"],
+      } : {}),
    },
 });

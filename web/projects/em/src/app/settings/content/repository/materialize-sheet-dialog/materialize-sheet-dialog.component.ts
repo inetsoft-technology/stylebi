@@ -18,11 +18,12 @@
 import {
    Component,
    ElementRef,
-   HostListener,
    Inject,
+   OnDestroy,
    OnInit,
    Renderer2
 } from "@angular/core";
+import { Subscription } from "rxjs";
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { RepositoryTreeNode } from "../repository-tree-node";
 import { BaseResizeableDialogComponent } from "../../../../common/util/base-dialog/resize-dialog/base-resizeable-dialog.component";
@@ -30,6 +31,7 @@ import { MatButton } from "@angular/material/button";
 
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { onDialogEscape } from "../../../../common/util/dialog-escape";
 
 @Component({
     selector: "em-materialize-sheet-dialog",
@@ -37,23 +39,25 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     styleUrls: ["./materialize-sheet-dialog.component.scss"],
     imports: [ModalHeaderComponent, MatDialogContent, AnalyzeMvPageComponent, MatDialogActions, MatButton]
 })
-export class MaterializeSheetDialogComponent extends BaseResizeableDialogComponent implements OnInit {
+export class MaterializeSheetDialogComponent extends BaseResizeableDialogComponent implements OnInit, OnDestroy {
    selectedNodes: RepositoryTreeNode[];
    mvChanged = false;
+
+   private escapeSubscription: Subscription;
 
    constructor(public dialog: MatDialogRef<MaterializeSheetDialogComponent>,
                protected renderer: Renderer2, protected element: ElementRef,
                @Inject(MAT_DIALOG_DATA) private data: any) {
       super(renderer, element);
       this.selectedNodes = data;
+      this.escapeSubscription = onDialogEscape(dialog, () => this.dialog.close(null));
    }
 
    ngOnInit() {
    }
 
-   @HostListener("window:keyup.esc", [])
-   onKeyUp() {
-      this.dialog.close(null);
+   ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
    }
 
 }

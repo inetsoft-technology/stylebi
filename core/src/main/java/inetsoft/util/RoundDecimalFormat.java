@@ -24,7 +24,11 @@ import java.math.RoundingMode;
 import java.text.*;
 
 /**
- * A format class that supports different rounding options.
+ * A format class that supports different rounding options. Every option, ROUND_HALF_EVEN
+ * included (Bug #78496), rounds the decimal string of the value like ExtendedDecimalFormat does.
+ * Callers with a double should use format(double, StringBuffer, FieldPosition) with a plain
+ * FieldPosition: the final NumberFormat.format(double) lets the JDK round the binary double of a
+ * ROUND_HALF_EVEN "#,##0.###" (or two digit currency) pattern first.
  */
 public class RoundDecimalFormat extends DecimalFormat {
    // the implicit value before the pattern overrides were added; the serialized fields are unchanged
@@ -73,7 +77,7 @@ public class RoundDecimalFormat extends DecimalFormat {
 
    /**
     * An empty pattern leaves Integer.MAX_VALUE maximum fraction digits, and toPattern() (called
-    * by format() for any rounding other than ROUND_HALF_EVEN) would then build a string of about
+    * by format() for every rounding option since Bug #78496) would then build a string of about
     * 2^31 chars. Keep the empty pattern's formatting but cap the fraction digits at the most a
     * double can show. Unlike substituting a "#,##0.###" pattern, this keeps the JDK's
     * DecimalFormat fast path (which ignores the rounding option) from applying, and gives the
@@ -91,43 +95,39 @@ public class RoundDecimalFormat extends DecimalFormat {
    @Override
    public StringBuffer format(double num, StringBuffer result,
                               FieldPosition fieldPosition) {
-      if(rounding != BigDecimal.ROUND_HALF_EVEN) {
-         // format(double) passes the JDK's DontCareFieldPosition, for which the JDK would try
-         // its HALF_EVEN fast path again; a plain FieldPosition gives the same text without it
-         FieldPosition pos = "java.text.DontCareFieldPosition".equals(
-            fieldPosition.getClass().getName()) ? new FieldPosition(0) : fieldPosition;
+      // format(double) passes the JDK's DontCareFieldPosition, for which the JDK would try
+      // its HALF_EVEN fast path again; a plain FieldPosition gives the same text without it
+      FieldPosition pos = "java.text.DontCareFieldPosition".equals(
+         fieldPosition.getClass().getName()) ? new FieldPosition(0) : fieldPosition;
 
-         // NaN and infinity have no decimal digits to round
-         if(Double.isNaN(num) || Double.isInfinite(num)) {
-            return super.format(num, result, pos);
-         }
-
-         // an exponent pattern shows significant digits, so the digit to round at depends on
-         // the value. The JDK rounding mode is the rounding option, and formatting the decimal
-         // string of the value rounds what the user sees (1.005, not 1.00499999...)
-         if(usesExponent()) {
-            return super.format((Object) new BigDecimal(Double.toString(num)), result, pos);
-         }
-
-         // round at the last displayed digit, which includes the % or per mille multiplier
-         num = roundAtDisplayedDigit(num, getMaximumFractionDigits(), getMultiplier(),
-                                     RoundingMode.valueOf(rounding)).doubleValue();
-
-         // the JDK rounding mode follows the rounding option (so the JDK fast path in
-         // format(double) and the BigDecimal/long paths cannot skip it), but the value is
-         // already rounded here, so round any remaining digits HALF_EVEN as before
-         RoundingMode mode = getRoundingMode();
-         setRoundingMode(RoundingMode.HALF_EVEN);
-
-         try {
-            return super.format(num, result, pos);
-         }
-         finally {
-            setRoundingMode(mode);
-         }
+      // NaN and infinity have no decimal digits to round
+      if(Double.isNaN(num) || Double.isInfinite(num)) {
+         return super.format(num, result, pos);
       }
 
-      return super.format(num, result, fieldPosition);
+      // an exponent pattern shows significant digits, so the digit to round at depends on
+      // the value. The JDK rounding mode is the rounding option, and formatting the decimal
+      // string of the value rounds what the user sees (1.005, not 1.00499999...)
+      if(usesExponent()) {
+         return super.format((Object) new BigDecimal(Double.toString(num)), result, pos);
+      }
+
+      // round at the last displayed digit, which includes the % or per mille multiplier
+      num = roundAtDisplayedDigit(num, getMaximumFractionDigits(), getMultiplier(),
+                                  RoundingMode.valueOf(rounding)).doubleValue();
+
+      // the JDK rounding mode follows the rounding option (so the JDK fast path in
+      // format(double) and the BigDecimal/long paths cannot skip it), but the value is
+      // already rounded here, so round any remaining digits HALF_EVEN as before
+      RoundingMode mode = getRoundingMode();
+      setRoundingMode(RoundingMode.HALF_EVEN);
+
+      try {
+         return super.format(num, result, pos);
+      }
+      finally {
+         setRoundingMode(mode);
+      }
    }
 
    /**

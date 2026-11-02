@@ -30,6 +30,24 @@ public class CombinedDataSetComparator implements Comparator, DataSetComparator 
       this.c2 = c2;
    }
 
+   public String getColumn() {
+      return col;
+   }
+
+   /**
+    * Gets the lower precedence comparator.
+    */
+   public Comparator getFirstComparator() {
+      return c1;
+   }
+
+   /**
+    * Gets the higher precedence comparator.
+    */
+   public Comparator getSecondComparator() {
+      return c2;
+   }
+
    @Override
    public Comparator getComparator(int row) {
       return this;

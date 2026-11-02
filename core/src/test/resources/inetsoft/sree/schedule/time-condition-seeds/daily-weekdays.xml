@@ -1,0 +1,1 @@
+<Condition type="TimeCondition" timeType="1" timezone="28800000:Asia/Shanghai" timeZoneLabel="China" hour="23" minute="59" second="59" hour_end="-1" minute_end="-1" second_end="-1" weekday="true" interval="1"></Condition>

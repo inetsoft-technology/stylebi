@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, HostListener, Inject, OnInit} from "@angular/core";
+import {Component, Inject, OnDestroy, OnInit} from "@angular/core";
+import {Subscription} from "rxjs";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { CommonKVModel } from "../../../../../../../portal/src/app/common/data/common-kv-model";
@@ -26,6 +27,7 @@ import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { onDialogEscape } from "../../../../common/util/dialog-escape";
 import { NgIf } from "@angular/common";
 
 @Component({
@@ -34,10 +36,12 @@ import { NgIf } from "@angular/common";
     styleUrls: ["./add-data-source-type-dialog.component.scss"],
     imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatError, MatDialogActions, MatButton]
 })
-export class AddDataSourceTypeDialogComponent implements OnInit {
+export class AddDataSourceTypeDialogComponent implements OnInit, OnDestroy {
    title: string;
    form: UntypedFormGroup;
    listings: CommonKVModel<string, string>[];
+
+   private escapeSubscription: Subscription;
 
    constructor(private dialogRef: MatDialogRef<AddDataSourceTypeDialogComponent>,
                @Inject(MAT_DIALOG_DATA) data: any, fb: UntypedFormBuilder)
@@ -48,6 +52,7 @@ export class AddDataSourceTypeDialogComponent implements OnInit {
       this.form = fb.group({
          dataSource: ["", [Validators.required, FormValidators.duplicateName(() => currTypes)]]
       });
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
    }
 
    ngOnInit() {
@@ -57,9 +62,8 @@ export class AddDataSourceTypeDialogComponent implements OnInit {
       this.dialogRef.close(this.form.get("dataSource").value);
    }
 
-   @HostListener("window:keyup.esc", [])
-   onKeyUp() {
-      this.cancel();
+   ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
    }
 
    cancel(): void {

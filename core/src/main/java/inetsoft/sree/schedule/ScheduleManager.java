@@ -268,7 +268,15 @@ public class ScheduleManager {
       boolean scheduler = "true".equals(System.getProperty("ScheduleServer"));
 
       Map<ExtTaskKey, ScheduleTask> oldExtensionTasks = new HashMap<>(extensionTasks);
-      removeExtensionTasksOfOrg(orgID);
+
+      // Bug #79263: build the new task set first and swap it in afterwards. The old tasks stay
+      // visible to the unlocked readers (getScheduleTask) while the slow regeneration runs;
+      // emptying the maps first made a run-tasks request in that window fail with "Task not
+      // found".
+      clearExtensionCaches(orgID);
+      Map<ExtTaskKey, ScheduleTask> newTasks = new LinkedHashMap<>();
+      final String finalOrgID = orgID;
+      Map<ExtTaskKey, ScheduleExt> newOwners = new HashMap<>();
 
       // get ext tasks from the exts
       for(ScheduleExt ext : extensions) {
@@ -281,41 +289,54 @@ public class ScheduleManager {
          for(ScheduleTask task : tasks) {
             ExtTaskKey key = createExtensionTaskKey(task);
 
-            if(!extensionTasks.containsKey(key)) {
-               ScheduleTask oldTask = oldExtensionTasks.remove(key);
-               extensionTasks.put(key, task);
-               extensionTaskOwners.put(key, ext);
-
-               // ScheduleTask.equals() ignores cycleInfo, so compare it explicitly to
-               // push notification changes of data cycle tasks to the scheduler
-               if(!scheduler && (!task.equals(oldTask) ||
-                  !Objects.equals(task.getCycleInfo(), oldTask.getCycleInfo())))
-               {
-                  try {
-                     scheduleClient.taskAdded(task);
-                  }
-                  catch(RemoteException e) {
-                     LOG.error("Failed to update scheduler with extension task: " +
-                                  task.getTaskId(), e);
-                  }
-
-                  // Send message to notify UI about the new task (after it's in extensionTasks)
-                  ScheduleTaskMessage message = new ScheduleTaskMessage();
-                  message.setTaskName(task.getTaskId());
-                  message.setTask(task);
-                  message.setAction(oldTask == null ?
-                     ScheduleTaskMessage.Action.ADDED : ScheduleTaskMessage.Action.MODIFIED);
-
-                  try {
-                     getCluster().sendMessage(message);
-                  }
-                  catch(Exception e) {
-                     LOG.debug("Failed to send task message", e);
-                  }
-               }
+            if(!newTasks.containsKey(key)) {
+               newTasks.put(key, task);
+               newOwners.put(key, ext);
             }
             else {
                LOG.warn("Duplicate task found, not added: " + task);
+            }
+         }
+      }
+
+      // swap: publish the new tasks first (owners before tasks), then drop the stale ones of this
+      // org, so a key present before and after the reload is never missing
+      extensionTaskOwners.putAll(newOwners);
+      extensionTasks.putAll(newTasks);
+      extensionTasks.keySet().removeIf(
+         key -> Tool.equals(key.orgId, finalOrgID) && !newTasks.containsKey(key));
+      extensionTaskOwners.keySet().removeIf(
+         key -> Tool.equals(key.orgId, finalOrgID) && !newTasks.containsKey(key));
+
+      for(Map.Entry<ExtTaskKey, ScheduleTask> entry : newTasks.entrySet()) {
+         ScheduleTask task = entry.getValue();
+         ScheduleTask oldTask = oldExtensionTasks.remove(entry.getKey());
+
+         // ScheduleTask.equals() ignores cycleInfo, so compare it explicitly to
+         // push notification changes of data cycle tasks to the scheduler
+         if(!scheduler && (!task.equals(oldTask) ||
+            !Objects.equals(task.getCycleInfo(), oldTask.getCycleInfo())))
+         {
+            try {
+               scheduleClient.taskAdded(task);
+            }
+            catch(RemoteException e) {
+               LOG.error("Failed to update scheduler with extension task: " +
+                            task.getTaskId(), e);
+            }
+
+            // Send message to notify UI about the new task (after it's in extensionTasks)
+            ScheduleTaskMessage message = new ScheduleTaskMessage();
+            message.setTaskName(task.getTaskId());
+            message.setTask(task);
+            message.setAction(oldTask == null ?
+               ScheduleTaskMessage.Action.ADDED : ScheduleTaskMessage.Action.MODIFIED);
+
+            try {
+               getCluster().sendMessage(message);
+            }
+            catch(Exception e) {
+               LOG.debug("Failed to send task message", e);
             }
          }
       }
@@ -2584,18 +2605,23 @@ public class ScheduleManager {
    }
 
    /**
+    * Drops the extensions' own task caches of the org so that the next getTasks regenerates.
+    * Does not touch extensionTasks. Callers must hold extensionLock.
+    */
+   private void clearExtensionCaches(String orgID) {
+      for(ScheduleExt ext : extensions) {
+         if(ext instanceof DataCycleManager) {
+            ((DataCycleManager) ext).clearOrgTasks(orgID);
+         }
+      }
+   }
+
+   /**
     * Callers must hold extensionLock. Must not be synchronized, see the lock ordering note
     * on extensionLock.
     */
    private void removeExtensionTasksOfOrg(String orgID) {
-      for(ScheduleExt ext : extensions) {
-         if(!(ext instanceof DataCycleManager)) {
-            continue;
-         }
-
-         DataCycleManager cycleManager = (DataCycleManager) ext;
-         cycleManager.clearOrgTasks(orgID);
-      }
+      clearExtensionCaches(orgID);
 
       Iterator<ExtTaskKey> it = extensionTasks.keySet().iterator();
 
@@ -3017,6 +3043,51 @@ public class ScheduleManager {
          LOG.error("Failed to save schedule task file after " +
                       "viewsheet was removed: " + entry, ex);
       }
+   }
+
+   /**
+    * Gets the tasks with an action that {@link #viewsheetRemoved} would remove if the viewsheet,
+    * or every viewsheet under the repository folder, were removed. Only the tasks of the
+    * entry's organization are searched, as {@link #viewsheetRemoved} does.
+    *
+    * @param entry a viewsheet or a repository folder.
+    *
+    * @return the matching tasks, each listed once.
+    */
+   public synchronized List<ScheduleTask> getTasksUsingViewsheet(AssetEntry entry) {
+      List<ScheduleTask> result = new ArrayList<>();
+
+      for(ScheduleTask task : getOrgTaskMap(entry.getOrgID()).values()) {
+         if(task == null) {
+            continue;
+         }
+
+         for(int j = 0; j < task.getActionCount(); j++) {
+            if(task.getAction(j) instanceof ViewsheetSupport &&
+               isViewsheetIn(((ViewsheetSupport) task.getAction(j)).getViewsheetName(), entry))
+            {
+               result.add(task);
+               break;
+            }
+         }
+      }
+
+      return result;
+   }
+
+   private static boolean isViewsheetIn(String vsId, AssetEntry entry) {
+      if(vsId == null) {
+         return false;
+      }
+
+      if(!entry.isRepositoryFolder()) {
+         return entry.toIdentifier().equals(vsId);
+      }
+
+      AssetEntry vs = AssetEntry.createAssetEntry(vsId);
+      return vs != null && vs.isViewsheet() && vs.getScope() == entry.getScope() &&
+         Tool.equals(vs.getUser(), entry.getUser()) &&
+         (entry.isRoot() || vs.getPath().startsWith(entry.getPath() + "/"));
    }
 
    /**

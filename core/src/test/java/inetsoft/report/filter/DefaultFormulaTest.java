@@ -135,18 +135,18 @@ public class DefaultFormulaTest {
    // -----------------------------------------------------------------------
 
    @Test
-   void addValue_object_overwritesPreviousObject() {
+   void addValue_object_keepsFirstObject() {
+      // Bug #79768: aggregate None shows the first row's value, not the last
       formula.addValue("first");
       formula.addValue("second");
-      assertEquals("second", formula.getResult());
+      assertEquals("first", formula.getResult());
    }
 
    @Test
-   void addValue_nullObject_storesNull() {
+   void addValue_nullObject_doesNotReplaceFirst() {
       formula.addValue("something");
       formula.addValue((Object) null);
-      // v is now null, but double was never set; result is null
-      assertNull(formula.getResult());
+      assertEquals("something", formula.getResult());
    }
 
    // -----------------------------------------------------------------------
@@ -160,10 +160,10 @@ public class DefaultFormulaTest {
    }
 
    @Test
-   void addValueDouble_overwritesPreviousDouble() {
+   void addValueDouble_keepsFirstDouble() {
       formula.addValue(1.0);
       formula.addValue(9.9);
-      assertEquals(9.9, formula.getResult());
+      assertEquals(1.0, formula.getResult());
    }
 
    // -----------------------------------------------------------------------
@@ -243,9 +243,6 @@ public class DefaultFormulaTest {
 
    @Test
    void reset_clearsNumericSlots() {
-      // reset() clears all numeric slots (dv, fv, lv, iv, sinited) but does NOT clear
-      // the Object slot (v). After reset, isNull() returns true (dv is sentinel) and
-      // getResult() returns null only if no Object value was added.
       formula.addValue(1.0);
       formula.addValue(2.0f);
       formula.addValue(3L);
@@ -257,12 +254,14 @@ public class DefaultFormulaTest {
    }
 
    @Test
-   void reset_doesNotClearObjectSlot() {
-      // reset() only resets numeric slots; the Object slot (v) is not cleared.
+   void reset_clearsObjectSlot() {
+      // reset() must also clear the Object slot, otherwise the first value of a
+      // previous group would be kept for the next one
       formula.addValue("text");
       formula.reset();
-      // v still holds "text" — getResult() returns it
-      assertEquals("text", formula.getResult());
+      assertNull(formula.getResult());
+      formula.addValue("next");
+      assertEquals("next", formula.getResult());
    }
 
    @Test

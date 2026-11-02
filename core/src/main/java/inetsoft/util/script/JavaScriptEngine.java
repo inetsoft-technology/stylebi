@@ -397,6 +397,13 @@ public class JavaScriptEngine {
          fmt = new DecimalFormat(fmtstr);
       }
 
+      // NumberFormat.format(double) is final and lets the JDK round the binary double of a
+      // ROUND_HALF_EVEN "#,##0.###" pattern before RoundDecimalFormat can round the decimal
+      // string, so use the overload RoundDecimalFormat overrides (Bug #78496)
+      if(fmt instanceof RoundDecimalFormat) {
+         return fmt.format(num, new StringBuffer(), new FieldPosition(0)).toString();
+      }
+
       return fmt.format(num);
    }
 

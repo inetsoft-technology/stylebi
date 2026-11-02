@@ -44,6 +44,12 @@ public class VSOval extends VSShape {
    protected void paintShape(Graphics2D g) {
       g.setColor(getForeground());
       int style = getLineStyle();
+
+      // if there is no border do not draw anything
+      if(style == StyleConstants.NO_BORDER) {
+         return;
+      }
+
       g.setStroke(GTool.getStroke(style));
       g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                           RenderingHints.VALUE_ANTIALIAS_ON);

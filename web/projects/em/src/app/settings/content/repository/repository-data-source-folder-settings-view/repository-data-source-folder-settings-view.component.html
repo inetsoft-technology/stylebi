@@ -43,7 +43,7 @@
                       _#(asset.tree.checkStart)
                     </mat-error>
                     <mat-error *ngIf="form.controls.folderName?.errors?.duplicateName">
-                      _#(em.common.folder.nameDuplicate) _#(and) _#(em.repletFolderName.existAlert2)
+                      _#(em.dataSource.folderNameDuplicate)
                     </mat-error>
                   </mat-form-field>
                   @if (model?.folderMeta) {

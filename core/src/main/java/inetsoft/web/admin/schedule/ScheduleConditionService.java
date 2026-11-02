@@ -23,6 +23,8 @@ import inetsoft.sree.schedule.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.MessageException;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeConditionModel;
@@ -96,6 +98,29 @@ public class ScheduleConditionService {
     * Convert a model to a schedule condition.
     */
    public ScheduleCondition getConditionFromModel(ScheduleConditionModel model)
+      throws Exception
+   {
+      return getConditionFromModel(model, true);
+   }
+
+   /**
+    * Checks the time of day of a condition model before anything is written (Bug #79236), so a
+    * refused condition leaves what is stored untouched.
+    *
+    * @throws MessageException if a time field is out of range.
+    */
+   public void validateModel(ScheduleConditionModel model) throws Exception {
+      getConditionFromModel(model, true);
+   }
+
+   /**
+    * Convert a model to a schedule condition.
+    *
+    * @param validate <code>true</code> to refuse a time field out of range (a model from the
+    *                 client), <code>false</code> for the model of a stored condition, which is
+    *                 converted only to compare it and must not fail for old data.
+    */
+   public ScheduleCondition getConditionFromModel(ScheduleConditionModel model, boolean validate)
       throws Exception
    {
       ScheduleCondition condition;
@@ -174,6 +199,16 @@ public class ScheduleConditionService {
          }
 
          if(timeCondition != null) {
+            // Bug #79236, an hour or minute out of range can repeat a fire of the task
+            try {
+               if(validate) {
+                  timeCondition.validateRanges();
+               }
+            }
+            catch(IllegalArgumentException e) {
+               throw new MessageException(e.getMessage(), LogLevel.WARN, false);
+            }
+
             timeCondition.setTimeRange(timeRange);
 
             if(timeConditionModel.timeZone() != null) {

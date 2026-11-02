@@ -68,6 +68,28 @@ public class SummaryFilterTest {
       });
    }
 
+   // Bug #79768: a summary with no aggregation shows the first value of the group
+   @Test
+   public void noneFormulaKeepsFirstValue() {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2"},
+         {"a", 10},
+         {"a", 5},
+         {"b", 7},
+         {"b", 6}
+      });
+
+      final SummaryFilter summary = new SummaryFilter(
+         tbl1, new int[] {0}, new int[] {1}, new DefaultFormula(), null);
+      summary.moreRows(Integer.MAX_VALUE);
+
+      XTableUtil.assertEquals(summary, new Object[][] {
+         {"col1", "col2"},
+         {"a", 10},
+         {"b", 7}
+      });
+   }
+
    // Bug #78458: a cell set by setObject() must not make the other cells read the
    // "undefined" sentinel of the cell value matrix
    @Test

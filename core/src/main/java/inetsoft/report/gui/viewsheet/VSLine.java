@@ -72,7 +72,12 @@ public class VSLine extends VSShape {
                             RenderingHints.VALUE_ANTIALIAS_ON);
       }
 
-      if(style == StyleConstants.DOUBLE_LINE) {
+      // a zero-width stroke is a 1px hairline in Java2D, so skip the line itself
+      // (arrows are still drawn, as in the browser)
+      if(style == StyleConstants.NO_BORDER) {
+         // do nothing
+      }
+      else if(style == StyleConstants.DOUBLE_LINE) {
          drawDoubleLine(g, start, end);
       }
       else {

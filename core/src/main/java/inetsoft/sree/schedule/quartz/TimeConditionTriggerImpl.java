@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule.quartz;
 
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.schedule.TimeCondition;
 import org.quartz.ScheduleBuilder;
 
@@ -46,7 +47,8 @@ public class TimeConditionTriggerImpl
 
       // Pass afterTime as lastRun so interval-based scheduling (every N days/weeks)
       // anchors from the last fire time rather than the current time.
-      long ts = condition.getRetryTime(afterTime.getTime() + 30000, afterTime.getTime());
+      long ts = condition.getRetryTime(afterTime.getTime() + 30000, afterTime.getTime(),
+                                      ScheduleTask.getOrgId(getName()));
       return ts >= 0 ? new Date(ts) : null;
    }
 }

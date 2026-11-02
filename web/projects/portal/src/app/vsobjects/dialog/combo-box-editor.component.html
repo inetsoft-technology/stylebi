@@ -112,7 +112,7 @@
         <div class="row shell-form-row--field">
           @if (!model.calendar || (model.calendar && !model.embedded)) {
             <div #dropDownBody class="col form-floating dropDownBody">
-              @if (valueList?.length < 500) {
+              @if (valueList?.length <= 500) {
                 <custom-select
                            class="w-100 defaultvalue"
                            id="defaultvalue"
@@ -126,6 +126,7 @@
                   [disabled]="model.noDefault || !(model.query || model.embedded)"
                   [class.disabled]="model.noDefault || !(model.query || model.embedded)"
                   [fixedDropdown]="dropdownOptions" dropdownPlacement="bottom">
+                  {{ defaultValueText }}
                 </div>
               }
               <label>_#(Default Value)</label>

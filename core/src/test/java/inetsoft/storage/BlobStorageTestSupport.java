@@ -46,8 +46,10 @@ public final class BlobStorageTestSupport {
    public static String awaitEventBarrier() {
       long millis = timeoutMillis;
 
+      StringBuilder stuck = new StringBuilder();
+
       try {
-         if(BlobStorage.awaitClosedEventExecutors(millis, TimeUnit.MILLISECONDS)) {
+         if(BlobStorage.awaitClosedEventExecutors(millis, TimeUnit.MILLISECONDS, stuck)) {
             return null;
          }
       }
@@ -58,7 +60,8 @@ public final class BlobStorageTestSupport {
 
       StringBuilder message = new StringBuilder()
          .append("The events queued on the BlobStorageEvent threads of the closed blob storages ")
-         .append("did not run within ").append(millis).append(" ms. BlobStorageEvent threads:");
+         .append("did not run within ").append(millis).append(" ms. Executor: ").append(stuck)
+         .append(". BlobStorageEvent threads:");
 
       for(Map.Entry<Thread, StackTraceElement[]> entry : Thread.getAllStackTraces().entrySet()) {
          Thread thread = entry.getKey();

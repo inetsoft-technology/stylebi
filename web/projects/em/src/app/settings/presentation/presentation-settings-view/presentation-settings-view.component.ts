@@ -274,6 +274,10 @@ export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
                   this.modelClone = Tool.clone(newModel);
                   this.saveModel = <PresentationSettingsModel> {};
                   this.changed = false;
+                  // Bug #78724, the section views take the reset model without reporting
+                  // their validity again. Only clear it once the reset succeeded: after a
+                  // cancel or a failed request the invalid edit is still pending.
+                  this.validModels.clear();
                });
          }
       });

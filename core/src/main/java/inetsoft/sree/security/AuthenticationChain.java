@@ -17,14 +17,20 @@
  */
 package inetsoft.sree.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.ShutdownException;
 import inetsoft.web.admin.security.AuthenticationProvidersChanged;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * {@code AuthenticationChain} wraps a list of authentication providers. When authorizing or getting
@@ -47,11 +53,99 @@ public class AuthenticationChain
 
    @Override
    public User getUser(IdentityID userIdentity) {
-      return stream()
-         .map(p -> p.getUser(userIdentity))
-         .filter(Objects::nonNull)
-         .findFirst()
-         .orElseGet(() -> getExternalUser(userIdentity));
+      RuntimeException failure = null;
+
+      for(AuthenticationProvider p : getProviders()) {
+         try {
+            User user = p.getUser(userIdentity);
+
+            if(user != null) {
+               return user;
+            }
+         }
+         catch(RuntimeException e) {
+            if(e instanceof ShutdownException) {
+               throw e;
+            }
+
+            warnSkippedProvider(p, userIdentity, e);
+
+            if(failure == null) {
+               failure = e;
+            }
+            else if(e != failure) {
+               failure.addSuppressed(e);
+            }
+         }
+      }
+
+      // A failure is never reported as "absent" (null): only a positive answer from a later
+      // provider can supersede it (Bug #79268). If nothing answered, the failure surfaces as
+      // it always did.
+      if(failure != null) {
+         throw failure;
+      }
+
+      return getExternalUser(userIdentity);
+   }
+
+   /**
+    * Finds the provider that owns a user, together with the user. A provider whose lookup
+    * fails is not the owner: it is skipped and the next provider is asked. Use this instead of
+    * calling {@code getUser} on each provider when only the owner is wanted.
+    * <p>
+    * Caveat: if an earlier provider fails and a later provider owns a user with the same
+    * identity, the later provider is returned. Authentication against it still needs that
+    * account's own credential.
+    *
+    * @return the owner or <tt>null</tt> if no provider answered with a user.
+    */
+   public UserOwner findUserOwner(IdentityID userIdentity) {
+      for(AuthenticationProvider p : getProviders()) {
+         try {
+            User user = p.getUser(userIdentity);
+
+            if(user != null) {
+               return new UserOwner(p, user);
+            }
+         }
+         catch(RuntimeException e) {
+            if(e instanceof ShutdownException) {
+               throw e;
+            }
+
+            warnSkippedProvider(p, userIdentity, e);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Logs, at most once per provider per minute, that a provider failed a user lookup and was
+    * skipped. The stack trace is logged at debug level only.
+    */
+   public static void warnSkippedProvider(AuthenticationProvider provider, IdentityID user,
+                                          Exception e)
+   {
+      String name = String.valueOf(provider.getProviderName());
+      long now = System.currentTimeMillis();
+      Long last = SKIP_WARNINGS.get(name);
+
+      if(last == null || now - last >= SKIP_WARNING_INTERVAL) {
+         SKIP_WARNINGS.put(name, now);
+         LOG.warn("Provider {} failed to look up user {}, skipping it (further failures " +
+                  "are logged at debug level for {} s): {}", name, user,
+                  SKIP_WARNING_INTERVAL / 1000, e.toString());
+      }
+
+      LOG.debug("Provider {} failed to look up user {}", name, user, e);
+   }
+
+   /**
+    * The provider that owns a user and the user it returned.
+    */
+   public record UserOwner(AuthenticationProvider provider, User user) {
    }
 
    @Override
@@ -105,9 +199,11 @@ public class AuthenticationChain
          return new String[0];
       }
 
+      // call each provider once, the call can be expensive (e.g. scans a distributed map)
       return stream()
-         .filter(p -> p.getOrganizationIDs() != null)
-         .flatMap(p -> Arrays.stream(p.getOrganizationIDs()))
+         .map(AuthenticationProvider::getOrganizationIDs)
+         .filter(Objects::nonNull)
+         .flatMap(Arrays::stream)
          .distinct()
          .toArray(String[]::new);
    }
@@ -137,10 +233,21 @@ public class AuthenticationChain
    @Override
    @Deprecated
    public String[] getEmails(IdentityID userIdentity) {
-      return stream()
-         .flatMap(p -> Arrays.stream(p.getEmails(userIdentity)))
-         .distinct()
-         .toArray(String[]::new);
+      List<AuthenticationProvider> providers = getProviders();
+
+      if(providers.size() == 1) {
+         // the only provider, asking it directly is cheaper than building the user (as before)
+         String[] emails = providers.get(0).getEmails(userIdentity);
+         return emails == null ?
+            new String[0] : Arrays.stream(emails).distinct().toArray(String[]::new);
+      }
+
+      // Ask only the provider that owns the user (the first one that has it, as in getUser), like
+      // SUtil.getEmails does, so the other providers aren't queried for a user they don't have.
+      User user = getUser(userIdentity);
+      String[] emails = user == null ? null : user.getEmails();
+      return emails == null ?
+         new String[0] : Arrays.stream(emails).distinct().toArray(String[]::new);
    }
 
    @Override
@@ -255,15 +362,12 @@ public class AuthenticationChain
 
    @Override
    public boolean authenticate(IdentityID userIdentity, Object credential) {
-      for(AuthenticationProvider provider : getProviders()) {
-         // Use the first provider that contains the user to authenticate. This is intentionally
-         // different from checking if the authentication is successful with any provider.
-         if(provider.getUser(userIdentity) != null) {
-            return provider.authenticate(userIdentity, credential);
-         }
-      }
-
-      return false;
+      // Use the first provider that contains the user to authenticate. This is intentionally
+      // different from checking if the authentication is successful with any provider. A
+      // provider that fails the lookup is skipped (Bug #79268); see findUserOwner for the
+      // same-name caveat. An exception from authenticate() itself still propagates.
+      UserOwner owner = findUserOwner(userIdentity);
+      return owner != null && owner.provider().authenticate(userIdentity, credential);
    }
 
    @Override
@@ -354,6 +458,115 @@ public class AuthenticationChain
    }
 
    @Override
+   Map<String, String> describeProviders(List<AuthenticationProvider> list) {
+      Map<String, String> result = new HashMap<>();
+
+      for(AuthenticationProvider provider : list) {
+         if(provider instanceof DatabaseAuthenticationProvider db) {
+            result.put(db.getProviderName(), describeCacheConfiguration(db));
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Refreshes the cluster cache of each Database provider whose configuration the reload
+    * added or changed. The cache state of a provider name outlives a removed provider, and on
+    * the singleton host this refresh is the first one that runs after the host's chain has the
+    * new configuration, so it loads that configuration (Bug #78793).
+    * <p>
+    * The refreshes connect to the cache service on the singleton host, so they run on their own
+    * thread rather than on the storage event thread that calls this. They are submitted after
+    * the new providers are in the chain and run in order.
+    */
+   @Override
+   void providersReloaded(Map<String, String> before, List<AuthenticationProvider> list) {
+      List<DatabaseAuthenticationProvider> changed = new ArrayList<>();
+
+      for(AuthenticationProvider provider : list) {
+         if(provider instanceof DatabaseAuthenticationProvider db && db.isCacheEnabled()) {
+            String old = before.get(db.getProviderName());
+
+            if(old == null || !old.equals(describeCacheConfiguration(db))) {
+               changed.add(db);
+            }
+         }
+      }
+
+      if(!changed.isEmpty()) {
+         RELOAD_EXECUTOR.execute(() -> refreshReloaded(changed));
+      }
+   }
+
+   private void refreshReloaded(List<DatabaseAuthenticationProvider> providers) {
+      for(DatabaseAuthenticationProvider changed : providers) {
+         // A later reload may have replaced it: refresh the current provider of that name. A
+         // reload holds the reload lock until it has published the new list and disposed the
+         // old providers, so wait for it and read the list afterwards.
+         String waiter = "the cache refresh of security provider " + changed.getProviderName();
+         DatabaseAuthenticationProvider db = getProvidersAfterReload(waiter).stream()
+            .filter(p -> p instanceof DatabaseAuthenticationProvider &&
+                         Objects.equals(p.getProviderName(), changed.getProviderName()))
+            .map(DatabaseAuthenticationProvider.class::cast)
+            .filter(DatabaseAuthenticationProvider::isCacheEnabled)
+            .findFirst().orElse(null);
+
+         if(db == null) {
+            continue;
+         }
+
+         try {
+            db.clearCache();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to refresh the cache of security provider {}",
+                     db.getProviderName(), e);
+         }
+      }
+   }
+
+   /**
+    * Describes the configuration that a Database provider loads its cache with, for comparing
+    * the same provider name before and after a reload on this node. The encrypted credential is
+    * replaced by its non-secret part: it is encrypted with a random IV, so it differs on every
+    * write, and a password change doesn't change the data the cache loads. Null values are
+    * written as empty strings, as a provider read from the file has them.
+    *
+    * @return the description, or {@code null} if the configuration could not be written.
+    */
+   private static String describeCacheConfiguration(DatabaseAuthenticationProvider provider) {
+      try {
+         ObjectNode config = (ObjectNode) provider.writeConfiguration(new ObjectMapper());
+         String login = "";
+
+         if(provider.isRequiresLogin()) {
+            login = provider.isUseCredential() ?
+               "secret:" + provider.getSecretId() :
+               "user:" + Objects.toString(provider.getDbUser(), "");
+         }
+
+         config.put("credential", login);
+         List<String> nulls = new ArrayList<>();
+         config.fields().forEachRemaining(e -> {
+            if(e.getValue().isNull()) {
+               nulls.add(e.getKey());
+            }
+         });
+
+         for(String field : nulls) {
+            config.put(field, "");
+         }
+
+         return provider.getClass().getName() + ":" + config;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to describe security provider {}", provider.getProviderName(), e);
+         return null;
+      }
+   }
+
+   @Override
    public String getProviderName() {
       return chainName;
    }
@@ -365,7 +578,9 @@ public class AuthenticationChain
 
    @Override
    void setProviderList(List<AuthenticationProvider> list) {
-      stream()
+      // Without the chain's read lock: a reload calls this while it holds the reload lock, and an
+      // edit holding the write lock waits for the reload lock when it saves the chain.
+      getProviderList().stream()
          .filter(EditableAuthenticationProvider.class::isInstance)
          .map(EditableAuthenticationProvider.class::cast)
          .forEach(l -> l.removeAuthenticationChangeListener(changeDelegate));
@@ -379,7 +594,7 @@ public class AuthenticationChain
          LOG.debug("Failed to send authentication providers changed message", ex);
       }
 
-      stream()
+      list.stream()
          .filter(EditableAuthenticationProvider.class::isInstance)
          .map(EditableAuthenticationProvider.class::cast)
          .forEach(l -> l.addAuthenticationChangeListener(changeDelegate));
@@ -435,4 +650,12 @@ public class AuthenticationChain
    };
 
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationChain.class);
+   private static final long SKIP_WARNING_INTERVAL = 60000L;
+   private static final Map<String, Long> SKIP_WARNINGS = new java.util.concurrent.ConcurrentHashMap<>();
+   // runs the cache refreshes after a chain reload, in order, off the storage event thread
+   private static final ExecutorService RELOAD_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+      Thread thread = new Thread(r, "AuthenticationChainReload");
+      thread.setDaemon(true);
+      return thread;
+   });
 }

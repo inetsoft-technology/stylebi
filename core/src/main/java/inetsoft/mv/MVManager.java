@@ -1239,7 +1239,7 @@ public final class MVManager implements MessageListener {
                   MVDef mvDef = mvs.get(key, orgID);
 
                   if(mvDef != null) {
-                     defs.add(mvs.get(key, orgID));
+                     defs.add(mvDef);
                   }
                   else {
                      LOG.warn("Can not find the MV definition: " + key + " " + orgID);

@@ -21,12 +21,15 @@ import inetsoft.mv.SharedMVUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.log.LogLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +37,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import static inetsoft.uql.asset.AssetRepository.REPORT_SCOPE;
 
@@ -75,6 +79,59 @@ public final class RecycleUtils {
          RECYCLE_BIN_FOLDER : RECYCLE_BIN_FOLDER + "/" + path;
    }
 
+   /**
+    * Refuses to remove a viewsheet that a scheduled task's action uses. Moving it to the
+    * recycle bin drops the action ({@link ScheduleManager#viewsheetRemoved}), and a restore
+    * doesn't bring it back; deleting it outright leaves the action naming a missing sheet.
+    *
+    * @param entry a viewsheet, or a repository folder to check every viewsheet under it. Any
+    *              other entry, and one already in the recycle bin, is not checked.
+    *
+    * @throws MessageException naming the tasks, if any task uses it.
+    */
+   public static void checkScheduledTasks(AssetEntry entry) {
+      if(entry == null || isInRecycleBin(entry.getPath()) ||
+         !entry.isViewsheet() && !entry.isRepositoryFolder())
+      {
+         return;
+      }
+
+      List<ScheduleTask> tasks =
+         ScheduleManager.getScheduleManager().getTasksUsingViewsheet(entry);
+
+      if(!tasks.isEmpty()) {
+         String key = entry.isRepositoryFolder() ?
+            "viewer.viewsheet.deleteFolderInSchedule" : "viewer.viewsheet.deleteInSchedule";
+         String names = tasks.stream().map(ScheduleTask::getName)
+            .collect(Collectors.joining(", "));
+         throw new MessageException(
+            Catalog.getCatalog().getString(key, entry.getName(), names),
+            LogLevel.DEBUG, false, ConfirmException.ERROR);
+      }
+   }
+
+   /**
+    * Refuses to remove a repository folder holding a viewsheet that a scheduled task uses.
+    *
+    * @param path  the folder's repository path, under {@link Tool#MY_DASHBOARD} for a user's own.
+    * @param owner the owner of a folder under {@link Tool#MY_DASHBOARD}.
+    *
+    * @throws MessageException naming the tasks, if any task uses such a viewsheet.
+    */
+   public static void checkScheduledTasks(String path, IdentityID owner) {
+      boolean my = SUtil.isMyDashboard(path);
+      String assetPath = path;
+
+      if(my) {
+         int idx = path.indexOf('/');
+         assetPath = idx < 0 ? "/" : path.substring(idx + 1);
+      }
+
+      checkScheduledTasks(new AssetEntry(
+         my ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.REPOSITORY_FOLDER, assetPath, my ? owner : null));
+   }
+
    public static void moveRepositoryToRecycleBin(RepositoryEntry entry, Principal principal,
                                                  RecycleBin recycleBin, boolean force)
       throws Exception
@@ -105,6 +162,9 @@ public final class RecycleUtils {
       if(path != null && owner != null && !SUtil.isMyReport(path)) {
          path = Tool.MY_DASHBOARD + "/" + path;
       }
+
+      // a confirmed (forced) delete must not drop a task's action either
+      checkScheduledTasks(path, owner);
 
       if(!force) {
          // Must run outside the try below, which would wrap the ConfirmException in a
@@ -208,6 +268,8 @@ public final class RecycleUtils {
       throws Exception
    {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
+      // a confirmed (forced) delete must not drop a task's action either
+      checkScheduledTasks(oldEntry);
 
       if(!force) {
          repository.checkSheetRemoveable(oldEntry, principal);

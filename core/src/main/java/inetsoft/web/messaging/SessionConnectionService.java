@@ -230,25 +230,25 @@ public class SessionConnectionService {
 
    private void authenticationChanged(AuthenticationChangeEvent event) {
       if(event.getType() == Identity.ORGANIZATION) {
-         SecurityProvider provider = securityEngine.getSecurityProvider();
-         String oldOrgName = event.getOldID() == null ? null : event.getOldID().name;
-         String newOrgName = event.getNewID() == null ? null : event.getNewID().name;
          String oldOrgId = event.getOldOrgID();
          String newOrgID = event.getNewOrgID();
 
-         if(!Tool.equals(oldOrgName, newOrgName)) {
-            logoutOutSessionUsersContainingOrg(oldOrgName, oldOrgId);
-         }
-         else if(!Tool.equals(oldOrgId, newOrgID)) {
-            logoutOutSessionUsersContainingOrg(oldOrgName, oldOrgId);
+         // sessions are bound to the organization id, so only a removed organization or a changed
+         // id leaves them stale; a display name change does not (Bug #79536)
+         if(event.isRemoved() || !Tool.equals(oldOrgId, newOrgID)) {
+            logoutOutSessionUsersContainingOrg(oldOrgId);
          }
       }
 
    }
 
-   private void logoutOutSessionUsersContainingOrg(String oldOrgName, String oldOrgId) {
+   private void logoutOutSessionUsersContainingOrg(String oldOrgId) {
+      if(oldOrgId == null) {
+         return;
+      }
+
       for(SRPrincipal principal : sessionRepository.getActiveSessions()) {
-         if(principal != null && (Tool.equals(oldOrgName, principal.getIdentityID().orgID) ||
+         if(principal != null && (Tool.equals(oldOrgId, principal.getIdentityID().orgID) ||
                                   Tool.equals(oldOrgId, principal.getOrgId()))) {
             Map<String, IgniteSessionRepository.IgniteSession> map =
                sessionRepository.findByIndexNameAndIndexValue(
@@ -258,7 +258,7 @@ public class SessionConnectionService {
                SRPrincipal sessionPrincipal =
                   e.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
-               if(sessionPrincipal != null && Tool.equals(oldOrgName, sessionPrincipal.getIdentityID().orgID)) {
+               if(sessionPrincipal != null && Tool.equals(oldOrgId, sessionPrincipal.getIdentityID().orgID)) {
                   authenticationService.logout(sessionPrincipal, sessionPrincipal.getHost(), "", false);
                }
             }

@@ -18,6 +18,7 @@
 package inetsoft.util.dep;
 
 import inetsoft.sree.security.*;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -29,6 +30,7 @@ import org.w3c.dom.Element;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
@@ -255,6 +257,7 @@ public class XPartitionAsset extends AbstractXAsset implements FolderChangeableA
          }
 
          getModel().addPartition(partition, isImport);
+         addFolder(model, partition.getFolder());
       }
 
       if(extended != null && base != null) {
@@ -264,6 +267,20 @@ public class XPartitionAsset extends AbstractXAsset implements FolderChangeableA
 
          base.addPartition(partition, isImport);
       }
+   }
+
+   /**
+    * Registers the folder of an imported partition in the data model. The folders of the data
+    * model are only imported with the data source, which is skipped when the data source exists
+    * and overwrite is off, and the tree lists a partition only under a registered folder.
+    */
+   private static void addFolder(XDataModel model, String folder) throws Exception {
+      if(folder == null || folder.isEmpty() || Arrays.asList(model.getFolders()).contains(folder)) {
+         return;
+      }
+
+      model.addFolder(folder);
+      XRepository.getRepository().updateDataModel(model);
    }
 
    /**

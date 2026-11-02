@@ -68,6 +68,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
       String url = getLdapProtocol() + getHost() + ':' + getPort();
       env.put(Context.PROVIDER_URL, url);
+      applyTimeouts(env);
 
       String user = getLdapAdministrator() + ',' + getRootDn();
       String password = getPassword();

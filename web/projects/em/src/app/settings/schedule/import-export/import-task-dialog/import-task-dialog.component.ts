@@ -16,14 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
-import { Component, HostBinding, HostListener, Inject, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogTitle, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { catchError } from "rxjs/operators";
-import { Observable, throwError } from "rxjs";
+import { Observable, Subscription, throwError } from "rxjs";
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { SelectionModel } from "@angular/cdk/collections";
 import { ImportTaskResponse } from "../../model/import-task-response";
+import { onDialogEscape } from "../../../../common/util/dialog-escape";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { TaskDependencyModel } from "../../model/task-dependency-model";
 import { ImportTaskDialogModel } from "../../model/import-task-dialog-model";
@@ -44,7 +45,7 @@ import { NgIf } from "@angular/common";
     encapsulation: ViewEncapsulation.None,
     imports: [NgIf, MatDialogTitle, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatCheckbox, MatCardTitle, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
 })
-export class ImportTaskDialogComponent {
+export class ImportTaskDialogComponent implements OnDestroy {
    @HostBinding("class") hostClass = "import-task-dialog";
    uploadForm: UntypedFormGroup;
    importForm: UntypedFormGroup;
@@ -89,6 +90,8 @@ export class ImportTaskDialogComponent {
 
    private _model: ImportTaskDialogModel;
 
+   private escapeSubscription: Subscription;
+
    constructor(private http: HttpClient, private dialog: MatDialog,
                private dialogRef: MatDialogRef<ImportTaskDialogComponent>,
                @Inject(MAT_DIALOG_DATA) data: any, fb: UntypedFormBuilder)
@@ -99,6 +102,11 @@ export class ImportTaskDialogComponent {
       this.importForm = fb.group({
          overwrite: [true]
       });
+      this.escapeSubscription = onDialogEscape(dialogRef, () => this.cancel());
+   }
+
+   ngOnDestroy(): void {
+      this.escapeSubscription.unsubscribe();
    }
 
    upload(): void {
@@ -175,11 +183,6 @@ export class ImportTaskDialogComponent {
          }
       });
       return throwError(error);
-   }
-
-   @HostListener("window:keyup.esc", [])
-   onKeyUp(): void {
-      this.cancel();
    }
 
    cancel(): void {

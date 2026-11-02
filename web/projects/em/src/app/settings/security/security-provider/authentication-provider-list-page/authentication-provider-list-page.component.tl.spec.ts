@@ -26,6 +26,7 @@
  *   Group 4 [Risk 2]  — reorder: out-of-bounds destination fires POST before server-side bounds check
  *   Group 5 [Risk 2]  — copyProvider: duplicate-name guard prevents double-push
  *   Group 6 [Risk 2]  — polling lifecycle: 5 s timer starts on init, stops cleanly on destroy
+ *   Group 7 [Risk 3]  — drag to reorder: real DOM drag on the list saves through reorder() (Bug #78723)
  *
  * KEY contracts: DELETE endpoint is /remove-authentication-provider/${index} — positional, not name-based.
  *               Poll fires via timer(0, 5000) + concatMap and replaces the whole authenticationProviders reference.
@@ -491,5 +492,143 @@ describe("AuthenticationProviderViewComponent — polling lifecycle", () => {
       fixture.destroy();
 
       expect(destroy$.isStopped).toBe(true);
+   });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Group 7 [Risk 3] — drag to reorder (Bug #78723), real DOM drag events on the rendered list
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("AuthenticationProviderViewComponent — drag to reorder (Bug #78723)", () => {
+
+   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+   function fire(el: Element, type: string): void {
+      const event: any = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "dataTransfer", {
+         value: { effectAllowed: "", dropEffect: "", setData: () => {}, getData: () => "" },
+      });
+      el.dispatchEvent(event);
+   }
+
+   const rowsOf = (root: Element) => Array.from(root.querySelectorAll("mat-list-item.list-item"));
+   const namesOf = (root: Element) =>
+      rowsOf(root).map(row => row.querySelector(".provider-name").textContent.trim());
+
+   /** Drag row `from` over the rows in `over` and drop it; dragenter bubbles from the row's label. */
+   function drag(root: Element, from: number, over: number[]): void {
+      const source = rowsOf(root)[from];
+      fire(source, "dragstart");
+      over.forEach(i => fire(rowsOf(root)[i].querySelector(".provider-name"), "dragenter"));
+      fire(source, "dragend");
+   }
+
+   /**
+    * Renders the page with a server whose polls return the saved order and whose reorder POST
+    * applies the move, as AuthenticationProviderService/AuthorizationProviderService do.
+    */
+   async function renderWithServer(initial: SecurityProviderStatus[], failPost = false) {
+      const state = { list: initial.map(p => ({ ...p })), posts: [] as any[], polls: 0 };
+      const result = await renderComponent({ initialProviders: initial });
+      server.use(
+         http.get("*/api/em/security/configured-authentication-providers", () => {
+            state.polls++;
+            return HttpResponse.json({ providers: state.list.map(p => ({ ...p })) });
+         }),
+         http.post("*/api/em/security/reorder-authentication-providers", async ({ request }) => {
+            const body: any = await request.json();
+            state.posts.push(body);
+
+            if(failPost) {
+               return HttpResponse.json({}, { status: 500, statusText: "Server Error" });
+            }
+
+            const [moved] = state.list.splice(body.source, 1);
+            state.list.splice(body.destination, 0, moved);
+            return HttpResponse.json({});
+         }),
+      );
+
+      const root = result.fixture.nativeElement as Element;
+      const model = () => result.comp.authenticationProviders?.map(p => p.name);
+      // poll the DOM instead of waitFor; markForCheck because the page updates from async HTTP
+      const settle = async (ms = 50) => {
+         await sleep(ms);
+         result.fixture.componentRef.changeDetectorRef.markForCheck();
+         result.fixture.detectChanges();
+      };
+      const until = async (done: () => boolean, tries = 120) => {
+         for(let i = 0; i < tries && !done(); i++) {
+            await settle();
+         }
+
+         await settle(0);
+      };
+
+      await until(() => rowsOf(root).length === initial.length);
+      return { ...result, root, model, settle, until, state };
+   }
+
+   const providers = () => [
+      makeProvider("Primary"),
+      makeProvider("Corp LDAP", { cacheEnabled: false, cacheAgeLabel: undefined }),
+      makeProvider("Accounts", { label: "Konten" }),
+   ];
+
+   // 🔁 Regression-sensitive: the drag moved the row on screen but never saved the order
+   it("should save the dragged order through the same reorder POST as Move Down, and keep the rows in the saved order", async () => {
+      const { root, model, until, state, fixture } = await renderWithServer(providers());
+
+      drag(root, 0, [1, 2]);
+      // until the server accepts, the rows stay in the providers' order
+      expect(namesOf(root)).toEqual(["Primary", "Corp LDAP", "Konten"]);
+
+      await until(() => state.posts.length === 1 && model()?.[2] === "Primary");
+      expect(state.posts).toEqual([{ source: 0, destination: 2 }]);
+      expect(model()).toEqual(["Corp LDAP", "Accounts", "Primary"]);
+      expect(namesOf(root)).toEqual(["Corp LDAP", "Konten", "Primary"]);
+
+      // the next poll leaves the rows in the saved order, and Move Up/Down follow it
+      const polls = state.polls;
+      await until(() => state.polls > polls);
+      expect(namesOf(root)).toEqual(["Corp LDAP", "Konten", "Primary"]);
+      const upDisabled = rowsOf(root).map(row =>
+         (row.querySelector("button[title='_#(Move Up)']") as HTMLButtonElement).disabled);
+      expect(upDisabled).toEqual([true, false, false]);
+
+      (rowsOf(root)[0].querySelector("button[title='_#(Move Down)']") as HTMLButtonElement).click();
+      await until(() => state.posts.length === 2 && model()?.[0] === "Accounts");
+      expect(state.posts[1]).toEqual({ source: 0, destination: 1 });
+      expect(namesOf(root)).toEqual(["Konten", "Corp LDAP", "Primary"]);
+
+      fixture.destroy();
+   }, 20000);
+
+   it("should not POST when the row is dropped where it started", async () => {
+      const { root, settle, state, fixture } = await renderWithServer(providers());
+
+      drag(root, 1, [2, 1]);
+      await settle(200);
+
+      expect(state.posts).toEqual([]);
+      expect(namesOf(root)).toEqual(["Primary", "Corp LDAP", "Konten"]);
+
+      fixture.destroy();
+   });
+
+   it("should leave the rows in the server's order when the reorder POST fails", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { root, model, until, settle, state, fixture } = await renderWithServer(providers(), true);
+
+      drag(root, 0, [1, 2]);
+      await until(() => state.posts.length === 1);
+      await settle(100);
+
+      expect(state.posts).toEqual([{ source: 0, destination: 2 }]);
+      expect(model()).toEqual(["Primary", "Corp LDAP", "Accounts"]);
+      expect(namesOf(root)).toEqual(["Primary", "Corp LDAP", "Konten"]);
+
+      fixture.destroy();
+      consoleErrorSpy.mockRestore();
    });
 });

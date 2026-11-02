@@ -40,6 +40,7 @@ export class SecurityListViewComponent {
    dragSource: any;
    fromIndex: number = -1;
    toIndex: number = -1;
+   private dragSourceNext: Node;
 
    constructor() {
    }
@@ -47,9 +48,9 @@ export class SecurityListViewComponent {
    dragEnter(event: DragEvent): void {
       let target = <Element> event.currentTarget;
 
-      if(target != this.dragSource) {
-         const targetName = target.textContent.trim();
-         this.toIndex = this.providers.findIndex(p => p.name === targetName);
+      // a row whose view was removed during the drag is never put back
+      if(!this.dragSource || this.dragSource.parentNode !== target.parentNode) {
+         return;
       }
 
       if(this.isBefore(this.dragSource, target)) {
@@ -62,19 +63,46 @@ export class SecurityListViewComponent {
 
    dragStart(event: DragEvent): void {
       this.dragSource = event.currentTarget;
+      this.dragSourceNext = this.dragSource.nextSibling;
+      this.fromIndex = this.rowIndex(this.dragSource);
       event.dataTransfer.effectAllowed = "move";
    }
 
+   // Bug #78723, take both indices from the row's position among the rows, not from its text,
+   // which also holds the cache age. Put the row back and let the page move it once the server
+   // accepts the new order, so a failed request leaves the rows in the providers' order.
    dragEnd(event: DragEvent): void {
-      this.fromIndex = this.providers.indexOf(this.dragSource.textContent.trim());
+      const row: Element = this.dragSource;
 
-      if(this.fromIndex >= 0 && this.toIndex >= 0 && this.fromIndex != this.toIndex) {
-         this.reorder.emit([this.fromIndex, this.toIndex]);
-         this.fromIndex = -1;
-         this.toIndex = -1;
+      if(row) {
+         this.toIndex = this.rowIndex(row);
+
+         const next = this.dragSourceNext;
+
+         if(row.parentNode && (!next || next.parentNode === row.parentNode)) {
+            row.parentNode.insertBefore(row, next);
+         }
+
+         if(this.fromIndex >= 0 && this.toIndex >= 0 && this.fromIndex != this.toIndex) {
+            this.reorder.emit([this.fromIndex, this.toIndex]);
+         }
       }
+
+      this.fromIndex = -1;
+      this.toIndex = -1;
+      this.dragSource = null;
+      this.dragSourceNext = null;
    }
 
+   private rowIndex(row: Element): number {
+      if(!row?.parentNode) {
+         return -1;
+      }
+
+      return Array.from(row.parentNode.children)
+         .filter(child => child.classList.contains("list-item"))
+         .indexOf(row);
+   }
 
    isBefore(a: Element, b: Element): boolean {
       if(a.parentNode == b.parentNode) {

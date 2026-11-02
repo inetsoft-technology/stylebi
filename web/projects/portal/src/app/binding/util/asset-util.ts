@@ -223,7 +223,11 @@ export class AssetUtil {
     * @return <tt>true</tt> if mergeable, <tt>false</tt> otherwise.
     */
    public static isMergeable(dtype1: string, dtype2: string): boolean {
-      if(dtype1 === dtype2) {
+      // type names come from different producers (physical table: "TimeInstant", "Double";
+      // inline view: "timeInstant", "bigdecimal"), so compare ignoring case
+      if(dtype1 != null && dtype2 != null &&
+         dtype1.toLocaleLowerCase() === dtype2.toLocaleLowerCase())
+      {
          return true;
       }
       else if(AssetUtil.isStringType(dtype1) && AssetUtil.isStringType(dtype2)) {
@@ -266,7 +270,8 @@ export class AssetUtil {
 
       if(dtype === XSchema.FLOAT || dtype === XSchema.DOUBLE ||
          dtype === XSchema.BYTE || dtype === XSchema.SHORT ||
-         dtype === XSchema.INTEGER || dtype === XSchema.LONG)
+         dtype === XSchema.INTEGER || dtype === XSchema.LONG ||
+         dtype === "bigdecimal" || dtype === "biginteger")
       {
          return true;
       }
@@ -283,7 +288,10 @@ export class AssetUtil {
    public static isDateType(dtype: string): boolean {
       dtype = dtype != null ? dtype.toLocaleLowerCase() : dtype;
 
-      if(dtype === XSchema.DATE || dtype === XSchema.TIME_INSTANT) {
+      // XSchema.TIME_INSTANT is camel case, so compare against its lower case form
+      if(dtype === XSchema.DATE || dtype === XSchema.TIME ||
+         dtype === XSchema.TIME_INSTANT.toLocaleLowerCase())
+      {
          return true;
       }
 
