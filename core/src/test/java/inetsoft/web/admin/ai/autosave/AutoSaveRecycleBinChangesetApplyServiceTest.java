@@ -177,7 +177,7 @@ class AutoSaveRecycleBinChangesetApplyServiceTest {
 
       when(autoSaveRecycleBinService.requireEntry("id1", user)).thenReturn(entry1);
       when(autoSaveRecycleBinService.requireEntry("id2", user)).thenReturn(entry2);
-      when(autoSaveRecycleBinService.wouldCollide(entry1, "ws1", user)).thenReturn(false);
+      when(autoSaveRecycleBinService.occupantOf(entry1, "ws1", user)).thenReturn(AutoSaveRecycleBinService.Occupant.NONE);
       when(autoSaveServiceProxy.restoreAutoSaveAssets("id1", "ws1", false, user)).thenReturn(true);
       // The live sheet IS created (containsEntry: true at apply-time check, still true just before
       // rollback's removal attempt, then false once rollback's own removeSheet has run).
@@ -232,7 +232,7 @@ class AutoSaveRecycleBinChangesetApplyServiceTest {
       when(autoSaveRecycleBinService.requireEntry("id2", user)).thenReturn(entry2);
       // Collides at the destination -- overwrite:true accepts it, but that makes the rollback of
       // this restore non-compensable (the destroyed original has no live inverse).
-      when(autoSaveRecycleBinService.wouldCollide(entry1, "ws1", user)).thenReturn(true);
+      when(autoSaveRecycleBinService.occupantOf(entry1, "ws1", user)).thenReturn(AutoSaveRecycleBinService.Occupant.SAME_TYPE_SHEET);
       when(autoSaveServiceProxy.restoreAutoSaveAssets("id1", "ws1", true, user)).thenReturn(true);
       when(assetRepository.containsEntry(any(AssetEntry.class))).thenReturn(true);
       when(autoSaveRecycleBinService.exists("id1", user)).thenReturn(false);
@@ -281,7 +281,7 @@ class AutoSaveRecycleBinChangesetApplyServiceTest {
       AutoSaveRecycleBinEntryProjection entry3 = worksheetEntry("id3", "ws3");
 
       when(autoSaveRecycleBinService.requireEntry("id3", user)).thenReturn(entry3);
-      when(autoSaveRecycleBinService.wouldCollide(entry3, "ws3", user)).thenReturn(false);
+      when(autoSaveRecycleBinService.occupantOf(entry3, "ws3", user)).thenReturn(AutoSaveRecycleBinService.Occupant.NONE);
       // Something else created the destination between our own wouldCollide pre-check and the
       // real call -- restoreAutoSaveAssets' own internal duplicate check refuses cleanly, BEFORE
       // any repository.setSheet call.
@@ -313,7 +313,7 @@ class AutoSaveRecycleBinChangesetApplyServiceTest {
       AutoSaveRecycleBinEntryProjection entry4 = worksheetEntry("id4", "ws4");
 
       when(autoSaveRecycleBinService.requireEntry("id4", user)).thenReturn(entry4);
-      when(autoSaveRecycleBinService.wouldCollide(entry4, "ws4", user)).thenReturn(false);
+      when(autoSaveRecycleBinService.occupantOf(entry4, "ws4", user)).thenReturn(AutoSaveRecycleBinService.Occupant.NONE);
       when(autoSaveServiceProxy.restoreAutoSaveAssets("id4", "ws4", false, user))
          .thenThrow(new RuntimeException("simulated storage failure"));
 
@@ -332,5 +332,81 @@ class AutoSaveRecycleBinChangesetApplyServiceTest {
       assertTrue(result.rollbackFailures().stream()
          .anyMatch(f -> f.property().equals("autosave:id4") && f.error().contains("state unknown")));
       verifyNoInteractions(assetRepository);
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #79939: a folder / snapshot at the destination is refused, never described as an
+   // overwritable "existing worksheet", in both the preview and the apply re-check.
+   // -------------------------------------------------------------------------
+
+   @Test
+   void previewRefusesFolderOccupantEvenWithOverwrite() throws Exception {
+      AutoSaveRecycleBinEntryProjection entry = worksheetEntry("id5", "ws5");
+
+      when(autoSaveRecycleBinService.requireEntry("id5", user)).thenReturn(entry);
+      when(autoSaveRecycleBinService.occupantOf(entry, "Examples", user))
+         .thenReturn(AutoSaveRecycleBinService.Occupant.FOLDER);
+      AutoSaveRecycleBinChangeRequest change = restore("id5", true);
+      change.setAssetName("Examples");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(planRequest("restore", Arrays.asList(change)), user));
+
+      assertTrue(e.getMessage().contains("folder"), e.getMessage());
+      assertTrue(e.getMessage().contains("Examples"), e.getMessage());
+      assertFalse(e.getMessage().contains("PERMANENTLY DESTROYS"), e.getMessage());
+   }
+
+   @Test
+   void previewRefusesSnapshotOccupantForViewsheetDraftEvenWithOverwrite() throws Exception {
+      AutoSaveRecycleBinEntryProjection entry = new AutoSaveRecycleBinEntryProjection("id6",
+         AutoSaveRecycleBinEntryProjection.TYPE_DASHBOARD, "vs6",
+         AutoSaveRecycleBinEntryProjection.SCOPE_GLOBAL, "admin~;~host-org", null);
+
+      when(autoSaveRecycleBinService.requireEntry("id6", user)).thenReturn(entry);
+      when(autoSaveRecycleBinService.occupantOf(entry, "vs6", user))
+         .thenReturn(AutoSaveRecycleBinService.Occupant.SNAPSHOT);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(planRequest("restore", Arrays.asList(restore("id6", true))), user));
+
+      assertTrue(e.getMessage().contains("viewsheet snapshot"), e.getMessage());
+      assertFalse(e.getMessage().contains("existing " + entry.type()), e.getMessage());
+   }
+
+   @Test
+   void previewStillAllowsOverwriteOfSameTypeSheet() throws Exception {
+      AutoSaveRecycleBinEntryProjection entry = worksheetEntry("id7", "ws7");
+
+      when(autoSaveRecycleBinService.requireEntry("id7", user)).thenReturn(entry);
+      when(autoSaveRecycleBinService.occupantOf(entry, "ws7", user))
+         .thenReturn(AutoSaveRecycleBinService.Occupant.SAME_TYPE_SHEET);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(planRequest("restore", Arrays.asList(restore("id7", false))), user));
+      assertDoesNotThrow(
+         () -> planService.resolve(planRequest("restore", Arrays.asList(restore("id7", true))), user));
+   }
+
+   @Test
+   void applyRefusesFolderThatAppearedSincePreviewEvenWithOverwrite() throws Exception {
+      AutoSaveRecycleBinEntryProjection entry = worksheetEntry("id8", "ws8");
+
+      when(autoSaveRecycleBinService.requireEntry("id8", user)).thenReturn(entry);
+      // preview, apply's own re-resolve, then the apply-time check that sees a folder
+      when(autoSaveRecycleBinService.occupantOf(entry, "ws8", user))
+         .thenReturn(AutoSaveRecycleBinService.Occupant.NONE, AutoSaveRecycleBinService.Occupant.NONE,
+                     AutoSaveRecycleBinService.Occupant.FOLDER);
+
+      String hash = planService.resolve(
+         planRequest("restore ws8", Arrays.asList(restore("id8", true))), user).planHash();
+      AutoSaveRecycleBinApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(applyRequest("restore ws8", hash, restore("id8", true)), user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verifyNoInteractions(autoSaveServiceProxy);
    }
 }

@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.autosave;
 
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.BlobStorage;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.AutoSaveUtils;
 import org.junit.jupiter.api.*;
@@ -28,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.FileNotFoundException;
 import java.security.Principal;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -106,5 +108,54 @@ class AutoSaveRecycleBinServiceTest {
 
       assertNotNull(entry);
       assertEquals("admin~;~host-org", entry.owner());
+   }
+
+   private AutoSaveRecycleBinService.Occupant occupantWith(String entryType, String path,
+                                                           AssetEntry.Type... present)
+      throws Exception
+   {
+      lenient().when(user.getName()).thenReturn("admin~;~host-org");
+      java.util.Set<AssetEntry.Type> types = new java.util.HashSet<>(Arrays.asList(present));
+      lenient().when(assetRepository.containsEntry(any(AssetEntry.class)))
+         .thenAnswer(inv -> types.contains(((AssetEntry) inv.getArgument(0)).getType()));
+      AutoSaveRecycleBinEntryProjection entry = new AutoSaveRecycleBinEntryProjection("id", entryType,
+         path, AutoSaveRecycleBinEntryProjection.SCOPE_GLOBAL, null, null);
+      return service.occupantOf(entry, path, user);
+   }
+
+   @Test
+   void occupantOfReportsFolderForWorksheetDraft() throws Exception {
+      assertEquals(AutoSaveRecycleBinService.Occupant.FOLDER, occupantWith(
+         AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET, "Examples", AssetEntry.Type.FOLDER));
+   }
+
+   @Test
+   void occupantOfReportsFolderAndSnapshotForViewsheetDraft() throws Exception {
+      assertEquals(AutoSaveRecycleBinService.Occupant.FOLDER, occupantWith(
+         AutoSaveRecycleBinEntryProjection.TYPE_DASHBOARD, "Examples",
+         AssetEntry.Type.REPOSITORY_FOLDER));
+      assertEquals(AutoSaveRecycleBinService.Occupant.SNAPSHOT, occupantWith(
+         AutoSaveRecycleBinEntryProjection.TYPE_DASHBOARD, "vs", AssetEntry.Type.VIEWSHEET_SNAPSHOT));
+   }
+
+   @Test
+   void occupantOfReportsSameTypeSheetAsOverwritable() throws Exception {
+      AutoSaveRecycleBinService.Occupant ws = occupantWith(
+         AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET, "ws", AssetEntry.Type.WORKSHEET);
+      AutoSaveRecycleBinService.Occupant vs = occupantWith(
+         AutoSaveRecycleBinEntryProjection.TYPE_DASHBOARD, "vs", AssetEntry.Type.VIEWSHEET);
+
+      assertEquals(AutoSaveRecycleBinService.Occupant.SAME_TYPE_SHEET, ws);
+      assertEquals(AutoSaveRecycleBinService.Occupant.SAME_TYPE_SHEET, vs);
+      assertTrue(ws.overwritable());
+   }
+
+   @Test
+   void occupantOfPrefersFolderOverSameTypeSheetAndReportsNone() throws Exception {
+      assertEquals(AutoSaveRecycleBinService.Occupant.FOLDER, occupantWith(
+         AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET, "x", AssetEntry.Type.WORKSHEET,
+         AssetEntry.Type.FOLDER));
+      assertEquals(AutoSaveRecycleBinService.Occupant.NONE, occupantWith(
+         AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET, "x"));
    }
 }

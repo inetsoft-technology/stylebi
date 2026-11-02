@@ -20,7 +20,6 @@ package inetsoft.web.admin.ai.autosave;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.security.auth.MissingResourceException;
@@ -114,23 +113,71 @@ public class AutoSaveRecycleBinService {
       return AutoSaveUtils.exists(AutoSaveUtils.getAutoSavedByName(id, true), user);
    }
 
+   /** What currently occupies a restore destination. Only {@link #SAME_TYPE_SHEET} can be
+    * overwritten: the restore replaces a sheet of the draft's own type in place, but it never
+    * removes a folder or a viewsheet snapshot, it would just create a same-named sheet beside it. */
+   public enum Occupant {
+      NONE, SAME_TYPE_SHEET, FOLDER, SNAPSHOT;
+
+      public boolean occupied() {
+         return this != NONE;
+      }
+
+      public boolean overwritable() {
+         return this == SAME_TYPE_SHEET;
+      }
+
+      /** Human-readable noun for the occupant, given the draft's own type label. */
+      public String describe(String draftType) {
+         switch(this) {
+         case FOLDER:
+            return "folder";
+         case SNAPSHOT:
+            return "viewsheet snapshot";
+         default:
+            return draftType;
+         }
+      }
+   }
+
    /**
-    * Whether restoring {@code entry} to {@code assetName} would collide with something already
-    * occupying that destination -- mirrors the exact duplicate check
-    * {@code inetsoft.web.AutoSaveService.restoreAutoSaveAssets} runs internally via
-    * {@code viewsheetService.isDuplicatedEntry} (the same underlying {@code AssetUtil} concept
-    * {@code RecycleBinService.wouldCollide} already uses for its own area), exposed here so
-    * {@link AutoSaveRecycleBinChangePlanService} can classify risk -- and refuse loud -- BEFORE
-    * ever calling the real, mutating restore.
+    * Classifies what already occupies {@code assetName} for a restore of {@code entry}. Probes the
+    * same asset types {@code AssetUtil.isDuplicatedEntry} does (the check
+    * {@code inetsoft.web.AutoSaveService.restoreAutoSaveAssets} runs internally), but keeps the
+    * occupant's kind instead of collapsing it to a boolean. A folder or snapshot is reported ahead
+    * of a same-type sheet, so a destination holding both is never treated as overwritable.
     */
-   public boolean wouldCollide(AutoSaveRecycleBinEntryProjection entry, String assetName, Principal user)
+   public Occupant occupantOf(AutoSaveRecycleBinEntryProjection entry, String assetName,
+                              Principal user)
       throws Exception
    {
-      AssetEntry.Type type = AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET.equals(entry.type()) ?
-         AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET;
+      boolean worksheet = AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET.equals(entry.type());
       IdentityID actingUser = IdentityID.getIdentityIDFromKey(user.getName());
-      AssetEntry candidate = new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, assetName, actingUser);
-      return AssetUtil.isDuplicatedEntry(assetRepository, candidate);
+
+      if(worksheet) {
+         if(contains(AssetEntry.Type.FOLDER, assetName, actingUser)) {
+            return Occupant.FOLDER;
+         }
+      }
+      else {
+         if(contains(AssetEntry.Type.REPOSITORY_FOLDER, assetName, actingUser)) {
+            return Occupant.FOLDER;
+         }
+
+         if(contains(AssetEntry.Type.VIEWSHEET_SNAPSHOT, assetName, actingUser)) {
+            return Occupant.SNAPSHOT;
+         }
+      }
+
+      AssetEntry.Type sheetType = worksheet ? AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET;
+      return contains(sheetType, assetName, actingUser) ? Occupant.SAME_TYPE_SHEET : Occupant.NONE;
+   }
+
+   private boolean contains(AssetEntry.Type type, String assetName, IdentityID actingUser)
+      throws Exception
+   {
+      return assetRepository.containsEntry(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, assetName, actingUser));
    }
 
    /**
