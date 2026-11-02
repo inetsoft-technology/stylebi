@@ -1033,8 +1033,13 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
 
       // the card inset. A format.css padding on the assembly class installed its own through
       // setCSSDefaults and keeps it, which is what isCssPaddingDefined guards
+      //
+      // Only a box that follows density grows to pay for the inset (below). An author-sized box
+      // is never grown, since that would overlap its neighbours and Revert keeps no record of the
+      // growth, so it takes the sides only: a top and bottom inset would come out of the rows
+      // the author sized the box for and clip them
       if(!isUserPadding() && !isCssPaddingDefined()) {
-         setPadding(VSDensityDefaults.tablePadding(ctx));
+         setPadding(defaultPadding(ctx));
       }
 
       // the box follows density, because the content inside it does. A tier's taller rows and
@@ -1087,7 +1092,15 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
 
    @Override
    protected Insets defaultPadding(VizContext ctx) {
-      return VSDensityDefaults.tablePadding(ctx);
+      Insets inset = VSDensityDefaults.tablePadding(ctx);
+
+      // the one rule for both writers, the seed and resetPadding (the padding pane's "follow the
+      // default" checkbox): only a box that follows density grows to pay for a vertical inset
+      if(!followsDensitySize()) {
+         inset = new Insets(0, inset.left, 0, inset.right);
+      }
+
+      return inset;
    }
 
    /**
