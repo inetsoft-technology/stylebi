@@ -81,25 +81,31 @@ describe("computeTailPlacement (vertical axis)", () => {
       expect(vertical(500, 400, { x: 0, y: 0, width: 100, height: 600 })).toBeNull();
    });
 
-   it("points at the mark's top edge when the box goes above", () => {
+   it("reaches 1px into the mark's top edge when the box goes above", () => {
       const p = verticalAt({ x: 500, y: 400, top: 380, bottom: 420 });
-      // 380 - 12 - 100 = 268: the box clears the mark, not just its middle.
+      // tip at 381; 381 - 12 - 100 = 269: the box clears the mark, not just its middle.
       expect(p).toEqual({
-         x: 400 - TOOLTIP_INSET, y: 268 - TOOLTIP_INSET, tailSide: "bottom", tailOffset: 100
+         x: 400 - TOOLTIP_INSET, y: 269 - TOOLTIP_INSET, tailSide: "bottom", tailOffset: 100
       });
    });
 
-   it("points at the mark's bottom edge when the box goes below", () => {
+   it("reaches 1px into the mark's bottom edge when the box goes below", () => {
       const p = verticalAt({ x: 500, y: 60, top: 40, bottom: 80 });
+      // tip at 79
       expect(p.tailSide).toBe("top");
-      expect(p.y).toBe(92 - TOOLTIP_INSET);
+      expect(p.y).toBe(91 - TOOLTIP_INSET);
+   });
+
+   it("never reaches past the middle of a mark thinner than the overlap", () => {
+      const p = verticalAt({ x: 500, y: 400, top: 399.5, bottom: 400.5 });
+      expect(p.y).toBe(288 - TOOLTIP_INSET);
    });
 
    it("measures the room above from the mark's top edge, not its middle", () => {
-      // The middle would leave 127px above, enough for the box; the top edge leaves 97px.
+      // The middle would leave 127px above, enough for the box; the top edge leaves 98px.
       const p = verticalAt({ x: 500, y: 130, top: 100, bottom: 160 });
       expect(p.tailSide).toBe("top");
-      expect(p.y).toBe(172 - TOOLTIP_INSET);
+      expect(p.y).toBe(171 - TOOLTIP_INSET);
    });
 
    it("falls back to the middle when the mark leaves no room past either edge", () => {
@@ -154,16 +160,18 @@ describe("computeTailPlacement (horizontal axis)", () => {
       expect(horizontal(120, 300, { x: 0, y: 0, width: 210, height: 600 })).toBeNull();
    });
 
-   it("points at the mark's right edge when the box goes right", () => {
+   it("reaches 1px into the mark's right edge when the box goes right", () => {
       const p = horizontalAt({ x: 200, y: 300, left: 180, right: 220 });
+      // tip at 219
       expect(p.tailSide).toBe("left");
-      expect(p.x).toBe(232 - TOOLTIP_INSET);
+      expect(p.x).toBe(231 - TOOLTIP_INSET);
    });
 
-   it("points at the mark's left edge when the box goes left", () => {
+   it("reaches 1px into the mark's left edge when the box goes left", () => {
       const p = horizontalAt({ x: 800, y: 300, left: 780, right: 820 });
+      // tip at 781; 781 - 12 - 200 = 569
       expect(p.tailSide).toBe("right");
-      expect(p.x).toBe(568 - TOOLTIP_INSET);
+      expect(p.x).toBe(569 - TOOLTIP_INSET);
    });
 });
 

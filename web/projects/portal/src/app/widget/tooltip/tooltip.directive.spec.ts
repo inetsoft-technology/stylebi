@@ -77,11 +77,12 @@ describe("TooltipDirective tail placement", () => {
       expect(hover(120, 120).querySelector(".tooltip-chrome__outline")).not.toBeNull();
    });
 
-   // A 40px mark: the box clears its top edge rather than covering its upper half.
+   // A 40px mark: the box clears its top edge rather than covering its upper half, and the tip
+   // reaches 1px into it.
    it("points the tail at the edge of the mark facing the box", () => {
       fixture.componentInstance.mark = { x: 510, y: 410, top: 390, bottom: 430 };
       const tip = hover(120, 120);
-      expect(tip.style.top).toBe("275px");
+      expect(tip.style.top).toBe("276px");
       expect(tip.style.left).toBe("407px");
    });
 

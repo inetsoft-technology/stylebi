@@ -40,6 +40,8 @@ export const TAIL_LENGTH = 12;
 export const TAIL_HALF_WIDTH = 6.5;
 /** The inner box's margin; the host is this much larger on every side. */
 export const TOOLTIP_INSET = 3;
+/** How far the tip reaches past the mark's edge, so it reads as touching rather than floating. */
+const TAIL_OVERLAP = 1;
 /** Tip to opening centre, in half-widths; past 1 the tip hooks beyond the opening. */
 const TAIL_SKEW = 1.8;
 /** Depth of the near leg's curve control, as a fraction of the tail length. */
@@ -51,8 +53,8 @@ const FAR_LEG_LEAN = 0.18;
 
 /**
  * The mark a tail points at: its visual middle, plus where its outline crosses the vertical and
- * horizontal lines through that middle. The tip lands on the crossing that faces the box; a
- * missing crossing means the middle.
+ * horizontal lines through that middle. The tip lands TAIL_OVERLAP inside the crossing that faces
+ * the box; a missing crossing means the middle.
  */
 export interface TailAnchor {
    x: number;
@@ -114,8 +116,8 @@ export function computeTailPlacement(input: TailPlacementInput): TailPlacement |
 function placeVertical(anchor: TailAnchor, bw: number, bh: number,
                        bounds: Bounds): TailPlacement | null
 {
-   const top = anchor.top ?? anchor.y;
-   const bottom = anchor.bottom ?? anchor.y;
+   const top = intoMark(anchor.top, anchor.y);
+   const bottom = intoMark(anchor.bottom, anchor.y);
    const needed = bh + TAIL_LENGTH;
    const topRoom = top - bounds.top;
    const bottomRoom = bounds.bottom - bottom;
@@ -144,8 +146,8 @@ function placeVertical(anchor: TailAnchor, bw: number, bh: number,
 function placeHorizontal(anchor: TailAnchor, bw: number, bh: number,
                          bounds: Bounds): TailPlacement | null
 {
-   const left = anchor.left ?? anchor.x;
-   const right = anchor.right ?? anchor.x;
+   const left = intoMark(anchor.left, anchor.x);
+   const right = intoMark(anchor.right, anchor.x);
    const toRight = bounds.right - right >= left - bounds.left;
    const tipX = toRight ? right : left;
    const bx = clamp(toRight ? tipX + TAIL_LENGTH : tipX - TAIL_LENGTH - bw,
@@ -163,6 +165,16 @@ function placeHorizontal(anchor: TailAnchor, bw: number, bh: number,
       tailSide: toRight ? "left" : "right",
       tailOffset: seatTail(anchor.y - by, bh).tip
    };
+}
+
+/** An outline crossing moved TAIL_OVERLAP toward the middle, never past it; the middle if absent. */
+function intoMark(edge: number | undefined, middle: number): number {
+   if(edge == null) {
+      return middle;
+   }
+
+   return edge < middle ? Math.min(edge + TAIL_OVERLAP, middle)
+      : Math.max(edge - TAIL_OVERLAP, middle);
 }
 
 function engulfs(anchor: number, start: number, size: number): boolean {

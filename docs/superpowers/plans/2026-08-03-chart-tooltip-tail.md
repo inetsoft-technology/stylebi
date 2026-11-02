@@ -1808,3 +1808,12 @@ Review asked for three changes to the shipped tail.
    box. When neither edge leaves room, as with a bar reaching the top of the window, it retries
    from the middle, which is how every anchor behaved before this change. Region-centroid
    anchors (area and marker-less line) carry no edges, so they keep pointing at the middle.
+   The tip reaches `TAIL_OVERLAP` (1px) past the edge, so it reads as touching the mark rather
+   than floating just above it. It never passes the middle, which matters only for a mark under
+   2px thick. The overlap is applied in the placement, not the edge walk, so measured edges stay
+   exact.
+4. **The chrome sat 3px below its box.** Found when the tip was measured on a live scatter: it
+   landed 3.00px inside every point. The box's `TOOLTIP_INSET` margin collapsed through
+   `.tooltip-container`, so the container, and the SVG chrome positioned against it, started
+   3px below the host. That predates this change: the drawn card always sat 3px below the text
+   it frames. `display: flow-root` on the container keeps the margin inside it.
