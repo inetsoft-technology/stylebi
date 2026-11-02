@@ -181,6 +181,27 @@ class ExcelDataTabCellTypeTest {
       assertEquals(32767, cell.getStringCellValue().length());
    }
 
+   @Test
+   void dateStylesAreSharedAcrossRows() {
+      int rows = 1201;
+      Object[][] data = new Object[rows][3];
+      data[0] = new Object[] {"d", "t", "s"};
+
+      for(int i = 1; i < rows; i++) {
+         data[i] = new Object[] {
+            new java.sql.Date(1700000000000L + i * 86400000L), new java.sql.Time(i * 1000L),
+            new java.sql.Timestamp(1700000000000L + i * 1000L)};
+      }
+
+      Sheet sheet = write(data);
+      // one style per format (3) plus the border style and the workbook default, not per cell
+      assertTrue(book.getNumCellStyles() <= 6, "styles: " + book.getNumCellStyles());
+      assertEquals(CellType.NUMERIC, sheet.getRow(rows - 1).getCell(0).getCellType());
+      assertEquals("hh:mm:ss", sheet.getRow(rows - 1).getCell(1).getCellStyle().getDataFormatString());
+      assertEquals(sheet.getRow(1).getCell(2).getCellStyle().getIndex(),
+                   sheet.getRow(rows - 1).getCell(2).getCellStyle().getIndex());
+   }
+
    private Sheet write(Object[][] data) {
       return write(data, 1, 0);
    }
