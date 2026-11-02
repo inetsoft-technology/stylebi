@@ -73,7 +73,9 @@ class CassandraRuntimeReadOnlyTest {
       query.setDataSource(ds);
       query.setQueryString(cql);
       CountingRuntime runtime = new CountingRuntime();
-      assertNull(runtime.runQuery(query, new VariableTable()));
+      // Bug #79595: a failed query now raises instead of returning null, so the count is read
+      // after the (expected) failure.
+      assertThrows(RuntimeException.class, () -> runtime.runQuery(query, new VariableTable()));
       return runtime.opened.get();
    }
 
@@ -113,6 +115,44 @@ class CassandraRuntimeReadOnlyTest {
    })
    void runQuery_select_reachesSessionOpen(String cql) {
       assertEquals(1, runAndCountSessions(cql));
+   }
+
+   /**
+    * Bug #79595: a SELECT that fails at the server (e.g. the table was dropped) must raise, not
+    * return null -- null made TabularHandler build an empty table, so preview showed zero rows
+    * and no error.
+    */
+   private static final class FailingSelectRuntime extends CassandraRuntime {
+      @Override
+      CqlSession openSession(CassandraDataSource ds) throws Exception {
+         throw new Exception("table evolve does not exist");
+      }
+   }
+
+   private static CassandraQuery selectQuery() {
+      CassandraDataSource ds = new CassandraDataSource();
+      ds.setHost("198.51.100.1");
+      ds.setKeyspace("ks");
+      CassandraQuery query = new CassandraQuery();
+      query.setDataSource(ds);
+      query.setQueryString("SELECT * FROM evolve");
+      return query;
+   }
+
+   @Test
+   void runQuery_failedSelect_raisesNamingTheCauseForANonSchedulerRun() {
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> new FailingSelectRuntime().runQuery(selectQuery(), new VariableTable()));
+      assertTrue(ex.getMessage().contains("table evolve does not exist"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("SELECT * FROM evolve"), ex.getMessage());
+   }
+
+   @Test
+   void runQuery_failedSelect_stillRaisesForASchedulerRun() {
+      VariableTable vars = new VariableTable();
+      vars.put("__is_scheduler__", Boolean.TRUE);
+      assertThrows(RuntimeException.class,
+         () -> new FailingSelectRuntime().runQuery(selectQuery(), vars));
    }
 
    @Test

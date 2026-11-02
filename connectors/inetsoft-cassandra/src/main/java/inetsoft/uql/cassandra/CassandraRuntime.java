@@ -60,7 +60,15 @@ public class CassandraRuntime extends TabularRuntime implements TabularCatalogPr
                LOG.warn("Failed to close connection: " + ds.getName(), ex2);
             }
          }
-         handleError(params, ex, () -> null);
+
+         // Bug #79595: returning null made TabularHandler substitute an empty table (the old
+         // columns, zero rows), so a dropped table or keyspace read as "no data" instead of
+         // failing the way a SQL source over a missing table does. Raise for every caller;
+         // handleError itself already throws for the scheduler.
+         handleError(params, ex, () -> {
+            throw new RuntimeException("Failed to execute Cassandra query: " + qstr +
+                                          " (" + ex.getMessage() + ")", ex);
+         });
       }
 
       return null;
