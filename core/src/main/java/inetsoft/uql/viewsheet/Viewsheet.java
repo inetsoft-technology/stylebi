@@ -3210,7 +3210,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             currentVs = true;
          }
          else {
-            vs = (Viewsheet) getAssembly(vsName);
+            VSAssembly prefix = getAssembly(vsName);
+
+            if(prefix != null && !(prefix instanceof Viewsheet)) {
+               return null;
+            }
+
+            vs = (Viewsheet) prefix;
             currentVs = false;
          }
 
@@ -3222,7 +3228,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             // If the next direct vs child has the same name as the current vs
             // Get the next vs by using the direct child's absolute name
             String childAbsoluteName = name.substring(0, index + index2 + 1);
-            vs = (Viewsheet) vs.getAssembly(childAbsoluteName);
+            VSAssembly next = vs.getAssembly(childAbsoluteName);
+
+            if(!(next instanceof Viewsheet)) {
+               return null;
+            }
+
+            vs = (Viewsheet) next;
             childName = name.substring(index + index2 + 2);
             currentVs = false;
          }
@@ -3236,10 +3248,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          // try to get assembly in current vs, if do not find,
          // then to search in sub vs when the current viewsheet name is equals to sub vs name.
          if(currentVs) {
-            vs = (Viewsheet) getAssembly(vsName);
+            VSAssembly prefix = getAssembly(vsName);
 
-            if(vs != null) {
-               return vs.getAssembly(name.substring(index + 1));
+            if(prefix instanceof Viewsheet) {
+               return ((Viewsheet) prefix).getAssembly(name.substring(index + 1));
             }
          }
 
