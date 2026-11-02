@@ -1716,7 +1716,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       int colCount = table != null ? table.getColCount() : 0;
       int headerRows = table != null ? table.getHeaderRowCount() : 0;
       int headerCols = table != null ? table.getHeaderColCount() : 0;
-      Map<String, CellStyle> dateStyles = new HashMap<>();
+      Map<String, CellStyle> numberStyles = new HashMap<>();
 
       for(int r = 0; r < rowCount; r++) {
          Row row = newSheet.createRow(r);
@@ -1743,7 +1743,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                      value == Math.rint(value))
                   {
                      // General format shows 12+ digit integers in scientific notation
-                     cellStyle = dateStyles.computeIfAbsent("0", f -> {
+                     cellStyle = numberStyles.computeIfAbsent("0", f -> {
                         CellStyle intStyle = book.createCellStyle();
                         intStyle.cloneStyleFrom(style);
                         intStyle.setDataFormat(book.createDataFormat().getFormat(f));
@@ -1756,7 +1756,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                }
                else if(!header && obj instanceof java.util.Date) {
                   String format = getDataTabDateFormat((java.util.Date) obj);
-                  cellStyle = dateStyles.computeIfAbsent(format, f -> {
+                  cellStyle = numberStyles.computeIfAbsent(format, f -> {
                      CellStyle dateStyle = book.createCellStyle();
                      dateStyle.cloneStyleFrom(style);
                      dateStyle.setDataFormat(book.createDataFormat().getFormat(f));
@@ -1789,7 +1789,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     */
    private static boolean isExactNumber(Number num) {
       if(num instanceof Long) {
-         return Math.abs(num.longValue()) < 1000000000000000L;
+         long value = num.longValue();
+         return value > -1000000000000000L && value < 1000000000000000L;
       }
       else if(num instanceof java.math.BigInteger) {
          return ((java.math.BigInteger) num).abs().compareTo(

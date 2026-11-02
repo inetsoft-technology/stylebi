@@ -120,6 +120,57 @@ class ExcelDataTabCellTypeTest {
    }
 
    @Test
+   void longBoundaries() {
+      Row row = write(new Object[][] {{"a", "b", "c", "d", "e"},
+         {999999999999999L, 1000000000000000L, -999999999999999L, -100000000000L,
+          Long.MIN_VALUE}}).getRow(1);
+      DataFormatter fmt = new DataFormatter();
+      assertEquals(CellType.NUMERIC, row.getCell(0).getCellType());
+      assertEquals("999999999999999", fmt.formatCellValue(row.getCell(0)));
+      assertEquals(CellType.STRING, row.getCell(1).getCellType());
+      assertEquals("1000000000000000", row.getCell(1).getStringCellValue());
+      assertEquals(CellType.NUMERIC, row.getCell(2).getCellType());
+      assertEquals("-999999999999999", fmt.formatCellValue(row.getCell(2)));
+      assertEquals(CellType.NUMERIC, row.getCell(3).getCellType());
+      assertEquals("-100000000000", fmt.formatCellValue(row.getCell(3)));
+      assertEquals(CellType.STRING, row.getCell(4).getCellType());
+      assertEquals("-9223372036854775808", row.getCell(4).getStringCellValue());
+   }
+
+   @Test
+   void integralDoubleOfThirteenDigitsIsNotScientific() {
+      Cell cell = write(new Object[][] {{"a"}, {1.0E12}}).getRow(1).getCell(0);
+      assertEquals(CellType.NUMERIC, cell.getCellType());
+      assertEquals("1000000000000", new DataFormatter().formatCellValue(cell));
+   }
+
+   @Test
+   void bigDecimalPrecisionBoundary() {
+      Row row = write(new Object[][] {{"a", "b", "c"},
+         {new BigDecimal("12.50"), new BigDecimal("123456789012345"),
+          new BigDecimal("1234567890123456")}}).getRow(1);
+      assertEquals(CellType.NUMERIC, row.getCell(0).getCellType());
+      assertEquals(12.5, row.getCell(0).getNumericCellValue());
+      assertEquals(CellType.NUMERIC, row.getCell(1).getCellType());
+      assertEquals("123456789012345", new DataFormatter().formatCellValue(row.getCell(1)));
+      assertEquals(CellType.STRING, row.getCell(2).getCellType());
+      assertEquals("1234567890123456", row.getCell(2).getStringCellValue());
+   }
+
+   @Test
+   void cellsWithTheSameFormatShareOneStyle() {
+      Row row = write(new Object[][] {{"a", "b", "c", "d"},
+         {123456789012L, 223456789012L, java.sql.Date.valueOf("2023-11-14"),
+          java.sql.Date.valueOf("2024-01-02")}}).getRow(1);
+      assertEquals(row.getCell(0).getCellStyle().getIndex(),
+                   row.getCell(1).getCellStyle().getIndex());
+      assertEquals(row.getCell(2).getCellStyle().getIndex(),
+                   row.getCell(3).getCellStyle().getIndex());
+      assertNotEquals(row.getCell(0).getCellStyle().getIndex(),
+                      row.getCell(2).getCellStyle().getIndex());
+   }
+
+   @Test
    void nanAndInfinityStayText() {
       Row row = write(new Object[][] {{"a", "b"}, {Double.NaN, Double.POSITIVE_INFINITY}}).getRow(1);
       assertEquals(CellType.STRING, row.getCell(0).getCellType());
