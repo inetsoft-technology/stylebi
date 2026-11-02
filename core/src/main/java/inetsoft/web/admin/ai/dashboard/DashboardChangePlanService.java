@@ -262,6 +262,14 @@ public class DashboardChangePlanService {
             label + ".name: dashboard \"" + newDisplayName + "\" already exists" + ownerSuffix(owner));
       }
 
+      if(!newRegistryName.equals(registryOldName) &&
+         !seenKeys.add(dashboardKey(newRegistryName, owner)))
+      {
+         throw new IllegalArgumentException(
+            label + ".name: dashboard \"" + newDisplayName +
+            "\" is already the target of another change in this plan" + ownerSuffix(owner));
+      }
+
       String mergedDescription = newDescription != null ? blankToNull(newDescription) : current.description();
       String mergedViewsheet = viewsheet != null ? viewsheet : current.viewsheet();
       boolean mergedEnable = enable != null ? enable : current.enable();
