@@ -679,15 +679,24 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       String name = requireBookmarkName(request.name(), "goto_bookmark");
 
-      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         IdentityID owner = resolveVisibleBookmarkOwner(rvs, name, request.owner(), user);
+      List<String> warnings;
 
-         VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
-            .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(owner).build())
-            .confirmed(false)
-            .build();
-         vsBookmarkService.gotoBookmark(runtimeId, event, user, dispatcher, linkUri);
-      });
+      try {
+         warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+            IdentityID owner = resolveVisibleBookmarkOwner(rvs, name, request.owner(), user);
+
+            VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
+               .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(owner).build())
+               .confirmed(false)
+               .build();
+            vsBookmarkService.gotoBookmark(runtimeId, event, user, dispatcher, linkUri);
+         });
+      }
+      catch(MessageException e) {
+         // e.g. "(Home)" on an unsaved viewsheet; neither mutate() nor any handler for this
+         // controller recognizes MessageException, so it would reach the agent as a bare 500
+         throw new PairingException(e.getMessage(), e);
+      }
 
       return ViewsheetSessionService.warningsBody(warnings);
    }

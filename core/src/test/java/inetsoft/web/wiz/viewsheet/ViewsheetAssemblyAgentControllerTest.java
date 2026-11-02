@@ -4618,6 +4618,29 @@ class ViewsheetAssemblyAgentControllerTest {
          captor.getValue().vsBookmarkInfoModel().owner());
    }
 
+   /** Bug #79947: a MessageException from the Home hop must reach the agent with its text. */
+   @Test
+   void gotoBookmark_surfacesMessageExceptionTextAsPairingException() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      doThrow(new inetsoft.util.MessageException(
+         "Cannot go to (Home): the viewsheet has not been saved yet. Save the viewsheet first."))
+         .when(vsBookmarkService).gotoBookmark(any(), any(), any(), any(), any());
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      inetsoft.web.wiz.pairing.PairingException thrown = assertThrows(
+         inetsoft.web.wiz.pairing.PairingException.class,
+         () -> controller.gotoBookmark("tok",
+            new ViewsheetAssemblyAgentController.GotoBookmarkRequest("(Home)", null), "",
+            principal()));
+      assertTrue(thrown.getMessage().contains("(Home)")
+                    && thrown.getMessage().contains("Save the viewsheet first"),
+                 thrown.getMessage());
+   }
+
    @Test
    void gotoBookmark_resolvesByExplicitOwnerAmongSeveralVisible() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();

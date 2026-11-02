@@ -793,6 +793,33 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * Apply the saved state of this viewsheet onto the specified viewsheet. Used by (Home) in a
+    * design-mode runtime, where no initial-state snapshot exists. Unsaved design edits that
+    * have no stored state (e.g. newly added assemblies) are left as they are.
+    *
+    * @param target the viewsheet (a clone of the live one) to apply the saved state onto.
+    */
+   private Viewsheet applySavedStateTo(Viewsheet target) throws Exception {
+      if(entry == null || entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+         throw new MessageException(
+            "Cannot go to (Home): the viewsheet has not been saved yet, so there is no saved " +
+            "state to return to. Save the viewsheet first.");
+      }
+
+      AbstractSheet stored = rep.getSheet(entry, getUser(), false, AssetContent.ALL);
+
+      if(!(stored instanceof Viewsheet)) {
+         throw new MessageException(
+            "Cannot go to (Home): the saved viewsheet '" + entry.toView() + "' was not found.");
+      }
+
+      VSBookmark initial = new VSBookmark();
+      initial.addBookmark(VSBookmark.INITIAL_STATE, (Viewsheet) stored.clone(),
+                          VSBookmarkInfo.PRIVATE, false, true);
+      return initial.getBookmark(VSBookmark.INITIAL_STATE, target);
+   }
+
+   /**
     * Go to bookmark.
     * @param name the specified bookmark name.
     * @return <tt>true</tt> if go to bookmark successfully, <tt>false</tt>
@@ -816,6 +843,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
       // exist in the user's bookmarks, then just set to initial state.
       if(isHome && ibookmark != null) {
          processedViewsheet = ibookmark.getBookmark(VSBookmark.INITIAL_STATE, originalVs.clone());
+      }
+      else if(isHome && !isRuntime()) {
+         // A design-mode runtime (Composer) never captures an initial-state snapshot, so (Home)
+         // must return to the saved state. (Bug #79947)
+         processedViewsheet = applySavedStateTo((Viewsheet) vs.clone());
       }
 
       // Process the bookmark that was found
