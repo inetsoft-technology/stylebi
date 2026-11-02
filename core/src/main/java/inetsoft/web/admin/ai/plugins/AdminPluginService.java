@@ -260,7 +260,15 @@ public class AdminPluginService {
             return model;
          }
 
-         Thread.sleep(INSTALL_POLL_MS);
+         try {
+            Thread.sleep(INSTALL_POLL_MS);
+         }
+         catch(InterruptedException ex) {
+            // The install already committed; stop waiting and let the caller report it as
+            // pending rather than as a failed install.
+            Thread.currentThread().interrupt();
+            return model;
+         }
       }
    }
 
