@@ -271,6 +271,32 @@ class ChartGeoShelfTest {
    }
 
    @Test
+   void anUnparseableScriptColumnIsACleanRefusalNotARawScriptException() throws Exception {
+      // Bug #80030: a "=script" geo-shelf column that fails during chart data execution (the
+      // same shape #79503 fixed for set_chart_shelf / set_aesthetic_field) used to escape
+      // ChartGeoShelf.write as a raw ScriptException -- an unmapped RuntimeException that
+      // surfaces as a generic 500 -- instead of the clean IllegalArgumentException refusal
+      // ChartRenderCheck.checked already gives every other chart write.
+      doThrow(new inetsoft.util.script.ScriptException("missing ; before statement"))
+         .when(handler).getChartData(any(), any());
+      doAnswer(inv -> {
+         ((inetsoft.web.wiz.viewsheet.ViewsheetSessionService.Mutation) inv.getArgument(2))
+            .run(rvs, "rt", null);
+         return List.of();
+      }).when(sessions).mutate(any(), any(), any());
+      when(rvs.restoreCurrentCheckpoint()).thenReturn(true);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+         ChartGeoShelf.write(sessions, "tok", null, "Chart1", handler,
+            List.of(new Field("=bad syntax(", "State")), null));
+
+      assertTrue(e.getMessage().contains("does not parse or failed to evaluate"), e.getMessage());
+      assertTrue(e.getMessage().contains("=bad syntax("), e.getMessage());
+      assertTrue(e.getMessage().contains("missing ; before statement"), e.getMessage());
+      verify(rvs, atLeastOnce()).restoreCurrentCheckpoint();
+   }
+
+   @Test
    void anExplicitMapTypeIsRespectedAndAStaleEntryDoesNotKeepItsOldType() throws Exception {
       ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")), "U.S.");
       VSChartGeoRef stale = (VSChartGeoRef) info.getGeoColumns().getAttribute("State");
