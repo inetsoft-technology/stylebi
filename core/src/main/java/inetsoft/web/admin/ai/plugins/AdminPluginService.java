@@ -54,13 +54,22 @@ import java.util.stream.Collectors;
  */
 @Service
 public class AdminPluginService {
-   private static final long INSTALL_WAIT_MS = 15000L;
-   private static final long INSTALL_POLL_MS = 150L;
+   private static final long DEFAULT_INSTALL_WAIT_MS = 15000L;
+   private static final long DEFAULT_INSTALL_POLL_MS = 150L;
 
    @Autowired
    public AdminPluginService(PluginsService pluginsService, UploadService uploadService,
                               SecurityEngine securityEngine)
    {
+      this(pluginsService, uploadService, securityEngine,
+           DEFAULT_INSTALL_WAIT_MS, DEFAULT_INSTALL_POLL_MS);
+   }
+
+   AdminPluginService(PluginsService pluginsService, UploadService uploadService,
+                      SecurityEngine securityEngine, long installWaitMs, long installPollMs)
+   {
+      this.installWaitMs = installWaitMs;
+      this.installPollMs = installPollMs;
       this.pluginsService = pluginsService;
       this.uploadService = uploadService;
       this.securityEngine = securityEngine;
@@ -205,12 +214,12 @@ public class AdminPluginService {
 
          status = AdminChangeRecord.STATUS_PENDING;
          LOG.warn("Plugin install committed but not yet registered after {} ms: {}",
-                  INSTALL_WAIT_MS, missing);
+                  installWaitMs, missing);
          return PluginsModel.builder()
             .from(result)
             .pendingPluginIds(missing)
             .message("The install was accepted but these plugin ids were not yet in the plugin " +
-                     "list after " + (INSTALL_WAIT_MS / 1000) + " seconds: " + missing +
+                     "list after " + (installWaitMs / 1000) + " seconds: " + missing +
                      ". The list below may be stale; call list_drivers_and_plugins again to " +
                      "confirm. The plugin may also have been dropped as incompatible.")
             .build();
@@ -249,7 +258,7 @@ public class AdminPluginService {
    private PluginsModel awaitInstalled(Set<String> expectedIds, Principal principal)
       throws Exception
    {
-      long deadline = System.currentTimeMillis() + INSTALL_WAIT_MS;
+      long deadline = System.currentTimeMillis() + installWaitMs;
 
       while(true) {
          PluginsModel model = pluginsService.getModel(principal);
@@ -261,7 +270,7 @@ public class AdminPluginService {
          }
 
          try {
-            Thread.sleep(INSTALL_POLL_MS);
+            Thread.sleep(installPollMs);
          }
          catch(InterruptedException ex) {
             // The install already committed; stop waiting and let the caller report it as
@@ -410,6 +419,8 @@ public class AdminPluginService {
    private final PluginsService pluginsService;
    private final UploadService uploadService;
    private final SecurityEngine securityEngine;
+   private final long installWaitMs;
+   private final long installPollMs;
 
    private static final Logger LOG = LoggerFactory.getLogger(AdminPluginService.class);
 }
