@@ -116,6 +116,14 @@ public class SheetJoinService {
          throw new PairingException(PairingException.Kind.FEATURE_DISABLED, "Sheet agent pairing is disabled");
       }
 
+      // A missing code is a malformed request, not a guess: reject it like an unknown code but do
+      // NOT count it toward the per-user lockout (a client that drops the code would lock itself out).
+      if(code == null) {
+         LOG.warn("Sheet agent pairing join rejected: missing code (agent={})",
+                  PairingUtil.label(agentUser));
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired pairing code");
+      }
+
       // 2. Consume the code (single-use).
       PairingGrant grant = pairing.consume(code);
       if(grant == null) {
@@ -280,6 +288,12 @@ public class SheetJoinService {
                   agentUser == null ? "?" : agentUser.getName());
          throw new PairingException(PairingException.Kind.FEATURE_DISABLED,
                                     "Sheet agent pairing is disabled");
+      }
+
+      // Missing code: same rejection as an unknown code, not counted toward the lockout (see join).
+      if(code == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Invalid or expired pairing code");
       }
 
       PairingGrant grant = pairing.peek(code);

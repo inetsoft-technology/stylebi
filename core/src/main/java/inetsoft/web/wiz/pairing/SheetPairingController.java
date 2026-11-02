@@ -107,7 +107,7 @@ public class SheetPairingController {
     * paths above are the browser's.
     */
    @GetMapping("/api/wiz/v1/agent/pairing/peek")
-   public PeekResponse peek(@RequestParam String code, Principal user) throws PairingException {
+   public PeekResponse peek(@RequestParam(required = false) String code, Principal user) throws PairingException {
       SheetJoinService.PeekOutcome outcome = joinService.peek(code, user);
       return new PeekResponse(outcome.runtimeId(), outcome.sheetType().name().toLowerCase());
    }

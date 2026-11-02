@@ -98,7 +98,7 @@ public class ViewsheetAgentController {
     * this with {@code POST ...?code=...}.</p>
     */
    @PostMapping("/api/wiz/v1/agent/script/join")
-   public JoinResponse join(@RequestParam String code, Principal user) throws PairingException {
+   public JoinResponse join(@RequestParam(required = false) String code, Principal user) throws PairingException {
       requireEnabled();
       SheetJoinService.JoinOutcome outcome = joinService.join(code, user);
       JoinSession session = outcome.session();

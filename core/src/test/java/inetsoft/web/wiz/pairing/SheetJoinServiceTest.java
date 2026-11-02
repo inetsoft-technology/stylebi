@@ -750,6 +750,61 @@ class SheetJoinServiceTest {
       assertNotNull(pairing.peek(code));
    }
 
+   // Bug #80140: a null code is rejected like an unknown code, and is NOT counted toward the
+   // per-user lockout (a client that drops the code must not lock the user out).
+   @Test
+   void nullCodeOnJoinIsSessionExpiredAndNotCounted() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      for(int i = 0; i < 10; i++) {
+         PairingException ex = assertThrows(PairingException.class, () -> svc.join(null, alice));
+         assertEquals(PairingException.Kind.SESSION_EXPIRED, ex.getKind());
+         assertEquals("Invalid or expired pairing code", ex.getMessage());
+      }
+
+      // never locked out: a blank code is still a plain failed lookup, not RATE_LIMITED
+      PairingException blank = assertThrows(PairingException.class, () -> svc.join("", alice));
+      assertEquals(PairingException.Kind.SESSION_EXPIRED, blank.getKind());
+   }
+
+   @Test
+   void nullCodeOnPeekIsSessionExpiredAndNotCounted() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      for(int i = 0; i < 10; i++) {
+         PairingException ex = assertThrows(PairingException.class, () -> svc.peek(null, alice));
+         assertEquals(PairingException.Kind.SESSION_EXPIRED, ex.getKind());
+      }
+
+      String code = pairing.mint("Worksheet/null-1", ALICE_KEY, "sock-1", null,
+                                 SheetType.WORKSHEET, null);
+      assertEquals("Worksheet/null-1", svc.peek(code, alice).runtimeId());
+   }
+
+   @Test
+   void blankCodeIsStillCountedTowardLockout() {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      for(int i = 0; i < 8; i++) {
+         assertThrows(PairingException.class, () -> svc.join("  ", alice));
+      }
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.join("  ", alice));
+      assertEquals(PairingException.Kind.RATE_LIMITED, ex.getKind());
+   }
+
+   @Test
+   void nullCodeWithFeatureOffStillReportsFeatureDisabled() {
+      when(feature.isEnabled()).thenReturn(false);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.join(null, alice));
+      assertEquals(PairingException.Kind.FEATURE_DISABLED, ex.getKind());
+   }
+
    @Test
    void peekSharesJoinsLockoutInBothDirections() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
