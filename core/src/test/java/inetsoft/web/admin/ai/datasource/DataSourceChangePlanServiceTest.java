@@ -497,6 +497,7 @@ class DataSourceChangePlanServiceTest {
    // -------------------------------------------------------------------------
 
    @Test void buildProposedJdbcThrowsWhenUseCredentialTrueWithoutCredentialID() {
+      cloudSecrets(true);
       JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -506,6 +507,7 @@ class DataSourceChangePlanServiceTest {
    }
 
    @Test void buildProposedJdbcThrowsWhenUseCredentialTrueWithPasswordField() {
+      cloudSecrets(true);
       JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
       Map<String, Object> spec = new LinkedHashMap<>();
       spec.put("useCredentialId", true);
@@ -518,6 +520,7 @@ class DataSourceChangePlanServiceTest {
    }
 
    @Test void buildProposedJdbcThrowsWhenUseCredentialFalseWithCredentialIDField() {
+      cloudSecrets(true);
       JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -527,10 +530,61 @@ class DataSourceChangePlanServiceTest {
    }
 
    @Test void buildProposedJdbcAcceptsUseCredentialTrueWithCredentialID() throws Exception {
+      cloudSecrets(true);
       JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
 
       JdbcDataSourceProperties proposed = service.buildProposedJdbc("changes[0]", "id-1", "Orders", current,
          Map.of("useCredentialId", true, "credentialID", "secret-ref-1"), user);
+
+      assertTrue(proposed.isUseCredentialId());
+      assertEquals("secret-ref-1", proposed.getCredentialID());
+   }
+
+   private void cloudSecrets(boolean enabled) {
+      tool.when(Tool::isCloudSecrets).thenReturn(enabled);
+   }
+
+   // Bug #79889: credential-id mode cannot be written without cloud secrets
+   @Test void buildProposedJdbcRefusesCredentialModeWithoutCloudSecrets() {
+      cloudSecrets(false);
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.buildProposedJdbc("changes[0]", "id-1", "Orders", current,
+            Map.of("useCredentialId", true, "credentialID", "qa-ds-fake-credential"), user));
+      assertTrue(ex.getMessage().contains("credentialID"));
+      assertTrue(ex.getMessage().contains("cloud secrets"));
+   }
+
+   @Test void buildProposedJdbcRefusesCredentialIdAloneWithoutCloudSecrets() {
+      cloudSecrets(false);
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.buildProposedJdbc("changes[0]", "id-1", "Orders", current,
+            Map.of("credentialID", "qa-ds-fake-credential"), user));
+      assertTrue(ex.getMessage().contains("cloud secrets"));
+   }
+
+   @Test void buildProposedJdbcAllowsOtherFieldsAndCredentialModeOffWithoutCloudSecrets()
+      throws Exception
+   {
+      cloudSecrets(false);
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc("changes[0]", "id-1", "Orders",
+         current, Map.of("defaultDatabase", "QA", "useCredentialId", false), user);
+
+      assertEquals("QA", proposed.getDefaultDatabase());
+      assertFalse(proposed.isUseCredentialId());
+   }
+
+   @Test void buildProposedJdbcAcceptsCredentialModeWithCloudSecrets() throws Exception {
+      cloudSecrets(true);
+      JdbcDataSourceProperties current = jdbc("id-1", "Orders", true, "******");
+
+      JdbcDataSourceProperties proposed = service.buildProposedJdbc("changes[0]", "id-1", "Orders",
+         current, Map.of("useCredentialId", true, "credentialID", "secret-ref-1"), user);
 
       assertTrue(proposed.isUseCredentialId());
       assertEquals("secret-ref-1", proposed.getCredentialID());

@@ -22,6 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
@@ -546,6 +547,19 @@ public class DataSourceChangePlanService {
    private static void requireCredentialCrossValidation(String label, Map<String, Object> spec,
                                                          JdbcDataSourceProperties proposed)
    {
+      // Bug #79889: DataSourceService only stores a credential id when Tool.isCloudSecrets() is
+      // on, so credential-id mode can never be written elsewhere. Refuse at preview instead of
+      // returning a plan whose apply rolls back on the read-back verify.
+      boolean asksForCredentialMode = spec.containsKey("credentialID") ||
+         spec.containsKey("useCredentialId") && proposed.isUseCredentialId();
+
+      if(asksForCredentialMode && !Tool.isCloudSecrets()) {
+         throw new IllegalArgumentException(
+            label + ".spec: useCredentialId/credentialID require a cloud secrets deployment " +
+            "(Tool.isCloudSecrets); this deployment stores secrets locally, so credential-id " +
+            "mode cannot be written -- use user/password in cleartext form instead");
+      }
+
       if(proposed.isUseCredentialId()) {
          if(spec.containsKey("password") || spec.containsKey("user")) {
             throw new IllegalArgumentException(
