@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.dashboard;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -193,11 +194,12 @@ public class DashboardChangePlanService {
 
    private PlanChange resolveDashboardCreate(String label, DashboardChangeRequest change,
                                              IdentityID owner, Set<String> seenKeys)
+      throws Exception
    {
       requireUnused(label, "oname", change.getOname());
       String name = requireNonBlank(label + ".name", change.getName());
       String viewsheet = requireNonBlank(label + ".viewsheet", change.getViewsheet());
-      requireValidAssetIdShape(label + ".viewsheet", viewsheet);
+      requireExistingViewsheet(label + ".viewsheet", viewsheet);
       String registryName = fixDashboardName(name, owner);
       String key = dashboardKey(registryName, owner);
 
@@ -254,6 +256,13 @@ public class DashboardChangePlanService {
       }
 
       RepositoryDashboardSettingsModel current = repositoryDashboardService.getSettings(oname, owner, user);
+
+      // Only a re-bind is checked: a dashboard whose stored binding already dangles must stay
+      // editable (name/description/enable) without being forced to fix the binding first.
+      if(viewsheet != null && !viewsheet.equals(current.viewsheet())) {
+         requireExistingViewsheet(label + ".viewsheet", viewsheet);
+      }
+
       String newDisplayName = name != null ? name : oname;
       String newRegistryName = fixDashboardName(newDisplayName, owner);
 
@@ -529,6 +538,26 @@ public class DashboardChangePlanService {
       if(entry == null) {
          throw new IllegalArgumentException(
             label + ": not a valid asset identifier (\"" + assetId + "\")");
+      }
+   }
+
+   /**
+    * Refuses a viewsheet id that is well-formed but does not name an existing viewsheet. The EM
+    * dashboard editor only lets an admin pick an existing viewsheet from the repository tree; the
+    * server-side save does not re-check, so without this a dashboard could be bound to nothing.
+    * The id carries its own scope/user/org, so the lookup covers global and user-scoped viewsheets
+    * for both global and owner-scoped dashboards.
+    */
+   private static void requireExistingViewsheet(String label, String assetId) throws Exception {
+      requireValidAssetIdShape(label, assetId);
+      AssetEntry entry = AssetEntry.createAssetEntry(assetId);
+      AssetEntry found = entry.isViewsheet() ?
+         AssetUtil.getAssetRepository(false).getAssetEntry(entry) : null;
+
+      if(found == null) {
+         throw new IllegalArgumentException(
+            label + ": no viewsheet found for \"" + assetId + "\" -- bind an existing viewsheet " +
+            "(see list_viewsheets)");
       }
    }
 
