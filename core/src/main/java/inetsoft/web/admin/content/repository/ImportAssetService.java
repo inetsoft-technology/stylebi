@@ -288,7 +288,8 @@ public class ImportAssetService {
       ImportAssetContext context = getOwnedContext(importId, principal);
 
       if(context == null) {
-         throw new IllegalStateException("Current session is missing the imported jar info.");
+         throw new StagedImportNotFoundException(
+            "Current session is missing the imported jar info.");
       }
 
       ImportJarProperties properties = context.getProperties();

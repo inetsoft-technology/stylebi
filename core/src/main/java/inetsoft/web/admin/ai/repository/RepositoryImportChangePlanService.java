@@ -24,6 +24,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.content.repository.ImportAssetServiceProxy;
+import inetsoft.web.admin.content.repository.StagedImportNotFoundException;
 import inetsoft.web.admin.content.repository.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -62,6 +63,22 @@ public class RepositoryImportChangePlanService {
       this.assetRepository = assetRepository;
    }
 
+   private static IllegalArgumentException unknownStagingToken() {
+      return new IllegalArgumentException(
+         "stagingToken: no staged import found for this token -- it may have expired or " +
+         "already been applied/discarded; call stage_repository_import again");
+   }
+
+   private static boolean isStagedImportNotFound(Throwable e) {
+      for(Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+         if(t instanceof StagedImportNotFoundException) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    public RepositoryImportPlan resolve(RepositoryImportRequest req, Principal principal)
       throws Exception
    {
@@ -72,27 +89,33 @@ public class RepositoryImportChangePlanService {
       Integer locationType = null;
       ExportedAssetsModel info;
 
-      if(targetFolderPath != null) {
-         ExportedAssetsModel base = importService.getJarFileInfo(stagingToken, principal);
+      try {
+         if(targetFolderPath != null) {
+            ExportedAssetsModel base = importService.getJarFileInfo(stagingToken, principal);
 
-         if(base == null) {
-            throw new IllegalArgumentException(
-               "stagingToken: no staged import found for this token -- it may have expired or " +
-               "already been applied/discarded; call stage_repository_import again");
+            if(base == null) {
+               throw unknownStagingToken();
+            }
+
+            locationType = computeLocationType(base.selectedEntities());
+            info = importService.updateImportInfo(
+               stagingToken, targetFolderPath, locationType, targetOwner, principal);
+         }
+         else {
+            info = importService.getJarFileInfo(stagingToken, principal);
+         }
+      }
+      catch(RuntimeException e) {
+         // the import service throws rather than returning null for an unknown/expired token
+         if(isStagedImportNotFound(e)) {
+            throw unknownStagingToken();
          }
 
-         locationType = computeLocationType(base.selectedEntities());
-         info = importService.updateImportInfo(
-            stagingToken, targetFolderPath, locationType, targetOwner, principal);
-      }
-      else {
-         info = importService.getJarFileInfo(stagingToken, principal);
+         throw e;
       }
 
       if(info == null) {
-         throw new IllegalArgumentException(
-            "stagingToken: no staged import found for this token -- it may have expired or " +
-            "already been applied/discarded; call stage_repository_import again");
+         throw unknownStagingToken();
       }
 
       List<String> ignoreAssetNames = req.getIgnoreAssetNames() == null
