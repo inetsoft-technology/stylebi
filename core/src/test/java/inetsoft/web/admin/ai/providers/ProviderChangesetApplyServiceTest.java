@@ -264,6 +264,53 @@ class ProviderChangesetApplyServiceTest {
       assertEquals("cn=admin", after.adminID()); // untouched field carried over unchanged
    }
 
+   @Test void updateOfSecretModeLdapProviderKeepsTheSecretReference() throws Exception {
+      seedSecretLdapAuthentication("victim");
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      var result = service.apply(applyRequest("update victim", updateAuth("victim", patch)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      LdapAuthenticationProviderModel after = authModels.get("victim").ldapProviderModel();
+      assertTrue(after.useCredential());
+      assertEquals("vault-secret", after.secretId());
+      assertNull(after.adminID());
+      assertNull(after.password());
+   }
+
+   @Test void updateIsNotVerifiedWhenReadBackCredentialModeDiffers() throws Exception {
+      seedSecretLdapAuthentication("victim");
+      // simulates the bug: the saved provider reads back in literal mode
+      lenient().doAnswer(inv -> {
+         authModels.put("victim", AuthenticationProviderModel.builder()
+            .providerName("victim").providerType(SecurityProviderType.LDAP)
+            .ldapProviderModel(LdapAuthenticationProviderModel.builder()
+               .ldapServer(SecurityProviderType.GENERIC).protocol("ldap")
+               .hostName("rotated-host.example.com").hostPort(389).rootDN("dc=example,dc=com")
+               .useCredential(false).adminID("cn=resolved").password("x").build())
+            .build());
+         return null;
+      }).when(authenticationProviderService).editAuthenticationProvider(anyString(), any(), any());
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      var result = service.apply(applyRequest("update victim", updateAuth("victim", patch)), user);
+
+      assertNotEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+   }
+
+   @Test void updateOfLiteralModeLdapProviderIsStillVerified() throws Exception {
+      seedLdapAuthentication("victim");
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      var result = service.apply(applyRequest("update victim", updateAuth("victim", patch)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+   }
+
    @Test void rollbackOfAnUpdateRestoresTheOriginalConfigurationAtTheSameChainIndex() throws Exception {
       seedLdapAuthentication("keep", "victim");
       ProviderLdapSpec patch = new ProviderLdapSpec();
@@ -707,6 +754,19 @@ class ProviderChangesetApplyServiceTest {
                .ldapServer(SecurityProviderType.GENERIC).protocol("ldap")
                .hostName("ldap.example.com").hostPort(389).rootDN("dc=example,dc=com")
                .adminID("cn=admin").password("initial-password").build())
+            .build());
+      }
+   }
+
+   private void seedSecretLdapAuthentication(String... names) {
+      for(String name : names) {
+         authChainNames.add(name);
+         authModels.put(name, AuthenticationProviderModel.builder()
+            .providerName(name).providerType(SecurityProviderType.LDAP)
+            .ldapProviderModel(LdapAuthenticationProviderModel.builder()
+               .ldapServer(SecurityProviderType.GENERIC).protocol("ldap")
+               .hostName("ldap.example.com").hostPort(389).rootDN("dc=example,dc=com")
+               .useCredential(true).secretId("vault-secret").build())
             .build());
       }
    }
