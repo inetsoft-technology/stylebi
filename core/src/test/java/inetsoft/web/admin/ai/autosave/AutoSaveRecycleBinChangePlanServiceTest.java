@@ -57,6 +57,10 @@ class AutoSaveRecycleBinChangePlanServiceTest {
          AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET, "Untitled-9",
          AutoSaveRecycleBinEntryProjection.SCOPE_GLOBAL, "admin~;~host-org", null);
       lenient().when(autoSaveRecycleBinService.requireEntry("id1", user)).thenReturn(entry);
+      // A mock returns null for an unstubbed Occupant; nothing occupies the destination by default
+      // (the #79939 occupant check runs on every restore plan).
+      lenient().when(autoSaveRecycleBinService.occupantOf(any(), anyString(), any()))
+         .thenReturn(AutoSaveRecycleBinService.Occupant.NONE);
    }
 
    @AfterEach

@@ -139,7 +139,10 @@ public class AutoSaveRecycleBinChangePlanService {
             "an existing one");
       }
 
-      boolean collides = autoSaveRecycleBinService.wouldCollide(entry, assetName, user);
+      AutoSaveRecycleBinService.Occupant occupant =
+         autoSaveRecycleBinService.occupantOf(entry, assetName, user);
+      requireOverwritable(label + ".assetName", assetName, occupant, entry.type());
+      boolean collides = occupant.occupied();
 
       if(collides && !overwrite) {
          throw new IllegalArgumentException(
@@ -159,6 +162,23 @@ public class AutoSaveRecycleBinChangePlanService {
                " (overwrite: true has no effect -- nothing currently occupies the destination)" : "");
       return new PlanChange(key, null, project(entry), "(restored to \"" + assetName + "\")", risk,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
+   }
+
+   /**
+    * A folder or viewsheet snapshot at the destination is never overwritable: the restore does not
+    * remove it, it would just create a same-named sheet beside it, which the product's own
+    * save/create/rename paths refuse. Refused regardless of {@code overwrite}.
+    */
+   static void requireOverwritable(String label, String assetName,
+                                   AutoSaveRecycleBinService.Occupant occupant, String draftType)
+   {
+      if(occupant.occupied() && !occupant.overwritable()) {
+         throw new IllegalArgumentException(
+            label + ": the destination \"" + assetName + "\" is occupied by a " +
+            occupant.describe(draftType) + ", not by another " + draftType + " -- a " + draftType +
+            " cannot share a name with a " + occupant.describe(draftType) + ", and overwrite: true " +
+            "does not replace it (it is left in place); choose a different assetName");
+      }
    }
 
    /**
