@@ -73,7 +73,8 @@ class ScriptLibraryChangePlanServiceTest {
       scriptLibraryService = new ScriptLibraryService(libManagerProvider, securityEngine);
       // the save gate's syntax check needs the live script engine, absent here; these tests are about
       // plan/apply behavior, not text validity (ScriptLibraryValidatorTest and the bad-input cases cover that)
-      service = new ScriptLibraryChangePlanService(scriptLibraryService, text -> {});
+      service = new ScriptLibraryChangePlanService(scriptLibraryService);
+      service.setSyntaxChecker(text -> {});
 
       // Default every caller to holding ADMIN on every script name -- individual permission tests
       // override this to specific denials.

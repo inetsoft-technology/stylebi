@@ -67,7 +67,8 @@ class ScriptLibraryValidationTest {
    void setUp() throws Exception {
       lenient().when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
       scriptLibraryService = new ScriptLibraryService(libManagerProvider, securityEngine);
-      service = new ScriptLibraryChangePlanService(scriptLibraryService, CHECKER);
+      service = new ScriptLibraryChangePlanService(scriptLibraryService);
+      service.setSyntaxChecker(CHECKER);
       lenient().when(securityEngine.checkPermission(
          eq(user), eq(ResourceType.SCRIPT), anyString(), eq(ResourceAction.ADMIN)))
          .thenReturn(true);
@@ -153,10 +154,10 @@ class ScriptLibraryValidationTest {
    }
 
    @Test void createWithEngineDownSurfacesTheReasonAsAnIllegalArgument() {
-      ScriptLibraryChangePlanService down = new ScriptLibraryChangePlanService(
-         scriptLibraryService, text -> {
-            throw new IllegalStateException("Engine not initialized");
-         });
+      ScriptLibraryChangePlanService down = new ScriptLibraryChangePlanService(scriptLibraryService);
+      down.setSyntaxChecker(text -> {
+         throw new IllegalStateException("Engine not initialized");
+      });
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> down.resolve(request(create("goodName", "function goodName() {}")), user));

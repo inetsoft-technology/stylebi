@@ -55,16 +55,15 @@ import java.util.*;
 public class ScriptLibraryChangePlanService {
    @Autowired
    public ScriptLibraryChangePlanService(ScriptLibraryService scriptLibraryService) {
-      this(scriptLibraryService, ScriptLibraryValidator.engineChecker());
+      this.scriptLibraryService = scriptLibraryService;
    }
 
    /**
-    * @param syntaxChecker the parse-only check applied to the text a create or rename would store
+    * Test seam: replaces the parse-only check applied to the text a create or rename would store.
+    * A setter rather than a constructor so the bean keeps one constructor whose parameters are all
+    * Spring beans (AdminAiBeanGraphTest).
     */
-   public ScriptLibraryChangePlanService(ScriptLibraryService scriptLibraryService,
-                                         ScriptLibraryValidator.SyntaxChecker syntaxChecker)
-   {
-      this.scriptLibraryService = scriptLibraryService;
+   void setSyntaxChecker(ScriptLibraryValidator.SyntaxChecker syntaxChecker) {
       this.syntaxChecker = syntaxChecker;
    }
 
@@ -401,5 +400,5 @@ public class ScriptLibraryChangePlanService {
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final ScriptLibraryService scriptLibraryService;
-   private final ScriptLibraryValidator.SyntaxChecker syntaxChecker;
+   private ScriptLibraryValidator.SyntaxChecker syntaxChecker = ScriptLibraryValidator.engineChecker();
 }
