@@ -446,6 +446,13 @@ public class AssemblyConditionService {
 
             if(error == null) {
                ConditionVocabulary.requireScalarExpressionResult(condition, text, result.value());
+
+               if(ConditionVocabulary.isNullExpressionResult(result.value()) &&
+                  !readsUnsetParameter(text, sql, box))
+               {
+                  warnings.add(ConditionVocabulary.nullExpressionResultWarning(text));
+               }
+
                continue;
             }
 
@@ -458,6 +465,26 @@ public class AssemblyConditionService {
             warnings.add("The expression '" + text + "' threw: " + error +
                          "; the table shows no rows until it evaluates.");
          }
+      }
+   }
+
+   /**
+    * True when the expression reads a parameter that has no value. The renderer does not run such
+    * an expression (ConditionGroup compares the column with itself), so its null is not a
+    * result, and the value may be supplied later.
+    */
+   private static boolean readsUnsetParameter(String text, boolean sql, ViewsheetSandbox box) {
+      String name = ConditionVocabulary.referencedParameter(text, sql);
+
+      if(name == null) {
+         return false;
+      }
+
+      try {
+         return box.getAssetQuerySandbox().getVariableTable().get(name) == null;
+      }
+      catch(Exception e) {
+         return false;
       }
    }
 
