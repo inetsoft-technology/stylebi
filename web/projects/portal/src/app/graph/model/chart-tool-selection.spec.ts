@@ -46,6 +46,8 @@ function fakeContext(canvas: HTMLCanvasElement = document.createElement("canvas"
    const calls: string[] = [];
    // the stroke style and dash in force at each stroke() call
    const strokes: {style: string, dash: number[]}[] = [];
+   // the [x, y, w, h] of each rect() call
+   const rects: number[][] = [];
    let strokeStyle = "";
    let dash: number[] = [];
    canvas.getBoundingClientRect = () => ({width: 100, height: 100} as DOMRect);
@@ -53,13 +55,14 @@ function fakeContext(canvas: HTMLCanvasElement = document.createElement("canvas"
    return {
       calls,
       strokes,
+      rects,
       canvas,
       beginPath: () => calls.push("beginPath"),
       moveTo: () => {}, lineTo: () => {}, closePath: () => {},
       setTransform: () => {}, transform: () => {}, save: () => {}, restore: () => {},
       scale: () => {}, translate: () => {}, clearRect: () => {}, clip: () => {},
       quadraticCurveTo: () => {}, bezierCurveTo: () => {}, arc: () => {}, arcTo: () => {},
-      ellipse: () => {}, rect: () => {},
+      ellipse: () => {}, rect: (x: number, y: number, w: number, h: number) => rects.push([x, y, w, h]),
       setLineDash: (segments: number[]) => dash = [...segments],
       fill: () => calls.push("fill"),
       stroke: () => {
@@ -144,5 +147,101 @@ describe("drawRegions chrome selection outline", () => {
       ChartTool.drawRegions(ctx, [region], 0, 0, 1, undefined, undefined, false, "legend_content", true);
       // no stylesheet is loaded, so the canvas rule's colour is drawRegions' own default
       expect(ctx.strokes).toEqual([{style: "#dc581e", dash: [6, 4]}]);
+   });
+});
+
+// the 2px stroke is centred on the rect's edges, so an edge on the canvas edge loses its outer half
+describe("drawRegions chrome selection on the canvas edge", () => {
+   function rectRegion(x: number, y: number, w: number, h: number): any {
+      return {index: 0, valIdx: 0, segTypes: [[ChartTool.RECT]], pts: [[[[x, y], [w, h]]]]};
+   }
+
+   let host: HTMLElement;
+
+   afterEach(() => host?.remove());
+
+   function sizedContext(width: number, height: number): any {
+      const ctx = fakeContext();
+      ctx.canvas.getBoundingClientRect = () =>
+         ({left: 0, top: 0, right: width, bottom: height, width, height} as DOMRect);
+      return ctx;
+   }
+
+   // a canvas in a clipping host that shows only its rows from top down, as legend content does
+   function hostedContext(width: number, height: number, top: number): any {
+      const ctx = sizedContext(width, height);
+      host = document.createElement("div");
+      host.style.overflow = "hidden";
+      host.getBoundingClientRect = () =>
+         ({left: 0, top, right: width, bottom: height, width, height: height - top} as DOMRect);
+      host.appendChild(ctx.canvas);
+      document.body.appendChild(host);
+      return ctx;
+   }
+
+   it("keeps every edge of a legend title selection whole on its canvas", () => {
+      // the title region fills its canvas, whose width is the region's truncated to whole px
+      const ctx = sizedContext(406, 18);
+      ChartTool.drawRegions(ctx, [rectRegion(0, 0, 406.775, 17)], 0, 0, 1,
+         undefined, undefined, false, "legend_title", true);
+      expect(ctx.rects).toEqual([[1, 1, 404, 16]]);
+   });
+
+   it("measures the canvas edge in region units under a viewsheet scale and offset", () => {
+      // at scale 2 a 200x100 css canvas holds 100x50 region units, starting at the offset
+      const ctx = sizedContext(200, 100);
+      ChartTool.drawRegions(ctx, [rectRegion(2, 2, 100, 30)], 2, 2, 2,
+         undefined, undefined, false, "legend_title", true);
+      expect(ctx.rects).toEqual([[3, 3, 98, 29]]);
+   });
+
+   it("leaves a chrome selection that already fits inside the canvas where it is", () => {
+      const ctx = sizedContext(100, 100);
+      ChartTool.drawRegions(ctx, [rectRegion(10, 5, 50, 8)], 0, 0, 1,
+         undefined, undefined, false, "legend_content", true);
+      expect(ctx.rects).toEqual([[10, 5, 50, 8]]);
+   });
+
+   it("keeps the top edge of a legend item whole under its host's clip", () => {
+      // the content canvas starts at the legend origin; its host shows it from the content top
+      const ctx = hostedContext(331, 39, 21);
+      ChartTool.drawRegions(ctx, [rectRegion(2, 21, 80, 14)], 0, 0, 1,
+         undefined, undefined, false, "legend_content", true);
+      expect(ctx.rects).toEqual([[2, 22, 80, 13]]);
+   });
+
+   it("leaves a legend item scrolled under its host's top cut", () => {
+      const ctx = hostedContext(331, 39, 21);
+      ChartTool.drawRegions(ctx, [rectRegion(2, 15, 80, 14)], 0, 0, 1,
+         undefined, undefined, false, "legend_content", true);
+      expect(ctx.rects).toEqual([[2, 15, 80, 14]]);
+   });
+
+   it("leaves an edge that runs past the canvas cut", () => {
+      const ctx = sizedContext(100, 100);
+      ChartTool.drawRegions(ctx, [rectRegion(-10, 5, 50, 8)], 0, 0, 1,
+         undefined, undefined, false, "legend_content", true);
+      expect(ctx.rects).toEqual([[-10, 5, 50, 8]]);
+   });
+
+   it("leaves a chrome selection outside the canvas where it is", () => {
+      const ctx = sizedContext(100, 100);
+      ChartTool.drawRegions(ctx, [rectRegion(150, 10, 20, 5)], 0, 0, 1,
+         undefined, undefined, false, "legend_content", true);
+      expect(ctx.rects).toEqual([[150, 10, 20, 5]]);
+   });
+
+   it("keeps a legacy legend title selection where it was", () => {
+      const ctx = sizedContext(406, 18);
+      ChartTool.drawRegions(ctx, [rectRegion(0, 0, 406.775, 17)], 0, 0, 1,
+         undefined, undefined, false, "legend_title", false);
+      expect(ctx.rects).toEqual([[0, 0, 406.775, 17]]);
+   });
+
+   it("keeps a data selection on the canvas edge where it is", () => {
+      const ctx = sizedContext(100, 100);
+      ChartTool.drawRegions(ctx, [rectRegion(0, 0, 100, 100)], 0, 0, 1,
+         undefined, undefined, false, "plot_area", true);
+      expect(ctx.rects).toEqual([[0, 0, 100, 100]]);
    });
 });

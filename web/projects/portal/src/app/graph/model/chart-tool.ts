@@ -765,6 +765,72 @@ export namespace ChartTool {
    // Chromium's dash for a 2px dashed outline, which the composer's outer selection draws
    const CHROME_SELECTION_DASH: number[] = [6, 4];
 
+   // stroke width of a drawn selection
+   const SELECTION_LINE_WIDTH = 2;
+
+   interface Bounds {
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+   }
+
+   /**
+    * Pull in each edge of a chrome selection rect that lies on the visible canvas edge, so its
+    * centred stroke shows whole. An edge 1 unit or more past it continues out of view, as in a
+    * scrolled legend, and stays cut.
+    *
+    * @param visible the visible part of the canvas in region units
+    */
+   function keepStrokeOnCanvas(x: number, y: number, w: number, h: number, visible: Bounds): number[] {
+      const half = SELECTION_LINE_WIDTH / 2;
+      // within 1 unit: canvas sizes are region sizes truncated to whole px
+      const onStart = (edge: number, bound: number) => edge - half < bound && edge > bound - 1;
+      const onEnd = (edge: number, bound: number) => edge + half > bound && edge < bound + 1;
+      const left = onStart(x, visible.left) ? visible.left + half : x;
+      const top = onStart(y, visible.top) ? visible.top + half : y;
+      const right = onEnd(x + w, visible.right) ? visible.right - half : x + w;
+      const bottom = onEnd(y + h, visible.bottom) ? visible.bottom - half : y + h;
+
+      return right > left && bottom > top ? [left, top, right - left, bottom - top] : [x, y, w, h];
+   }
+
+   /**
+    * The part of a canvas its host shows, in region units: the canvas, cut to the host's box when
+    * the host clips. Legend content draws on a canvas that starts above its host, at the legend
+    * origin.
+    *
+    * @param rect   the canvas's client rect
+    * @param scaleX canvas px per region unit
+    * @param scaleY canvas px per region unit
+    */
+   function visibleCanvasBounds(canvas: HTMLCanvasElement, rect: DOMRect, offsetX: number,
+                                offsetY: number, scaleX: number, scaleY: number,
+                                dpr: number): Bounds
+   {
+      const bounds: Bounds = {
+         left: offsetX,
+         top: offsetY,
+         right: offsetX + canvas.width / scaleX,
+         bottom: offsetY + canvas.height / scaleY
+      };
+      const host = canvas.parentElement;
+      const overflow = host ? window.getComputedStyle(host).overflow : "";
+
+      if(overflow && overflow != "visible") {
+         const hostRect = host.getBoundingClientRect();
+         // css px per region unit
+         const cssX = scaleX / dpr;
+         const cssY = scaleY / dpr;
+         bounds.left = Math.max(bounds.left, offsetX + (hostRect.left - rect.left) / cssX);
+         bounds.top = Math.max(bounds.top, offsetY + (hostRect.top - rect.top) / cssY);
+         bounds.right = Math.min(bounds.right, offsetX + (hostRect.right - rect.left) / cssX);
+         bounds.bottom = Math.min(bounds.bottom, offsetY + (hostRect.bottom - rect.top) / cssY);
+      }
+
+      return bounds;
+   }
+
    /**
     * Draw a shape on a given canvas
     *
@@ -853,7 +919,7 @@ export namespace ChartTool {
             context.stroke();
          }
 
-         context.lineWidth = 2;
+         context.lineWidth = SELECTION_LINE_WIDTH;
          context.fillStyle = fillStyle;
          context.strokeStyle = strokeStyle;
 
@@ -873,6 +939,11 @@ export namespace ChartTool {
          }
 
          context.setLineDash(strokeOnly ? CHROME_SELECTION_DASH : []);
+
+         // inverse of the transform and translate above
+         const visibleBounds = strokeOnly ?
+            visibleCanvasBounds(nativeElement, rect, offsetX, offsetY, canvasScaleX || 1,
+                                canvasScaleY || 1, dpr) : null;
 
          const dregions = Tool.clone(regions);
 
@@ -993,6 +1064,11 @@ export namespace ChartTool {
                      else {
                         drawRoundedBar(context, x, y, w, h, r, region.barDirection);
                      }
+                  }
+                  else if(strokeOnly) {
+                     const [cx, cy, cw, ch] = keepStrokeOnCanvas(x, y, w, h, visibleBounds);
+                     context.moveTo(cx, cy);
+                     context.rect(cx, cy, cw, ch);
                   }
                   else {
                      context.moveTo(x, y);
