@@ -1167,10 +1167,15 @@ public class SelectionRuntimeService {
                   idModeChainHint(selectionListOf(assembly), path));
             }
 
+            SelectionValue[] domainValues = selectionListOf(assembly) == null ? null :
+               selectionListOf(assembly).getSelectionValues();
+            String wrongParent = wrongParentHint(domainValues, unmatched, "selecting");
+
             throw new IllegalArgumentException(
                "'" + assemblyName + "' has no subtree at " + path +
                unresolvedDetail(selectionListOf(assembly), unmatched, false) +
-               " -- confirm the exact spelling via browse_condition_values before selecting it.");
+               (wrongParent != null ? wrongParent :
+                  " -- confirm the exact spelling via browse_condition_values before selecting it."));
          }
 
          // The native UI hides Select Subtree on a single-select ID-hierarchy tree
@@ -2573,6 +2578,14 @@ public class SelectionRuntimeService {
       List<List<String>> unmatched = findUnmatchedPaths(domain, values, idMode);
 
       if(!unmatched.isEmpty()) {
+         String wrongParent = idMode ? null : wrongParentHint(domain, unmatched, action);
+
+         if(wrongParent != null) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' has no value matching " + unmatched +
+               unresolvedDetail(domain, unmatched, false) + wrongParent);
+         }
+
          throw new IllegalArgumentException(
             "'" + assemblyName + "' has no value matching " + unmatched +
             unresolvedDetail(domain, unmatched, idMode) + " -- " +
@@ -2812,6 +2825,42 @@ public class SelectionRuntimeService {
       String named = chains.stream().map(List::toString).collect(Collectors.joining(" or "));
       return " -- " + rule + "; id '" + id + "' exists at " + named +
          ", pass that full chain from the root.";
+   }
+
+   /**
+    * The tail of a non-ID-mode refusal when the segment a path fails at is a real node elsewhere in
+    * the tree, i.e. the value was given under the wrong parent. Names the real full path(s) instead
+    * of hinting at a spelling problem. Returns {@code null} when no failing segment exists
+    * anywhere else (a genuinely absent value keeps the spelling hint). Package-private for tests.
+    */
+   static String wrongParentHint(SelectionValue[] domain, List<List<String>> unmatched,
+                                 String action)
+   {
+      List<String> hints = new ArrayList<>();
+
+      for(List<String> path : unmatched) {
+         String[] segments = path.toArray(new String[0]);
+         int index = firstUnresolvedSegment(domain, segments);
+
+         if(index >= segments.length || segments[index] == null) {
+            continue;
+         }
+
+         List<List<String>> chains = new ArrayList<>();
+         collectIdChains(domain, segments[index], new ArrayList<>(), chains);
+
+         if(!chains.isEmpty()) {
+            hints.add("'" + segments[index] + "' exists at " +
+               chains.stream().map(List::toString).collect(Collectors.joining(" or ")));
+         }
+      }
+
+      if(hints.isEmpty()) {
+         return null;
+      }
+
+      return " -- " + String.join("; ", hints) + "; pass the full path from the root before " +
+         action + " it.";
    }
 
    private static void collectIdChains(SelectionValue[] level, String id, List<String> prefix,
