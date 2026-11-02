@@ -1078,6 +1078,11 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
 
       bindingChanged = false;
 
+      // a non-default target only marks the gauge as customized while the range is still set;
+      // once max/min/increments are all cleared the automatic scale applies (#79996)
+      boolean rangeCleared = maxValue.getDValue() == null && minValue.getDValue() == null &&
+         majorIncValue.getDValue() == null && minorIncValue.getDValue() == null;
+
       // if the values have been set explicitly, don't change
       try {
          if(maxValue.getDValue() != null &&
@@ -1088,7 +1093,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
             defMajor != Double.parseDouble(majorIncValue.getDValue()) ||
             minorIncValue.getDValue() != null &&
             defMinor != Double.parseDouble(minorIncValue.getDValue()) ||
-            targetValue.getDValue() != null &&
+            !rangeCleared && targetValue.getDValue() != null &&
             80 != Double.parseDouble(targetValue.getDValue()))
          {
             setDefaultValueFormat(getMax(), getMajorInc());
