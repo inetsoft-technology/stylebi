@@ -153,7 +153,8 @@ public class AssemblyConditionService {
             continue;
          }
 
-         String name = condition.getField().getName();
+         // the name get_condition lists; the stored label may since have been changed
+         String name = ConditionVocabulary.canonicalName(condition.getField());
 
          if(name == null || name.isBlank() || !seen.add(name.trim().toLowerCase())) {
             continue;

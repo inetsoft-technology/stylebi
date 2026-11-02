@@ -262,6 +262,29 @@ class AssemblyConditionServiceTest {
    }
 
    @Test
+   void aConditionStoredUnderAnOldLabelIsNotStaleAfterTheColumnIsRelabelled() throws Exception {
+      ColumnRefModel stored = relabelled("Product:Total", "Sales Amount");
+      ColumnRefModel nowLabelled = relabelled("Product:Total", "Revenue X");
+      VSConditionDialogModel model = modelWith(new DataRefModel[]{ nowLabelled }, stored);
+
+      assertFalse(harness(model).service.read("tok", principal(), "T").containsKey("warnings"));
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void aRemovedColumnStoredUnderALabelWarnsNamingTheCanonicalField() throws Exception {
+      ColumnRefModel stored = relabelled("Product:Total", "Sales Amount");
+      VSConditionDialogModel model = modelWith(new DataRefModel[]{ field("Region") }, stored);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "T");
+      List<String> warnings = (List<String>) read.get("warnings");
+
+      assertEquals(1, warnings.size());
+      assertTrue(warnings.get(0).contains("'Product:Total'"), warnings.get(0));
+      assertFalse(warnings.get(0).contains("Sales Amount"), warnings.get(0));
+   }
+
+   @Test
    void aCalcFieldInFieldsIsNotStale() throws Exception {
       VSConditionDialogModel model = modelWith(
          new DataRefModel[]{ field("Region"), field("DbgCalc") }, field("DbgCalc"));
