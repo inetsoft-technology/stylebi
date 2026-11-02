@@ -21,8 +21,22 @@ import java.io.Serializable;
 
 public class ClearDataSourceCacheEvent implements Serializable {
    public ClearDataSourceCacheEvent(String orgID) {
+      this(orgID, false);
+   }
+
+   /**
+    * @param orgID      the organization the event is about.
+    * @param orgDeleted true if the organization was deleted, in which case every node must
+    *                   drop everything it holds for the organization.
+    */
+   public ClearDataSourceCacheEvent(String orgID, boolean orgDeleted) {
       super();
       this.orgID = orgID;
+      this.orgDeleted = orgDeleted;
+   }
+
+   public boolean isOrgDeleted() {
+      return orgDeleted;
    }
 
    public String getOrgID() {
@@ -34,4 +48,5 @@ public class ClearDataSourceCacheEvent implements Serializable {
    }
 
    private String orgID;
+   private boolean orgDeleted;
 }

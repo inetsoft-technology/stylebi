@@ -399,6 +399,11 @@ public class IndexedStorageWrapper implements IndexedStorage {
    }
 
    @Override
+   public void resetInitialized(String orgID) {
+      storage.resetInitialized(orgID);
+   }
+
+   @Override
    public void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception {
       storage.migrateStorageData(oorg, norg);
    }
