@@ -106,6 +106,8 @@ public class ChartBindingService {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
+         List<ChartHyperlinkCarry.Saved> links =
+            ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
          ChartBindingMutator.setShelf(
             model, shelf, fields, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
@@ -116,6 +118,7 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+         ChartHyperlinkCarry.reapply(requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links);
 
          try {
             requireCalculatorsResolved(requireChart(rvs, assemblyName).getVSChartInfo(), shelf,
@@ -593,6 +596,8 @@ public class ChartBindingService {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
+         List<ChartHyperlinkCarry.Saved> links =
+            ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
          ChartBindingMutator.setSingleShelf(
             model, shelf, field, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
@@ -603,6 +608,7 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+         ChartHyperlinkCarry.reapply(requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links);
       }));
    }
 
