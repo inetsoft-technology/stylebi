@@ -316,6 +316,29 @@ class ScheduleChangesetApplyServiceTest {
 
    // Bug #79426, addScheduleTask refuses an owner/execute-as it can't accept before it writes
    // anything; that refusal wrote nothing, so it is rolled back, never rollback-failed.
+   // Bug #79974, the save's own refusals (run principal can't read the action viewsheet, ...) all
+   // precede its first write, so the preflight reports them as rolled-back, never rollback-failed.
+   @Test void createRefusedBySavePreflightIsRolledBackNotRollbackFailed() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      // the plan (which apply re-resolves) passes no link, so only the apply-time preflight throws
+      lenient().doThrow(new inetsoft.web.security.auth.UnauthorizedAccessException(
+         "Unauthorized access to viewsheet X"))
+         .when(scheduleGateway).checkAddScheduleTaskSavable(any(), anyBoolean(), anyBoolean(),
+            anyLong(), anyLong(), any(), any(), any(), any(), any(), isNotNull(), eq(user));
+
+      ApplyResult result =
+         service.apply(applyRequest("create a task", createChange(spec)), user, "http://example.com/");
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway, never()).addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(),
+         anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
+   }
+
    @Test void createRefusedBeforeAnyWriteIsRolledBackNotRollbackFailed() throws Exception {
       CreateScheduleTaskRequest spec = createSpec("t1", "admin");
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
