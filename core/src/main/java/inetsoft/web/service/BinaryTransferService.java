@@ -169,6 +169,10 @@ public class BinaryTransferService {
     * Check if data is stored in the object.
     */
    public boolean isEmpty(BinaryTransfer dataTransfer) {
+      if(dataTransfer == null) {
+         return true;
+      }
+
       Path path = CacheFS.getPath("tempStorage", dataTransfer.getCacheFile());
       byte[] data = dataTransfer.getData();
       boolean fileWritten = dataTransfer.isFileWritten();
