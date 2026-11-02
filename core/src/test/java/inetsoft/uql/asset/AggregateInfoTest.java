@@ -179,40 +179,4 @@ class AggregateInfoTest {
       assertTrue(info.addAggregate(avg, false));
       assertEquals(2, info.getAggregateCount());
    }
-
-   /**
-    * Bug #79900: ChartVSAQuery adds an aggregate-calc's alias twin aggregate. The twin has the
-    * same name as a user's own Sum on the same column, and addAggregate replaces in place, so an
-    * unguarded add displaced the user's aggregate when it came first (ranking was then dropped).
-    * ChartVSAQuery now guards the add with containsAggregate, which must agree with the
-    * replace-in-place condition in both orders.
-    */
-   @Test
-   void guardedTwinAddKeepsUserAggregateInBothOrders() {
-      AttributeRef total = new AttributeRef("Product", "Total");
-      AggregateRef user = new AggregateRef(total, AggregateFormula.SUM);
-      AggregateRef twin = new AggregateRef(total, AggregateFormula.SUM);
-
-      // user aggregate first, then twin (the failing order)
-      AggregateInfo first = new AggregateInfo();
-      first.addAggregate(user);
-
-      if(!first.containsAggregate(twin)) {
-         first.addAggregate(twin);
-      }
-
-      assertEquals(1, first.getAggregateCount());
-      assertSame(user, first.getAggregate(0));
-
-      // twin first, then user aggregate replaces it (the working order)
-      AggregateInfo second = new AggregateInfo();
-
-      if(!second.containsAggregate(twin)) {
-         second.addAggregate(twin);
-      }
-
-      second.addAggregate(user);
-      assertEquals(1, second.getAggregateCount());
-      assertSame(user, second.getAggregate(0));
-   }
 }

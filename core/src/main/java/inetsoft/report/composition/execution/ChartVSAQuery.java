@@ -1437,10 +1437,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                         }
                      }
 
-                     if(!ainfo.containsAggregate(aref)) {
-                        ainfo.addAggregate(aref);
-                     }
-
+                     addCalcTwinAggregate(ainfo, aref);
                      aggr2calc.put(aref.getName(), aggr.getName());
                   }
                }
@@ -2368,6 +2365,17 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     * Shrink number table lens to avoid db covert number to string problem.
     */
    @SuppressWarnings("serial")
+   /**
+    * Add the alias twin of an aggregate calc's underlying aggregate, unless an aggregate with
+    * the same name is already present: addAggregate replaces in place on a name match, which
+    * would displace the user's own aggregate and lose the ranking that refers to it (#79900).
+    */
+   static void addCalcTwinAggregate(AggregateInfo ainfo, AggregateRef twin) {
+      if(!ainfo.containsAggregate(twin)) {
+         ainfo.addAggregate(twin);
+      }
+   }
+
    public static class ShrinkNumberTableLens extends DefaultTableFilter {
       /**
        * Constructor.
