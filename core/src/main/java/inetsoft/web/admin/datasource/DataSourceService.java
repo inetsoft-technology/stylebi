@@ -161,39 +161,9 @@ public class DataSourceService {
          String newName = properties.getName();
          record.setObjectName(oldName);
 
-         if(newName == null || newName.isEmpty()) {
-            newName = oldName;
-            properties.setName(newName);
-         }
-
-         if(!oldName.equals(newName)) {
-            // Bug #77673, a data source moved onto the path of a data source or a data source
-            // folder would overwrite it, or take the data sources of the folder as its
-            // additional connections
-            if(dataSourceRegistry.isDataSourcePathInUse(newName)) {
-               throw new ResourceExistsException(newName);
-            }
-
-            // a parent folder can't be created at the path of a data source, the moved data
-            // source would become an additional connection of that data source
-            String dataSource = dataSourceRegistry.getDataSourceAncestor(newName);
-
-            if(dataSource != null) {
-               throw new ResourceExistsException(dataSource);
-            }
-
-            // Bug #77841, Bug #77725, Bug #77820, a rename that XEngine refuses, checked here
-            // because the parent folders are created before XEngine is called
-            dataSourceRegistry.checkDataSourceMovePathClash(oldName);
-         }
-
-         checkMovePermissions(user, oldName, newName);
-         String password = null;
-
-         if(XDataSource.JDBC.equals(ds.getType())) {
-            checkSecretId((JDBCDataSource) ds, (JdbcDataSourceProperties) properties, user);
-            password = resolvePassword((JDBCDataSource) ds, (JdbcDataSourceProperties) properties);
-         }
+         String password = checkUpdate(ds, properties, user);
+         // an empty name was defaulted to the old name by the check
+         newName = properties.getName();
 
          switch(ds.getType()) {
          case XDataSource.JDBC:
@@ -248,6 +218,71 @@ public class DataSourceService {
       finally {
          Audit.getInstance().auditAction(record, user);
       }
+   }
+
+   /**
+    * Runs every refusal {@link #updateDataSource(String, DataSourceProperties, Principal)} makes
+    * before it changes anything, without changing anything and without auditing. A caller that
+    * must know whether a failed update could have changed state (Bug #79893) calls this first, so
+    * a refusal here is known to be a refusal that changed nothing.
+    *
+    * @param id         the unique identifier of the data source.
+    * @param properties the modified data source properties.
+    * @param user       a principal that identifies the remote user.
+    */
+   public void validateUpdate(String id, DataSourceProperties properties, Principal user)
+      throws Exception
+   {
+      checkUpdate(getXDataSource(id, user), properties, user);
+   }
+
+   /**
+    * The pre-write refusals of an update, shared by {@link #updateDataSource} and {@link
+    * #validateUpdate} so that the two cannot drift apart.
+    *
+    * @return the password to store for a JDBC data source, otherwise null.
+    */
+   private String checkUpdate(XDataSource ds, DataSourceProperties properties, Principal user)
+      throws Exception
+   {
+      String oldName = ds.getFullName();
+      String newName = properties.getName();
+
+      if(newName == null || newName.isEmpty()) {
+         newName = oldName;
+         properties.setName(newName);
+      }
+
+      if(!oldName.equals(newName)) {
+         // Bug #77673, a data source moved onto the path of a data source or a data source
+         // folder would overwrite it, or take the data sources of the folder as its
+         // additional connections
+         if(dataSourceRegistry.isDataSourcePathInUse(newName)) {
+            throw new ResourceExistsException(newName);
+         }
+
+         // a parent folder can't be created at the path of a data source, the moved data
+         // source would become an additional connection of that data source
+         String dataSource = dataSourceRegistry.getDataSourceAncestor(newName);
+
+         if(dataSource != null) {
+            throw new ResourceExistsException(dataSource);
+         }
+
+         // Bug #77841, Bug #77725, Bug #77820, a rename that XEngine refuses, checked here
+         // because the parent folders are created before XEngine is called
+         dataSourceRegistry.checkDataSourceMovePathClash(oldName);
+      }
+
+      checkMovePermissions(user, oldName, newName);
+      String password = null;
+
+      if(XDataSource.JDBC.equals(ds.getType())) {
+         checkSecretId((JDBCDataSource) ds, (JdbcDataSourceProperties) properties, user);
+         password = resolvePassword((JDBCDataSource) ds, (JdbcDataSourceProperties) properties);
+      }
+
+      return password;
    }
 
    private void checkMovePermissions(Principal user, String oldName, String newName) throws Exception {
