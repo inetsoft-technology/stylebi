@@ -231,8 +231,15 @@ public class PluginsService {
                request.drivers().toArray(new String[0]), jars, pluginFile);
 
             try(InputStream input = Files.newInputStream(pluginFile.toPath())) {
-               plugins.installPlugin(input, request.pluginId() + "-" +
+               boolean installed = plugins.installPlugin(input, request.pluginId() + "-" +
                   request.pluginVersion() + ".zip", false);
+
+               if(!installed) {
+                  throw new IllegalStateException(
+                     "Plugin was not installed: " + request.pluginId() +
+                     ". It may be incompatible or the storage commit failed; see the log.");
+               }
+
                dataSourceRegistry.clearCache();
             }
          }
