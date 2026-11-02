@@ -230,6 +230,9 @@ public class ScheduleTaskImportChangesetApplyService {
 
       ScheduleTask staged =
          ScheduleTaskImportTransform.transform(raw, existing, linkURI, user, scheduleTaskService);
+      // Bug #80027, Gap 2: re-check at apply time, same as preview -- the owner's organization
+      // could have been removed since the plan was reviewed.
+      scheduleGateway.requireOwnerOrganizationExists(staged.getOwner());
 
       mutationEntered.set(true);
       // Bug #78592, an overwrite keeps the task in the folder it is stored in, a save without a

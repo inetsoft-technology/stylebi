@@ -77,10 +77,11 @@ class ScheduleTaskImportChangesetApplyServiceFolderTest {
       AdminBackupService backupService = mock(AdminBackupService.class);
       when(backupService.backup(anyString())).thenReturn("snap");
       transferService = new ScheduleTaskTransferService(scheduleManager, mock(ScheduleService.class));
+      AdminScheduleGateway scheduleGateway = mock(AdminScheduleGateway.class);
       planService = new ScheduleTaskImportChangePlanService(transferService, scheduleManager,
-                                                       scheduleTaskService);
+                                                       scheduleTaskService, scheduleGateway);
       service = new ScheduleTaskImportChangesetApplyService(
-         planService, transferService, scheduleManager, mock(AdminScheduleGateway.class),
+         planService, transferService, scheduleManager, scheduleGateway,
          scheduleTaskService, backupService);
    }
 

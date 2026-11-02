@@ -80,7 +80,7 @@ class ScheduleTaskImportChangesetApplyServiceTest {
    @BeforeEach void setUp() {
       transferService = new ScheduleTaskTransferService(scheduleManager, scheduleService);
       planService = new ScheduleTaskImportChangePlanService(transferService, scheduleManager,
-                                                       scheduleTaskService);
+                                                       scheduleTaskService, scheduleGateway);
       applyService = new ScheduleTaskImportChangesetApplyService(planService, transferService,
          scheduleManager, scheduleGateway, scheduleTaskService, backupService);
 
