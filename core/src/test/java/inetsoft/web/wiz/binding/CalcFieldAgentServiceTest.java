@@ -1444,8 +1444,10 @@ class CalcFieldAgentServiceTest {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       doAnswer(invocation -> {
          for(Assembly a : vs.getAssemblies()) {
-            if(a instanceof CrosstabVSAssembly) {
-               ((CrosstabVSAssembly) a).removeBindingCol(name);
+            if(a instanceof inetsoft.uql.viewsheet.BindableVSAssembly &&
+               !(a instanceof inetsoft.uql.viewsheet.InputVSAssembly))
+            {
+               ((inetsoft.uql.viewsheet.BindableVSAssembly) a).removeBindingCol(name);
             }
          }
 
@@ -1571,5 +1573,193 @@ class CalcFieldAgentServiceTest {
       assertEquals("Net Sales", rowLink.getParameterField("net"));
       assertEquals("hyperlink:Sum(Net Sales)", wrappedFieldLink.getLink());
       assertEquals("hyperlink:Net Revenue", untouched.getLink());
+   }
+
+   private static ConditionList netSalesConditions(boolean alsoTotal) {
+      Condition big = new Condition();
+      big.addValue(3000000);
+      big.setOperation(XCondition.GREATER_THAN);
+      ConditionList conditions = new ConditionList();
+      conditions.append(new ConditionItem(new ColumnRef(new AttributeRef("Net Sales")), big, 0));
+
+      if(alsoTotal) {
+         Condition small = new Condition();
+         small.addValue(10);
+         small.setOperation(XCondition.GREATER_THAN);
+         conditions.append(new inetsoft.uql.JunctionOperator(
+            inetsoft.uql.JunctionOperator.AND, 0));
+         conditions.append(new ConditionItem(new ColumnRef(new AttributeRef("Total")), small, 0));
+      }
+
+      return conditions;
+   }
+
+   private static HighlightGroup highlightGroup(String name, ConditionList conditions) {
+      ColumnHighlight highlight = new ColumnHighlight();
+      highlight.setConditionGroup(conditions);
+      highlight.setBackground(java.awt.Color.RED);
+      HighlightGroup group = new HighlightGroup();
+      group.addHighlight(name, highlight);
+      return group;
+   }
+
+   private static VSChartAggregateRef chartMeasure(String column) {
+      VSChartAggregateRef aggr = new VSChartAggregateRef();
+      aggr.setDataRef(new AttributeRef(column));
+      aggr.setColumnValue(column);
+      aggr.setFormulaValue("Sum");
+      return aggr;
+   }
+
+   private List<String> removeNetSales(Viewsheet vs) throws Exception {
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Net Sales", null, null, null, null, null, true, false);
+      return serviceOver(vs, proxyRemovingBindings(vs, "Net Sales"))
+         .modify("tok", principal(), req, "").warnings();
+   }
+
+   /** Bug #80052 P1: highlights and links that die with a chart measure/dimension are disclosed. */
+   @Test
+   void removeReportsChartMeasureHighlightAndHyperlinkAndDimensionHyperlink() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Net Sales", "field['Total']", true));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "NetChart");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      inetsoft.uql.viewsheet.graph.VSChartInfo cinfo =
+         new inetsoft.uql.viewsheet.graph.DefaultVSChartInfo();
+      inetsoft.uql.viewsheet.graph.VSChartDimensionRef dim =
+         new inetsoft.uql.viewsheet.graph.VSChartDimensionRef();
+      dim.setDataRef(new AttributeRef("Category"));
+      dim.setGroupColumnValue("Category");
+      cinfo.addXField(dim);
+      VSChartAggregateRef total = chartMeasure("Total");
+      VSChartAggregateRef net = chartMeasure("Net Sales");
+      net.setHighlightGroup(highlightGroup("ChartHL", netSalesConditions(false)));
+      net.setHyperlink(webLink("https://x"));
+      cinfo.addYField(total);
+      cinfo.addYField(net);
+      chart.setVSChartInfo(cinfo);
+      vs.addAssembly(chart);
+
+      List<String> warnings = removeNetSales(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("NetChart") &&
+         w.contains("'ChartHL'") && w.contains("DELETED")), warnings.toString());
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("NetChart") &&
+         w.contains("hyperlink") && w.contains("DELETED")), warnings.toString());
+   }
+
+   @Test
+   void removeReportsChartDimensionHyperlink() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Net Sales", "field['Total']", true));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "NetChart");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      inetsoft.uql.viewsheet.graph.VSChartInfo cinfo =
+         new inetsoft.uql.viewsheet.graph.DefaultVSChartInfo();
+      inetsoft.uql.viewsheet.graph.VSChartDimensionRef dim =
+         new inetsoft.uql.viewsheet.graph.VSChartDimensionRef();
+      dim.setDataRef(new AttributeRef("Net Sales"));
+      dim.setGroupColumnValue("Net Sales");
+      dim.setHyperlink(webLink("https://x"));
+      cinfo.addXField(dim);
+      cinfo.addYField(chartMeasure("Total"));
+      chart.setVSChartInfo(cinfo);
+      vs.addAssembly(chart);
+
+      List<String> warnings = removeNetSales(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("NetChart") &&
+         w.contains("hyperlink") && w.contains("DELETED")), warnings.toString());
+   }
+
+   /**
+    * Bug #80052 P2: a highlight on another column whose conditions name the field is disclosed;
+    * one left with no condition (which would match nothing) is deleted, one that keeps another
+    * condition is kept and reported, and one on untouched fields says nothing.
+    */
+   @Test
+   void removeReportsHighlightsOnOtherColumnsThatLostTheirConditions() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Net Sales", "field['Total']", true));
+      CrosstabVSAssembly cross = netSalesCrosstab(vs, "NetByCategory", "Total", false);
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) cross.getVSAssemblyInfo();
+      HighlightGroup group = highlightGroup("OnlyNet", netSalesConditions(false));
+      group.addHighlight("NetAndTotal",
+         highlightGroup("x", netSalesConditions(true)).getHighlight("x"));
+      Condition cond = new Condition();
+      cond.addValue(5);
+      cond.setOperation(XCondition.GREATER_THAN);
+      ConditionList plain = new ConditionList();
+      plain.append(new ConditionItem(new ColumnRef(new AttributeRef("Total")), cond, 0));
+      group.addHighlight("Untouched", highlightGroup("x", plain).getHighlight("x"));
+      TableHighlightAttr hl = new TableHighlightAttr();
+      hl.setHighlight(new TableDataPath("Sum(Total)"), group);
+      info.setHighlightAttr(hl);
+
+      List<String> warnings = removeNetSales(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'OnlyNet'") &&
+         w.contains("DELETED")), warnings.toString());
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'NetAndTotal'") &&
+         w.contains("lost their condition")), warnings.toString());
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("'Untouched'")), warnings.toString());
+      HighlightGroup left = info.getHighlightAttr().getHighlight(new TableDataPath("Sum(Total)"));
+      assertEquals(
+         java.util.Set.of("NetAndTotal", "Untouched"),
+         new java.util.HashSet<>(java.util.Arrays.asList(left.getNames())));
+   }
+
+   /** Bug #80052 P3: a plain table's sort on the removed column goes, other sorts stay. */
+   @Test
+   void removeDropsAPlainTableSortOnTheRemovedColumn() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("Net Sales", "field['Total']", true));
+      TableVSAssembly table = new TableVSAssembly(vs, "Detail");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      inetsoft.uql.asset.SortInfo sorts = new inetsoft.uql.asset.SortInfo();
+      inetsoft.uql.asset.SortRef netSort =
+         new inetsoft.uql.asset.SortRef(new ColumnRef(new AttributeRef("Net Sales")));
+      netSort.setOrder(XConstants.SORT_DESC);
+      inetsoft.uql.asset.SortRef catSort =
+         new inetsoft.uql.asset.SortRef(new ColumnRef(new AttributeRef("Category")));
+      catSort.setOrder(XConstants.SORT_ASC);
+      sorts.addSort(netSort);
+      sorts.addSort(catSort);
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setSortInfo(sorts);
+      inetsoft.uql.ColumnSelection cols = new inetsoft.uql.ColumnSelection();
+      cols.addAttribute(new ColumnRef(new AttributeRef("Net Sales")));
+      cols.addAttribute(new ColumnRef(new AttributeRef("Category")));
+      table.setColumnSelection(cols);
+      vs.addAssembly(table);
+
+      List<String> warnings = removeNetSales(vs);
+
+      inetsoft.uql.asset.SortInfo after = ((TableVSAssemblyInfo) table.getVSAssemblyInfo())
+         .getSortInfo();
+      assertEquals(1, after.getSortCount());
+      assertEquals("Category", after.getSorts()[0].getName());
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("Detail") && w.contains("sort") &&
+         w.contains("Net Sales")), warnings.toString());
+   }
+
+   /** Bug #80052 P4: a gauge's "hyperlink:<field>" web link follows an edit_calc_field rename. */
+   @Test
+   void renameRewritesAGaugeFieldWebLink() {
+      Viewsheet vs = new Viewsheet();
+      inetsoft.uql.viewsheet.GaugeVSAssembly gauge =
+         new inetsoft.uql.viewsheet.GaugeVSAssembly(vs, "NetGauge");
+      gauge.setScalarBindingInfo(new inetsoft.uql.viewsheet.ScalarBindingInfo());
+      gauge.setTableName("ORDERS");
+      Hyperlink link = webLink("hyperlink:Net Revenue");
+      link.setParameterField("p", "Net Revenue");
+      gauge.getVSAssemblyInfo().setHyperlinkValue(link);
+      vs.addAssembly(gauge);
+
+      CalcFieldAgentService.renameHyperlinkReferences(vs, "ORDERS", "Net Revenue", "Net Sales");
+
+      assertEquals("hyperlink:Net Sales", gauge.getVSAssemblyInfo().getHyperlinkValue().getLink());
+      assertEquals("Net Sales", gauge.getVSAssemblyInfo().getHyperlinkValue()
+         .getParameterField("p"));
    }
 }
