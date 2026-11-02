@@ -125,7 +125,9 @@ public class SelectionBindingService {
     *         a column the rebind no longer binds also reports {@code droppedSingleSelectionLevels}
     *         (those names) and {@code singleSelectionLevels} (the levels still single-select;
     *         empty means the tree is now single-select as a whole, one value in the entire tree)
-    *         (#79168).
+    *         (#79168). A rebound selection list that had values selected and no longer does also
+    *         reports {@code droppedSelection} (the dropped selected values; null for a blank
+    *         item) (#79880). Trees, range sliders and calendars do not report it.
     */
    public Map<String, Object> setSource(String sessionToken, Principal user, String assemblyName,
                                         String table, List<String> columns,
@@ -213,8 +215,15 @@ public class SelectionBindingService {
             applyMeasure(pane.getSelectionMeasurePaneModel(), runtimeId, user, assemblyName,
                          resolvedTable, pane.getAdditionalTables(), measure, result);
 
+            List<String> selectedBefore = selectedListValues((SelectionListVSAssembly) assembly);
             selectionListService.setSelectionListPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
+            // The apply replaces the assembly's info, so the survivors come from a fresh lookup.
+            discloseDroppedSelection(
+               selectedBefore,
+               selectedListValues((SelectionListVSAssembly) SelectionRuntimeService.requireSelection(
+                  rvs, assemblyName)),
+               result);
             result.put("bound", "single");
          }
          else if(assembly instanceof SelectionTreeVSAssembly treeAssembly) {
@@ -1090,6 +1099,46 @@ public class SelectionBindingService {
       // Levels are meaningless in ID mode, yet the getter falls back to the ID columns' names there.
       return info == null || info.getMode() != SelectionTreeVSAssemblyInfo.COLUMN
          ? null : info.getSingleSelectionLevelNames();
+   }
+
+   /**
+    * The values a selection list has selected, read from the applied state list. The display list
+    * is only a fallback: it is null until the sheet has rendered, so it alone would miss a selection
+    * set just before a rebind.
+    */
+   private static List<String> selectedListValues(SelectionListVSAssembly assembly) {
+      SelectionList list = assembly.getStateSelectionList();
+
+      if(list == null) {
+         list = assembly.getSelectionList();
+      }
+
+      List<String> selected = new ArrayList<>();
+
+      if(list != null && list.getSelectionValues() != null) {
+         for(SelectionValue value : list.getSelectionValues()) {
+            if(value != null && value.isSelected()) {
+               selected.add(value.getValue());
+            }
+         }
+      }
+
+      return selected;
+   }
+
+   /**
+    * Discloses the selected values a rebind reset (#79880). Changing a selection list's source,
+    * measure or additional tables resets its selection upstream, with nothing in the response to
+    * say so. Same-source rebinds that keep the selection report nothing.
+    */
+   private static void discloseDroppedSelection(List<String> before, List<String> after,
+                                                Map<String, Object> result)
+   {
+      List<String> dropped = before.stream().filter(value -> !after.contains(value)).toList();
+
+      if(!dropped.isEmpty()) {
+         result.put("droppedSelection", dropped);
+      }
    }
 
    /**
