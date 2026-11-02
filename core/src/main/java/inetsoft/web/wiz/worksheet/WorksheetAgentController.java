@@ -4231,7 +4231,7 @@ public class WorksheetAgentController {
          case "remove_join" ->
             editor.removeJoin(req.name());
          case "add_table" ->
-            editor.addTable(req.table(), new String[0]);
+            editor.addTable(req.table(), req.maxRows(), new String[0]);
          case "edit_condition" ->
             editor.editCondition(req.table(), req.field(), req.operation(),
                                  req.values() != null
@@ -6241,7 +6241,7 @@ public class WorksheetAgentController {
                                    List<String> warnings) {}
 
    private static final java.util.regex.Pattern SELECT_WILDCARD = java.util.regex.Pattern.compile(
-      "(?i)(?:\\bselect|,)\\s*(?:distinct\\s+)?(?:[\\w\"]+\\.)?\\*\\s*(?:,|\\bfrom\\b)");
+      "(?i)(?:\\bselect|,)\\s*(?:distinct\\s+)?(?:(?:[\\w\"]+|\\$\\(@[^)]+\\))\\.)*\\*\\s*(?:,|\\bfrom\\b)");
 
    /**
     * Bug #79707: a wildcard select over a {@code $(@var)} raw-text table placeholder cannot be

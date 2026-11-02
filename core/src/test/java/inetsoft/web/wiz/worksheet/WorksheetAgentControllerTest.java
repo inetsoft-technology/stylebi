@@ -12465,6 +12465,81 @@ class WorksheetAgentControllerTest {
       assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(null));
    }
 
+   /** Bug #80054: a wildcard whose qualifier is itself a {@code $(@var)} placeholder. */
+   @Test
+   void wildcardMessageMatchesPlaceholderQualifiedWildcards() {
+      for(String sql : new String[] {
+         "SELECT $(@srcTable).* FROM $(@srcTable)",
+         "select $(@t).*\nfrom $(@t)",
+         "SELECT DISTINCT $(@t).* FROM $(@t)",
+         "SELECT a, $(@t).* FROM x",
+         "SELECT SA.$(@t).* FROM SA.$(@t)",
+         "SELECT $(@t).$(@u).* FROM $(@t)",
+         "SELECT $(@t).*FROM $(@t)",
+         "SELECT $(@my-var).* FROM $(@my-var)" })
+      {
+         assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
+      }
+
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT $(@v).COL FROM $(@v)"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT COUNT(*) AS N FROM $(@v)"));
+   }
+
+   /** Bug #80054: add_sql_query surfaces the cause-naming message for {@code $(@t).*}. */
+   @Test
+   void addSqlQueryNamesPlaceholderQualifiedWildcardWhenParseFails() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(mock(JDBCDataSource.class));
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-80054"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(new ColumnSelection());
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_FAILED)))
+      {
+         PairingException wildcard = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-80054", new WorksheetAgentController.SqlQueryRequest(
+               "MyDatasource", "SELECT $(@srcTable).* FROM $(@srcTable)", null), agent));
+         assertTrue(wildcard.getMessage().contains("wildcard")
+                       && wildcard.getMessage().contains("$(@var)")
+                       && !wildcard.getMessage().contains("check syntax"),
+                    "got: " + wildcard.getMessage());
+
+         PairingException control = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-80054", new WorksheetAgentController.SqlQueryRequest(
+               "MyDatasource", "SELECT $(@srcTable).COL FROM $(@srcTable)", null), agent));
+         assertTrue(control.getMessage().contains("SQL could not be parsed — check syntax"),
+                    "got: " + control.getMessage());
+      }
+   }
+
 
    /**
     * WSQ-006: when the SQL parses fine but the guard still fires (empty columns), a captured
