@@ -1056,6 +1056,11 @@ public class ScriptExecuteService {
     * names only matter when the entry reaches a destructive global, and the cost is one
     * confirmation, never a silently run destructive call.
     */
+   // Accepted residuals (reviewer-rated exotic, deliberately not chased): a library that dispatches
+   // through string-indexed access (this["N" + "s"], G["N" + "s"] = value) so the property name
+   // exists only as string fragments, and Rhino's (function(){}).__parent__ alias of the global
+   // scope (no marker token). Both need an adversarial library author; everything the scan can
+   // see but not resolve is meant to fail closed (one confirmation) rather than run.
    private static Set<String> opaqueInstallNames(String source) {
       Set<String> names = new LinkedHashSet<>();
 
@@ -1096,6 +1101,7 @@ public class ScriptExecuteService {
       final boolean function;
       final Set<String> names = new HashSet<>();
       final Set<String> aliases = new HashSet<>();
+      boolean keyword;
 
       ScopeRegion(int start, int end, String fnName, boolean function) {
          this.start = start;
@@ -1156,6 +1162,7 @@ public class ScriptExecuteService {
 
       while(m.find()) {
          ScopeRegion r = new ScopeRegion(m.start(), matchingBrace(t, m.end() - 1), m.group(1), true);
+         r.keyword = true;
 
          for(String p : m.group(2).split(",")) {
             Matcher id = IDENTIFIER.matcher(p);
@@ -1212,7 +1219,9 @@ public class ScriptExecuteService {
 
       for(ScopeRegion r : regions) {
          if(r.function) {
-            if(r.fnName != null) {
+            // a function expression in argument/array/return position is run by whoever receives
+            // it, whatever it is called: only a declaration's own name says it is never used
+            if(r.fnName != null && (!r.keyword || declarationPosition(t, r.start))) {
                r.aliases.add(r.fnName);
             }
 
@@ -1250,6 +1259,27 @@ public class ScriptExecuteService {
       }
 
       return regions;
+   }
+
+   private static boolean declarationPosition(String t, int start) {
+      int p = start - 1;
+
+      while(p >= 0 && Character.isWhitespace(t.charAt(p))) {
+         p--;
+      }
+
+      if(p >= 0 && t.startsWith("async", Math.max(0, p - 4)) && p >= 4) {
+         return declarationPosition(t, p - 4);
+      }
+
+      if(p < 0) {
+         return true;
+      }
+
+      char c = t.charAt(p);
+
+      // "x = function name(){}" / "key: function name(){}" are bound to a name; the alias covers them
+      return c == ';' || c == '{' || c == '}' || c == '=' || c == ':';
    }
 
    private static boolean declaredAt(List<ScopeRegion> regions, String name, int pos) {

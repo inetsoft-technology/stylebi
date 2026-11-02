@@ -1043,6 +1043,31 @@ class ScriptExecuteServiceTest {
    }
 
    @Test
+   void failClosedNamedCallbackInForEachIsGated() throws Exception {
+      assertGatedViaNamespace("[1].forEach(function inst(){ Ns = { count: function() { return runQuery('q'); } }; });", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedCallbackPassedToLocalSetupIsGated() throws Exception {
+      assertGatedViaNamespace("setup(function init(){ Ns = { count: function() { return runQuery('q'); } }; });\nfunction setup(cb){ cb(); }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedCallbackInNewIsGated() throws Exception {
+      assertGatedViaNamespace("new Foo(function init(){ Ns = { count: function() { return runQuery('q'); } }; });\nfunction Foo(cb){ cb(); }", "Ns.count()");
+   }
+
+   @Test
+   void failClosedNamedFunctionExpressionInArrayLiteralIsGated() throws Exception {
+      assertGatedViaNamespace("[function init(){ Ns = { count: function() { return runQuery('q'); } }; }].forEach(function(f){ f(); });", "Ns.count()");
+   }
+
+   @Test
+   void preciseNamedFunctionExpressionBoundToUnusedVarStaysUngated() throws Exception {
+      assertNotGated("var f = function inst(){ Ns = { count: function() { return runQuery('q'); } }; };", "Ns.count()");
+   }
+
+   @Test
    void globalInstallShapeInstallerFunctionExpressionIsGated() throws Exception {
       assertGatedViaNamespace("var inst = function(g) { g.Ns = { count: function() { return runQuery('q'); } }; };\ninst(this);", "Ns.count()");
    }
