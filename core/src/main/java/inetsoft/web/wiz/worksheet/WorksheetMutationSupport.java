@@ -612,6 +612,34 @@ public final class WorksheetMutationSupport {
       List<Integer> matches = existing == null || existing.isEmpty()
          ? List.of() : filterMatches(existing.getConditionList(), field);
 
+      // Bug #80031 (WSC-048): field is routed by resolveUnambiguousAggregateAlias exactly as
+      // addFilter/removeFilter route it (see removeFilter's own Bug #76752 note), so a group
+      // column with an existing condition ONLY in the list its field kind does not default to
+      // (e.g. a group-by column's own post-aggregate/HAVING condition, same shape #79605 found
+      // for remove_filter) found no match in its default list here. Silently falling through to
+      // appendFilterItem below would ADD a new condition in that default list while leaving the
+      // real, existing one in the other list untouched -- two conditions in effect from what the
+      // tool describes as a single replace. Refuse instead, the same way an ambiguous multi-match
+      // already refuses rather than guessing.
+      if(matches.isEmpty()) {
+         ConditionListWrapper other = post ? t.getPreConditionList() : t.getPostConditionList();
+         List<Integer> otherMatches = other == null || other.isEmpty()
+            ? List.of() : filterMatches(other.getConditionList(), field);
+
+         if(!otherMatches.isEmpty()) {
+            throw new IllegalArgumentException(
+               "\"" + field + "\" has no " + (post ? "post-aggregate (HAVING)" : "pre-aggregate") +
+               " condition, but does have one in the " +
+               (post ? "pre-aggregate" : "post-aggregate (HAVING)") + " list -- edit_condition " +
+               "only replaces a condition in the list field's own kind (aggregate alias vs. " +
+               "plain/group column) belongs to, never across lists, so replacing it here would " +
+               "add a second condition rather than changing the existing one. Nothing was " +
+               "changed. Read the conditions with get_condition/read_worksheet_model and rewrite " +
+               "the whole list with " + (post ? "set_conditions" : "set_post_conditions") +
+               " instead.");
+         }
+      }
+
       if(matches.size() > 1) {
          throw new IllegalArgumentException(
             "\"" + field + "\" has " + matches.size() + " conditions in this table's " +
