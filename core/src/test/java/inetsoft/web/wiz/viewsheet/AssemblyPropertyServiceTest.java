@@ -6130,6 +6130,42 @@ class AssemblyPropertyServiceTest {
       assertTrue(msg.contains("scaleImageChecked would be false"), msg);
    }
 
+   /** Bug #80036: sibling of the insets rule -- maintainAspectRatio itself is also only stored
+    *  while Scale Image is on; a write while Scale Image is off used to report ok:true with
+    *  only the generic "may not apply to that assembly type" note and read back unchanged. */
+   @Test
+   void refusesMaintainAspectRatioWhileScaleIsOff() {
+      String msg = refuseImageScale(imageWithScale(false, false, true, 0),
+                                    Map.of(SCALE_PANE + "maintainAspectRatio", false));
+      assertTrue(msg.contains("maintainAspectRatio") && msg.contains("scaleImageChecked"), msg);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "scaleImageChecked", false);
+      patch.put(SCALE_PANE + "maintainAspectRatio", false);
+      msg = refuseImageScale(imageWithScale(true, false, true, 0), patch);
+      assertTrue(msg.contains("maintainAspectRatio") && msg.contains("scaleImageChecked") &&
+                 msg.contains("scaleImageChecked would be false"), msg);
+   }
+
+   @Test
+   void acceptsMaintainAspectRatioWhenScaleIsOnInSamePatch() throws Exception {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "scaleImageChecked", true);
+      patch.put(SCALE_PANE + "maintainAspectRatio", false);
+      ImageScalePaneModel pane = setImageScale(imageWithScale(false, false, true, 0), patch);
+      assertFalse(pane.maintainAspectRatio());
+      assertTrue(pane.scaleImageChecked());
+   }
+
+   /** An unchanged echo of maintainAspectRatio while Scale Image is off is not refused. */
+   @Test
+   void acceptsABareEchoOfMaintainAspectRatioWhileScaleIsOff() throws Exception {
+      ImageScalePaneModel pane = setImageScale(imageWithScale(false, false, true, 0),
+                                               Map.of(SCALE_PANE + "maintainAspectRatio", true));
+      assertTrue(pane.maintainAspectRatio());
+      assertFalse(pane.scaleImageChecked());
+   }
+
    @Test
    void acceptsInsetsTogetherWithScaleOnAndAspectOffInEitherKeyOrder() throws Exception {
       Map<String, Object> patch = new LinkedHashMap<>();
