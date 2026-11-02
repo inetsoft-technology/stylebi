@@ -21,6 +21,7 @@ import inetsoft.web.api.schedule.*;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTaskMetaData;
 import inetsoft.util.MessageException;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
@@ -187,10 +188,47 @@ public class ScheduleChangePlanService {
          throw new IllegalArgumentException(label + ".spec.executeAsID: " + e.getMessage());
       }
 
+      // Bug #79974, the save refuses a task whose run principal can't read an action viewsheet (and
+      // the other refusals it makes), so refuse it here instead of planning a change apply can
+      // only throw on.
+      try {
+         scheduleGateway.checkAddScheduleTaskSavable(
+            new ScheduleTaskMetaData(spec.getName(), spec.getOwner().convertToKey()),
+            spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(), spec.getStartDate(),
+            spec.getEndDate(), spec.getDescription(), spec.getLocale(), spec.getExecuteAsID(),
+            spec.getConditions(), spec.getActions(), null, user);
+      }
+      catch(Exception e) {
+         if(e instanceof IllegalArgumentException) {
+            throw e;
+         }
+
+         throw new IllegalArgumentException(
+            label + ".spec: the task would be refused when saved (owner \"" +
+            spec.getOwner().getName() + "\"" +
+            (spec.getExecuteAsID() == null ? "" : ", runs as \"" +
+               spec.getExecuteAsID().getIdentityID().getName() + "\"") +
+            ", action viewsheets " + viewsheetsOf(spec.getActions()) + "): " + e.getMessage());
+      }
+
       String proposed = projectSpec(spec);
       return new PlanChange(taskId, spec.getOwner().getOrgID(), null, proposed,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             "create schedule task");
+   }
+
+   private static List<String> viewsheetsOf(List<ScheduleAction> actions) {
+      List<String> sheets = new java.util.ArrayList<>();
+
+      if(actions != null) {
+         for(ScheduleAction action : actions) {
+            if(action instanceof ViewsheetAction) {
+               sheets.add(((ViewsheetAction) action).getViewsheet());
+            }
+         }
+      }
+
+      return sheets;
    }
 
    private PlanChange resolveDelete(String label, ScheduleChangeRequest change, Principal user,
