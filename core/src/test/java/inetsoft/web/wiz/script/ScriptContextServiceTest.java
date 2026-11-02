@@ -144,9 +144,9 @@ class ScriptContextServiceTest {
     *
     * <p>{@code event} resolves from {@code ViewsheetScope}'s vmap
     * ({@code ViewsheetScope.java:368}) and is attached only while an interaction-triggered script
-    * runs. The viewsheet onLoad script re-runs in that window (null on the initial load), so it
-    * lists {@code event}; onInit runs only at load and listing it there promises an always-null
-    * variable, the same always-null-field defect #4618 fixed by removing {@code BindableField.role}.
+    * runs. The viewsheet onLoad script and assembly scripts re-run in that window (null on the
+    * initial load), so they list {@code event}; onInit runs only at load and an onClick script
+    * is fed no event, and listing it there promises an always-null variable, the same always-null-field defect #4618 fixed by removing {@code BindableField.role}.
     */
    @Test
    void reportsEventOnlyForTheKindsThatCanReceiveOne() throws Exception {
@@ -155,7 +155,8 @@ class ScriptContextServiceTest {
 
       ScriptContext onClick = service.context(
          rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Text1"));
-      assertTrue(onClick.contextVars().contains("event"));
+      assertFalse(onClick.contextVars().contains("event"),
+                  "a click attaches only mouseX/mouseY, never an event; listing it promises a null");
 
       ScriptContext onLoad = service.context(
          rvs, ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_LOAD, null));
@@ -171,7 +172,10 @@ class ScriptContextServiceTest {
 
       ScriptContext main = service.context(
          rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Table1"));
-      assertFalse(main.contextVars().contains("event"));
+      assertTrue(main.contextVars().contains("event"),
+                 "an assembly script re-runs inside the same interaction window as onLoad: " +
+                 main.contextVars());
+      assertTrue(main.contextVars().contains("thisViewsheet"));
    }
 
    /** With no target the caller has not said which context, so report the union, not a guess. */

@@ -266,6 +266,44 @@ class ScriptEditServiceTest {
       assertFalse(info.isScriptEnabled());
    }
 
+   /**
+    * Bug 80053: the siblings sharing a flag are named from the written location alone, so a
+    * pane-scoped session (whose own listing hides the sibling) is still told it flipped.
+    */
+   @Test
+   void flagSiblingsNamesOnLoadForOnInitAndViceVersa() throws Exception {
+      RuntimeViewsheet rvs = realAssemblies();
+      ScriptEditService svc = editService();
+
+      var forInit = svc.flagSiblings(rvs, ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, null), false);
+      assertEquals(1, forInit.size());
+      assertEquals("viewsheetOnLoad", forInit.get(0).kind());
+      assertNull(forInit.get(0).assembly());
+      assertFalse(forInit.get(0).enabled());
+      assertEquals(ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_LOAD, null).id(), forInit.get(0).id());
+
+      var forLoad = svc.flagSiblings(rvs, ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_LOAD, null), true);
+      assertEquals("viewsheetOnInit", forLoad.get(0).kind());
+      assertTrue(forLoad.get(0).enabled());
+   }
+
+   @Test
+   void flagSiblingsPairsAssemblyMainWithOnClickOnlyWhereOnClickExists() throws Exception {
+      RuntimeViewsheet rvs = realAssemblies();
+      ScriptEditService svc = editService();
+
+      var text = svc.flagSiblings(rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Text1"), false);
+      assertEquals("assemblyOnClick", text.get(0).kind());
+      assertEquals("Text1", text.get(0).assembly());
+
+      var click = svc.flagSiblings(rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Text1"), false);
+      assertEquals("assemblyMain", click.get(0).kind());
+
+      assertTrue(svc.flagSiblings(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Chart1"), false).isEmpty(),
+         "a chart has no onClick, so nothing shares its flag");
+   }
+
    @Test
    void setEnabledOnClickForAMissingAssemblyStillSaysNotFound() {
       PairingException ex = assertThrows(PairingException.class, () -> editService().setEnabled(

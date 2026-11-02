@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.function.Predicate;
 
 /**
@@ -186,6 +187,49 @@ public class ScriptEditService {
             "written through the viewsheet script API. Use WorksheetScriptService (worksheet-chat's " +
             "edit_expression/edit_condition) instead.");
       }
+   }
+
+   /**
+    * A target whose enabled state is governed by the same flag as the one just written.
+    * Derived from the written location alone, never from a grant-scoped listing, so a pane
+    * session (which cannot list the sibling) can still be told it flipped.
+    */
+   public record SharedFlagTarget(String id, String kind, String assembly, boolean enabled) {}
+
+   /**
+    * The other targets that share {@code target}'s enable flag: onInit and onLoad share the
+    * viewsheet flag; an assembly's main and onClick scripts share that assembly's flag (onClick
+    * only where the assembly supports it).
+    */
+   public List<SharedFlagTarget> flagSiblings(RuntimeViewsheet rvs, ScriptTarget target, boolean enabled)
+      throws PairingException
+   {
+      ScriptTarget.Kind sibling;
+
+      switch(target.location()) {
+         case VS_INIT -> sibling = ScriptTarget.Kind.VIEWSHEET_ON_LOAD;
+         case VS_LOAD -> sibling = ScriptTarget.Kind.VIEWSHEET_ON_INIT;
+         case ASSEMBLY -> {
+            VSAssemblyInfo info = ScriptReadService.requireAssemblyInfo(
+               requireViewsheet(rvs), target.assemblyName());
+
+            if(!ScriptReadService.supportsOnClick(info)) {
+               return List.of();
+            }
+
+            sibling = ScriptTarget.Kind.ASSEMBLY_ON_CLICK;
+         }
+         case ASSEMBLY_ONCLICK -> sibling = ScriptTarget.Kind.ASSEMBLY_MAIN;
+         default -> {
+            return List.of();
+         }
+      }
+
+      boolean viewsheetLevel = sibling == ScriptTarget.Kind.VIEWSHEET_ON_LOAD ||
+         sibling == ScriptTarget.Kind.VIEWSHEET_ON_INIT;
+      ScriptTarget other = ScriptTarget.of(sibling, viewsheetLevel ? null : target.assemblyName());
+      return List.of(new SharedFlagTarget(
+         other.id(), sibling.wireName(), viewsheetLevel ? null : target.assemblyName(), enabled));
    }
 
    /** Toggles whether the script at {@code target} is enabled. */

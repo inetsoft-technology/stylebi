@@ -344,7 +344,11 @@ public class ScriptExecuteService {
          List<String> unrecognized = new ArrayList<>();
          List<String> rejected = new ArrayList<>();
 
+         // ownOnly: every UNRECOGNIZED write is the own assembly's (gates the "for this assembly
+         // type" clause); allOwn: every dropped write, rejected ones included, is (gates the closing
+         // get_script_context pointer, which must not name the own assembly for another's write).
          boolean ownOnly = true;
+         boolean allOwn = true;
 
          // Sound only for the script's OWN assembly (ASSEMBLY/ASSEMBLY_ONCLICK): a script-local
          // var/let/const lands on the root scope of the execution (BindingRootProxy#putMember,
@@ -373,12 +377,14 @@ public class ScriptExecuteService {
 
                unrecognized.add(own ? name : entry.getKey() + "." + name);
                ownOnly &= own;
+               allOwn &= own;
             }
 
             // Recognized properties (e.g. position/size) whose setter declined to apply the
             // value -- distinct from "unrecognized" above, which never even matched propmap.
             for(String name : entry.getValue().getRejectedWrites()) {
                rejected.add(own ? name : entry.getKey() + "." + name);
+               allOwn &= own;
             }
          }
 
@@ -416,7 +422,7 @@ public class ScriptExecuteService {
 
             summary = "Executed " + target + ", but " + String.join("; and ", clauses) +
                ". Call get_script_context for " +
-               (assemblyName != null && ownOnly ? assemblyName + "'s" :
+               (assemblyName != null && allOwn ? assemblyName + "'s" :
                   "the named assembly's") +
                " real scriptable properties, or use get_assembly_properties/update_binding if " +
                "you meant a different, non-scripted property.";

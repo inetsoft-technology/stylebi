@@ -1956,6 +1956,76 @@ class ScriptExecuteServiceTest {
       assertEquals(List.of("position", "Submit2.position"), result.unrecognizedProperties());
    }
 
+   /**
+    * Bug 80053: the closing get_script_context pointer must not name the script's own assembly
+    * when every dropped write is another assembly's, including a REJECTED (recognized property)
+    * write, which the unrecognized loop never fed into the ownership flag.
+    */
+   @Test
+   void executeDoesNotPointAtOwnAssemblyForAnotherAssembliesRejectedWrite() throws Exception {
+      String script = "Submit2.position = [200, 200];";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of("position")));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertEquals(List.of(), result.changed());
+      assertEquals(List.of("Submit2.position"), result.unrecognizedProperties());
+      assertFalse(result.summary().contains("Submit1's"), result.summary());
+      assertTrue(result.summary().contains("the named assembly's"), result.summary());
+   }
+
+   @Test
+   void executeStillPointsAtOwnAssemblyForItsOwnRejectedWrite() throws Exception {
+      String script = "Submit1.position = [1, 2];";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of(), List.of("position")));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of()));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertTrue(result.summary().contains("Submit1's"), result.summary());
+   }
+
+   /**
+    * Two flags, not one: an own unrecognized write keeps its "for this assembly type" clause
+    * even when another assembly's rejected write is mixed in; only the closing pointer
+    * generalizes.
+    */
+   @Test
+   void executeKeepsAssemblyTypeClauseForOwnUnrecognizedWhenOtherRejectedIsMixedIn()
+      throws Exception
+   {
+      String script = "Submit1.bogus = 1; Submit2.position = [1, 2];";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", scriptableWith(List.of("bogus"), List.of()));
+      scriptables.put("Submit2", scriptableWith(List.of(), List.of("position")));
+      RuntimeViewsheet rvs = viewsheetWithCrossAssemblyScript(script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(
+         rvs, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1"), false);
+
+      assertTrue(result.summary().contains("for this assembly type"), result.summary());
+      assertFalse(result.summary().contains("Submit1's"), result.summary());
+   }
+
    @Test
    void executeStaysCleanWhenNoAssemblyDroppedAWriteFromAnAssemblyScript() throws Exception {
       String script = "Submit2.enabled = false;";
