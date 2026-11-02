@@ -2674,8 +2674,9 @@ class ChartBindingMutatorTest {
       ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
       ChartBindingMutator.setShelf(model, "y",
          List.of(new FieldRef("Total", "measure", "Sum", null, null)));
-      ChartBindingMutator.setShelf(model, "x", List.of(date("month", null), date("month", false)));
-      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries(), "occurrence 0 carries its true");
+      // A dormant true on the outer occurrence, as native drag-and-drop leaves it.
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", false), date("month", false)));
+      dimAt(model.getXFields(), 0).setTimeSeries(true);
       ChartBindingMutator.setSort(model, "x", "Order Date", 1, sortOf("desc"));
 
       IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
@@ -2713,26 +2714,31 @@ class ChartBindingMutatorTest {
    }
 
    @Test
-   void appendingADimensionAfterKeepsACarriedTimeSeriesPerIssue78214Tolerance() {
+   void appendingADimensionAfterARefusedCarriedTimeSeriesPerIssue80060() {
       ChartBindingModel model = xWithYearTimeSeries();
-      ChartBindingMutator.setShelf(model, "x",
-         List.of(dimensionWithTimeSeries("Order Date", "year", null),
-                 dimensionWithTimeSeries("Region", null, null)));
 
-      assertTrue(xDim(model, 0).isTimeSeries(), "a carried true is kept even though year is now outer");
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "year", null),
+                 dimensionWithTimeSeries("Region", null, null))));
+
+      assertTrue(e.getMessage().contains("outer"), e.getMessage());
+      assertEquals(1, model.getXFields().size());
+      assertTrue(xDim(model, 0).isTimeSeries());
    }
 
    @Test
-   void swappingOrderKeepsACarriedTimeSeriesPerIssue78214Tolerance() {
+   void swappingOrderOfACarriedTimeSeriesIsRefusedPerIssue80060() {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "x",
          List.of(dimensionWithTimeSeries("Region", null, null),
                  dimensionWithTimeSeries("Order Date", "year", true)));
-      ChartBindingMutator.setShelf(model, "x",
-         List.of(dimensionWithTimeSeries("Order Date", "year", null),
-                 dimensionWithTimeSeries("Region", null, null)));
 
-      assertTrue(xDim(model, 0).isTimeSeries());
+      refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "year", null),
+                 dimensionWithTimeSeries("Region", null, null))));
+
+      assertEquals("Region", xDim(model, 0).getColumnValue());
+      assertTrue(xDim(model, 1).isTimeSeries());
    }
 
    @Test
@@ -2764,10 +2770,12 @@ class ChartBindingMutatorTest {
    @Test
    void echoingAnAlreadyDormantTimeSeriesStaysAcceptedPerIssue79757() {
       ChartBindingModel model = lineMonthOnXWithSum();
-      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
-      // Keyless resend: the carried true is kept on the now-outer dimension (#78214 tolerance).
+      // A dormant true as native drag-and-drop leaves it: stored on an already outer dimension.
       ChartBindingMutator.setShelf(model, "x",
-         List.of(date("month", null), dimensionWithTimeSeries("Region", null, null)));
+         List.of(dimensionWithTimeSeries("Region", null, null), date("month", false)));
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", false), dimensionWithTimeSeries("Region", null, null)));
+      dimAt(model.getXFields(), 0).setTimeSeries(true);
       assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
 
       // A verbatim get_binding read-back of that dormant true is not a new request for it.
@@ -2775,6 +2783,84 @@ class ChartBindingMutatorTest {
          List.of(date("month", true), dimensionWithTimeSeries("Region", null, null)));
 
       assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void keylessAppendOfAnEffectiveTimeSeriesIsRefusedPerIssue80060() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", null), dimensionWithTimeSeries("Region", null, null))));
+
+      assertTrue(e.getMessage().contains("outer"), e.getMessage());
+      assertTrue(e.getMessage().contains("timeSeries:false"), e.getMessage());
+      assertFalse(e.getMessage().contains("timeSeries:true is refused"), e.getMessage());
+      assertEquals(1, model.getXFields().size(), "the refused write leaves the shelf untouched");
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void keylessReorderOfAnEffectiveTimeSeriesIsRefusedPerIssue80060() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null), date("month", true)));
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries());
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", null), dimensionWithTimeSeries("Region", null, null))));
+
+      assertTrue(e.getMessage().contains("outer"), e.getMessage());
+      assertEquals("Region", dimAt(model.getXFields(), 0).getColumnValue(),
+                   "the refused write leaves the shelf untouched");
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries());
+   }
+
+   @Test
+   void keylessWriteKeepingTheTimeSeriesInnermostIsAcceptedPerIssue80060() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null), date("month", null)));
+
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries());
+   }
+
+   @Test
+   void firstKeylessWriteOfADateShelfIsAcceptedPerIssue80060() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      model.setXFields(new java.util.ArrayList<>());
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", null), dimensionWithTimeSeries("Region", null, null)));
+
+      assertFalse(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void keylessAppendOfATimeSeriesThatWasNeverEffectiveIsAcceptedPerIssue80060() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_PIE);
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", false)));
+      dimAt(model.getXFields(), 0).setTimeSeries(true);
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", null), dimensionWithTimeSeries("Region", null, null)));
+
+      assertEquals(2, model.getXFields().size());
+   }
+
+   @Test
+   void explicitFalseAppendClearsTheTimeSeriesPerIssue80060() {
+      ChartBindingModel model = lineMonthOnXWithSum();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", false), dimensionWithTimeSeries("Region", null, null)));
+
+      assertEquals(2, model.getXFields().size());
+      assertFalse(dimAt(model.getXFields(), 0).isTimeSeries());
    }
 
    @Test

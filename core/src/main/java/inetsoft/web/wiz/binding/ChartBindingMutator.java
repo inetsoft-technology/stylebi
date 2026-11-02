@@ -227,9 +227,9 @@ public final class ChartBindingMutator {
       try {
          for(int i = 0; i < refs.size(); i++) {
             if(refs.get(i) instanceof ChartDimensionRefModel dimension) {
-               // A stored true carried by a keyless resend is kept even where the dimension
-               // became outer (#78214's tolerance); only a new explicit true, or an explicit
-               // one that makes a previously effective true outer (#79757), is refused here.
+               // A stored true carried by a keyless resend is kept where it was already
+               // dormant (#78214's tolerance); a new explicit true, or an explicit or carried
+               // one that makes a previously effective true outer (#79757, #80060), is refused.
                ChartTimeSeriesGuard.require(model, guardPlace, name, i, dimension, fieldList.get(i),
                                             oldRefs, effectiveBefore);
             }

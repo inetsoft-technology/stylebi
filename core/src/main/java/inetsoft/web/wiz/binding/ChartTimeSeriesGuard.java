@@ -47,7 +47,8 @@ import java.util.Set;
  * dimension, but {@code ChartVSAQuery} still forces an ascending sort from the raw flag and
  * {@code VSChartDimensionRef} drops a sort-by-value, so a stored flag silently overrides the
  * caller's sort. Only an <em>explicit</em> {@code true} is refused: {@code false} is always
- * allowed, an omitted flag keeps the existing carry-forward behaviour, and a {@code true} that
+ * allowed, an omitted flag keeps the existing carry-forward behaviour unless that would leave a
+ * flag that was in force on a now-outer dimension (bug #80060, refused), and a {@code true} that
  * merely re-states a flag the same column + date level already stores on that shelf is allowed
  * (A1 echo exemption) because native drag-and-drop stores {@code true} on outer/pie/waterfall
  * dimensions and {@code get_binding} echoes it back.
@@ -93,6 +94,12 @@ final class ChartTimeSeriesGuard {
                        List<? extends ChartRefModel> previous,
                        Set<? extends ChartRefModel> effectiveBefore)
    {
+      if(field.timeSeries() == null) {
+         requireCarriedTimeSeriesStillEffective(model, place, shelf, index, dim, field, previous,
+                                                effectiveBefore);
+         return;
+      }
+
       if(!Boolean.TRUE.equals(field.timeSeries())) {
          return;
       }
@@ -139,6 +146,43 @@ final class ChartTimeSeriesGuard {
                "This write would make it outer: put the date dimension last, or send " +
                "timeSeries:false for '" + column + "'." :
                "Send timeSeries:false (or omit it) for '" + column + "'."));
+      }
+   }
+
+   /**
+    * Bug #80060: a keyless write (no {@code timeSeries} key) still carries the stored flag
+    * forward ({@code preserveDimensionState}), so it can leave a time series that was in force
+    * stored on a dimension this write makes outer -- the same end state as an explicit true that
+    * {@link #require} refuses (bug #79757). Refused here too, but only when the carried flag was
+    * effective before the write: a dormant flag, or a first write, stays accepted.
+    */
+   private static void requireCarriedTimeSeriesStillEffective(
+      ChartBindingModel model, Place place, String shelf, int index, ChartDimensionRefModel dim,
+      FieldRef field, List<? extends ChartRefModel> previous,
+      Set<? extends ChartRefModel> effectiveBefore)
+   {
+      if(!dim.isTimeSeries()) {
+         return;
+      }
+
+      for(ChartRefModel old : previous) {
+         if(old instanceof ChartDimensionRefModel oldDim && effectiveBefore.contains(oldDim) &&
+            ChartBindingMutator.matches(oldDim, field))
+         {
+            String reason = unsupportedReason(model, place, shelf, index, dim, false);
+
+            if(reason != null) {
+               String column = field.column();
+               throw new IllegalArgumentException(
+                  "'" + column + "' on " + describe(place, shelf) + " keeps its stored " +
+                  "timeSeries:true, which is in force now, but this write makes it unsupported: " +
+                  reason + ". Time series only works on the innermost x or y dimension, so " +
+                  "put the date dimension last, or send timeSeries:false for '" + column +
+                  "' to drop it.");
+            }
+
+            return;
+         }
       }
    }
 
