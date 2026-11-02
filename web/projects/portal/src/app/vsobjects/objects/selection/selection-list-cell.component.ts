@@ -648,12 +648,13 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
 
       if(this.showText) {
          const minimumWidth: number = this.selectionValue.measureLabel  && this.measureTextFormat
-            ? GuiTool.measureText(this.selectionValue.measureLabel, this.measureTextFormat.font)
+            ? Math.ceil(GuiTool.measureText(this.selectionValue.measureLabel,
+                                            this.measureTextFormat.font)) + this.valuePadding
             : 0;
          this._textWidth = Math.max(this._textWidth, minimumWidth);
       }
 
-      this.labelWidth = textArea - this._textWidth;
+      this.labelWidth = Math.max(0, textArea - this._textWidth);
    }
 
    get ariaExpanded(): boolean {

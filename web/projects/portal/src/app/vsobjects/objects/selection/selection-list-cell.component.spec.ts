@@ -23,6 +23,7 @@ import { FormsModule } from "@angular/forms";
 import { BrowserModule, By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../../common/test/test-utils";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
 import { InteractService } from "../../../widget/interact/interact.service";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 import { SelectionValueModel } from "../../model/selection-value-model";
@@ -186,6 +187,26 @@ describe("Selection List Cell Test", () => {
       selectionListCell.selectionValue = createModel();
       fixture.detectChanges();
    }));
+
+   // #79566: the ellipsizing span clips itself, so it must carry the tooltipIf directive
+   it("should wire tooltipIf on the label text span", () => {
+      const span = fixture.debugElement.query(By.css("span.selection-value-text"));
+
+      expect(span).not.toBe(null);
+      expect(span.injector.get(TooltipIfDirective, null)).not.toBe(null);
+   });
+
+   // the label's own tooltipIf was never disabled in viewer/preview, where truncated names are seen
+   it("should not disable the span tooltip in viewer mode", () => {
+      selectionListCell.contextProvider =
+         new ContextProvider(true, false, false, false, false, false, false, false, false, false, false);
+      fixture.detectChanges();
+
+      const span = fixture.debugElement.query(By.css("span.selection-value-text"));
+
+      expect(selectionListCell.toggleEnabled).toBe(true);
+      expect(span.injector.get(TooltipIfDirective).disableTooltipIf).toBeFalsy();
+   });
 
    // Bug #10494 make sure selectionlist show text value properly.
    it("should show text value when 'Text' is set to true", () => new Promise<void>((done) => {
