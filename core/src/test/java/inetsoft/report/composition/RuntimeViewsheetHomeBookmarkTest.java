@@ -17,47 +17,47 @@
  */
 package inetsoft.report.composition;
 
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.MessageException;
 import org.junit.jupiter.api.Tag;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 
 /**
  * Bug #79993: a Composer (design-mode) runtime sheet never builds the "(Initial)" snapshot
@@ -65,8 +65,10 @@ import static org.mockito.Mockito.doReturn;
  * live viewsheet instead of dereferencing the null snapshot.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
-                          RuntimeViewsheetHomeBookmarkTest.LockConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(
+   classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+               RuntimeViewsheetHomeBookmarkTest.LockConfiguration.class },
+   initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
