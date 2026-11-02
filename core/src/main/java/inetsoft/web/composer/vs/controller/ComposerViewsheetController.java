@@ -214,8 +214,10 @@ public class ComposerViewsheetController {
 
       String id = runtimeViewsheetRef.getRuntimeId();
 
-      if(composerViewsheetService.refreshPreviewViewsheet(id, event,
-                                                          principal, commandDispatcher, linkUri))
+      // the service returns null when the runtime viewsheet has expired or was closed
+      // (it catches ExpiredSheetException/NPE); treat that as not refreshed, don't unbox it
+      if(Boolean.TRUE.equals(composerViewsheetService.refreshPreviewViewsheet(
+         id, event, principal, commandDispatcher, linkUri)))
       {
          runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
       }

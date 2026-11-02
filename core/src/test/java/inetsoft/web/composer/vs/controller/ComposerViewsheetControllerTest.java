@@ -18,7 +18,10 @@
 package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.web.viewsheet.event.OpenPreviewViewsheetEvent;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -31,7 +34,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -55,11 +62,40 @@ class ComposerViewsheetControllerTest {
       verifyNoInteractions(composerViewsheetService, securityEngine);
    }
 
+   // Bug #79802, the service returns null when the runtime viewsheet has expired; the
+   // controller must not unbox it. Explicit null: Mockito's default for Boolean is false.
+   @Test
+   void refreshPreviewViewsheetTreatsNullResultAsNotRefreshed() throws Exception {
+      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("expired-id");
+      when(securityEngine.checkPermission(
+         principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)).thenReturn(true);
+      when(composerViewsheetService.refreshPreviewViewsheet(
+         "expired-id", event, principal, dispatcher, "/")).thenReturn(null);
+
+      assertDoesNotThrow(
+         () -> controller.refreshPreviewViewsheet(event, principal, dispatcher, "/"));
+      verify(runtimeViewsheetRef, never()).setLastModified(anyLong());
+   }
+
+   @Test
+   void refreshPreviewViewsheetMarksModifiedWhenRefreshed() throws Exception {
+      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("id");
+      when(securityEngine.checkPermission(
+         principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)).thenReturn(true);
+      when(composerViewsheetService.refreshPreviewViewsheet(
+         "id", event, principal, dispatcher, "/")).thenReturn(Boolean.TRUE);
+
+      controller.refreshPreviewViewsheet(event, principal, dispatcher, "/");
+
+      verify(runtimeViewsheetRef).setLastModified(anyLong());
+   }
+
    @Mock private RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock private ViewsheetService viewsheetService;
    @Mock private ComposerViewsheetServiceProxy composerViewsheetService;
    @Mock private SecurityEngine securityEngine;
    @Mock private Principal principal;
    @Mock private CommandDispatcher dispatcher;
+   @Mock private OpenPreviewViewsheetEvent event;
    private ComposerViewsheetController controller;
 }
