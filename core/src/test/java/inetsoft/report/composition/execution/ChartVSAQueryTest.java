@@ -21,6 +21,9 @@ package inetsoft.report.composition.execution;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,5 +66,49 @@ public class ChartVSAQueryTest {
          defTable, fmts);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(ChartVSAQuery.PeriodDateTableLens.class, deserializedTable.getClass());
+   }
+
+   private static AggregateRef aggregate(String alias, AggregateFormula formula) {
+      AggregateRef base = new AggregateRef(
+         new ColumnRef(new AttributeRef("Product", "Total")), formula);
+      return VSUtil.createAliasAgg(base, true);
+   }
+
+   // Bug #79900: the calc's alias twin must not displace the user's own aggregate.
+   @Test
+   public void testCalcTwinKeepsUserAggregateWhenUserSumComesFirst() {
+      AggregateInfo ainfo = new AggregateInfo();
+      AggregateRef user = aggregate("Sum(Product:Total)", AggregateFormula.SUM);
+      ainfo.addAggregate(user);
+      ChartVSAQuery.addCalcTwinAggregate(
+         ainfo, aggregate("Sum(Product:Total)", AggregateFormula.SUM));
+
+      Assertions.assertEquals(1, ainfo.getAggregateCount());
+      Assertions.assertSame(user, ainfo.getAggregate(0));
+   }
+
+   @Test
+   public void testCalcTwinThenUserSumKeepsUserAggregate() {
+      AggregateInfo ainfo = new AggregateInfo();
+      ChartVSAQuery.addCalcTwinAggregate(
+         ainfo, aggregate("Sum(Product:Total)", AggregateFormula.SUM));
+      AggregateRef user = aggregate("Sum(Product:Total)", AggregateFormula.SUM);
+      ainfo.addAggregate(user);
+
+      Assertions.assertEquals(1, ainfo.getAggregateCount());
+      Assertions.assertSame(user, ainfo.getAggregate(0));
+   }
+
+   @Test
+   public void testCalcTwinWithDifferentFormulaIsAddedSeparately() {
+      AggregateInfo ainfo = new AggregateInfo();
+      AggregateRef userMax = aggregate("Max(Product:Total)", AggregateFormula.MAX);
+      ainfo.addAggregate(userMax);
+      AggregateRef twin = aggregate("Sum(Product:Total)", AggregateFormula.SUM);
+      ChartVSAQuery.addCalcTwinAggregate(ainfo, twin);
+
+      Assertions.assertEquals(2, ainfo.getAggregateCount());
+      Assertions.assertSame(userMax, ainfo.getAggregate(0));
+      Assertions.assertSame(twin, ainfo.getAggregate(1));
    }
 }
