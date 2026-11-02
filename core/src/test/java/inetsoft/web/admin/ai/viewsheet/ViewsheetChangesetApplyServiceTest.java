@@ -563,8 +563,11 @@ class ViewsheetChangesetApplyServiceTest {
    @Test void appliesANonEmptyFolderDeleteWhenForcedAndAcknowledged() throws Exception {
       folderStore.put(folderKey("Examples/Old Folder", null), true);
       AssetEntry containedEntry = containedViewsheet("Examples/Old Folder/Census");
-      when(assetRepository.getAllEntries(any(), any(), any(), any()))
-         .thenReturn(new AssetEntry[]{ containedEntry });
+      // The contents disappear together with the folder, as the real delete does; the post-delete
+      // re-check must then see an empty folder.
+      when(assetRepository.getAllEntries(any(), any(), any(), any())).thenAnswer(inv ->
+         folderStore.getOrDefault(folderKey("Examples/Old Folder", null), false)
+            ? new AssetEntry[]{ containedEntry } : new AssetEntry[0]);
       ViewsheetChangeRequest change = deleteFolderChange("Examples/Old Folder", null);
       change.setForce(true);
 
@@ -574,6 +577,20 @@ class ViewsheetChangesetApplyServiceTest {
       assertFalse(folderStore.getOrDefault(folderKey("Examples/Old Folder", null), false));
       assertNotNull(result.results().get(0).advisory());
       assertTrue(result.results().get(0).advisory().contains("Census"));
+   }
+
+   /** The label is gone but a contained item survived the delete: must not be reported verified. */
+   @Test void folderDeleteIsNotVerifiedWhenContainedItemsRemain() throws Exception {
+      folderStore.put(folderKey("Examples/Old Folder", null), true);
+      AssetEntry containedEntry = containedViewsheet("Examples/Old Folder/Census");
+      when(assetRepository.getAllEntries(any(), any(), any(), any()))
+         .thenReturn(new AssetEntry[]{ containedEntry });
+      ViewsheetChangeRequest change = deleteFolderChange("Examples/Old Folder", null);
+      change.setForce(true);
+
+      var result = service.apply(applyRequest("delete folder", true, change), user);
+
+      assertNotEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
    }
 
    /** Section 0.4: folder delete's rollback is a COMPLETE inverse, unlike every prior area's own

@@ -720,7 +720,9 @@ public class ViewsheetChangesetApplyService {
       String advisory = contents.length == 0 ? null :
          "deleted with force: true, permanently and irrecoverably destroying " + contents.length +
          " contained viewsheet/worksheet(s): " +
-         ViewsheetProjection.projectVisibleContents(contents, visibleContents);
+         ViewsheetProjection.projectVisibleContents(contents, visibleContents) +
+         ViewsheetChangePlanService.externalDependentsWarning(
+            planService.findExternalDependents(contents, user));
 
       String beforeProjection = ViewsheetProjection.projectFolder(before);
 
@@ -728,19 +730,27 @@ public class ViewsheetChangesetApplyService {
       viewsheetApiService.removeFolder(normalizedPath, owner, user);
 
       GetViewsheetFolderResult after = folderService.getFolder(normalizedPath, owner);
-      boolean verified = !after.found();
+      // Verify the contents too, not only the label: the label alone says nothing about worksheets,
+      // which sit in a separate folder namespace.
+      AssetEntry[] remaining = planService.findFolderContents(normalizedPath, owner, user);
+      boolean verified = !after.found() && remaining.length == 0;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
-      results.add(new ViewsheetApplyOutcome(key, beforeProjection, null, status,
-         verified ? null : "folder still present after delete", advisory));
+      String error = verified ? null :
+         (after.found() ? "folder still present after delete" : "folder label removed") +
+         (remaining.length == 0 ? "" : "; " + remaining.length +
+            " contained viewsheet/worksheet(s) still present: " +
+            ViewsheetProjection.projectVisibleContents(
+               remaining, planService.visibleFolderContents(remaining, user)));
+      results.add(new ViewsheetApplyOutcome(key, beforeProjection, null, status, error, advisory));
       writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_FOLDER, risk,
                 AdminChangeRecord.ACTION_APPLY, beforeProjection, null, status, backupRef,
                 reviewOutcome, user);
 
       if(verified) {
          // Section 0.4/6: NOT a complete inverse when the folder was non-empty at delete time (bug
-         // #76469) -- re-adding via create restores only the empty folder label; the folder's own
-         // recursive AssetRepository cascade (RepletEngine's REMOVE_FOLDER_EVENT listener) already
-         // permanently destroyed any contained viewsheet/worksheet, and nothing here resurrects it.
+         // #76469) -- re-adding via create restores only the empty folder label; the dashboard
+         // cascade (RepletEngine's REMOVE_FOLDER_EVENT listener) and the explicit worksheet removal
+         // in ViewsheetService.removeFolder already permanently destroyed contained content.
          // Still queued for rollback because restoring the label is strictly better than leaving it
          // deleted too when another entry in the same plan fails.
          undoable.add(Undo.folderDelete(key, normalizedPath, owner));
