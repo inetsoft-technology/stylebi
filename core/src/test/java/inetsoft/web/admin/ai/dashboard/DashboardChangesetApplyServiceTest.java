@@ -26,6 +26,7 @@ import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.content.repository.RepositoryDashboardService;
@@ -81,6 +82,7 @@ class DashboardChangesetApplyServiceTest {
    private MockedStatic<inetsoft.sree.security.SecurityEngine> securityEngineStatic;
    private inetsoft.sree.security.SecurityProvider ownerProvider;
    private MockedStatic<inetsoft.util.Tool> tool;
+   private MockedStatic<AssetUtil> assetUtilStatic;
 
    private static final IdentityID OWNER = new IdentityID("bob", "host-org");
 
@@ -130,6 +132,14 @@ class DashboardChangesetApplyServiceTest {
 
             return s.substring(4);
          });
+
+      // Bug #79929: the plan resolve step checks that a bound viewsheet exists; every viewsheet
+      // this fixture binds is a real one
+      AssetRepository assetRepository = mock(AssetRepository.class, withSettings().lenient());
+      when(assetRepository.getAssetEntry(any(AssetEntry.class)))
+         .thenAnswer(inv -> inv.getArgument(0));
+      assetUtilStatic = mockStatic(AssetUtil.class, withSettings().lenient());
+      assetUtilStatic.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
 
       lenient().when(backupService.backup(anyString())).thenReturn("backup-ref-1");
       lenient().when(dashboardRegistryManager.getRegistry()).thenReturn(globalRegistry);
@@ -218,6 +228,7 @@ class DashboardChangesetApplyServiceTest {
       orgManagerStatic.close();
       securityEngineStatic.close();
       tool.close();
+      assetUtilStatic.close();
    }
 
    // -------------------------------------------------------------------------
