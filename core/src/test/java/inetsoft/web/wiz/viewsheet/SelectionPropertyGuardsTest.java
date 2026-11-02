@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -393,6 +394,41 @@ class SelectionPropertyGuardsTest {
          paths("B"), paths("A1"), List.of(List.of("B")), List.of(), true, true));
       assertTrue(SelectionRuntimeService.reselectedBySetSelection(
          paths("B"), paths("B"), List.of(List.of("A", "B")), List.of(), true, true).isEmpty());
+   }
+
+   // bug-79904: a requested path the single-select tree applied deeper is disclosed
+
+   @Test
+   void requestedPathExtendedByTheTreeIsReportedAsExtended() {
+      List<Map<String, Object>> extended = SelectionRuntimeService.extendedBySetSelection(
+         List.of(List.of("USA East")), List.of(List.of("USA East", "CT")));
+
+      assertEquals(1, extended.size());
+      assertEquals(List.of("USA East"), extended.get(0).get("requested"));
+      assertEquals(List.of("USA East", "CT"), extended.get(0).get("applied"));
+      // reselectedBySetSelection treats the same after-path as the request, which is the gap
+      assertTrue(SelectionRuntimeService.reselectedBySetSelection(
+         List.of(), List.of(List.of("USA East", "CT")), List.of(List.of("USA East")),
+         List.of(), true, false).isEmpty());
+   }
+
+   @Test
+   void pathAppliedAsRequestedOrLeftUnextendedIsNotAnExtension() {
+      assertTrue(SelectionRuntimeService.extendedBySetSelection(
+         List.of(List.of("USA East", "MA")), List.of(List.of("USA East", "MA"))).isEmpty());
+      assertTrue(SelectionRuntimeService.extendedBySetSelection(
+         List.of(List.of("USA East")), List.of(List.of("USA East"))).isEmpty());
+      assertTrue(SelectionRuntimeService.extendedBySetSelection(
+         List.of(List.of("USA East")), List.of(List.of("USA West", "CA"))).isEmpty());
+      assertTrue(SelectionRuntimeService.extendedBySetSelection(
+         List.of(), List.of(List.of("USA East", "CT"))).isEmpty());
+   }
+
+   @Test
+   void duplicateRequestedPathsAreReportedOnce() {
+      assertEquals(1, SelectionRuntimeService.extendedBySetSelection(
+         List.of(List.of("USA East"), List.of("USA East")),
+         List.of(List.of("USA East", "CT"))).size());
    }
 
    @Test
