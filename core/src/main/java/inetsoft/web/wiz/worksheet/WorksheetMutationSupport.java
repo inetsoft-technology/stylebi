@@ -4043,19 +4043,19 @@ public final class WorksheetMutationSupport {
             String dtype = conditionType(t, spec, post);
             requireNoNumericTextMatch(spec.field(), dtype, op);
 
-            if((spec.type() == null || spec.type().isBlank()) && op != XCondition.DATE_IN) {
-               // A value an indexed valueSpec replaces is a field/expression/variable reference
-               // whose values() entry is only display text, so it is not a literal to judge.
-               java.util.Set<Integer> replaced = new java.util.HashSet<>();
+            // A value an indexed valueSpec replaces is a field/expression/variable reference
+            // whose values() entry is only display text, so it is not a literal to judge.
+            java.util.Set<Integer> replaced = new java.util.HashSet<>();
 
-               if(spec.valueSpecs() != null) {
-                  for(ConditionValueSpec vs : spec.valueSpecs()) {
-                     if(vs.index() != null) {
-                        replaced.add(vs.index());
-                     }
+            if(spec.valueSpecs() != null) {
+               for(ConditionValueSpec vs : spec.valueSpecs()) {
+                  if(vs.index() != null) {
+                     replaced.add(vs.index());
                   }
                }
+            }
 
+            if((spec.type() == null || spec.type().isBlank()) && op != XCondition.DATE_IN) {
                List<String> literals = new ArrayList<>();
 
                for(int i = 0; spec.values() != null && i < spec.values().size(); i++) {
@@ -4100,7 +4100,18 @@ public final class WorksheetMutationSupport {
                List<Object> resolvedValues = new ArrayList<>();
 
                if(spec.values() != null) {
-                  for(String v : spec.values()) {
+                  for(int i = 0; i < spec.values().size(); i++) {
+                     String v = spec.values().get(i);
+
+                     // Bug #80063: a slot an indexed valueSpec overwrites below holds only the
+                     // readback display text of that field/expression value ("T.Flag",
+                     // "Expression[Javascript:true]"), so judging it as a literal refused a
+                     // boolean column's own readback. Keep the position; the spec replaces it.
+                     if(replaced.contains(i)) {
+                        resolvedValues.add(v);
+                        continue;
+                     }
+
                      // Shared with addFilter rather than parsed a second time here. The local copy
                      // had no lower bound on the name, so "$()" became a variable named "" -- one
                      // nothing can ever resolve, reported as ok. Typing was NOT the difference,
