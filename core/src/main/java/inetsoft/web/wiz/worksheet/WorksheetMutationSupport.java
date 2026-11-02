@@ -3938,7 +3938,7 @@ public final class WorksheetMutationSupport {
       }
 
       ConditionList cl = buildConditionList(
-         t, nodes, post, post ? t.getPostConditionList() : t.getPreConditionList());
+         t, nodes, post, post ? t.getPostConditionList() : t.getPreConditionList(), false);
 
       if(post) {
          t.setPostConditionList(cl);
@@ -4017,7 +4017,7 @@ public final class WorksheetMutationSupport {
    private static ConditionList mvConditionList(TableAssembly t, List<ConditionNode> nodes,
                                                 boolean post, ConditionListWrapper existing)
    {
-      ConditionList cl = buildConditionList(t, nodes, post, existing);
+      ConditionList cl = buildConditionList(t, nodes, post, existing, true);
       return cl != null ? cl : new ConditionList();
    }
 
@@ -4029,9 +4029,12 @@ public final class WorksheetMutationSupport {
     *
     * @param existing the list being replaced; a numeric literal the column's current type
     *                 refuses may be judged against its conditions' types (Bug #78897)
+    * @param mv       {@code true} for an MV update/delete list, whose Composer dialog offers a
+    *                 Field value with text-match operators too (see {@link #requireFieldOperand})
     */
    private static ConditionList buildConditionList(TableAssembly t, List<ConditionNode> nodes,
-                                                    boolean post, ConditionListWrapper existing)
+                                                    boolean post, ConditionListWrapper existing,
+                                                    boolean mv)
    {
       ConditionList cl = new ConditionList();
 
@@ -4155,6 +4158,10 @@ public final class WorksheetMutationSupport {
 
                if(spec.valueSpecs() != null) {
                   for(ConditionValueSpec vs : spec.valueSpecs()) {
+                     if(vs != null && "field".equalsIgnoreCase(vs.valueType())) {
+                        requireFieldOperand(t, post, spec, op, ref, vs, mv);
+                     }
+
                      Object value = conditionValue(t, post, vs);
                      Integer index = vs.index();
                      int appends = resolvedValues.size() - originalSize;
@@ -5255,6 +5262,87 @@ public final class WorksheetMutationSupport {
          "with sql:false, e.g. String(field['" + field + "'])) on a mirror and apply the text " +
          "match to that column, or use =, ONE_OF, BETWEEN, <, > on the numeric column. Nothing " +
          "was changed.");
+   }
+
+   /**
+    * Bug #80069: the worksheet twin of the viewsheet's {@code ConditionVocabulary
+    * .requireFieldOperand} (#79570). A Field value is refused with a text match (STARTING_WITH,
+    * CONTAINS, LIKE) or DATE_IN, which the Composer's pre/post condition dialogs do not offer it
+    * for and which store a condition matching nothing; the MV update dialog does offer it for the
+    * text matches, so {@code mv} lists skip this operator rule. A column is also refused against
+    * a column of a different type family (text, numeric, date, boolean), which the query engine
+    * rejects at preview time ("Comparisons between 'VARCHAR' and 'NUMERIC' are not supported").
+    * A type is judged only when {@link #isTypeKnown} says the column really carries one, so an
+    * untyped column (reported as string by default) is never refused on a guess.
+    */
+   private static void requireFieldOperand(TableAssembly t, boolean post, ConditionSpec spec,
+                                           int op, DataRef target, ConditionValueSpec vs,
+                                           boolean mv)
+   {
+      if(!mv && (op == XCondition.STARTING_WITH || op == XCondition.CONTAINS ||
+         op == XCondition.LIKE || op == XCondition.DATE_IN))
+      {
+         throw new IllegalArgumentException(
+            "The condition on \"" + spec.field() + "\" uses " + spec.operation() +
+            ", which does not accept a field-typed value. A field value is accepted only " +
+            "with =, ONE_OF, <, >, <=, >= and BETWEEN; use a literal value, variable or " +
+            "expression instead. Nothing was changed.");
+      }
+
+      if(vs.field() == null || vs.field().isBlank()) {
+         return;
+      }
+
+      DataRef operand = resolveField(t, vs.field(), post);
+
+      if(!isFieldTypeKnown(target) || !isFieldTypeKnown(operand)) {
+         return;
+      }
+
+      String targetType = columnType(t, target, post);
+      String operandType = columnType(t, operand, post);
+      String targetFamily = fieldTypeFamily(targetType);
+      String operandFamily = fieldTypeFamily(operandType);
+
+      if(targetFamily != null && operandFamily != null && !targetFamily.equals(operandFamily)) {
+         throw new IllegalArgumentException(
+            "The condition on \"" + spec.field() + "\" (" + targetType + ") compares with " +
+            "field \"" + vs.field() + "\" (" + operandType + "), which are different types (" +
+            targetFamily + " vs " + operandFamily + ") and cannot be compared. Pick a field " +
+            "of the same type. Nothing was changed.");
+      }
+   }
+
+   /**
+    * {@link #isTypeKnown}, looking through the {@link GroupRef} a post-aggregate condition
+    * resolves a group column to, which carries no type of its own.
+    */
+   private static boolean isFieldTypeKnown(DataRef col) {
+      return isTypeKnown(col instanceof GroupRef grp && grp.getDataRef() != null
+                            ? grp.getDataRef() : col);
+   }
+
+   /** The comparable family of a data type for {@link #requireFieldOperand}, or null if unknown. */
+   private static String fieldTypeFamily(String type) {
+      if(type == null) {
+         return null;
+      }
+
+      if(XSchema.STRING.equals(type) || XSchema.CHAR.equals(type) ||
+         XSchema.CHARACTER.equals(type))
+      {
+         return "text";
+      }
+
+      if(XSchema.isNumericType(type) || XSchema.DECIMAL.equals(type)) {
+         return "numeric";
+      }
+
+      if(XSchema.isDateType(type)) {
+         return "date";
+      }
+
+      return XSchema.BOOLEAN.equals(type) ? "boolean" : null;
    }
 
    private static boolean isNumericConditionType(String dtype) {
