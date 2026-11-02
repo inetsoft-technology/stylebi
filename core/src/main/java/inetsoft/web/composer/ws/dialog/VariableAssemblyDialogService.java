@@ -248,7 +248,8 @@ public class VariableAssemblyDialogService extends WorksheetControllerService {
          else {
             Object valueString = Tool.getData(
                variable.getTypeNode().getType(), model.getDefaultValue());
-            variable.setValueNode(XValueNode.createValueNode(valueString, "default"));
+            variable.setValueNode(
+               XValueNode.createValueNode(valueString, "default", model.getType()));
          }
       }
 
