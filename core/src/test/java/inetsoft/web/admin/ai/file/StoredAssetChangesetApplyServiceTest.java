@@ -275,6 +275,55 @@ class StoredAssetChangesetApplyServiceTest {
       verify(contentSettingsService).updateFolder("new.js");
    }
 
+   @Test void applyRefusesAWriteWhoseContentWasSwappedAfterPreviewAndWritesNothing() throws Exception {
+      files.put("w.txt", "A".getBytes(StandardCharsets.UTF_8));
+      StoredAssetChangeRequest reviewed =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, "w.txt");
+      reviewed.setContent("X");
+      String hash = planService.resolve(request(reviewed), user).planHash();
+      StoredAssetChangeRequest swapped =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, "w.txt");
+      swapped.setContent("Y");
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, swapped);
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+         () -> service.apply(req, user));
+      assertArrayEquals("A".getBytes(StandardCharsets.UTF_8), files.get("w.txt"));
+      verify(backupService, never()).backup(anyString());
+   }
+
+   @Test void applyRefusesAWriteWhenTheFileChangedToTheSameSizeAfterPreview() throws Exception {
+      files.put("w.txt", "A".getBytes(StandardCharsets.UTF_8));
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, "w.txt");
+      c.setContent("X");
+      String hash = planService.resolve(request(c), user).planHash();
+      files.put("w.txt", "B".getBytes(StandardCharsets.UTF_8));
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, c);
+
+      assertThrows(AdminChangesetApplyService.PlanHashMismatchException.class,
+         () -> service.apply(req, user));
+      assertArrayEquals("B".getBytes(StandardCharsets.UTF_8), files.get("w.txt"));
+   }
+
+   @Test void appliesAWriteWithIdenticalContentAndUnchangedFile() throws Exception {
+      files.put("w.txt", "A".getBytes(StandardCharsets.UTF_8));
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, "w.txt");
+      c.setContent("X");
+      String hash = planService.resolve(request(c), user).planHash();
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, c);
+
+      StoredAssetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertArrayEquals("X".getBytes(StandardCharsets.UTF_8), files.get("w.txt"));
+   }
+
    @Test void appliesARenameAndReportsApplied() throws Exception {
       files.put("old.js", "x".getBytes(StandardCharsets.UTF_8));
       StoredAssetChangeRequest c =
