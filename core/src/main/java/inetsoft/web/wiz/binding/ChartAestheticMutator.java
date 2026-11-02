@@ -1412,8 +1412,7 @@ public final class ChartAestheticMutator {
          "To vary by category, call set_visual_frame with channel: \"" + other + "\" and " +
          "{type: \"categorical\"}; for one fixed " + channel + " value use {type: \"static\", " +
          channel + ": ...}; or use set_chart_type to switch to a chart type whose shape slot uses " +
-         "the " + thisPicker + " (area/line charts use the line picker, bar/pie charts the " +
-         "texture picker).");
+         "the " + thisPicker + ".");
    }
 
    /**
