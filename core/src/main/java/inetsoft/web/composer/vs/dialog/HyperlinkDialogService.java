@@ -594,6 +594,17 @@ public class HyperlinkDialogService {
          return colName;
       }
 
+      if(matches.size() == 1 && GraphTypes.isTreemap(chartInfo.getRTChartType()) && !isAxis) {
+         // bound, but on a size/color channel; a treemap attaches links to group fields only
+         String linkable = bound.stream()
+            .filter(n -> landsOnField(info, chartInfo, n, isAxis, isText))
+            .collect(Collectors.joining(", "));
+         throw new IllegalArgumentException(
+            "'colName' '" + colName + "' is bound on a size/color channel of this chart, which " +
+            "carries no link for this chart type, so a link set on it would be stored nowhere. " +
+            "Only group fields can take a link here: " + linkable + ".");
+      }
+
       throw new IllegalArgumentException(
          matches.size() > 1 ?
             "'colName' '" + colName + "' matches several fields that differ only by case (" +
