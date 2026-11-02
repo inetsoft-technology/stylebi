@@ -3761,6 +3761,32 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Determines if an I/O error message is the JDK/OS text for a connection the peer closed
+    * or aborted (broken pipe, connection reset, aborted/forcibly closed on Windows).
+    *
+    * @param message the exception message, may be <tt>null</tt>.
+    *
+    * @return <tt>true</tt> if the message describes a closed client connection.
+    */
+   public static boolean isBrokenPipeMessage(String message) {
+      if(message == null) {
+         return false;
+      }
+
+      if(message.contains("Connection reset")) {
+         return true;
+      }
+
+      for(String msg : BROKEN_PIPE_MSGS) {
+         if(message.contains(msg)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Convert an object to a byte array.
     * @param obj the specified object to be converted.
     * @return byte array.

@@ -24,6 +24,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.GlobalExceptionHandler;
 import inetsoft.web.WebUtils;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.util.log.LogLevel;
@@ -171,7 +172,7 @@ public class ExportController {
          }
 
          if(response.isCommitted()) {
-            LOG.error("Failed to export viewsheet \"{}\" after the response was committed", path, e);
+            logCommittedFailure(path, e);
             return;
          }
 
@@ -375,6 +376,21 @@ public class ExportController {
    private final ExportControllerServiceProxy exportControllerServiceProxy;
    private final AssemblyImageService imageService;
    private final SecurityEngine securityEngine;
+
+   /**
+    * Logs a failure that happened after the response was committed. The export itself is
+    * already generated at this point, so a client that closed the connection mid-download
+    * (cancelled, navigated away, proxy dropped it) is not an error. Anything else is.
+    */
+   static void logCommittedFailure(String path, Exception e) {
+      if(GlobalExceptionHandler.isClientAbortOnWrite(e)) {
+         LOG.debug("Client closed the connection while exporting viewsheet \"{}\"", path, e);
+      }
+      else {
+         LOG.error("Failed to export viewsheet \"{}\" after the response was committed",
+                   path, e);
+      }
+   }
 
    private static final Logger LOG = LoggerFactory.getLogger(ExportController.class);
 }
