@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.plugins;
 
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.util.Plugin;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -53,6 +54,9 @@ import java.util.stream.Collectors;
  */
 @Service
 public class AdminPluginService {
+   private static final long DEFAULT_INSTALL_WAIT_MS = 15000L;
+   private static final long DEFAULT_INSTALL_POLL_MS = 150L;
+
    @Autowired
    public AdminPluginService(PluginsService pluginsService, UploadService uploadService,
                               SecurityEngine securityEngine)
@@ -60,6 +64,14 @@ public class AdminPluginService {
       this.pluginsService = pluginsService;
       this.uploadService = uploadService;
       this.securityEngine = securityEngine;
+   }
+
+   /**
+    * Shortens the install wait, for tests.
+    */
+   void setInstallWait(long waitMs, long pollMs) {
+      this.installWaitMs = waitMs;
+      this.installPollMs = pollMs;
    }
 
    public PluginsModel list(Principal principal) throws Exception {
@@ -167,7 +179,10 @@ public class AdminPluginService {
       String status = AdminChangeRecord.STATUS_FAILED;
 
       try {
+         Set<String> expectedIds = new LinkedHashSet<>();
+
          if(spec != null) {
+            expectedIds.add(spec.getPluginId());
             CreateDriverPluginRequest createRequest = CreateDriverPluginRequest.builder()
                .uploadId(request.getUploadId())
                .pluginId(spec.getPluginId())
@@ -178,15 +193,90 @@ public class AdminPluginService {
             pluginsService.createDriverPlugin(createRequest, principal);
          }
          else {
+            // the uploaded files are removed by installPlugins, so read the ids first
+            expectedIds.addAll(readPluginIds(request.getUploadId()));
             pluginsService.installPlugins(request.getUploadId(), principal);
          }
 
-         PluginsModel result = pluginsService.getModel(principal);
-         status = AdminChangeRecord.STATUS_VERIFIED;
-         return result;
+         // The registry is updated asynchronously by the blob storage event, after the install
+         // call has returned, so wait for the new plugins before reporting the list.
+         PluginsModel result = awaitInstalled(expectedIds, principal);
+         Set<String> present = result.plugins().stream()
+            .map(PluginModel::id).collect(Collectors.toSet());
+         List<String> missing = expectedIds.stream()
+            .filter(id -> !present.contains(id)).collect(Collectors.toList());
+
+         if(missing.isEmpty()) {
+            status = AdminChangeRecord.STATUS_VERIFIED;
+            return result;
+         }
+
+         status = AdminChangeRecord.STATUS_PENDING;
+         LOG.warn("Plugin install committed but not yet registered after {} ms: {}",
+                  installWaitMs, missing);
+         return PluginsModel.builder()
+            .from(result)
+            .pendingPluginIds(missing)
+            .message("The install was accepted but these plugin ids were not yet in the plugin " +
+                     "list after " + (installWaitMs / 1000) + " seconds: " + missing +
+                     ". The list below may be stale; call list_drivers_and_plugins again to " +
+                     "confirm. The plugin may also have been dropped as incompatible.")
+            .build();
       }
       finally {
          writeInstallAudit(request, objectName, status, principal);
+      }
+   }
+
+   /**
+    * Reads the plugin ids declared by the uploaded zip files. A file that cannot be read is
+    * skipped here; the install itself reports that failure.
+    */
+   private List<String> readPluginIds(String uploadId) {
+      List<String> ids = new ArrayList<>();
+
+      for(UploadedFile file : uploadService.get(uploadId).orElse(List.of())) {
+         try {
+            String id = new Plugin.Descriptor(file.file()).getId();
+
+            if(id != null) {
+               ids.add(id);
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Could not read plugin descriptor of {}", file.fileName(), ex);
+         }
+      }
+
+      return ids;
+   }
+
+   /**
+    * Polls the plugin list until all expected ids are present or the wait times out.
+    */
+   private PluginsModel awaitInstalled(Set<String> expectedIds, Principal principal)
+      throws Exception
+   {
+      long deadline = System.currentTimeMillis() + installWaitMs;
+
+      while(true) {
+         PluginsModel model = pluginsService.getModel(principal);
+         Set<String> present = model.plugins().stream()
+            .map(PluginModel::id).collect(Collectors.toSet());
+
+         if(present.containsAll(expectedIds) || System.currentTimeMillis() >= deadline) {
+            return model;
+         }
+
+         try {
+            Thread.sleep(installPollMs);
+         }
+         catch(InterruptedException ex) {
+            // The install already committed; stop waiting and let the caller report it as
+            // pending rather than as a failed install.
+            Thread.currentThread().interrupt();
+            return model;
+         }
       }
    }
 
@@ -328,6 +418,8 @@ public class AdminPluginService {
    private final PluginsService pluginsService;
    private final UploadService uploadService;
    private final SecurityEngine securityEngine;
+   private long installWaitMs = DEFAULT_INSTALL_WAIT_MS;
+   private long installPollMs = DEFAULT_INSTALL_POLL_MS;
 
    private static final Logger LOG = LoggerFactory.getLogger(AdminPluginService.class);
 }
