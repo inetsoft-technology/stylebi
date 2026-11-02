@@ -768,29 +768,35 @@ export namespace ChartTool {
    // stroke width of a drawn selection
    const SELECTION_LINE_WIDTH = 2;
 
-   interface Bounds {
+   interface VisibleBounds {
       left: number;
       top: number;
       right: number;
       bottom: number;
+      // how far past an edge a rect edge still lies on it
+      slackX: number;
+      slackY: number;
    }
 
    /**
     * Pull in each edge of a chrome selection rect that lies on the visible canvas edge, so its
-    * centred stroke shows whole. An edge 1 unit or more past it continues out of view, as in a
-    * scrolled legend, and stays cut.
+    * centred stroke shows whole. An edge further past it than the slack continues out of view,
+    * as in a scrolled legend, and stays cut.
     *
     * @param visible the visible part of the canvas in region units
     */
-   function keepStrokeOnCanvas(x: number, y: number, w: number, h: number, visible: Bounds): number[] {
+   function keepStrokeOnCanvas(x: number, y: number, w: number, h: number,
+                               visible: VisibleBounds): number[]
+   {
       const half = SELECTION_LINE_WIDTH / 2;
-      // within 1 unit: canvas sizes are region sizes truncated to whole px
-      const onStart = (edge: number, bound: number) => edge - half < bound && edge > bound - 1;
-      const onEnd = (edge: number, bound: number) => edge + half > bound && edge < bound + 1;
-      const left = onStart(x, visible.left) ? visible.left + half : x;
-      const top = onStart(y, visible.top) ? visible.top + half : y;
-      const right = onEnd(x + w, visible.right) ? visible.right - half : x + w;
-      const bottom = onEnd(y + h, visible.bottom) ? visible.bottom - half : y + h;
+      const onStart = (edge: number, bound: number, slack: number) =>
+         edge - half < bound && edge > bound - slack;
+      const onEnd = (edge: number, bound: number, slack: number) =>
+         edge + half > bound && edge < bound + slack;
+      const left = onStart(x, visible.left, visible.slackX) ? visible.left + half : x;
+      const top = onStart(y, visible.top, visible.slackY) ? visible.top + half : y;
+      const right = onEnd(x + w, visible.right, visible.slackX) ? visible.right - half : x + w;
+      const bottom = onEnd(y + h, visible.bottom, visible.slackY) ? visible.bottom - half : y + h;
 
       return right > left && bottom > top ? [left, top, right - left, bottom - top] : [x, y, w, h];
    }
@@ -806,13 +812,17 @@ export namespace ChartTool {
     */
    function visibleCanvasBounds(canvas: HTMLCanvasElement, rect: DOMRect, offsetX: number,
                                 offsetY: number, scaleX: number, scaleY: number,
-                                dpr: number): Bounds
+                                dpr: number): VisibleBounds
    {
-      const bounds: Bounds = {
+      const bounds: VisibleBounds = {
          left: offsetX,
          top: offsetY,
          right: offsetX + canvas.width / scaleX,
-         bottom: offsetY + canvas.height / scaleY
+         bottom: offsetY + canvas.height / scaleY,
+         // 1 unit for the region size truncated to whole px, plus what the bitmap loses
+         // truncating to whole device px
+         slackX: 1 + (rect.width * dpr - canvas.width) / scaleX,
+         slackY: 1 + (rect.height * dpr - canvas.height) / scaleY
       };
       const host = canvas.parentElement;
       const overflow = host ? window.getComputedStyle(host).overflow : "";

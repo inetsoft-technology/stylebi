@@ -167,6 +167,24 @@ describe("drawRegions chrome selection on the canvas edge", () => {
       return ctx;
    }
 
+   // drawRegions reads window.devicePixelRatio
+   function withDevicePixelRatio(dpr: number, draw: () => void): void {
+      const own = Object.getOwnPropertyDescriptor(window, "devicePixelRatio");
+      Object.defineProperty(window, "devicePixelRatio", {value: dpr, configurable: true});
+
+      try {
+         draw();
+      }
+      finally {
+         if(own) {
+            Object.defineProperty(window, "devicePixelRatio", own);
+         }
+         else {
+            delete (window as any).devicePixelRatio;
+         }
+      }
+   }
+
    // a canvas in a clipping host that shows only its rows from top down, as legend content does
    function hostedContext(width: number, height: number, top: number): any {
       const ctx = sizedContext(width, height);
@@ -193,6 +211,19 @@ describe("drawRegions chrome selection on the canvas edge", () => {
       ChartTool.drawRegions(ctx, [rectRegion(2, 2, 100, 30)], 2, 2, 2,
          undefined, undefined, false, "legend_title", true);
       expect(ctx.rects).toEqual([[3, 3, 98, 29]]);
+   });
+
+   it("keeps the right edge on the canvas bitmap at a fractional device pixel ratio", () => {
+      // 401 css px at 1.25 is 501.25 device px; the bitmap keeps 501, so it ends at 400.8
+      const ctx = sizedContext(401, 18);
+      withDevicePixelRatio(1.25, () => ChartTool.drawRegions(ctx, [rectRegion(0, 0, 401.8, 17)],
+         0, 0, 1, undefined, undefined, false, "legend_title", true));
+      const [x, y, w, h] = ctx.rects[0];
+
+      expect(x).toBeCloseTo(1);
+      expect(y).toBeCloseTo(1);
+      expect(x + w).toBeCloseTo(399.8);
+      expect(y + h).toBeCloseTo(16.6);
    });
 
    it("leaves a chrome selection that already fits inside the canvas where it is", () => {
