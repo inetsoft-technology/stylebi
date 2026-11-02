@@ -22,6 +22,9 @@
 
 .tooltip-container {
   position: relative;
+  // Holds the box's margin inside the container. Collapsed through it, the margin would move the
+  // container, and the chrome positioned against it, TOOLTIP_INSET below the host's top.
+  display: flow-root;
 }
 
 .tooltip-chrome {
