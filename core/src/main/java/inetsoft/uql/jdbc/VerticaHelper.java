@@ -55,4 +55,12 @@ public class VerticaHelper extends SQLHelper {
    public boolean isApplyMaxRowsToTopLevel() {
       return true;
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

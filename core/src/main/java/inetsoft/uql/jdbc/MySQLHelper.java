@@ -303,4 +303,12 @@ public class MySQLHelper extends SQLHelper {
       keywords.add("system");
       keywords.add("window");
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

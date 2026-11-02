@@ -555,4 +555,12 @@ class OracleSQLHelper extends SQLHelper {
       keywords.add("truncate");
       keywords.add("xid");
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

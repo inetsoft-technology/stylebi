@@ -181,4 +181,12 @@ public class DerbyHelper extends SQLHelper {
 
    private boolean expgrp = false;
    private static final Set<String> keywords = Collections.singleton("cluster");
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }

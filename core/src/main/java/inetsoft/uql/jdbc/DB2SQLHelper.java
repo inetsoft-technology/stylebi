@@ -135,4 +135,12 @@ class DB2SQLHelper extends SQLHelper {
       keywords.add("use");
       keywords.add("type");
    }
+
+   /**
+    * Match contains / starting with values literally with {@code LIKE ... ESCAPE '!'}.
+    */
+   @Override
+   public Character getLikeEscapeChar() {
+      return '!';
+   }
 }
