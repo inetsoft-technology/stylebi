@@ -30,8 +30,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #79479: DB2 has no varp/stddevp mapping, so the fallback SQL must not use the
- * DECIMAL(2,1) literal 0.0, which truncates the quotient to one decimal digit.
+ * Bug #79479: DB2 has no varp/stddevp mapping, so the fallback SQL uses an exact DECIMAL
+ * numerator (0.0), a DOUBLE denominator (0.0E0, no scale truncation) and clamps the numerator
+ * at 0 so SQRT never sees a negative. Other dialects and a null helper are unchanged.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -58,34 +59,34 @@ class PopulationVarianceDb2SqlTest {
       };
    }
 
-   // the exact (scale-preserving) SUMSQ term keeps its DECIMAL 0.0; only the division matters
-   private static String stripSumSq(String sql) {
-      return sql.replace("0.0E0", "").replace("(0.0+T.C)", "").replace("(0.0+c)", "");
+   // DB2 shape: exact DECIMAL numerator (0.0), DOUBLE denominator (0.0E0), CASE clamp
+   private static final String NUM_T =
+      "((0.0+SUM((0.0+T.C) * (0.0+T.C))) * COUNT(T.C) - ((0.0 + SUM(T.C)) * SUM(T.C) ))";
+   private static final String VAR_T = "(CASE WHEN " + NUM_T + " < 0 THEN 0.0E0 ELSE " + NUM_T
+      + " END)/((0.0E0 + COUNT(T.C)) * COUNT(T.C))";
+
+   @Test
+   void db2PopulationVarianceUsesExactNumeratorDoubleDenominatorAndClamp() {
+      assertEquals(VAR_T,
+                   AggregateFormula.POPULATION_VARIANCE.getExpression("T.C", null, helper("db2")));
    }
 
    @Test
-   void db2PopulationVarianceUsesDoubleLiteral() {
-      String sql = AggregateFormula.POPULATION_VARIANCE.getExpression("T.C", null, helper("db2"));
-      assertTrue(sql.contains("0.0E0"), sql);
-      assertFalse(stripSumSq(sql).contains("0.0"), sql);
+   void db2PopulationStdDevWrapsClampedVariance() {
+      assertEquals("SQRT(" + VAR_T + ")", AggregateFormula.POPULATION_STANDARD_DEVIATION
+         .getExpression("T.C", null, helper("db2")));
    }
 
    @Test
-   void db2PopulationStdDevUsesDoubleLiteral() {
-      String sql = AggregateFormula.POPULATION_STANDARD_DEVIATION
-         .getExpression("T.C", null, helper("db2"));
-      assertTrue(sql.startsWith("SQRT("), sql);
-      assertFalse(stripSumSq(sql).contains("0.0"), sql);
-   }
-
-   @Test
-   void db2SubExpressionsUseDoubleLiteral() {
+   void db2SubExpressionsUseClampAndDoubleDenominator() {
       String v = AggregateFormula.POPULATION_VARIANCE.getExpressionSub("c", null, helper("db2"));
       String s = AggregateFormula.POPULATION_STANDARD_DEVIATION
          .getExpressionSub("c", null, helper("db2"));
-      assertTrue(v.contains("0.0E0"), v);
-      assertFalse(stripSumSq(v).contains("0.0"), v);
-      assertTrue(s.contains("0.0E0"), s);
+      assertTrue(v.startsWith("(CASE WHEN ((0.0+"), v);
+      assertTrue(v.contains(" < 0 THEN 0.0E0 ELSE "), v);
+      assertTrue(v.contains("/((0.0E0 + "), v);
+      assertEquals(1, v.split("0[.]0E0 [+]", -1).length - 1, v);
+      assertEquals("SQRT(" + v + ")", s);
    }
 
    @Test
@@ -95,6 +96,15 @@ class PopulationVarianceDb2SqlTest {
          assertFalse(sql.contains("0.0E0"), sql);
          assertTrue(sql.contains("0.0"), sql);
       }
+
+      // exact original shape, byte for byte
+      String orig = "((0.0+SUM((0.0+T.C) * (0.0+T.C))) * COUNT(T.C) - ((0.0 + SUM(T.C)) * "
+         + "SUM(T.C) ))/((0.0 + COUNT(T.C)) * COUNT(T.C))";
+      assertEquals(orig, AggregateFormula.POPULATION_VARIANCE.getExpression("T.C", null, null));
+      assertEquals("SQRT(" + orig + ")",
+                   AggregateFormula.POPULATION_STANDARD_DEVIATION.getExpression("T.C", null, null));
+      assertEquals(orig, AggregateFormula.POPULATION_VARIANCE
+         .getExpression("T.C", null, helper("derby")));
 
       String nullHelper = AggregateFormula.POPULATION_VARIANCE.getExpression("T.C", null, null);
       assertFalse(nullHelper.contains("0.0E0"), nullHelper);
