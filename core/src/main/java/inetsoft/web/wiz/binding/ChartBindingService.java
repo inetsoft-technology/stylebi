@@ -316,7 +316,7 @@ public class ChartBindingService {
       AestheticInfo aesthetic = ChartAestheticMutator.read(model, channel.toLowerCase());
 
       if(aesthetic == null || !(aesthetic.getDataInfo() instanceof BDimensionRefModel sent) ||
-         sent.getNamedGroupInfo() == null)
+         !hasNamedGroup(sent.getNamedGroupInfo()))
       {
          return;
       }
@@ -337,8 +337,8 @@ public class ChartBindingService {
 
       for(ChartRefModel shelf : shelves) {
          if(!(shelf instanceof BDimensionRefModel dimension) ||
-            dimension.getNamedGroupInfo() == null ||
-            !field.column().equals(dimension.getFullName()) ||
+            !hasNamedGroup(dimension.getNamedGroupInfo()) ||
+            !ChartBindingMutator.matches(dimension, field) ||
             namedGroupSignature(sent.getNamedGroupInfo())
                .equals(namedGroupSignature(dimension.getNamedGroupInfo())))
          {
@@ -355,6 +355,15 @@ public class ChartBindingService {
             "first (the " + channel + " channel then follows it), or send the identical group " +
             "for the " + channel + " channel.");
       }
+   }
+
+   /**
+    * Whether a dimension model carries a group. {@code BDimensionRefModel} always builds a model,
+    * so an ungrouped dimension yields an empty one (no groups, no name), not null.
+    */
+   private static boolean hasNamedGroup(NamedGroupInfoModel group) {
+      return group != null &&
+         (group.getName() != null || group.getGroups() != null && !group.getGroups().isEmpty());
    }
 
    /** Order-insensitive content of a named group: its group names and their member values. */
