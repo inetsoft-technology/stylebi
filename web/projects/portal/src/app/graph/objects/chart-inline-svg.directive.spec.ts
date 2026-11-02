@@ -1092,11 +1092,14 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
             .mockReturnValue({ left: 10, top: 20, width: 100, height: 40 } as DOMRect);
       }
 
+      // jsdom cannot hit-test shapes, so the edges fall back to the box's own.
+      const BOX = { top: 20, bottom: 60, left: 10, right: 110 };
+
       it("centres on the element's box when the renderer supplied no anchor", () => {
          const { dir, host } = makeDirective(html);
          (dir as any).afterSvgInjected();
          stub(host, "1");
-         expect(dir.getElementAnchor(1, 0)).toEqual({ x: 60, y: 40 });
+         expect(dir.getElementAnchor(1, 0)).toEqual({ x: 60, y: 40, ...BOX });
       });
 
       it("applies the renderer's anchor fraction to the element's box", () => {
@@ -1104,14 +1107,14 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          const { dir, host } = makeDirective(html);
          (dir as any).afterSvgInjected();
          stub(host, "2");
-         expect(dir.getElementAnchor(2, 0)).toEqual({ x: 30, y: 50 });
+         expect(dir.getElementAnchor(2, 0)).toEqual({ x: 30, y: 50, ...BOX });
       });
 
       it("falls back to the box centre when the anchor attribute is unparseable", () => {
          const { dir, host } = makeDirective(html);
          (dir as any).afterSvgInjected();
          stub(host, "3");
-         expect(dir.getElementAnchor(3, 0)).toEqual({ x: 60, y: 40 });
+         expect(dir.getElementAnchor(3, 0)).toEqual({ x: 60, y: 40, ...BOX });
       });
 
       it("returns null for a row/col with no element", () => {
@@ -1136,7 +1139,44 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          (dir as any).elementGroupMap.clear();
          vi.spyOn(host.querySelector<Element>("[data-row='4']"), "getBoundingClientRect")
             .mockReturnValue({ left: 0, top: 0, width: 8, height: 8 } as DOMRect);
-         expect(dir.getElementAnchor(4, 1)).toEqual({ x: 4, y: 4 });
+         expect(dir.getElementAnchor(4, 1))
+            .toEqual({ x: 4, y: 4, top: 0, bottom: 8, left: 0, right: 8 });
+      });
+
+      it("maps the mark's outline crossings onto its box", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         stub(host, "1");
+         (dir as any).markEdgeCache.set(host.querySelector("[data-row='1']"), {
+            width: 100, height: 40, edges: { top: 0.25, bottom: 0.75, left: 0.1, right: 0.9 }
+         });
+         expect(dir.getElementAnchor(1, 0))
+            .toEqual({ x: 60, y: 40, top: 30, bottom: 50, left: 20, right: 100 });
+      });
+
+      it("walks a mark's outline once until its box changes size", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         const el = host.querySelector("[data-row='1']") as any;
+         const rect = vi.spyOn(el, "getBoundingClientRect")
+            .mockReturnValue({ left: 10, top: 20, width: 100, height: 40 } as DOMRect);
+         el.getCTM = () => null;
+         el.getBBox = vi.fn(() => ({ x: 0, y: 0, width: 10, height: 4 }));
+         vi.stubGlobal("DOMPoint", globalThis.DOMPoint ?? class {});
+
+         try {
+            dir.getElementAnchor(1, 0);
+            dir.getElementAnchor(1, 0);
+            expect(el.getBBox).toHaveBeenCalledTimes(1);
+
+            // mid-animation the box is still growing
+            rect.mockReturnValue({ left: 10, top: 20, width: 100, height: 50 } as DOMRect);
+            dir.getElementAnchor(1, 0);
+            expect(el.getBBox).toHaveBeenCalledTimes(2);
+         }
+         finally {
+            vi.unstubAllGlobals();
+         }
       });
    });
 

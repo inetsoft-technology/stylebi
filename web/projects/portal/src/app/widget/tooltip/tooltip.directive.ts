@@ -32,7 +32,9 @@ import { Point } from "../../common/data/point";
 import { Rectangle } from "../../common/data/rectangle";
 import { TooltipComponent } from "./tooltip.component";
 import { TooltipService } from "./tooltip.service";
-import { computeTailPlacement, TailAxis, TailSide, TOOLTIP_INSET } from "./tooltip-tail-placement";
+import {
+   computeTailPlacement, TailAnchor, TailAxis, TailSide, TOOLTIP_INSET
+} from "./tooltip-tail-placement";
 
 @Directive({
     selector: "[wTooltip]",
@@ -49,8 +51,8 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
    @Input() disableTooltipOnMousedown = true;
    @Input() showTail = false;
    @Input() tailAxis: TailAxis = "vertical";
-   /** Supplies the hovered mark's visual middle; the tail is suppressed when it yields null. */
-   @Input() tailAnchor: () => { x: number, y: number } | null = null;
+   /** Supplies the hovered mark's middle and edges; the tail is suppressed when it yields null. */
+   @Input() tailAnchor: () => TailAnchor | null = null;
    private tooltipRef: ComponentRef<TooltipComponent>;
    private mousePosition: Point;
    private lastAnchorKey: string = null;

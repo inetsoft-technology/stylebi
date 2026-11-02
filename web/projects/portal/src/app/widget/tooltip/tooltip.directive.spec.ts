@@ -18,6 +18,7 @@
 import { Component } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { TooltipDirective } from "./tooltip.directive";
+import { TailAnchor } from "./tooltip-tail-placement";
 
 @Component({
    standalone: true,
@@ -27,7 +28,7 @@ import { TooltipDirective } from "./tooltip.directive";
 })
 class HostComponent {
    showTail = true;
-   mark: { x: number, y: number } | null = { x: 510, y: 410 };
+   mark: TailAnchor | null = { x: 510, y: 410 };
    anchor = () => this.mark;
 }
 
@@ -68,12 +69,21 @@ describe("TooltipDirective tail placement", () => {
    it("places the tooltip from the mark's middle, not the cursor", () => {
       // Cursor is at (120, 120) but the mark's middle is (510, 410); the box goes above it.
       const tip = hover(120, 120);
-      expect(tip.style.top).toBe("299px");
+      expect(tip.style.top).toBe("295px");
       expect(tip.style.left).toBe("407px");
    });
 
    it("renders a tail on the edge facing the anchor", () => {
-      expect(hover(120, 120).querySelector(".tooltip-chrome__tail")).not.toBeNull();
+      expect(hover(120, 120).querySelector(".tooltip-chrome__outline")).not.toBeNull();
+   });
+
+   // A 40px mark: the box clears its top edge rather than covering its upper half, and the tip
+   // reaches 1px into it.
+   it("points the tail at the edge of the mark facing the box", () => {
+      fixture.componentInstance.mark = { x: 510, y: 410, top: 390, bottom: 430 };
+      const tip = hover(120, 120);
+      expect(tip.style.top).toBe("276px");
+      expect(tip.style.left).toBe("407px");
    });
 
    it("does not reposition while the mark is unchanged", () => {
@@ -96,7 +106,7 @@ describe("TooltipDirective tail placement", () => {
    it("places the tooltip at a wedge's polar mid-point", () => {
       fixture.componentInstance.mark = { x: 280, y: 430 };
       const tip = hover(300, 400);
-      expect(tip.style.top).toBe("319px");
+      expect(tip.style.top).toBe("315px");
       expect(tip.style.left).toBe("177px");
    });
 
@@ -105,7 +115,7 @@ describe("TooltipDirective tail placement", () => {
    it("places the tooltip at a stacked segment's middle", () => {
       fixture.componentInstance.mark = { x: 219, y: 200 };
       const tip = hover(195, 173);
-      expect(tip.style.top).toBe("89px");
+      expect(tip.style.top).toBe("85px");
       expect(tip.style.left).toBe("116px");
    });
 

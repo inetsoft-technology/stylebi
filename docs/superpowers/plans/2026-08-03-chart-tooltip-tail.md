@@ -1776,3 +1776,44 @@ straight from PathIterator, ~40 bytes per coordinate pair — that is roughly an
 increase. Cost is linear in region count and now unconditional, so a very high-cardinality
 chart (~50k points) would add ~1.5 MB uncompressed; if that ever matters, restrict the emission
 to the line/area families, which are the only ones lacking a DOM anchor.
+
+---
+
+## Post-delivery: one outline, a hooked tail, the tip on the mark's edge (Bug #79213)
+
+Review asked for three changes to the shipped tail.
+
+1. **No line across the tail's base.** The chrome was three shapes: a filled rect, an open
+   border path and a filled tail triangle. Where two anti-aliased fills meet on a fractional
+   device pixel, their partial coverages compound and leave a grey line across the opening.
+   Every tooltip at 125% display scaling hits this. Headless Chrome at that scale measured a
+   195 pixel on the box edge inside an otherwise 255 tail. `buildChromePaths` now returns one
+   closed `outlinePath`, filled and stroked once, so there is no inner edge left to show.
+2. **A hooked tail, as on a speech bubble.** The tip sweeps toward the nearer corner.
+   `seatTail` centres the opening `TAIL_SKEW` (1.8) half-widths inward of the tip and keeps it
+   on the straight part of the edge. The near leg drops square off the edge and the far leg
+   sweeps in; both are quadratic curves. The placement and the chrome both call `seatTail`,
+   which returns a seated tip unchanged, so they agree on one tip offset. The hook also reaches
+   anchors past the last opening a corner allows, which a straight tail could not.
+   `TAIL_LENGTH` is now 12 and `TAIL_HALF_WIDTH` 6.5, so the curve reads at tooltip size.
+   `TAIL_GAP` is gone, because the tip lands on the anchor only when the gap equals the length.
+3. **The tip lands on the mark's edge, not its middle.** `TailAnchor` carries the middle plus
+   the points where the mark's outline crosses the vertical and horizontal lines through it.
+   `markEdgeFractions` finds them by walking out from the middle against the mark's own fill
+   with `isPointInFill`. The walk runs in the mark's user space and answers in fractions of its
+   box, as `data-anchor` does, because a wedge's box edge can float well off the wedge (20px in
+   the harness, at a 150px donut radius). It falls back to the box edges where the browser
+   cannot hit-test or the middle misses the fill. `ChartInlineSvgDirective` keeps the result per
+   mark until the mark's box changes size. The placement measures room from the edge facing the
+   box. When neither edge leaves room, as with a bar reaching the top of the window, it retries
+   from the middle, which is how every anchor behaved before this change. Region-centroid
+   anchors (area and marker-less line) carry no edges, so they keep pointing at the middle.
+   The tip reaches `TAIL_OVERLAP` (1px) past the edge, so it reads as touching the mark rather
+   than floating just above it. It never passes the middle, which matters only for a mark under
+   2px thick. The overlap is applied in the placement, not the edge walk, so measured edges stay
+   exact.
+4. **The chrome sat 3px below its box.** Found when the tip was measured on a live scatter: it
+   landed 3.00px inside every point. The box's `TOOLTIP_INSET` margin collapsed through
+   `.tooltip-container`, so the container, and the SVG chrome positioned against it, started
+   3px below the host. That predates this change: the drawn card always sat 3px below the text
+   it frames. `display: flow-root` on the container keeps the margin inside it.
