@@ -596,6 +596,22 @@ public class SelectionRuntimeService {
                result.put("reselectedBySingleSelect", reselected);
             }
          }
+
+         // A single-select tree can hold a requested path deeper than asked: the apply extends a
+         // path that stops above its deepest single level, and the refresh selects the first child
+         // under a single level when no other assembly holds a selection (bug-79904). Reported
+         // from the applied state, so the caller sees the filter that is really in force.
+         if(values != null && !applySkipped && !idMode && info.isSingleSelection() &&
+            assembly instanceof SelectionTreeVSAssembly)
+         {
+            List<Map<String, Object>> extended = extendedBySetSelection(
+               requestedValues, selectedPaths(assembly));
+
+            if(!extended.isEmpty()) {
+               result.put("extendedBySingleSelect", extended);
+            }
+         }
+
          reportOthersChanged(result, rvs, othersBefore, assembly);
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
@@ -989,6 +1005,35 @@ public class SelectionRuntimeService {
       }
 
       return reselected;
+   }
+
+   /**
+    * The requested paths a single-select tree applied deeper than they were asked: each entry
+    * names the {@code requested} path and an {@code applied} selected path that strictly extends
+    * it. {@link #reselectedBySetSelection} cannot report this, because it treats an after-path
+    * that starts with a requested path as the request itself (bug-79904). A path applied exactly
+    * as requested, or not selected at all, is not an extension.
+    *
+    * @param requested the paths the apply selected.
+    * @param after     the selected paths after the apply (node paths, not ID-mode ids).
+    */
+   static List<Map<String, Object>> extendedBySetSelection(List<List<String>> requested,
+                                                           List<List<String>> after)
+   {
+      List<Map<String, Object>> extended = new ArrayList<>();
+
+      for(List<String> path : requested.stream().distinct().toList()) {
+         for(List<String> applied : after) {
+            if(applied.size() > path.size() && startsWithPath(applied, path)) {
+               Map<String, Object> entry = new LinkedHashMap<>();
+               entry.put("requested", path);
+               entry.put("applied", applied);
+               extended.add(entry);
+            }
+         }
+      }
+
+      return extended;
    }
 
    private static boolean covers(List<List<String>> entries, List<String> path, boolean idMode) {
