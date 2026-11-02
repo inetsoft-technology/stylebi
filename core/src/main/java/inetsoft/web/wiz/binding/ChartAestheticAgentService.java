@@ -116,6 +116,7 @@ public class ChartAestheticAgentService {
             ChartAestheticMutator.setField(
                model, name, field, relationChart, rvs, chart.getSourceInfo(), refModelService,
                perMeasureFrameChannels(chart));
+            ChartBindingService.requireAestheticNamedGroupAgreesWithShelf(model, name, field);
          }
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
