@@ -124,6 +124,60 @@ class AdminChangeServiceTest {
       assertEquals("host-1", record.getServerHostName());
    }
 
+   // Bug #79885: a reset of a property with a built-in default reads back the default, never
+   // null. The reset succeeded because the stored key is gone, so it must verify on that.
+   @Test void resetOfDefaultBearingPropertyVerifiesWhenStoredKeyIsGone() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("log.detail.level", false, false))
+             .thenReturn("WARNING").thenReturn("INFO");
+      sreeEnv.when(() -> SreeEnv.getPropertyFromStorage("log.detail.level")).thenReturn(null);
+
+      AdminChangeResult res = service.applyChange(req("log.detail.level", null), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+      assertNull(res.getError());
+      assertEquals("WARNING", res.getBeforeValue());
+      assertEquals("INFO", res.getAfterValue());
+      sreeEnv.verify(() -> SreeEnv.remove("log.detail.level"));
+   }
+
+   @Test void resetFailsWhenStoredKeyIsStillPresent() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("log.detail.level", false, false))
+             .thenReturn("WARNING").thenReturn("WARNING");
+      sreeEnv.when(() -> SreeEnv.getPropertyFromStorage("log.detail.level"))
+             .thenReturn("WARNING");
+
+      AdminChangeResult res = service.applyChange(req("log.detail.level", null), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_FAILED, res.getStatus());
+      assertNotNull(res.getError());
+      assertFalse(res.getError().contains("WARNING"));
+   }
+
+   @Test void resetOfOrgQualifiedKeyChecksTheLiteralStoredKey() throws Exception {
+      String key = "inetsoft.org.acme.max.rows";
+      sreeEnv.when(() -> SreeEnv.getProperty(key, false, false))
+             .thenReturn("100").thenReturn(null);
+      sreeEnv.when(() -> SreeEnv.getPropertyFromStorage(key)).thenReturn(null);
+
+      AdminChangeResult res = service.applyChange(req(key, null), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
+      sreeEnv.verify(() -> SreeEnv.remove(key));
+      sreeEnv.verify(() -> SreeEnv.getPropertyFromStorage(key));
+   }
+
+   @Test void failedSetWithoutExceptionCarriesANonSecretError() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows", false, false))
+             .thenReturn("100").thenReturn("999");
+
+      AdminChangeResult res = service.applyChange(req("max.rows", "500"), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_FAILED, res.getStatus());
+      assertNotNull(res.getError());
+      assertFalse(res.getError().contains("500"));
+      assertFalse(res.getError().contains("999"));
+   }
+
    // Finding 2: AdminChangeService must NOT trim. It is reachable from rollback with a STORED
    // value that never went through AdminPropertyCatalog.canonicalizeValue - trimming here would
    // write back a different value than was actually there before, while still reporting
