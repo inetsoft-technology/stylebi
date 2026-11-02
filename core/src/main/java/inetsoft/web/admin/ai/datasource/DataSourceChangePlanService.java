@@ -452,7 +452,12 @@ public class DataSourceChangePlanService {
       }
 
       if(spec.containsKey("defaultDatabase")) {
-         proposed.setDefaultDatabase(requireStringOrNull(label, "defaultDatabase", spec));
+         // Mirror JDBCDataSource.setDefaultDatabase, which trims and stores blank as null, so the
+         // proposed projection matches the read-back (bug 79891).
+         String defaultDatabase = requireStringOrNull(label, "defaultDatabase", spec);
+         defaultDatabase = defaultDatabase == null ? null : defaultDatabase.trim();
+         proposed.setDefaultDatabase(
+            defaultDatabase == null || defaultDatabase.isEmpty() ? null : defaultDatabase);
       }
 
       if(spec.containsKey("tableName")) {

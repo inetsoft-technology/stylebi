@@ -229,6 +229,8 @@ public class DataSourceChangesetApplyService {
 
       mutationEntered.set(true);
       dataSourceService.createDataSourceFolder(folderPath, user);
+      // The write has landed: it must be undoable whatever the verification says (bug 79891).
+      undoable.add(Undo.folderCreated(key, folderPath));
 
       boolean verified = dataSourceService.dataSourceFolderExists(folderPath);
       String afterProjection = "(created)";
@@ -238,10 +240,6 @@ public class DataSourceChangesetApplyService {
       writeAudit(txId, task, key, ActionRecord.OBJECT_TYPE_FOLDER, AdminChangeRecord.RISK_LOW,
                 AdminChangeRecord.ACTION_APPLY, beforeProjection, afterProjection, status,
                 backupRef, reviewOutcome, user);
-
-      if(verified) {
-         undoable.add(Undo.folderCreated(key, folderPath));
-      }
    }
 
    // ---------------------------------------------------------------- update
@@ -294,6 +292,9 @@ public class DataSourceChangesetApplyService {
       // and build afterValue -- password merged the same way for this read too (section 6 step 4),
       // so afterValue never carries the masked literal either.
       String afterName = proposed.getName() == null ? name : proposed.getName();
+      // The write has landed: it must be undoable whatever the verification says, and even if a
+      // later re-read throws (bug 79891). Rollback addresses it by its post-write name.
+      undoable.add(Undo.updated(name, before, afterName));
       String newId = planService.resolveCurrentId("apply." + name, afterName, user);
       DataSourceProperties after = dataSourceService.getDataSource(newId, user);
       DataSourceProperties afterMerged = after instanceof JdbcDataSourceProperties
@@ -306,10 +307,6 @@ public class DataSourceChangesetApplyService {
       writeAudit(txId, task, name, ActionRecord.OBJECT_TYPE_DATASOURCE, AdminChangeRecord.RISK_HIGH,
                 AdminChangeRecord.ACTION_APPLY, beforeProjection, afterProjection, status,
                 backupRef, reviewOutcome, user);
-
-      if(verified) {
-         undoable.add(Undo.updated(name, before));
-      }
    }
 
    // ---------------------------------------------------------------- delete
@@ -362,7 +359,7 @@ public class DataSourceChangesetApplyService {
 
    // ---------------------------------------------------------------- rollback
 
-   /** Undoes verified UPDATE/folder-CREATE changes newest-first, attempting all of them and
+   /** Undoes every landed UPDATE/folder-CREATE change newest-first, attempting all of them and
     * collecting any failures. Delete entries are never present here (section 4/6) -- they were
     * never added to {@code undoable}. */
    private List<RollbackFailure> rollback(String txId, String task, List<Undo> undoable,
@@ -394,7 +391,7 @@ public class DataSourceChangesetApplyService {
                                List<RollbackFailure> failures)
       throws Exception
    {
-      String id = planService.resolveCurrentId("rollback." + undo.name, undo.name, user);
+      String id = planService.resolveCurrentId("rollback." + undo.name, undo.currentName, user);
       dataSourceService.updateDataSource(id, undo.before, user);
       DataSourceProperties reread = dataSourceService.getDataSource(id, user);
       DataSourceProperties rereadMerged = reread instanceof JdbcDataSourceProperties
@@ -482,14 +479,15 @@ public class DataSourceChangesetApplyService {
       return String.format("%016x", RANDOM.nextLong());
    }
 
-   /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. Only ever
-    * built for a verified UPDATE (section 4/6) or a verified folder CREATE (bug 76599, Gap 2a). */
+   /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. Built for
+    * every UPDATE / folder CREATE whose write landed, verified or not (bug 79891). */
    private static final class Undo {
       enum Kind { UPDATED, FOLDER_CREATED }
 
-      static Undo updated(String name, DataSourceProperties before) {
+      static Undo updated(String name, DataSourceProperties before, String currentName) {
          Undo u = new Undo(name, Kind.UPDATED);
          u.before = before;
+         u.currentName = currentName;
          return u;
       }
 
@@ -507,6 +505,8 @@ public class DataSourceChangesetApplyService {
       final String name;
       final Kind kind;
       DataSourceProperties before;
+      /** The name the data source has after the write (differs from {@link #name} on a rename). */
+      String currentName;
       String folderPath;
    }
 
