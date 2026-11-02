@@ -344,4 +344,61 @@ class ScriptLibraryChangePlanServiceTest {
       assertThrows(MissingResourceException.class,
          () -> service.resolve(request(c), user));
    }
+
+   // -------------------------------------------------------------------------
+   // bug #80007: a rename's target counts toward the per-submission duplicate rule
+   // -------------------------------------------------------------------------
+
+   private void stubRenameSources(String... names) {
+      for(String n : names) {
+         lenient().when(lib.getScript(n)).thenReturn("return 1;");
+      }
+   }
+
+   private static ScriptLibraryChangeRequest renameTo(String name, String newName) {
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, name);
+      c.setNewName(newName);
+      return c;
+   }
+
+   @Test void renameThenCreateOfTheSameNameIsRefused() {
+      stubRenameSources("A");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "N");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(renameTo("A", "N"), create), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"N\""),
+                 ex.getMessage());
+   }
+
+   @Test void createThenRenameToTheSameNameIsRefused() {
+      stubRenameSources("A");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "N");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(create, renameTo("A", "N")), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"N\""),
+                 ex.getMessage());
+   }
+
+   @Test void twoRenamesToTheSameNameAreRefused() {
+      stubRenameSources("A", "B");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(renameTo("A", "N"), renameTo("B", "N")), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"N\""),
+                 ex.getMessage());
+   }
+
+   @Test void renameAloneAndCreateAloneStillPlan() throws Exception {
+      stubRenameSources("A");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "N");
+
+      assertEquals(1, service.resolve(request(renameTo("A", "N")), user).changes().size());
+      assertEquals(1, service.resolve(request(create), user).changes().size());
+   }
 }

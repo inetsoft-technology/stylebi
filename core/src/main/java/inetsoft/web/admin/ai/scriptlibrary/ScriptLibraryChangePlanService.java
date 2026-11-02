@@ -151,6 +151,10 @@ public class ScriptLibraryChangePlanService {
             label + ".newName: must differ from the current name \"" + name + "\"");
       }
 
+      // The rename target is claimed so a create/rename of the same name in this submission is
+      // refused whichever order they are listed in.
+      claim(label + ".newName", "scriptlibrary:" + newName, seenKeys);
+
       ScriptLibraryEntryDetail entry = scriptLibraryService.requireEntry(name, user);
       scriptLibraryService.requirePermission(name, user, ResourceAction.ADMIN);
 
