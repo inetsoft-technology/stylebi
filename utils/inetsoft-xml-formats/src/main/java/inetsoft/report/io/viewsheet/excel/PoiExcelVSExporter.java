@@ -1714,6 +1714,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    private void fixCellContent(Sheet newSheet, VSTableLens table, XSSFCellStyle style) {
       int rowCount = table != null ? table.getRowCount() : 0;
       int colCount = table != null ? table.getColCount() : 0;
+      int headerRows = table != null ? table.getHeaderRowCount() : 0;
+      int headerCols = table != null ? table.getHeaderColCount() : 0;
+      Map<String, CellStyle> dateStyles = new HashMap<>();
 
       for(int r = 0; r < rowCount; r++) {
          Row row = newSheet.createRow(r);
@@ -1726,21 +1729,64 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                obj = ((DCMergeDatesCell) obj).getFormatedOriginalDate();
             }
 
+            CellStyle cellStyle = style;
+
             if(obj != null) {
-               // this is the limit by excel
-               final int MAXLEN = 32767;
-               String text = obj.toString();
+               // headers stay text, so numeric labels (e.g. year headers) keep their form
+               boolean header = r < headerRows || c < headerCols;
 
-               if(text.length() > MAXLEN) {
-                  text = text.substring(0, MAXLEN);
+               if(!header && obj instanceof Number && isFiniteNumber((Number) obj)) {
+                  cell.setCellValue(((Number) obj).doubleValue());
                }
+               else if(!header && obj instanceof Boolean) {
+                  cell.setCellValue((Boolean) obj);
+               }
+               else if(!header && obj instanceof java.util.Date) {
+                  String format = getDataTabDateFormat((java.util.Date) obj);
+                  cellStyle = dateStyles.computeIfAbsent(format, f -> {
+                     CellStyle dateStyle = book.createCellStyle();
+                     dateStyle.cloneStyleFrom(style);
+                     dateStyle.setDataFormat(book.createDataFormat().getFormat(f));
+                     return dateStyle;
+                  });
+                  cell.setCellValue((java.util.Date) obj);
+               }
+               else {
+                  // this is the limit by excel
+                  final int MAXLEN = 32767;
+                  String text = obj.toString();
 
-               cell.setCellValue(text);
+                  if(text.length() > MAXLEN) {
+                     text = text.substring(0, MAXLEN);
+                  }
+
+                  cell.setCellValue(text);
+               }
             }
 
-            cell.setCellStyle(style);
+            cell.setCellStyle(cellStyle);
          }
       }
+   }
+
+   /**
+    * Whether the number can be stored in a numeric cell. NaN and infinity cannot, so they
+    * stay as text.
+    */
+   private static boolean isFiniteNumber(Number num) {
+      double value = num.doubleValue();
+      return !Double.isNaN(value) && !Double.isInfinite(value);
+   }
+
+   private static String getDataTabDateFormat(java.util.Date date) {
+      if(date instanceof java.sql.Time) {
+         return "hh:mm:ss";
+      }
+      else if(date instanceof java.sql.Date) {
+         return "yyyy-mm-dd";
+      }
+
+      return "yyyy-mm-dd hh:mm:ss";
    }
 
    /**
