@@ -158,6 +158,8 @@ public class DeployService {
 
                   if(changeRootFolderAsset != null) {
                      builder.appliedTargetLabel(getSelectedAssetLabel(changeRootFolderAsset));
+                     builder.appliedTargetPath(changeRootFolderAsset.getPath());
+                     builder.appliedTargetUser(changeRootFolderAsset.getUser());
                      changedMap.put(DeployHelper.getAssetObjectByAsset(asset),
                         DeployHelper.getAssetObjectByAsset(changeRootFolderAsset));
                   }

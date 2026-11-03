@@ -43,12 +43,12 @@ import java.util.stream.Collectors;
  * inetsoft.web.admin.ai.AdminChangePlanService} (03-reconcile.md: adopts the full planHash/
  * taskToken discipline over a leaner acknowledgement-only alternative).
  *
- * <p><b>Disclosed limitation</b>: {@code willOverwrite}/{@code willCreate} are computed against
- * each entity's ORIGINAL recorded path ({@code SelectedAssetModel.path()}), not a retargeted
- * destination -- {@code DeployService.getJarFileInfo}'s own retargeting computation ({@code
- * DeployManagerService.getChangeRootFolderAsset}) is a private implementation detail not exposed
- * as a reusable method, so this preview cannot model "will overwrite AT THE NEW target" when
- * {@code targetFolderPath} is supplied. Only {@code VIEWSHEET}/{@code WORKSHEET} entries are
+ * <p>{@code willOverwrite}/{@code willCreate} are computed against the destination the import
+ * really writes to: when {@code targetFolderPath} is supplied, {@code DeployService.getJarFileInfo}
+ * reports it as {@code SelectedAssetModel.appliedTargetPath()}/{@code appliedTargetUser()} (from
+ * {@code DeployManagerService.getChangeRootFolderAsset}); without a retarget the recorded
+ * {@code path()}/{@code user()} are used. {@code label} is the recorded label, not the
+ * destination label. Dependent assets are not classified here. Only {@code VIEWSHEET}/{@code WORKSHEET} entries are
  * classified at all (this track's own scope, 03-reconcile.md) -- any other asset type present in
  * an uploaded jar (e.g. a data source or script from a jar built outside this plugin) is left out
  * of both lists.
@@ -152,12 +152,15 @@ public class RepositoryImportChangePlanService {
 
       return new RepositoryImportPlan(stagingToken, info, willOverwrite, willCreate,
          bookmarkConflicts == null ? Collections.emptyList() : bookmarkConflicts,
+         // overwrite exists only on the apply request, so preview cannot know whether a snapshot
+         // will be taken; apply (overwrite flag) is the authority, this stays true.
          acknowledgeOverwriteRequired, true, true, planHash, taskToken);
    }
 
    private boolean alreadyExists(SelectedAssetModel model) {
-      String unscoped = SUtil.getUnscopedPath(model.path());
-      IdentityID user = model.user();
+      String unscoped = SUtil.getUnscopedPath(
+         model.appliedTargetPath() != null ? model.appliedTargetPath() : model.path());
+      IdentityID user = model.appliedTargetPath() != null ? model.appliedTargetUser() : model.user();
       boolean isUserScope = user != null && !"__NULL__".equals(user.name);
       int scope = isUserScope ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
       AssetEntry.Type type = model.type() == RepositoryEntry.WORKSHEET
