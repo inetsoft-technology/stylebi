@@ -17,9 +17,13 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.DateCondition;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.ConditionValueModel;
@@ -47,15 +51,19 @@ final class VariableOperandCheck {
    /**
     * Checks every variable operand of {@code conditionList} against {@code vars}.
     *
-    * @param vars        the variables in scope ({@code ViewsheetSandbox.getAllVariables()}); null
-    *                    means unknown and nothing is judged
+    * @param vars        the variables that hold a value now
+    *                    ({@code ViewsheetSandbox.getAllVariables()}); null means unknown and
+    *                    nothing is judged
+    * @param declared    names of the variables declared on the base worksheet (see
+    *                    {@link #declaredNames}); one that holds no value is reported as "no
+    *                    value yet" rather than "not defined" (bug #80214); null means none
     * @param refuseDateIn throw for a {@code date_in} variable that holds a definite non-range;
     *                    otherwise that case is a warning too
     * @param warnings    receives the findings
     * @throws IllegalArgumentException when {@code refuseDateIn} and a variable cannot be a range
     */
-   static void check(Object[] conditionList, VariableTable vars, boolean refuseDateIn,
-                     List<String> warnings)
+   static void check(Object[] conditionList, VariableTable vars, Set<String> declared,
+                     boolean refuseDateIn, List<String> warnings)
    {
       if(conditionList == null || vars == null) {
          return;
@@ -80,14 +88,38 @@ final class VariableOperandCheck {
             }
 
             checkOperand(index, condition, ConditionVocabulary.variableName(value.getValue()),
-                         vars, refuseDateIn, warnings);
+                         vars, declared == null ? Set.of() : declared, refuseDateIn, warnings);
          }
       }
    }
 
+   /**
+    * The names of the variables declared (variable assemblies) on the viewsheet's base
+    * worksheet, whether or not they hold a value. Empty when there is no base worksheet or it
+    * cannot be read.
+    */
+   static Set<String> declaredNames(ViewsheetSandbox box) {
+      Set<String> names = new HashSet<>();
+
+      try {
+         Worksheet ws = box == null ? null : box.getWorksheet();
+
+         if(ws != null) {
+            for(UserVariable variable : AssetEventUtil.getWSAllVariables(ws)) {
+               names.add(variable.getName());
+            }
+         }
+      }
+      catch(Exception e) {
+         return new HashSet<>();
+      }
+
+      return names;
+   }
+
    private static void checkOperand(int index, ConditionModel condition, String name,
-                                    VariableTable vars, boolean refuseDateIn,
-                                    List<String> warnings)
+                                    VariableTable vars, Set<String> declared,
+                                    boolean refuseDateIn, List<String> warnings)
    {
       DataRefModel field = condition.getField();
       int operation = condition.getOperation();
@@ -95,6 +127,13 @@ final class VariableOperandCheck {
          ConditionVocabulary.operatorToken(operation) + ")";
 
       if(!resolves(vars, name)) {
+         if(declared.contains(name)) {
+            warnings.add("Variable '" + name + "' used by " + use + " is declared on the base " +
+                         "worksheet but has no value yet, so the condition has nothing to " +
+                         "compare against until a value is passed (set_parameters).");
+            return;
+         }
+
          warnings.add("Variable '" + name + "' used by " + use + " is not defined: this " +
                       "viewsheet has no input assembly or variable with that name (yet), so " +
                       "the condition has nothing to compare against until it exists.");

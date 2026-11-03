@@ -253,7 +253,8 @@ public class AssemblyConditionService {
          checkExpressions(rvs, conditionList, warnings);
          ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
          VariableTable variables = box == null ? null : box.getAllVariables();
-         VariableOperandCheck.check(conditionList, variables, true, warnings);
+         VariableOperandCheck.check(conditionList, variables, VariableOperandCheck.declaredNames(box),
+                                    true, warnings);
          boolean guard = box != null && VariableOperandCheck.hasVariableOperand(conditionList);
          boolean failingBefore = guard && failedQueryCause(box, assemblyName) != null;
          Object[] previous = model.getConditionList();
