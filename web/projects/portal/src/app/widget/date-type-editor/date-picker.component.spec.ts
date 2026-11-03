@@ -20,12 +20,13 @@
  * DatePickerComponent: changing month or year while the day is 29-31 must clamp the day to
  * the last day of the target month instead of committing a rolled-over date (Bug #79749).
  *
- * Drives the real <select> change events: the options use [value], so the component receives
- * the month and year as strings.
+ * Picks options on the month and year custom-selects, as a click on an option does.
  */
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { TimeInstant } from "../../common/data/time-instant";
+import { CustomSelectComponent } from "../custom-select/custom-select.component";
 import { DatePickerComponent } from "./date-picker.component";
 
 describe("DatePickerComponent month/year change clamps the day", () => {
@@ -44,9 +45,11 @@ describe("DatePickerComponent month/year change clamps the day", () => {
    }
 
    async function choose(index: number, value: number): Promise<void> {
-      const select: HTMLSelectElement = fixture.nativeElement.querySelectorAll("select")[index];
-      select.value = String(value);
-      select.dispatchEvent(new Event("change"));
+      const select: CustomSelectComponent =
+         fixture.debugElement.queryAll(By.css("custom-select"))[index].componentInstance;
+      const option = select.options.find(o => o.value === value);
+      expect(option).toBeDefined();
+      select.selectOption(option);
       fixture.detectChanges();
       await fixture.whenStable();
    }

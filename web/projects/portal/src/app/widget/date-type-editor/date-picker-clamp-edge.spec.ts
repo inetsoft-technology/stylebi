@@ -17,17 +17,22 @@
  */
 
 import { TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
+import { CustomSelectComponent } from "../custom-select/custom-select.component";
 import { DatePickerComponent } from "./date-picker.component";
 import { DateTimePickerComponent } from "./date-time-picker.component";
 
 describe("Bug #79749 month/year clamp edge cases and date-time-picker host", () => {
    beforeEach(() => TestBed.configureTestingModule({ imports: [DatePickerComponent, DateTimePickerComponent] }));
 
+   // idx 0 is the month custom-select, 1 is the year
    async function pick(fixture: any, idx: number, v: number) {
-      const s: HTMLSelectElement = fixture.nativeElement.querySelectorAll("select")[idx];
-      s.value = String(v);
-      s.dispatchEvent(new Event("change"));
+      const s: CustomSelectComponent =
+         fixture.debugElement.queryAll(By.css("custom-select"))[idx].componentInstance;
+      const option = s.options.find(o => o.value === v);
+      expect(option).toBeDefined();
+      s.selectOption(option);
       fixture.detectChanges();
       await fixture.whenStable();
    }
