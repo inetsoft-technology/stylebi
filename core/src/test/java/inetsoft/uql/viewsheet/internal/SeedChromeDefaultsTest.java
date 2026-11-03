@@ -2164,6 +2164,66 @@ class SeedChromeDefaultsTest {
       assertNull(def.getBackgroundValue());
    }
 
+   // the header's bottom rule is a header separator, so it takes the table's in both schemes
+   @Test
+   void aModernCalendarHeaderRuleIsTheTableHeaderSeparator() {
+      gateOn();
+      VSFormat light = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertEquals(StyleConstants.THIN_LINE, light.getBordersValue().bottom);
+      assertEquals(VSTableStructureDefaults.headerSeparator(VizContext.ofGate()),
+                   light.getBorderColorsValue().bottomColor);
+
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VSFormat dark = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertEquals(VSTableStructureDefaults.headerSeparator(VizContext.ofGate()),
+                   dark.getBorderColorsValue().bottomColor);
+      assertNotEquals(light.getBorderColorsValue().bottomColor,
+                      dark.getBorderColorsValue().bottomColor, "each scheme has its own rule");
+   }
+
+   @Test
+   void aLegacyCalendarHeaderRuleKeepsTheLegacyGrey() {
+      gateOff();
+      VSFormat def = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, def.getBorderColorsValue().bottomColor);
+   }
+
+   @Test
+   void revertingACalendarRestoresItsHeaderRule() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(calendar);
+      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+
+      VizModernizeUtil.revert(vs);
+
+      BorderColors colors = calendarPath(info, TableDataPath.CALENDAR_TITLE).getBorderColorsValue();
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.topColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.leftColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.bottomColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.rightColor);
+   }
+
+   // a legacy reseed that is not a Revert leaves an old asset's stored rule alone
+   @Test
+   void aLegacyRestoreKeepsAStoredHeaderRule() {
+      gateOff();
+      CalendarVSAssemblyInfo info = newCalendar();
+      Color stored = new Color(0x888888);
+      calendarPath(info, TableDataPath.CALENDAR_TITLE)
+         .setBorderColorsValue(new BorderColors(stored, stored, stored, stored));
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(stored,
+                   calendarPath(info, TableDataPath.CALENDAR_TITLE).getBorderColorsValue().bottomColor);
+   }
+
    @Test
    void aModernCalendarBodyTracksTheTableBodyInBothSchemes() {
       gateOn();

@@ -422,7 +422,9 @@ Not taken:
     surface.
   - Day and month cells use `bodyBackground` (≈185–190): transparent in dark too, via the change
     above.
-  - The month/year header keeps an opaque band at the table header value (D13).
+  - The month/year header keeps an opaque band at the table header value (D13). Its bottom rule
+    takes the header separator (`#C7C4BB` / `#544F5A`) instead of the prototype's `#DADADA`, and
+    Revert writes the prototype's colours back. The dropdown stores no header rule and is untouched.
   - The dropdown calendar's white `0xffffff` object and title (≈1669, ≈1675) are a popup surface,
     not a card. Leave them.
 - `VSDataTipService` (≈155–165): when a tip or pop view's background resolves to the default-tier
