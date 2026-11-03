@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.identities;
 
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
@@ -269,6 +270,7 @@ public class IdentityChangePlanService {
       String orgName = requireNonBlank(label + ".spec.orgName", spec.getOrgName());
       IdentityNameRules.requireOrgId(label + ".spec.id", id);
       IdentityNameRules.requireAliasOrOrgName(label + ".spec.orgName", orgName);
+      requireNoGlobalOnlyOrgProperties(label, id.trim(), spec.getProperties(), null);
       String key = key(IdentityUnitType.ORGANIZATION, id);
       requireUnseen(label, key, seenKeys);
       requireCreateIdFree(label, () -> securityService.getOrganization(id, user), key);
@@ -464,6 +466,9 @@ public class IdentityChangePlanService {
       SecurityOrganization existing =
          requireGet(label, () -> securityService.getOrganization(organizationId, user), key);
 
+      requireNoGlobalOnlyOrgProperties(label, organizationId, spec.getProperties(),
+                                       existing.getProperties());
+
       if(!isAbsent(spec.getId())) {
          String proposedId = spec.getId().trim();
 
@@ -486,6 +491,59 @@ public class IdentityChangePlanService {
       return new PlanChange(key, organizationId, before, proposed, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true,
                             "update organization " + organizationId);
+   }
+
+   /**
+    * Refuses a caller-supplied organization property that overrides a global-only setting
+    * (swapper, security.enabled, ...). Such an override is never read, so it only looks applied;
+    * Enterprise Manager and preview_changes (Bug #79888) refuse it too.
+    * <p>
+    * On update the list replaces the stored one, and {@code SecurityService
+    * .readOrganizationProperties} still returns an already-stored dead override, so an agent that
+    * re-submits the list it read would otherwise be newly refused. A name whose value is unchanged
+    * from {@code current} is therefore allowed (omitting it still removes it); a new name or a
+    * changed value is refused. Create passes {@code null} current, so any such name is refused.
+    * Identity specs cannot carry a null value, so the value is not consulted otherwise.
+    */
+   private static void requireNoGlobalOnlyOrgProperties(String label, String orgId,
+                                                        List<PropertyModel> properties,
+                                                        List<PropertyModel> current)
+   {
+      if(properties == null) {
+         return;
+      }
+
+      String prefix = PropertiesEngine.getOrgPropertyPrefix(orgId);
+
+      for(int j = 0; j < properties.size(); j++) {
+         PropertyModel property = properties.get(j);
+
+         if(property == null || property.name() == null
+            || !PropertiesEngine.isExcludedOrgProperty(prefix + property.name()))
+         {
+            continue;
+         }
+
+         boolean unchanged = false;
+
+         if(current != null) {
+            for(PropertyModel stored : current) {
+               if(stored != null && property.name().equals(stored.name())
+                  && Objects.equals(property.value(), stored.value()))
+               {
+                  unchanged = true;
+                  break;
+               }
+            }
+         }
+
+         if(!unchanged) {
+            throw new IllegalArgumentException(
+               label + ".spec.properties[" + j + "]: " + property.name() + " cannot be set for "
+               + "an organization. The setting applies to the whole server and is always read "
+               + "from its global property.");
+         }
+      }
    }
 
    /**

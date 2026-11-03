@@ -319,6 +319,91 @@ class IdentityChangePlanServiceTest {
       assertEquals(1, plan.changes().size());
    }
 
+   private static IdentityChangeRequest orgPropsUpdate(String id, PropertyModel... props) {
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(Arrays.asList(props));
+      return updateOrganization(id, spec);
+   }
+
+   private static PropertyModel prop(String name, String value) {
+      return PropertyModel.builder().name(name).value(value).build();
+   }
+
+   @Test void resolveRefusesGlobalOnlyPropertyOnOrganizationCreate() throws Exception {
+      IdentityChangeRequest change = createOrganization("org1", "Org One");
+      change.getSpec().setProperties(List.of(prop("qa.ok", "1"), prop("swapper.count", "2")));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(e.getMessage().contains("changes[0].spec.properties[1]"), e.getMessage());
+      assertTrue(e.getMessage().contains("swapper.count"), e.getMessage());
+   }
+
+   @Test void resolveRefusesGlobalOnlyPropertyOnOrganizationUpdate() throws Exception {
+      when(securityService.getOrganization(eq("host-org"), eq(user)))
+         .thenReturn(existingOrganization("host-org"));
+      IdentityChangeRequest change = orgPropsUpdate("host-org", prop("swapper.count", "2"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(e.getMessage().contains("changes[0].spec.properties[0]"), e.getMessage());
+      assertTrue(e.getMessage().contains("swapper.count"), e.getMessage());
+   }
+
+   @Test void resolveAllowsOrdinaryAndOlapSecurityPropertiesOnOrganizationUpdate()
+      throws Exception
+   {
+      when(securityService.getOrganization(eq("host-org"), eq(user)))
+         .thenReturn(existingOrganization("host-org"));
+      IdentityChangeRequest change = orgPropsUpdate(
+         "host-org", prop("qa.org.ordinary", "1"), prop("olap.security.enabled", "true"));
+
+      assertEquals(1, service.resolve(request("task", List.of(change)), user).changes().size());
+   }
+
+   @Test void resolveAllowsOrganizationUpdateWithPropertiesOmitted() throws Exception {
+      SecurityOrganization existing = existingOrganization("host-org");
+      existing.setProperties(List.of(prop("swapper.count", "2")));
+      when(securityService.getOrganization(eq("host-org"), eq(user))).thenReturn(existing);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setOrgName("Renamed");
+
+      assertEquals(1, service.resolve(
+         request("task", List.of(updateOrganization("host-org", spec))), user).changes().size());
+   }
+
+   @Test void resolveAllowsResubmittingStoredGlobalOnlyPropertyWithSameValue() throws Exception {
+      SecurityOrganization existing = existingOrganization("host-org");
+      existing.setProperties(List.of(prop("swapper.count", "2")));
+      when(securityService.getOrganization(eq("host-org"), eq(user))).thenReturn(existing);
+      IdentityChangeRequest change = orgPropsUpdate(
+         "host-org", prop("swapper.count", "2"), prop("qa.org.ordinary", "1"));
+
+      assertEquals(1, service.resolve(request("task", List.of(change)), user).changes().size());
+   }
+
+   @Test void resolveRefusesStoredGlobalOnlyPropertyWithChangedValue() throws Exception {
+      SecurityOrganization existing = existingOrganization("host-org");
+      existing.setProperties(List.of(prop("swapper.count", "2")));
+      when(securityService.getOrganization(eq("host-org"), eq(user))).thenReturn(existing);
+      IdentityChangeRequest change = orgPropsUpdate("host-org", prop("swapper.count", "3"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(e.getMessage().contains("swapper.count"), e.getMessage());
+   }
+
+   @Test void resolveReportsMissingOrganizationBeforeGlobalOnlyPropertyRefusal() throws Exception {
+      when(securityService.getOrganization(eq("nope"), eq(user)))
+         .thenThrow(new MissingResourceException("no such organization"));
+      IdentityChangeRequest change = orgPropsUpdate("nope", prop("swapper.count", "2"));
+
+      Exception e = assertThrows(Exception.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertFalse(String.valueOf(e.getMessage()).contains("cannot be set for an organization"),
+                  e.getMessage());
+   }
+
    @Test void resolveAllowsMemberFieldsOnGroupCreate() throws Exception {
       // spec section 2's correction: memberUsers/memberGroups ARE legal on group create.
       when(securityService.getGroup(any(), eq(user)))
