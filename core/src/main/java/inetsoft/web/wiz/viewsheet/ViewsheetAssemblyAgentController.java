@@ -525,6 +525,7 @@ public class ViewsheetAssemblyAgentController {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          IdentityID owner = ownerOf(user);
+         requireFirstOpenerForHome(rvs, name, owner, "update_bookmark");
 
          if(rvs.bookmarkUpdated(name, owner)) {
             throw new IllegalArgumentException(
@@ -590,6 +591,35 @@ public class ViewsheetAssemblyAgentController {
          AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
             rvs.getBookmarkInfo(name, targetOwner), BookmarkRecord.ACTION_TYPE_MODIFY, null);
       });
+   }
+
+   /**
+    * Bug #80112: the native Viewer only lets the first user to open a dashboard update its
+    * "(Home)" initial view -- VSBookmarkService.saveBookmark saves the asset with
+    * "homeBookmarkSaved" set, and WorksheetEngine.getLockOwner then reports the first runtime
+    * sheet open on that entry, which raises "Asset is locked". This agent path writes "(Home)"
+    * through addBookmarkToViewSheet and never reaches that check, so apply the same lock rule
+    * here. A clone of the entry carries the flag so the shared entry is never left flagged.
+    * A caller whose own sheet is the first match, or no other sheet being open, is allowed.
+    */
+   private void requireFirstOpenerForHome(RuntimeViewsheet rvs, String name, IdentityID caller,
+                                          String tool)
+   {
+      if(!VSBookmark.HOME_BOOKMARK.equals(name) || rvs.getEntry() == null) {
+         return;
+      }
+
+      AssetEntry probe = (AssetEntry) rvs.getEntry().clone();
+      probe.setProperty("homeBookmarkSaved", "true");
+      String lockOwner = viewsheetService.getLockOwner(probe);
+
+      if(lockOwner != null && !caller.equals(IdentityID.getIdentityIDFromKey(lockOwner))) {
+         throw new IllegalArgumentException(
+            tool + ": '" + VSBookmark.HOME_BOOKMARK + "' is the dashboard's initial view and only " +
+            "the first user to open the dashboard (currently " +
+            IdentityID.getIdentityIDFromKey(lockOwner).getName() + ") may update it. Your own " +
+            "bookmarks are unaffected; use create_bookmark with another name.");
+      }
    }
 
    /**
