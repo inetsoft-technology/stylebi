@@ -408,6 +408,42 @@ class ChartBindingServiceTest {
       assertTrue(thrown.getMessage().contains("force"), "name the way through");
    }
 
+   /** Bug #80151: an orphaned chart has no current source, so the refusal must not claim one. */
+   @Test
+   void setSourceRefusalForASourcelessChartDoesNotClaimACurrentSource() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      String message = thrown.getMessage();
+      assertFalse(message.contains("current source"), message);
+      assertTrue(message.contains("'Chart1'"), message);
+      assertTrue(message.contains("1 on x"), message);
+      assertTrue(message.contains("force"), message);
+   }
+
+   @Test
+   void setSourceRefusalForAChartWithASourceStillNamesItsCurrentSource() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("current source"), thrown.getMessage());
+   }
+
    /**
     * The chart-specific half of that check: fields live in <b>thirteen</b> places, not three.
     *
