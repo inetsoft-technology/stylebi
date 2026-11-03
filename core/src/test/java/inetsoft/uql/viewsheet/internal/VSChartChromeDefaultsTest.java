@@ -35,7 +35,7 @@ class VSChartChromeDefaultsTest {
    @Test
    void lightModernValuesUnchanged() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-      assertEquals(0xE8E5DE, rgb(VSChartChromeDefaults.gridlineColor(VizContext.ofGate())));
+      assertEquals(0xD6D2C8, rgb(VSChartChromeDefaults.gridlineColor(VizContext.ofGate())));
       assertEquals(0x6A685F, rgb(VSChartChromeDefaults.labelColor(VizContext.ofGate())));
       assertEquals(0x35342F, rgb(VSChartChromeDefaults.titleColor(VizContext.ofGate())));
    }
@@ -43,8 +43,8 @@ class VSChartChromeDefaultsTest {
    @Test
    void plainAccessorsDark() {
       darkOn();
-      assertEquals(0x3A383D, rgb(VSChartChromeDefaults.gridlineColor(VizContext.ofGate())));
-      assertEquals(0x3A383D, rgb(VSChartChromeDefaults.legendBorderColor(VizContext.ofGate())));
+      assertEquals(0x4A484F, rgb(VSChartChromeDefaults.gridlineColor(VizContext.ofGate())));
+      assertEquals(0x4A484F, rgb(VSChartChromeDefaults.legendBorderColor(VizContext.ofGate())));
       assertEquals(0xCAC4D0, rgb(VSChartChromeDefaults.labelColor(VizContext.ofGate())));
       assertEquals(0xE6E0E9, rgb(VSChartChromeDefaults.titleColor(VizContext.ofGate())));
    }
@@ -52,11 +52,25 @@ class VSChartChromeDefaultsTest {
    @Test
    void resolveAxisLineDarkOnlyWhenStillLegacyDefault() {
       darkOn();
-      // a bare legacy default becomes the dark gridline
-      assertEquals(0x3A383D, rgb(VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate())));
+      // a bare legacy default becomes the dark axis line
+      assertEquals(0x7E7B86, rgb(VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate())));
       // a user/format.css color is preserved
       Color custom = new Color(0x123456);
       assertEquals(0x123456, rgb(VSChartChromeDefaults.resolveAxisLineColor(custom, VizContext.ofGate())));
+   }
+
+   @Test
+   void axisLineLightModern() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      assertEquals(0x85827A, rgb(VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate())));
+   }
+
+   @Test
+   void spokesKeepTheGridColour() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      assertEquals(0xD6D2C8, rgb(VSChartChromeDefaults.resolveSpokeColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate())));
+      assertEquals(0x123456, rgb(VSChartChromeDefaults.resolveSpokeColor(new Color(0x123456), VizContext.ofGate())));
+      assertEquals(GDefaults.DEFAULT_LINE_COLOR, VSChartChromeDefaults.resolveSpokeColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.LEGACY));
    }
 
    @Test
@@ -69,13 +83,13 @@ class VSChartChromeDefaultsTest {
    @Test
    void legendBackgroundDark() {
       darkOn();
-      assertEquals(0x252428, rgb(VSChartChromeDefaults.legendBackground(VizContext.ofGate())));
+      assertEquals(0x3E3C43, rgb(VSChartChromeDefaults.legendBackground(VizContext.ofGate())));
    }
 
    @Test
    void resolveGridlineDark() {
       darkOn();
-      assertEquals(0x3A383D, rgb(VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, VizContext.ofGate())));
+      assertEquals(0x4A484F, rgb(VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, VizContext.ofGate())));
       // a user/format.css color is preserved
       assertEquals(0x123456, rgb(VSChartChromeDefaults.resolveGridlineColor(new Color(0x123456), VizContext.ofGate())));
    }
@@ -83,7 +97,7 @@ class VSChartChromeDefaultsTest {
    @Test
    void resolveLegendBorderDark() {
       darkOn();
-      assertEquals(0x3A383D, rgb(VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate())));
+      assertEquals(0x4A484F, rgb(VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate())));
       // a user/format.css color is preserved
       assertEquals(0x123456, rgb(VSChartChromeDefaults.resolveLegendBorderColor(new Color(0x123456), VizContext.ofGate())));
    }
