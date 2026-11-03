@@ -356,4 +356,81 @@ class VSBookmarkServiceTest {
                          result.getMessage());
       }
    }
+
+   /** Runs setDefaultBookmark for a user of {@code principalOrg} on an entry of {@code entryOrg}. */
+   private RuntimeViewsheet runSetDefault(String entryOrg, String principalOrg,
+                                          boolean globallyVisible,
+                                          CommandDispatcher dispatcher) throws Exception
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getOrgID()).thenReturn(entryOrg);
+      when(entry.getScope()).thenReturn(inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE);
+      when(rvs.getEntry()).thenReturn(entry);
+      inetsoft.uql.viewsheet.Viewsheet vs = mock(inetsoft.uql.viewsheet.Viewsheet.class);
+      when(vs.getRuntimeEntry()).thenReturn(entry);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn(principalOrg);
+
+      VSObjectService objectService = mock(VSObjectService.class);
+      when(objectService.getRuntimeViewsheet("rt", principal)).thenReturn(rvs);
+      VSBookmarkService service = new VSBookmarkService(objectService,
+         mock(ViewsheetService.class), mock(SecurityEngine.class), mock(ScheduleManager.class),
+         mock(Cluster.class), mock(XSessionService.class));
+      VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
+         .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name("b1")
+            .owner(new IdentityID("u", "orgA")).build())
+         .confirmed(false).build();
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(() -> SUtil.isDefaultVSGloballyVisible(principal)).thenReturn(globallyVisible);
+         service.setDefaultBookmark("rt", event, principal, dispatcher, "");
+      }
+
+      return rvs;
+   }
+
+   /** Bug #80168: another org's user cannot set a default bookmark on a default-org dashboard. */
+   @Test
+   void setDefaultBookmark_otherOrgOnDefaultOrgDashboard_isRefused() throws Exception {
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      RuntimeViewsheet rvs = runSetDefault(
+         inetsoft.sree.security.Organization.getDefaultOrganizationID(), "orgA", true, dispatcher);
+
+      ArgumentCaptor<MessageCommand> captor = ArgumentCaptor.forClass(MessageCommand.class);
+      verify(dispatcher).sendCommand(captor.capture());
+      assertEquals(MessageCommand.Type.WARNING, captor.getValue().getType());
+      assertEquals(Catalog.getCatalog().getString(VSBookmarkService.DEFAULT_ORG_DENIED_KEY),
+                   captor.getValue().getMessage());
+      verify(rvs, never()).setDefaultBookmark(any());
+   }
+
+   @Test
+   void setDefaultBookmark_sameOrgUser_isAllowed() throws Exception {
+      String org = inetsoft.sree.security.Organization.getDefaultOrganizationID();
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      RuntimeViewsheet rvs = runSetDefault(org, org, true, dispatcher);
+      verify(rvs).setDefaultBookmark(any());
+      verify(dispatcher, never()).sendCommand(any());
+   }
+
+   @Test
+   void setDefaultBookmark_nonDefaultOrgEntryFromOtherOrg_isAllowed() throws Exception {
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      RuntimeViewsheet rvs = runSetDefault("some-other-org-entry", "orgA", true, dispatcher);
+      verify(rvs).setDefaultBookmark(any());
+      verify(dispatcher, never()).sendCommand(any());
+   }
+
+   /** Site admins (and a disabled exposure flag) make isDefaultVSGloballyVisible false. */
+   @Test
+   void setDefaultBookmark_siteAdminOrFlagOff_isAllowed() throws Exception {
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      RuntimeViewsheet rvs = runSetDefault(
+         inetsoft.sree.security.Organization.getDefaultOrganizationID(), "orgA", false, dispatcher);
+      verify(rvs).setDefaultBookmark(any());
+      verify(dispatcher, never()).sendCommand(any());
+   }
 }
