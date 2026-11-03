@@ -212,6 +212,31 @@ class ScriptStateRefreshServiceTest {
       verify(box).clearScriptChangedFormSet();
    }
 
+   /**
+    * Bug #80034: {@code getFormTableLens} runs a live query to build an uncached lens and can
+    * genuinely throw; that must not leak {@code keepRuntimeValuesRefresh} past this refresh or
+    * skip {@code clearScriptChangedFormSet} -- both call sites that invoke this refresh only log
+    * a warning on failure, so a leak here is otherwise silent.
+    */
+   @Test
+   void aFormTableLensFailureStillRestoresTheFlagAndClearsTheSet() throws Exception {
+      TableVSAssembly table = new TableVSAssembly(vs, "AdminTable");
+      ((TableVSAssemblyInfo) table.getInfo()).setForm(true);
+      vs.addAssembly(table);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(box.getFormTableLens("AdminTable")).thenThrow(new RuntimeException("boom"));
+
+      Boolean before = ViewsheetSandbox.keepRuntimeValuesRefresh.get();
+
+      service.runAndRefresh(rvs, user, "", () -> OK);
+
+      assertEquals(before, ViewsheetSandbox.keepRuntimeValuesRefresh.get(),
+         "the flag must be restored even when protecting the Form tables fails");
+      verify(box).clearScriptChangedFormSet();
+   }
+
    @Test
    void keepsRuntimeValuesDuringTheRefreshAndRestoresTheFlag() throws Exception {
       AtomicBoolean during = new AtomicBoolean();

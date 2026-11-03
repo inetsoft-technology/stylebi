@@ -156,22 +156,22 @@ public class ScriptStateRefreshService {
       ViewsheetSandbox.keepRuntimeValuesRefresh.set(true);
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
 
-      // Bug #80034: the refresh below calls refreshViewsheet, which eventually calls
-      // ViewsheetSandbox.syncFormData for every Form table on the sheet; syncFormData drops the
-      // table's cached FormTableLens (so the next read rebuilds it from the raw data, losing
-      // every ADDED/CHANGED row) unless the table is in the box's scriptChangedFormSet. The
-      // native OnClickService protects a table this way, but only when the script text itself
-      // names the table (hasFormScript) -- too narrow here, since a wiz script run that never
-      // mentions a table (an unrelated read-only probe) still reaches this same refresh and must
-      // not discard a pending form_table_set_cell edit made before it ran. Protect every Form
-      // table that already has pending changes, regardless of whether this run's script
-      // mentions it, and let OnClickService's own finally-clearScriptChangedFormSet discipline
-      // apply here too so the protection doesn't leak into some other, later refresh.
-      if(box != null) {
-         protectChangedFormTables(box, rvs.getViewsheet());
-      }
-
       try {
+         // Bug #80034: the refresh below calls refreshViewsheet, which eventually calls
+         // ViewsheetSandbox.syncFormData for every Form table on the sheet; syncFormData drops the
+         // table's cached FormTableLens (so the next read rebuilds it from the raw data, losing
+         // every ADDED/CHANGED row) unless the table is in the box's scriptChangedFormSet. The
+         // native OnClickService protects a table this way, but only when the script text itself
+         // names the table (hasFormScript) -- too narrow here, since a wiz script run that never
+         // mentions a table (an unrelated read-only probe) still reaches this same refresh and must
+         // not discard a pending form_table_set_cell edit made before it ran. Protect every Form
+         // table that already has pending changes, regardless of whether this run's script
+         // mentions it, and let OnClickService's own finally-clearScriptChangedFormSet discipline
+         // apply here too so the protection doesn't leak into some other, later refresh.
+         if(box != null) {
+            protectChangedFormTables(box, rvs.getViewsheet());
+         }
+
          CapturingCommandDispatcher.withCapturingDispatcher(user, dispatcher -> {
             refreshService.refreshViewsheet(
                rvs.getID(), VSRefreshEvent.builder().confirmed(false).build(), user, dispatcher,
