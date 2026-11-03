@@ -274,6 +274,8 @@ public class SchedulerConfigurationService {
 
    private void setTimeRanges(List<TimeRangeModel> models, Principal principal) throws Exception {
       List<TimeRange> ranges = new ArrayList<>();
+      List<TimeRange> oldRanges = TimeRange.getTimeRanges();
+      Set<String> oldNames = oldRanges.stream().map(TimeRange::getName).collect(Collectors.toSet());
 
       for(TimeRangeModel model : models) {
          TimeRange range = new TimeRange(
@@ -284,10 +286,26 @@ public class SchedulerConfigurationService {
             permissionService.setResourcePermissions(
                range.getName(), ResourceType.SCHEDULE_TIME_RANGE, model.permissions(), principal);
          }
+         else if(!oldNames.contains(range.getName())) {
+            // A genuinely new range name created with no explicit permission change (the plugin's
+            // normal create path) must still clear any grant orphaned by an earlier rename/delete of
+            // this same name, the way EM's own create always does (time-ranges-view.component.ts
+            // always sends modified=true with an empty-entries permission model). Reuse
+            // getTableModel() for everything but the grants themselves: its requiresBoth mirrors the
+            // live permission.andCondition property, so writing it straight back through
+            // setResourcePermissions is a no-op for that organization-wide setting -- only the
+            // orphaned grant actually gets cleared.
+            ResourcePermissionModel base = permissionService.getTableModel(
+               range.getName(), ResourceType.SCHEDULE_TIME_RANGE, EnumSet.of(ResourceAction.ACCESS),
+               principal);
+            permissionService.setResourcePermissions(
+               range.getName(), ResourceType.SCHEDULE_TIME_RANGE,
+               ResourcePermissionModel.builder().from(base).permissions(Collections.emptyList()).build(),
+               principal);
+         }
       }
 
       ranges.sort(Comparator.naturalOrder());
-      List<TimeRange> oldRanges = TimeRange.getTimeRanges();
       oldRanges.sort(Comparator.naturalOrder());
 
       TimeRange.setTimeRanges(ranges);
