@@ -18,12 +18,32 @@
 
 package inetsoft.web.wiz.service;
 
-/** Signals the chart graph was not finished rendering (VGraphPair not ready). */
+/**
+ * Signals that something was not finished yet: a chart graph (VGraphPair not ready, the default),
+ * or the data of a table whose query is still running ({@link Subject#TABLE}). The subject only
+ * selects the wording of the 503 answer; the retry contract is the same.
+ */
 public class RenderNotReadyException extends RuntimeException {
-   public RenderNotReadyException(int retryAfter) {
-      super("Chart image not ready; retry after " + retryAfter + "s");
-      this.retryAfter = retryAfter;
+   /** What was not ready. */
+   public enum Subject {
+      CHART,
+      TABLE
    }
+
+   public RenderNotReadyException(int retryAfter) {
+      this(retryAfter, Subject.CHART);
+   }
+
+   public RenderNotReadyException(int retryAfter, Subject subject) {
+      super((subject == Subject.TABLE ? "Table data not ready" : "Chart image not ready") +
+         "; retry after " + retryAfter + "s");
+      this.retryAfter = retryAfter;
+      this.subject = subject;
+   }
+
    public int getRetryAfter() { return retryAfter; }
+   public Subject getSubject() { return subject; }
+
    private final int retryAfter;
+   private final Subject subject;
 }

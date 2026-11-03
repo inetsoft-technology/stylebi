@@ -1865,7 +1865,8 @@ public class WorksheetAgentController {
             WorksheetEventUtil.refreshColumnSelection(rws, tableName, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
+            RenderNotReadyException.Subject.TABLE);
 
          return null;
       });
@@ -4928,7 +4929,8 @@ public class WorksheetAgentController {
             WorksheetEventUtil.refreshColumnSelection(rws, table, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
+            RenderNotReadyException.Subject.TABLE);
 
          return new SqlQueryResponse(table, detectUndeclaredVariables(rws),
             detectVariablesNeedingSessionValue(rws), sqlWarnings);
@@ -5440,8 +5442,9 @@ public class WorksheetAgentController {
                   }
 
                   return null;
-               }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-                  (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+               }, refreshDataTableWaitMs,
+                  (int) Math.max(1, refreshDataTableWaitMs / 1000),
+                  RenderNotReadyException.Subject.TABLE);
             }
             catch(RenderNotReadyException e) {
                // Timed out waiting, not failed: the reload above is still running in the
@@ -5768,7 +5771,8 @@ public class WorksheetAgentController {
             WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
+            RenderNotReadyException.Subject.TABLE);
          AssetEventUtil.refreshTableLastModified(ws, req.table(), true);
          return null;
       });
@@ -5884,7 +5888,8 @@ public class WorksheetAgentController {
             WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
+            RenderNotReadyException.Subject.TABLE);
          return null;
       });
    }
@@ -6718,6 +6723,17 @@ public class WorksheetAgentController {
    // for refreshData's explicit single-table warm-up (see RenderWaitSupport.awaitOrRetry above).
    private static final int TABLE_WARM_MAX_ATTEMPTS = 4;
    private static final long TABLE_WARM_RETRY_SLEEP_MS = 500;
+
+   // Bug #80102: refresh_data {table} clears the table's caches before every attempt, so a retry
+   // after a timeout restarts a cold read rather than finding the previous attempt's result. A
+   // datasource whose cold read exceeds the shared 2s cap above (e.g. Cassandra, which builds a
+   // new CqlSession per query) therefore never converged. This call alone gets a larger bounded
+   // wait. It stays under the plugin client's 30s request timeout (wizClient), which also has to
+   // cover the uncapped column-selection probe that runs before this wait.
+   static final long DEFAULT_REFRESH_DATA_TABLE_WAIT_MS = 15_000;
+
+   // Package-private and mutable only so tests can shrink the wait instead of sleeping 15s.
+   static volatile long refreshDataTableWaitMs = DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
 
    /** Bug #78527: ends edit_sql_query's dropped-column refusal. */
    private static final String SQL_EDIT_LOSS_REMEDY =

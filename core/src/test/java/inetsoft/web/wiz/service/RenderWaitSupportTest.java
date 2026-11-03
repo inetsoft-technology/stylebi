@@ -38,6 +38,26 @@ class RenderWaitSupportTest {
    }
 
    @Test
+   void timeoutCarriesTheRequestedSubjectAndChartIsTheDefault() {
+      RenderNotReadyException table = assertThrows(RenderNotReadyException.class,
+         () -> RenderWaitSupport.awaitOrRetry(() -> {
+            Thread.sleep(500);
+            return null;
+         }, 50, 7, RenderNotReadyException.Subject.TABLE));
+      assertEquals(RenderNotReadyException.Subject.TABLE, table.getSubject());
+      assertEquals(7, table.getRetryAfter());
+      assertTrue(table.getMessage().startsWith("Table data not ready"), table.getMessage());
+
+      RenderNotReadyException chart = assertThrows(RenderNotReadyException.class,
+         () -> RenderWaitSupport.awaitOrRetry(() -> {
+            Thread.sleep(500);
+            return null;
+         }, 50, 2));
+      assertEquals(RenderNotReadyException.Subject.CHART, chart.getSubject());
+      assertTrue(chart.getMessage().startsWith("Chart image not ready"), chart.getMessage());
+   }
+
+   @Test
    void throwsRenderNotReadyAfterTheTimeout() {
       assertThrows(RenderNotReadyException.class, () -> RenderWaitSupport.awaitOrRetry(() -> {
          Thread.sleep(3_000);

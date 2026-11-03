@@ -215,6 +215,26 @@ class WizControllerErrorHandlerTest {
    }
 
    /**
+    * Bug #80102: a worksheet table that is still loading is not a chart. The response keeps the
+    * RENDER_NOT_READY code and the Retry-After header but must not talk about a chart image or a
+    * graph; the chart path (above) keeps its own text.
+    */
+   @Test
+   void tableNotReadyKeepsCodeAndRetryAfterButUsesNoChartWording() throws Exception {
+      String content = mvc.perform(get("/wiz-test/throw").param("type", "tablenotready"))
+         .andExpect(status().isServiceUnavailable())
+         .andExpect(header().string("Retry-After", "15"))
+         .andReturn().getResponse().getContentAsString();
+
+      assertTrue(content.contains("RENDER_NOT_READY"), content);
+      assertTrue(content.contains("retry after 15s"), content);
+      assertTrue(content.contains("Table data not ready"), content);
+      assertFalse(content.contains("Chart"), content);
+      assertFalse(content.contains("graph"), content);
+      assertFalse(content.contains("retrying will fail"), content);
+   }
+
+   /**
     * Bug #77597: a second export of a runtime viewsheet while another one still holds the
     * Bug #77227 export claim. That is a wait, not a failure, so it must come back as 503 with a
     * {@code Retry-After}, not the catch-all's 500 that says retrying will fail the same way.
@@ -353,6 +373,10 @@ class WizControllerErrorHandlerTest {
 
          if("notready".equals(type)) {
             throw new RenderNotReadyException(2);
+         }
+
+         if("tablenotready".equals(type)) {
+            throw new RenderNotReadyException(15, RenderNotReadyException.Subject.TABLE);
          }
 
          if("exportinprogress".equals(type)) {

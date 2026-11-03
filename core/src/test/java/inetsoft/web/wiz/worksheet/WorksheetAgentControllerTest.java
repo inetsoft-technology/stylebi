@@ -93,6 +93,8 @@ import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -134,6 +136,22 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 @WizAgentTestSupport
 class WorksheetAgentControllerTest {
+
+   /**
+    * Bug #80102: refresh_data {table} now waits up to 15s by default. The timing-sensitive tests
+    * below were written against a 2s cap and use a few seconds of simulated slowness, so they run
+    * with the wait shrunk back to 2s; the tests that cover the default set it explicitly.
+    */
+   @BeforeEach
+   void shrinkRefreshDataWait() {
+      WorksheetAgentController.refreshDataTableWaitMs = 2_000L;
+   }
+
+   @AfterEach
+   void restoreRefreshDataWait() {
+      WorksheetAgentController.refreshDataTableWaitMs =
+         WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
+   }
 
    // ---------------------------------------------------------------------------
    // Helpers
@@ -3259,9 +3277,64 @@ class WorksheetAgentControllerTest {
       // doesn't wire -- mock it away to a no-op default (null, not a BoundQuery) since this test
       // isn't about that mechanism.
       try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
-         assertThrows(RenderNotReadyException.class,
+         RenderNotReadyException ex = assertThrows(RenderNotReadyException.class,
             () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+         // Bug #80102: a worksheet table warm must not read as a chart render, and the retry hint
+         // must match the wait that was actually applied.
+         assertEquals(RenderNotReadyException.Subject.TABLE, ex.getSubject());
+         assertFalse(ex.getMessage().contains("Chart"), ex.getMessage());
+         assertEquals(2, ex.getRetryAfter());
       }
+   }
+
+   /**
+    * Bug #80102: only refresh_data's single-table branch gets the larger wait. A reload that
+    * takes 3s (over the shared 2s cap) now completes within the default wait, so the call
+    * succeeds instead of returning RENDER_NOT_READY, and the default is the bounded 15s.
+    */
+   @Test
+   void refreshDataSingleTableDefaultWaitOutlastsAThreeSecondReload() throws Exception {
+      WorksheetAgentController.refreshDataTableWaitMs =
+         WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
+      assertEquals(15_000L, WorksheetAgentController.refreshDataTableWaitMs);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+         "cust", "amount");
+      ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(crosstab);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD80102"), any())).thenReturn(session("TOK-RD80102"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD80102", refreshDataRequest("Crosstab1"), agent);
+      }
+
+      verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
    }
 
    /** A table whose data is already warm (or warms within the bound) refreshes normally. */
@@ -4524,8 +4597,14 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      assertThrows(RenderNotReadyException.class,
+      // Bug #80102: other warm callers keep the shared 2s cap even though refresh_data {table}'s
+      // own wait is larger (the 3s stub above would complete inside 15s).
+      WorksheetAgentController.refreshDataTableWaitMs =
+         WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
+      RenderNotReadyException ex = assertThrows(RenderNotReadyException.class,
          () -> ctrl.edit("TOK-ICS", insertColumnRequest("T"), agent));
+      assertEquals(RenderNotReadyException.Subject.TABLE, ex.getSubject());
+      assertEquals(2, ex.getRetryAfter());
    }
 
    /**

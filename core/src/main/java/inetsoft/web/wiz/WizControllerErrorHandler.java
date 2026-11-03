@@ -147,11 +147,18 @@ public class WizControllerErrorHandler {
       LOG.debug("Wiz render not ready: {}", e.getMessage());
 
       Map<String, String> payload = new HashMap<>();
-      payload.put("error", e.getMessage() + ". The graph is still being built - this is not a " +
-         "failure, and the same call should succeed once it is done. A chart that can never " +
-         "produce a graph (no source, a source table that no longer exists, no fields bound) " +
-         "is refused with its own error instead, so a wait here is a real wait rather than a " +
-         "loop.");
+      if(e.getSubject() == RenderNotReadyException.Subject.TABLE) {
+         payload.put("error", e.getMessage() + ". The table data is still loading - this is " +
+            "not a failure, and the same call should succeed once the query has finished.");
+      }
+      else {
+         payload.put("error", e.getMessage() + ". The graph is still being built - this is not a " +
+            "failure, and the same call should succeed once it is done. A chart that can never " +
+            "produce a graph (no source, a source table that no longer exists, no fields bound) " +
+            "is refused with its own error instead, so a wait here is a real wait rather than a " +
+            "loop.");
+      }
+
       payload.put("errorCode", "RENDER_NOT_READY");
       HttpHeaders headers = new HttpHeaders();
       headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, e.getRetryAfter())));
