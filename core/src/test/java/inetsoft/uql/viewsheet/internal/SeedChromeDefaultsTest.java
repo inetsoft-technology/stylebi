@@ -469,7 +469,7 @@ class SeedChromeDefaultsTest {
       assertNotNull(title, "a table is titled, so a TITLEPATH composite is installed");
       assertNotNull(title.getDefaultFormat().getBordersValue(),
                     "a table creates with border = true, so the title carries border insets");
-      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx),
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
                    title.getDefaultFormat().getBorderColorsValue().topColor);
    }
 
@@ -801,7 +801,7 @@ class SeedChromeDefaultsTest {
    void aModernChartSeedsTheWarmGridlineOnAllFiveLines() {
       gateOn();
       PlotDescriptor plot = plot(newChart());
-      Color expected = new Color(0xE8E5DE);
+      Color expected = new Color(0xD6D2C8);
       assertEquals(expected, plot.getXGridColor(), "x gridline");
       assertEquals(expected, plot.getYGridColor(), "y gridline");
       assertEquals(expected, plot.getFacetGridColor(), "facet lines");
@@ -814,7 +814,7 @@ class SeedChromeDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       PlotDescriptor plot = plot(newChart());
-      Color expected = new Color(0x3A383D);
+      Color expected = new Color(0x4A484F);
       assertEquals(expected, plot.getXGridColor(), "x gridline");
       assertEquals(expected, plot.getYGridColor(), "y gridline");
       assertEquals(expected, plot.getFacetGridColor(), "facet lines");
@@ -897,7 +897,7 @@ class SeedChromeDefaultsTest {
    void revertRestoresTheLegacyGridlineAndInk() {
       gateOn();
       ChartVSAssemblyInfo info = newChart();
-      assertEquals(new Color(0xE8E5DE), plot(info).getYGridColor(), "seeded modern first");
+      assertEquals(new Color(0xD6D2C8), plot(info).getYGridColor(), "seeded modern first");
 
       // Revert clears the mark and re-runs the same hook with an unmarked context
       info.setVizMark(null);
@@ -918,7 +918,7 @@ class SeedChromeDefaultsTest {
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.initDefaultFormat();
 
-      assertEquals(new Color(0xE8E5DE), plot(info).getFacetGridColor());
+      assertEquals(new Color(0xD6D2C8), plot(info).getFacetGridColor());
    }
 
    @Test
@@ -928,12 +928,12 @@ class SeedChromeDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       ChartVSAssemblyInfo info = newChart();
-      assertEquals(new Color(0x3A383D), plot(info).getXGridColor(), "dark org, dark seed");
+      assertEquals(new Color(0x4A484F), plot(info).getXGridColor(), "dark org, dark seed");
 
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.initDefaultFormat();
 
-      assertEquals(new Color(0xE8E5DE), plot(info).getXGridColor(),
+      assertEquals(new Color(0xD6D2C8), plot(info).getXGridColor(),
                    "the mark decides, not the live org property");
    }
 
@@ -970,7 +970,7 @@ class SeedChromeDefaultsTest {
 
       assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
                    plot(restored).getYGridColor(),
-                   "the seeded #3A383D is lost on round trip; the field's own legacy default " +
+                   "the seeded #4A484F is lost on round trip; the field's own legacy default " +
                    "comes back instead");
    }
 
@@ -990,7 +990,7 @@ class SeedChromeDefaultsTest {
                    objectDefault(info).getBorderColorsValue().topColor);
       assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
                    objectDefault(info).getRoundCornerValue());
-      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx),
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
                    titleFormat(info).getDefaultFormat().getBorderColorsValue().topColor,
                    "the title border colour follows too");
    }
@@ -1649,7 +1649,31 @@ class SeedChromeDefaultsTest {
 
       assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
                    def.getBorderColorsValue().bottomColor,
-                   "the base's object border colour is already the rule colour");
+                   "the title rule colour");
+   }
+
+   @Test
+   void aModernSelectionContainerTitleTakesTheTitleRuleColour() {
+      gateOn();
+      VizContext light = VizContext.ofGate();
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(light),
+                   titleFormat(newCurrentSelection()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizContext dark = VizContext.ofGate();
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(dark),
+                   titleFormat(newCurrentSelection()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
+   }
+
+   @Test
+   void aModernCheckBoxTitleKeepsTheObjectBorderColour() {
+      gateOn();
+      assertEquals(new Color(0xD9D5CC), titleFormat(newCheckBox()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(new Color(0x49454F), titleFormat(newCheckBox()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
    }
 
    @Test
@@ -1701,7 +1725,7 @@ class SeedChromeDefaultsTest {
       assertEquals(StyleConstants.NONE, borders.right, "no right rule");
       assertEquals(StyleConstants.THIN_LINE, borders.bottom, "a bottom rule only");
 
-      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx),
                    def.getBorderColorsValue().bottomColor);
       assertEquals(VSTitleChromeDefaults.titleForegroundValue(ctx), def.getForegroundValue());
       assertNull(def.getBackgroundValue(), "the modern input lane carries no fill");

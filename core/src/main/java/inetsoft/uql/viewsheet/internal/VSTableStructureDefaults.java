@@ -47,8 +47,8 @@ public final class VSTableStructureDefaults {
    }
 
    /**
-    * Header→body separator rule — stronger than the interior gridline for hierarchy. Equals the
-    * shell/DOM structural border (#D9D5CC), so the viewsheet header rule matches the rest of the product.
+    * Header→body separator rule — stronger than the interior gridline for hierarchy. Matches the
+    * title rule.
     */
    public static Color headerSeparator(VizContext ctx) {
       return ctx.dark ? HEADER_SEPARATOR_DARK : HEADER_SEPARATOR;
@@ -83,40 +83,39 @@ public final class VSTableStructureDefaults {
    }
 
    /**
-    * Data-cell background for non-striped rows, or null to keep the shipped default (transparent) in
-    * light/legacy. Dark mode fills it with the card surface so body cells are dark independent of the
-    * object card (which only re-seeds for newly created tables).
+    * Data-cell background for non-striped rows: always null, so cells stay transparent over the
+    * translucent card in both modes.
     */
    public static Color bodyBackground(VizContext ctx) {
-      return ctx.dark ? BODY_BG_DARK : null;
+      return null;
    }
 
    /**
-    * Alternating-row (zebra) background, or null to keep the shipped light stripe (#F5F5F5) in
-    * light/legacy. The zebra is a style Specification that wins over the body background, so dark mode
-    * darkens it separately — a subtle lift above the base body so the stripe still reads.
+    * Alternating-row (zebra) background: a translucent tint, stronger in light than in dark. Only
+    * called for modern tables. The zebra is a style Specification that wins over the body
+    * background, so it is recolored on the spec itself.
     */
    public static Color zebraBackground(VizContext ctx) {
-      return ctx.dark ? ZEBRA_BG_DARK : null;
+      return ctx.dark ? ZEBRA_DARK : ZEBRA;
    }
 
    // modern warm-neutral structure palette (light mode)
-   private static final Color GRIDLINE = new Color(0xE8E5DE);
-   private static final Color HEADER_SEPARATOR = new Color(0xD9D5CC);
-   private static final Color HEADER_BG = new Color(0xF1EFEA);
+   private static final Color GRIDLINE = new Color(0xD6D2C8);
+   private static final Color HEADER_SEPARATOR = new Color(0xC7C4BB);
+   private static final Color HEADER_BG = new Color(0xDEDCD7);
    private static final Color HEADER_FG = new Color(0x6A685F);
-   private static final Color TOTAL_BG = new Color(0xE9E4DA);
-   private static final Color SUBTOTAL_BG = new Color(0xEEEAE1);
+   private static final Color TOTAL_BG = new Color(0xD6D2C9);
+   private static final Color SUBTOTAL_BG = new Color(0xDBD7CF);
 
    // dark structure palette; total/subtotal bands lifted above the header for total hierarchy
-   private static final Color GRIDLINE_DARK = new Color(0x3A383D);
-   private static final Color HEADER_SEPARATOR_DARK = new Color(0x49454F);
-   private static final Color HEADER_BG_DARK = new Color(0x2D2B30);
+   private static final Color GRIDLINE_DARK = new Color(0x4A484F);
+   private static final Color HEADER_SEPARATOR_DARK = new Color(0x544F5A);
+   private static final Color HEADER_BG_DARK = new Color(0x38363C);
    private static final Color HEADER_FG_DARK = new Color(0xCAC4D0);
-   private static final Color TOTAL_BG_DARK = new Color(0x35333A);
-   private static final Color SUBTOTAL_BG_DARK = new Color(0x302E34);
-   // dark data-cell interior: text = strong light neutral, base body = card surface, zebra = subtle lift
+   private static final Color TOTAL_BG_DARK = new Color(0x403E46);
+   private static final Color SUBTOTAL_BG_DARK = new Color(0x3B3940);
+   // dark data-cell text = strong light neutral; zebra = translucent tint over the card
    private static final Color BODY_FG_DARK = new Color(0xE6E0E9);
-   private static final Color BODY_BG_DARK = new Color(0x252428);
-   private static final Color ZEBRA_BG_DARK = new Color(0x2D2B30);
+   private static final Color ZEBRA = new Color(0xAA, 0xAA, 0xAA, 38);
+   private static final Color ZEBRA_DARK = new Color(0xAA, 0xAA, 0xAA, 13);
 }

@@ -23,6 +23,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.XTableUtil;
+import inetsoft.uql.viewsheet.internal.VSTableStructureDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Covers the dark-mode wiring of the Default-Style overlay in DataVSAQuery (the load-bearing,
  * export-visible table interior path): the shipped zebra stripe is a REGULAR Specification that wins
- * over body.background, so dark mode must recolor the spec itself, and only in dark. The color values
+ * over body.background, so dark mode must recolor the spec itself. The color values
  * themselves are pinned by VSTableStructureDefaultsTest; this pins the overlay wiring.
  */
 @ExtendWith(SpringExtension.class)
@@ -77,7 +78,7 @@ class DataVSAQueryDarkStructureTest {
    }
 
    @Test
-   void applyDarkZebraRecolorsRegularSpecOnly() {
+   void applyZebraRecolorsRegularSpecOnly() {
       XTableStyle style = styleWithZebra();
       XTableStyle.Specification total = style.new Specification();
       total.setType(XTableStyle.Specification.ROW_GROUP_TOTAL);
@@ -85,16 +86,16 @@ class DataVSAQueryDarkStructureTest {
       total.put("background", new Color(0xEEEAE1));
       style.addSpecification(0, total);
 
-      DataVSAQuery.applyDarkZebra(style, new Color(0x2D2B30));
+      DataVSAQuery.applyZebra(style, new Color(0x2D2B30));
 
       assertEquals(new Color(0x2D2B30), regularSpecBackground(style), "REGULAR zebra spec recolored");
       assertEquals(new Color(0xEEEAE1), total.get("background"), "non-REGULAR (group-total) spec untouched");
    }
 
    @Test
-   void applyDarkZebraNullIsNoOp() {
+   void applyZebraNullIsNoOp() {
       XTableStyle style = styleWithZebra();
-      DataVSAQuery.applyDarkZebra(style, null);
+      DataVSAQuery.applyZebra(style, null);
       assertEquals(new Color(0xF5F5F5), regularSpecBackground(style), "null => shipped stripe unchanged");
    }
 
@@ -105,19 +106,19 @@ class DataVSAQueryDarkStructureTest {
       XTableStyle style = styleWithZebra();
       DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate(),
                                              XTableUtil.getDefaultTableLens());
-      assertEquals(new Color(0x2D2B30), regularSpecBackground(style),
+      assertEquals(VSTableStructureDefaults.zebraBackground(VizContext.ofGate()),
+                   regularSpecBackground(style),
                    "dark zebra applied through the gated zebraBackground() accessor");
    }
 
    @Test
-   void applyModernTableStructureLightLeavesZebra() {
-      // modern on, dark off: the dark interior accessors return null, so the shipped stripe stands
+   void lightModernRecoloursTheZebraSpec() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       XTableStyle style = styleWithZebra();
       DataVSAQuery.applyModernTableStructure(style, VizContext.ofGate(),
                                              XTableUtil.getDefaultTableLens());
-      assertEquals(new Color(0xF5F5F5), regularSpecBackground(style),
-                   "light-modern leaves the shipped #F5F5F5 stripe");
+      assertEquals(VSTableStructureDefaults.zebraBackground(VizContext.ofGate()),
+                   regularSpecBackground(style), "light-modern applies the translucent stripe");
    }
 
    private int groupTotalSpecCount(XTableStyle style) {

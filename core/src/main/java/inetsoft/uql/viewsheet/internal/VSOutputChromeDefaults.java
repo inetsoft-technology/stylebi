@@ -100,8 +100,8 @@ public final class VSOutputChromeDefaults {
 
    // modern warm-neutral chrome; coordinated with VSTitleChromeDefaults and VSChartChromeDefaults so
    // KPI value, title bar, table, and chart chrome read as one system.
-   private static final Color SLIDER_INACTIVE_MODERN = new Color(0xE8E5DE);
-   private static final Color SLIDER_ACTIVE_MODERN = new Color(0xC8C2B7);
+   private static final Color SLIDER_INACTIVE_MODERN = new Color(0xD6D2C8);
+   private static final Color SLIDER_ACTIVE_MODERN = new Color(0xB7B2A8);
    private static final Color SLIDER_HANDLE_MODERN = new Color(0x6A685F);
    private static final Color SLIDER_TICK_MODERN = new Color(0x6A685F);
 
@@ -114,8 +114,8 @@ public final class VSOutputChromeDefaults {
    private static final String LEGACY_VALUE_FG_VALUE = "0x2b2b2b";
 
    // dark KPI/slider chrome; neutrals track the shared dark structure palette
-   private static final Color SLIDER_INACTIVE_DARK = new Color(0x3A383D);
-   private static final Color SLIDER_ACTIVE_DARK = new Color(0x49454F);
+   private static final Color SLIDER_INACTIVE_DARK = new Color(0x4A484F);
+   private static final Color SLIDER_ACTIVE_DARK = new Color(0x544F5A);
    private static final Color SLIDER_HANDLE_DARK = new Color(0xCAC4D0);
    private static final Color SLIDER_TICK_DARK = new Color(0xCAC4D0);
    private static final Color VALUE_FG_DARK = new Color(0xE6E0E9);

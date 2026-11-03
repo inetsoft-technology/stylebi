@@ -54,7 +54,7 @@ class VSTitleChromeDefaultsTest {
       VizContext ctx = VizContext.ofGate();
       assertEquals(0x2D2B30, rgb(VSTitleChromeDefaults.titleBackground(ctx)));
       assertEquals(0xCAC4D0, rgb(VSTitleChromeDefaults.titleForeground(ctx)));
-      assertEquals(0x49454F, rgb(VSTitleChromeDefaults.titleBorderColor(ctx)));
+      assertEquals(0x544F5A, rgb(VSTitleChromeDefaults.titleBorderColor(ctx)));
    }
 
    // pins the modern title-chrome palette; a change here is export-visible and must be intentional
@@ -73,7 +73,7 @@ class VSTitleChromeDefaultsTest {
    @Test
    void titleBorderMatchesShellBorder() {
       // the shared structural border, equal to VSTableStructureDefaults.headerSeparator()
-      assertEquals(0xD9D5CC, rgb(VSTitleChromeDefaults.titleBorderColor(VizContext.ofGate())));
+      assertEquals(0xC7C4BB, rgb(VSTitleChromeDefaults.titleBorderColor(VizContext.ofGate())));
    }
 
    private static int rgb(Color c) {

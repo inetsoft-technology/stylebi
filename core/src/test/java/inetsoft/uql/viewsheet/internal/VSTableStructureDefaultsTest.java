@@ -47,12 +47,12 @@ class VSTableStructureDefaultsTest {
    // DataVSAQuery, so a change here is an export-visible change and must be intentional
    @Test
    void gridlineColorValue() {
-      assertEquals(0xE8E5DE, rgb(VSTableStructureDefaults.gridlineColor(VizContext.ofGate())));
+      assertEquals(0xD6D2C8, rgb(VSTableStructureDefaults.gridlineColor(VizContext.ofGate())));
    }
 
    @Test
    void headerBackgroundValue() {
-      assertEquals(0xF1EFEA, rgb(VSTableStructureDefaults.headerBackground(VizContext.ofGate())));
+      assertEquals(0xDEDCD7, rgb(VSTableStructureDefaults.headerBackground(VizContext.ofGate())));
    }
 
    @Test
@@ -61,34 +61,34 @@ class VSTableStructureDefaultsTest {
    }
 
    @Test
-   void headerSeparatorMatchesShellBorder() {
-      // stronger than the gridline; equals $shell-border-default so the header rule matches the product
-      assertEquals(0xD9D5CC, rgb(VSTableStructureDefaults.headerSeparator(VizContext.ofGate())));
+   void headerSeparatorValue() {
+      // stronger than the gridline so the header rule reads as a hierarchy step
+      assertEquals(0xC7C4BB, rgb(VSTableStructureDefaults.headerSeparator(VizContext.ofGate())));
    }
 
    @Test
    void totalBackgroundValue() {
-      assertEquals(0xE9E4DA, rgb(VSTableStructureDefaults.totalBackground(VizContext.ofGate())));
+      assertEquals(0xD6D2C9, rgb(VSTableStructureDefaults.totalBackground(VizContext.ofGate())));
    }
 
    @Test
    void subtotalBackgroundValue() {
-      // interior group subtotals; lighter than the grand-total #E9E4DA so the total hierarchy reads
-      assertEquals(0xEEEAE1, rgb(VSTableStructureDefaults.subtotalBackground(VizContext.ofGate())));
+      // interior group subtotals; lighter than the grand-total band so the total hierarchy reads
+      assertEquals(0xDBD7CF, rgb(VSTableStructureDefaults.subtotalBackground(VizContext.ofGate())));
    }
 
    @Test
    void gridlineColorDark() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(0x3A383D, rgb(VSTableStructureDefaults.gridlineColor(VizContext.ofGate())));
+      assertEquals(0x4A484F, rgb(VSTableStructureDefaults.gridlineColor(VizContext.ofGate())));
    }
 
    @Test
    void headerBackgroundDark() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(0x2D2B30, rgb(VSTableStructureDefaults.headerBackground(VizContext.ofGate())));
+      assertEquals(0x38363C, rgb(VSTableStructureDefaults.headerBackground(VizContext.ofGate())));
    }
 
    @Test
@@ -103,9 +103,26 @@ class VSTableStructureDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       VizContext ctx = VizContext.ofGate();
-      assertEquals(0x49454F, rgb(VSTableStructureDefaults.headerSeparator(ctx)));
-      assertEquals(0x35333A, rgb(VSTableStructureDefaults.totalBackground(ctx)));
-      assertEquals(0x302E34, rgb(VSTableStructureDefaults.subtotalBackground(ctx)));
+      assertEquals(0x544F5A, rgb(VSTableStructureDefaults.headerSeparator(ctx)));
+      assertEquals(0x403E46, rgb(VSTableStructureDefaults.totalBackground(ctx)));
+      assertEquals(0x3B3940, rgb(VSTableStructureDefaults.subtotalBackground(ctx)));
+   }
+
+   @Test
+   void zebraIsTheTranslucentTintInBothModes() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      Color light = VSTableStructureDefaults.zebraBackground(VizContext.ofGate());
+      assertEquals(0xAAAAAA, light.getRGB() & 0xFFFFFF);
+      assertEquals(38, light.getAlpha());
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(13, VSTableStructureDefaults.zebraBackground(VizContext.ofGate()).getAlpha());
+   }
+
+   @Test
+   void darkBodyIsTransparent() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertNull(VSTableStructureDefaults.bodyBackground(VizContext.ofGate()));
    }
 
    @Test
@@ -125,12 +142,11 @@ class VSTableStructureDefaultsTest {
 
    @Test
    void bodyInteriorNullInLightModern() {
-      // light/legacy keep the shipped body text, transparent body, and light zebra unchanged
+      // light/legacy keep the shipped body text and a transparent body
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       VizContext ctx = VizContext.ofGate();
       assertNull(VSTableStructureDefaults.bodyForeground(ctx));
       assertNull(VSTableStructureDefaults.bodyBackground(ctx));
-      assertNull(VSTableStructureDefaults.zebraBackground(ctx));
    }
 
    @Test
@@ -139,8 +155,8 @@ class VSTableStructureDefaultsTest {
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       VizContext ctx = VizContext.ofGate();
       assertEquals(0xE6E0E9, rgb(VSTableStructureDefaults.bodyForeground(ctx)));
-      assertEquals(0x252428, rgb(VSTableStructureDefaults.bodyBackground(ctx)));
-      assertEquals(0x2D2B30, rgb(VSTableStructureDefaults.zebraBackground(ctx)));
+      assertNull(VSTableStructureDefaults.bodyBackground(ctx));
+      assertEquals(0xAAAAAA, rgb(VSTableStructureDefaults.zebraBackground(ctx)));
    }
 
    @Test
@@ -148,7 +164,7 @@ class VSTableStructureDefaultsTest {
       // dark set but modern off => still light-modern constants are irrelevant; isDark() is false
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      assertEquals(0xE8E5DE, rgb(VSTableStructureDefaults.gridlineColor(VizContext.ofGate())));
+      assertEquals(0xD6D2C8, rgb(VSTableStructureDefaults.gridlineColor(VizContext.ofGate())));
    }
 
    @Test
@@ -160,8 +176,8 @@ class VSTableStructureDefaultsTest {
 
       assertNotEquals(VSTableStructureDefaults.headerBackground(light),
                       VSTableStructureDefaults.headerBackground(dark));
-      assertNotEquals(VSTableStructureDefaults.bodyBackground(light),
-                      VSTableStructureDefaults.bodyBackground(dark));
+      assertNotEquals(VSTableStructureDefaults.zebraBackground(light),
+                      VSTableStructureDefaults.zebraBackground(dark));
       assertNotEquals(VSTableStructureDefaults.gridlineColor(light),
                       VSTableStructureDefaults.gridlineColor(dark));
    }
@@ -174,10 +190,10 @@ class VSTableStructureDefaultsTest {
       assertNotNull(VSTableStructureDefaults.headerSeparator(light));
       assertNotNull(VSTableStructureDefaults.totalBackground(light));
       assertNotNull(VSTableStructureDefaults.subtotalBackground(light));
-      // band/body/zebra keep the shipped default (null) in light by design; still gate-independent
+      // band/body keep the shipped default (null) in light by design; still gate-independent
       assertNull(VSTableStructureDefaults.bandForeground(light));
       assertNull(VSTableStructureDefaults.bodyForeground(light));
-      assertNull(VSTableStructureDefaults.zebraBackground(light));
+      assertNotNull(VSTableStructureDefaults.zebraBackground(light));
    }
 
    private static int rgb(Color c) {

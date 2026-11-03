@@ -69,8 +69,8 @@ class VSOutputChromeDefaultsTest {
    void gateOnReturnsModernSliderColors() {
       withProperty("viewsheet.modernVisualization", "true", () -> {
          VizContext ctx = VizContext.ofGate();
-         assertEquals(0xE8E5DE, rgb(VSOutputChromeDefaults.sliderInactiveTrack(ctx)), "inactive track");
-         assertEquals(0xC8C2B7, rgb(VSOutputChromeDefaults.sliderActiveTrack(ctx)), "active track");
+         assertEquals(0xD6D2C8, rgb(VSOutputChromeDefaults.sliderInactiveTrack(ctx)), "inactive track");
+         assertEquals(0xB7B2A8, rgb(VSOutputChromeDefaults.sliderActiveTrack(ctx)), "active track");
          assertEquals(0x6A685F, rgb(VSOutputChromeDefaults.sliderHandle(ctx)), "handle");
          assertEquals(0x6A685F, rgb(VSOutputChromeDefaults.sliderTick(ctx)), "tick");
       });
@@ -82,8 +82,8 @@ class VSOutputChromeDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       VizContext ctx = VizContext.ofGate();
-      assertEquals(0x3A383D, rgb(VSOutputChromeDefaults.sliderInactiveTrack(ctx)));
-      assertEquals(0x49454F, rgb(VSOutputChromeDefaults.sliderActiveTrack(ctx)));
+      assertEquals(0x4A484F, rgb(VSOutputChromeDefaults.sliderInactiveTrack(ctx)));
+      assertEquals(0x544F5A, rgb(VSOutputChromeDefaults.sliderActiveTrack(ctx)));
       assertEquals(0xCAC4D0, rgb(VSOutputChromeDefaults.sliderHandle(ctx)));
       assertEquals(0xCAC4D0, rgb(VSOutputChromeDefaults.sliderTick(ctx)));
    }
