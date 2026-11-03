@@ -245,6 +245,53 @@ class MVIncrementalTest {
       assertTrue(afterCreate(-1L, previous, previous) >= before);
    }
 
+   /**
+    * Bug #79854: an update whose query returned no rows does not reach refresh(), but the read
+    * start is stored, so the next update selects a row inserted while this one ran.
+    */
+   @Test
+   void updateWithoutRowsStoresTheReadStart() throws Exception {
+      long previous = System.currentTimeMillis() - 600_000L;
+      long start = previous + 100_000L;
+
+      // read happened: stored in the file def and the def
+      MV mv = storeStart(previous, start);
+      Mockito.verify(mv).updateLastModifiedTime(start);
+
+      // no read (delete-only update): nothing stored
+      mv = storeStart(previous, 0L);
+      Mockito.verify(mv, Mockito.never()).updateLastModifiedTime(Mockito.anyLong());
+
+      // never backwards
+      mv = storeStart(previous, previous - 1L);
+      Mockito.verify(mv, Mockito.never()).updateLastModifiedTime(Mockito.anyLong());
+   }
+
+   private static MV storeStart(long previous, long start) throws Exception {
+      MVDef def = new MVDef();
+      def.container = new MVDef.MVContainer(new ArrayList<>(), null);
+      ThreadContext.setSessionInfo("data.cache.ts", previous);
+      MV mv = Mockito.mock(MV.class);
+      Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));
+      MVStorage storage = Mockito.mock(MVStorage.class);
+      Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+
+      try(MockedStatic<MVStorage> statics = Mockito.mockStatic(MVStorage.class)) {
+         statics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         statics.when(MVStorage::getInstance).thenReturn(storage);
+         TestIncremental incremental = new TestIncremental(def);
+         def.updateLastUpdateTime(); // data.cache.ts pins it to previous
+         ThreadContext.setSessionInfo("data.cache.ts", null);
+         incremental.updateStart = start;
+
+         incremental.storeUpdateStart();
+
+         assertEquals(start > previous ? start : previous, def.getLastUpdateTime());
+      }
+
+      return mv;
+   }
+
    private static long afterCreate(long storedStamp, long previous, long current)
       throws Exception
    {

@@ -71,6 +71,25 @@ public abstract class MVIncremental {
    public abstract void cancel();
 
    /**
+    * Store the read start as the last update time for an update that read the source but does
+    * not go through refresh() (no rows returned). Does nothing if no read happened (e.g. a
+    * delete-only update), and never moves the stamp backwards.
+    */
+   protected void storeUpdateStart() throws Exception {
+      if(updateStart <= 0 || updateStart <= mvdef.getLastUpdateTime()) {
+         return;
+      }
+
+      try {
+         mv.updateLastModifiedTime(updateStart);
+         mvdef.updateLastUpdateTime(updateStart);
+      }
+      catch(Exception e) {
+         throw new MVExecutionException(e);
+      }
+   }
+
+   /**
     * Refresh MVDef last update time.
     */
    protected void refresh() throws Exception {
@@ -83,10 +102,9 @@ public abstract class MVIncremental {
          long stamp = updateStart;
 
          if(stamp <= 0) {
-            // an update that reaches refresh() has read its data through getData()
-            LOG.warn("The start of the update of materialized view {} was not recorded, " +
-                     "rows inserted while it ran may be missed by the next update",
-                     mvdef.getName());
+            // no read happened (e.g. a delete-only update), so no row can be missed
+            LOG.debug("No source read recorded for the update of materialized view {}, " +
+                      "using the end time", mvdef.getName());
             stamp = System.currentTimeMillis();
          }
 

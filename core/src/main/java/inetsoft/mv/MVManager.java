@@ -513,6 +513,8 @@ public final class MVManager implements MessageListener {
                      getOrgLock(orgId).writeLock().lock();
 
                      try {
+                        // current == previous: the stored stamp is monotonic, so max(stored,
+                        // previous) can't lower anything; this path has no newer manager stamp
                         mv.updateLastUpdateTimeAfterCreate(previous, previous); // set update ts
                         add(mv);
                         SharedMVUtil.shareCreatedMV(mv);
