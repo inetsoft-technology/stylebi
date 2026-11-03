@@ -123,9 +123,9 @@ public class PresentationChangesetApplyService {
 
          if(touchesStorage && !Boolean.TRUE.equals(req.getAcknowledgeIrreversibleUpdate())) {
             throw new IllegalArgumentException(
-               "acknowledgeIrreversibleUpdate: must be true because this changeset touches a " +
-               "storage-scope sub-model (lookAndFeel/welcomePage/loginBanner/portalIntegration), " +
-               "which has no live rollback in this cut (01-spec.md section 6)");
+               "acknowledgeIrreversibleUpdate: must be true because this changeset updates or " +
+               "resets a storage-scope sub-model (lookAndFeel/welcomePage/loginBanner/" +
+               "portalIntegration), which has no live rollback in this cut (01-spec.md section 6)");
          }
 
          String txId = "pres-" + newIdSuffix();
@@ -138,6 +138,9 @@ public class PresentationChangesetApplyService {
          // per entry: the org keys that entry's own write created and kept (Bug #79434)
          Map<PresentationChangePlanService.ResolvedChange, Set<String>> createdOrgKeys =
             new IdentityHashMap<>();
+         // per reset entry: what its reset removed/rewrote/created (Bug #80087)
+         Map<PresentationChangePlanService.ResolvedChange, PresentationSettingsAccess.ResetOutcome>
+            resetOutcomes = new IdentityHashMap<>();
          boolean failed = false;
 
          for(PresentationChangePlanService.ResolvedChange entry : resolved) {
@@ -146,17 +149,34 @@ public class PresentationChangesetApplyService {
             String expectedAfter = entry.planChange().proposedValue();
 
             try {
-               Set<String> created =
-                  access.write(entry.subModel(), entry.proposedModel(), user, entry.global());
-               createdOrgKeys.put(entry, created == null ? Set.of() : created);
-               String actualAfter = PresentationChangePlanService.projectedValue(
-                  entry.subModel(), PresentationJson.toNode(
-                     access.read(entry.subModel(), user, entry.global())));
-               boolean verified = expectedAfter.equals(actualAfter);
+               String actualAfter;
+               boolean verified;
+               String problem;
+
+               if(entry.reset()) {
+                  PresentationSettingsAccess.ResetOutcome outcome =
+                     access.resetOrg(entry.subModel(), user);
+                  resetOutcomes.put(entry, outcome);
+                  problem = access.checkReset(entry.subModel(), outcome);
+                  verified = problem == null;
+                  actualAfter = PresentationChangePlanService.resetProjection(
+                     access, entry.subModel(), user);
+               }
+               else {
+                  Set<String> created =
+                     access.write(entry.subModel(), entry.proposedModel(), user, entry.global());
+                  createdOrgKeys.put(entry, created == null ? Set.of() : created);
+                  actualAfter = PresentationChangePlanService.projectedValue(
+                     entry.subModel(), PresentationJson.toNode(
+                        access.read(entry.subModel(), user, entry.global())));
+                  verified = expectedAfter.equals(actualAfter);
+                  problem = verified ? null : "value did not read back as written";
+               }
+
                String status = verified
                   ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
                results.add(new PresentationApplyOutcome(key, before, actualAfter, status,
-                  verified ? null : "value did not read back as written", null));
+                  problem, null));
                writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before, actualAfter, status,
                          backupRef, reviewOutcome, user);
 
@@ -176,6 +196,16 @@ public class PresentationChangesetApplyService {
                   failed = true;
                   break;
                }
+            }
+            catch(PresentationSettingsAccess.ResetStateUnknownException e) {
+               results.add(new PresentationApplyOutcome(key, before, null,
+                  AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+               writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before,
+                         null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+               unknownStateFailures.add(new RollbackFailure(key,
+                  "state unknown: " + messageOf(e)));
+               failed = true;
+               break;
             }
             catch(Exception e) {
                // access.write itself carries no verifiable before/after evidence for THIS change --
@@ -242,12 +272,12 @@ public class PresentationChangesetApplyService {
          // response, so the operator knows recovery for these means restoring the Tier-2 backup.
          for(PresentationChangePlanService.ResolvedChange applied : appliedStorage) {
             failures.add(new RollbackFailure(applied.planChange().property(),
-               "storage-scope sub-model update cannot be rolled back in this cut (01-spec.md " +
+               "storage-scope sub-model change cannot be rolled back in this cut (01-spec.md " +
                "section 4/6) -- recovery requires restoring the Tier-2 backup for transaction " +
                txId + " (backupRef: " + backupRef + ")"));
          }
 
-         failures.addAll(rollback(txId, reviewedTask, undoableValue, createdOrgKeys, backupRef,
+         failures.addAll(rollback(txId, reviewedTask, undoableValue, createdOrgKeys, resetOutcomes, backupRef,
                                   reviewOutcome, user));
 
          String status = failures.isEmpty()
@@ -274,6 +304,8 @@ public class PresentationChangesetApplyService {
                                           List<PresentationChangePlanService.ResolvedChange> undoable,
                                           Map<PresentationChangePlanService.ResolvedChange,
                                              Set<String>> createdOrgKeys,
+                                          Map<PresentationChangePlanService.ResolvedChange,
+                                             PresentationSettingsAccess.ResetOutcome> resetOutcomes,
                                           String backupRef, String reviewOutcome, Principal user)
    {
       List<RollbackFailure> failures = new ArrayList<>();
@@ -284,27 +316,48 @@ public class PresentationChangesetApplyService {
          String expectedBefore = entry.planChange().currentValue();
 
          try {
-            access.write(entry.subModel(), entry.currentModel(), user, entry.global());
-            // the pre-image is a model projection and cannot say "no override", so re-writing it pins
-            // every property; drop only the keys this entry's own apply write created, never keys
-            // another entry created (Bug #79434)
-            Set<String> created = createdOrgKeys.get(entry);
+            String restoredValue;
+            String keyProblem = null;
 
-            if(created != null && !created.isEmpty()) {
-               access.unpinOrgKeys(entry.subModel(), user, entry.global(), created);
+            if(entry.reset()) {
+               // a reset is undone by putting back exactly the keys it removed or rewrote (never by
+               // writing the pre-image, which would re-pin every key of the sub-model) (Bug #80087)
+               PresentationSettingsAccess.ResetOutcome outcome = resetOutcomes.get(entry);
+
+               if(outcome == null) {
+                  throw new IllegalStateException(
+                     "no snapshot of the organization keys the reset changed");
+               }
+
+               keyProblem = access.undoReset(outcome);
+               restoredValue = PresentationChangePlanService.resetProjection(
+                  access, entry.subModel(), user);
+            }
+            else {
+               access.write(entry.subModel(), entry.currentModel(), user, entry.global());
+               // the pre-image is a model projection and cannot say "no override", so re-writing it
+               // pins every property; drop only the keys this entry's own apply write created, never
+               // keys another entry created (Bug #79434)
+               Set<String> created = createdOrgKeys.get(entry);
+
+               if(created != null && !created.isEmpty()) {
+                  access.unpinOrgKeys(entry.subModel(), user, entry.global(), created);
+               }
+
+               restoredValue = PresentationChangePlanService.projectedValue(
+                  entry.subModel(), PresentationJson.toNode(
+                     access.read(entry.subModel(), user, entry.global())));
             }
 
-            String restoredValue = PresentationChangePlanService.projectedValue(
-               entry.subModel(), PresentationJson.toNode(
-                  access.read(entry.subModel(), user, entry.global())));
-            boolean verified = expectedBefore.equals(restoredValue);
+            boolean verified = keyProblem == null && expectedBefore.equals(restoredValue);
             writeAudit(txId, task, key, entry, AdminChangeRecord.ACTION_ROLLBACK, null, restoredValue,
                       verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
                       backupRef, reviewOutcome, user);
 
             if(!verified) {
                failures.add(new RollbackFailure(key,
-                  "rollback reported the value as not restored to its pre-apply state"));
+                  keyProblem != null ? keyProblem
+                     : "rollback reported the value as not restored to its pre-apply state"));
             }
          }
          catch(Exception e) {

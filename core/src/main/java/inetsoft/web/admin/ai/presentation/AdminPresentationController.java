@@ -96,7 +96,7 @@ public class AdminPresentationController {
    }
 
    /**
-    * Resolves a presentation change plan (16-sub-model catalog, {@code update} verb only) without
+    * Resolves a presentation change plan (16-sub-model catalog; {@code update}, or {@code reset} at organization scope) without
     * mutating anything. See {@code AdminAiController#preview} for the shape this mirrors.
     */
    @Secured(@RequiredPermission(
