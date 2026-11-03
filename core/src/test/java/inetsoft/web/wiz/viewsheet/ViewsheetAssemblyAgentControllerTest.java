@@ -4702,6 +4702,76 @@ class ViewsheetAssemblyAgentControllerTest {
       assertTrue(thrown.getMessage().contains("no bookmark named"));
    }
 
+   /** Bug #80168: set_default_bookmark runs setDefault for the given principal/entry org combo. */
+   private RuntimeViewsheet setDefaultOnOrgs(String entryOrg, String principalOrg,
+                                              boolean globallyVisible) throws Exception
+   {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+      stubSavedAsset(rvs);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getOrgID()).thenReturn(entryOrg);
+      when(rvs.getEntry()).thenReturn(entry);
+      inetsoft.uql.XPrincipal user = mock(inetsoft.uql.XPrincipal.class);
+      when(user.getOrgId()).thenReturn(principalOrg);
+      when(user.getName()).thenReturn("admin");
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      try(MockedStatic<inetsoft.sree.internal.SUtil> sutil =
+             mockStatic(inetsoft.sree.internal.SUtil.class))
+      {
+         sutil.when(() -> inetsoft.sree.internal.SUtil.isDefaultVSGloballyVisible(user))
+            .thenReturn(globallyVisible);
+         controller.setDefaultBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), user);
+      }
+
+      return rvs;
+   }
+
+   @Test
+   void setDefaultBookmark_refusesOtherOrgUserOnDefaultOrgDashboard() throws Exception {
+      String defaultOrg = inetsoft.sree.security.Organization.getDefaultOrganizationID();
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      wireMutate(sessions, rvs);
+      stubSavedAsset(rvs);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getOrgID()).thenReturn(defaultOrg);
+      when(rvs.getEntry()).thenReturn(entry);
+      inetsoft.uql.XPrincipal user = mock(inetsoft.uql.XPrincipal.class);
+      when(user.getOrgId()).thenReturn("orgA");
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+
+      try(MockedStatic<inetsoft.sree.internal.SUtil> sutil =
+             mockStatic(inetsoft.sree.internal.SUtil.class))
+      {
+         sutil.when(() -> inetsoft.sree.internal.SUtil.isDefaultVSGloballyVisible(user))
+            .thenReturn(true);
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.setDefaultBookmark("tok",
+               new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), user));
+         assertTrue(thrown.getMessage().startsWith("set_default_bookmark: "));
+         assertTrue(thrown.getMessage().contains(Catalog.getCatalog()
+            .getString(VSBookmarkService.DEFAULT_ORG_DENIED_KEY)));
+      }
+
+      verify(rvs, never()).setDefaultBookmark(any());
+   }
+
+   @Test
+   void setDefaultBookmark_allowsSameOrgNonDefaultOrgEntryAndSiteAdmin() throws Exception {
+      String defaultOrg = inetsoft.sree.security.Organization.getDefaultOrganizationID();
+      verify(setDefaultOnOrgs(defaultOrg, defaultOrg, true)).setDefaultBookmark(any());
+      verify(setDefaultOnOrgs("some-other-org-entry", "orgA", true)).setDefaultBookmark(any());
+      verify(setDefaultOnOrgs(defaultOrg, "orgA", false)).setDefaultBookmark(any());
+   }
+
    @Test
    void setDefaultBookmark_delegatesToRuntimeViewsheetSetDefaultBookmark() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();

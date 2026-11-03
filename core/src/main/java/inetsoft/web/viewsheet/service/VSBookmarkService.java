@@ -568,6 +568,14 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(), "");
       IdentityID owner = Tool.defaultIfNull(vsBookmarkInfoModel.owner(), new IdentityID("",""));
 
+      if(isDefaultOrgAsset(rvs, principal)) {
+         MessageCommand command = new MessageCommand();
+         command.setMessage(catalog.getString(DEFAULT_ORG_DENIED_KEY));
+         command.setType(MessageCommand.Type.WARNING);
+         commandDispatcher.sendCommand(command);
+         return null;
+      }
+
       if(vs.getRuntimeEntry().getScope() == AssetRepository.TEMPORARY_SCOPE) {
          MessageCommand command = new MessageCommand();
          command.setMessage(catalog.getString("common.viewsheet.saveViewsheetDependence"));
@@ -606,9 +614,17 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       throws Exception
    {
       RuntimeViewsheet rvs = ViewsheetEngine.getViewsheetEngine().getViewsheet(assetID, principal);
-      return SUtil.isDefaultVSGloballyVisible(principal) && !Tool.equals(((XPrincipal)principal).getOrgId(),rvs.getEntry().getOrgID()) &&
-         Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID());
+      return isDefaultOrgAsset(rvs, principal);
+   }
 
+   /**
+    * Whether the viewsheet is a default-organization asset seen by a user of another
+    * organization through the default-organization global exposure. This is the rule the
+    * Viewer uses to hide the bookmark actions, so server-side guards must match it.
+    */
+   public static boolean isDefaultOrgAsset(RuntimeViewsheet rvs, Principal principal) {
+      return isDefaultOrgDeniedForOtherOrg(rvs, principal) && rvs.getEntry() != null &&
+         Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID());
    }
 
    private void addBookmark(RuntimeViewsheet rvs, String bookmarkName, int type,

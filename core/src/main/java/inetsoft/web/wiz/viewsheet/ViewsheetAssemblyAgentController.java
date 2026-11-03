@@ -682,6 +682,11 @@ public class ViewsheetAssemblyAgentController {
       String name = requireBookmarkName(request.name(), "set_default_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(VSBookmarkService.isDefaultOrgAsset(rvs, user)) {
+            throw new IllegalArgumentException("set_default_bookmark: " +
+               Catalog.getCatalog().getString(VSBookmarkService.DEFAULT_ORG_DENIED_KEY));
+         }
+
          // set_default_bookmark never writes to the target bookmark's own data -- it only points
          // the CALLER's own default pointer at it (mirroring VSBookmarkService.setDefaultBookmark,
          // which performs no ownership/writability check at all) -- so this only needs the
