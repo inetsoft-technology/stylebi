@@ -119,26 +119,28 @@ public class ScheduleFolderChangesetApplyService {
             String path = change.property();
             AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
+            String stillChanged;
+
             try {
                switch(original.getVerb()) {
                case ScheduleFolderChangeRequest.VERB_CREATE:
-                  applyCreate(txId, reviewedTask, path, backupRef, req.getReviewOutcome(), user,
+                  stillChanged = applyCreate(txId, reviewedTask, path, backupRef, req.getReviewOutcome(), user,
                              results, undoable, mutationEntered);
                   break;
                case ScheduleFolderChangeRequest.VERB_RENAME:
-                  applyRename(txId, reviewedTask, path, original.getNewPath(), backupRef,
+                  stillChanged = applyRename(txId, reviewedTask, path, original.getNewPath(), backupRef,
                              req.getReviewOutcome(), user, results, undoable, mutationEntered);
                   break;
                case ScheduleFolderChangeRequest.VERB_MOVE:
-                  applyMove(txId, reviewedTask, path, original.getTargetPath(), backupRef,
+                  stillChanged = applyMove(txId, reviewedTask, path, original.getTargetPath(), backupRef,
                            req.getReviewOutcome(), user, results, undoable, mutationEntered);
                   break;
                case ScheduleFolderChangeRequest.VERB_MOVE_TASK:
-                  applyMoveTask(txId, reviewedTask, path, original.getTargetPath(), backupRef,
+                  stillChanged = applyMoveTask(txId, reviewedTask, path, original.getTargetPath(), backupRef,
                                req.getReviewOutcome(), user, results, undoable, mutationEntered);
                   break;
                default:
-                  applyDelete(txId, reviewedTask, path, backupRef, req.getReviewOutcome(), user,
+                  stillChanged = applyDelete(txId, reviewedTask, path, backupRef, req.getReviewOutcome(), user,
                              results, undoable, mutationEntered);
                   break;
                }
@@ -157,6 +159,14 @@ public class ScheduleFolderChangesetApplyService {
             }
 
             if(AdminChangeRecord.STATUS_FAILED.equals(lastStatus(results))) {
+               // A failed post-write check is only a clean "nothing happened" when the observed
+               // state still equals the pre-state; otherwise the write is still in place and no
+               // undo was queued for it, so it must not be reported as rolled back (bug #80085).
+               if(stillChanged != null) {
+                  unknownStateFailures.add(new RollbackFailure(path, stillChanged));
+                  unknownStateMutationEntered = true;
+               }
+
                failed = true;
                break;
             }
@@ -192,7 +202,7 @@ public class ScheduleFolderChangesetApplyService {
       }
    }
 
-   private void applyCreate(String txId, String task, String path, String backupRef,
+   private String applyCreate(String txId, String task, String path, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
                             List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
@@ -205,6 +215,12 @@ public class ScheduleFolderChangesetApplyService {
 
       AssetFolder after = folderGateway.findFolder(path);
       boolean verified = after != null;
+      // createFolder sets mutationEntered only when it actually added a folder segment, and the
+      // parent segments it may have auto-created are not captured pre-state, so that flag is the
+      // only evidence available (bug #80085).
+      String stillChanged = !verified && mutationEntered.get()
+         ? "write took effect but its post-write check failed: folder not found after create"
+         : null;
       String afterProjection = ScheduleFolderXmlProjection.project(path, after);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(path, null, afterProjection, status,
@@ -216,9 +232,11 @@ public class ScheduleFolderChangesetApplyService {
       if(verified) {
          undoable.add(Undo.create(path));
       }
+
+      return stillChanged;
    }
 
-   private void applyRename(String txId, String task, String oldPath, String newPath,
+   private String applyRename(String txId, String task, String oldPath, String newPath,
                             String backupRef, String reviewOutcome, Principal user,
                             List<ApplyOutcome> results, List<Undo> undoable,
                             AtomicBoolean mutationEntered)
@@ -234,7 +252,13 @@ public class ScheduleFolderChangesetApplyService {
 
       String normalizedNewPath = AdminScheduleFolderGateway.normalizePath(newPath);
       AssetFolder after = folderGateway.findFolder(normalizedNewPath);
-      boolean verified = after != null && folderGateway.findFolder(oldPath) == null;
+      boolean sourceGone = folderGateway.findFolder(oldPath) == null;
+      boolean verified = after != null && sourceGone;
+      // mutationEntered is also true for a no-op rename, so compare observed state to pre-state.
+      String stillChanged = !verified && (sourceGone || after != null && !normalizedNewPath.equals(oldPath))
+         ? "write took effect but its post-write check failed: the folder is no longer at \"" +
+            oldPath + "\" or now exists at \"" + normalizedNewPath + "\""
+         : null;
       String afterProjection = ScheduleFolderXmlProjection.project(normalizedNewPath, after);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(oldPath, beforeProjection, afterProjection, status,
@@ -246,9 +270,11 @@ public class ScheduleFolderChangesetApplyService {
       if(verified) {
          undoable.add(Undo.rename(normalizedNewPath, oldPath));
       }
+
+      return stillChanged;
    }
 
-   private void applyMove(String txId, String task, String path, String targetPath,
+   private String applyMove(String txId, String task, String path, String targetPath,
                           String backupRef, String reviewOutcome, Principal user,
                           List<ApplyOutcome> results, List<Undo> undoable,
                           AtomicBoolean mutationEntered)
@@ -266,7 +292,12 @@ public class ScheduleFolderChangesetApplyService {
       folderGateway.moveFolder(path, targetPath, user, mutationEntered);
 
       AssetFolder after = folderGateway.findFolder(resultingPath);
-      boolean verified = after != null && (resultingPath.equals(path) || folderGateway.findFolder(path) == null);
+      boolean sourceGone = !resultingPath.equals(path) && folderGateway.findFolder(path) == null;
+      boolean verified = after != null && (resultingPath.equals(path) || sourceGone);
+      String stillChanged = !verified && (sourceGone || after != null && !resultingPath.equals(path))
+         ? "write took effect but its post-write check failed: the folder is no longer at \"" +
+            path + "\" or now exists at \"" + resultingPath + "\""
+         : null;
       String afterProjection = ScheduleFolderXmlProjection.project(resultingPath, after);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(path, beforeProjection, afterProjection, status,
@@ -278,6 +309,8 @@ public class ScheduleFolderChangesetApplyService {
       if(verified) {
          undoable.add(Undo.move(resultingPath, originalParentPath));
       }
+
+      return stillChanged;
    }
 
    /**
@@ -292,7 +325,7 @@ public class ScheduleFolderChangesetApplyService {
     * unconditionally even when the target folder was never registered), which is exactly why that
     * guard lives at plan time instead of being deferred to this read-back.
     */
-   private void applyMoveTask(String txId, String task, String taskId, String targetPath,
+   private String applyMoveTask(String txId, String task, String taskId, String targetPath,
                               String backupRef, String reviewOutcome, Principal user,
                               List<ApplyOutcome> results, List<Undo> undoable,
                               AtomicBoolean mutationEntered)
@@ -308,8 +341,14 @@ public class ScheduleFolderChangesetApplyService {
       folderGateway.moveTask(taskId, normalizedTargetPath, user, mutationEntered);
 
       String afterPath = folderGateway.getTaskPath(taskId);
-      boolean verified = afterPath != null &&
-         AdminScheduleFolderGateway.normalizePath(afterPath).equals(normalizedTargetPath);
+      // A null path means a root-level task, so normalize both sides before comparing.
+      String normalizedAfterPath = AdminScheduleFolderGateway.normalizePath(afterPath);
+      boolean verified = normalizedAfterPath.equals(normalizedTargetPath);
+      String stillChanged = !verified &&
+         !normalizedAfterPath.equals(AdminScheduleFolderGateway.normalizePath(beforePath))
+         ? "write took effect but its post-write check failed: the task is now in \"" +
+            normalizedAfterPath + "\""
+         : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(taskId, beforePath, afterPath, status,
                                    verified ? null : "task's folder was not updated to the target path after move"));
@@ -320,9 +359,11 @@ public class ScheduleFolderChangesetApplyService {
       if(verified) {
          undoable.add(Undo.moveTask(taskId, beforePath));
       }
+
+      return stillChanged;
    }
 
-   private void applyDelete(String txId, String task, String path, String backupRef,
+   private String applyDelete(String txId, String task, String path, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
                             List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
@@ -339,6 +380,11 @@ public class ScheduleFolderChangesetApplyService {
       folderGateway.deleteFolder(path, user);
 
       boolean verified = folderGateway.findFolder(path) == null;
+      // The delete is recursive, so a surviving folder may already have lost contained tasks.
+      String stillChanged = !verified && folderGateway.countContainedTasks(path) != containedTaskCount
+         ? "write took effect but its post-write check failed: the folder still exists but its " +
+            "contained task count changed"
+         : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(path, beforeProjection, null, status,
                                    verified ? null : "folder still exists after delete"));
@@ -354,6 +400,8 @@ public class ScheduleFolderChangesetApplyService {
          // in the same plan fails -- see this class's own javadoc.
          undoable.add(Undo.delete(path));
       }
+
+      return stillChanged;
    }
 
    /** Undoes verified changes newest-first, attempting all of them and collecting any failures. */
