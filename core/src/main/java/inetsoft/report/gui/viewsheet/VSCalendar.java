@@ -728,6 +728,7 @@ public class VSCalendar extends VSFloatable {
       TableDataPath datapath = new TableDataPath(-1, TableDataPath.CALENDAR_TITLE);
       VSCompositeFormat format = info.getFormatInfo().getFormat(datapath, false);
       format = format == null ? new VSCompositeFormat() : format;
+      Color headerRule = headerRuleColor(info, format);
       String title = CalendarUtil.formatTitle(year + "-" + month, false, format);
 
       paintCell(g, title, 0, 0, w, rH, format, true,
@@ -846,7 +847,7 @@ public class VSCalendar extends VSFloatable {
       }
 
       // paint grid
-      g.setColor(new Color(0xDDDDDD));
+      g.setColor(headerRule);
       g.drawLine(0, rH, w, rH);
       /*
 
@@ -1025,6 +1026,23 @@ public class VSCalendar extends VSFloatable {
             g.drawRect(c * cW + 2, r * rH + titleH + 2, cW - 4, rH - 4);
          }
       }
+   }
+
+   /**
+    * The rule under the month header: a modern calendar's header format colour, as the viewer draws
+    * it, or the legacy grey.
+    */
+   static Color headerRuleColor(CalendarVSAssemblyInfo info, VSCompositeFormat header) {
+      BorderColors colors = header == null ? null : header.getBorderColors();
+
+      if(info != null && info.getVizMark() != null &&
+         info.getShowType() == CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE &&
+         colors != null && colors.bottomColor != null)
+      {
+         return colors.bottomColor;
+      }
+
+      return new Color(0xDDDDDD);
    }
 
    /**
