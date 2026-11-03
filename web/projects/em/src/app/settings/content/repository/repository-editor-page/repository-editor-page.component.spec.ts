@@ -35,6 +35,7 @@ import { RepositoryPermissionEditorPageComponent } from "../repository-permissio
 import { RepositoryViewsheetSettingsPageComponent } from "../repository-viewsheet-settings-page/repository-viewsheet-settings-page.component";
 import { RepositoryWorksheetSettingsPageComponent } from "../repository-worksheet-settings-page/repository-worksheet-settings-page.component";
 import { RepositoryEditorPageComponent } from "./repository-editor-page.component";
+import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 
 describe("RepositoryEditorPageComponent", () => {
    let component: RepositoryEditorPageComponent;
@@ -42,7 +43,14 @@ describe("RepositoryEditorPageComponent", () => {
 
    beforeEach(() => {
       const service = {
-         hasMVPermission: vi.fn(() => observableOf(false))
+         hasMVPermission: vi.fn(() => observableOf(false)),
+         isDataSource: vi.fn(() => false),
+         isTrashcanArchiveEntry: vi.fn(() => false),
+         isFolder: vi.fn((type: RepositoryEntryType) => (type & RepositoryEntryType.FOLDER) !== 0),
+         isDataSourceEntry: vi.fn(() => false),
+         isLibraryEntry: vi.fn(() => false),
+         isDataModelFolderEntry: vi.fn(() => false),
+         isInRecyleBin: vi.fn(() => false)
       };
 
       TestBed.configureTestingModule({
@@ -64,5 +72,29 @@ describe("RepositoryEditorPageComponent", () => {
 
    it("should create", () => {
       expect(component).toBeTruthy();
+   });
+
+   describe("editorType for schedule tasks", () => {
+      const model = (type: RepositoryEntryType, path: string): any => ({type, path});
+
+      it("should show no editor for a schedule task (#79853)", () => {
+         component.editorModel = model(RepositoryEntryType.SCHEDULE_TASK, "admin:Task1");
+         expect(component.editorType).toBeNull();
+      });
+
+      it("should show no editor for a schedule task inside a folder (#79853)", () => {
+         component.editorModel = model(RepositoryEntryType.SCHEDULE_TASK, "f1/admin:Task1");
+         expect(component.editorType).toBeNull();
+      });
+
+      it("should keep the permission editor for the root schedule task folder", () => {
+         component.editorModel = model(RepositoryEntryType.SCHEDULE_TASK_FOLDER, "/");
+         expect(component.editorType).toBe("permission");
+      });
+
+      it("should keep the folder editor for a non-root schedule task folder", () => {
+         component.editorModel = model(RepositoryEntryType.SCHEDULE_TASK_FOLDER, "f1");
+         expect(component.editorType).toBe("schedule-task-folder");
+      });
    });
 });
