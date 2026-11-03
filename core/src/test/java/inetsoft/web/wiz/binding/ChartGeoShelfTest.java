@@ -223,6 +223,54 @@ class ChartGeoShelfTest {
    }
 
    @Test
+   void aChartWithNoSourceIsRefusedByNameBeforeAnythingIsMutated() throws Exception {
+      when(sessions.resolve(any(), any())).thenReturn(rvs);
+
+      for(String mapType : new String[] { null, "U.S." }) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            ChartGeoShelf.write(sessions, "tok", null, "Chart1", handler,
+                                List.of(new Field("State", "State"), new Field("City", "City")),
+                                mapType));
+
+         assertTrue(e.getMessage().contains("'Chart1' has no source table yet"), e.getMessage());
+         assertTrue(e.getMessage().contains("set_chart_source"), e.getMessage());
+      }
+
+      verify(sessions, never()).mutate(any(), any(), any());
+      verify(rvs, never()).restoreCurrentCheckpoint();
+      verify(handler, never()).getChartData(any(), any());
+      assertEquals(0, info.getGeoFields().length);
+   }
+
+   @Test
+   void aChartWhoseSourceIsEmptyIsAlsoRefused() {
+      ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      ainfo.setSourceInfo(new inetsoft.uql.asset.SourceInfo(
+         inetsoft.uql.asset.SourceInfo.ASSET, null, ""));
+
+      assertThrows(IllegalArgumentException.class, () -> ChartGeoShelf.requireSource(rvs, "Chart1"));
+   }
+
+   @Test
+   void aChartWithASourceIsNotRefused() throws Exception {
+      ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      ainfo.setSourceInfo(new inetsoft.uql.asset.SourceInfo(
+         inetsoft.uql.asset.SourceInfo.ASSET, null, "Order Model"));
+      when(sessions.resolve(any(), any())).thenReturn(rvs);
+      doAnswer(inv -> {
+         ((inetsoft.web.wiz.viewsheet.ViewsheetSessionService.Mutation) inv.getArgument(2))
+            .run(rvs, "rt", null);
+         return List.of();
+      }).when(sessions).mutate(any(), any(), any());
+
+      List<Detected> detected = ChartGeoShelf.write(
+         sessions, "tok", null, "Chart1", handler, List.of(new Field("State", "State")), "U.S.");
+
+      assertEquals(1, detected.size());
+      assertEquals("U.S.", detected.get(0).mapType());
+   }
+
+   @Test
    void anExplicitMapTypeIsRespectedAndAStaleEntryDoesNotKeepItsOldType() throws Exception {
       ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State")), "U.S.");
       VSChartGeoRef stale = (VSChartGeoRef) info.getGeoColumns().getAttribute("State");
