@@ -61,6 +61,7 @@ import org.springframework.stereotype.Service;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.security.Principal;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -1171,11 +1172,49 @@ public class ViewsheetEditService {
                ". Omit 'container' to move it out of whichever container it is in.");
          }
 
+         // Without a container the Composer service returns silently, so the call reported
+         // "Applied" for an assembly that was never in a container.
+         if(current.container() == null) {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is not in any container, so there is nothing to " +
+               "move it out of. Use edit(op:'move') to reposition it.");
+         }
+
          MoveVSObjectEvent event = new MoveVSObjectEvent();
          event.setName(request.assembly());
          event.setxOffset(request.x());
          event.setyOffset(request.y());
          objects.moveFromContainer(runtimeId, event, user, dispatcher, linkUri);
+
+         // The Composer service treats a drop point inside the container's rectangle as "dropped
+         // back in" (java.awt.Rectangle.contains: left/top edges inside, right/bottom edges
+         // outside) and returns without removing anything or reporting it. Check the outcome
+         // rather than re-deriving the geometry, which can differ by layout.
+         AssemblyNode after = requireExisting(rvs, request.assembly());
+
+         if(current.container().equals(after.container())) {
+            boolean group = reader.read(rvs).assemblies().stream()
+               .anyMatch(n -> n.name().equals(current.container()) &&
+                         "GroupContainer".equals(n.type()));
+
+            if(!group) {
+               throw new IllegalArgumentException(
+                  "'" + request.assembly() + "' was not moved out of container '" +
+                  current.container() + "': the point (" + request.x() + ", " + request.y() +
+                  ") lies inside the container's rectangle, which the product treats as " +
+                  "dropping it back in. Choose a point outside that rectangle (its left/top " +
+                  "edges are inside, its right/bottom edges are outside).");
+            }
+
+            // Inside a Group container a drop only repositions the child within the group.
+            MessageCommand command = new MessageCommand();
+            command.setType(MessageCommand.Type.WARNING);
+            command.setMessage("'" + request.assembly() + "' is still in Group '" +
+               current.container() + "': the point lies inside the group, so it was only " +
+               "repositioned within it. Use a point outside the group to take it out, or " +
+               "edit(op:'ungroup') to dissolve the group.");
+            dispatcher.sendCommand(request.assembly(), command);
+         }
       });
    }
 
