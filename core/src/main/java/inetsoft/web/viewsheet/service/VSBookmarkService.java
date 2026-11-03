@@ -704,10 +704,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       SecurityEngine engine = securityEngine;
       MessageCommand messageCommand = new MessageCommand();
 
-      boolean isGlobalVSPermDenied = currentPrincipal instanceof XPrincipal &&
-                                     SUtil.isDefaultVSGloballyVisible(currentPrincipal) &&
-                                     !Tool.equals(rvs.getEntry() == null ? "" :
-                                     rvs.getEntry().getOrgID(), ((XPrincipal) currentPrincipal).getOrgId());
+      boolean isGlobalVSPermDenied = isDefaultOrgDeniedForOtherOrg(rvs, currentPrincipal);
 
       if(!engine.checkPermission(currentPrincipal, ResourceType.VIEWSHEET_ACTION, "Bookmark",
                                  ResourceAction.READ))
@@ -718,7 +715,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
 
       if(isGlobalVSPermDenied) {
-         messageCommand.setMessage(catalog.getString("Can't create simple scheduler for default organization"));
+         messageCommand.setMessage(catalog.getString(DEFAULT_ORG_DENIED_KEY));
          messageCommand.setType(MessageCommand.Type.WARNING);
          return messageCommand;
       }
@@ -1202,6 +1199,22 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    }
 
    private final ViewsheetService viewsheetService;
+   /**
+    * Whether the principal belongs to another organization and the viewsheet is only visible
+    * to it through the default-organization global exposure, so bookmark changes are refused.
+    */
+   public static boolean isDefaultOrgDeniedForOtherOrg(RuntimeViewsheet rvs,
+                                                       Principal principal)
+   {
+      return principal instanceof XPrincipal &&
+         SUtil.isDefaultVSGloballyVisible(principal) &&
+         !Tool.equals(rvs.getEntry() == null ? "" : rvs.getEntry().getOrgID(),
+                      ((XPrincipal) principal).getOrgId());
+   }
+
+   public static final String DEFAULT_ORG_DENIED_KEY =
+      "viewer.viewsheet.bookmark.defaultOrgDenied";
+
    private final VSObjectService vsObjectService;
    private final SecurityEngine securityEngine;
    private final ScheduleManager scheduleManager;

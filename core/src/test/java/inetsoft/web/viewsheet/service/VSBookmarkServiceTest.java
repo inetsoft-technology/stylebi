@@ -19,16 +19,21 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.sync.ViewsheetBookmarkChangedEvent;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.util.Catalog;
 import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
@@ -44,7 +49,9 @@ import java.security.Principal;
 import java.util.Vector;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -308,6 +315,45 @@ class VSBookmarkServiceTest {
          assertEquals("user0_g", orig.getValue().getName());
          assertEquals(VSBookmarkInfo.PRIVATE, orig.getValue().getType());
          assertNotSame(current, orig.getValue());
+      }
+   }
+
+   /**
+    * Bug #80169 -- the refusal for a user of another organization on a default-organization
+    * dashboard must come from a real catalog entry that describes the actual reason, not the
+    * old literal "Can't create simple scheduler for default organization".
+    */
+   @Test
+   void checkAddBookmark_otherOrgOnDefaultOrgDashboard_refusesWithCatalogMessage() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getOrgID()).thenReturn("host-org");
+      when(rvs.getEntry()).thenReturn(entry);
+
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn("orgA");
+
+      SecurityEngine engine = mock(SecurityEngine.class);
+      when(engine.checkPermission(any(Principal.class), any(ResourceType.class),
+         any(String.class), any(ResourceAction.class))).thenReturn(true);
+
+      VSBookmarkService service = new VSBookmarkService(mock(VSObjectService.class),
+         mock(ViewsheetService.class), engine, mock(ScheduleManager.class),
+         mock(Cluster.class), mock(XSessionService.class));
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(() -> SUtil.isDefaultVSGloballyVisible(principal)).thenReturn(true);
+
+         MessageCommand result = service.checkAddBookmark(rvs, "b1", false, principal);
+
+         String expected =
+            Catalog.getCatalog().getString(VSBookmarkService.DEFAULT_ORG_DENIED_KEY);
+         assertEquals(MessageCommand.Type.WARNING, result.getType());
+         assertNotEquals(VSBookmarkService.DEFAULT_ORG_DENIED_KEY, expected);
+         assertEquals(expected, result.getMessage());
+         assertTrue(result.getMessage().contains("bookmark"));
+         assertNotEquals("Can't create simple scheduler for default organization",
+                         result.getMessage());
       }
    }
 }
