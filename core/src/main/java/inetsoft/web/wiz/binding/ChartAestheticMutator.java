@@ -454,7 +454,9 @@ public final class ChartAestheticMutator {
 
          if(!targets.isEmpty()) {
             setMultiAestheticFrame(name, spec, relationChart, targets, measure,
-                                   GraphTypes.isGantt(model.getChartType()));
+                                   GraphTypes.isGantt(model.getChartType()),
+                                   model.getStartField() instanceof ChartAggregateRefModel start
+                                      ? start.getShapeField() : null);
             return;
          }
       }
@@ -1582,11 +1584,15 @@ public final class ChartAestheticMutator {
     *
     * @param gantt whether the chart is a Gantt chart, which is multi-aesthetic whatever its
     *              multi-style setting, so the refusal must not offer turning multi-style off.
+    * @param ganttShape the Gantt chart's shape field. It lives on the start field only, so the
+    *                   question "is shape bound" is chart-level there, whichever measure is
+    *                   targeted; ignored on any other chart (shape is per measure there).
     */
    private static void setMultiAestheticFrame(String name, Map<String, Object> spec,
                                               boolean relationChart,
                                               List<ChartAggregateRefModel> targets,
-                                              String measure, boolean gantt)
+                                              String measure, boolean gantt,
+                                              AestheticInfo ganttShape)
    {
       List<ChartAggregateRefModel> selected = measure == null
          ? targets : List.of(requireTargetMeasure(targets, name, measure));
@@ -1598,19 +1604,26 @@ public final class ChartAestheticMutator {
          VisualFrameModel frame = VisualFrameAliases.create(name, spec, relationChart);
 
          if(field == null) {
+            AestheticInfo shapeField = gantt ? ganttShape : aggregate.getShapeField();
+
             try {
                requireStaticColorOnMeasures(name, frame);
-               requireStaticLineOrTextureOnMeasures(name, frame, aggregate.getShapeField());
+               requireStaticLineOrTextureOnMeasures(name, frame, shapeField);
                requireStaticShapeOrSizeOnMeasures(name, frame);
             }
             catch(IllegalArgumentException e) {
                // Bug #78918: a Gantt chart is multi-aesthetic whatever its multi-style setting,
                // and set_aesthetic_field binds the field onto its measures directly.
-               throw new IllegalArgumentException(gantt
+               // Bug #80119: only the bound-shape refusal of the line/texture channels is circular
+               // advice (it already names the channel to use); a colour/size/shape refusal on a
+               // Gantt chart keeps its start/milestone guidance.
+               boolean boundShapeRefusal = shapeField != null &&
+                  ("line".equals(name) || "texture".equals(name));
+               throw new IllegalArgumentException(gantt && !boundShapeRefusal
                   ? e.getMessage() + " This is a Gantt chart: bind a field with " +
                     "set_aesthetic_field first (it goes onto the start and milestone measures), " +
                     "then set this frame. Measure: " + measureLabel(aggregate) + "."
-                  : aggregate.getShapeField() != null
+                  : gantt || aggregate.getShapeField() != null
                   ? e.getMessage() + " Measure: " + measureLabel(aggregate) + "."
                   : e.getMessage() + " This chart is multi-style, where set_aesthetic_field is " +
                     "refused: turn multi-style off (set_chart_type multi:false), bind the field, " +
