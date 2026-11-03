@@ -90,8 +90,8 @@ class AdminAssetImportApplyServiceTest {
    }
 
    private AdminAssetImportApplyService service() {
-      return new AdminAssetImportApplyService(planService, importService, backupService,
-         now::get, ms -> now.addAndGet(ms), 2_000L, 500L);
+      return new AdminAssetImportApplyService(planService, importService, backupService)
+         .withTiming(now::get, ms -> now.addAndGet(ms), 2_000L, 500L);
    }
 
    private RepositoryImportApplyRequest request(boolean overwrite) {
@@ -226,8 +226,8 @@ class AdminAssetImportApplyServiceTest {
    void interruptedPollIsInProgressAndKeepsTheInterruptFlag() throws Exception {
       importReturns(false, queued());
       AdminAssetImportApplyService svc = new AdminAssetImportApplyService(planService,
-         importService, backupService, now::get, ms -> { throw new InterruptedException(); },
-         2_000L, 500L);
+         importService, backupService)
+         .withTiming(now::get, ms -> { throw new InterruptedException(); }, 2_000L, 500L);
 
       try {
          RepositoryImportApplyResult result = svc.apply(request(false), user);
@@ -271,7 +271,8 @@ class AdminAssetImportApplyServiceTest {
          assertTrue(held.await(10, java.util.concurrent.TimeUnit.SECONDS));
          // real clock and a short deadline so the lock wait (a quarter of it) is ~50 ms
          AdminAssetImportApplyService second = new AdminAssetImportApplyService(planService,
-            importService, backupService, System::currentTimeMillis, Thread::sleep, 200L, 50L);
+            importService, backupService)
+            .withTiming(System::currentTimeMillis, Thread::sleep, 200L, 50L);
          assertThrows(AdminAssetImportApplyService.ApplyInProgressException.class,
                       () -> second.apply(request(true), user));
          verifyNoInteractions(planService, backupService, importService);

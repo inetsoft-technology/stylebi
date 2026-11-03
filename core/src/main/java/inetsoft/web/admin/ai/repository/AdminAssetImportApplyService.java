@@ -58,22 +58,20 @@ public class AdminAssetImportApplyService {
                                        ImportAssetServiceProxy importService,
                                        AdminBackupService backupService)
    {
-      this(planService, importService, backupService, System::currentTimeMillis,
-           Thread::sleep, TOTAL_DEADLINE_MS, POLL_INTERVAL_MS);
-   }
-
-   AdminAssetImportApplyService(RepositoryImportChangePlanService planService,
-                                ImportAssetServiceProxy importService,
-                                AdminBackupService backupService, LongSupplier clock,
-                                Sleeper sleeper, long totalDeadlineMs, long pollIntervalMs)
-   {
       this.planService = planService;
       this.importService = importService;
       this.backupService = backupService;
+   }
+
+   /** Test seam: replaces the clock, sleep and timing defaults (not a bean dependency). */
+   AdminAssetImportApplyService withTiming(LongSupplier clock, Sleeper sleeper,
+                                           long totalDeadlineMs, long pollIntervalMs)
+   {
       this.clock = clock;
       this.sleeper = sleeper;
       this.totalDeadlineMs = totalDeadlineMs;
       this.pollIntervalMs = pollIntervalMs;
+      return this;
    }
 
    /** Injectable sleep so tests do not wait in real time. */
@@ -338,8 +336,8 @@ public class AdminAssetImportApplyService {
    private final RepositoryImportChangePlanService planService;
    private final ImportAssetServiceProxy importService;
    private final AdminBackupService backupService;
-   private final LongSupplier clock;
-   private final Sleeper sleeper;
-   private final long totalDeadlineMs;
-   private final long pollIntervalMs;
+   private LongSupplier clock = System::currentTimeMillis;
+   private Sleeper sleeper = Thread::sleep;
+   private long totalDeadlineMs = TOTAL_DEADLINE_MS;
+   private long pollIntervalMs = POLL_INTERVAL_MS;
 }
