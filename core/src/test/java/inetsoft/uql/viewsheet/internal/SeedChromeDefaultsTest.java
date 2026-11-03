@@ -48,6 +48,8 @@ import java.io.StringReader;
 import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * The creation seeds, pinned. Written before the seedChromeDefaults extraction as its safety net:
@@ -887,6 +889,16 @@ class SeedChromeDefaultsTest {
       assertEquals(100, def.getAlphaValue());
       assertEquals(new Insets(1, 0, 1, 0), def.getBordersValue(),
                    "a Revert writes no legacy frame over the separators");
+   }
+
+   @Test
+   void isInSelectionContainerToleratesASheetWithNoAssemblyList() {
+      Viewsheet mockVs = mock(Viewsheet.class);
+      when(mockVs.getAssemblies()).thenReturn(null);
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      info.setViewsheet(mockVs);
+
+      assertFalse(info.isInSelectionContainer());
    }
 
    @Test

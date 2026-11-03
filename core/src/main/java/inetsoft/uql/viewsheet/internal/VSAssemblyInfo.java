@@ -1379,7 +1379,13 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          return false;
       }
 
-      for(Assembly assembly : vs.getAssemblies()) {
+      Assembly[] assemblies = vs.getAssemblies();
+
+      if(assemblies == null) {
+         return false;
+      }
+
+      for(Assembly assembly : assemblies) {
          if(assembly instanceof CurrentSelectionVSAssembly container) {
             String[] children = container.getAssemblies();
 
