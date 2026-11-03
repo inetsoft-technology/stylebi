@@ -7074,6 +7074,9 @@ class WorksheetAgentControllerTest {
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "wsSp", null);
+      when(rws.getEntry()).thenReturn(entry);
 
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
@@ -7091,6 +7094,7 @@ class WorksheetAgentControllerTest {
          new WorksheetAgentController.WorksheetPropertiesRequest("Good Alias 1", null), agent);
 
       assertEquals("Good Alias 1", ws.getWorksheetInfo().getAlias());
+      assertEquals("Good Alias 1", entry.getAlias());
    }
 
    /**
@@ -7109,6 +7113,9 @@ class WorksheetAgentControllerTest {
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "wsSp", null);
+      when(rws.getEntry()).thenReturn(entry);
 
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
@@ -7126,6 +7133,7 @@ class WorksheetAgentControllerTest {
          new WorksheetAgentController.WorksheetPropertiesRequest(goodAlias, null), agent);
 
       assertEquals(goodAlias, ws.getWorksheetInfo().getAlias());
+      assertEquals(goodAlias, entry.getAlias());
    }
 
    // ---------------------------------------------------------------------------
