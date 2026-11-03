@@ -6497,6 +6497,7 @@ public final class VSUtil {
 
       if(hasRuntimeRowHeader(ocinfo)) {
          syncSoleAggregateHeader(ocinfo, cinfo, removed, added, synMap, fromSetInput);
+         syncRemainingAggregateHeader(ocinfo, cinfo, added, synMap, fromSetInput);
          syncSummaryHeader(ocinfo, cinfo, aggNameMap, dimNameMap, removed, added, synMap, fromSetInput);
          syncSummaryCell(ocinfo, cinfo, aggNameMap, dimNameMap, removed, added, synMap,
             clearFormats, fromSetInput);
@@ -6549,6 +6550,91 @@ public final class VSUtil {
       for(TableDataPath ntp : added.keySet()) {
          synMap.put(ntp, added.get(ntp));
       }
+
+      if(!fromSetInput && !fromDrill) {
+         clearNumberFormatOnCountChange(ocinfo, cinfo, aggNameMap, added.keySet(), synMap);
+      }
+   }
+
+   /**
+    * The measure key of a path-keyed setting never contains the formula, so changing
+    * Average(Discount) to Count(Discount) leaves the old number format (e.g. a percent) on the
+    * count (bug #80094). Drop the number/date format of every summary, total and hidden summary
+    * path whose measure key now holds a count (Count or DistinctCount) where it held a non-count,
+    * or the reverse. Count to DistinctCount, and swaps between non-count formulas, keep it.
+    * The origin of a path is decided per path: if its entry was written from the moved entries
+    * ({@code written}), it is the old aggregate carried onto that key; otherwise the entry is the
+    * one that was already there, so it is the old aggregate that had the same key (this covers an
+    * aggregate that was removed or inserted next to one on the same column). Known limit:
+    * Average -> Sum -> Count in two calls is not detected, as the formula is not stored with the
+    * format. A percent aggregate is skipped, as it renders as a percent either way. Entries are
+    * cloned first, as a format object can be shared between the retained old key and the new key.
+    */
+   @SuppressWarnings("unchecked")
+   private static <V> void clearNumberFormatOnCountChange(VSCrosstabInfo ocinfo,
+                                                          VSCrosstabInfo cinfo,
+                                                          Map<String, String> aggNameMap,
+                                                          Set<TableDataPath> written,
+                                                          Map<TableDataPath, V> synMap)
+   {
+      DataRef[] orefs = getRefs(ocinfo, true);
+      DataRef[] nrefs = getRefs(cinfo, true);
+      String[] onames = buildName(orefs, true);
+      String[] nnames = buildName(nrefs, true);
+
+      for(TableDataPath tp : new ArrayList<>(synMap.keySet())) {
+         String[] arr = tp.getPath();
+         int type = tp.getType();
+
+         if(arr == null || arr.length == 0 ||
+            type != TableDataPath.SUMMARY && type != TableDataPath.TRAILER &&
+            type != TableDataPath.HIDDEN_SUMMARY)
+         {
+            continue;
+         }
+
+         String key = arr[arr.length - 1];
+         int j = Arrays.asList(nnames).indexOf(key);
+
+         if(j < 0 || !(nrefs[j] instanceof VSAggregateRef)) {
+            continue;
+         }
+
+         VSAggregateRef nref = (VSAggregateRef) nrefs[j];
+         Calculator calc = nref.getCalculator();
+         boolean percent = (calc != null && calc.isPercent()) ||
+            nref.getPercentageOption() != XConstants.PERCENTAGE_NONE;
+         int origin = -1;
+
+         for(int i = 0; i < onames.length; i++) {
+            boolean match = written.contains(tp) ?
+               key.equals(aggNameMap.get(onames[i])) : key.equals(onames[i]);
+
+            if(match) {
+               origin = i;
+               break;
+            }
+         }
+
+         V obj = synMap.get(tp);
+
+         if(percent || origin < 0 || !(orefs[origin] instanceof VSAggregateRef) ||
+            isCountFormula(((VSAggregateRef) orefs[origin]).getFormula()) ==
+            isCountFormula(nref.getFormula()) || !(obj instanceof VSCompositeFormat))
+         {
+            continue;
+         }
+
+         VSCompositeFormat fmt = ((VSCompositeFormat) obj).clone();
+         fmt.getUserDefinedFormat().setFormatValue(null, false);
+         fmt.getUserDefinedFormat().setFormatExtentValue(null, false);
+         synMap.put(tp, (V) fmt);
+      }
+   }
+
+   private static boolean isCountFormula(AggregateFormula formula) {
+      return AggregateFormula.COUNT_ALL.equals(formula) ||
+         AggregateFormula.COUNT_DISTINCT.equals(formula);
    }
 
    /**
@@ -6810,6 +6896,65 @@ public final class VSUtil {
                add.put(ntp, obj instanceof VSCompositeFormat ?
                   (V) ((VSCompositeFormat) obj).clone() : obj);
             }
+         }
+      }
+   }
+
+   /**
+    * The mirror of {@link #syncSoleAggregateHeader}, for 2+ aggregates going down to one (Bug
+    * #80016): the header of the aggregate that stays is now read from the one-segment [agg] path,
+    * but its label (or header format, highlight, hyperlink) sits at the detail-level
+    * [row dims..., agg] path, so it vanished. The detail-level setting is copied to [agg] only if
+    * it exists, so a setting already on [agg] (made while there was one aggregate) is kept
+    * otherwise. The old multi-segment keys are left in place, so going back to 2+ aggregates
+    * restores them. Same guards as the 1 to 2+ direction: row dimensions, no column dimension,
+    * not side by side, and the surviving aggregate must have been bound by the same name.
+    */
+   private static <V> void syncRemainingAggregateHeader(VSCrosstabInfo ocinfo, VSCrosstabInfo cinfo,
+                                                        Map<TableDataPath, V> add,
+                                                        Map<TableDataPath, V> synMap,
+                                                        boolean fromSetInput)
+   {
+      DataRef[] oaggs = ocinfo.getRuntimeAggregates();
+      DataRef[] aggs = cinfo.getRuntimeAggregates();
+      DataRef[] orows = ocinfo.getRuntimeRowHeaders();
+      DataRef[] rows = cinfo.getRuntimeRowHeaders();
+      DataRef[] ocols = ocinfo.getRuntimeColHeaders();
+      DataRef[] cols = cinfo.getRuntimeColHeaders();
+
+      if(oaggs == null || aggs == null || oaggs.length < 2 || aggs.length != 1 ||
+         rows == null || rows.length == 0 || orows == null || orows.length == 0 ||
+         ocols != null && ocols.length > 0 || cols != null && cols.length > 0 ||
+         ocinfo.isSummarySideBySide() || cinfo.isSummarySideBySide())
+      {
+         return;
+      }
+
+      String[] odims = buildNames(ocinfo, false);
+      String agg = buildNames(cinfo, true)[0];
+
+      if(!Arrays.asList(buildNames(ocinfo, true)).contains(agg)) {
+         return;
+      }
+
+      String[] detail = Arrays.copyOf(odims, odims.length + 1);
+      detail[odims.length] = agg;
+
+      for(TableDataPath tp : new ArrayList<>(synMap.keySet())) {
+         String[] arr = tp.getPath();
+
+         if(arr == null || !Arrays.equals(detail, arr) ||
+            tp.getType() != TableDataPath.HEADER && tp.getType() != TableDataPath.GROUP_HEADER)
+         {
+            continue;
+         }
+
+         V obj = synMap.get(tp);
+         TableDataPath ntp = (TableDataPath) tp.clone(new String[] { agg });
+
+         if(obj != null && (!fromSetInput || synMap.get(ntp) == null)) {
+            add.put(ntp, obj instanceof VSCompositeFormat ?
+               (V) ((VSCompositeFormat) obj).clone() : obj);
          }
       }
    }

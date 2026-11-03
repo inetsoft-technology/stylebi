@@ -122,6 +122,32 @@ class AdminScheduleGatewayTest {
       }
    }
 
+   // Bug #79974, the preflight builds the candidate task and runs the manager's no-write save check
+   @Test
+   void checkAddScheduleTaskSavable_delegatesCandidateTaskToManagerSaveCheck() throws Exception {
+      try(MockedStatic<XSessionService> sessionStatic = mockStatic(XSessionService.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class))
+      {
+         mockSession(sessionStatic);
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         when(orgManager.isSiteAdmin((Principal) any())).thenReturn(false);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         SRPrincipal orgUser = createPrincipal("caller", "host-org");
+         ViewsheetAction action = new ViewsheetAction();
+         action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+         ScheduleTaskMetaData meta = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+         org.mockito.ArgumentCaptor<inetsoft.sree.schedule.ScheduleTask> captor =
+            org.mockito.ArgumentCaptor.forClass(inetsoft.sree.schedule.ScheduleTask.class);
+
+         gateway.checkAddScheduleTaskSavable(meta, true, false, -1, -1, null, null, null,
+            Collections.emptyList(), List.of(action), null, orgUser);
+
+         verify(scheduleManager).checkScheduleTaskSave(anyString(), captor.capture(), eq(orgUser));
+         assertEquals(1, captor.getValue().getActionCount());
+         verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+      }
+   }
+
    @Test
    void addScheduleTask_allowsViewsheetActionFromSameOrganization() throws Exception {
       try(MockedStatic<XSessionService> sessionStatic = mockStatic(XSessionService.class);
@@ -1080,6 +1106,47 @@ class AdminScheduleGatewayTest {
       MessageException ex = assertThrows(MessageException.class,
          () -> gateway.requireOwnerResolves(new IdentityID("admin", "no-such-org"), user));
       assertTrue(ex.getMessage().contains("organization \"no-such-org\" does not exist"));
+   }
+
+   // requireOwnerOrganizationExists -- Bug #80027, Gap 2: a schedule-task-import owner kept
+   // verbatim from the uploaded xml must not resolve to an organization that doesn't exist.
+   // Deliberately narrower than requireOwnerResolves -- a built-in system owner (an internal
+   // task's own owner, same as EM's own import sets) must still pass.
+
+   @Test
+   void requireOwnerOrganizationExists_refusesUnknownOrganization() {
+      ownerProvider("host-org", "admin");
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> gateway.requireOwnerOrganizationExists(
+            new IdentityID("admin", "qa-no-such-org-xyz")));
+      assertTrue(ex.getMessage().contains("admin"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("qa-no-such-org-xyz"), ex.getMessage());
+   }
+
+   @Test
+   void requireOwnerOrganizationExists_acceptsAKnownOrganization() {
+      ownerProvider("host-org", "admin");
+
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID("admin", "host-org")));
+   }
+
+   @Test
+   void requireOwnerOrganizationExists_acceptsABuiltInSystemOwner() {
+      ownerProvider("host-org", "admin");
+
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID(XPrincipal.SYSTEM, "host-org")));
+   }
+
+   @Test
+   void requireOwnerOrganizationExists_toleratesANullOrBlankOwner() {
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(null));
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID("admin", null)));
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID("admin", "  ")));
    }
 
    @Test

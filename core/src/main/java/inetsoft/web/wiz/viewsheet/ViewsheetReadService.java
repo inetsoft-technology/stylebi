@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -87,6 +88,7 @@ public class ViewsheetReadService {
       Assembly container = assembly.getContainer();
 
       List<String> parts = AnnotationFamily.partsOf(assembly);
+      AssetEntry embeddedEntry = embeddedEntryOf(assembly);
 
       return new AssemblyNode(
          assembly.getAbsoluteName(),
@@ -101,7 +103,28 @@ public class ViewsheetReadService {
          parts.isEmpty() ? null : parts,
          AnnotationFamily.contentOf(vs, assembly),
          assembly instanceof TabVSAssembly tab ? selectedPage(tab) : null,
-         assembly instanceof CurrentSelectionVSAssembly selection ? childrenOf(selection) : null);
+         assembly instanceof CurrentSelectionVSAssembly selection ? childrenOf(selection) : null,
+         embeddedEntry == null ? null : embeddedEntry.getPath(),
+         embeddedEntry == null ? null : scopeName(embeddedEntry.getScope()));
+   }
+
+   /**
+    * The dashboard an embedded Viewsheet references. Read from {@code Viewsheet.getEntry()}, the
+    * field {@code add_assembly} sets and the sheet persists, not from
+    * {@code ViewsheetVSAssemblyInfo.getEntry()}, which is empty on the live assembly.
+    */
+   private static AssetEntry embeddedEntryOf(VSAssembly assembly) {
+      return assembly instanceof Viewsheet embedded ? embedded.getEntry() : null;
+   }
+
+   /** The add_assembly scope vocabulary; any other scope is named, never defaulted to global. */
+   private static String scopeName(int scope) {
+      return switch(scope) {
+         case AssetRepository.GLOBAL_SCOPE -> "global";
+         case AssetRepository.USER_SCOPE -> "user";
+         case AssetRepository.REPORT_SCOPE -> "report";
+         default -> "scope-" + scope;
+      };
    }
 
    /** A Selection Container's children in display order. */

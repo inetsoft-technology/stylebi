@@ -36,6 +36,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
@@ -395,6 +396,12 @@ public class CalcFieldAgentService {
                   links.add((Hyperlink) e.nextElement());
                }
             }
+         }
+         else if(info instanceof VSAssemblyInfo plain) {
+            // Gauge/Text/Image and any other bound output: the native rename only rewrites the
+            // link's parameters, never a "hyperlink:<field>" web link target.
+            links.add(plain.getHyperlinkValue());
+            links.add(plain.getHyperlink());
          }
 
          for(Hyperlink link : links) {

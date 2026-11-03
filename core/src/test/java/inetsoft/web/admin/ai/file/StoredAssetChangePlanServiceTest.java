@@ -196,6 +196,90 @@ class StoredAssetChangePlanServiceTest {
       assertTrue(plan.requiresAgentSignoff(), "overwriting an existing file is high risk");
    }
 
+   private StoredAssetChangeRequest write(String path, String content) {
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, path);
+      c.setContent(content);
+      return c;
+   }
+
+   private void existingFile(String path, byte[] bytes) throws Exception {
+      when(dataSpace.exists(null, path)).thenReturn(true);
+      when(dataSpace.isDirectory(path)).thenReturn(false);
+      when(dataSpace.getFileLength(null, path)).thenReturn((long) bytes.length);
+      when(dataSpace.getInputStream(null, path))
+         .thenAnswer(inv -> new java.io.ByteArrayInputStream(bytes));
+   }
+
+   @Test
+   void writeHashBindsTheContentNotJustItsSize() throws Exception {
+      existingFile("a.txt", new byte[] { 'A' });
+
+      String x = service.resolve(request(write("a.txt", "X")), principal).planHash();
+      String y = service.resolve(request(write("a.txt", "Y")), principal).planHash();
+      String xAgain = service.resolve(request(write("a.txt", "X")), principal).planHash();
+
+      assertNotEquals(x, y, "same-length different content must not hash alike");
+      assertEquals(x, xAgain);
+   }
+
+   @Test
+   void writeHashChangesWhenTheExistingFileChangesToTheSameSize() throws Exception {
+      existingFile("a.txt", new byte[] { 'A' });
+      String before = service.resolve(request(write("a.txt", "X")), principal).planHash();
+
+      existingFile("a.txt", new byte[] { 'B' });
+      String after = service.resolve(request(write("a.txt", "X")), principal).planHash();
+
+      assertNotEquals(before, after);
+   }
+
+   @Test
+   void writeHashCoversANonUtf8ExistingFile() throws Exception {
+      existingFile("b.bin", new byte[] { (byte) 0xff, 0x01 });
+      String before = service.resolve(request(write("b.bin", "X")), principal).planHash();
+
+      existingFile("b.bin", new byte[] { (byte) 0xfe, 0x01 });
+      String after = service.resolve(request(write("b.bin", "X")), principal).planHash();
+
+      assertNotEquals(before, after);
+   }
+
+   @Test
+   void writeOverAnUnreadableExistingFileDoesNotThrowAndHashesStably() {
+      when(dataSpace.exists(null, "a.txt")).thenReturn(true);
+      when(dataSpace.isDirectory("a.txt")).thenReturn(false);
+      when(dataSpace.getFileLength(null, "a.txt")).thenReturn(1L);
+
+      String first = service.resolve(request(write("a.txt", "X")), principal).planHash();
+      String second = service.resolve(request(write("a.txt", "X")), principal).planHash();
+      String other = service.resolve(request(write("a.txt", "Y")), principal).planHash();
+
+      assertEquals(first, second);
+      assertNotEquals(first, other);
+   }
+
+   @Test
+   void writeProjectionStaysSizeOnlyAndDoesNotEchoContent() throws Exception {
+      existingFile("a.txt", new byte[] { 'A' });
+
+      ResolvedPlan plan = service.resolve(request(write("a.txt", "SECRET")), principal);
+
+      assertEquals("exists=true;size=6", plan.changes().get(0).proposedValue());
+      assertFalse(plan.changes().toString().contains("SECRET"));
+   }
+
+   @Test
+   void createRenameAndDeleteHashesIgnoreHiddenInputs() {
+      StoredAssetChangeRequest create =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "n");
+      when(dataSpace.exists(null, "n")).thenReturn(false);
+      ResolvedPlan plan = service.resolve(request(create), principal);
+
+      assertEquals(StoredAssetChangePlanService.hash(plan.changes(), java.util.Map.of()),
+                   plan.planHash());
+   }
+
    @Test
    void resolveRenameRefusesWhenDestinationAlreadyExists() {
       when(dataSpace.exists(null, "a.js")).thenReturn(true);

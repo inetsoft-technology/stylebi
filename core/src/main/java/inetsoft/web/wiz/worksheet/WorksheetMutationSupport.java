@@ -612,6 +612,34 @@ public final class WorksheetMutationSupport {
       List<Integer> matches = existing == null || existing.isEmpty()
          ? List.of() : filterMatches(existing.getConditionList(), field);
 
+      // Bug #80031 (WSC-048): field is routed by resolveUnambiguousAggregateAlias exactly as
+      // addFilter/removeFilter route it (see removeFilter's own Bug #76752 note), so a group
+      // column with an existing condition ONLY in the list its field kind does not default to
+      // (e.g. a group-by column's own post-aggregate/HAVING condition, same shape #79605 found
+      // for remove_filter) found no match in its default list here. Silently falling through to
+      // appendFilterItem below would ADD a new condition in that default list while leaving the
+      // real, existing one in the other list untouched -- two conditions in effect from what the
+      // tool describes as a single replace. Refuse instead, the same way an ambiguous multi-match
+      // already refuses rather than guessing.
+      if(matches.isEmpty()) {
+         ConditionListWrapper other = post ? t.getPreConditionList() : t.getPostConditionList();
+         List<Integer> otherMatches = other == null || other.isEmpty()
+            ? List.of() : filterMatches(other.getConditionList(), field);
+
+         if(!otherMatches.isEmpty()) {
+            throw new IllegalArgumentException(
+               "\"" + field + "\" has no " + (post ? "post-aggregate (HAVING)" : "pre-aggregate") +
+               " condition, but does have one in the " +
+               (post ? "pre-aggregate" : "post-aggregate (HAVING)") + " list -- edit_condition " +
+               "only replaces a condition in the list field's own kind (aggregate alias vs. " +
+               "plain/group column) belongs to, never across lists, so replacing it here would " +
+               "add a second condition rather than changing the existing one. Nothing was " +
+               "changed. Read the conditions with get_condition/read_worksheet_model and rewrite " +
+               "the whole list with " + (post ? "set_conditions" : "set_post_conditions") +
+               " instead.");
+         }
+      }
+
       if(matches.size() > 1) {
          throw new IllegalArgumentException(
             "\"" + field + "\" has " + matches.size() + " conditions in this table's " +
@@ -671,6 +699,7 @@ public final class WorksheetMutationSupport {
       String refType = columnType(t, ref, false);
       String dtype = refType != null && !refType.isBlank() ? refType : XSchema.STRING;
       requireNoNumericTextMatch(field, dtype, op);
+      requireDateTypeForDateIn(field, ref, refType, op);
 
       ConditionItem item;
       // Bug #78394: add_filter/edit_condition had no value-count check at all.
@@ -3938,7 +3967,7 @@ public final class WorksheetMutationSupport {
       }
 
       ConditionList cl = buildConditionList(
-         t, nodes, post, post ? t.getPostConditionList() : t.getPreConditionList());
+         t, nodes, post, post ? t.getPostConditionList() : t.getPreConditionList(), false);
 
       if(post) {
          t.setPostConditionList(cl);
@@ -4017,7 +4046,7 @@ public final class WorksheetMutationSupport {
    private static ConditionList mvConditionList(TableAssembly t, List<ConditionNode> nodes,
                                                 boolean post, ConditionListWrapper existing)
    {
-      ConditionList cl = buildConditionList(t, nodes, post, existing);
+      ConditionList cl = buildConditionList(t, nodes, post, existing, true);
       return cl != null ? cl : new ConditionList();
    }
 
@@ -4029,9 +4058,12 @@ public final class WorksheetMutationSupport {
     *
     * @param existing the list being replaced; a numeric literal the column's current type
     *                 refuses may be judged against its conditions' types (Bug #78897)
+    * @param mv       {@code true} for an MV update/delete list, whose Composer dialog offers a
+    *                 Field value with text-match operators too (see {@link #requireFieldOperand})
     */
    private static ConditionList buildConditionList(TableAssembly t, List<ConditionNode> nodes,
-                                                    boolean post, ConditionListWrapper existing)
+                                                    boolean post, ConditionListWrapper existing,
+                                                    boolean mv)
    {
       ConditionList cl = new ConditionList();
 
@@ -4043,19 +4075,26 @@ public final class WorksheetMutationSupport {
             String dtype = conditionType(t, spec, post);
             requireNoNumericTextMatch(spec.field(), dtype, op);
 
-            if((spec.type() == null || spec.type().isBlank()) && op != XCondition.DATE_IN) {
-               // A value an indexed valueSpec replaces is a field/expression/variable reference
-               // whose values() entry is only display text, so it is not a literal to judge.
-               java.util.Set<Integer> replaced = new java.util.HashSet<>();
+            if(op == XCondition.DATE_IN) {
+               // judged on the column's own type, never on the caller-declared spec.type()
+               DataRef dateInRef = resolveField(t, spec.field(), post);
+               requireDateTypeForDateIn(spec.field(), dateInRef,
+                                        columnType(t, dateInRef, post), op);
+            }
 
-               if(spec.valueSpecs() != null) {
-                  for(ConditionValueSpec vs : spec.valueSpecs()) {
-                     if(vs.index() != null) {
-                        replaced.add(vs.index());
-                     }
+            // A value an indexed valueSpec replaces is a field/expression/variable reference
+            // whose values() entry is only display text, so it is not a literal to judge.
+            java.util.Set<Integer> replaced = new java.util.HashSet<>();
+
+            if(spec.valueSpecs() != null) {
+               for(ConditionValueSpec vs : spec.valueSpecs()) {
+                  if(vs.index() != null) {
+                     replaced.add(vs.index());
                   }
                }
+            }
 
+            if((spec.type() == null || spec.type().isBlank()) && op != XCondition.DATE_IN) {
                List<String> literals = new ArrayList<>();
 
                for(int i = 0; spec.values() != null && i < spec.values().size(); i++) {
@@ -4100,7 +4139,18 @@ public final class WorksheetMutationSupport {
                List<Object> resolvedValues = new ArrayList<>();
 
                if(spec.values() != null) {
-                  for(String v : spec.values()) {
+                  for(int i = 0; i < spec.values().size(); i++) {
+                     String v = spec.values().get(i);
+
+                     // Bug #80063: a slot an indexed valueSpec overwrites below holds only the
+                     // readback display text of that field/expression value ("T.Flag",
+                     // "Expression[Javascript:true]"), so judging it as a literal refused a
+                     // boolean column's own readback. Keep the position; the spec replaces it.
+                     if(replaced.contains(i)) {
+                        resolvedValues.add(v);
+                        continue;
+                     }
+
                      // Shared with addFilter rather than parsed a second time here. The local copy
                      // had no lower bound on the name, so "$()" became a variable named "" -- one
                      // nothing can ever resolve, reported as ok. Typing was NOT the difference,
@@ -4144,6 +4194,10 @@ public final class WorksheetMutationSupport {
 
                if(spec.valueSpecs() != null) {
                   for(ConditionValueSpec vs : spec.valueSpecs()) {
+                     if(vs != null && "field".equalsIgnoreCase(vs.valueType())) {
+                        requireFieldOperand(t, post, spec, op, ref, vs, mv);
+                     }
+
                      Object value = conditionValue(t, post, vs);
                      Integer index = vs.index();
                      int appends = resolvedValues.size() - originalSize;
@@ -5244,6 +5298,121 @@ public final class WorksheetMutationSupport {
          "with sql:false, e.g. String(field['" + field + "'])) on a mirror and apply the text " +
          "match to that column, or use =, ONE_OF, BETWEEN, <, > on the numeric column. Nothing " +
          "was changed.");
+   }
+
+   /**
+    * Bug #80069: the worksheet twin of the viewsheet's {@code ConditionVocabulary
+    * .requireFieldOperand} (#79570). A Field value is refused with a text match (STARTING_WITH,
+    * CONTAINS, LIKE) or DATE_IN, which the Composer's pre/post condition dialogs do not offer it
+    * for and which store a condition matching nothing; the MV update dialog does offer it for the
+    * text matches, so {@code mv} lists skip this operator rule. A column is also refused against
+    * a column of a different type family (text, numeric, date, boolean), which the query engine
+    * rejects at preview time ("Comparisons between 'VARCHAR' and 'NUMERIC' are not supported").
+    * A type is judged only when {@link #isTypeKnown} says the column really carries one, so an
+    * untyped column (reported as string by default) is never refused on a guess.
+    */
+   private static void requireFieldOperand(TableAssembly t, boolean post, ConditionSpec spec,
+                                           int op, DataRef target, ConditionValueSpec vs,
+                                           boolean mv)
+   {
+      if(!mv && (op == XCondition.STARTING_WITH || op == XCondition.CONTAINS ||
+         op == XCondition.LIKE || op == XCondition.DATE_IN))
+      {
+         throw new IllegalArgumentException(
+            "The condition on \"" + spec.field() + "\" uses " + spec.operation() +
+            ", which does not accept a field-typed value. A field value is accepted only " +
+            "with =, ONE_OF, <, >, <=, >= and BETWEEN; use a literal value, variable or " +
+            "expression instead. Nothing was changed.");
+      }
+
+      if(vs.field() == null || vs.field().isBlank()) {
+         return;
+      }
+
+      DataRef operand = resolveField(t, vs.field(), post);
+
+      if(!isFieldTypeKnown(target) || !isFieldTypeKnown(operand)) {
+         return;
+      }
+
+      String targetType = columnType(t, target, post);
+      String operandType = columnType(t, operand, post);
+      String targetFamily = fieldTypeFamily(targetType);
+      String operandFamily = fieldTypeFamily(operandType);
+
+      if(targetFamily != null && operandFamily != null && !targetFamily.equals(operandFamily)) {
+         throw new IllegalArgumentException(
+            "The condition on \"" + spec.field() + "\" (" + targetType + ") compares with " +
+            "field \"" + vs.field() + "\" (" + operandType + "), which are different types (" +
+            targetFamily + " vs " + operandFamily + ") and cannot be compared. Pick a field " +
+            "of the same type. Nothing was changed.");
+      }
+   }
+
+   /**
+    * {@link #isTypeKnown}, looking through the {@link GroupRef} a post-aggregate condition
+    * resolves a group column to, which carries no type of its own.
+    */
+   private static boolean isFieldTypeKnown(DataRef col) {
+      return isTypeKnown(col instanceof GroupRef grp && grp.getDataRef() != null
+                            ? grp.getDataRef() : col);
+   }
+
+   /** The comparable family of a data type for {@link #requireFieldOperand}, or null if unknown. */
+   private static String fieldTypeFamily(String type) {
+      if(type == null) {
+         return null;
+      }
+
+      if(XSchema.STRING.equals(type) || XSchema.CHAR.equals(type) ||
+         XSchema.CHARACTER.equals(type))
+      {
+         return "text";
+      }
+
+      if(XSchema.isNumericType(type) || XSchema.DECIMAL.equals(type)) {
+         return "numeric";
+      }
+
+      if(XSchema.isDateType(type)) {
+         return "date";
+      }
+
+      return XSchema.BOOLEAN.equals(type) ? "boolean" : null;
+   }
+
+   /**
+    * Bug #80075 (1): refuses DATE_IN on a column whose type is known and is not date or
+    * timeInstant, the rule the viewsheet condition writer already applies. A DateCondition range
+    * compared with a text or numeric column was stored without a word and matched no row. A column
+    * with no type of its own (it reports {@code "string"} with {@link DataRef#isDataTypeSet()}
+    * false, e.g. an untyped expression column) is not judged.
+    *
+    * @param field      the field as the caller spelled it
+    * @param ref        the resolved column
+    * @param columnType the column's resolved type, which may differ from {@code ref}'s own for a
+    *                   concatenation
+    */
+   private static void requireDateTypeForDateIn(String field, DataRef ref, String columnType,
+                                                int op)
+   {
+      if(op != XCondition.DATE_IN || columnType == null || columnType.isBlank()) {
+         return;
+      }
+
+      // an AttributeRef under the ColumnRef keeps its own declared type
+      boolean known = isTypeKnown(ref) || !XSchema.STRING.equals(columnType) ||
+         ref instanceof ColumnRef cr && cr.getDataRef() instanceof AttributeRef ar &&
+            ar.hasDataType();
+
+      if(!known || XSchema.DATE.equals(columnType) || XSchema.TIME_INSTANT.equals(columnType)) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "The condition on \"" + field + "\" uses DATE_IN, but the column's type is " +
+         columnType + ". DATE_IN applies only to date and timeInstant columns; for a " + columnType +
+         " column use =, ONE_OF, BETWEEN, <, > or a text match. Nothing was changed.");
    }
 
    private static boolean isNumericConditionType(String dtype) {

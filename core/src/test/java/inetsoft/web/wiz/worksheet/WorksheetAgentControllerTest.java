@@ -30,6 +30,8 @@ import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.util.QueryManager;
+import inetsoft.util.CoreTool;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
@@ -91,6 +93,8 @@ import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -132,6 +136,22 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 @WizAgentTestSupport
 class WorksheetAgentControllerTest {
+
+   /**
+    * Bug #80102: refresh_data {table} now waits up to 15s by default. The timing-sensitive tests
+    * below were written against a 2s cap and use a few seconds of simulated slowness, so they run
+    * with the wait shrunk back to 2s; the tests that cover the default set it explicitly.
+    */
+   @BeforeEach
+   void shrinkRefreshDataWait() {
+      WorksheetAgentController.refreshDataTableWaitMs = 2_000L;
+   }
+
+   @AfterEach
+   void restoreRefreshDataWait() {
+      WorksheetAgentController.refreshDataTableWaitMs =
+         WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
+   }
 
    // ---------------------------------------------------------------------------
    // Helpers
@@ -3257,9 +3277,75 @@ class WorksheetAgentControllerTest {
       // doesn't wire -- mock it away to a no-op default (null, not a BoundQuery) since this test
       // isn't about that mechanism.
       try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
-         assertThrows(RenderNotReadyException.class,
+         RenderNotReadyException ex = assertThrows(RenderNotReadyException.class,
             () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+         // Bug #80102: a worksheet table warm must not read as a chart render, and the retry hint
+         // must match the wait that was actually applied.
+         assertEquals(RenderNotReadyException.Subject.TABLE_REFRESH, ex.getSubject());
+         assertFalse(ex.getMessage().contains("Chart"), ex.getMessage());
+         assertEquals(2, ex.getRetryAfter());
       }
+   }
+
+   /**
+    * Bug #80102: the single-table wait and the Retry-After it advertises share one value, so the
+    * default answer is 15s (the 503 header for that value is covered in
+    * WizControllerErrorHandlerTest#tableRefreshNotReadyDoesNotPromiseConvergenceNorUseChartWording).
+    */
+   @Test
+   void refreshDataDefaultWaitAdvertisesFifteenSeconds() {
+      assertEquals(15_000L, WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS);
+      assertEquals(15, WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS / 1000);
+   }
+
+   /**
+    * Bug #80102: only refresh_data's single-table branch gets the larger wait. A reload that
+    * takes 3s (over the shared 2s cap) now completes within the default wait, so the call
+    * succeeds instead of returning RENDER_NOT_READY, and the default is the bounded 15s.
+    */
+   @Test
+   void refreshDataSingleTableDefaultWaitOutlastsAThreeSecondReload() throws Exception {
+      WorksheetAgentController.refreshDataTableWaitMs =
+         WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
+      assertEquals(15_000L, WorksheetAgentController.refreshDataTableWaitMs);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TableAssembly crosstab = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Crosstab1", "cust", "amount"),
+         "cust", "amount");
+      ((BoundTableAssembly) crosstab).setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(crosstab);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+      doAnswer(invocation -> {
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD80102"), any())).thenReturn(session("TOK-RD80102"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD80102", refreshDataRequest("Crosstab1"), agent);
+      }
+
+      verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
    }
 
    /** A table whose data is already warm (or warms within the bound) refreshes normally. */
@@ -3349,6 +3435,144 @@ class WorksheetAgentControllerTest {
       // Bug #76711 round 4 also clears the RUNTIME_MODE slot for this DESIGN_MODE table (see
       // refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable), so this is now 2 calls.
       verify(assetDataCache, atLeastOnce()).remove(any());
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #79595: refresh_data must relay the warning raised while it reloads, and a refresh of a
+   // dependent table must re-discover the columns of its tabular source.
+   // ---------------------------------------------------------------------------
+
+   /** TabularTableAssembly whose column discovery is only counted (it has no real query). */
+   private static final class CountingTabular extends TabularTableAssembly {
+      final java.util.concurrent.atomic.AtomicInteger loads =
+         new java.util.concurrent.atomic.AtomicInteger();
+
+      CountingTabular(Worksheet ws, String name) {
+         super(ws, name);
+      }
+
+      @Override
+      public void loadColumnSelection(VariableTable vtable, boolean addnew, QueryManager manager) {
+         loads.incrementAndGet();
+      }
+   }
+
+   private static WorksheetAgentController refreshController(Worksheet ws, AssetQuerySandbox box)
+      throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-79595"), any())).thenReturn(session("TOK-79595"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+
+      return controller(featureOn(), mock(SheetJoinService.class),
+                        mock(SheetSessionService.class), mock(WorksheetReadService.class),
+                        editSvc, mock(WorksheetService.class),
+                        mock(inetsoft.report.composition.execution.AssetDataCache.class));
+   }
+
+   /** Single-table refresh reloads on a virtual thread; its warning must still reach the caller. */
+   @Test
+   void refreshDataSingleTableReturnsTheWarningRaisedOnTheReloadThread() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table1 = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table1.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table1);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      doAnswer(inv -> {
+         CoreTool.addUserWarning("Table1: aggregate column 'v' no longer exists upstream");
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("Table1"), agent);
+      }
+
+      assertNotNull(response.getBody(), "a refresh that raised a warning must not be a bare 204");
+      assertTrue(response.getBody().note().contains("'v' no longer exists"),
+                 "note: " + response.getBody().note());
+   }
+
+   @Test
+   void refreshDataBulkReturnsTheWarningRaisedWhileReloading() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table1 = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table1.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table1);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      doAnswer(inv -> {
+         CoreTool.addUserWarning("Table1: aggregate column 'v' no longer exists upstream");
+         return null;
+      }).when(box).getTableLens(eq("Table1"), anyInt());
+
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertNotNull(response.getBody());
+      assertTrue(response.getBody().note().contains("'v' no longer exists"),
+                 "note: " + response.getBody().note());
+   }
+
+   /** A stale message left on the pooled request thread must not be reported as this refresh's. */
+   @Test
+   void refreshDataDoesNotReportAMessageLeftPendingByAnEarlierRequest() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table1 = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table1.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table1);
+      WorksheetAgentController ctrl = refreshController(ws, mock(AssetQuerySandbox.class));
+      CoreTool.addUserWarning("left behind by an earlier request");
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertNull(response.getBody());
+   }
+
+   @Test
+   void refreshDataOfAMirrorReloadsTheColumnsOfItsTabularSource() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      CountingTabular source = new CountingTabular(ws, "T");
+      source.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(source);
+      ws.addAssembly(new MirrorTableAssembly(ws, "M", source));
+      CountingTabular unrelated = new CountingTabular(ws, "Other");
+      ws.addAssembly(unrelated);
+
+      WorksheetAgentController ctrl = refreshController(ws, mock(AssetQuerySandbox.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-79595", refreshDataRequest("M"), agent);
+      }
+
+      assertEquals(1, source.loads.get(), "the mirror's tabular source must be re-discovered");
+      assertEquals(0, unrelated.loads.get(), "tables outside the refreshed chain stay untouched");
    }
 
    /** Bug 76873: refreshing a table must also drop the cached results of its dependents. */
@@ -4384,8 +4608,14 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      assertThrows(RenderNotReadyException.class,
+      // Bug #80102: other warm callers keep the shared 2s cap even though refresh_data {table}'s
+      // own wait is larger (the 3s stub above would complete inside 15s).
+      WorksheetAgentController.refreshDataTableWaitMs =
+         WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
+      RenderNotReadyException ex = assertThrows(RenderNotReadyException.class,
          () -> ctrl.edit("TOK-ICS", insertColumnRequest("T"), agent));
+      assertEquals(RenderNotReadyException.Subject.TABLE, ex.getSubject());
+      assertEquals(2, ex.getRetryAfter());
    }
 
    /**
@@ -6934,6 +7164,9 @@ class WorksheetAgentControllerTest {
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "wsSp", null);
+      when(rws.getEntry()).thenReturn(entry);
 
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
@@ -6951,6 +7184,7 @@ class WorksheetAgentControllerTest {
          new WorksheetAgentController.WorksheetPropertiesRequest("Good Alias 1", null), agent);
 
       assertEquals("Good Alias 1", ws.getWorksheetInfo().getAlias());
+      assertEquals("Good Alias 1", entry.getAlias());
    }
 
    /**
@@ -6969,6 +7203,9 @@ class WorksheetAgentControllerTest {
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "wsSp", null);
+      when(rws.getEntry()).thenReturn(entry);
 
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
@@ -6986,6 +7223,7 @@ class WorksheetAgentControllerTest {
          new WorksheetAgentController.WorksheetPropertiesRequest(goodAlias, null), agent);
 
       assertEquals(goodAlias, ws.getWorksheetInfo().getAlias());
+      assertEquals(goodAlias, entry.getAlias());
    }
 
    // ---------------------------------------------------------------------------
@@ -12463,6 +12701,81 @@ class WorksheetAgentControllerTest {
       assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
          "SELECT * FROM SA.ORDER_DETAILS"));
       assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(null));
+   }
+
+   /** Bug #80054: a wildcard whose qualifier is itself a {@code $(@var)} placeholder. */
+   @Test
+   void wildcardMessageMatchesPlaceholderQualifiedWildcards() {
+      for(String sql : new String[] {
+         "SELECT $(@srcTable).* FROM $(@srcTable)",
+         "select $(@t).*\nfrom $(@t)",
+         "SELECT DISTINCT $(@t).* FROM $(@t)",
+         "SELECT a, $(@t).* FROM x",
+         "SELECT SA.$(@t).* FROM SA.$(@t)",
+         "SELECT $(@t).$(@u).* FROM $(@t)",
+         "SELECT $(@t).*FROM $(@t)",
+         "SELECT $(@my-var).* FROM $(@my-var)" })
+      {
+         assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
+      }
+
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT $(@v).COL FROM $(@v)"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT COUNT(*) AS N FROM $(@v)"));
+   }
+
+   /** Bug #80054: add_sql_query surfaces the cause-naming message for {@code $(@t).*}. */
+   @Test
+   void addSqlQueryNamesPlaceholderQualifiedWildcardWhenParseFails() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(mock(JDBCDataSource.class));
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-80054"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(new ColumnSelection());
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> stubUniformSqlConstruction(m, UniformSQL.PARSE_FAILED)))
+      {
+         PairingException wildcard = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-80054", new WorksheetAgentController.SqlQueryRequest(
+               "MyDatasource", "SELECT $(@srcTable).* FROM $(@srcTable)", null), agent));
+         assertTrue(wildcard.getMessage().contains("wildcard")
+                       && wildcard.getMessage().contains("$(@var)")
+                       && !wildcard.getMessage().contains("check syntax"),
+                    "got: " + wildcard.getMessage());
+
+         PairingException control = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-80054", new WorksheetAgentController.SqlQueryRequest(
+               "MyDatasource", "SELECT $(@srcTable).COL FROM $(@srcTable)", null), agent));
+         assertTrue(control.getMessage().contains("SQL could not be parsed — check syntax"),
+                    "got: " + control.getMessage());
+      }
    }
 
 

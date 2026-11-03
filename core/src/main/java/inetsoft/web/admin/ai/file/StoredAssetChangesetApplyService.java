@@ -86,7 +86,8 @@ public class StoredAssetChangesetApplyService {
          }
 
          String task = req.getTask().trim();
-         String currentHash = StoredAssetChangePlanService.hash(planChanges);
+         String currentHash = StoredAssetChangePlanService.hash(
+            planChanges, StoredAssetChangePlanService.hiddenInputs(resolved));
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(

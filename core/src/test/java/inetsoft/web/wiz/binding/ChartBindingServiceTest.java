@@ -23,7 +23,17 @@ import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
+import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.HyperlinkRef;
+import inetsoft.report.Hyperlink;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -396,6 +406,42 @@ class ChartBindingServiceTest {
             .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
 
       assertTrue(thrown.getMessage().contains("force"), "name the way through");
+   }
+
+   /** Bug #80151: an orphaned chart has no current source, so the refusal must not claim one. */
+   @Test
+   void setSourceRefusalForASourcelessChartDoesNotClaimACurrentSource() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      String message = thrown.getMessage();
+      assertFalse(message.contains("current source"), message);
+      assertTrue(message.contains("'Chart1'"), message);
+      assertTrue(message.contains("1 on x"), message);
+      assertTrue(message.contains("force"), message);
+   }
+
+   @Test
+   void setSourceRefusalForAChartWithASourceStillNamesItsCurrentSource() {
+      ChartBindingModel existing = chartWithTables("ORDERS1", "ORDER_DETAILS1");
+      existing.setSource(assetSource("ORDERS1"));
+      existing.setXFields(List.of(new ChartDimensionRefModel()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(existing, mock(ChangeChartRefService.class),
+                       mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                       mock(ChangeSeparateStatusService.class))
+            .setSource("tok", principal(), "Chart1", "ORDER_DETAILS1", false, ""));
+
+      assertTrue(thrown.getMessage().contains("current source"), thrown.getMessage());
    }
 
    /**
@@ -1978,5 +2024,176 @@ class ChartBindingServiceTest {
                                                   any(Principal.class), any(), anyString());
       assertFalse(captor.getValue().isSeparate());
       assertFalse(captor.getValue().isMulti(), "the design multi flag, not the DC override");
+   }
+
+   // ── a shelf rewrite keeps the hyperlink of a field that stays (bug #80003) ──
+
+   private static VSChartAggregateRef linkMeasure(String column) {
+      AttributeRef attribute = new AttributeRef(null, column);
+      attribute.setDataType(XSchema.DOUBLE);
+      VSChartAggregateRef ref = new VSChartAggregateRef();
+      ref.setDataRef(new ColumnRef(attribute));
+      ref.setFormulaValue("Sum");
+      return ref;
+   }
+
+   private static VSChartDimensionRef linkDimension(String column, int level) {
+      AttributeRef attribute = new AttributeRef(null, column);
+      attribute.setDataType(level == XConstants.NONE_DATE_GROUP ? XSchema.STRING : XSchema.DATE);
+      VSChartDimensionRef ref = new VSChartDimensionRef();
+      ref.setDataRef(new ColumnRef(attribute));
+      ref.setDateLevelValue(String.valueOf(level));
+      return ref;
+   }
+
+   private static Hyperlink richLink(String target) {
+      Hyperlink link = new Hyperlink(target, Hyperlink.VIEWSHEET_LINK);
+      link.setTargetFrame("_blank");
+      link.setToolTip("tip " + target);
+      link.setBookmarkName("bm");
+      link.setParameterField("region", "REGION");
+      return link;
+   }
+
+   /** Runs {@code write} on a chart whose design info is {@code info}; changeChartRef swaps in {@code fresh}. */
+   private static void rewrite(VSChartInfo info, String shelf, ChartRef[] fresh,
+                               java.util.function.Consumer<ChartBindingService> write)
+      throws Exception
+   {
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      ChangeChartRefService refs = mock(ChangeChartRefService.class);
+      doAnswer(invocation -> {
+         switch(shelf) {
+         case "x" -> { info.removeXFields(); for(ChartRef r : fresh) info.addXField(r); }
+         case "y" -> { info.removeYFields(); for(ChartRef r : fresh) info.addYField(r); }
+         case "group" -> { info.removeGroupFields(); for(ChartRef r : fresh) info.addGroupField(r); }
+         default -> ((GanttVSChartInfo) info).setStartField(fresh[0]);
+         }
+
+         return null;
+      }).when(refs).changeChartRef(anyString(), any(), any(), any(), anyString());
+      write.accept(harnessWithAssembly(chart, new ChartBindingModel(), refs,
+                                       mock(ChangeChartTypeService.class),
+                                       mock(SwapXYBindingService.class),
+                                       mock(ChangeSeparateStatusService.class)));
+   }
+
+   private static Hyperlink linkOf(ChartRef ref) {
+      return ((HyperlinkRef) ref).getHyperlink();
+   }
+
+   private static void shelf(ChartBindingService service, String shelf, FieldRef... fields) {
+      try {
+         service.setShelf("tok", principal(), "Chart1", shelf, List.of(fields), null, "");
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   private static FieldRef measure(String column) {
+      return new FieldRef(column, "measure", "Sum", null, null);
+   }
+
+   @Test
+   void aMeasureKeepsItsRichLinkWhenAnotherMeasureIsAdded() throws Exception {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef revenue = linkMeasure("REVENUE");
+      Hyperlink original = richLink("Reports/Detail");
+      revenue.setHyperlink(original);
+      info.addYField(revenue);
+
+      rewrite(info, "y", new ChartRef[] { linkMeasure("REVENUE"), linkMeasure("QUANTITY") },
+              s -> shelf(s, "y", measure("REVENUE"), measure("QUANTITY")));
+
+      Hyperlink kept = linkOf(info.getYField(0));
+      assertNotNull(kept, "the link of the field that stays on the shelf must survive");
+      assertEquals(Hyperlink.VIEWSHEET_LINK, kept.getLinkType());
+      assertEquals(original.getLink(), kept.getLink());
+      assertEquals("_blank", kept.getTargetFrame());
+      assertEquals("tip Reports/Detail", kept.getToolTip());
+      assertEquals("REGION", kept.getParameterField("region"));
+      assertNull(linkOf(info.getYField(1)), "the newly added measure has no link");
+   }
+
+   @Test
+   void aDimensionKeepsItsLinkWhenAnotherDimensionIsAdded() throws Exception {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartDimensionRef region = linkDimension("REGION", XConstants.NONE_DATE_GROUP);
+      region.setHyperlink(new Hyperlink("https://example.com/r"));
+      info.addGroupField(region);
+
+      rewrite(info, "group", new ChartRef[] {
+                 linkDimension("REGION", XConstants.NONE_DATE_GROUP),
+                 linkDimension("CATEGORY_NAME", XConstants.NONE_DATE_GROUP) },
+              s -> shelf(s, "group", new FieldRef("REGION", "dimension", null, null, null),
+                         new FieldRef("CATEGORY_NAME", "dimension", null, null, null)));
+
+      assertEquals("https://example.com/r", linkOf(info.getGroupFields()[0]).getLink());
+      assertNull(linkOf(info.getGroupFields()[1]));
+   }
+
+   @Test
+   void aFieldInsertedAheadDoesNotTakeTheLink() throws Exception {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef revenue = linkMeasure("REVENUE");
+      revenue.setHyperlink(new Hyperlink("https://example.com/rev"));
+      info.addYField(revenue);
+
+      rewrite(info, "y", new ChartRef[] { linkMeasure("QUANTITY"), linkMeasure("REVENUE") },
+              s -> shelf(s, "y", measure("QUANTITY"), measure("REVENUE")));
+
+      assertNull(linkOf(info.getYField(0)), "the inserted QUANTITY must not inherit REVENUE's link");
+      assertEquals("https://example.com/rev", linkOf(info.getYField(1)).getLink());
+   }
+
+   @Test
+   void aDateLevelChangeDropsTheLink() throws Exception {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartDimensionRef year = linkDimension("ORDER_DATE", XConstants.YEAR_DATE_GROUP);
+      year.setHyperlink(new Hyperlink("https://example.com/y"));
+      info.addXField(year);
+
+      rewrite(info, "x", new ChartRef[] { linkDimension("ORDER_DATE", XConstants.MONTH_DATE_GROUP) },
+              s -> shelf(s, "x", new FieldRef("ORDER_DATE", "dimension", null, "month", null)));
+
+      assertNull(linkOf(info.getXFields()[0]), "Month(ORDER_DATE) is a different field from Year");
+   }
+
+   @Test
+   void aRemovedFieldsLinkIsGoneAndTheRemainingOneIsUntouched() throws Exception {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSChartAggregateRef revenue = linkMeasure("REVENUE");
+      revenue.setHyperlink(new Hyperlink("https://example.com/rev"));
+      VSChartAggregateRef quantity = linkMeasure("QUANTITY");
+      quantity.setHyperlink(new Hyperlink("https://example.com/qty"));
+      info.addYField(revenue);
+      info.addYField(quantity);
+
+      rewrite(info, "y", new ChartRef[] { linkMeasure("QUANTITY") },
+              s -> shelf(s, "y", measure("QUANTITY")));
+
+      assertEquals(1, info.getYFields().length);
+      assertEquals("https://example.com/qty", linkOf(info.getYField(0)).getLink());
+   }
+
+   @Test
+   void aSingleShelfKeepsItsLinkOnAResendOfTheSameMeasure() throws Exception {
+      GanttVSChartInfo info = new GanttVSChartInfo();
+      VSChartAggregateRef start = linkMeasure("START_DATE");
+      start.setHyperlink(new Hyperlink("https://example.com/s"));
+      info.setStartField(start);
+
+      rewrite(info, "start", new ChartRef[] { linkMeasure("START_DATE") }, s -> {
+         try {
+            s.setSingleShelf("tok", principal(), "Chart1", "start", measure("START_DATE"), null, "");
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      });
+
+      assertEquals("https://example.com/s", linkOf(info.getStartField()).getLink());
    }
 }

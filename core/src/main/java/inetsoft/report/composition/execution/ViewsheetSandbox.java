@@ -4842,10 +4842,32 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * so starting them in sync is the correct semantic.
     * Viewsheets where a worksheet variable and an unrelated input assembly share a
     * name by accident may observe unexpected initial selections as a result.
+    * This does not apply to an input bound to a worksheet cell (table/column/row):
+    * for that binding type the assembly's own name is never a legitimate variable-table
+    * key (see the early return below), so there is no such collision to worry about. (#80020)
     */
    private void applyParameterToInput(InputVSAssembly iassembly) {
       if(wbox == null) {
          return;
+      }
+
+      // A cell-bound input (table/column/row, e.g. a Slider/ComboBox writing into a
+      // worksheet cell) gets its selection from/to that cell via resetEmbeddedData()/
+      // refreshVariable(), never from a variable-table parameter keyed by its own name --
+      // refreshVariable() itself never puts such an assembly's value under its own name
+      // (see the EmbeddedTableAssembly branch below). Applying a variable-table entry here
+      // for this binding type can only be a stale/unrelated value (e.g. left over from
+      // before the cell binding was configured, when the assembly was still unbound and
+      // went through the generic fallback branch), so skip it. (#80020)
+      String cellTableName = iassembly.getTableName();
+
+      if(cellTableName != null && !cellTableName.isEmpty()) {
+         Worksheet ws = getWorksheet();
+         Assembly wsAssembly = ws == null ? null : ws.getAssembly(cellTableName);
+
+         if(wsAssembly instanceof EmbeddedTableAssembly) {
+            return;
+         }
       }
 
       // refreshVariable() runs more than once for the same assembly in one init cycle

@@ -71,7 +71,10 @@ class ScriptLibraryChangePlanServiceTest {
    void setUp() throws Exception {
       lenient().when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
       scriptLibraryService = new ScriptLibraryService(libManagerProvider, securityEngine);
+      // the save gate's syntax check needs the live script engine, absent here; these tests are about
+      // plan/apply behavior, not text validity (ScriptLibraryValidatorTest and the bad-input cases cover that)
       service = new ScriptLibraryChangePlanService(scriptLibraryService);
+      service.setSyntaxChecker(text -> {});
 
       // Default every caller to holding ADMIN on every script name -- individual permission tests
       // override this to specific denials.
@@ -205,9 +208,9 @@ class ScriptLibraryChangePlanServiceTest {
    @Test void resolveRenameProducesARiskLowChangeAndRequiresPermission() throws Exception {
       when(lib.getScript("old")).thenReturn("return 1;");
       when(lib.getScriptComment("old")).thenReturn("desc");
-      when(lib.getScript("new")).thenReturn(null);
+      when(lib.getScript("renamedFn")).thenReturn(null);
       ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
-      c.setNewName("new");
+      c.setNewName("renamedFn");
 
       ResolvedPlan plan = service.resolve(request(c), user);
 
@@ -236,7 +239,7 @@ class ScriptLibraryChangePlanServiceTest {
          eq(user), eq(ResourceType.SCRIPT), eq("old"), eq(ResourceAction.ADMIN)))
          .thenReturn(false);
       ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
-      c.setNewName("new");
+      c.setNewName("renamedFn");
 
       assertThrows(MissingResourceException.class, () -> service.resolve(request(c), user));
    }
@@ -282,6 +285,28 @@ class ScriptLibraryChangePlanServiceTest {
          assertEquals(inetsoft.util.audit.AdminChangeRecord.RISK_HIGH, pc.risk());
          assertTrue(plan.requiresAgentSignoff());
          assertNull(pc.proposedValue());
+      }
+   }
+
+   /** Bug #79920: the delete plan says when stored permission grants will be removed with the script. */
+   @Test void resolveDeleteDescriptionMentionsPermissionGrantsOnlyWhenOneIsStored() throws Exception {
+      when(lib.getScript("a")).thenReturn("return 1;");
+      when(lib.getScriptComment("a")).thenReturn("desc");
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_DELETE, "a");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+
+         String without = service.resolve(request(c), user).changes().get(0).description();
+         assertTrue(without.contains("(no known dependents)"), without);
+         assertFalse(without.contains("permission grants"), without);
+
+         when(securityEngine.getPermission(
+            inetsoft.sree.security.ResourceType.SCRIPT, "a"))
+            .thenReturn(new inetsoft.sree.security.Permission());
+         String with = service.resolve(request(c), user).changes().get(0).description();
+         assertTrue(with.contains("(no known dependents)"), with);
+         assertTrue(with.contains("permission grants will also be removed"), with);
       }
    }
 
@@ -339,9 +364,66 @@ class ScriptLibraryChangePlanServiceTest {
    @Test void resolveRenameFailsWithMissingResourceExceptionWhenNameDoesNotExist() {
       when(lib.getScript("ghost")).thenReturn(null);
       ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "ghost");
-      c.setNewName("new");
+      c.setNewName("renamedFn");
 
       assertThrows(MissingResourceException.class,
          () -> service.resolve(request(c), user));
+   }
+
+   // -------------------------------------------------------------------------
+   // bug #80007: a rename's target counts toward the per-submission duplicate rule
+   // -------------------------------------------------------------------------
+
+   private void stubRenameSources(String... names) {
+      for(String n : names) {
+         lenient().when(lib.getScript(n)).thenReturn("return 1;");
+      }
+   }
+
+   private static ScriptLibraryChangeRequest renameTo(String name, String newName) {
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, name);
+      c.setNewName(newName);
+      return c;
+   }
+
+   @Test void renameThenCreateOfTheSameNameIsRefused() {
+      stubRenameSources("A");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "N");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(renameTo("A", "N"), create), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"N\""),
+                 ex.getMessage());
+   }
+
+   @Test void createThenRenameToTheSameNameIsRefused() {
+      stubRenameSources("A");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "N");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(create, renameTo("A", "N")), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"N\""),
+                 ex.getMessage());
+   }
+
+   @Test void twoRenamesToTheSameNameAreRefused() {
+      stubRenameSources("A", "B");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(renameTo("A", "N"), renameTo("B", "N")), user));
+      assertTrue(ex.getMessage().contains("duplicate") && ex.getMessage().contains("\"N\""),
+                 ex.getMessage());
+   }
+
+   @Test void renameAloneAndCreateAloneStillPlan() throws Exception {
+      stubRenameSources("A");
+      lenient().when(lib.getScript("N")).thenReturn(null);
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "N");
+
+      assertEquals(1, service.resolve(request(renameTo("A", "N")), user).changes().size());
+      assertEquals(1, service.resolve(request(create), user).changes().size());
    }
 }

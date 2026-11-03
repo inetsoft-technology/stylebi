@@ -151,36 +151,9 @@ public class AdminScheduleGateway {
          throw new MissingResourceException(taskMetaData.getTaskOwnerId());
       }
 
-      String name = taskMetaData.getTaskName();
-      Identity identity = checkOwnerPermission(user, owner, executeAsID);
-      task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID), identity);
-
-      conditions.stream()
-         .map(ScheduleConditionConverter::convertCondition)
-         .filter(Objects::nonNull)
-         .forEach(task::addCondition);
-
-      inetsoft.sree.schedule.ScheduleTask finalTask = task;
-
-      for(ScheduleAction action : actions) {
-         checkActionOrgBoundary(action, user);
-         checkBackupAssetsPermitted(action, user);
-      }
-
-      actions.stream()
-         .map(this::convertAction)
-         .filter(Objects::nonNull)
-         .forEach(action -> finalTask.addAction(action, linkUri));
-
-      // Enforce schedule option permissions -- same sanitization applied by the UI.
-      // A new task has no prior state, so pass an empty task as the "original".
-      inetsoft.sree.schedule.ScheduleTask emptyTask = new inetsoft.sree.schedule.ScheduleTask();
-      scheduleTaskService.sanitizeConditions(task, emptyTask, user);
-
-      for(int i = 0; i < task.getActionCount(); i++) {
-         scheduleTaskService.sanitizeAction(task.getAction(i), null, user);
-      }
-
+      task = buildNewTask(taskMetaData, owner, enabled, deleteIfNotScheduledToRun, startDate,
+                          endDate, description, locale, executeAsID, conditions, actions, linkUri,
+                          user);
       scheduleManager.setScheduleTask(task.getTaskId(), task, user);
    }
 
@@ -645,6 +618,80 @@ public class AdminScheduleGateway {
    }
 
    /**
+    * Builds the task {@link #addScheduleTask} saves, running every refusal it makes before the
+    * save. Changes nothing persistent.
+    */
+   private inetsoft.sree.schedule.ScheduleTask buildNewTask(
+      ScheduleTaskMetaData taskMetaData, IdentityID owner, boolean enabled,
+      boolean deleteIfNotScheduledToRun, long startDate, long endDate, String description,
+      String locale, ScheduleTask.ExecuteAsID executeAsID, List<ScheduleCondition> conditions,
+      List<ScheduleAction> actions, String linkUri, Principal user)
+      throws Exception
+   {
+      String name = taskMetaData.getTaskName();
+      Identity identity = checkOwnerPermission(user, owner, executeAsID);
+      inetsoft.sree.schedule.ScheduleTask task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID), identity);
+
+      conditions.stream()
+         .map(ScheduleConditionConverter::convertCondition)
+         .filter(Objects::nonNull)
+         .forEach(task::addCondition);
+
+      inetsoft.sree.schedule.ScheduleTask finalTask = task;
+
+      for(ScheduleAction action : actions) {
+         checkActionOrgBoundary(action, user);
+         checkBackupAssetsPermitted(action, user);
+      }
+
+      actions.stream()
+         .map(this::convertAction)
+         .filter(Objects::nonNull)
+         .forEach(action -> finalTask.addAction(action, linkUri));
+
+      // Enforce schedule option permissions -- same sanitization applied by the UI.
+      // A new task has no prior state, so pass an empty task as the "original".
+      inetsoft.sree.schedule.ScheduleTask emptyTask = new inetsoft.sree.schedule.ScheduleTask();
+      scheduleTaskService.sanitizeConditions(task, emptyTask, user);
+
+      for(int i = 0; i < task.getActionCount(); i++) {
+         scheduleTaskService.sanitizeAction(task.getAction(i), null, user);
+      }
+
+      return task;
+   }
+
+   /**
+    * Runs, without saving, every refusal {@link #addScheduleTask} makes up to and including the
+    * save's own (org boundary, backup assets, secrets, the scheduler permission and the read right
+    * of the run principal on the action viewsheets), so a caller can tell a refusal that wrote
+    * nothing apart from a failure of the write itself (Bug #79974). Silent when security is
+    * disabled.
+    *
+    * @throws Exception if the task would be refused.
+    */
+   public void checkAddScheduleTaskSavable(ScheduleTaskMetaData taskMetaData, boolean enabled,
+                                           boolean deleteIfNotScheduledToRun, long startDate,
+                                           long endDate, String description, String locale,
+                                           ScheduleTask.ExecuteAsID executeAsID,
+                                           List<ScheduleCondition> conditions,
+                                           List<ScheduleAction> actions, String linkUri,
+                                           Principal user)
+      throws Exception
+   {
+      IdentityID owner = IdentityID.getIdentityIDFromKey(taskMetaData.getTaskOwnerId());
+
+      if(owner == null) {
+         throw new MissingResourceException(taskMetaData.getTaskOwnerId());
+      }
+
+      inetsoft.sree.schedule.ScheduleTask task = buildNewTask(taskMetaData, owner, enabled,
+         deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID,
+         conditions, actions, linkUri, user);
+      scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, user);
+   }
+
+   /**
     * Runs every check {@link #addScheduleTask} makes on the owner and execute-as identity before it
     * changes anything, so a caller can tell a refusal that wrote nothing apart from a failure of
     * the write itself (Bug #79426).
@@ -712,6 +759,29 @@ public class AdminScheduleGateway {
          "security is disabled, so only the built-in admin user exists";
       throw new MessageException("user \"" + owner.getName() + "\" does not exist in " +
                                  "organization \"" + owner.getOrgID() + "\" (" + reason + ")");
+   }
+
+   /**
+    * Bug #80027, Gap 2: refuses a schedule-task-import owner in an organization that does not
+    * exist, so a task is never stored under one. Deliberately narrower than {@link
+    * #requireOwnerResolves} -- that also refuses a built-in system/anonymous owner or one needing
+    * a user lookup, which an imported task legitimately carries (an internal task's own owner is
+    * {@code XPrincipal.SYSTEM}, same as EM's own import deliberately sets it) -- only the
+    * organization-existence check applies to an imported owner.
+    *
+    * @throws MessageException naming the owner and the missing organization.
+    */
+   public void requireOwnerOrganizationExists(IdentityID owner) {
+      if(owner == null || owner.getOrgID() == null || owner.getOrgID().isBlank()) {
+         return;
+      }
+
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+
+      if(provider != null && provider.getOrganization(owner.getOrgID()) == null) {
+         throw new MessageException("owner \"" + owner.getName() + "\" is in organization \"" +
+            owner.getOrgID() + "\", which does not exist");
+      }
    }
 
    /**

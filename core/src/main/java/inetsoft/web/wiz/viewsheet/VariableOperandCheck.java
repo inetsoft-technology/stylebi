@@ -110,6 +110,18 @@ final class VariableOperandCheck {
          return;
       }
 
+      if(elements.size() > 1 &&
+         (ConditionVocabulary.SINGLE_VALUED.contains(operation) || operation == XCondition.BETWEEN))
+      {
+         String multi = condition.isNegated() ? "not_one_of" : "one_of";
+         warnings.add("Variable '" + name + "' used by " + use + " currently holds " +
+                      elements.size() + " values " + display(current) + ", but " +
+                      ConditionVocabulary.operatorToken(operation) + " uses only the first " +
+                      "value, so the condition would silently compare against '" +
+                      elements.get(0) + "' alone. Use operator " + multi + " to match every " +
+                      "value, or make the variable hold a single value.");
+      }
+
       for(Object element : elements) {
          String problem = problem(element, field, operation);
 

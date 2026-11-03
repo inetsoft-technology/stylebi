@@ -184,12 +184,22 @@ class AssemblyPropertyServiceTest {
       }
    }
 
-   /** The flip side of the exclusion above: the sheet must NOT be reachable this way. */
+   /**
+    * The flip side of the exclusion above: the sheet (key {@code sheet}) must NOT be reachable
+    * this way, while an embedded viewsheet ASSEMBLY (key {@code viewsheet}, bug #80150) is wired
+    * like any other, and both its service methods resolve with the shared 3/6-argument shapes.
+    */
    @Test
-   void viewsheetIsNotWiredIntoTheAssemblyDispatchTable() {
+   void embeddedViewsheetIsWiredAndTheSheetIsNot() {
       AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
 
-      assertThrows(Exception.class, () -> service.bindingFor("viewsheet"));
+      assertThrows(Exception.class, () -> service.bindingFor(PropertyAliases.SHEET));
+
+      AssemblyPropertyService.Binding binding = service.bindingFor("viewsheet");
+      assertEquals("getViewsheetPropertyModel", binding.getter());
+      assertEquals("setViewsheetPropertyModel", binding.setter());
+      assertNotNull(AssemblyPropertyService.method(binding.service(), binding.getter(), 3));
+      assertNotNull(AssemblyPropertyService.method(binding.service(), binding.setter(), 6));
    }
 
    @Test
@@ -5323,7 +5333,8 @@ class AssemblyPropertyServiceTest {
          lastLine, lastOval, lastRectangle,
          selectionContainer,
          mock(SubmitPropertyDialogService.class),
-         outputService, columnHandler, lastDataOutput);
+         outputService, columnHandler, lastDataOutput,
+         mock(ViewsheetObjectPropertyDialogService.class));
    }
 
    // ── calendar viewMode / chart line-style int-enum domains (bug #78194) ───
@@ -6128,6 +6139,42 @@ class AssemblyPropertyServiceTest {
       patch.put(SCALE_PANE + "top", 10);
       String msg = refuseImageScale(imageWithScale(true, false, false, 0), patch);
       assertTrue(msg.contains("scaleImageChecked would be false"), msg);
+   }
+
+   /** Bug #80036: sibling of the insets rule -- maintainAspectRatio itself is also only stored
+    *  while Scale Image is on; a write while Scale Image is off used to report ok:true with
+    *  only the generic "may not apply to that assembly type" note and read back unchanged. */
+   @Test
+   void refusesMaintainAspectRatioWhileScaleIsOff() {
+      String msg = refuseImageScale(imageWithScale(false, false, true, 0),
+                                    Map.of(SCALE_PANE + "maintainAspectRatio", false));
+      assertTrue(msg.contains("maintainAspectRatio") && msg.contains("scaleImageChecked"), msg);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "scaleImageChecked", false);
+      patch.put(SCALE_PANE + "maintainAspectRatio", false);
+      msg = refuseImageScale(imageWithScale(true, false, true, 0), patch);
+      assertTrue(msg.contains("maintainAspectRatio") && msg.contains("scaleImageChecked") &&
+                 msg.contains("scaleImageChecked would be false"), msg);
+   }
+
+   @Test
+   void acceptsMaintainAspectRatioWhenScaleIsOnInSamePatch() throws Exception {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(SCALE_PANE + "scaleImageChecked", true);
+      patch.put(SCALE_PANE + "maintainAspectRatio", false);
+      ImageScalePaneModel pane = setImageScale(imageWithScale(false, false, true, 0), patch);
+      assertFalse(pane.maintainAspectRatio());
+      assertTrue(pane.scaleImageChecked());
+   }
+
+   /** An unchanged echo of maintainAspectRatio while Scale Image is off is not refused. */
+   @Test
+   void acceptsABareEchoOfMaintainAspectRatioWhileScaleIsOff() throws Exception {
+      ImageScalePaneModel pane = setImageScale(imageWithScale(false, false, true, 0),
+                                               Map.of(SCALE_PANE + "maintainAspectRatio", true));
+      assertTrue(pane.maintainAspectRatio());
+      assertFalse(pane.scaleImageChecked());
    }
 
    @Test

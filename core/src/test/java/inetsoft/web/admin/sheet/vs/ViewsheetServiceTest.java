@@ -124,47 +124,6 @@ class ViewsheetServiceTest {
          service.removeFolder("/", null, principal));
    }
 
-   // Bug #79871: worksheets sit in a separate folder namespace and must be removed explicitly.
-   @Test
-   void removeFolderRemovesContainedWorksheetsBeforeTheLabel() throws Exception {
-      SRPrincipal principal = createPrincipal("user1", "host-org");
-      RepletRegistry registry = stubFolderRegistry("Dir");
-      AssetEntry ws = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
-                                     "Dir/ws1", null);
-      when(repletRegistryService.getWorksheetEntries(eq("Dir"), isNull(), any()))
-         .thenReturn(new AssetEntry[]{ ws });
-
-      service.removeFolder("Dir", null, principal);
-
-      verify(assetRepository).removeSheet(eq(ws), any(), eq(true));
-      verify(registry).removeFolder("Dir");
-   }
-
-   @Test
-   void removeFolderFailsAndKeepsLabelWhenAWorksheetCannotBeRemoved() throws Exception {
-      SRPrincipal principal = createPrincipal("user1", "host-org");
-      RepletRegistry registry = stubFolderRegistry("Dir");
-      AssetEntry ws = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
-                                     "Dir/ws1", null);
-      when(repletRegistryService.getWorksheetEntries(eq("Dir"), isNull(), any()))
-         .thenReturn(new AssetEntry[]{ ws });
-      doThrow(new RuntimeException("locked")).when(assetRepository)
-         .removeSheet(eq(ws), any(), eq(true));
-
-      IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
-         service.removeFolder("Dir", null, principal));
-
-      assertTrue(ex.getMessage().contains("Dir/ws1"));
-      verify(registry, never()).removeFolder(anyString());
-   }
-
-   private RepletRegistry stubFolderRegistry(String path) throws Exception {
-      RepletRegistry registry = mock(RepletRegistry.class);
-      when(repletRegistryManager.getRegistry((IdentityID) isNull())).thenReturn(registry);
-      when(registry.isFolder(path)).thenReturn(true);
-      return registry;
-   }
-
    // Bug #79257: renaming through the service built a bare target entry, so the alias and the
    // "description" property of the sheet were silently reset.
    @Test

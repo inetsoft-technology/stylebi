@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.AbstractSelectionVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.LockableVSAssembly;
+import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
@@ -61,6 +62,7 @@ import org.springframework.stereotype.Service;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.security.Principal;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -263,7 +265,8 @@ public class ViewsheetEditService {
 
       RenderWaitSupport.awaitOrRetry(() -> TableLensGuard.lensOrNull(box.get(), name, false),
          TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-         (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+         (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
+         RenderNotReadyException.Subject.TABLE);
    }
 
    /**
@@ -1117,6 +1120,7 @@ public class ViewsheetEditService {
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
+         discardCachedSourceData(rvs, request.assembly());
          RefreshVSAssemblyEvent event = RefreshVSAssemblyEvent.builder()
             .vsRuntimeId(runtimeId)
             .assemblyName(request.assembly())
@@ -1125,6 +1129,47 @@ public class ViewsheetEditService {
             rvs, request.assembly(), dispatcher,
             () -> refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user));
       });
+   }
+
+   /**
+    * Bug #80147: makes the per-assembly refresh read the worksheet source afresh. The sandbox
+    * serves a data-bound assembly's query result from a cache that is discarded only when the
+    * runtime's touch timestamp passes the entry's creation time, and {@code refreshVsAssembly}
+    * re-executes the assembly without ever advancing it, so a source changed after the first
+    * load (then {@code refresh_data} on the worksheet) kept coming back stale. The whole-sheet
+    * refresh advances both timestamps the same way. The timestamp is runtime-wide, so other
+    * assemblies' cached results are also dropped at their next read, which is harmless. A
+    * selection list/tree also keeps its values in per-table metadata that a timestamp does not
+    * clear, so the metadata of the tables the refreshed selection filters is dropped too.
+    */
+   private static void discardCachedSourceData(RuntimeViewsheet rvs, String assemblyName) {
+      Optional<ViewsheetSandbox> sandbox = rvs == null ? Optional.empty() : rvs.getViewsheetSandbox();
+
+      if(sandbox.isEmpty()) {
+         return;
+      }
+
+      ViewsheetSandbox box = sandbox.get();
+      box.lockWrite();
+
+      try {
+         long now = System.currentTimeMillis();
+         rvs.setTouchTimestamp(now);
+         box.setTouchTimestamp(now);
+         Viewsheet vs = rvs.getViewsheet();
+         VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+         if(assembly instanceof SelectionVSAssembly selection) {
+            List<String> tables = selection.getTableNames();
+
+            if(tables != null) {
+               tables.forEach(box::resetTableMetaData);
+            }
+         }
+      }
+      finally {
+         box.unlockWrite();
+      }
    }
 
    /**
@@ -1171,11 +1216,49 @@ public class ViewsheetEditService {
                ". Omit 'container' to move it out of whichever container it is in.");
          }
 
+         // Without a container the Composer service returns silently, so the call reported
+         // "Applied" for an assembly that was never in a container.
+         if(current.container() == null) {
+            throw new IllegalArgumentException(
+               "'" + request.assembly() + "' is not in any container, so there is nothing to " +
+               "move it out of. Use edit(op:'move') to reposition it.");
+         }
+
          MoveVSObjectEvent event = new MoveVSObjectEvent();
          event.setName(request.assembly());
          event.setxOffset(request.x());
          event.setyOffset(request.y());
          objects.moveFromContainer(runtimeId, event, user, dispatcher, linkUri);
+
+         // The Composer service treats a drop point inside the container's rectangle as "dropped
+         // back in" (java.awt.Rectangle.contains: left/top edges inside, right/bottom edges
+         // outside) and returns without removing anything or reporting it. Check the outcome
+         // rather than re-deriving the geometry, which can differ by layout.
+         AssemblyNode after = requireExisting(rvs, request.assembly());
+
+         if(current.container().equals(after.container())) {
+            boolean group = reader.read(rvs).assemblies().stream()
+               .anyMatch(n -> n.name().equals(current.container()) &&
+                         "GroupContainer".equals(n.type()));
+
+            if(!group) {
+               throw new IllegalArgumentException(
+                  "'" + request.assembly() + "' was not moved out of container '" +
+                  current.container() + "': the point (" + request.x() + ", " + request.y() +
+                  ") lies inside the container's rectangle, which the product treats as " +
+                  "dropping it back in. Choose a point outside that rectangle (its left/top " +
+                  "edges are inside, its right/bottom edges are outside).");
+            }
+
+            // Inside a Group container a drop only repositions the child within the group.
+            MessageCommand command = new MessageCommand();
+            command.setType(MessageCommand.Type.WARNING);
+            command.setMessage("'" + request.assembly() + "' is still in Group '" +
+               current.container() + "': the point lies inside the group, so it was only " +
+               "repositioned within it. Use a point outside the group to take it out, or " +
+               "edit(op:'ungroup') to dissolve the group.");
+            dispatcher.sendCommand(request.assembly(), command);
+         }
       });
    }
 

@@ -161,6 +161,20 @@ final class PatchGuards {
             SCALE + ":false to tile, or " + TILE + ":false to scale. Nothing was changed.");
       }
 
+      // Bug #80036: sibling of the insets rule below -- maintainAspectRatio itself is stored
+      // only while Scale Image is on; the Composer disables "Maintain Aspect Ratio" the same
+      // way it disables the 9-cell insets fieldset while Scale is off, but the write still
+      // reported ok:true with a generic "may not apply to that assembly type" note and read
+      // back unchanged.
+      if(!scale && changed(before, model, prefix + ASPECT)) {
+         throw new IllegalArgumentException(
+            prefix + ASPECT + ": " + ASPECT + " is applied only while " + SCALE + " is true " +
+            "(\"Scale Image\"); the Composer disables Maintain Aspect Ratio while Scale Image " +
+            "is off, so the write would report success and read back unchanged. With this " +
+            "patch " + SCALE + " would be " + scale + ". Set " + SCALE + ":true in the same " +
+            "call to change " + ASPECT + ". Nothing was changed.");
+      }
+
       for(String leaf : INSETS) {
          String path = prefix + leaf;
 

@@ -228,7 +228,11 @@ public class AutoSaveRecycleBinChangesetApplyService {
       String assetName = original.getAssetName() == null || original.getAssetName().isBlank() ?
          entry.path() : original.getAssetName();
       boolean overwrite = Boolean.TRUE.equals(original.getOverwrite());
-      boolean collides = autoSaveRecycleBinService.wouldCollide(entry, assetName, user);
+      AutoSaveRecycleBinService.Occupant occupant =
+         autoSaveRecycleBinService.occupantOf(entry, assetName, user);
+      AutoSaveRecycleBinChangePlanService.requireOverwritable(
+         "assetName", assetName, occupant, entry.type());
+      boolean collides = occupant.occupied();
 
       if(collides && !overwrite) {
          throw new IllegalArgumentException(

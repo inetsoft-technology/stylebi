@@ -212,11 +212,18 @@ public class ScheduleChangesetApplyService {
       // anything, so run those checks first: a refusal here proves nothing was touched, and mustn't
       // be reported as a rollback that failed.
       scheduleGateway.checkAddScheduleTaskAllowed(spec.getOwner(), spec.getExecuteAsID(), user);
+      // Bug #79974, same for the refusals of the save itself (the run principal can't read an
+      // action viewsheet, org boundary, ...), which all precede its first write.
+      String link = linkURI == null ? null : Tool.replaceLocalhost(linkURI);
+      scheduleGateway.checkAddScheduleTaskSavable(meta, spec.isEnabled(),
+         spec.isDeleteIfNotScheduledToRun(), spec.getStartDate(), spec.getEndDate(),
+         spec.getDescription(), spec.getLocale(), spec.getExecuteAsID(), spec.getConditions(),
+         spec.getActions(), link, user);
       mutationEntered.set(true);
       scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
          spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
          spec.getExecuteAsID(), spec.getConditions(), spec.getActions(), spec.getOwner().getOrgID(),
-         linkURI == null ? null : Tool.replaceLocalhost(linkURI), user);
+         link, user);
 
       String after = ScheduleXmlProjection.project(scheduleManager.getScheduleTask(taskId));
       boolean verified = after != null;

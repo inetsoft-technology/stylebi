@@ -51,6 +51,7 @@ import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
@@ -64,6 +65,7 @@ import inetsoft.web.composer.vs.objects.event.ResizeVSObjectTitleEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.MockedStatic;
 
 import java.awt.Dimension;
@@ -262,6 +264,80 @@ class ViewsheetEditServiceTest {
                                                eq("linkUri1"), any(Principal.class));
       assertEquals("Chart1", captor.getValue().getAssemblyName());
       verify(refreshService, never()).refreshVsAssemblyView(any(), any(), any(), any(), any());
+   }
+
+   /**
+    * Bug #80147: {@code edit op:"refresh"} reported ok but a data-bound assembly stayed on the
+    * pre-change rows after the worksheet source changed. The per-assembly refresh re-executes the
+    * assembly, but the sandbox serves its query result from a cache that is discarded only when
+    * the runtime's touch timestamp moves past the entry's creation time, and only the whole-sheet
+    * refresh advanced it. The timestamps must move, on both the runtime and the sandbox, before
+    * the assembly is re-executed, or the re-execution reads the cached stale table.
+    */
+   @Test
+   void refreshAdvancesTheTouchTimestampsBeforeReExecutingTheAssembly() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvs, readerReturning(new AssemblyNode("Chart1", "Chart", 0, 0, 400, 300, 0, null, true)),
+         refreshService);
+      long before = System.currentTimeMillis();
+
+      service.apply("tok", principal(), request("refresh", "Chart1"), "linkUri1");
+
+      ArgumentCaptor<Long> rvsTs = ArgumentCaptor.forClass(Long.class);
+      ArgumentCaptor<Long> boxTs = ArgumentCaptor.forClass(Long.class);
+      InOrder order = inOrder(box, rvs, refreshService);
+      order.verify(box).lockWrite();
+      order.verify(rvs).setTouchTimestamp(rvsTs.capture());
+      order.verify(box).setTouchTimestamp(boxTs.capture());
+      order.verify(box).unlockWrite();
+      order.verify(refreshService).refreshVsAssembly(eq("rt1"), any(), any(), eq("linkUri1"),
+                                                     any(Principal.class));
+      assertTrue(rvsTs.getValue() >= before, "the runtime timestamp must be advanced to now");
+      assertEquals(rvsTs.getValue(), boxTs.getValue());
+   }
+
+   /**
+    * Bug #80147, selection assemblies: the values a selection list/tree shows are kept in the
+    * sandbox's table metadata, which a timestamp bump does not clear, so refreshing the
+    * selection must drop the metadata of every table it filters.
+    */
+   @Test
+   void refreshingASelectionDropsTheCachedMetadataOfItsTables() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      SelectionListVSAssembly list = mock(SelectionListVSAssembly.class);
+      when(list.getTableNames()).thenReturn(List.of("Orders", "Returns"));
+      when(vs.getAssembly("List1")).thenReturn(list);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvs, readerReturning(new AssemblyNode("List1", "SelectionList", 0, 0, 100, 100, 0, null,
+                                               true)),
+         mock(VSRefreshService.class));
+
+      service.apply("tok", principal(), request("refresh", "List1"), "");
+
+      verify(box).resetTableMetaData("Orders");
+      verify(box).resetTableMetaData("Returns");
+   }
+
+   @Test
+   void refreshingAChartLeavesTheSelectionMetadataAlone() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvs, readerReturning(new AssemblyNode("Chart1", "Chart", 0, 0, 400, 300, 0, null, true)),
+         mock(VSRefreshService.class));
+
+      service.apply("tok", principal(), request("refresh", "Chart1"), "");
+
+      verify(box, never()).resetTableMetaData(any());
    }
 
    @Test
@@ -1022,8 +1098,7 @@ class ViewsheetEditServiceTest {
    @Test
    void moveFromContainerAcceptsTheContainerTheAssemblyIsActuallyIn() throws Exception {
       ComposerObjectService objects = mock(ComposerObjectService.class);
-      ViewsheetEditService service = serviceWith(objects, readerReturning(
-         new AssemblyNode("Text1", "Text", 10, 10, 100, 20, 0, "Group1", true)));
+      ViewsheetEditService service = serviceWith(objects, movingOutOf("Group1"));
       EditRequest request = new EditRequest("move_from_container", "Text1", 20, 30, null, null,
                                             null, null, null, "Group1", null, null, null, null);
 
@@ -1034,6 +1109,96 @@ class ViewsheetEditServiceTest {
    }
 
    // ------------------------------------------------------------------------------------------
+   /** The model before the move (in the container) and after (out of it), one read each. */
+   private static ViewsheetReadService movingOutOf(String container) {
+      ViewsheetReadService reader = mock(ViewsheetReadService.class);
+      AssemblyNode in = new AssemblyNode("Text1", "Text", 30, 30, 100, 20, 0, container, true);
+      AssemblyNode out = new AssemblyNode("Text1", "Text", 20, 400, 100, 20, 0, null, true);
+      when(reader.read(any())).thenReturn(new ViewsheetModel("vs", List.of(in)),
+                                          new ViewsheetModel("vs", List.of(out)));
+      return reader;
+   }
+
+   private static EditRequest moveOut(String assembly, int x, int y) {
+      return new EditRequest("move_from_container", assembly, x, y, null, null, null, null, null,
+                             null, null, null, null, null);
+   }
+
+   /**
+    * Bug #79913: a point inside a Selection Container's rectangle is "dropped back in" -- the
+    * Composer service returns without removing it, and the call used to report "Applied".
+    */
+   @Test
+   void moveFromContainerWithAPointInsideASelectionContainerFailsLoudNamingTheCause() {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("CurrentSelection1", "CurrentSelection", 20, 20, 200, 120, 0, null, true),
+         new AssemblyNode("Text1", "Text", 30, 30, 100, 20, 0, "CurrentSelection1", true));
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class), reader);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), moveOut("Text1", 40, 60), ""));
+
+      assertTrue(thrown.getMessage().contains("CurrentSelection1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("(40, 60)"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("inside"), thrown.getMessage());
+   }
+
+   @Test
+   void moveFromContainerWithAPointOutsideTheContainerSucceeds() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects, movingOutOf("CurrentSelection1"));
+
+      service.apply("tok", principal(), moveOut("Text1", 20, 400), "");
+
+      verify(objects).moveFromContainer(eq("rt1"), any(), any(Principal.class), any(),
+                                        anyString());
+   }
+
+   /** The Composer service returns silently for an assembly in no container (omitted 'container'). */
+   @Test
+   void moveFromContainerOnAnAssemblyInNoContainerFailsLoudInsteadOfApplied() {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetEditService service = serviceWith(objects, readerReturning(
+         new AssemblyNode("Text1", "Text", 10, 10, 100, 20, 0, null, true)));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), moveOut("Text1", 20, 30), ""));
+
+      assertTrue(thrown.getMessage().contains("not in any container"), thrown.getMessage());
+      verifyNoInteractions(objects);
+   }
+
+   /**
+    * A Group container's inside point legitimately repositions the child within the group, so it
+    * is not refused -- but it is reported as a warning, never as having left the group.
+    */
+   @Test
+   void moveFromContainerInsideAGroupRepositionsAndWarnsInsteadOfFailing() throws Exception {
+      ViewsheetReadService reader = readerReturning(
+         new AssemblyNode("Group1", "GroupContainer", 20, 20, 200, 120, 0, null, true),
+         new AssemblyNode("Text1", "Text", 30, 30, 100, 20, 0, "Group1", true));
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(null, "rt1", dispatcher);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      ViewsheetEditService service = new ViewsheetEditService(
+         sessions, objects, mock(ClipboardControllerService.class),
+         mock(VSObjectPropertyService.class), reader, mock(ComposerGroupService.class),
+         mock(GroupingService.class), mock(VSRefreshService.class),
+         mock(CoreLifecycleService.class));
+
+      service.apply("tok", principal(), moveOut("Text1", 40, 60), "");
+
+      ArgumentCaptor<inetsoft.web.viewsheet.command.MessageCommand> captor =
+         ArgumentCaptor.forClass(inetsoft.web.viewsheet.command.MessageCommand.class);
+      verify(dispatcher).sendCommand(eq("Text1"), captor.capture());
+      assertTrue(captor.getValue().getMessage().contains("still in Group 'Group1'"));
+   }
+
    // Regression tests for VAR-001 (Redmine #76629): move/resize/resize_title/move_from_container
    // never checked LockableVSAssembly.islocked(), unlike align/distribute (see
    // alignExcludesALockedAssemblyFromBothTheMovedSetAndTheReferenceEdge below) -- a locked
@@ -1119,8 +1284,13 @@ class ViewsheetEditServiceTest {
       ShapeVSAssembly unlocked = mock(ShapeVSAssembly.class);
       when(unlocked.islocked()).thenReturn(false);
       RuntimeViewsheet rvs = runtimeWith("Rect1", unlocked);
-      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
-         new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, null, true)), objects);
+      ViewsheetReadService reader = mock(ViewsheetReadService.class);
+      when(reader.read(any())).thenReturn(
+         new ViewsheetModel("vs", List.of(
+            new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, "Group1", true))),
+         new ViewsheetModel("vs", List.of(
+            new AssemblyNode("Rect1", "Rectangle", 20, 30, 80, 40, 0, null, true))));
+      ViewsheetEditService service = serviceWithRuntime(rvs, reader, objects);
 
       EditRequest request = "move".equals(op) ? edit("move", "Rect1", 50, 60)
          : "resize".equals(op) ? sized("resize", "Rect1", 200, 100)
@@ -2468,6 +2638,31 @@ class ViewsheetEditServiceTest {
                                       mock(ComposerGroupService.class),
                                       mock(GroupingService.class),
                                       mock(VSRefreshService.class),
+                                      mock(CoreLifecycleService.class));
+   }
+
+   /** Runs the mutation against a supplied runtime with a supplied refresh service. */
+   private static ViewsheetEditService serviceWithRuntimeAndRefresh(
+      RuntimeViewsheet rvs, ViewsheetReadService reader, VSRefreshService refreshService)
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new ViewsheetEditService(sessions, mock(ComposerObjectService.class),
+                                      mock(ClipboardControllerService.class),
+                                      mock(VSObjectPropertyService.class), reader,
+                                      mock(ComposerGroupService.class),
+                                      mock(GroupingService.class), refreshService,
                                       mock(CoreLifecycleService.class));
    }
 

@@ -24,6 +24,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.content.repository.ImportAssetServiceProxy;
+import inetsoft.web.admin.content.repository.StagedImportNotFoundException;
 import inetsoft.web.admin.content.repository.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -42,12 +43,12 @@ import java.util.stream.Collectors;
  * inetsoft.web.admin.ai.AdminChangePlanService} (03-reconcile.md: adopts the full planHash/
  * taskToken discipline over a leaner acknowledgement-only alternative).
  *
- * <p><b>Disclosed limitation</b>: {@code willOverwrite}/{@code willCreate} are computed against
- * each entity's ORIGINAL recorded path ({@code SelectedAssetModel.path()}), not a retargeted
- * destination -- {@code DeployService.getJarFileInfo}'s own retargeting computation ({@code
- * DeployManagerService.getChangeRootFolderAsset}) is a private implementation detail not exposed
- * as a reusable method, so this preview cannot model "will overwrite AT THE NEW target" when
- * {@code targetFolderPath} is supplied. Only {@code VIEWSHEET}/{@code WORKSHEET} entries are
+ * <p>{@code willOverwrite}/{@code willCreate} are computed against the destination the import
+ * really writes to: when {@code targetFolderPath} is supplied, {@code DeployService.getJarFileInfo}
+ * reports it as {@code SelectedAssetModel.appliedTargetPath()}/{@code appliedTargetUser()} (from
+ * {@code DeployManagerService.getChangeRootFolderAsset}); without a retarget the recorded
+ * {@code path()}/{@code user()} are used. {@code label} is the recorded label, not the
+ * destination label. Dependent assets are not classified here. Only {@code VIEWSHEET}/{@code WORKSHEET} entries are
  * classified at all (this track's own scope, 03-reconcile.md) -- any other asset type present in
  * an uploaded jar (e.g. a data source or script from a jar built outside this plugin) is left out
  * of both lists.
@@ -62,6 +63,22 @@ public class RepositoryImportChangePlanService {
       this.assetRepository = assetRepository;
    }
 
+   private static IllegalArgumentException unknownStagingToken() {
+      return new IllegalArgumentException(
+         "stagingToken: no staged import found for this token -- it may have expired or " +
+         "already been applied/discarded; call stage_repository_import again");
+   }
+
+   private static boolean isStagedImportNotFound(Throwable e) {
+      for(Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+         if(t instanceof StagedImportNotFoundException) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    public RepositoryImportPlan resolve(RepositoryImportRequest req, Principal principal)
       throws Exception
    {
@@ -72,27 +89,33 @@ public class RepositoryImportChangePlanService {
       Integer locationType = null;
       ExportedAssetsModel info;
 
-      if(targetFolderPath != null) {
-         ExportedAssetsModel base = importService.getJarFileInfo(stagingToken, principal);
+      try {
+         if(targetFolderPath != null) {
+            ExportedAssetsModel base = importService.getJarFileInfo(stagingToken, principal);
 
-         if(base == null) {
-            throw new IllegalArgumentException(
-               "stagingToken: no staged import found for this token -- it may have expired or " +
-               "already been applied/discarded; call stage_repository_import again");
+            if(base == null) {
+               throw unknownStagingToken();
+            }
+
+            locationType = computeLocationType(base.selectedEntities());
+            info = importService.updateImportInfo(
+               stagingToken, targetFolderPath, locationType, targetOwner, principal);
+         }
+         else {
+            info = importService.getJarFileInfo(stagingToken, principal);
+         }
+      }
+      catch(RuntimeException e) {
+         // the import service throws rather than returning null for an unknown/expired token
+         if(isStagedImportNotFound(e)) {
+            throw unknownStagingToken();
          }
 
-         locationType = computeLocationType(base.selectedEntities());
-         info = importService.updateImportInfo(
-            stagingToken, targetFolderPath, locationType, targetOwner, principal);
-      }
-      else {
-         info = importService.getJarFileInfo(stagingToken, principal);
+         throw e;
       }
 
       if(info == null) {
-         throw new IllegalArgumentException(
-            "stagingToken: no staged import found for this token -- it may have expired or " +
-            "already been applied/discarded; call stage_repository_import again");
+         throw unknownStagingToken();
       }
 
       List<String> ignoreAssetNames = req.getIgnoreAssetNames() == null
@@ -129,12 +152,15 @@ public class RepositoryImportChangePlanService {
 
       return new RepositoryImportPlan(stagingToken, info, willOverwrite, willCreate,
          bookmarkConflicts == null ? Collections.emptyList() : bookmarkConflicts,
+         // overwrite exists only on the apply request, so preview cannot know whether a snapshot
+         // will be taken; apply (overwrite flag) is the authority, this stays true.
          acknowledgeOverwriteRequired, true, true, planHash, taskToken);
    }
 
    private boolean alreadyExists(SelectedAssetModel model) {
-      String unscoped = SUtil.getUnscopedPath(model.path());
-      IdentityID user = model.user();
+      String unscoped = SUtil.getUnscopedPath(
+         model.appliedTargetPath() != null ? model.appliedTargetPath() : model.path());
+      IdentityID user = model.appliedTargetPath() != null ? model.appliedTargetUser() : model.user();
       boolean isUserScope = user != null && !"__NULL__".equals(user.name);
       int scope = isUserScope ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
       AssetEntry.Type type = model.type() == RepositoryEntry.WORKSHEET
@@ -163,12 +189,27 @@ public class RepositoryImportChangePlanService {
    static List<String> ignoreListIndices(List<RequiredAssetModel> dependentAssets,
                                          List<String> ignoreAssetNames)
    {
-      if(dependentAssets == null || ignoreAssetNames == null || ignoreAssetNames.isEmpty()) {
+      if(ignoreAssetNames == null || ignoreAssetNames.isEmpty()) {
          return Collections.emptyList();
       }
 
       Set<String> wanted = new HashSet<>(ignoreAssetNames);
-      return dependentAssets.stream()
+      List<RequiredAssetModel> assets = dependentAssets == null
+         ? Collections.emptyList() : dependentAssets;
+      Set<String> valid = assets.stream()
+         .map(RequiredAssetModel::name)
+         .collect(Collectors.toCollection(TreeSet::new));
+      List<String> unknown = wanted.stream().filter(n -> !valid.contains(n)).sorted()
+         .collect(Collectors.toList());
+
+      if(!unknown.isEmpty()) {
+         throw new IllegalArgumentException(
+            "ignoreAssetNames: the staged package has no dependent asset named: " +
+            String.join(", ", unknown) + " (valid names: " +
+            (valid.isEmpty() ? "none" : String.join(", ", valid)) + ")");
+      }
+
+      return assets.stream()
          .filter(a -> wanted.contains(a.name()))
          .map(a -> Integer.toString(a.index()))
          .collect(Collectors.toList());

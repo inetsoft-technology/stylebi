@@ -139,6 +139,82 @@ class HyperlinkDialogServiceBoundFieldTest {
                                                   any(), any(), anyBoolean(), any());
    }
 
+   /** A treemap grouped by region whose size channel carries Sum(v). */
+   private static ChartFixture treemap() throws Exception {
+      ChartFixture f = new ChartFixture();
+      f.measure = sum("v");
+      VSChartInfo chartInfo = new DefaultVSChartInfo();
+      chartInfo.setChartDescriptor(new ChartDescriptor());
+      chartInfo.setChartType(GraphTypes.CHART_TREEMAP);
+      chartInfo.setRTChartType(GraphTypes.CHART_TREEMAP);
+      chartInfo.addGroupField(dim("region"));
+      VSAestheticRef size = new VSAestheticRef();
+      size.setDataRef(f.measure);
+      chartInfo.setSizeField(size);
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly assembly = new ChartVSAssembly(vs, "Chart1");
+      assembly.setVSChartInfo(chartInfo);
+      vs.addAssembly(assembly);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      when(viewsheetService.getViewsheet(anyString(), any())).thenReturn(rvs);
+      f.props = mock(VSObjectPropertyService.class);
+      f.service = new HyperlinkDialogService(null, f.props, viewsheetService,
+                                             mock(DataRefModelFactoryService.class), null, null,
+                                             mock(HighlightService.class), null);
+      return f;
+   }
+
+   @Test
+   void treemapSizeMeasureRefusalNamesTheChannelAndDoesNotListItAsLinkable() throws Exception {
+      ChartFixture f = treemap();
+      String measure = f.measure.getFullName();
+
+      Exception e = assertThrows(IllegalArgumentException.class, () ->
+         f.service.setHyperlinkDialogModel("rt", "Chart1", model(measure, true), "", USER, null));
+      String msg = e.getMessage();
+      assertTrue(msg.contains("'" + measure + "'") && msg.contains("size/color channel"), msg);
+      assertFalse(msg.contains("is not a field bound"), msg);
+      String linkable = msg.substring(msg.indexOf("take a link here:"));
+      assertTrue(linkable.contains("region"), linkable);
+      assertFalse(linkable.contains(measure), linkable);
+      assertNothingWritten(f);
+   }
+
+   @Test
+   void treemapGenuinelyUnboundNameKeepsTheOldWording() throws Exception {
+      ChartFixture f = treemap();
+
+      Exception e = assertThrows(IllegalArgumentException.class, () ->
+         f.service.setHyperlinkDialogModel("rt", "Chart1", model("nonsense", true), "", USER, null));
+      assertTrue(e.getMessage().contains("is not a field bound on this chart") &&
+                    e.getMessage().contains("The chart's fields are:"), e.getMessage());
+   }
+
+   @Test
+   void treemapGroupFieldStillTakesALink() throws Exception {
+      ChartFixture f = treemap();
+      f.service.setHyperlinkDialogModel("rt", "Chart1", model("region", true), "", USER, null);
+      assertNotNull(written(f));
+   }
+
+   @Test
+   void nonTreemapMeasureIsNotRefusedAndUnboundKeepsOldWording() throws Exception {
+      ChartFixture f = chart(dim("region"));
+      f.service.setHyperlinkDialogModel(
+         "rt", "Chart1", model(f.measure.getFullName(), true), "", USER, null);
+      assertNotNull(written(f));
+
+      ChartFixture g = chart(dim("region"));
+      Exception e = assertThrows(IllegalArgumentException.class, () ->
+         g.service.setHyperlinkDialogModel("rt", "Chart1", model("nonsense", true), "", USER, null));
+      assertFalse(e.getMessage().contains("size/color channel"), e.getMessage());
+   }
+
    @Test
    void wrongCaseMeasureNameResolvesToTheBoundField() throws Exception {
       ChartFixture f = chart(dim("region"));

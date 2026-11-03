@@ -118,7 +118,10 @@ class ChartTimeSeriesSortConflictTest {
       model.setChartType(GraphTypes.CHART_LINE);
       ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
       ChartBindingMutator.setShelf(model, "y", List.of(sum()));
-      ChartBindingMutator.setShelf(model, "x", List.of(date("month", null), date("month", false)));
+      // A dormant true on the outer occurrence, as native drag-and-drop leaves it (a keyless
+      // append that makes an effective true outer is refused since bug #80060).
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", false), date("month", false)));
+      dim(model.getXFields(), 0).setTimeSeries(true);
       ChartBindingMutator.setSort(model, "x", "Order Date", 1, sort("desc"));
       List<ChartRefModel> before = new ArrayList<>(model.getXFields());
 

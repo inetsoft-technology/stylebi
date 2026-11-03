@@ -311,6 +311,7 @@ public class BoundTableAssembly extends AbstractTableAssembly {
       for(int i = 0; i < cassemblies.size(); i++) {
          ConditionAssembly cond = (ConditionAssembly) cassemblies.get(i);
          AssetUtil.getConditionDependeds(ws, cond, set);
+         AssetUtil.getConditionScriptDependeds(ws, cond.getConditionList(), set, this);
       }
    }
 

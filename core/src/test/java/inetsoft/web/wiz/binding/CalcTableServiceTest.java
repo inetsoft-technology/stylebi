@@ -2521,4 +2521,41 @@ class CalcTableServiceTest {
 
       verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
    }
+
+   private Map<String, Object> bindFormulaUnderObjectDateFormat(VSCompositeFormat own)
+      throws Exception
+   {
+      Harness h = harness(2, 2);
+      FormatInfo formatInfo = new FormatInfo();
+      formatInfo.setFormat(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.OBJECTPATH,
+                           dateFormat());
+
+      if(own != null) {
+         formatInfo.setFormat(CELL_01, own);
+      }
+
+      when(h.assemblyInfo().getFormatInfo()).thenReturn(formatInfo);
+      when(h.assemblyInfo().getCellDataPath(0, 1)).thenReturn(CELL_01);
+      return h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+         spec("content", "formula", "formula", "1234"));
+   }
+
+   /** Bug #79999: a formula cell's type is unknowable, so it is disclosed rather than refused. */
+   @Test
+   void formulaCellUnderAnObjectDateFormatCarriesADisclosure() throws Exception {
+      List<String> notes = formatNotes(bindFormulaUnderObjectDateFormat(null));
+
+      assertNotNull(notes);
+      assertEquals(1, notes.size());
+      assertTrue(notes.get(0).contains(XConstants.DATE_FORMAT), notes.get(0));
+      assertTrue(notes.get(0).contains("1970"), notes.get(0));
+   }
+
+   @Test
+   void formulaCellWithItsOwnFormatUnderAnObjectDateFormatCarriesNoDisclosure() throws Exception {
+      VSCompositeFormat decimal = new VSCompositeFormat();
+      decimal.getUserDefinedFormat().setFormatValue(XConstants.DECIMAL_FORMAT);
+
+      assertNull(formatNotes(bindFormulaUnderObjectDateFormat(decimal)));
+   }
 }

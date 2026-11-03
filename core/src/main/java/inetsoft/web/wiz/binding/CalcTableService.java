@@ -454,6 +454,7 @@ public class CalcTableService {
          layoutService.setCellBinding(runtimeId, event, user, dispatcher);
          remapRankings(rvs, assembly, rankings, rankWarnings);
          clearDateFormatOnNumericCell(rvs, assemblyName, row, col, formatNotes);
+         noteFormulaCellUnderObjectDateFormat(assembly, row, col, cellBindingInfo, formatNotes);
       });
 
       Map<String, Object> body = new LinkedHashMap<>();
@@ -2028,6 +2029,41 @@ public class CalcTableService {
          "repeat this write; or change the whole-table format with set_format " +
          "target:\"object\" (reset:true, or a non-date format) and format the date cells alone " +
          "with set_calc_cell_format.");
+   }
+
+   /**
+    * Bug #79999: a formula/script cell's result type cannot be known before it renders, so the
+    * numeric-output refusal above cannot cover it. A cell with no format of its own under a
+    * whole-table date format would show a numeric result as 1970-01-01, so say so instead.
+    */
+   private void noteFormulaCellUnderObjectDateFormat(CalcTableVSAssembly assembly, int row,
+                                                     int col, CellBindingInfo planned,
+                                                     List<String> notes)
+   {
+      if(planned.getType() != CellBinding.BIND_FORMULA) {
+         return;
+      }
+
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      String objectFormat = WizDateFormatOverNumeric.objectDateFormat(info);
+
+      if(objectFormat == null) {
+         return;
+      }
+
+      FormatInfo formatInfo = info.getFormatInfo();
+      VSCompositeFormat own =
+         formatInfo == null ? null : formatInfo.getFormat(info.getCellDataPath(row, col));
+      VSFormat user = own == null ? null : own.getUserDefinedFormat();
+
+      if(user != null && user.isFormatValueDefined()) {
+         return;
+      }
+
+      notes.add("Cell [" + row + "," + col + "] is a formula with no format of its own and the " +
+                "table has a whole-table " + objectFormat + ", so if the formula returns a " +
+                "number it will render as a 1970-01-01 date; give the cell a numeric format " +
+                "with set_calc_cell_format if it does.");
    }
 
    /**

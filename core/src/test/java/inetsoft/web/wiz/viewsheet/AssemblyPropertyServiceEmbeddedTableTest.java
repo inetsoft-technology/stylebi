@@ -189,7 +189,8 @@ class AssemblyPropertyServiceEmbeddedTableTest {
          mock(OvalPropertyDialogService.class), mock(RectanglePropertyDialogService.class),
          mock(SelectionContainerPropertyDialogService.class),
          mock(SubmitPropertyDialogService.class), mock(VSOutputService.class),
-         mock(VSColumnHandler.class), mock(DataOutputService.class));
+         mock(VSColumnHandler.class), mock(DataOutputService.class),
+         mock(ViewsheetObjectPropertyDialogService.class));
       return new Stack(service, vs, table);
    }
 }

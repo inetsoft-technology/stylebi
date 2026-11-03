@@ -26,6 +26,8 @@ import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.presentation.model.PresentationLoginBannerSettingsModel;
+import inetsoft.web.admin.presentation.model.PresentationPdfGenerationSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationTimeSettingsModel;
 import inetsoft.web.admin.presentation.model.WelcomePageSettingsModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,7 +76,9 @@ public class PresentationChangePlanService {
     * sub-model's current value.
     *
     * @throws IllegalArgumentException with a field-named message on a blank task, an empty change
-    *         list, an unrecognized verb/subModel/scope, a duplicate sub-model+scope pair, an
+    *         list, an unrecognized verb/subModel/scope, a {@code reset} at global scope or carrying
+    *         a {@code spec}, a {@code reset} of welcomePage/loginBanner combined with another entry
+    *         for either, a duplicate sub-model+scope pair, an
     *         unrecognized {@code spec} field, {@code scope: "organization"} for a global-only
     *         sub-model, an unsafe {@code lookAndFeel} file name, a secret {@code webMap} field, a
     *         {@code portalIntegration.tabs} array that does not list every current tab exactly once
@@ -118,6 +122,7 @@ public class PresentationChangePlanService {
 
       List<ResolvedChange> result = new ArrayList<>();
       Set<String> seen = new HashSet<>();
+      Map<PresentationSubModel, Boolean> coupled = new EnumMap<>(PresentationSubModel.class);
       int index = 0;
 
       for(PresentationChangeRequest raw : req.getChanges()) {
@@ -127,11 +132,23 @@ public class PresentationChangePlanService {
             throw new IllegalArgumentException(label + ": must not be null");
          }
 
-         requireVerb(label, raw.getVerb());
+         boolean reset = requireVerb(label, raw.getVerb());
          PresentationSubModel subModel = requireSubModel(label, raw.getSubModel());
          boolean global = requireScope(label, subModel, raw.getScope());
+
+         if(reset) {
+            requireResetScope(label, subModel, global, raw.getSpec());
+         }
+
          requireOrganizationScopeAvailable(label, global);
          requireUnseen(label, subModel, global, seen);
+
+         requireNoCoupledEntry(label, subModel, global, reset, coupled);
+
+         if(reset) {
+            result.add(resolveReset(subModel, principal));
+            continue;
+         }
 
          JsonNode spec = requireSpecObject(label, raw.getSpec());
          requireKnownFields(label, subModel, spec);
@@ -201,12 +218,140 @@ public class PresentationChangePlanService {
 
    // ---------------------------------------------------------------- validation helpers
 
-   static void requireVerb(String label, String verb) {
-      if(verb == null || !PresentationChangeRequest.VERB_UPDATE.equalsIgnoreCase(verb.trim())) {
-         throw new IllegalArgumentException(
-            label + ".verb: must be \"update\" -- presentation sub-models cannot be created or " +
-            "destroyed, got " + verb);
+   /** @return {@code true} for {@code reset}, {@code false} for {@code update} */
+   static boolean requireVerb(String label, String verb) {
+      String trimmed = verb == null ? "" : verb.trim();
+
+      if(PresentationChangeRequest.VERB_UPDATE.equalsIgnoreCase(trimmed)) {
+         return false;
       }
+
+      if(PresentationChangeRequest.VERB_RESET.equalsIgnoreCase(trimmed)) {
+         return true;
+      }
+
+      throw new IllegalArgumentException(
+         label + ".verb: must be \"update\" or \"reset\" -- presentation sub-models cannot be " +
+         "created or destroyed; to remove an organization's override use verb \"reset\" at scope " +
+         "\"organization\", got " + verb);
+   }
+
+   /**
+    * Bug #80087: {@code reset} un-pins the calling organization's own override so it inherits the
+    * global value again. At global scope there is nothing to inherit from -- the sub-service writes
+    * default values (and for lookAndFeel, loginBanner and portalIntegration wipes fonts, the whole
+    * welcome page and custom tabs) -- so it is refused rather than offered as an un-pin. A reset
+    * carries no field changes, so a {@code spec} is refused rather than silently ignored.
+    */
+   private static void requireResetScope(String label, PresentationSubModel subModel, boolean global,
+                                         JsonNode spec)
+   {
+      if(global) {
+         throw new IllegalArgumentException(
+            label + ".verb: \"reset\" is only available at scope \"organization\" (it removes the " +
+            "organization's own override so it inherits the global value again). At scope " +
+            "\"global\" a reset would write default values rather than un-pin anything, and for " +
+            "lookAndFeel, loginBanner and portalIntegration would wipe fonts, the welcome page and " +
+            "custom tabs; use verb \"update\" with explicit values.");
+      }
+
+      if(spec != null && !spec.isNull()) {
+         throw new IllegalArgumentException(
+            label + ".spec: not allowed with verb \"reset\" -- a reset of \"" + subModel.key() +
+            "\" removes the whole organization override and takes no fields; omit spec");
+      }
+   }
+
+   /** welcomePage and loginBanner are two views of ONE organization entry: a reset of either
+    * removes both, and any other entry on the pair would be silently wiped or re-created depending
+    * on order, so a changeset that resets one may not hold any other entry for either. */
+   private static void requireNoCoupledEntry(String label, PresentationSubModel subModel,
+                                             boolean global, boolean reset,
+                                             Map<PresentationSubModel, Boolean> coupled)
+   {
+      if(global || !PresentationSettingsAccess.isWelcomePair(subModel)) {
+         return;
+      }
+
+      boolean anyReset = reset || coupled.containsValue(true);
+
+      if(!coupled.isEmpty() && anyReset) {
+         throw new IllegalArgumentException(
+            label + ": welcomePage and loginBanner share one organization entry, so a reset of " +
+            "either removes both; a changeset that resets one must not contain another entry for " +
+            "welcomePage or loginBanner (organization scope). Send the reset alone.");
+      }
+
+      coupled.put(subModel, reset);
+   }
+
+   private static final String RESET_PROPOSED = "(organization override removed; inherits global)";
+
+   /** One {@code reset} entry: the proposed value is deliberately not a projected global read -- an
+    * organization read after the removal is not always the global read (lookAndFeel's global read
+    * lists every organization's CSS entries), so apply verifies key absence and reports the actual
+    * organization read instead. The org-state digest binds the plan to the exact override set. */
+   private ResolvedChange resolveReset(PresentationSubModel subModel, Principal principal)
+      throws Exception
+   {
+      Object currentModel = access.read(subModel, principal, false);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String property = subModel.key() + ":" + PresentationChangeRequest.SCOPE_ORGANIZATION;
+      Map<String, String> hidden = new LinkedHashMap<>();
+      PlanHashInputs.addHidden(hidden, property, "orgState", access.orgStateDigest());
+
+      StringBuilder description = new StringBuilder("reset ").append(subModel.key())
+         .append(" (organization scope): removes the organization's own override so it inherits the ")
+         .append("global value again");
+      List<String> keys = access.resetKeysPresent(subModel);
+
+      if(keys.isEmpty()) {
+         description.append("; the organization currently has no override keys for it");
+      }
+      else {
+         description.append("; organization keys to be removed: ").append(keys);
+      }
+
+      if(PresentationSettingsAccess.isWelcomePair(subModel)) {
+         description.append("; welcomePage and loginBanner share one organization entry, so this ")
+            .append("clears BOTH (current values of both are shown)");
+      }
+      else if(subModel == PresentationSubModel.LOOK_AND_FEEL) {
+         description.append("; also permanently deletes the organization's uploaded CSS, logo and ")
+            .append("favicon files");
+      }
+
+      if(subModel.isStorageScope()) {
+         description.append("; storage-scope: cannot be rolled back");
+      }
+
+      PlanChange planChange = new PlanChange(
+         property, orgId, resetProjection(access, subModel, principal), RESET_PROPOSED,
+         subModel.risk(), subModel.scope(), true, description.toString());
+      return new ResolvedChange(subModel, false, currentModel, null, planChange, hidden, true);
+   }
+
+   /** The organization-scope read of {@code subModel} as a plan/apply projection; for the coupled
+    * welcomePage/loginBanner pair, a reset clears both, so both are projected together. */
+   static String resetProjection(PresentationSettingsAccess access, PresentationSubModel subModel,
+                                 Principal principal)
+      throws Exception
+   {
+      if(!PresentationSettingsAccess.isWelcomePair(subModel)) {
+         return projectedValue(subModel, PresentationJson.toNode(
+            access.read(subModel, principal, false)));
+      }
+
+      ObjectNode both = PresentationJson.MAPPER.createObjectNode();
+
+      for(PresentationSubModel member : List.of(PresentationSubModel.WELCOME_PAGE,
+                                                PresentationSubModel.LOGIN_BANNER))
+      {
+         both.set(member.key(), PresentationJson.maskSecrets(
+            member, PresentationJson.toNode(access.read(member, principal, false))));
+      }
+
+      return PresentationJson.writeString(both);
    }
 
    static PresentationSubModel requireSubModel(String label, String subModel) {
@@ -274,8 +419,9 @@ public class PresentationChangePlanService {
       "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday");
 
    /**
-    * Refuses the {@code welcomePage} and {@code time} values the Enterprise Manager editors forbid
-    * (Bug #79430): neither the services nor the legacy REST endpoints validate them, so without this a
+    * Refuses the {@code welcomePage}, {@code time}, {@code loginBanner.bannerType} and
+    * {@code pdfGeneration.openFirst} values the Enterprise Manager editors forbid
+    * (Bug #79430, #80002): neither the services nor the legacy REST endpoints validate them, so without this a
     * type-1 welcome page with a blank source or a week start of "Funday" would be previewed and
     * written. Judged on the TYPED merged model, so a Jackson coercion is judged by its final value,
     * and only when that value differs from the current one: an unchanged echo of a read-back value
@@ -333,6 +479,33 @@ public class PresentationChangePlanService {
             throw new IllegalArgumentException(
                label + ".spec.weekStart: must be one of Sunday..Saturday (case-insensitive) or \"\" " +
                "for the default, got " + (weekStart == null ? "null" : "\"" + weekStart + "\""));
+         }
+      }
+      else if(subModel == PresentationSubModel.LOGIN_BANNER && spec.has("bannerType")) {
+         // Bug #80002: EM offers only 0 (Text) and 1 (HTML); the write does Integer.parseInt
+         String bannerType = ((PresentationLoginBannerSettingsModel) proposed).bannerType();
+         JsonNode curNode = currentNode.get("bannerType");
+         String cur = curNode == null || curNode.isNull() ? null : curNode.asText();
+
+         if(!Objects.equals(bannerType, cur) && !"0".equals(bannerType) && !"1".equals(bannerType)) {
+            throw new IllegalArgumentException(
+               label + ".spec.bannerType: must be \"0\" (Text) or \"1\" (HTML), got " +
+               (bannerType == null ? "null" : "\"" + bannerType + "\""));
+         }
+      }
+      else if(subModel == PresentationSubModel.PDF_GENERATION && spec.has("openFirst")) {
+         // Bug #80002: the write only recognizes "bookmark" and "thumbnail"; anything else
+         // silently clears both flags while the signed plan promises the unknown value
+         String openFirst = ((PresentationPdfGenerationSettingsModel) proposed).openFirst();
+         JsonNode curNode = currentNode.get("openFirst");
+         String cur = curNode == null || curNode.isNull() ? null : curNode.asText();
+
+         if(!Objects.equals(openFirst, cur) && openFirst != null && !"bookmark".equals(openFirst) &&
+            !"thumbnail".equals(openFirst))
+         {
+            throw new IllegalArgumentException(
+               label + ".spec.openFirst: must be \"bookmark\", \"thumbnail\" or null (none), got \"" +
+               openFirst + "\"");
          }
       }
    }
@@ -934,7 +1107,12 @@ public class PresentationChangePlanService {
     * of re-deriving either from JSON a second time. */
    record ResolvedChange(PresentationSubModel subModel, boolean global, Object currentModel,
                          Object proposedModel, PlanChange planChange,
-                         Map<String, String> hidden)
+                         Map<String, String> hidden, boolean reset)
    {
+      ResolvedChange(PresentationSubModel subModel, boolean global, Object currentModel,
+                     Object proposedModel, PlanChange planChange, Map<String, String> hidden)
+      {
+         this(subModel, global, currentModel, proposedModel, planChange, hidden, false);
+      }
    }
 }

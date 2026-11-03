@@ -352,4 +352,70 @@ class AssemblyConditionServiceVariableTest {
       assertNull(WizVsService.findFailedQueryCause(new DefaultTableFilter(
          new DefaultTableLens(1, 1))));
    }
+
+   // ── bug #80075: a multi-valued variable under a single-valued operator ───────────
+
+   private static final String STATE = "Customer:State";
+
+   private static VSConditionDialogModel stateModel() {
+      VSConditionDialogModel model = new VSConditionDialogModel();
+      model.setTableName("Orders");
+      model.setFields(new DataRefModel[]{ field(STATE, "string") });
+      return model;
+   }
+
+   private static List<String> warningsFor(String operator, boolean negated, Object value)
+      throws Exception
+   {
+      Harness h = harness(stateModel(), variables("StateBox", value));
+      ConditionVocabulary.Clause clause = new ConditionVocabulary.Clause(
+         STATE, operator, List.of(Map.of("type", "variable", "name", "StateBox")), null,
+         negated, false, 0);
+      AssemblyConditionService.SetResult result =
+         h.service.setWithWarnings("tok", principal(), "T", List.of(clause), "");
+      assertEquals(1, result.applied());
+      return result.warnings();
+   }
+
+   @Test
+   void warnsThatEqualsOnAMultiValuedVariableUsesOnlyTheFirstValue() throws Exception {
+      List<String> warnings = warningsFor("equals", false, new String[]{ "CA", "NY" });
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      String warning = warnings.get(0);
+      assertTrue(warning.contains("StateBox"), warning);
+      assertTrue(warning.contains("equals"), warning);
+      assertTrue(warning.contains("only the first value"), warning);
+      assertTrue(warning.contains("'CA'"), warning);
+      assertTrue(warning.contains(" one_of "), warning);
+      assertFalse(warning.contains("not_one_of"), warning);
+   }
+
+   @Test
+   void pointsANegatedEqualsAtNotOneOf() throws Exception {
+      List<String> warnings = warningsFor("equals", true, new String[]{ "CA", "NY" });
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("not_one_of"), warnings.get(0));
+   }
+
+   @Test
+   void doesNotWarnOneOfOnAMultiValuedVariable() throws Exception {
+      assertTrue(warningsFor("one_of", false, new String[]{ "CA", "NY" }).isEmpty());
+   }
+
+   @Test
+   void doesNotWarnEqualsOnASingleValuedVariable() throws Exception {
+      assertTrue(warningsFor("equals", false, "CA").isEmpty());
+      assertTrue(warningsFor("equals", false, new String[]{ "CA" }).isEmpty());
+   }
+
+   @Test
+   void warnsForOtherSingleValuedOperatorsAndCollections() throws Exception {
+      List<String> warnings = warningsFor("starts_with", false, List.of("C", "N"));
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("starts_with"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("only the first value"), warnings.get(0));
+   }
 }

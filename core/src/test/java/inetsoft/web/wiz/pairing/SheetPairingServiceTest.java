@@ -122,6 +122,14 @@ class SheetPairingServiceTest {
                                      runtimeId -> null);
    }
 
+   // Bug #80140: ConcurrentHashMap rejects null keys; a null code must read as "no such grant".
+   @Test
+   void nullCodeIsNullSafeForPeekAndConsume() {
+      SheetPairingService svc = serviceAt(FIXED_NOW);
+      assertNull(svc.peek(null));
+      assertNull(svc.consume(null));
+   }
+
    @Test
    void mintReturnsEightCharCode() throws PairingException {
       SheetPairingService svc = serviceAt(FIXED_NOW);

@@ -35,6 +35,7 @@ import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import inetsoft.test.BaseTestConfiguration;
@@ -3272,6 +3273,114 @@ class TableBindingServiceTest {
                   "a shown rename that collides with nothing -- shown or hidden -- must still " +
                   "be applied");
       assertEquals(List.of("Region -> Sales Region"), result.applied());
+   }
+
+   // ── set_column_labels entries[].index on a Table with hidden columns (bug-80016) ───
+
+   private static inetsoft.uql.asset.ColumnRef shownRef(TableVSAssembly table, String name) {
+      return (inetsoft.uql.asset.ColumnRef) ((TableVSAssemblyInfo) table.getVSAssemblyInfo())
+         .getColumnSelection().getAttribute(name);
+   }
+
+   private static String hiddenAlias(TableVSAssembly table, String name) {
+      return ((inetsoft.uql.asset.ColumnRef) ((TableVSAssemblyInfo) table.getVSAssemblyInfo())
+         .getHiddenColumns().getAttribute(name)).getAlias();
+   }
+
+   /** Bug #80016 (a): a hidden column's own full-order index is accepted and the label lands on it. */
+   @Test
+   void setColumnLabelsEntryAcceptsAHiddenColumnsOwnIndex() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      TableBindingService.TableWrite result = service.setColumnLabels(
+         "tok", principal(), "TableView2", null,
+         List.of(new ColumnLabelEntry("details", "B", 1, "Bee")));
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      assertEquals("Bee", hiddenAlias(table, "B"));
+      assertNull(info.getColumnSelection().getAttribute("B"), "labeling must not un-hide it");
+      assertEquals(List.of("B -> Bee"), result.applied());
+   }
+
+   /** Bug #80016: the same hidden column WITHOUT an index goes through the hidden-label path too. */
+   @Test
+   void setColumnLabelsEntryOnAHiddenColumnWithNoIndexLabelsIt() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.setColumnLabels("tok", principal(), "TableView2", null,
+                              List.of(new ColumnLabelEntry(null, "B", null, "Bee")));
+
+      assertEquals("Bee", hiddenAlias(table, "B"));
+   }
+
+   /** Bug #80016 (b): a shown column's get_table_binding position (shown and hidden) is accepted. */
+   @Test
+   void setColumnLabelsEntryAcceptsAShownColumnsFullOrderIndex() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.setColumnLabels("tok", principal(), "TableView2", null,
+                              List.of(new ColumnLabelEntry("details", "C", 2, "See")));
+
+      assertEquals("See", shownRef(table, "C").getAlias());
+      assertNull(shownRef(table, "A").getAlias());
+   }
+
+   /** Bug #80016 (c): C's shown-only position (1) is not its position, so nothing is relabelled. */
+   @Test
+   void setColumnLabelsEntryRefusesAShownColumnsShownOnlyIndex() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels("tok", principal(), "TableView2", null,
+            List.of(new ColumnLabelEntry("details", "C", 1, "See"))));
+
+      assertTrue(e.getMessage().contains("'index' 1"), e.getMessage());
+      assertTrue(e.getMessage().contains("'C'"), e.getMessage());
+      assertNull(shownRef(table, "C").getAlias());
+      assertNull(shownRef(table, "A").getAlias());
+   }
+
+   /** Bug #80016: a wrong index for a hidden column is refused and nothing is written. */
+   @Test
+   void setColumnLabelsEntryRefusesAWrongIndexForAHiddenColumn() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels("tok", principal(), "TableView2", null,
+            List.of(new ColumnLabelEntry("details", "B", 2, "Bee"))));
+
+      assertNull(hiddenAlias(table, "B"));
+   }
+
+   /** Bug #80016: a Table with no hidden column keeps the shown-only index (control). */
+   @Test
+   void setColumnLabelsEntryKeepsTheShownIndexWhenNothingIsHidden() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "A", "C");
+      TableBindingService service = hiddenColumnService(table, null);
+
+      service.setColumnLabels("tok", principal(), "TableView2", null,
+                              List.of(new ColumnLabelEntry("details", "C", 1, "See")));
+
+      assertEquals("See", shownRef(table, "C").getAlias());
+   }
+
+   /** Bug #80016: a hidden column named by both 'labels' and an entry would collapse silently. */
+   @Test
+   void setColumnLabelsRefusesAHiddenColumnNamedByBothLabelsAndAnEntry() throws Exception {
+      TableVSAssembly table = tableWithHiddenB();
+      TableBindingService service = hiddenColumnService(table, null);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels("tok", principal(), "TableView2", Map.of("B", "One"),
+            List.of(new ColumnLabelEntry("details", "B", 1, "Two"))));
+
+      assertTrue(e.getMessage().contains("'B'"), e.getMessage());
+      assertNull(hiddenAlias(table, "B"));
    }
 
    // ── set_table_source on a Table with hidden columns (bug-79331) ───

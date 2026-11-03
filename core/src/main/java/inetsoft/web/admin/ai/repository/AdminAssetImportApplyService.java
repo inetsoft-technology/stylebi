@@ -34,13 +34,22 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.LongSupplier;
 
 /**
  * Applies a reviewed repository-import plan. Import has no live inverse in this cut
  * (01-design.md section 6) -- unlike {@code AdminChangesetApplyService}/{@code
- * ViewsheetChangesetApplyService}, there is no rollback path: the outcome is {@code "applied"} or
- * {@code "failed"} only, and the Tier-2 snapshot taken before apply is the sole recovery path.
+ * ViewsheetChangesetApplyService}, there is no rollback path.
+ *
+ * <p>{@link ImportAssetServiceProxy#importAsset} only hands the import to a background job and
+ * answers {@code complete=false}; this service polls that job (the same contract the EM UI uses)
+ * while holding the apply lock, so the outcome is {@code "applied"} only once the import has
+ * really finished, {@code "failed"} when the job failed, and {@code "in-progress"} when it is
+ * still running (or its state is unknown) at the deadline. The Tier-2 snapshot, taken only when
+ * the request overwrites ({@code overwrite=true}), is the recovery path for an overwrite.
  */
 @Component
 public class AdminAssetImportApplyService {
@@ -52,6 +61,31 @@ public class AdminAssetImportApplyService {
       this.planService = planService;
       this.importService = importService;
       this.backupService = backupService;
+   }
+
+   /** Test seam: replaces the clock, sleep and timing defaults (not a bean dependency). */
+   AdminAssetImportApplyService withTiming(LongSupplier clock, Sleeper sleeper,
+                                           long totalDeadlineMs, long pollIntervalMs)
+   {
+      this.clock = clock;
+      this.sleeper = sleeper;
+      this.totalDeadlineMs = totalDeadlineMs;
+      this.pollIntervalMs = pollIntervalMs;
+      return this;
+   }
+
+   /** Injectable sleep so tests do not wait in real time. */
+   @FunctionalInterface
+   interface Sleeper {
+      void sleep(long millis) throws InterruptedException;
+   }
+
+   /** Thrown when another import apply holds the lock for longer than this request may wait. */
+   public static class ApplyInProgressException extends RuntimeException {
+      public ApplyInProgressException() {
+         super("another repository import apply is in progress; wait for it to finish " +
+               "(check list_changesets) and retry");
+      }
    }
 
    /** Thrown when {@code apply} carries a hash that does not match the freshly resolved plan. */
@@ -81,7 +115,13 @@ public class AdminAssetImportApplyService {
    public RepositoryImportApplyResult apply(RepositoryImportApplyRequest req, Principal user)
       throws Exception
    {
-      APPLY_LOCK.lock();
+      long deadline = clock.getAsLong() + totalDeadlineMs;
+
+      // the wait for another apply gets a share of the budget, the snapshot and the import
+      // poll need the rest
+      if(!APPLY_LOCK.tryLock(totalDeadlineMs / 4, TimeUnit.MILLISECONDS)) {
+         throw new ApplyInProgressException();
+      }
 
       try {
          RepositoryImportPlan plan = planService.resolve(req, user);
@@ -113,7 +153,9 @@ public class AdminAssetImportApplyService {
          }
 
          String txId = "repoimport-" + newIdSuffix();
-         String backupRef = backupService.backup(txId);
+         // the snapshot is the recovery path for replaced assets; an additive import
+         // (overwrite=false) keeps existing assets, so it does not pay for one
+         String backupRef = req.isOverwrite() ? backupService.backup(txId) : null;
 
          List<String> ignoreAssetNames = req.getIgnoreAssetNames() == null
             ? Collections.emptyList() : req.getIgnoreAssetNames();
@@ -136,9 +178,49 @@ public class AdminAssetImportApplyService {
          Integer locationType = targetFolderPath == null ? null
             : computeLocationTypeFrom(plan.jarInfo());
 
-         ImportAssetResponse response = importService.importAsset(plan.stagingToken(),
-            targetFolderPath, locationType, targetOwner, true, ignoreList, req.isOverwrite(),
-            false, user, bookmarkResolutions);
+         ImportAssetResponse response = null;
+         boolean inProgress = false;
+         String jobError = null;
+
+         try {
+            response = importService.importAsset(plan.stagingToken(),
+               targetFolderPath, locationType, targetOwner, true, ignoreList, req.isOverwrite(),
+               false, user, bookmarkResolutions);
+
+            // the first call only queues a background job, poll it until it really finishes
+            while(response != null && !response.complete()) {
+               long remaining = deadline - clock.getAsLong();
+
+               if(remaining <= 0) {
+                  inProgress = true;
+                  break;
+               }
+
+               sleeper.sleep(Math.min(pollIntervalMs, remaining));
+               response = importService.importAsset(plan.stagingToken(), targetFolderPath,
+                  locationType, targetOwner, true, ignoreList, req.isOverwrite(), true, user,
+                  bookmarkResolutions);
+
+               if(response != null && response.complete() && response.failed() &&
+                  response.failedAssets().isEmpty())
+               {
+                  // the job is no longer known to the poll (evicted or on another node), so its
+                  // outcome is unknown rather than failed
+                  inProgress = true;
+                  break;
+               }
+            }
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            inProgress = true;
+         }
+         catch(Exception e) {
+            Throwable cause = rootCause(e);
+            jobError = "import job failed: " +
+               (cause.getMessage() != null ? cause.getMessage() : cause.toString());
+            response = null;
+         }
 
          try {
             importService.finishImport(plan.stagingToken(), user);
@@ -147,14 +229,34 @@ public class AdminAssetImportApplyService {
             LOG.warn("Failed to evict staged import context {} after apply", plan.stagingToken(), e);
          }
 
-         boolean verified = response != null && !response.failed();
-         String status = verified ? "applied" : "failed";
+         String status;
+         List<String> failedAssets = new ArrayList<>();
+         List<String> ignoreUserAssets = new ArrayList<>();
+         List<String> warnings = new ArrayList<>();
+
+         if(inProgress) {
+            status = "in-progress";
+         }
+         else if(jobError != null) {
+            status = "failed";
+            failedAssets.add(jobError);
+         }
+         else {
+            boolean verified = response != null && response.complete() && !response.failed();
+            status = verified ? "applied" : "failed";
+
+            if(response != null) {
+               failedAssets.addAll(response.failedAssets());
+               ignoreUserAssets.addAll(response.ignoreUserAssets());
+               warnings.addAll(response.warnings());
+            }
+         }
+
          writeAudit(txId, reviewedTask, plan.stagingToken(), status, backupRef,
             req.getReviewOutcome(), user);
 
-         return new RepositoryImportApplyResult(txId, status, backupRef,
-            response == null ? Collections.emptyList() : response.failedAssets(),
-            response == null ? Collections.emptyList() : response.ignoreUserAssets());
+         return new RepositoryImportApplyResult(txId, status, backupRef, failedAssets,
+                                                ignoreUserAssets, warnings);
       }
       finally {
          APPLY_LOCK.unlock();
@@ -184,7 +286,11 @@ public class AdminAssetImportApplyService {
          record.setAction(AdminChangeRecord.ACTION_APPLY);
          record.setStatus(status);
          record.setRiskLevel(AdminChangeRecord.RISK_HIGH);
-         record.setSnapshotScope(AdminChangeRecord.SCOPE_STORAGE);
+
+         if(backupRef != null) {
+            record.setSnapshotScope(AdminChangeRecord.SCOPE_STORAGE);
+         }
+
          record.setBackupRef(backupRef);
          record.setReviewOutcome(reviewOutcome);
          record.setUserName(user == null ? null : user.getName());
@@ -196,6 +302,17 @@ public class AdminAssetImportApplyService {
          LOG.error("Failed to write repository-import admin change audit record for transaction {}",
                    txId, auditFailure);
       }
+   }
+
+   private static Throwable rootCause(Throwable t) {
+      // the cluster proxy wraps a job failure as RuntimeException(ExecutionException(cause))
+      while(t.getCause() != null && (t instanceof ExecutionException ||
+                                     t.getClass() == RuntimeException.class))
+      {
+         t = t.getCause();
+      }
+
+      return t;
    }
 
    private static String blankToNull(String value) {
@@ -212,9 +329,15 @@ public class AdminAssetImportApplyService {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(AdminAssetImportApplyService.class);
+   private static final long TOTAL_DEADLINE_MS = 120_000L;
+   private static final long POLL_INTERVAL_MS = 500L;
    private static final SecureRandom RANDOM = new SecureRandom();
    private static final ReentrantLock APPLY_LOCK = new ReentrantLock();
    private final RepositoryImportChangePlanService planService;
    private final ImportAssetServiceProxy importService;
    private final AdminBackupService backupService;
+   private LongSupplier clock = System::currentTimeMillis;
+   private Sleeper sleeper = Thread::sleep;
+   private long totalDeadlineMs = TOTAL_DEADLINE_MS;
+   private long pollIntervalMs = POLL_INTERVAL_MS;
 }

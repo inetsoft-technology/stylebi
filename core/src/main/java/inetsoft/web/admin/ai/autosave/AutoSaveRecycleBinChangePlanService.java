@@ -121,7 +121,28 @@ public class AutoSaveRecycleBinChangePlanService {
       String assetName = change.getAssetName() == null || change.getAssetName().isBlank() ?
          entry.path() : change.getAssetName();
       boolean overwrite = Boolean.TRUE.equals(change.getOverwrite());
-      boolean collides = autoSaveRecycleBinService.wouldCollide(entry, assetName, user);
+      // Only an explicitly supplied name is checked: the default (the draft's own path) is what
+      // EM restores to unprompted, so it is never refused.
+      boolean explicitName = change.getAssetName() != null && !change.getAssetName().isBlank();
+
+      if(explicitName) {
+         requireValidAssetName(label, assetName);
+      }
+
+      if(explicitName && assetName.indexOf('/') >= 0 &&
+         !autoSaveRecycleBinService.parentFolderExists(entry, assetName, user))
+      {
+         throw new IllegalArgumentException(
+            label + ".assetName: the destination folder \"" +
+            assetName.substring(0, assetName.lastIndexOf('/')) + "\" does not exist -- EM's " +
+            "restore dialog can only pick an existing folder; create the folder first or choose " +
+            "an existing one");
+      }
+
+      AutoSaveRecycleBinService.Occupant occupant =
+         autoSaveRecycleBinService.occupantOf(entry, assetName, user);
+      requireOverwritable(label + ".assetName", assetName, occupant, entry.type());
+      boolean collides = occupant.occupied();
 
       if(collides && !overwrite) {
          throw new IllegalArgumentException(
@@ -142,6 +163,62 @@ public class AutoSaveRecycleBinChangePlanService {
       return new PlanChange(key, null, project(entry), "(restored to \"" + assetName + "\")", risk,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
    }
+
+   /**
+    * A folder or viewsheet snapshot at the destination is never overwritable: the restore does not
+    * remove it, it would just create a same-named sheet beside it, which the product's own
+    * save/create/rename paths refuse. Refused regardless of {@code overwrite}.
+    */
+   static void requireOverwritable(String label, String assetName,
+                                   AutoSaveRecycleBinService.Occupant occupant, String draftType)
+   {
+      if(occupant.occupied() && !occupant.overwritable()) {
+         throw new IllegalArgumentException(
+            label + ": the destination \"" + assetName + "\" is occupied by a " +
+            occupant.describe(draftType) + ", not by another " + draftType + " -- a " + draftType +
+            " cannot share a name with a " + occupant.describe(draftType) + ", and overwrite: true " +
+            "does not replace it (it is left in place); choose a different assetName");
+      }
+   }
+
+   /**
+    * Mirrors EM's restore dialog name rules: {@code FormValidators.assetEntryBannedCharacters}
+    * (backslash, double quote, {@code < % ^ ~}) and {@code assetNameStartWithCharDigit} on the file
+    * name. "/" separates folders, so it is only banned as an empty segment.
+    */
+   static void requireValidAssetName(String label, String assetName) {
+      String[] segments = assetName.split("/", -1);
+
+      for(String segment : segments) {
+         if(segment.isEmpty()) {
+            throw new IllegalArgumentException(
+               label + ".assetName: \"" + assetName + "\" has an empty path segment (leading, " +
+               "trailing or double \"/\")");
+         }
+
+         for(char c : segment.toCharArray()) {
+            if(BANNED_NAME_CHARS.indexOf(c) >= 0) {
+               throw new IllegalArgumentException(
+                  label + ".assetName: segment \"" + segment + "\" contains the character '" + c +
+                  "', which is not allowed (backslash and \" < % ^ ~ are banned; use \"/\" only " +
+                  "to separate folders)");
+            }
+         }
+      }
+
+      String fileName = segments[segments.length - 1];
+      char first = fileName.charAt(0);
+
+      if(!(first >= 'a' && first <= 'z' || first >= 'A' && first <= 'Z' ||
+           first >= '0' && first <= '9' || first >= 'À' && first <= 'ɏ' ||
+           first >= '一' && first <= '龥'))
+      {
+         throw new IllegalArgumentException(
+            label + ".assetName: file name \"" + fileName + "\" must start with a letter or digit");
+      }
+   }
+
+   private static final String BANNED_NAME_CHARS = "\\\"<%^~";
 
    static String requireVerb(String label, String verb) {
       String trimmed = verb == null ? "" : verb.trim();

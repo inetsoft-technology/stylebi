@@ -1559,6 +1559,118 @@ class IdentityChangePlanServiceTest {
       assertTrue(refusal(del, u).getMessage().contains("deleted earlier"));
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #80008: a name renamed away earlier in the plan is refused as a later reference
+   // -------------------------------------------------------------------------
+
+   private IdentityChangeRequest renameTo(String unit, String id, String newName)
+      throws Exception
+   {
+      IdentitySpec spec = new IdentitySpec();
+      spec.setName(newName);
+      IdentityChangeRequest c = "group".equals(unit) ? updateGroup(id, spec) :
+         "user".equals(unit) ? updateUser(id, spec) : updateRole(id, spec);
+
+      if("group".equals(unit)) {
+         when(securityService.getGroup(eq(hostId(id)), eq(user)))
+            .thenReturn(existingGroup(hostId(id)));
+      }
+      else if("user".equals(unit)) {
+         when(securityService.getUser(eq(hostId(id)), eq(user)))
+            .thenReturn(existingUser(hostId(id)));
+      }
+      else {
+         when(securityService.getRole(eq(hostId(id)), eq(user)))
+            .thenReturn(existingRole(hostId(id)));
+      }
+
+      return c;
+   }
+
+   private IdentityChangeRequest userInGroup(String name, String group) {
+      IdentityChangeRequest u = createUser(name);
+      u.getSpec().setGroups(new java.util.ArrayList<>(List.of(group)));
+      return u;
+   }
+
+   @Test void referenceToAGroupRenamedAwayEarlierInThePlanIsRefused() throws Exception {
+      creatable();
+      IdentityChangeRequest rename = renameTo("group", "G", "G2");
+
+      String msg = refusal(rename, userInGroup("bob", "G")).getMessage();
+      assertTrue(msg.contains("changes[1].spec.groups[0]") && msg.contains("\"G\"") &&
+                 msg.contains("renamed earlier"), msg);
+   }
+
+   @Test void renameAloneAndReferenceToTheNotRenamedGroupStillPreview() throws Exception {
+      creatable();
+      assertEquals(1, service.resolve(request("task", List.of(renameTo("group", "G", "G2"))),
+                                      user).changes().size());
+      assertEquals(1, service.resolve(request("task", List.of(userInGroup("bob", "G"))),
+                                      user).changes().size());
+   }
+
+   @Test void referenceBeforeTheRenameIsStillValid() throws Exception {
+      creatable();
+      IdentityChangeRequest rename = renameTo("group", "G", "G2");
+
+      assertEquals(2, service.resolve(request("task", List.of(userInGroup("bob", "G"), rename)),
+                                      user).changes().size());
+   }
+
+   @Test void noOpRenameRecordsNothing() throws Exception {
+      creatable();
+      IdentityChangeRequest rename = renameTo("group", "G", " G ");
+
+      assertEquals(2, service.resolve(request("task", List.of(rename, userInGroup("bob", "G"))),
+                                      user).changes().size());
+   }
+
+   @Test void aSwapThatReusesTheOldNameClearsTheRenamedAwayEntry() throws Exception {
+      creatable();
+      IdentityChangeRequest first = renameTo("group", "A", "B");
+      IdentityChangeRequest second = renameTo("group", "C", "A");
+
+      assertEquals(3, service.resolve(request("task", List.of(first, second, userInGroup("bob", "A"))),
+                                      user).changes().size());
+   }
+
+   @Test void renamedAwayGroupIsRefusedInParentGroupsAndAssignedGroups() throws Exception {
+      creatable();
+      IdentityChangeRequest rename = renameTo("group", "G", "G2");
+
+      IdentityChangeRequest g1 = createGroup("t1");
+      g1.getSpec().setParentGroups(new java.util.ArrayList<>(List.of("G")));
+      assertTrue(refusal(rename, g1).getMessage().contains("changes[1].spec.parentGroups[0]"));
+
+      IdentityChangeRequest r = createRole("r1");
+      r.getSpec().setAssignedGroups(new java.util.ArrayList<>(List.of("G")));
+      assertTrue(refusal(rename, r).getMessage().contains("changes[1].spec.assignedGroups[0]"));
+   }
+
+   @Test void renamedAwayUserIsRefusedInMemberUsers() throws Exception {
+      creatable();
+      IdentityChangeRequest rename = renameTo("user", "bob", "bobby");
+      IdentityChangeRequest g = createGroup("t1");
+      g.getSpec().setMemberUsers(new java.util.ArrayList<>(List.of("bob")));
+
+      String msg = refusal(rename, g).getMessage();
+      assertTrue(msg.contains("changes[1].spec.memberUsers[0]") && msg.contains("renamed earlier"), msg);
+   }
+
+   @Test void renamedAwayRoleIsRefusedInUserRolesAndInheritedRoles() throws Exception {
+      creatable();
+      IdentityChangeRequest rename = renameTo("role", "dev", "developer");
+
+      IdentityChangeRequest u = createUser("bob");
+      u.getSpec().setRoles(new java.util.ArrayList<>(List.of("dev")));
+      assertTrue(refusal(rename, u).getMessage().contains("changes[1].spec.roles[0]"));
+
+      IdentityChangeRequest r = createRole("r1");
+      r.getSpec().setInheritedRoles(new java.util.ArrayList<>(List.of("dev")));
+      assertTrue(refusal(rename, r).getMessage().contains("changes[1].spec.inheritedRoles[0]"));
+   }
+
    @Test void referenceTheCallerCannotAdministerIsRefused() throws Exception {
       creatable();
       deniedResources.add(hostId("locked").convertToKey());

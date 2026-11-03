@@ -98,6 +98,20 @@ class VSAQueryCheckConditionExpressionTest {
       assertNull(VSAQuery.checkConditionExpression("parameter.foo + 1", sandbox()));
    }
 
+   /**
+    * Bug #79976: the engine maps JS null/undefined and NaN/Infinity to a Java null, with no error,
+    * which is what set_condition's null-result warning keys on.
+    */
+   @Test
+   void nullUndefinedAndNaNEvaluateToJavaNullWithoutAnError() throws Exception {
+      for(String exp : new String[] { "null", "undefined", "0/0", "1/0" }) {
+         VSAQuery.ExpressionResult result = VSAQuery.evaluateConditionExpression(exp, sandbox());
+
+         assertNull(result.error(), exp);
+         assertNull(result.value(), exp);
+      }
+   }
+
    /** A SyntaxError thrown while running is a runtime error, possibly transient: warn only. */
    @Test
    void runtimeSyntaxErrorsAreWarnedNotRejected() throws Exception {

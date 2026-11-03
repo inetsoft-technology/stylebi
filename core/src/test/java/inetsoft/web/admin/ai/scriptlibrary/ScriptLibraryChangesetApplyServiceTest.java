@@ -86,7 +86,10 @@ class ScriptLibraryChangesetApplyServiceTest {
    void setUp() throws Exception {
       lenient().when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
       scriptLibraryService = new ScriptLibraryService(libManagerProvider, securityEngine);
+      // the save gate's syntax check needs the live script engine, absent here; these tests are about
+      // plan/apply behavior, not text validity (ScriptLibraryValidatorTest and the bad-input cases cover that)
       planService = new ScriptLibraryChangePlanService(scriptLibraryService);
+      planService.setSyntaxChecker(text -> {});
       service = new ScriptLibraryChangesetApplyService(planService, scriptLibraryService,
                                                        libManagerProvider, backupService);
 
@@ -333,6 +336,85 @@ class ScriptLibraryChangesetApplyServiceTest {
 
          assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
          assertFalse(scripts.containsKey("a"));
+      }
+   }
+
+   /** Bug #79920: a delete removes the script's SCRIPT grants so a same-name script cannot inherit them. */
+   @Test void appliesADeleteRemovingTheScriptsPermissionGrant() throws Exception {
+      scripts.put("a", "return 1;");
+      comments.put("a", "desc");
+      inetsoft.sree.security.Permission grant = new inetsoft.sree.security.Permission();
+      when(securityEngine.getPermission(ResourceType.SCRIPT, "a")).thenReturn(grant);
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_DELETE, "a");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         ScriptLibraryApplyResult result =
+            service.apply(applyRequest(hashOf(c), "looks good", true, c), user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+         verify(securityEngine).removePermission(ResourceType.SCRIPT, "a");
+      }
+   }
+
+   @Test void applyOfADeleteWithNoGrantDoesNotTouchPermissions() throws Exception {
+      scripts.put("a", "return 1;");
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_DELETE, "a");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         service.apply(applyRequest(hashOf(c), "looks good", true, c), user);
+
+         verify(securityEngine, never()).removePermission(any(), anyString());
+      }
+   }
+
+   /** Bug #79920: rolling back a failed changeset restores a deleted script together with its grant. */
+   @Test void rollbackOfADeleteRestoresTheScriptsPermissionGrant() throws Exception {
+      scripts.put("gone", "return 1;");
+      scripts.put("keep", "return 2;");
+      inetsoft.sree.security.Permission grant = new inetsoft.sree.security.Permission();
+      when(securityEngine.getPermission(ResourceType.SCRIPT, "gone")).thenReturn(grant);
+      ScriptLibraryChangeRequest first = change(ScriptLibraryChangeRequest.VERB_DELETE, "gone");
+      ScriptLibraryChangeRequest second = change(ScriptLibraryChangeRequest.VERB_DELETE, "keep");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         ScriptLibraryApplyRequest req =
+            applyRequest(hashOf(first, second), "looks good", true, first, second);
+         // the second delete never removes "keep", so it fails verification and the first is undone
+         doAnswer(inv -> null).when(lib).removeScript("keep");
+
+         ScriptLibraryApplyResult result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+         assertTrue(scripts.containsKey("gone"));
+         verify(securityEngine).removePermission(ResourceType.SCRIPT, "gone");
+         verify(securityEngine).setPermission(ResourceType.SCRIPT, "gone", grant);
+         // the failed delete's own grant is never touched
+         verify(securityEngine, never()).removePermission(ResourceType.SCRIPT, "keep");
+      }
+   }
+
+   /** Bug #79920: a grant-removal failure does not fail the delete, and is reported as an advisory. */
+   @Test void applyOfADeleteStaysAppliedWhenGrantRemovalFailsAndReportsAnAdvisory() throws Exception {
+      scripts.put("a", "return 1;");
+      inetsoft.sree.security.Permission grant = new inetsoft.sree.security.Permission();
+      when(securityEngine.getPermission(ResourceType.SCRIPT, "a")).thenReturn(grant);
+      doThrow(new IllegalStateException("perm boom"))
+         .when(securityEngine).removePermission(ResourceType.SCRIPT, "a");
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_DELETE, "a");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         ScriptLibraryApplyResult result =
+            service.apply(applyRequest(hashOf(c), "looks good", true, c), user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+         assertFalse(scripts.containsKey("a"));
+         String advisory = result.results().get(0).advisory();
+         assertNotNull(advisory);
+         assertTrue(advisory.contains("permission grants"), advisory);
       }
    }
 

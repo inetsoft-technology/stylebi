@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
+import inetsoft.web.composer.model.vs.GeneralPropPaneModel;
+import inetsoft.web.composer.model.vs.SizePositionPaneModel;
+import inetsoft.web.composer.model.vs.ViewsheetObjectPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import org.junit.jupiter.api.Tag;
@@ -1702,7 +1705,7 @@ class PropertyAliasesTest {
       "gauge", "text", "image", "chart", "table", "crosstab", "calctable", "selectionlist",
       "selectiontree", "checkbox", "radiobutton", "slider", "combobox", "spinner", "textinput",
       "timeslider", "calendar", "tab", "groupcontainer", "line", "oval", "rectangle",
-      "selectioncontainer", "submit");
+      "selectioncontainer", "submit", "viewsheet");
 
    private static final Map<String, List<String>> SIZE_POSITION_LIVE = Map.of(
       "scaleVertical", List.of("text"),
@@ -1764,6 +1767,133 @@ class PropertyAliasesTest {
          assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
             type, sizePositionPath(type, "cellHeight")), type);
       }
+   }
+
+   // ── bug #80150: the embedded viewsheet assembly ──────────────────────────
+
+   private static String refusal(String type, String key) {
+      return assertThrows(IllegalArgumentException.class,
+                          () -> PropertyAliases.resolveForWrite(type, key), key).getMessage();
+   }
+
+   @Test
+   void embeddedViewsheetVocabularyIsExactlyTheDialogFieldsPlusReadOnlySize() {
+      assertTrue(PropertyAliases.covers("viewsheet"));
+      assertTrue(PropertyAliases.covers(PropertyAliases.SHEET));
+      assertNotSame(PropertyAliases.forType("viewsheet"), PropertyAliases.forType("sheet"));
+      assertSame(ViewsheetObjectPropertyDialogModel.class,
+                 PropertyAliases.forType("viewsheet").modelClass());
+      assertEquals(List.of("name", "visible", "primary", "top", "left", "width", "height"),
+                   new ArrayList<>(PropertyAliases.forType("viewsheet").aliases().keySet()));
+
+      for(String alias : PropertyAliases.forType("viewsheet").aliases().keySet()) {
+         assertFalse(alias.toLowerCase().contains("script"), alias);
+         assertFalse(PropertyAliases.forType("viewsheet").aliases().get(alias).startsWith("."),
+                     alias);
+      }
+
+      for(String live : List.of("name", "visible", "primary", "top", "left")) {
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("viewsheet", live), live);
+      }
+   }
+
+   @Test
+   void embeddedViewsheetWidthAndHeightAreRefusedWithAnAccurateReason() {
+      for(String key : List.of("width", "height", "sizePositionPaneModel.width",
+                               "sizePositionPaneModel.height"))
+      {
+         String message = refusal("viewsheet", key);
+
+         assertTrue(message.contains("embedded viewsheet") && message.contains("laid out") &&
+                    message.contains("left/top"), message);
+         assertFalse(message.contains("never reads it back"), message);
+      }
+   }
+
+   @Test
+   void embeddedViewsheetRefusesEveryOtherNonDialogPathLoudly() {
+      for(String path : List.of(
+         "sizePositionPaneModel.locked", "sizePositionPaneModel.titleHeight",
+         "sizePositionPaneModel.cellHeight", "sizePositionPaneModel.scaleVertical",
+         "sizePositionPaneModel.container", "generalPropPaneModel.enabled",
+         "generalPropPaneModel.submitOnChange", "generalPropPaneModel.showEnabledGroup",
+         "generalPropPaneModel.showSubmitCheckbox", "generalPropPaneModel.popLocation",
+         "generalPropPaneModel.basicGeneralPaneModel.enabled",
+         "generalPropPaneModel.basicGeneralPaneModel.refresh",
+         "generalPropPaneModel.basicGeneralPaneModel.editable",
+         "generalPropPaneModel.basicGeneralPaneModel.nameEditable",
+         "generalPropPaneModel.basicGeneralPaneModel.shadow",
+         "generalPropPaneModel.basicGeneralPaneModel.objectNames"))
+      {
+         assertTrue(refusal("viewsheet", path).contains("is read-only"), path);
+      }
+
+      // not a read-only message but loud all the same: no alias, so an unknown key
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("viewsheet", "enabled"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("viewsheet", "locked"));
+   }
+
+   @Test
+   void embeddedViewsheetLockedIsNotAdvisedTowardSetLock() {
+      for(String key : List.of("sizePositionPaneModel.locked")) {
+         assertFalse(refusal("viewsheet", key).contains("set_lock"), key);
+      }
+   }
+
+   @Test
+   void embeddedViewsheetScriptPathsStayWritableAndRevisionIsNotAProperty() {
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+         "viewsheet", "vsAssemblyScriptPaneModel.expression"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+         "viewsheet", "vsAssemblyScriptPaneModel.scriptEnabled"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("viewsheet", "revision"));
+   }
+
+   /**
+    * The root of this model is an Immutables class, which {@code collectWritableLeaves} cannot
+    * walk (it reads getX/isX only), so the two mutable panes are walked with their prefixes and
+    * the script pane and revision are pinned as literals. Every leaf must be aliased or refused.
+    */
+   @Test
+   void everyWritableLeafOfTheEmbeddedViewsheetDialogIsAliasedOrRefused() {
+      List<String> leaves = new ArrayList<>();
+      collectWritableLeaves(GeneralPropPaneModel.class, "generalPropPaneModel.", leaves,
+                            new ArrayDeque<>());
+      collectWritableLeaves(SizePositionPaneModel.class, "sizePositionPaneModel.", leaves,
+                            new ArrayDeque<>());
+      assertTrue(leaves.size() > 10, leaves.toString());
+      assertTrue(leaves.contains("generalPropPaneModel.basicGeneralPaneModel.name"), leaves.toString());
+      assertTrue(leaves.contains("sizePositionPaneModel.top"), leaves.toString());
+
+      Collection<String> aliasPaths = PropertyAliases.forType("viewsheet").aliases().values();
+      List<String> unclassified = new ArrayList<>();
+
+      for(String leaf : leaves) {
+         // width/height are aliased AND refused; the rest of the aliased set is live
+         if(!aliasPaths.contains(leaf) && !refused("viewsheet", leaf)) {
+            unclassified.add(leaf);
+         }
+      }
+
+      assertTrue(unclassified.isEmpty(),
+                 "writable leaves neither aliased nor refused as dead: " + unclassified);
+
+      for(String live : List.of("name", "visible", "primary", "top", "left")) {
+         assertFalse(refused("viewsheet", PropertyAliases.forType("viewsheet").aliases().get(live)),
+                     live);
+      }
+   }
+
+   @Test
+   void sizePositionPathMatchesBothAPrefixedAndARootPane() {
+      assertTrue(PropertyAliases.isSizePositionPath("sizePositionPaneModel.top", "top"));
+      assertTrue(PropertyAliases.isSizePositionPath("x.sizePositionPaneModel.top", "top"));
+      assertFalse(PropertyAliases.isSizePositionPath("xsizePositionPaneModel.top", "top"));
+      assertFalse(PropertyAliases.isSizePositionPath("sizePositionPaneModel.topX", "top"));
+      assertFalse(PropertyAliases.isSizePositionPath("sizePositionPaneModel.left", "top"));
    }
 
    // ── #78480: a source word on a selection type names set_selection_source ──

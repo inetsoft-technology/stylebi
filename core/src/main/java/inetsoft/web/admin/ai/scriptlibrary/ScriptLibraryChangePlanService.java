@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.scriptlibrary;
 
 import inetsoft.report.LibManager;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -56,6 +57,15 @@ public class ScriptLibraryChangePlanService {
    @Autowired
    public ScriptLibraryChangePlanService(ScriptLibraryService scriptLibraryService) {
       this.scriptLibraryService = scriptLibraryService;
+   }
+
+   /**
+    * Test seam: replaces the parse-only check applied to the text a create or rename would store.
+    * A setter rather than a constructor so the bean keeps one constructor whose parameters are all
+    * Spring beans (AdminAiBeanGraphTest).
+    */
+   void setSyntaxChecker(ScriptLibraryValidator.SyntaxChecker syntaxChecker) {
+      this.syntaxChecker = syntaxChecker;
    }
 
    /**
@@ -116,6 +126,8 @@ public class ScriptLibraryChangePlanService {
                                     Principal user, Set<String> seenKeys)
    {
       String name = requireNonBlank(label + ".name", change.getName());
+      // the raw name is what apply stores, so it is the one validated
+      ScriptLibraryValidator.requireValidName(label + ".name", change.getName());
       requireUnused(label, "newName", change.getNewName());
       requireUnused(label, "force", change.getForce());
       claim(label, "scriptlibrary:" + name, seenKeys);
@@ -129,6 +141,7 @@ public class ScriptLibraryChangePlanService {
 
       String description = change.getDescription() == null ? "" : change.getDescription();
       String text = change.getText() == null ? "" : change.getText();
+      requireCompiles(label + ".text", text);
       String proposed = project(name, description, text);
       return new PlanChange("scriptlibrary:" + name, null, null, proposed,
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
@@ -141,6 +154,7 @@ public class ScriptLibraryChangePlanService {
    {
       String name = requireNonBlank(label + ".name", change.getName());
       String newName = requireNonBlank(label + ".newName", change.getNewName());
+      ScriptLibraryValidator.requireValidName(label + ".newName", change.getNewName());
       requireUnused(label, "description", change.getDescription());
       requireUnused(label, "text", change.getText());
       requireUnused(label, "force", change.getForce());
@@ -151,6 +165,10 @@ public class ScriptLibraryChangePlanService {
             label + ".newName: must differ from the current name \"" + name + "\"");
       }
 
+      // The rename target is claimed so a create/rename of the same name in this submission is
+      // refused whichever order they are listed in.
+      claim(label + ".newName", "scriptlibrary:" + newName, seenKeys);
+
       ScriptLibraryEntryDetail entry = scriptLibraryService.requireEntry(name, user);
       scriptLibraryService.requirePermission(name, user, ResourceAction.ADMIN);
 
@@ -160,8 +178,9 @@ public class ScriptLibraryChangePlanService {
       }
 
       String before = project(entry);
-      String after = project(newName, entry.description(),
-                             renamedText(name, newName, entry.text()));
+      String renamed = renamedText(name, newName, entry.text());
+      requireCompiles(label + ".newName", renamed);
+      String after = project(newName, entry.description(), renamed);
       return new PlanChange("scriptlibrary:" + name, null, before, after,
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
                             "rename script library entry \"" + name + "\" to \"" + newName +
@@ -230,6 +249,12 @@ public class ScriptLibraryChangePlanService {
          "delete script library entry \"" + name + "\" (no known dependents)" :
          "delete script library entry \"" + name + "\" (force: true -- still used by: " +
             String.join(", ", dependents) + ")";
+      // Bug #79920: apply removes the script's SCRIPT permission grants along with it (and restores
+      // them if the changeset is rolled back), so the plan says so when a grant is stored
+      if(scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, name) != null) {
+         description += "; its permission grants will also be removed (restored if rolled back)";
+      }
+
       return new PlanChange("scriptlibrary:" + name, null, before, null, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
    }
@@ -265,6 +290,17 @@ public class ScriptLibraryChangePlanService {
          throw new IllegalArgumentException(
             label + ": duplicate entry for \"" + key.substring(key.indexOf(':') + 1) +
             "\"; list each entry at most once");
+      }
+   }
+
+   private void requireCompiles(String field, String text) {
+      try {
+         ScriptLibraryValidator.requireCompiles(syntaxChecker, field, text);
+      }
+      catch(ScriptLibraryValidator.EngineUnavailableException e) {
+         // AdminScriptLibraryController maps IllegalArgumentException to 400 {status, error} and
+         // has no handler for ResponseStatusException, whose reason would be dropped
+         throw new IllegalArgumentException(field + ": " + e.getMessage(), e.getCause());
       }
    }
 
@@ -371,4 +407,5 @@ public class ScriptLibraryChangePlanService {
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final ScriptLibraryService scriptLibraryService;
+   private ScriptLibraryValidator.SyntaxChecker syntaxChecker = ScriptLibraryValidator.engineChecker();
 }

@@ -344,7 +344,11 @@ public class ScriptExecuteService {
          List<String> unrecognized = new ArrayList<>();
          List<String> rejected = new ArrayList<>();
 
+         // ownOnly: every UNRECOGNIZED write is the own assembly's (gates the "for this assembly
+         // type" clause); allOwn: every dropped write, rejected ones included, is (gates the closing
+         // get_script_context pointer, which must not name the own assembly for another's write).
          boolean ownOnly = true;
+         boolean allOwn = true;
 
          // Sound only for the script's OWN assembly (ASSEMBLY/ASSEMBLY_ONCLICK): a script-local
          // var/let/const lands on the root scope of the execution (BindingRootProxy#putMember,
@@ -373,12 +377,14 @@ public class ScriptExecuteService {
 
                unrecognized.add(own ? name : entry.getKey() + "." + name);
                ownOnly &= own;
+               allOwn &= own;
             }
 
             // Recognized properties (e.g. position/size) whose setter declined to apply the
             // value -- distinct from "unrecognized" above, which never even matched propmap.
             for(String name : entry.getValue().getRejectedWrites()) {
                rejected.add(own ? name : entry.getKey() + "." + name);
+               allOwn &= own;
             }
          }
 
@@ -416,10 +422,11 @@ public class ScriptExecuteService {
 
             summary = "Executed " + target + ", but " + String.join("; and ", clauses) +
                ". Call get_script_context for " +
-               (assemblyName != null && ownOnly ? assemblyName + "'s" :
+               (assemblyName != null && allOwn ? assemblyName + "'s" :
                   "the named assembly's") +
-               " real scriptable properties, or use get_assembly_properties/update_binding if " +
-               "you meant a different, non-scripted property.";
+               " real scriptable properties, or use get_assembly_properties/set_assembly_properties " +
+               "if you meant a different, non-scripted property (set_table_fields or " +
+               "set_chart_shelf to change a binding).";
          }
 
          String wsScopeMismatch = wsRunQueryNotes(wsOutcomes, rvs.getUser());
@@ -949,6 +956,13 @@ public class ScriptExecuteService {
          for(String root : topLevelRoots(e.getValue())) {
             index.computeIfAbsent(root, k -> new LinkedHashSet<>()).add(e.getKey());
          }
+
+         // Bug #80053: an entry whose global-install shape the scan above cannot resolve is
+         // indexed under every name it mentions, so a script calling whatever namespace it
+         // installs is gated instead of silently run.
+         for(String name : opaqueInstallNames(e.getValue())) {
+            index.computeIfAbsent(name, k -> new LinkedHashSet<>()).add(e.getKey());
+         }
       }
 
       Deque<String> work = new ArrayDeque<>(identifiers(stripCommentsAndStrings(scriptText, true), true));
@@ -1015,6 +1029,447 @@ public class ScriptExecuteService {
       }
 
       return sources;
+   }
+
+   // Bug #80053: constructs through which a library entry can bind a name on the global object in
+   // ways the frame scan in collectRoots does not follow (an alias used from a nested function,
+   // an installer function or arrow called with the global, a conditional/UMD root, a comma or
+   // keyword-prefixed IIFE, defineProperty/Reflect/eval/Function, a computed key). Any reference
+   // to the global object or to one of these APIs makes the entry "opaque".
+   private static final Pattern OPAQUE_INSTALL_MARKER = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(?:this|globalThis|window|self)(?![\\p{L}\\p{M}\\p{N}_$])|" +
+      "\\bReflect\\s*\\.|\\bdefineProperties?\\b|\\bsetPrototypeOf\\b|\\beval\\s*\\(|" +
+      "\\bFunction\\s*\\(");
+   private static final Pattern DIRECT_GLOBAL_ASSIGN = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$.])(?:globalThis|window|self)\\s*\\.\\s*[\\p{L}_$][\\p{L}\\p{N}_$]*\\s*=(?!=)");
+   private static final Set<String> JS_RESERVED = Set.of(
+      "window", "globalThis", "self", "Reflect",
+      "var", "let", "const", "function", "return", "if", "else", "for", "while", "do", "switch",
+      "case", "default", "break", "continue", "new", "delete", "typeof", "instanceof", "in", "of",
+      "void", "this", "null", "true", "false", "undefined", "try", "catch", "finally", "throw",
+      "async", "await", "yield", "class", "extends", "super", "with", "static", "get", "set");
+
+   /**
+    * Bug #80053: the conservative fail-safe for global-install shapes the structured scan cannot
+    * resolve. A sound answer to "which names does this entry bind on the global object" needs a
+    * real parse; short of one, an entry that touches the global object (or reflects/evals) is
+    * treated as exposing every identifier it mentions. Over-gating is the safe failure mode: the
+    * names only matter when the entry reaches a destructive global, and the cost is one
+    * confirmation, never a silently run destructive call.
+    */
+   // Accepted residuals (reviewer-rated exotic, deliberately not chased): a library that dispatches
+   // through string-indexed access (this["N" + "s"], G["N" + "s"] = value) so the property name
+   // exists only as string fragments, and Rhino's (function(){}).__parent__ alias of the global
+   // scope (no marker token). Both need an adversarial library author; everything the scan can
+   // see but not resolve is meant to fail closed (one confirmation) rather than run.
+   private static Set<String> opaqueInstallNames(String source) {
+      Set<String> names = new LinkedHashSet<>();
+
+      try {
+         String stripped = stripCommentsAndStrings(source, false);
+         // a direct "<global>.Name = ..." is already followed precisely by collectRoots
+         String marked = DIRECT_GLOBAL_ASSIGN.matcher(stripped).replaceAll(" ");
+         List<ScopeRegion> regions = scopeRegions(stripped);
+
+         if(!OPAQUE_INSTALL_MARKER.matcher(marked).find() &&
+            !assignsImplicitGlobalInInvokedFunction(stripped, regions))
+         {
+            return names;
+         }
+
+         Set<String> locals = scopedLocals(source, stripped, regions);
+         // the unstripped source, so a computed key (var k = "Ns"; this[k] = ...) is covered
+         Matcher m = IDENTIFIER.matcher(source);
+
+         while(m.find()) {
+            if(!JS_RESERVED.contains(m.group()) && !locals.contains(m.group())) {
+               names.add(m.group());
+            }
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Could not scan a Script Library entry for opaque global installs", ex);
+      }
+
+      return names;
+   }
+
+   /** A function (or catch block) whose parameters and declarations are local to its text span. */
+   private static final class ScopeRegion {
+      final int start;
+      final int end;
+      final String fnName;
+      final boolean function;
+      final Set<String> names = new HashSet<>();
+      final Set<String> aliases = new HashSet<>();
+      boolean keyword;
+
+      ScopeRegion(int start, int end, String fnName, boolean function) {
+         this.start = start;
+         this.end = end;
+         this.fnName = fnName;
+         this.function = function;
+      }
+
+      boolean contains(int pos) {
+         return pos >= start && pos < end;
+      }
+   }
+
+   private static final Pattern FUNCTION_SCOPE = Pattern.compile(
+      "\\bfunction\\b\\s*(" + ID + ")?\\s*\\(([^()]*)\\)\\s*\\{");
+   private static final Pattern CATCH_SCOPE = Pattern.compile(
+      "\\bcatch\\s*\\(\\s*(" + ID + ")\\s*\\)\\s*\\{");
+   private static final Pattern LOCAL_DECLARATION = Pattern.compile(
+      "\\b(?:var|let|const)\\s+(" + ID + ")");
+   private static final String NOT_ID_BEFORE = "(?<![\\p{L}\\p{M}\\p{N}_$.])";
+   private static final Pattern BARE_ASSIGNMENT = Pattern.compile(
+      NOT_ID_BEFORE + "(" + ID + ")\\s*(?:\\*\\*|<<|>>>?|\\|\\||&&|\\?\\?|[-+*/%|&^])?=(?![=>])");
+   private static final Pattern DESTRUCTURE_ASSIGNMENT = Pattern.compile(
+      "[\\[{]([^\\[\\]{}()=]*)[\\]}]\\s*=(?![=>])");
+   private static final Pattern INCREMENT_TARGET = Pattern.compile(
+      "(?:\\+\\+|--)\\s*(" + ID + ")|" + NOT_ID_BEFORE + "(" + ID + ")\\s*(?:\\+\\+|--)");
+   private static final Pattern FOR_TARGET = Pattern.compile(
+      "\\bfor\\s*\\(\\s*(" + ID + ")\\s+(?:of|in)\\b");
+   private static final Pattern ARROW_SCOPE = Pattern.compile(
+      "(?:\\(([^()]*)\\)|(" + ID + "))\\s*=>\\s*(\\{)?");
+   private static final Pattern METHOD_SCOPE = Pattern.compile(
+      NOT_ID_BEFORE + "(" + ID + ")\\s*\\(([^()]*)\\)\\s*\\{");
+   private static final Pattern ALIAS_BEFORE = Pattern.compile(
+      "(" + ID + ")\\s*[:=]\\s*(?:async\\s+)?$");
+   private static final Set<String> NOT_A_METHOD = Set.of(
+      "if", "for", "while", "switch", "catch", "with", "function", "return", "do", "else");
+
+   private static int matchingBrace(String t, int open) {
+      int depth = 0;
+
+      for(int i = open; i < t.length(); i++) {
+         char c = t.charAt(i);
+
+         if(c == '{') {
+            depth++;
+         }
+         else if(c == '}' && --depth == 0) {
+            return i + 1;
+         }
+      }
+
+      return t.length();
+   }
+
+   private static List<ScopeRegion> scopeRegions(String t) {
+      List<ScopeRegion> regions = new ArrayList<>();
+      Matcher m = FUNCTION_SCOPE.matcher(t);
+
+      while(m.find()) {
+         ScopeRegion r = new ScopeRegion(m.start(), matchingBrace(t, m.end() - 1), m.group(1), true);
+         r.keyword = true;
+
+         for(String p : m.group(2).split(",")) {
+            Matcher id = IDENTIFIER.matcher(p);
+
+            if(id.find()) {
+               r.names.add(id.group());
+            }
+         }
+
+         regions.add(r);
+      }
+
+      m = ARROW_SCOPE.matcher(t);
+
+      while(m.find()) {
+         int end = m.group(3) != null ? matchingBrace(t, m.end() - 1) : exprEnd(t, m.end());
+         ScopeRegion r = new ScopeRegion(m.start(), end, null, true);
+
+         if(m.group(2) != null) {
+            r.names.add(m.group(2));
+         }
+         else if(m.group(1) != null) {
+            for(String p : m.group(1).split(",")) {
+               Matcher id = IDENTIFIER.matcher(p);
+
+               if(id.find()) {
+                  r.names.add(id.group());
+               }
+            }
+         }
+
+         regions.add(r);
+      }
+
+      m = METHOD_SCOPE.matcher(t);
+
+      while(m.find()) {
+         if(NOT_A_METHOD.contains(m.group(1))) {
+            continue;
+         }
+
+         ScopeRegion r = new ScopeRegion(m.start(), matchingBrace(t, m.end() - 1), m.group(1), true);
+
+         for(String p : m.group(2).split(",")) {
+            Matcher id = IDENTIFIER.matcher(p);
+
+            if(id.find()) {
+               r.names.add(id.group());
+            }
+         }
+
+         regions.add(r);
+      }
+
+      for(ScopeRegion r : regions) {
+         if(r.function) {
+            // a function expression in argument/array/return position is run by whoever receives
+            // it, whatever it is called: only a declaration's own name says it is never used
+            if(r.fnName != null && (!r.keyword || declarationPosition(t, r.start))) {
+               r.aliases.add(r.fnName);
+            }
+
+            Matcher al = ALIAS_BEFORE.matcher(t.substring(Math.max(0, r.start - 80), r.start));
+
+            if(al.find()) {
+               r.aliases.add(al.group(1));
+            }
+         }
+      }
+
+      m = CATCH_SCOPE.matcher(t);
+
+      while(m.find()) {
+         ScopeRegion r = new ScopeRegion(m.start(), matchingBrace(t, m.end() - 1), null, false);
+         r.names.add(m.group(1));
+         regions.add(r);
+      }
+
+      // a var/let/const belongs to its innermost enclosing function; at the top level it is global
+      m = LOCAL_DECLARATION.matcher(t);
+
+      while(m.find()) {
+         ScopeRegion inner = null;
+
+         for(ScopeRegion r : regions) {
+            if(r.function && r.contains(m.start()) && (inner == null || r.start > inner.start)) {
+               inner = r;
+            }
+         }
+
+         if(inner != null) {
+            inner.names.add(m.group(1));
+         }
+      }
+
+      return regions;
+   }
+
+   private static boolean declarationPosition(String t, int start) {
+      int p = start - 1;
+
+      while(p >= 0 && Character.isWhitespace(t.charAt(p))) {
+         p--;
+      }
+
+      if(p >= 0 && t.startsWith("async", Math.max(0, p - 4)) && p >= 4) {
+         return declarationPosition(t, p - 4);
+      }
+
+      if(p < 0) {
+         return true;
+      }
+
+      char c = t.charAt(p);
+
+      // "x = function name(){}" / "key: function name(){}" are bound to a name; the alias covers them
+      return c == ';' || c == '{' || c == '}' || c == '=' || c == ':';
+   }
+
+   private static boolean declaredAt(List<ScopeRegion> regions, String name, int pos) {
+      for(ScopeRegion r : regions) {
+         if(r.contains(pos) && r.names.contains(name)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Names that are local wherever they appear: every occurrence is a bare reference lying inside
+    * a function or catch block that declares it. A property name or object key (g.Ns, {Ns: 1}) or a
+    * name read from a string never counts, nor does a same-named local in an unrelated function.
+    */
+   private static Set<String> scopedLocals(String raw, String stripped, List<ScopeRegion> regions) {
+      Set<String> seen = new HashSet<>();
+      Set<String> uncovered = new HashSet<>();
+      Map<String, Integer> strippedCount = new java.util.HashMap<>();
+      Matcher m = IDENTIFIER.matcher(stripped);
+
+      while(m.find()) {
+         String name = m.group();
+         int p = m.start() - 1;
+         int q = m.end();
+
+         while(p >= 0 && Character.isWhitespace(stripped.charAt(p))) {
+            p--;
+         }
+
+         while(q < stripped.length() && Character.isWhitespace(stripped.charAt(q))) {
+            q++;
+         }
+
+         boolean property = p >= 0 && stripped.charAt(p) == '.';
+         boolean key = q < stripped.length() && stripped.charAt(q) == ':';
+         seen.add(name);
+         strippedCount.merge(name, 1, Integer::sum);
+
+         if(property || key || !declaredAt(regions, name, m.start())) {
+            uncovered.add(name);
+         }
+      }
+
+      Map<String, Integer> rawCount = new java.util.HashMap<>();
+      m = IDENTIFIER.matcher(raw);
+
+      while(m.find()) {
+         rawCount.merge(m.group(), 1, Integer::sum);
+      }
+
+      Set<String> locals = new HashSet<>(seen);
+      locals.removeAll(uncovered);
+      // an occurrence that only exists inside a string literal (this["Ns"]) is not covered
+      locals.removeIf(n -> !strippedCount.get(n).equals(rawCount.get(n)));
+      return locals;
+   }
+
+   private static int exprEnd(String t, int from) {
+      int semi = t.indexOf(';', from);
+      return semi < 0 ? t.length() : semi;
+   }
+
+   private static int countName(String t, String name) {
+      Matcher uses = Pattern.compile("(?<![\\p{L}\\p{M}\\p{N}_$])" + Pattern.quote(name) +
+                                     "(?![\\p{L}\\p{M}\\p{N}_$])").matcher(t);
+      int count = 0;
+
+      while(uses.find()) {
+         count++;
+      }
+
+      return count;
+   }
+
+   /**
+    * A function that is anonymous (an argument, an IIFE) may run at load time; a named one (a
+    * declaration, var/property it is assigned to, method) only if its name is used elsewhere.
+    */
+   private static boolean mayRun(String t, ScopeRegion r) {
+      if(r.aliases.isEmpty()) {
+         return true;
+      }
+
+      for(String alias : r.aliases) {
+         if(countName(t, alias) >= 2) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /** Every (name, position) the text assigns to: =, op=, ++/--, for-in/of and destructuring targets. */
+   private static List<Object[]> assignmentTargets(String t) {
+      List<Object[]> targets = new ArrayList<>();
+      Matcher a = BARE_ASSIGNMENT.matcher(t);
+
+      while(a.find()) {
+         targets.add(new Object[] { a.group(1), a.start(1) });
+      }
+
+      a = INCREMENT_TARGET.matcher(t);
+
+      while(a.find()) {
+         targets.add(a.group(1) != null ? new Object[] { a.group(1), a.start(1) }
+                                        : new Object[] { a.group(2), a.start(2) });
+      }
+
+      a = FOR_TARGET.matcher(t);
+
+      while(a.find()) {
+         targets.add(new Object[] { a.group(1), a.start(1) });
+      }
+
+      a = DESTRUCTURE_ASSIGNMENT.matcher(t);
+
+      while(a.find()) {
+         Matcher id = IDENTIFIER.matcher(a.group(1));
+
+         while(id.find()) {
+            targets.add(new Object[] { id.group(), a.start(1) + id.start() });
+         }
+      }
+
+      return targets;
+   }
+
+   private static boolean undeclaredTarget(String name, int pos, List<ScopeRegion> regions) {
+      return !JS_RESERVED.contains(name) && !declaredAt(regions, name, pos);
+   }
+
+   /**
+    * An assignment to a name no enclosing function or catch block declares, written inside a
+    * function body (declaration, expression, arrow, method, callback) that can run at load time, is
+    * an implicit global install the frame scan does not follow. A function that is only ever
+    * stored under a name the entry never mentions again cannot run, so it stays precise.
+    */
+   private static boolean assignsImplicitGlobalInInvokedFunction(String t, List<ScopeRegion> regions) {
+      List<Object[]> targets = assignmentTargets(t);
+
+      if(targets.isEmpty() || regions.isEmpty()) {
+         return false;
+      }
+
+      boolean[] runs = new boolean[regions.size()];
+
+      for(int i = 0; i < runs.length; i++) {
+         ScopeRegion r = regions.get(i);
+         runs[i] = r.function && mayRun(t, r);
+      }
+
+      boolean[] effective = runs.clone();
+
+      for(int i = 0; i < runs.length; i++) {
+         if(!runs[i]) {
+            continue;
+         }
+
+         ScopeRegion r = regions.get(i);
+
+         for(int j = 0; j < runs.length; j++) {
+            ScopeRegion q = regions.get(j);
+
+            if(!runs[j] && q.function && q.start <= r.start && r.end <= q.end) {
+               effective[i] = false;
+               break;
+            }
+         }
+      }
+
+      for(Object[] target : targets) {
+         String name = (String) target[0];
+         int pos = (Integer) target[1];
+
+         if(!undeclaredTarget(name, pos, regions)) {
+            continue;
+         }
+
+         for(int i = 0; i < effective.length; i++) {
+            if(effective[i] && regions.get(i).contains(pos)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    private static Set<String> declaredFunctions(String source) {
@@ -1470,6 +1925,13 @@ public class ScriptExecuteService {
             // its catch body in EVERY frame kind, IIFE or not -- recorded directly on this block's
             // own frame (not routed through the var/let/const declaration scan, which never visits
             // "catch (...)" at all).
+            // Bug #80053: likewise a for header's let/const (for (let C = 0; ...), for-in/of) is
+            // block-scoped to the loop body; the header frame is popped before the body opens, so
+            // it must be recorded here or C reads as a global root.
+            if("for".equals(word)) {
+               addForHeaderDeclarations(text, match[p] + 1, p, frame.locals);
+            }
+
             if("catch".equals(word)) {
                int paramStart = skipWhitespaceForward(text, match[p] + 1);
 
@@ -1628,6 +2090,40 @@ public class ScriptExecuteService {
       }
 
       return frame;
+   }
+
+   private static final Pattern FOR_HEADER_DECL = Pattern.compile("\\b(?:let|const)\\b");
+
+   /** Names declared by a for header's let/const clauses between {@code from} and {@code to}. */
+   private static void addForHeaderDeclarations(String text, int from, int to, Set<String> locals) {
+      String header = text.substring(from, to);
+      Matcher decl = FOR_HEADER_DECL.matcher(header);
+
+      if(!decl.find()) {
+         return;
+      }
+
+      int start = decl.end();
+      int end = header.length();
+      int semi = header.indexOf(';', start);
+      Matcher ofIn = Pattern.compile("\\s(?:of|in)\\s").matcher(header);
+      ofIn.region(start, header.length());
+
+      if(semi >= 0) {
+         end = semi;
+      }
+      else if(ofIn.find()) {
+         end = ofIn.start();
+      }
+
+      for(String declarator : splitTopLevel(header, start, end)) {
+         int eq = declarator.indexOf('=');
+         Matcher id = IDENTIFIER.matcher(eq >= 0 ? declarator.substring(0, eq) : declarator);
+
+         while(id.find()) {
+            locals.add(id.group());
+         }
+      }
    }
 
    /**

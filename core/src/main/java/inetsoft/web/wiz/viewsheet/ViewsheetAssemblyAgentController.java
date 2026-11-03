@@ -524,12 +524,23 @@ public class ViewsheetAssemblyAgentController {
       String name = requireBookmarkName(request.name(), "update_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         IdentityID owner = ownerOf(user);
+         IdentityID caller = ownerOf(user);
+         requireFirstOpenerForHome(rvs, name, caller, "update_bookmark");
+         // The in-memory baseline is keyed by the bookmark's real owner (goto_bookmark stamps it
+         // there), so the checks must use that owner, resolved from a side-effect-free store read.
+         // Prefers the caller's own same-named bookmark, as requireOwnBookmark does.
+         List<VSBookmarkInfo> visible = visibleBookmarks(rvs, user);
+         IdentityID owner = visible.stream()
+            .filter(b -> b.getName().equals(name) && caller.equals(b.getOwner()))
+            .findFirst()
+            .or(() -> visible.stream().filter(b -> b.getName().equals(name)).findFirst())
+            .map(VSBookmarkInfo::getOwner)
+            .orElse(caller);
 
          if(rvs.bookmarkUpdated(name, owner)) {
             throw new IllegalArgumentException(
                "update_bookmark: bookmark '" + name + "' was modified by someone else since it " +
-               "was last read. Call list_bookmarks to see its current state before overwriting it.");
+               "was last read. Call goto_bookmark to load its current state before overwriting it.");
          }
 
          if(!rvs.checkBookmark(name, owner)) {
@@ -567,7 +578,7 @@ public class ViewsheetAssemblyAgentController {
          // Overriding someone else's writable bookmark only refreshes its captured state -- the
          // native Viewer's own "Save Current" resends the bookmark's own type/readOnly, and its
          // Edit dialog (the only place visibility changes) is disabled for non-owners.
-         if(!targetOwner.equals(owner) && (type != existingType || readOnly != existingReadOnly)) {
+         if(!targetOwner.equals(caller) && (type != existingType || readOnly != existingReadOnly)) {
             throw new IllegalArgumentException(
                "update_bookmark: bookmark '" + name + "' is owned by someone else -- only its " +
                "owner can change its type/readOnly. Omit 'type'/'readOnly' to just refresh its " +
@@ -590,6 +601,35 @@ public class ViewsheetAssemblyAgentController {
          AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
             rvs.getBookmarkInfo(name, targetOwner), BookmarkRecord.ACTION_TYPE_MODIFY, null);
       });
+   }
+
+   /**
+    * Bug #80112: the native Viewer only lets the first user to open a dashboard update its
+    * "(Home)" initial view -- VSBookmarkService.saveBookmark saves the asset with
+    * "homeBookmarkSaved" set, and WorksheetEngine.getLockOwner then reports the first runtime
+    * sheet open on that entry, which raises "Asset is locked". This agent path writes "(Home)"
+    * through addBookmarkToViewSheet and never reaches that check, so apply the same lock rule
+    * here. A clone of the entry carries the flag so the shared entry is never left flagged.
+    * A caller whose own sheet is the first match, or no other sheet being open, is allowed.
+    */
+   private void requireFirstOpenerForHome(RuntimeViewsheet rvs, String name, IdentityID caller,
+                                          String tool)
+   {
+      if(!VSBookmark.HOME_BOOKMARK.equals(name) || rvs.getEntry() == null) {
+         return;
+      }
+
+      AssetEntry probe = (AssetEntry) rvs.getEntry().clone();
+      probe.setProperty("homeBookmarkSaved", "true");
+      String lockOwner = viewsheetService.getLockOwner(probe);
+
+      if(lockOwner != null && !caller.equals(IdentityID.getIdentityIDFromKey(lockOwner))) {
+         throw new IllegalArgumentException(
+            tool + ": '" + VSBookmark.HOME_BOOKMARK + "' is the dashboard's initial view and only " +
+            "the first user to open the dashboard (currently " +
+            IdentityID.getIdentityIDFromKey(lockOwner).getName() + ") may update it. Your own " +
+            "bookmarks are unaffected; use create_bookmark with another name.");
+      }
    }
 
    /**
@@ -679,15 +719,24 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       String name = requireBookmarkName(request.name(), "goto_bookmark");
 
-      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         IdentityID owner = resolveVisibleBookmarkOwner(rvs, name, request.owner(), user);
+      List<String> warnings;
 
-         VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
-            .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(owner).build())
-            .confirmed(false)
-            .build();
-         vsBookmarkService.gotoBookmark(runtimeId, event, user, dispatcher, linkUri);
-      });
+      try {
+         warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+            IdentityID owner = resolveVisibleBookmarkOwner(rvs, name, request.owner(), user);
+
+            VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
+               .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(owner).build())
+               .confirmed(false)
+               .build();
+            vsBookmarkService.gotoBookmark(runtimeId, event, user, dispatcher, linkUri);
+         });
+      }
+      catch(MessageException e) {
+         // e.g. "(Home)" on an unsaved viewsheet; neither mutate() nor any handler for this
+         // controller recognizes MessageException, so it would reach the agent as a bare 500
+         throw new PairingException(e.getMessage(), e);
+      }
 
       return ViewsheetSessionService.warningsBody(warnings);
    }
@@ -929,6 +978,17 @@ public class ViewsheetAssemblyAgentController {
 
       if(rvs.bookmarkWritable(name, matched.getOwner())) {
          return matched.getOwner();
+      }
+
+      if("update_bookmark".equals(tool)) {
+         // update_bookmark DOES work on someone else's writable shared bookmark, so "only works on
+         // bookmarks you own" would be false here. Reaching this point means the visible bookmark
+         // is not writable for the caller: its owner shared it read-only (the normal case), or it
+         // changed/disappeared between the visibility read and this check.
+         throw new IllegalArgumentException(
+            tool + ": bookmark '" + name + "' is shared read-only by " + matched.getOwner().name +
+            " (its owner marked it not writable, or it changed since it was last read) -- only " +
+            "its owner can overwrite it.");
       }
 
       throw new IllegalArgumentException(
@@ -2047,6 +2107,18 @@ public class ViewsheetAssemblyAgentController {
    public record TargetLineRequest(String assembly, String measure, String value, String label,
                                    String lineStyle, String lineColor) {}
 
+   public record FormulaTargetRequest(String assembly, String measure, String formula,
+                                      Boolean entireChart, String label, String lineStyle,
+                                      String lineColor) {}
+
+   public record BandTargetRequest(String assembly, String measure, String from, String to,
+                                   String fromLabel, String toLabel, String fillColor,
+                                   Boolean entireChart, String lineStyle, String lineColor) {}
+
+   public record StatisticsTargetRequest(String assembly, String measure, String statistic,
+                                         String value, Boolean sample, Boolean entireChart,
+                                         String label, String lineStyle, String lineColor) {}
+
    public record TargetLineDeleteRequest(String assembly, List<Integer> indexes) {}
 
    /**
@@ -2082,6 +2154,61 @@ public class ViewsheetAssemblyAgentController {
       return chartTargetLineService.add(sessionToken, user, request.assembly(), request.measure(),
                                         request.value(), request.label(), request.lineStyle(),
                                         request.lineColor(), linkUri);
+   }
+
+   /**
+    * {@code add_chart_target kind:"formula"}. A line target whose value is Average, Min, Max,
+    * Median or Sum of the chart's data, optionally over the Entire Chart rather than per facet
+    * panel -- the Line panel of the Targets dialog with a formula in the value box.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/formula")
+   public Map<String, Object> addChartFormulaTarget(
+      @PathVariable String sessionToken,
+      @RequestBody FormulaTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.addFormulaLine(
+         sessionToken, user, request.assembly(), request.measure(), request.formula(),
+         request.entireChart(), request.label(), request.lineStyle(), request.lineColor(),
+         linkUri);
+   }
+
+   /**
+    * {@code add_chart_target kind:"band"}. The Band panel of the Targets dialog: from/to
+    * boundaries (numbers or formulas), their labels, and an optional band fill.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/band")
+   public Map<String, Object> addChartBandTarget(
+      @PathVariable String sessionToken,
+      @RequestBody BandTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.addBand(
+         sessionToken, user, request.assembly(), request.measure(), request.from(), request.to(),
+         request.fromLabel(), request.toLabel(), request.fillColor(), request.entireChart(),
+         request.lineStyle(), request.lineColor(), linkUri);
+   }
+
+   /**
+    * {@code add_chart_target kind:"statistics"}. The Statistics panel of the Targets dialog:
+    * standard deviation, confidence interval, percentiles or quantiles.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/statistics")
+   public Map<String, Object> addChartStatisticsTarget(
+      @PathVariable String sessionToken,
+      @RequestBody StatisticsTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.addStatistics(
+         sessionToken, user, request.assembly(), request.measure(), request.statistic(),
+         request.value(), request.sample(), request.entireChart(), request.label(),
+         request.lineStyle(), request.lineColor(), linkUri);
    }
 
    /**

@@ -1003,4 +1003,134 @@ class PresentationChangesetApplyServiceTest {
       assertTrue(e.getMessage().contains("changes[0].spec.source"), e.getMessage());
       verify(access, never()).write(any(), any(), any(), anyBoolean());
    }
+
+   // ---------------------------------------------------------------- Bug #80087: organization-scope reset
+
+   private static PresentationChangeRequest reset(String subModel) {
+      PresentationChangeRequest r = new PresentationChangeRequest();
+      r.setVerb("reset");
+      r.setSubModel(subModel);
+      r.setScope("organization");
+      return r;
+   }
+
+   private static Object timeModel() {
+      return inetsoft.web.admin.presentation.model.PresentationTimeSettingsModel.builder()
+         .weekStart("Sunday").scheduleTime12Hours(true).build();
+   }
+
+   private static PresentationSettingsAccess.ResetOutcome removed(String key, String value) {
+      return new PresentationSettingsAccess.ResetOutcome(Map.of(key, value), Set.of(), Set.of());
+   }
+
+   @Test
+   void resetAppliesWithoutWritingAndVerifiesByKeyAbsence() throws Exception {
+      seed(PresentationSubModel.TIME, false, timeModel());
+      var outcome = removed("inetsoft.org.o.week.start", "Monday");
+      when(access.resetOrg(PresentationSubModel.TIME, user)).thenReturn(outcome);
+      when(access.checkReset(PresentationSubModel.TIME, outcome)).thenReturn(null);
+      PresentationApplyRequest req = applyRequest("t", "ok", null, reset("time"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("verified", result.results().get(0).status());
+      verify(access).resetOrg(PresentationSubModel.TIME, user);
+      verify(access, never()).write(any(), any(), any(), anyBoolean());
+   }
+
+   @Test
+   void resetThatLeavesKeysBehindFailsAndRestoresTheRemovedKeys() throws Exception {
+      seed(PresentationSubModel.TIME, false, timeModel());
+      var outcome = removed("inetsoft.org.o.week.start", "Monday");
+      when(access.resetOrg(PresentationSubModel.TIME, user)).thenReturn(outcome);
+      when(access.checkReset(PresentationSubModel.TIME, outcome))
+         .thenReturn("organization keys still present after the reset: [x]");
+      when(access.undoReset(outcome)).thenReturn(null);
+      PresentationApplyRequest req = applyRequest("t", "ok", null, reset("time"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals("failed", result.results().get(0).status());
+      assertTrue(result.results().get(0).error().contains("still present"));
+      verify(access).undoReset(outcome);
+      verify(access, never()).write(any(), any(), any(), anyBoolean());
+   }
+
+   @Test
+   void resetRollbackThatCannotRestoreTheKeysIsReportedAsRollbackFailed() throws Exception {
+      seed(PresentationSubModel.TIME, false, timeModel());
+      var outcome = removed("inetsoft.org.o.week.start", "Monday");
+      when(access.resetOrg(PresentationSubModel.TIME, user)).thenReturn(outcome);
+      when(access.checkReset(PresentationSubModel.TIME, outcome)).thenReturn("bad");
+      when(access.undoReset(outcome)).thenReturn("organization keys not restored: [k]");
+      PresentationApplyRequest req = applyRequest("t", "ok", null, reset("time"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertTrue(result.rollbackFailures().get(0).error().contains("not restored"));
+   }
+
+   @Test
+   void resetWhoseRestoreFailedIsReportedAsStateUnknown() throws Exception {
+      seed(PresentationSubModel.TIME, false, timeModel());
+      when(access.resetOrg(PresentationSubModel.TIME, user))
+         .thenThrow(new PresentationSettingsAccess.ResetStateUnknownException("could not restore"));
+      PresentationApplyRequest req = applyRequest("t", "ok", null, reset("time"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertTrue(result.rollbackFailures().get(0).error().startsWith("state unknown"));
+   }
+
+   @Test
+   void resetOfAStorageScopeSubModelNeedsTheIrreversibleAcknowledgement() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, false, lookAndFeel(false));
+      var outcome = removed("inetsoft.org.o.repository.tree.sort", "true");
+      lenient().when(access.resetOrg(PresentationSubModel.LOOK_AND_FEEL, user)).thenReturn(outcome);
+      lenient().when(access.checkReset(PresentationSubModel.LOOK_AND_FEEL, outcome)).thenReturn(null);
+
+      PresentationApplyRequest without = applyRequest("t", "ok", null, reset("lookAndFeel"));
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(without, user));
+      assertTrue(ex.getMessage().contains("acknowledgeIrreversibleUpdate"));
+      verify(access, never()).resetOrg(any(), any());
+
+      PresentationApplyRequest with = applyRequest("t", "ok", true, reset("lookAndFeel"));
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, service.apply(with, user).status());
+   }
+
+   @Test
+   void aStorageScopeResetBeforeALaterFailureIsReportedAsNotRolledBack() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, false, lookAndFeel(false));
+      seed(PresentationSubModel.TIME, false, timeModel());
+      var lafOutcome = removed("inetsoft.org.o.repository.tree.sort", "true");
+      var timeOutcome = removed("inetsoft.org.o.week.start", "Monday");
+      when(access.resetOrg(PresentationSubModel.LOOK_AND_FEEL, user)).thenReturn(lafOutcome);
+      when(access.checkReset(PresentationSubModel.LOOK_AND_FEEL, lafOutcome)).thenReturn(null);
+      when(access.resetOrg(PresentationSubModel.TIME, user)).thenReturn(timeOutcome);
+      when(access.checkReset(PresentationSubModel.TIME, timeOutcome)).thenReturn("bad");
+      when(access.undoReset(timeOutcome)).thenReturn(null);
+      PresentationApplyRequest req =
+         applyRequest("t", "ok", true, reset("lookAndFeel"), reset("time"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertTrue(result.rollbackFailures().stream()
+                    .anyMatch(f -> f.property().startsWith("lookAndFeel:")));
+      verify(access, never()).undoReset(lafOutcome);
+   }
+
+   @Test
+   void resetOutcomeToStringNeverRevealsTheCapturedSecretValues() {
+      String text = removed("inetsoft.org.o.share.slack.url", "https://hooks.example/secret-token")
+         .toString();
+
+      assertTrue(text.contains("share.slack.url"), text);
+      assertFalse(text.contains("secret-token"), text);
+   }
 }

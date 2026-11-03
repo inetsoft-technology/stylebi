@@ -838,7 +838,9 @@ public class ViewsheetFormatService {
       boolean chartCheck = needsChartValueFormatCheck(request, target);
       boolean numericCheck = needsNumericCellCheck(request, target);
 
-      if(chartCheck || numericCheck) {
+      boolean resetCheck = request.reset() && "data".equals(target);
+
+      if(chartCheck || numericCheck || resetCheck) {
          RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
          Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
 
@@ -852,6 +854,10 @@ public class ViewsheetFormatService {
                if(numericCheck) {
                   refuseDateFormatOverNumericCells(viewsheet, name, target,
                                                    request.format().getFormat());
+               }
+
+               if(resetCheck) {
+                  refuseResetUnderObjectDateFormat(viewsheet, name, request.field());
                }
             }
          }
@@ -2091,6 +2097,55 @@ public class ViewsheetFormatService {
          "' would render its numeric cells as dates (e.g. 1970-01-01): " +
          WizDateFormatOverNumeric.summarize(numeric) +
          ". The request was not applied. " + advice);
+   }
+
+   /**
+    * Bug #79999: a {@code data} reset removes a column's own format, so under a whole-table
+    * date/time format (which the set-time scan accepted because the column was exempt) the
+    * column would start inheriting it and render its numbers as 1970-01-01 dates. Scans without
+    * the own-format exemption, restricted to the reset field (every column when unscoped).
+    */
+   private static void refuseResetUnderObjectDateFormat(Viewsheet viewsheet, String name,
+                                                        String field)
+   {
+      if(!(viewsheet.getAssembly(name) instanceof TableVSAssembly table)) {
+         return;
+      }
+
+      String objectFormat = WizDateFormatOverNumeric.objectDateFormat(table.getVSAssemblyInfo());
+
+      if(objectFormat == null) {
+         return;
+      }
+
+      WizDateFormatOverNumeric.Scan scan = WizDateFormatOverNumeric.scan(table, "data");
+
+      if(scan == null) {
+         return;
+      }
+
+      boolean scoped = field != null && !field.isBlank();
+      List<String> numeric = new ArrayList<>();
+
+      for(String column : scan.numeric()) {
+         if(!scoped || column.equalsIgnoreCase(field) || column.endsWith(":" + field) ||
+            field.endsWith(":" + column))
+         {
+            numeric.add(column);
+         }
+      }
+
+      if(numeric.isEmpty()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "set_format: resetting the body cell format of '" + name + "' would make its numeric " +
+         "cells inherit the whole-table " + objectFormat + " and render as dates (e.g. " +
+         "1970-01-01): " + WizDateFormatOverNumeric.summarize(numeric) + ". The request was " +
+         "not applied. Re-apply a numeric format to the column with target:\"data\" and " +
+         "'field' instead of resetting it, or change the whole-table format first with " +
+         "set_format target:\"object\" (reset:true, or a non-date format).");
    }
 
    private static String regionName(String target) {

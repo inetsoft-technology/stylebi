@@ -401,6 +401,57 @@ class DataSourceChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("confirmRename"));
    }
 
+   // Bug #80028: an update that renames/moves a data source into a folder path that does not
+   // exist yet auto-creates that folder (same side effect resolveFolderCreate's own verb=create
+   // path takes deliberately), but the update's plan entry used to name only the rename, never
+   // the folder it silently brings into existence -- a reviewer approving the plan had no way to
+   // learn an admin-chat-unremovable folder was about to be created.
+   @Test void resolveUpdateDisclosesAnImplicitlyCreatedFolderAsPermanent() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      // dataSourceFolderExists(...) is left unstubbed -- Mockito's default boolean (false) means
+      // "NewFolder" does not exist yet.
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "NewFolder/Orders"));
+      change.setConfirmRename(true);
+
+      var plan = service.resolve(request("task", List.of(change)), user);
+      String description = plan.changes().get(0).description();
+
+      assertEquals("update data source \"Orders\" (renaming to \"NewFolder/Orders\"), which " +
+         "also creates data source folder \"NewFolder\". A data source folder created here " +
+         "cannot be deleted, renamed or moved through admin-chat afterwards (only in Enterprise " +
+         "Manager), so warn the user before applying.", description);
+   }
+
+   @Test void resolveUpdateNamesEveryMissingAncestorFolderWhenNested() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      when(dataSourceService.dataSourceFolderExists("A")).thenReturn(true);
+      // "A/B" left unstubbed (false): only the second-level ancestor is actually missing.
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "A/B/Orders"));
+      change.setConfirmRename(true);
+
+      var plan = service.resolve(request("task", List.of(change)), user);
+
+      assertTrue(plan.changes().get(0).description().contains("creates data source folder \"A/B\""),
+         plan.changes().get(0).description());
+      assertFalse(plan.changes().get(0).description().contains("\"A\"."),
+         plan.changes().get(0).description());
+   }
+
+   @Test void resolveUpdateDoesNotDiscloseAFolderThatAlreadyExists() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      when(dataSourceService.dataSourceFolderExists("Examples")).thenReturn(true);
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "Examples/Orders"));
+      change.setConfirmRename(true);
+
+      var plan = service.resolve(request("task", List.of(change)), user);
+
+      assertEquals("update data source \"Orders\" (renaming to \"Examples/Orders\")",
+         plan.changes().get(0).description());
+   }
+
    @Test void buildProposedJdbcDefaultsNameToTheResolvedFolderQualifiedNameWhenSpecOmitsIt()
       throws Exception
    {

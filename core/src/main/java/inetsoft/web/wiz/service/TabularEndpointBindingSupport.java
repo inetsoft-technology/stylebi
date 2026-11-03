@@ -139,6 +139,11 @@ public final class TabularEndpointBindingSupport {
          else if(parameter.isRequired()) {
             missing.add(parameter.getName());
          }
+         else {
+            // The request restates the whole query, so an omitted (or blank) optional parameter
+            // goes back to the endpoint default instead of keeping the value an earlier edit set.
+            parameter.setValue(null);
+         }
       }
 
       // Every missing required name AND every unknown name at once, rather than one round trip per

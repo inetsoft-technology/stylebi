@@ -300,8 +300,14 @@ public class SelectionBindingService {
                   pane.setLabelRef(label.ref());
                }
 
+               List<String> selectedBefore = selectedTreePaths(treeAssembly);
                selectionTreeService.setSelectionTreePropertyModel(
                   runtimeId, assemblyName, model, linkUri, user, dispatcher);
+               discloseDroppedSelection(
+                  selectedBefore,
+                  selectedTreePaths((SelectionTreeVSAssembly) SelectionRuntimeService
+                     .requireSelection(rvs, assemblyName)),
+                  result);
                result.put("parentIdColumn", parentId.value());
                result.put("idColumn", id.value());
                result.put("labelColumn", label.value());
@@ -314,8 +320,14 @@ public class SelectionBindingService {
                pane.setMode(SelectionTreeVSAssemblyInfo.COLUMN);
                pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
                List<String> levelsBefore = singleSelectionLevelNames(treeAssembly);
+               List<String> selectedBefore = selectedTreePaths(treeAssembly);
                selectionTreeService.setSelectionTreePropertyModel(
                   runtimeId, assemblyName, model, linkUri, user, dispatcher);
+               discloseDroppedSelection(
+                  selectedBefore,
+                  selectedTreePaths((SelectionTreeVSAssembly) SelectionRuntimeService
+                     .requireSelection(rvs, assemblyName)),
+                  result);
                result.put("levels", resolvedColumns.size());
                // The apply replaces the assembly's info, so the survivors come from a fresh
                // lookup. The stored level names are resolved against the new columns, and one that
@@ -1124,6 +1136,48 @@ public class SelectionBindingService {
       }
 
       return selected;
+   }
+
+   /**
+    * The selected nodes of a selection tree as {@code " > "}-joined paths, read from the applied
+    * state tree. Recurses into every composite, since an ID-mode select never marks ancestors.
+    */
+   private static List<String> selectedTreePaths(SelectionTreeVSAssembly assembly) {
+      SelectionList list = assembly.getStateSelectionList();
+
+      if(list == null) {
+         list = assembly.getSelectionList();
+      }
+
+      List<String> selected = new ArrayList<>();
+      collectSelectedTreePaths(list == null ? null : list.getSelectionValues(), "", selected);
+      return selected;
+   }
+
+   private static void collectSelectedTreePaths(SelectionValue[] values, String prefix,
+                                                List<String> out)
+   {
+      if(values == null) {
+         return;
+      }
+
+      for(SelectionValue value : values) {
+         if(value == null) {
+            continue;
+         }
+
+         String path = prefix + value.getValue();
+
+         if(value.isSelected()) {
+            out.add(path);
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList children = composite.getSelectionList();
+            collectSelectedTreePaths(
+               children == null ? null : children.getSelectionValues(), path + " > ", out);
+         }
+      }
    }
 
    /**

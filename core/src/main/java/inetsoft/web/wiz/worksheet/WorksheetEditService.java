@@ -416,7 +416,8 @@ public class WorksheetEditService {
                      RuntimeHeartbeatKeepAlive.stop(heartbeat);
                   }
                   return null;
-               }, remaining, (int) Math.max(1, remaining / 1000));
+               }, remaining, (int) Math.max(1, remaining / 1000),
+                  RenderNotReadyException.Subject.TABLE);
                WorksheetEventUtil.fixAssemblyInfo(rws, ta);
             }
             catch(RenderNotReadyException ex) {
@@ -1463,9 +1464,23 @@ public class WorksheetEditService {
        * @throws PairingException if {@code name} is missing or blank
        */
       public void addTable(String name, String... columns) throws PairingException {
+         addTable(name, null, columns);
+      }
+
+      /**
+       * Same as {@link #addTable(String, String...)}, also storing the table's own row limit when
+       * {@code maxRows} is supplied (0 means no limit).
+       *
+       * @throws PairingException if {@code maxRows} is negative
+       */
+      public void addTable(String name, Integer maxRows, String... columns)
+         throws PairingException
+      {
          if(name == null || name.isBlank()) {
             throw new PairingException("Table requires a name.");
          }
+
+         requireNonNegativeMaxRows(maxRows);
 
          EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
          // the default data is seeded with a "col1" header that refreshColumnSelection would
@@ -1479,6 +1494,11 @@ public class WorksheetEditService {
          }
 
          t.setColumnSelection(cs, false);
+
+         if(maxRows != null) {
+            applyAssemblyMaxRows(t, maxRows);
+         }
+
          placeAssembly(t);
       }
 

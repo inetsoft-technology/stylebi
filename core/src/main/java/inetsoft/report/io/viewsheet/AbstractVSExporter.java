@@ -58,6 +58,8 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XUtil;
@@ -65,6 +67,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
+import inetsoft.web.wiz.service.WizVsService;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSConstants;
@@ -982,6 +985,72 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Set whether an export must fail on a table whose live query failed, instead of writing
+    * the design-time sample rows (e.g. integer 999 and the current timestamp) AssetQuery
+    * substitutes for it.
+    */
+   public void setFailOnFailedQuery(boolean failOnFailedQuery) {
+      this.failOnFailedQuery = failOnFailedQuery;
+   }
+
+   /**
+    * Fail the export when the table data assembly's lens is a failed-query fallback.
+    */
+   private void checkFailedQuery(VSAssembly assembly, VSTableLens lens) {
+      if(!failOnFailedQuery || lens == null) {
+         return;
+      }
+
+      String cause = WizVsService.findFailedQueryCause(lens);
+
+      if(cause == null) {
+         return;
+      }
+
+      StringBuilder message = new StringBuilder("Cannot export '")
+         .append(assembly.getAbsoluteName())
+         .append("': its query failed, so the rows it would show are fabricated sample data");
+
+      if(!cause.isBlank()) {
+         message.append(" (").append(cause).append(")");
+      }
+
+      message.append('.');
+
+      if(assembly instanceof DynamicBindableVSAssembly bindable &&
+         bindable.getPreConditionList() != null)
+      {
+         ConditionList conditions = bindable.getPreConditionList();
+         List<String> parts = new ArrayList<>();
+
+         for(int i = 0; i < conditions.getSize(); i += 2) {
+            DataRef attr = conditions.getAttribute(i);
+
+            if(attr != null) {
+               parts.add(attr.getName());
+            }
+         }
+
+         UserVariable[] vars = conditions.getAllVariables();
+
+         if(!parts.isEmpty() || vars.length > 0) {
+            message.append(" Check its filter condition(s) on ")
+               .append(String.join(", ", parts));
+
+            if(vars.length > 0) {
+               message.append(" and variable operand(s) ").append(
+                  Arrays.stream(vars).map(UserVariable::getName)
+                     .collect(Collectors.joining(", ")));
+            }
+
+            message.append('.');
+         }
+      }
+
+      throw new IllegalArgumentException(message.toString());
+   }
+
+   /**
     * Apply table.output.maxcol limit to a VSTableLens before wrapping in RegionTableLens.
     * Must be called before getRegionTableLens(), which captures column count at construction time.
     */
@@ -1548,6 +1617,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                case AbstractSheet.TABLE_VIEW_ASSET:
                case AbstractSheet.EMBEDDEDTABLE_VIEW_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  checkFailedQuery(assembly, lens);
                   // Bug #74374, apply table.output.maxcol limit before getRegionTableLens(),
                   // which captures column count at construction time in its own ccount field,
                   // bypassing VSTableLens.maxCols. Same fix pattern as VsToReportConverter (Bug #74000).
@@ -1557,12 +1627,14 @@ public abstract class AbstractVSExporter implements VSExporter {
                   break;
                case AbstractSheet.CROSSTAB_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  checkFailedQuery(assembly, lens);
                   applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (CrosstabVSAssembly) assembly, box);
                   writeCrosstab((CrosstabVSAssembly) assembly, lens);
                   break;
                case AbstractSheet.FORMULA_TABLE_ASSET:
                   lens = box.getVSTableLens(name, false, 1);
+                  checkFailedQuery(assembly, lens);
                   applyMaxColsLimit(lens, assembly.getName());
                   lens = getRegionTableLens(lens, (CalcTableVSAssembly) assembly, box);
                   writeCalcTable((CalcTableVSAssembly) assembly, lens);
@@ -4568,6 +4640,7 @@ public abstract class AbstractVSExporter implements VSExporter {
    private boolean expandSelections; // expand selection list/tree
    protected boolean log = false; // should log execution
    private boolean logExport = false;
+   private boolean failOnFailedQuery = false;
    protected FlexTheme theme;
    // the sheet index, Current View is 0, bookmark1 is 1, etc.
    // To fix bug1205749332140 caused by poi bug

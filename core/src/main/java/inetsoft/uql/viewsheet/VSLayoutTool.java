@@ -592,7 +592,9 @@ public class VSLayoutTool extends LayoutTool {
       }
 
       if(ref == null) {
-         String fname = getFieldNameByScript(value);
+         // the raw script, not value: value has been cut at its last ")" above, which keeps the
+         // text of a call chained after toList(...) in the middle of the field= option
+         String fname = getFieldNameByScript(binding.getValue());
 
          if(fname != null && !Tool.equals(fname, cname)) {
             ref = findAttribute(table, binding, fname);
@@ -639,6 +641,64 @@ public class VSLayoutTool extends LayoutTool {
          {
             return aref;
          }
+      }
+
+      return null;
+   }
+
+   /**
+    * Find an aggregate whose header carries a percent calculator prefix. A PercentCalc is a
+    * calculator on the VSAggregateRef, not the legacy percentage option, so
+    * {@link #findAggregateRef} skips it. The returned ref carries the legacy percentage option the
+    * calculator stands for (of group / of grand total), so a freehand cell built from it keeps the
+    * percent semantic instead of silently turning into a plain sum.
+    *
+    * @param vrefs the runtime aggregates of the crosstab.
+    * @param refs  the aggregate refs created from {@code vrefs}, in the same order.
+    * @param name  the measure header to match.
+    *
+    * @return the matching ref, or null if no percent calculator produced that header.
+    *
+    * @throws IllegalArgumentException if the calculator is a percent of a specific dimension,
+    *         which the freehand table cannot express.
+    */
+   public static AggregateRef findPercentCalcAggregateRef(DataRef[] vrefs, AggregateRef[] refs,
+                                                          String name)
+   {
+      if(vrefs == null || refs == null || name == null) {
+         return null;
+      }
+
+      for(int i = 0; i < refs.length && i < vrefs.length; i++) {
+         if(!(vrefs[i] instanceof VSAggregateRef) || refs[i] == null ||
+            !(((VSAggregateRef) vrefs[i]).getCalculator() instanceof PercentCalc))
+         {
+            continue;
+         }
+
+         PercentCalc calc = (PercentCalc) ((VSAggregateRef) vrefs[i]).getCalculator();
+         String prefix = calc.getPrefix();
+
+         if(!Tool.equals(prefix + BindingTool.getFieldName(refs[i]), name) &&
+            !Tool.equals(prefix + guessPreferName(refs, refs[i], i), name) &&
+            !Tool.equals(prefix + refs[i].getName(), name))
+         {
+            continue;
+         }
+
+         String column = calc.getColumnName();
+
+         if(column != null && !column.isEmpty()) {
+            throw new IllegalArgumentException(
+               "The percent calculator on '" + vrefs[i].getName() + "' is a percent of '" + column +
+               "', which a freehand table cannot express. Remove the calculator (clear " +
+               "calculateInfo) before converting, or use a percent of grand total / sub total.");
+         }
+
+         refs[i].setPercentage(true);
+         refs[i].setPercentageOption(calc.getLevel() == PercentCalc.SUB_TOTAL ?
+            XConstants.PERCENTAGE_OF_GROUP : XConstants.PERCENTAGE_OF_GRANDTOTAL);
+         return refs[i];
       }
 
       return null;

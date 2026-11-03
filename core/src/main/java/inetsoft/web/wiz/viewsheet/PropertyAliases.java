@@ -185,7 +185,22 @@ public final class PropertyAliases {
          "dataInputPaneModel.dateFormatPattern",
          "dataInputPaneModel.defaultValue",
          "dataInputPaneModel.queryDateFormat",
-         "dataInputPaneModel.tableLabel"));
+         "dataInputPaneModel.tableLabel"),
+      // Embedded viewsheet assembly (bug #80150). The model has no prefix, so these are whole
+      // paths (deadFieldWriteRefusal matches `equals || endsWith("." + entry)`). Read off
+      // ViewsheetObjectPropertyDialogService.setViewsheetPropertyModel, which applies only name,
+      // visible, primary, script, size and position: the Enabled control is hidden in the dialog
+      // (showEnabledGroup false) and never read back, so are submitOnChange, locked (a Viewsheet
+      // is not a LockableVSAssembly) and titleHeight. width/height ARE written by the setter but
+      // the embedded size is re-derived from the child dashboard on every layout
+      // (Viewsheet.layout), see deadFieldWriteRefusal for the message.
+      "viewsheet", deadSet(
+         "generalPropPaneModel.enabled",
+         "generalPropPaneModel.submitOnChange",
+         "sizePositionPaneModel.width",
+         "sizePositionPaneModel.height",
+         "sizePositionPaneModel.locked",
+         "sizePositionPaneModel.titleHeight"));
 
    /**
     * Per-field liveness of the shared {@code SizePositionPaneModel} (bugs #76871, #76883, #76895,
@@ -255,7 +270,7 @@ public final class PropertyAliases {
    private static final Set<String> REFRESH_DEAD_TYPES =
       Set.of("table", "crosstab", "text", "selectionlist", "chart", "gauge", "image",
              "selectiontree", "timeslider", "calendar", "tab", "calctable", "groupcontainer",
-             "selectioncontainer");
+             "selectioncontainer", "viewsheet");
 
    /**
     * Human-readable captions for the handful of aliases whose own name carries no lexical
@@ -461,7 +476,17 @@ public final class PropertyAliases {
    private static boolean registersSizePosition(String normalizedType) {
       TypeAliases aliases = REGISTRY.get(normalizedType);
       return aliases != null &&
-         aliases.aliases().values().stream().anyMatch(p -> p.endsWith(".sizePositionPaneModel.top"));
+         aliases.aliases().values().stream().anyMatch(p -> isSizePositionPath(p, "top"));
+   }
+
+   /**
+    * Whether {@code path} addresses {@code field} of a {@code SizePositionPaneModel}, whether the
+    * pane sits under a prefix ({@code xGeneralPaneModel.sizePositionPaneModel.top}) or is a root
+    * field of the dialog model (embedded viewsheet: {@code sizePositionPaneModel.top}).
+    */
+   static boolean isSizePositionPath(String path, String field) {
+      String pane = "sizePositionPaneModel." + field;
+      return path.equals(pane) || path.endsWith("." + pane);
    }
 
    private static String deadFieldWriteRefusal(String normalizedType, String pathOrKey) {
@@ -476,6 +501,14 @@ public final class PropertyAliases {
          .findFirst().orElse(null);
 
       if(deadEntry != null) {
+         if("viewsheet".equals(normalizedType) && ("width".equals(leaf) || "height".equals(leaf))) {
+            // The setter does apply a size, so the generic "never reads it back" text is false.
+            return "'" + leaf + "' is read-only on an embedded viewsheet. Its size is derived " +
+               "from the embedded dashboard's own contents every time the sheet is laid out, so " +
+               "a write would be accepted and then discarded. Resize the components inside the " +
+               "child dashboard instead, or move this one with left/top (or edit op:move).";
+         }
+
          String named = deadEntry.contains(".") ? pathOrKey : leaf;
 
          return "'" + named + "' is read-only on " + normalizedType + ". It has a getter/setter " +
@@ -488,7 +521,7 @@ public final class PropertyAliases {
       }
 
       String sizeField = SIZE_POSITION_LIVE_TYPES.keySet().stream()
-         .filter(f -> pathOrKey.endsWith(".sizePositionPaneModel." + f))
+         .filter(f -> isSizePositionPath(pathOrKey, f))
          .findFirst().orElse(null);
 
       if(sizeField != null && registersSizePosition(normalizedType) &&
@@ -603,7 +636,8 @@ public final class PropertyAliases {
             "you get a target that saves, lists back, and never draws: a tabFlag outside 0/1/2 " +
             "is a total no-op, a null measure or colour NPEs inside the commit, a non-numeric " +
             "value produces a line with no boundaries, and an index the descriptor does not " +
-            "have is silently dropped. Use add_chart_target_line / remove_chart_target_line, " +
+            "have is silently dropped. Use add_chart_target_line (fixed value) / add_chart_target " +
+            "(formula, band, statistics) / remove_chart_target_line, " +
             "which build the target from the model's own newTargetInfo template. Reading is " +
             "fine -- call get_assembly_properties with raw=true, or list_chart_target_lines.";
       }
@@ -860,13 +894,18 @@ public final class PropertyAliases {
 
       // The viewsheet's own properties -- the assembly-less target.
       //
-      // Keyed "sheet", not "viewsheet", because "viewsheet" is already an ASSEMBLY type name:
+      // Keyed "sheet", not "viewsheet", because "viewsheet" is the ASSEMBLY type name:
       // Viewsheet implements VSAssembly, so AssemblyPropertyService.typeOf derives "viewsheet"
       // from the class of an embedded-viewsheet assembly. Registering the sheet's own vocabulary
-      // under that name made covers("viewsheet") true and replaced the clear "'X' is a Viewsheet,
-      // whose properties are not covered yet" with "No property service wired for assembly type
-      // 'viewsheet'" -- which reads as an internal wiring bug rather than an unsupported assembly.
+      // under that name would have made an embedded viewsheet resolve to the sheet's properties.
       register(registry, SHEET, ViewsheetPropertyDialogModel.class, viewsheet());
+
+      // An embedded viewsheet ASSEMBLY (bug #80150), registered together with its binding in
+      // AssemblyPropertyService: registering it without one would give "No property service
+      // wired for assembly type 'viewsheet'". Distinct from SHEET above, the sheet's own
+      // vocabulary.
+      register(registry, "viewsheet", ViewsheetObjectPropertyDialogModel.class,
+               embeddedViewsheet());
       return Collections.unmodifiableMap(registry);
    }
 
@@ -1609,6 +1648,28 @@ public final class PropertyAliases {
       dataGeneral(aliases, "submitGeneralPaneModel");
       sizePosition(aliases, "submitGeneralPaneModel");
       aliases.put("label", "submitGeneralPaneModel.labelPropPaneModel.label");
+      return aliases;
+   }
+
+   /**
+    * An embedded viewsheet assembly, mirroring the native "Viewsheet Properties" dialog
+    * (bug #80150): Name, Visible, Visible in External Viewsheets, and Top/Left. The model has no
+    * wrapper pane, so the paths are written out rather than built with {@link #basicGeneral}
+    * (which adds {@code enabled}/{@code refresh}, neither of which this dialog has). width/height
+    * are listed so a read shows the effective size, but are write-refused, see
+    * {@link #DEAD_FIELDS}. The Script tab stays with update_script, and the asset path is
+    * read-only (read_viewsheet_model embeddedPath/embeddedScope).
+    */
+   private static Map<String, String> embeddedViewsheet() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      String basic = "generalPropPaneModel.basicGeneralPaneModel";
+      aliases.put("name", basic + ".name");
+      aliases.put("visible", basic + ".visible");
+      aliases.put("primary", basic + ".primary");
+      aliases.put("top", "sizePositionPaneModel.top");
+      aliases.put("left", "sizePositionPaneModel.left");
+      aliases.put("width", "sizePositionPaneModel.width");
+      aliases.put("height", "sizePositionPaneModel.height");
       return aliases;
    }
 
