@@ -224,7 +224,7 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
 
       slist.append("'>");
 
-      slist.append(HTMLEscape.viewerText(svalue.getLabel()));
+      slist.append(HTMLEscape.text(svalue.getLabel()));
       slist.append("</div>");
 
       if(showText && svalue.getMeasureLabel() != null) {

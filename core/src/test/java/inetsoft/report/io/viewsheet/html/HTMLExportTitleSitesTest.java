@@ -38,9 +38,9 @@ import java.security.Principal;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #79693: title sites of the HTML viewsheet export that follow the viewer rule (markup and
- * the html wrapper kept, other text escaped) beyond the table, selection and radio titles
- * covered by {@link HTMLExportEscapingTest}: crosstab, check box and current selection.
+ * Bug #79693: title sites of the HTML viewsheet export (every title, including one wrapped in
+ * html tags, shows as written) beyond the table, selection and radio titles covered by
+ * {@link HTMLExportEscapingTest}: crosstab, check box and current selection.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -66,31 +66,25 @@ class HTMLExportTitleSitesTest {
    }
 
    @Test
-   void crosstabTitleFollowsViewerRule() {
-      assertEquals("x", crosstab("<b>x</b>").select("span b").text());
-      assertEquals("Sales", crosstab("<html><b>Sales</b></html>").select("span b").text());
-      assertTrue(crosstab("T<t & 'x'").text().contains("T<t & 'x'"));
+   void crosstabTitleShowsTextAsWritten() {
+      HTMLExportEscapingTest.assertTitle(this::crosstab);
    }
 
    @Test
-   void checkBoxTitleFollowsViewerRule() {
-      assertEquals("x", checkBox("<b>x</b>").select("span b").text());
-      assertEquals("Sales", checkBox("<html><b>Sales</b></html>").select("span b").text());
-      assertTrue(checkBox("T<t & 'x'").text().contains("T<t & 'x'"));
+   void checkBoxTitleShowsTextAsWritten() {
+      HTMLExportEscapingTest.assertTitle(this::checkBox);
    }
 
    @Test
-   void currentSelectionTitleAndOutTitleFollowViewerRuleValueStaysText() {
+   void currentSelectionTitleAndOutTitleShowTextAsWritten() {
+      HTMLExportEscapingTest.assertTitle(title -> currentSelection(title, "ot", "ov"));
+      HTMLExportEscapingTest.assertTitle(title -> currentSelection("ct", title, "ov"));
+
       Document doc = currentSelection("<html><b>Sales</b></html>", "<b>t</b>", "<b>v</b>");
-      assertEquals(2, doc.select("b").size(), "title and out title keep markup");
-      assertFalse(doc.html().contains("<html><b>Sales"), doc.html());
-      // the viewer shows the selected value with interpolation, i.e. as text
+      assertEquals(0, doc.select("b").size(), doc.html());
+      assertTrue(doc.text().contains("<html><b>Sales</b></html>"), doc.text());
+      assertTrue(doc.text().contains("<b>t</b>"), doc.text());
       assertTrue(doc.text().contains("<b>v</b>"), doc.text());
-
-      doc = currentSelection("T<t & 'x'", "O<t & 'y'", "a<b");
-      assertTrue(doc.text().contains("T<t & 'x'"), doc.text());
-      assertTrue(doc.text().contains("O<t & 'y'"), doc.text());
-      assertTrue(doc.text().contains("a<b"), doc.text());
    }
 
    private Document crosstab(String title) {
