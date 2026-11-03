@@ -230,6 +230,26 @@ class ViewsheetAssemblyAgentControllerSaveFolderTest {
    }
 
    @Test
+   void duplicatePathAtAnIntermediateSegmentIsRefusedBeforeCreatingAnyLevel() throws Exception {
+      // Bug #80043 Finding 2 follow-up: a dashboard occupying an *intermediate* segment of a
+      // brand-new multi-level path must also be refused -- not only a collision at the deepest
+      // path -- because RepletRegistry.addFolder creates every level unconditionally once
+      // started, and the ancestor-walk's folder-typed containsEntry can't see a wrong-typed
+      // asset sitting at that intermediate segment.
+      try(MockedStatic<AutoSaveUtils> autoSave = mockStatic(AutoSaveUtils.class);
+          MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
+      {
+         sUtil.when(() -> SUtil.isDuplicatedRepositoryPath(eq("Dup-X"), any())).thenReturn(true);
+
+         PairingException e = assertThrows(PairingException.class, () -> controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest("Dup-X/A/B/vs", null), agent));
+
+         assertTrue(e.getMessage().contains("'Dup-X'"), e.getMessage());
+         verify(registryService, never()).addRepositoryFolder(any(), any(), any(), any());
+      }
+   }
+
+   @Test
    void emptyFolderSegmentsAreRefusedBeforeAnythingIsCreated() {
       for(String name : new String[] { "/lead", "trail/", "a//b" }) {
          PairingException e = assertThrows(PairingException.class, () -> save(name, null));

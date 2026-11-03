@@ -2948,11 +2948,23 @@ public class ViewsheetAssemblyAgentController {
 
          // Bug #80043: ensureParentFolder only checked containsEntry(parent) (same-type, folder
          // vs. folder), so a folder could be created at a path an existing viewsheet/dashboard
-         // already occupies. Mirrors RepositoryTreeController's own add-folder checks.
-         if(SUtil.isDuplicatedRepositoryPath(registryPath, owner)) {
-            throw new PairingException(
-               "Folder '" + path + "' cannot be created: '" + path +
-               "' already exists as a different asset.");
+         // already occupies. Mirrors RepositoryTreeController's own add-folder checks. Checked on
+         // every newly-created accumulated prefix (not just the deepest 'path'), because
+         // RepletRegistry.addFolder creates each intermediate segment unconditionally and the
+         // ancestor-walk above can't see a wrong-typed asset (e.g. a dashboard) occupying an
+         // intermediate segment -- its containsEntry probe is folder-typed only.
+         String accumulatedPath = existingPrefix;
+
+         for(String segment : newSegments.split("/")) {
+            accumulatedPath = accumulatedPath == null ? segment : accumulatedPath + "/" + segment;
+            String accumulatedRegistryPath =
+               userScope ? Tool.MY_DASHBOARD + "/" + accumulatedPath : accumulatedPath;
+
+            if(SUtil.isDuplicatedRepositoryPath(accumulatedRegistryPath, owner)) {
+               throw new PairingException(
+                  "Folder '" + accumulatedPath + "' cannot be created: '" + accumulatedPath +
+                  "' already exists as a different asset.");
+            }
          }
 
          repletRegistryService.addRepositoryFolder(registryPath, null, null, owner);
