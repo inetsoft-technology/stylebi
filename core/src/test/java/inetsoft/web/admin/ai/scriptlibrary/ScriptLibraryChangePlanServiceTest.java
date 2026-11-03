@@ -288,6 +288,28 @@ class ScriptLibraryChangePlanServiceTest {
       }
    }
 
+   /** Bug #79920: the delete plan says when stored permission grants will be removed with the script. */
+   @Test void resolveDeleteDescriptionMentionsPermissionGrantsOnlyWhenOneIsStored() throws Exception {
+      when(lib.getScript("a")).thenReturn("return 1;");
+      when(lib.getScriptComment("a")).thenReturn("desc");
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_DELETE, "a");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+
+         String without = service.resolve(request(c), user).changes().get(0).description();
+         assertTrue(without.contains("(no known dependents)"), without);
+         assertFalse(without.contains("permission grants"), without);
+
+         when(securityEngine.getPermission(
+            inetsoft.sree.security.ResourceType.SCRIPT, "a"))
+            .thenReturn(new inetsoft.sree.security.Permission());
+         String with = service.resolve(request(c), user).changes().get(0).description();
+         assertTrue(with.contains("(no known dependents)"), with);
+         assertTrue(with.contains("permission grants will also be removed"), with);
+      }
+   }
+
    @Test void resolveDeleteRefusesWhenDependentsExistAndForceIsNotSet() throws Exception {
       when(lib.getScript("a")).thenReturn("return 1;");
       when(lib.getScriptComment("a")).thenReturn("desc");
