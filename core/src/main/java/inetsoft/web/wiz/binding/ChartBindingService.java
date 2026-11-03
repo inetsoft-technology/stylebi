@@ -547,6 +547,16 @@ public class ChartBindingService {
          populated.add(geoFields.size() + " on geo");
       }
 
+      if(!populated.isEmpty() && model.getSource() == null) {
+         // Orphaned by a data-source swap: the fields remain but no source owns them, so the
+         // "belong to its current source" wording below would be false.
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has fields bound (" + String.join(", ", populated) +
+            ") but no source set. Pointing it at '" + table + "' keeps the fields the new " +
+            "table has and drops the ones it lacks. Pass force: true to do that deliberately, " +
+            "or bind the fields you want after the source is set.");
+      }
+
       if(!populated.isEmpty()) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' already has fields bound (" + String.join(", ", populated) +
