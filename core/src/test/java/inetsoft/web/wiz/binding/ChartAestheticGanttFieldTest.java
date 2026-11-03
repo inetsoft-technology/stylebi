@@ -242,6 +242,24 @@ class ChartAestheticGanttFieldTest {
       assertTrue(e.getMessage().contains("Gantt"), e.getMessage());
    }
 
+   /**
+    * Bug #80119: with the shape field already bound, a line frame that varies by category is
+    * refused by naming the channel to use, not by telling the caller to bind a field first (they
+    * already did, so that advice is circular).
+    */
+   @Test
+   void aGanttLineFrameRefusalWithShapeBoundDoesNotAskToBindAFieldFirst() throws Exception {
+      Pipeline gantt = pipeline(true);
+      gantt.service.setField("tok", principal(), "Chart1", "shape", PHASE, null, "");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> gantt.service.setFrame("tok", principal(), "Chart1", "line",
+                                      Map.of("type", "categorical"), ""));
+      assertTrue(e.getMessage().contains("line channel"), e.getMessage());
+      assertFalse(e.getMessage().contains("bind a field"), e.getMessage());
+      assertFalse(e.getMessage().contains("set_aesthetic_field first"), e.getMessage());
+   }
+
    private static String fieldName(ChartRef ref, String channel) {
       ChartBindable bindable = (ChartBindable) ref;
       AestheticRef field = switch(channel) {

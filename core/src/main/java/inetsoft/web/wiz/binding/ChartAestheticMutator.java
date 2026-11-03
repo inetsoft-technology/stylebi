@@ -1606,7 +1606,10 @@ public final class ChartAestheticMutator {
             catch(IllegalArgumentException e) {
                // Bug #78918: a Gantt chart is multi-aesthetic whatever its multi-style setting,
                // and set_aesthetic_field binds the field onto its measures directly.
-               throw new IllegalArgumentException(gantt
+               // Bug #80119: with the shape field already bound the "bind a field first" advice
+               // is circular (the refusal already names the channel to use), so a bound shape
+               // field takes the plain branch below like any other multi-aesthetic chart.
+               throw new IllegalArgumentException(gantt && aggregate.getShapeField() == null
                   ? e.getMessage() + " This is a Gantt chart: bind a field with " +
                     "set_aesthetic_field first (it goes onto the start and milestone measures), " +
                     "then set this frame. Measure: " + measureLabel(aggregate) + "."
