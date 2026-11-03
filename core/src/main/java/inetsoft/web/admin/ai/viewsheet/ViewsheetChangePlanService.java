@@ -68,7 +68,8 @@ import java.util.*;
  * (mirroring {@link #resolveViewsheetDelete resolveViewsheetDelete}'s own dependency preflight) and
  * requires {@code force: true} whenever the folder is non-empty, classifying the entry {@code
  * RISK_HIGH} in that case; folder rename similarly recursively rewrites the path/asset-identifier of
- * every viewsheet and worksheet stored under the renamed folder (including nested folders), as
+ * every viewsheet/dashboard entry stored under the renamed folder (including nested folders); worksheets
+ * live in the separate namespace and are not moved (they keep their old path), as
  * {@link #resolveFolderRename resolveFolderRename}'s own {@code PlanChange} description discloses,
  * though it is not yet force-gated the way delete now is (a known, separate gap, not fixed here).
  * No {@code RISK_MEDIUM} constant exists on {@link AdminChangeRecord} (only {@code RISK_LOW}/{@code
@@ -1086,9 +1087,10 @@ public class ViewsheetChangePlanService {
       String proposedProjection = ViewsheetProjection.projectFolder(proposed);
       String orgId = orgIdFor(owner);
       String description = "rename folder \"" + normalizedOld + "\" to \"" + normalizedNew +
-         "\" -- this rewrites the path/asset-identifier of every viewsheet and worksheet " +
+         "\" -- this rewrites the path/asset-identifier of every viewsheet " +
          "currently stored under this folder (recursively, including nested folders) to match " +
-         "the new folder path. StyleBI re-points schedule-task viewsheet actions to the new " +
+         "the new folder path. Worksheets stored under the same folder path are not moved and " +
+         "keep their old path (same as folder delete). StyleBI re-points schedule-task viewsheet actions to the new " +
          "asset id (ScheduleManager.assetRenamed), so scheduled tasks follow the rename; only " +
          "references held outside StyleBI (saved URLs, external links or scripts, other " +
          "automation) that name the old full path or asset-id can go stale as a result";
