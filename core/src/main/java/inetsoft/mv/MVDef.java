@@ -405,9 +405,19 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     * Refresh this mv def.
     */
    public void updateLastUpdateTime() {
+      updateLastUpdateTime(System.currentTimeMillis());
+   }
+
+   /**
+    * Refresh this mv def with the time the update started reading its source (Bug #79854).
+    * The stamp is the lower bound of the next incremental update (MV.LastUpdateTime), so it
+    * must not be later than the moment the update's data was read, or a row inserted while the
+    * update runs is never appended.
+    * @param time the time to store unless the "data.cache.ts" session info overrides it.
+    */
+   public void updateLastUpdateTime(long time) {
       Object value = ThreadContext.getSessionInfo("data.cache.ts");
-      this.lastUpdateTime = value instanceof Number ? ((Number) value).longValue()
-         : System.currentTimeMillis();
+      this.lastUpdateTime = value instanceof Number ? ((Number) value).longValue() : time;
    }
 
    /**

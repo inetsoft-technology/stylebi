@@ -881,13 +881,20 @@ public final class MV implements Cloneable {
     * Update last modified time.
     */
    public void updateLastModifiedTime() {
+      updateLastModifiedTime(System.currentTimeMillis());
+   }
+
+   /**
+    * Update last modified time to the specified time (Bug #79854).
+    */
+   public void updateLastModifiedTime(long time) {
       loadContent();
 
       if(def == null || file == null) {
          return;
       }
 
-      def.updateLastUpdateTime();
+      def.updateLastUpdateTime(time);
 
       try(BlobTransaction<MVStorage.Metadata> tx = MVStorage.getInstance().beginTransaction();
           BlobChannel channel = tx.newChannel(file, new MVStorage.Metadata()))

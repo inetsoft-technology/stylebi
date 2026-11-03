@@ -162,9 +162,12 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
       statusMap.put(mv.getName(), "Generating");
       sendChangeMessage(OrganizationManager.getInstance().getCurrentOrgID(principal));
 
+      // Bug #79854, taken before the data is read; the stamp must not be later than the read
+      long start = System.currentTimeMillis();
+
       try {
          createMV(principal, mv);
-         postCreate(mv);
+         postCreate(mv, start);
       }
       catch(CancelledException ex) {
          // cancelled, ignore error
@@ -208,7 +211,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
    /**
     * Called after createMV to update MVManager.
     */
-   private void postCreate(MVDef mv) {
+   private void postCreate(MVDef mv, long start) {
       MVManager mgr = MVManager.getManager();
       final String name = mv.getName();
       final MVDef existingMv = mgr.get(name);
@@ -223,7 +226,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          return;
       }
 
-      mv.updateLastUpdateTime(); // update time stamp
+      mv.updateLastUpdateTime(start); // update time stamp
       mgr.add(mv);
 
       sendChangeMessage(mv.handleUpdatingOrgID());

@@ -75,12 +75,15 @@ public abstract class MVIncremental {
          MVManager manager = MVManager.getManager();
 
          // refresh MV's def
-         mv.updateLastModifiedTime();
+         // Bug #79854, stamp the time the update started reading, not the time it ended, so a
+         // row inserted while the update runs is selected by the next update
+         long stamp = updateStart > 0 ? updateStart : System.currentTimeMillis();
+         mv.updateLastModifiedTime(stamp);
          // MVDef.lastModified only be used in script, and we
          // just need to refresh the MV.mvdef
          // refresh MVManager's def
          // @by davyc, for data cache
-         mvdef.updateLastUpdateTime();
+         mvdef.updateLastUpdateTime(stamp);
          manager.add(mvdef);
 
          // @by ChrisSpagnoli, for Bug #7250
@@ -231,4 +234,8 @@ public abstract class MVIncremental {
 
    protected MV mv;
    protected MVDef mvdef;
+   /**
+    * The time the update started, before its data is read. Stored as the last update time.
+    */
+   protected long updateStart;
 }

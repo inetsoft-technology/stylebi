@@ -20,6 +20,7 @@ package inetsoft.mv;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVConditionListHandler;
 import inetsoft.mv.data.MVStorage;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -133,6 +134,52 @@ class MVIncrementalTest {
       AssetCondition cond = (AssetCondition) pre.getConditionItem(0).getXCondition();
       assertInstanceOf(ExpressionValue.class, cond.getValue(0));
       assertEquals("new Date(2020, 0, 1)", ((ExpressionValue) cond.getValue(0)).getExpression());
+   }
+
+   /**
+    * Bug #79854: the stamp that becomes MV.LastUpdateTime of the next update is the time the
+    * update started reading, not the time it ended, so a row inserted while it ran is selected.
+    */
+   @Test
+   void refreshStampsTheUpdateStartNotTheEnd() throws Exception {
+      long start = System.currentTimeMillis() - 60_000L;
+      MVDef def = new MVDef();
+      def.container = new MVDef.MVContainer(new ArrayList<>(), null);
+      MV mv = Mockito.mock(MV.class);
+      Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));
+      MVStorage storage = Mockito.mock(MVStorage.class);
+      Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+      MVManager manager = Mockito.mock(MVManager.class);
+
+      try(MockedStatic<MVStorage> storageStatics = Mockito.mockStatic(MVStorage.class);
+          MockedStatic<MVManager> managerStatics = Mockito.mockStatic(MVManager.class);
+          MockedStatic<AssetDataCache> cacheStatics = Mockito.mockStatic(AssetDataCache.class))
+      {
+         cacheStatics.when(AssetDataCache::getCache).thenReturn(Mockito.mock(AssetDataCache.class));
+         storageStatics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         storageStatics.when(MVStorage::getInstance).thenReturn(storage);
+         managerStatics.when(MVManager::getManager).thenReturn(manager);
+         TestIncremental incremental = new TestIncremental(def);
+         incremental.updateStart = start;
+
+         incremental.refresh();
+
+         // the update "ran" for a minute; the stamp is the start of it
+         assertEquals(start, def.getLastUpdateTime());
+         Mockito.verify(mv).updateLastModifiedTime(start);
+         Mockito.verify(manager).add(def);
+      }
+   }
+
+   @Test
+   void updateLastUpdateTimeStoresTheGivenTime() {
+      MVDef def = new MVDef();
+      def.updateLastUpdateTime(12345L);
+      assertEquals(12345L, def.getLastUpdateTime());
+
+      long before = System.currentTimeMillis();
+      def.updateLastUpdateTime();
+      assertTrue(def.getLastUpdateTime() >= before);
    }
 
    private static void merge(MVDef def, TableAssembly table) throws Exception {
