@@ -293,7 +293,7 @@ class WorksheetAgentControllerSqlQueryWildcardUnresolvedTest {
 
       WorksheetAgentController.EditSqlQueryRequest body =
          new WorksheetAgentController.EditSqlQueryRequest(
-            "SqlTable1", "SELECT * FROM SA.NO_SUCH_TABLE_ZZ");
+            "SqlTable1", "SELECT * FROM SA.NO_SUCH_TABLE_ZZ", false);
 
       try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
          (m, ctx) -> {
@@ -348,7 +348,7 @@ class WorksheetAgentControllerSqlQueryWildcardUnresolvedTest {
 
       WorksheetAgentController.EditSqlQueryRequest body =
          new WorksheetAgentController.EditSqlQueryRequest(
-            "SqlTable1", "SELECT * FROM SA.NO_SUCH_TABLE_ZZ");
+            "SqlTable1", "SELECT * FROM SA.NO_SUCH_TABLE_ZZ", false);
 
       try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
          (m, ctx) -> {
@@ -403,7 +403,7 @@ class WorksheetAgentControllerSqlQueryWildcardUnresolvedTest {
 
       WorksheetAgentController.EditSqlQueryRequest body =
          new WorksheetAgentController.EditSqlQueryRequest(
-            "SqlTable1", "SELECT * FROM $(@srcTable)");
+            "SqlTable1", "SELECT * FROM $(@srcTable)", false);
 
       try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
          (m, ctx) -> {

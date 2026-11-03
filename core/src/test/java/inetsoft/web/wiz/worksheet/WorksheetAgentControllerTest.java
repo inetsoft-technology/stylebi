@@ -12013,7 +12013,7 @@ class WorksheetAgentControllerTest {
       // detecting a $(name) placeholder in the real SQL text is not what this test is verifying --
       // that detection is detectUndeclaredVariables'/VarSQL's own job, already covered elsewhere.
       WorksheetAgentController.EditSqlQueryRequest body =
-         new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1");
+         new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1", false);
 
       try(MockedStatic<WorksheetEventUtil> eventUtil =
              mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
@@ -12087,7 +12087,7 @@ class WorksheetAgentControllerTest {
          .build();
 
       WorksheetAgentController.EditSqlQueryRequest body =
-         new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1");
+         new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1", false);
 
       try(MockedStatic<WorksheetEventUtil> eventUtil =
              mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
@@ -12193,7 +12193,7 @@ class WorksheetAgentControllerTest {
             .thenReturn(command);
 
          return ctrl.editSqlQuery("TOK-79062",
-            new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1"), agent);
+            new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1", false), agent);
       }
    }
 

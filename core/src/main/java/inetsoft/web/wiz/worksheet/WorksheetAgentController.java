@@ -689,7 +689,8 @@ public class WorksheetAgentController {
 
       // edit_sql_query needs RuntimeWorksheet for SQL parsing and column re-init.
       if("edit_sql_query".equals(req.op())) {
-         editSqlQuery(sessionToken, req.table(), req.expression(), user);
+         editSqlQuery(sessionToken, req.table(), req.expression(), user,
+                     Boolean.TRUE.equals(req.confirmed()));
          return;
       }
 
@@ -4787,7 +4788,7 @@ public class WorksheetAgentController {
     *         references, mirroring {@link #addSqlQuery}'s response shape.
     */
    private SqlQueryResponse editSqlQuery(String sessionToken, String table, String expression,
-                                          Principal user)
+                                          Principal user, boolean confirmed)
       throws Exception
    {
       // Verify ACCESS permission on freeform SQL ("Visual Composer -> Free Form SQL"),
@@ -4934,6 +4935,14 @@ public class WorksheetAgentController {
             ws, sqlTable, sqlTable.getColumnSelection(), columns,
             "This query would change the type of", JoinKeyTypeGuard::sqlRemedy,
             "The new query of '" + table + "'", SQL_EDIT_LOSS_REMEDY);
+
+         // Bug #80035: a dropped column a SAVED viewsheet/worksheet still uses is the same
+         // silent data exposure remove_column/delete_table/set_column_visibility already refuse
+         // on -- checked here, still against clones, so a refusal still touches nothing.
+         if(!confirmed) {
+            RemoveColumnDependentsGuard.requireNoSavedDependentsForSqlEdit(
+               rws, table, sqlTable.getColumnSelection(), columns);
+         }
 
          info.getQuery().setSQLDefinition(sql);
          sqlTable.setSQLEdited(true);
@@ -6551,7 +6560,7 @@ public class WorksheetAgentController {
     * @param table      the assembly name of the existing SQL-bound table to edit
     * @param expression the new SQL string
     */
-   public record EditSqlQueryRequest(String table, String expression) {}
+   public record EditSqlQueryRequest(String table, String expression, Boolean confirmed) {}
 
    /**
     * Replace the SQL query on an existing SQL-bound table assembly.
@@ -6564,7 +6573,8 @@ public class WorksheetAgentController {
     * still served by {@link #edit}.</p>
     *
     * @param sessionToken the token obtained at join time
-    * @param body         the existing SQL-bound assembly name and the new SQL string
+    * @param body         the existing SQL-bound assembly name, the new SQL string, and whether a
+    *                     prior refusal naming a saved dependent (Bug #80035) has been confirmed
     * @param user         the authenticated agent principal
     * @return the assembly name and any undeclared {@code $(name)} variables the new SQL
     *         references
@@ -6578,7 +6588,8 @@ public class WorksheetAgentController {
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
-      return editSqlQuery(sessionToken, body.table(), body.expression(), user);
+      return editSqlQuery(sessionToken, body.table(), body.expression(), user,
+                          Boolean.TRUE.equals(body.confirmed()));
    }
 
    /**

@@ -18,15 +18,19 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.delete.*;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Bug #79526: removing a worksheet column that a SAVED viewsheet or worksheet still uses (a
@@ -42,19 +46,15 @@ import java.util.List;
  * repository.</p>
  *
  * <p>Bug #80035 widened this from {@code remove_column} alone to every other op that can produce
- * the same silent data exposure: {@code delete_table} (every column the table exposes) and
- * {@code set_column_visibility} (hiding a column stops it filtering, same as removing it). Two
- * related gaps are still open, deliberately not closed here (each needs its own design, not a
- * mechanical reuse of this check):</p>
- * <ul>
- *   <li>Only saved dependents bound directly to {@code table} are seen. A dependent bound to a
- *       join, mirror or concatenation built on this table, which exposes the column from it, is
- *       not found, so an edit there is not refused (parity gap with the Composer's own
- *       delete-column check, noted since #79526).</li>
- *   <li>{@code edit_sql_query} rewriting a table's SQL so it no longer selects a filtered column
- *       is not covered -- doing so needs diffing the table's column set before and after the
- *       rewrite, which this per-table/per-column check does not do.</li>
- * </ul>
+ * the same silent data exposure: {@code delete_table} (every column the table exposes),
+ * {@code set_column_visibility} (hiding a column stops it filtering, same as removing it), and
+ * {@code edit_sql_query} (see {@link #requireNoSavedDependentsForSqlEdit}). It also closed the
+ * remaining parity gap noted since #79526: a dependent bound to a join, mirror or concatenation
+ * built on {@code table}, rather than {@code table} itself, is now found too -- every edit below
+ * walks downstream through {@link WorksheetControllerService#mapToDependentColumn}, the same
+ * mirror/join/concat column-identity mapping the in-worksheet loss-conflict walkers
+ * ({@code WorksheetControllerService#findColumnReferenceLossConflicts}) already use, so one
+ * refusal names every affected saved asset on every reachable table, not just the edited one.</p>
  */
 final class RemoveColumnDependentsGuard {
    private RemoveColumnDependentsGuard() {
@@ -111,6 +111,47 @@ final class RemoveColumnDependentsGuard {
       }
    }
 
+   /**
+    * {@code edit_sql_query}'s shape: every column present in {@code oldColumns} but absent from
+    * {@code newColumns} by output name is checked -- the same "dropped" definition
+    * {@code WorksheetAgentController#assertSqlEditAllowsColumnRemoval} already uses -- since the
+    * rewrite drops it from the table the same way {@code remove_column} would. Called before the
+    * rewrite is committed, so {@code table}'s live column selection is still {@code oldColumns}
+    * and the single-column check below can resolve each dropped column by its (still current)
+    * attribute name. Refuses on the first dropped column with a saved dependent, matching
+    * {@link #requireNoSavedDependentsForTable}.
+    */
+   static void requireNoSavedDependentsForSqlEdit(RuntimeWorksheet rws, String table,
+                                                  ColumnSelection oldColumns,
+                                                  ColumnSelection newColumns)
+      throws PairingException
+   {
+      if(rws == null || rws.getWorksheet() == null || table == null || oldColumns == null) {
+         return;
+      }
+
+      Set<String> keptNames = new HashSet<>();
+
+      if(newColumns != null) {
+         for(int i = 0; i < newColumns.getAttributeCount(); i++) {
+            keptNames.add(newColumns.getAttribute(i).getName());
+         }
+      }
+
+      for(int i = 0; i < oldColumns.getAttributeCount(); i++) {
+         DataRef old = oldColumns.getAttribute(i);
+
+         if(keptNames.contains(old.getName())) {
+            continue;
+         }
+
+         requireNoSavedDependents(rws, table, old.getAttribute(),
+            name -> "apply this SQL edit, which drops column '" + name + "' from table '" +
+                    table + "'",
+            "changed");
+      }
+   }
+
    private static void requireNoSavedDependents(RuntimeWorksheet rws, String table, String column,
                                                 java.util.function.Function<String, String> action,
                                                 String pastTense)
@@ -127,7 +168,9 @@ final class RemoveColumnDependentsGuard {
          return;
       }
 
-      if(!(rws.getWorksheet().getAssembly(table) instanceof TableAssembly t)) {
+      Worksheet ws = rws.getWorksheet();
+
+      if(!(ws.getAssembly(table) instanceof TableAssembly t)) {
          return;
       }
 
@@ -142,10 +185,19 @@ final class RemoveColumnDependentsGuard {
       }
 
       String name = cr.getAlias() != null ? cr.getAlias() : cr.getAttribute();
-      DeleteInfo info = new DeleteInfo(name, RenameInfo.ASSET | RenameInfo.COLUMN,
-                                       entry.toIdentifier(), table);
+      List<DeleteInfo> infos = new ArrayList<>();
+      infos.add(new DeleteInfo(name, RenameInfo.ASSET | RenameInfo.COLUMN,
+                               entry.toIdentifier(), table));
+
+      // Bug #80035: a dependent bound to a join, mirror or concatenation built on `table`, which
+      // exposes the column from it under its own identity, is just as exposed as a dependent
+      // bound to `table` directly -- walk every such table reachable downstream and add one more
+      // DeleteInfo per hop, so the single DeleteDependencyHandler call below reports every
+      // affected saved asset in one refusal.
+      collectDownstreamDeleteInfos(ws, t, cr, new HashSet<>(), entry, infos);
+
       DeleteDependencyInfo dinfo =
-         DeleteDependencyHandler.createWsDependencyInfo(List.of(info), rws);
+         DeleteDependencyHandler.createWsDependencyInfo(infos, rws);
       DependencyException ex = DeleteDependencyHandler.checkDependency(dinfo, true);
 
       if(ex == null || ex.isEmpty()) {
@@ -157,5 +209,55 @@ final class RemoveColumnDependentsGuard {
          " The saved asset(s) above use this column (binding, condition, calc field, ...), so " +
          "they would lose it or stop filtering on it. Nothing was " + pastTense + ". Confirm " +
          "with the user before retrying with confirmed:true.");
+   }
+
+   /**
+    * Recursively walks {@code ws.getDependings} from {@code assembly}, following only
+    * {@code TableAssembly} dependents, the same shape as
+    * {@code WorksheetControllerService}'s private in-worksheet loss-conflict walker. At each hop,
+    * {@link WorksheetControllerService#mapToDependentColumn} resolves {@code ref}'s identity on
+    * the dependent (correct for a mirror, a join -- disambiguating same-named columns from
+    * different sources by entity -- and a concatenation, whose union-compatible columns share a
+    * bare name across every source so the fallback bare-name mapping already finds them); a
+    * {@code null} mapping means the dependent does not carry the column at all, and that branch
+    * stops. {@code visited} is removed from in a {@code finally} so a diamond-shaped dependency
+    * (two branches converging on the same downstream table) is still checked from each branch --
+    * only a true cycle within the current path is guarded against.
+    */
+   private static void collectDownstreamDeleteInfos(
+      Worksheet ws, TableAssembly assembly, ColumnRef ref, Set<String> visited,
+      AssetEntry entry, List<DeleteInfo> infos)
+   {
+      AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
+
+      for(AssemblyRef assemblyRef : arr) {
+         String assemblyName = assemblyRef.getEntry().getName();
+
+         if(!visited.add(assemblyName)) {
+            continue;
+         }
+
+         try {
+            if(!(ws.getAssembly(assemblyName) instanceof TableAssembly dependent)) {
+               continue;
+            }
+
+            ColumnRef mappedRef =
+               WorksheetControllerService.mapToDependentColumn(assembly, dependent, ref);
+
+            if(mappedRef == null) {
+               continue;
+            }
+
+            String mappedName =
+               mappedRef.getAlias() != null ? mappedRef.getAlias() : mappedRef.getAttribute();
+            infos.add(new DeleteInfo(mappedName, RenameInfo.ASSET | RenameInfo.COLUMN,
+                                     entry.toIdentifier(), dependent.getName()));
+            collectDownstreamDeleteInfos(ws, dependent, mappedRef, visited, entry, infos);
+         }
+         finally {
+            visited.remove(assemblyName);
+         }
+      }
    }
 }
