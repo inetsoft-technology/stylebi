@@ -247,4 +247,11 @@ class VSObjectChromeDefaultsTest {
       withGate("false", () -> assertEquals(6, info.getFormat().getRoundCorner(),
                                            "a user radius beats the seeded default"));
    }
+
+   @Test
+   void cardTintOverTheModernPages() {
+      assertEquals(0xECEBE9, rgb(VSObjectChromeDefaults.cardTintOver(new Color(0xF8F7F4))));
+      assertEquals(0x313034, rgb(VSObjectChromeDefaults.cardTintOver(new Color(0x1C1B1F))));
+      assertEquals(0xF2F2F2, rgb(VSObjectChromeDefaults.cardTintOver(null)));
+   }
 }

@@ -306,9 +306,11 @@ public class FormatInfo implements AssetObject {
          tfmt.setFont(sfont, false);
       }
 
-      if(!tfmt.isBackgroundValueDefined() ||
+      boolean cardTint = sfmt.isDefaultCardTint();
+
+      if(!cardTint && (!tfmt.isBackgroundValueDefined() ||
          cssfmt.isBackgroundValueDefined() ||
-         userfmt.isBackgroundValueDefined() || userfmt.isBackgroundDefined())
+         userfmt.isBackgroundValueDefined() || userfmt.isBackgroundDefined()))
       {
          tfmt.setBackgroundValue(sfmt.getBackgroundValue(), false);
          tfmt.setBackground(sfmt.getBackground(), false);
@@ -323,8 +325,8 @@ public class FormatInfo implements AssetObject {
          tfmt.setBorderColors(sfmt.getBorderColors(), false);
       }
 
-      if(!tfmt.isAlphaValueDefined() || cssfmt.isAlphaValueDefined() ||
-         userfmt.isAlphaValueDefined() || userfmt.isAlphaDefined())
+      if(!sfmt.isDefaultCardTintAlpha() && (!tfmt.isAlphaValueDefined() || cssfmt.isAlphaValueDefined() ||
+         userfmt.isAlphaValueDefined() || userfmt.isAlphaDefined()))
       {
          tfmt.setAlphaValue(sfmt.getAlphaValue(), false);
          tfmt.setAlpha(sfmt.getAlpha(), false);

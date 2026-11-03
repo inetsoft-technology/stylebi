@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet;
 
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
 import inetsoft.uql.viewsheet.internal.XVSFormat;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
@@ -77,11 +78,10 @@ public class VSCompositeFormat implements XVSFormat {
    public Color getBackground() {
       Color bg = (Color) Tool.getData(XSchema.COLOR, cssfmt.getBackgroundValue());
 
-      Color color = (userfmt.isBackgroundDefined() ||
-                     userfmt.isBackgroundValueDefined())
-         ? userfmt.getBackground()
-         : cssfmt.isBackgroundValueDefined() ? bg:
-         deffmt.getBackground();
+      Color color = !backgroundFromDefaultTier()
+         ? (userfmt.isBackgroundDefined() || userfmt.isBackgroundValueDefined()
+            ? userfmt.getBackground() : bg)
+         : deffmt.getBackground();
 
       if(color != null) {
          color = new Color(color.getRed(), color.getGreen(), color.getBlue(),
@@ -89,6 +89,43 @@ public class VSCompositeFormat implements XVSFormat {
       }
 
       return color;
+   }
+
+   /**
+    * Whether the background resolves from the default tier.
+    */
+   private boolean backgroundFromDefaultTier() {
+      return !(userfmt.isBackgroundDefined() || userfmt.isBackgroundValueDefined() ||
+               cssfmt.isBackgroundValueDefined());
+   }
+
+   /**
+    * Whether the default tier holds the card tint and the background resolves from it.
+    */
+   public boolean isDefaultCardTint() {
+      return backgroundFromDefaultTier() && holdsCardTint();
+   }
+
+   /**
+    * Whether the card tint is on and the alpha resolves from the default tier too.
+    */
+   public boolean isDefaultCardTintAlpha() {
+      return isDefaultCardTint() &&
+         !(userfmt.isAlphaDefined() || userfmt.isAlphaValueDefined() ||
+           cssfmt.isAlphaValueDefined());
+   }
+
+   private boolean holdsCardTint() {
+      Color dbg = deffmt.getBackground();
+      return dbg != null && (dbg.getRGB() & 0xFFFFFF) == VSObjectChromeDefaults.CARD_TINT_RGB &&
+         deffmt.getAlphaValue() == VSObjectChromeDefaults.CARD_TINT_ALPHA;
+   }
+
+   /**
+    * An alpha inherited from the card tint must not apply to a colour that replaced the tint.
+    */
+   private boolean droppedCardTintAlpha() {
+      return !backgroundFromDefaultTier() && holdsCardTint();
    }
 
    /**
@@ -293,6 +330,7 @@ public class VSCompositeFormat implements XVSFormat {
       return (userfmt.isAlphaDefined() || userfmt.isAlphaValueDefined())
          ? userfmt.getAlpha()
          : cssfmt.isAlphaValueDefined() ? cssfmt.getAlphaValue()
+         : droppedCardTintAlpha() ? 100
          : deffmt.getAlpha();
    }
 
@@ -303,6 +341,7 @@ public class VSCompositeFormat implements XVSFormat {
    public int getAlphaValue() {
       return userfmt.isAlphaValueDefined() ? userfmt.getAlphaValue() :
          cssfmt.isAlphaValueDefined() ? cssfmt.getAlphaValue() :
+         droppedCardTintAlpha() ? 100 :
          deffmt.getAlphaValue();
    }
 

@@ -700,6 +700,7 @@ public final class VSFormatTableLens extends FormatTableLens {
       String clr;
       VSCSSFormat css = sfmt.getCSSFormat();
       VSFormat user = sfmt.getUserDefinedFormat();
+      boolean cardTint = sfmt.isDefaultCardTint();
 
       if((clr = sfmt.getBackgroundValue()) != null &&
          css.isBackgroundValueDefined() && !user.isBackgroundValueDefined())
@@ -730,14 +731,22 @@ public final class VSFormatTableLens extends FormatTableLens {
       }
 
       tfmt.setAlignment(sfmt.getAlignment());
-      tfmt.setBackground(sfmt.getBackground());
+
+      if(!cardTint) {
+         tfmt.setBackground(sfmt.getBackground());
+      }
+
       tfmt.setForeground(sfmt.getForeground());
       tfmt.setFont(sfmt.getFont());
       tfmt.setFormat(sfmt.getFormat());
       tfmt.setFormatExtent(sfmt.getFormatExtent());
       tfmt.setWrapping(sfmt.isWrapping());
       tfmt.setSpan(sfmt.getSpan());
-      tfmt.setAlpha(sfmt.getAlpha());
+
+      if(!sfmt.isDefaultCardTintAlpha()) {
+         tfmt.setAlpha(sfmt.getAlpha());
+      }
+
       tfmt.setPresenter(sfmt.getPresenter());
    }
 

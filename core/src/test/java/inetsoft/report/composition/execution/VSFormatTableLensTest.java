@@ -23,6 +23,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +34,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.lang.reflect.Method;
 import java.util.Map;
 
 @ExtendWith(SpringExtension.class)
@@ -65,5 +68,43 @@ public class VSFormatTableLensTest {
       Assertions.assertEquals(VSFormatTableLens.class, deserializedTable.getClass());
       formatMap = ((VSFormatTableLens) deserializedTable).getFormatMap();
       Assertions.assertEquals(compositeFormat, formatMap.get(col1Path));
+   }
+
+   // createCellFormat needs a full runtime sandbox, so this drives its private default-format copy
+   @Test
+   public void unstyledTableCellsDoNotInheritTheTint() throws Exception {
+      VSCompositeFormat objfmt = new VSCompositeFormat();
+      objfmt.getDefaultFormat().setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+      objfmt.getDefaultFormat().setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TableVSAssembly(vs, "table1"));
+      ViewsheetSandbox box = new ViewsheetSandbox(vs, RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE,
+                                                  null, null);
+      VSFormatTableLens table = new VSFormatTableLens(box, "table1",
+                                                      XTableUtil.getDefaultTableLens(), false);
+      Method copy = VSFormatTableLens.class.getDeclaredMethod(
+         "copyDefaultFormat", VSFormat.class, VSCompositeFormat.class);
+      copy.setAccessible(true);
+
+      VSFormat cell = new VSFormat();
+      copy.invoke(table, cell, objfmt);
+      Assertions.assertNull(cell.getBackground());
+      Assertions.assertEquals(100, cell.getAlpha());
+
+      VSCompositeFormat plain = new VSCompositeFormat();
+      plain.getDefaultFormat().setBackgroundValue("#ffffff");
+      VSFormat other = new VSFormat();
+      copy.invoke(table, other, plain);
+      VSCompositeFormat withAlpha = new VSCompositeFormat();
+      withAlpha.getDefaultFormat().setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+      withAlpha.getDefaultFormat().setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+      withAlpha.getUserDefinedFormat().setAlphaValue(40);
+      VSFormat authored = new VSFormat();
+      copy.invoke(table, authored, withAlpha);
+      Assertions.assertNull(authored.getBackground());
+      Assertions.assertEquals(40, authored.getAlpha());
+
+      Assertions.assertEquals(0xFFFFFF, other.getBackground().getRGB() & 0xFFFFFF);
    }
 }

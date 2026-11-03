@@ -64,6 +64,26 @@ public final class VSObjectChromeDefaults {
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
+   /** Opaque object-card color: white in light, the lifted surface in dark. */
+   public static Color cardBackground(VizContext ctx) {
+      return ctx.dark ? CARD_BG_DARK : CARD_BG;
+   }
+
+   /** The card tint as a default-tier background value. */
+   public static String cardTintValue() {
+      return String.format("#%06x", CARD_TINT_RGB);
+   }
+
+   /** The opaque result of the card tint over a backdrop; a null backdrop counts as white. */
+   public static Color cardTintOver(Color backdrop) {
+      Color base = backdrop == null ? Color.WHITE : backdrop;
+      float a = CARD_TINT_ALPHA / 100f;
+      Color tint = new Color(CARD_TINT_RGB);
+      return new Color(Math.round(base.getRed() * (1 - a) + tint.getRed() * a),
+                       Math.round(base.getGreen() * (1 - a) + tint.getGreen() * a),
+                       Math.round(base.getBlue() * (1 - a) + tint.getBlue() * a));
+   }
+
    /** Object-card corner radius default, in pixels; the top step of the DOM radius scale. */
    public static int cardCornerRadius() {
       return CARD_CORNER_RADIUS;
@@ -85,6 +105,11 @@ public final class VSObjectChromeDefaults {
    public static String legacyCellForegroundValue() {
       return String.format("0x%06x", LEGACY_CELL_FG.getRGB() & 0xFFFFFF);
    }
+
+   /** Card tint background RGB, written to the default tier with {@link #CARD_TINT_ALPHA}. */
+   public static final int CARD_TINT_RGB = 0xAAAAAA;
+   /** Card tint alpha value, in percent. */
+   public static final int CARD_TINT_ALPHA = 15;
 
    // modern warm-neutral object chrome (light mode)
    private static final Color OBJECT_BORDER = new Color(0xD9D5CC);
