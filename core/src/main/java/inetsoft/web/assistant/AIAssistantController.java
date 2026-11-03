@@ -38,7 +38,6 @@ import java.net.URI;
 import java.net.http.*;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -175,13 +174,13 @@ public class AIAssistantController {
     * verification when {@code chat.app.server.ssl.verify} is disabled, so that private-network
     * deployments with self-signed certificates work out of the box.
     *
-    * <p>Public and static so every outbound connection to the assistant server — the health
-    * check here and {@code HttpAssistantDocSearchGateway}'s doc-search POST — trusts the same
-    * certificates the same way. A trust-all {@code X509TrustManager} alone only skips chain
-    * validation; without clearing {@code SSLParameters}' endpoint identification algorithm too,
-    * {@code HttpClient} still enforces hostname verification, so a self-signed certificate
-    * whose CN/SAN doesn't match the connect host would still fail here even though the operator
-    * disabled verification for exactly that case.</p>
+    * <p>Public and static so every outbound HttpClient connection to the assistant server — the
+    * health check here and {@code HttpAssistantDocSearchGateway}'s doc-search POST — trusts the
+    * same certificates the same way. Hostname verification is skipped by the trust manager
+    * itself ({@link AssistantTrustAllTrustManager}, an {@code X509ExtendedTrustManager}); the JDK
+    * {@code HttpClient} ignores an empty {@code SSLParameters} endpoint identification algorithm
+    * and would otherwise still reject a certificate whose CN/SAN doesn't match the connect
+    * host.</p>
     *
     * @param builder the client builder to configure, mutated in place.
     * @param connectionLabel a short label identifying the caller, used only in the warning log
@@ -198,10 +197,8 @@ public class AIAssistantController {
 
       try {
          SSLContext sslContext = SSLContext.getInstance("TLS");
-         sslContext.init(null, new TrustManager[] { TRUST_ALL }, null);
-         SSLParameters sslParameters = new SSLParameters();
-         sslParameters.setEndpointIdentificationAlgorithm("");
-         builder.sslContext(sslContext).sslParameters(sslParameters);
+         sslContext.init(null, new TrustManager[] { AssistantTrustAllTrustManager.INSTANCE }, null);
+         builder.sslContext(sslContext);
       }
       catch(NoSuchAlgorithmException | KeyManagementException e) {
          LOG.warn("Could not configure trust-all SSL context for AI assistant " +
@@ -378,21 +375,6 @@ public class AIAssistantController {
    public static final String CHAT_APP_LOGO_URL = "chat.app.logo.url";
    public static final String PROXY_PATH_PREFIX = "/api/assistant/proxy";
    public static final String AI_ASSISTANT_VISIBLE = "ai.assistant.visible";
-
-   private static final X509TrustManager TRUST_ALL = new X509TrustManager() {
-      @Override
-      public void checkClientTrusted(X509Certificate[] chain, String authType) {
-      }
-
-      @Override
-      public void checkServerTrusted(X509Certificate[] chain, String authType) {
-      }
-
-      @Override
-      public X509Certificate[] getAcceptedIssuers() {
-         return new X509Certificate[0];
-      }
-   };
 
    private static final Logger LOG = LoggerFactory.getLogger(AIAssistantController.class);
 }
