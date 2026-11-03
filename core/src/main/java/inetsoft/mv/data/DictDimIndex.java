@@ -85,6 +85,11 @@ public class DictDimIndex extends XDimIndex {
       return dimbuf.getBits();
    }
 
+   @Override
+   protected boolean isAbsentKey(long val) {
+      return val < 0 && val != Integer.MIN_VALUE;
+   }
+
    /**
     * Get the bit set for the specified operation and values.
     */

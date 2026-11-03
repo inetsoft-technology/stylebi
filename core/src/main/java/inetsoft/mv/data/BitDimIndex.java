@@ -168,6 +168,12 @@ public final class BitDimIndex extends XDimIndex {
       return res;
    }
 
+   @Override
+   protected boolean isAbsentKey(long val) {
+      // keys are dictionary indices (>= 0); MIN_VALUE is the open-end marker of the range api
+      return val < 0 && val != Integer.MIN_VALUE;
+   }
+
    /**
     * Get the bit set for the specified operation and values. A NOT IN list of several values is
     * evaluated as (all rows) minus (rows of the listed keys) instead of one prefix/suffix OR
@@ -197,6 +203,7 @@ public final class BitDimIndex extends XDimIndex {
     */
    private BitSet getNotInRows(long[] vals, boolean cnull) {
       long max = Long.MIN_VALUE;
+      boolean present = false;
 
       for(long v : vals) {
          // MIN_VALUE is the open-end marker of the range api
@@ -204,7 +211,12 @@ public final class BitDimIndex extends XDimIndex {
             return null;
          }
 
-         max = Math.max(max, v);
+         // an absent value excludes nothing and is no bound for the skipped positions (the
+         // null key would be above its negative code and be re-added)
+         if(!isAbsentKey(v)) {
+            max = Math.max(max, v);
+            present = true;
+         }
       }
 
       KeyRowEntry entry = accessKeyRow();
@@ -227,13 +239,18 @@ public final class BitDimIndex extends XDimIndex {
       for(long v : vals) {
          int idx = Arrays.binarySearch(keys, (int) v);
 
-         if(idx >= start) {
+         if(idx >= start && !isAbsentKey(v)) {
             excluded = excluded == null ? rows[idx] : excluded.or(rows[idx]);
          }
       }
 
       BitSet res = getAllRowsFrom(keys, rows, start, cnull);
       res = excluded == null ? res : res.andNot(excluded);
+
+      // none of the values exists: nothing is excluded and the skipped (null) rows stay out
+      if(!present) {
+         return res;
+      }
 
       for(int i = 0; i < start; i++) {
          if(keys[i] > max) {
