@@ -21,6 +21,7 @@ import inetsoft.report.Hyperlink;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.graph.calc.ChangeCalc;
+import inetsoft.report.composition.graph.calc.PercentCalc;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -398,6 +399,37 @@ class VSUtilSyncCrosstabAggregateCarryTest {
                                                false, path("Discount"));
 
       assertEquals("PercentFormat", userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void removingTheAverageNextToACountDropsTheFormatItLeftOnTheCount() {
+      Map<TableDataPath, Object> map = syncFmt(
+         aggs(agg("Discount", "Average"), agg("Discount", "Count")),
+         aggs(agg("Discount", "Count")), false, path("Discount"));
+
+      assertNull(userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void removingTheCountNextToAnAverageDropsTheFormatItLeftOnTheAverage() {
+      Map<TableDataPath, Object> map = syncFmt(
+         aggs(agg("Discount", "Count"), agg("Discount", "Average")),
+         aggs(agg("Discount", "Average")), false, path("Discount"));
+
+      assertNull(userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void aPercentCalculatorOnTheNewAggregateIsSkipped() {
+      VSAggregateRef count = agg("Discount", "Count");
+      count.setCalculator(new PercentCalc());
+      String key = VSUtil.buildName(aggs(count), true)[0];
+      Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(path(key), fmt("PercentFormat"));
+
+      sync(aggs(agg(key, "Average")), aggs(count), false, map);
+
+      assertEquals("PercentFormat", userFmt(map, path(key)).getFormatValue());
    }
 
    // -- fixture --
