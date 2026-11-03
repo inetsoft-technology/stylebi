@@ -34,9 +34,11 @@ import inetsoft.report.internal.graph.MapHelper;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -356,6 +358,7 @@ public class MapGenerator extends MergedGraphGenerator {
             String fld = var != null ? var.substring(0, var.length() - postfix.length()) : null;
             GeoShapeFrame frame = MapData.createShapeFrame(fld);
             elems[i].setShapeFrame(frame);
+            elems[i].setHint(PolygonElement.HINT_COLOR_AGGREGATE, getPolygonColorAggregate(fld));
          }
          else if(elems[i] instanceof LineElement) {
             pointAdded = true;
@@ -527,6 +530,74 @@ public class MapGenerator extends MergedGraphGenerator {
             }
          }
       }
+   }
+
+   /**
+    * Get the formula used to combine the color measure of all rows that share one polygon.
+    * It is only needed when the polygon color is driven by a measure and a finer geo layer is
+    * bound under the polygon layer (so a polygon is repeated for each finer row, and only its
+    * first row would otherwise supply the color). Only formulas that can be re-aggregated from
+    * the already aggregated rows are supported (Sum, Count: add; Max, Min: max, min). For any
+    * other formula (e.g. Average, DistinctCount, Median) null is returned and the polygon keeps
+    * using the color of its first row.
+    * @param mappedGeoName the mapped geo field name of the polygon element being set up.
+    * @return "Sum", "Count", "Max", "Min", or null if no aggregation should be applied.
+    */
+   private String getPolygonColorAggregate(String mappedGeoName) {
+      if(!desc.getPlotDescriptor().isPolygonColor()) {
+         return null;
+      }
+
+      AestheticRef colorField = info.getColorField();
+      DataRef ref = colorField == null ? null : colorField.getRTDataRef();
+
+      if(ref == null && colorField != null) {
+         ref = colorField.getDataRef();
+      }
+
+      // a calculator (running total, moving average, etc.) can't be re-aggregated by adding
+      if(colorField == null || !colorField.isMeasure() || !(ref instanceof XAggregateRef) ||
+         ref instanceof ChartAggregateRef && ((ChartAggregateRef) ref).getCalculator() != null)
+      {
+         return null;
+      }
+
+      // decide from the layer of this polygon element, not the first polygon field on the shelf
+      GeoRef polyRef = Arrays.stream(getMapInfo().getRTGeoFields())
+         .filter(r -> r instanceof GeoRef)
+         .map(r -> (GeoRef) r)
+         .filter(r -> (GraphUtil.MAPPED_HEADER_PREFIX + r.getName()).equals(mappedGeoName))
+         .findFirst().orElse(null);
+
+      if(polyRef == null) {
+         return null;
+      }
+
+      int player = polyRef.getGeographicOption().getLayer();
+      boolean finer = Arrays.stream(getMapInfo().getRTGeoFields())
+         .filter(r -> r instanceof GeoRef)
+         .anyMatch(r -> ((GeoRef) r).getGeographicOption().getLayer() > player);
+
+      if(!finer) {
+         return null;
+      }
+
+      AggregateFormula formula = ((XAggregateRef) ref).getFormula();
+
+      if(AggregateFormula.SUM.equals(formula)) {
+         return "Sum";
+      }
+      else if(AggregateFormula.COUNT_ALL.equals(formula)) {
+         return "Count";
+      }
+      else if(AggregateFormula.MAX.equals(formula)) {
+         return "Max";
+      }
+      else if(AggregateFormula.MIN.equals(formula)) {
+         return "Min";
+      }
+
+      return null;
    }
 
    /**
