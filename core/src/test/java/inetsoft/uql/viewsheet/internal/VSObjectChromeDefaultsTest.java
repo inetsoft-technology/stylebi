@@ -211,9 +211,9 @@ class VSObjectChromeDefaultsTest {
 
    @Test
    void calendarKeepsItsOwnRadiusInBothGateStates() {
-      // CalendarVSAssemblyInfo:88 overrides initDefaultFormat and clones a static template whose
-      // object format hardcodes roundCorner=10 (:1420), so the seed never reaches it.
-      withGate("true", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
+      // the calendar writes its own card surface: the card radius under the gate, 10 without
+      withGate("true", () -> assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                                          seededRadius(new CalendarVSAssemblyInfo())));
       withGate("false", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
    }
 

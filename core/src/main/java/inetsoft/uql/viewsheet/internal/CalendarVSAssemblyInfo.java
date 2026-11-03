@@ -156,6 +156,11 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          return;
       }
 
+      // the dropdown is a popup surface and keeps its white object fill
+      if(legacySource == normalDefault) {
+         applyCardSurface(fi.getFormat(OBJECTPATH), ctx);
+      }
+
       VSCompositeFormat titleFormat = fi.getFormat(TITLEPATH);
 
       if(titleFormat != null) {
@@ -188,6 +193,31 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       applyTo(fi, CALENDAR_YEAR_PATH, legacySource,
               ctx.modern ? VSTableStructureDefaults.bodyForeground(ctx) : null,
               ctx.modern ? VSTableStructureDefaults.bodyBackground(ctx) : null);
+   }
+
+   /** The object surface: a tinted card in modern, the legacy frame only on a Revert. */
+   private static void applyCardSurface(VSCompositeFormat objFormat, VizContext ctx) {
+      if(objFormat == null) {
+         return;
+      }
+
+      VSFormat def = objFormat.getDefaultFormat();
+
+      if(ctx.modern) {
+         def.setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+         def.setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+         def.setBordersValue(null);
+         def.setRoundCornerValue(VSObjectChromeDefaults.cardCornerRadius());
+      }
+      else if(ctx.transition) {
+         def.setBackgroundValue(null);
+         def.setAlphaValue(100);
+         def.setBordersValue(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
+         def.setBorderColorsValue(new BorderColors(DEFAULT_BORDER_COLOR, DEFAULT_BORDER_COLOR,
+                                                   DEFAULT_BORDER_COLOR, DEFAULT_BORDER_COLOR));
+         def.setRoundCornerValue(10);
+      }
    }
 
    /**

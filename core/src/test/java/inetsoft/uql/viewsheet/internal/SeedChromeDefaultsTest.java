@@ -199,6 +199,56 @@ class SeedChromeDefaultsTest {
       return (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
    }
 
+   @Test
+   void aModernCalendarIsATintedCard() {
+      gateOn();
+      VSFormat def = objectDefault(newCalendar());
+
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
+      assertNull(def.getBordersValue());
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(), def.getRoundCornerValue());
+   }
+
+   @Test
+   void revertingACalendarRestoresItsLegacyFrame() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(calendar);
+      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+      assertNull(objectDefault(info).getBordersValue(), "precondition: modern card");
+
+      VizModernizeUtil.revert(vs);
+
+      VSFormat def = objectDefault(info);
+      assertEquals(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                              StyleConstants.THIN_LINE, StyleConstants.THIN_LINE),
+                   def.getBordersValue());
+      BorderColors colors = def.getBorderColorsValue();
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.topColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.leftColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.bottomColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.rightColor);
+      assertEquals(10, def.getRoundCornerValue());
+      assertEquals(100, def.getAlphaValue());
+      assertNull(def.getBackgroundValue());
+   }
+
+   @Test
+   void aDropdownCalendarStaysWhite() {
+      gateOn();
+      CalendarVSAssemblyInfo info = newCalendar();
+      CalendarVSAssemblyInfo source = newCalendar();
+      source.setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.copyInfo(source);
+
+      VSFormat def = objectDefault(info);
+      assertEquals("0xffffff", def.getBackgroundValue());
+      assertEquals(100, def.getAlphaValue());
+   }
+
    private static VSFormat calendarPath(VSAssemblyInfo info, int type) {
       return info.getFormatInfo().getFormat(new TableDataPath(-1, type)).getDefaultFormat();
    }
