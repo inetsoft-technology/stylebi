@@ -4859,11 +4859,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // for this binding type can only be a stale/unrelated value (e.g. left over from
       // before the cell binding was configured, when the assembly was still unbound and
       // went through the generic fallback branch), so skip it. (#80020)
-      String tname = iassembly.getTableName();
+      String cellTableName = iassembly.getTableName();
 
-      if(tname != null && !tname.isEmpty()) {
+      if(cellTableName != null && !cellTableName.isEmpty()) {
          Worksheet ws = getWorksheet();
-         Assembly wsAssembly = ws == null ? null : ws.getAssembly(tname);
+         Assembly wsAssembly = ws == null ? null : ws.getAssembly(cellTableName);
 
          if(wsAssembly instanceof EmbeddedTableAssembly) {
             return;
