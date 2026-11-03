@@ -258,6 +258,38 @@ class ChartAestheticGanttFieldTest {
       assertTrue(e.getMessage().contains("line channel"), e.getMessage());
       assertFalse(e.getMessage().contains("bind a field"), e.getMessage());
       assertFalse(e.getMessage().contains("set_aesthetic_field first"), e.getMessage());
+      assertTrue(e.getMessage().contains("channel: \"texture\""), e.getMessage());
+   }
+
+   /**
+    * Shape lives on the start field only, so targeting the milestone measure must still see it
+    * as bound: same refusal, no "bind a field first" advice.
+    */
+   @Test
+   void aGanttLineFrameRefusalOnTheMilestoneMeasureSeesShapeAsBound() throws Exception {
+      Pipeline gantt = pipeline(true);
+      gantt.service.setField("tok", principal(), "Chart1", "shape", PHASE, null, "");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> gantt.service.setFrame("tok", principal(), "Chart1", "line",
+                                      Map.of("type", "categorical"), "MILESTONE", ""));
+      assertTrue(e.getMessage().contains("its shape field 'PHASE' is bound"), e.getMessage());
+      assertTrue(e.getMessage().contains("channel: \"texture\""), e.getMessage());
+      assertFalse(e.getMessage().contains("bind a dimension"), e.getMessage());
+      assertFalse(e.getMessage().contains("bind a field"), e.getMessage());
+   }
+
+   /** A bound shape field says nothing about colour: its Gantt guidance must stay. */
+   @Test
+   void aGanttColorFrameRefusalKeepsTheGanttGuidanceWhenShapeIsBound() throws Exception {
+      Pipeline gantt = pipeline(true);
+      gantt.service.setField("tok", principal(), "Chart1", "shape", PHASE, null, "");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> gantt.service.setFrame("tok", principal(), "Chart1", "color",
+                                      Map.of("type", "palette", "palette", "Blues"), ""));
+      assertTrue(e.getMessage().contains("This is a Gantt chart: bind a field with " +
+                                         "set_aesthetic_field first"), e.getMessage());
    }
 
    private static String fieldName(ChartRef ref, String channel) {
