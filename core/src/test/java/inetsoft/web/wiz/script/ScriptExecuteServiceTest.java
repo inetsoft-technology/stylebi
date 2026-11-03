@@ -117,6 +117,9 @@ class ScriptExecuteServiceTest {
       assertEquals(List.of("label"), result.unrecognizedProperties());
       assertTrue(result.summary().contains("label"), result.summary());
       assertTrue(result.summary().contains("SubmitVSAssembly"), result.summary());
+      // Bug #80148: the guidance must name only tools the Composer plugin registers.
+      assertTrue(result.summary().contains("set_assembly_properties"), result.summary());
+      assertFalse(result.summary().contains("update_binding"), result.summary());
       verify(scriptable).resetUnrecognizedWrites();
    }
 
