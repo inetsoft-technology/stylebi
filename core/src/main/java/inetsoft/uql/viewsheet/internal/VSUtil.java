@@ -6602,7 +6602,7 @@ public final class VSUtil {
 
          VSAggregateRef nref = (VSAggregateRef) nrefs[j];
          Calculator calc = nref.getCalculator();
-         boolean percent = calc != null && calc.isPercent() ||
+         boolean percent = (calc != null && calc.isPercent()) ||
             nref.getPercentageOption() != XConstants.PERCENTAGE_NONE;
          int origin = -1;
 
