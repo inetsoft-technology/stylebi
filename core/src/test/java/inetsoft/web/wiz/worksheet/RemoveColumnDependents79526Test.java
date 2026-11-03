@@ -134,25 +134,216 @@ class RemoveColumnDependents79526Test {
       assertTrue(ex.getMessage().contains("Column not found"), ex.getMessage());
    }
 
+   /** Bug #80035: hiding a column a saved dependent filters on is the same silent exposure. */
+   @Test
+   void unconfirmedHideOfAFilteredColumnIsRefusedNamingTheDependent() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.controller().edit("TOK", hideRequest("STATE", false), agent));
+
+      assertTrue(ex.getMessage().contains("'STATE'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Nothing was hidden"), ex.getMessage());
+      assertNotNull(f.table().getColumnSelection(false).getAttribute("STATE"),
+                    "a refused hide must leave the column visible");
+   }
+
+   @Test
+   void confirmedHideProceeds() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      f.controller().edit("TOK", hideRequest("STATE", true), agent);
+
+      assertFalse(((ColumnRef) f.table().getColumnSelection(false).getAttribute("STATE"))
+         .isVisible());
+   }
+
+   @Test
+   void showingAColumnIsNeverCheckedEvenUnconfirmed() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+      f.controller().edit("TOK", hideRequest("STATE", true), agent);
+
+      f.controller().edit("TOK", showRequest("STATE"), agent);
+
+      assertTrue(((ColumnRef) f.table().getColumnSelection(false).getAttribute("STATE"))
+         .isVisible());
+   }
+
+   /** Bug #80035: deleting a table a saved dependent is bound to is the same silent exposure. */
+   @Test
+   void unconfirmedDeleteOfATableWithADependentIsRefused() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.controller().edit("TOK", deleteTableRequest(false), agent));
+
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Nothing was deleted"), ex.getMessage());
+   }
+
+   @Test
+   void confirmedDeleteProceeds() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+
+      f.controller().edit("TOK", deleteTableRequest(true), agent);
+
+      assertNull(f.table().getWorksheet().getAssembly("T"));
+   }
+
+   @Test
+   void deletingATableNoDependentUsesIsNotRefused() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE, "U"); // dependent bound to "U", not "T"
+
+      f.controller().edit("TOK", deleteTableRequest(false), agent);
+
+      assertNull(f.table().getWorksheet().getAssembly("T"));
+   }
+
+   // --------------------------------------------------------- Bug #80035 item 1: mirror/join/concat
+
+   /**
+    * Bug #80035 item 1: a dependent bound to a MIRROR of T (not T directly) is just as exposed --
+    * the walk must follow the mirror the same way the in-worksheet loss-conflict walkers already
+    * do, via {@code WorksheetControllerService.mapToDependentColumn}.
+    */
+   @Test
+   void unconfirmedRemovalThroughAMirrorIsRefusedNamingTheDependent() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE, "M1",
+                          RemoveColumnDependents79526Test::addMirrorOfT);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.controller().edit("TOK", request("STATE", false), agent));
+
+      assertTrue(ex.getMessage().contains("'STATE'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+      assertNotNull(f.table().getColumnSelection(false).getAttribute("STATE"),
+                    "a refused removal must leave the column in place");
+   }
+
+   @Test
+   void confirmedRemovalThroughAMirrorProceeds() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE, "M1",
+                          RemoveColumnDependents79526Test::addMirrorOfT);
+
+      f.controller().edit("TOK", request("STATE", true), agent);
+
+      assertNull(f.table().getColumnSelection(false).getAttribute("STATE"));
+   }
+
+   /** Same gap, through a JOIN of T and U instead of a mirror. */
+   @Test
+   void unconfirmedRemovalThroughAJoinIsRefusedNamingTheDependent() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE, "J1",
+                          RemoveColumnDependents79526Test::addJoinOfTAndU);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.controller().edit("TOK", request("STATE", false), agent));
+
+      assertTrue(ex.getMessage().contains("'STATE'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+   }
+
+   /** Same gap, through a CONCATENATION of T (first source) and a union-compatible table. */
+   @Test
+   void unconfirmedRemovalThroughAConcatenationIsRefusedNamingTheDependent() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE, "C1",
+                          RemoveColumnDependents79526Test::addConcatenationOfT);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> f.controller().edit("TOK", request("STATE", false), agent));
+
+      assertTrue(ex.getMessage().contains("'STATE'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+   }
+
+   // --------------------------------------------------------- Bug #80035 item 4: edit_sql_query
+
+   /**
+    * Bug #80035 item 4: {@code edit_sql_query} dropping a column a saved dependent filters on is
+    * the same silent exposure as {@code remove_column}. Exercises
+    * {@link RemoveColumnDependentsGuard#requireNoSavedDependentsForSqlEdit} directly -- the
+    * surrounding SQL parse/metadata machinery in {@code editSqlQuery} is orthogonal to this
+    * check and already covered by {@code WorksheetAgentControllerTest}'s own editSqlQuery tests.
+    */
+   @Test
+   void unconfirmedSqlEditDroppingAFilteredColumnIsRefusedNamingTheDependent() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+      ColumnSelection oldColumns = f.table().getColumnSelection(false);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "CITY")));
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "ZIP")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> RemoveColumnDependentsGuard.requireNoSavedDependentsForSqlEdit(
+            f.rws(), "T", oldColumns, newColumns));
+
+      assertTrue(ex.getMessage().contains("'STATE'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(f.dependent().getName()), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Nothing was changed"), ex.getMessage());
+   }
+
+   @Test
+   void sqlEditKeepingTheFilteredColumnIsNotRefused() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+      ColumnSelection oldColumns = f.table().getColumnSelection(false);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "CITY")));
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "STATE")));
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "ZIP")));
+
+      RemoveColumnDependentsGuard.requireNoSavedDependentsForSqlEdit(
+         f.rws(), "T", oldColumns, newColumns);
+   }
+
+   /** The dependent's own binding uses CITY and its condition uses STATE; ZIP is unused by it. */
+   @Test
+   void sqlEditDroppingAColumnNoDependentUsesIsNotRefused() throws Exception {
+      Fixture f = fixture(AssetRepository.GLOBAL_SCOPE);
+      ColumnSelection oldColumns = f.table().getColumnSelection(false);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "CITY")));
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "STATE")));
+
+      RemoveColumnDependentsGuard.requireNoSavedDependentsForSqlEdit(
+         f.rws(), "T", oldColumns, newColumns);
+   }
+
    // ---------------------------------------------------------------------------
 
    private record Fixture(WorksheetAgentController controller, EmbeddedTableAssembly table,
-                          AssetEntry dependent) {}
+                          AssetEntry dependent, RuntimeWorksheet rws) {}
 
    private Fixture fixture(int scope) throws Exception {
       return fixture(scope, "T");
    }
 
    private Fixture fixture(int scope, String boundTable) throws Exception {
+      return fixture(scope, boundTable, ws -> {});
+   }
+
+   /**
+    * @param extraAssemblies adds more assemblies to the worksheet (e.g. a mirror or join built
+    *                        on "T") before the dependent viewsheet is indexed against it.
+    */
+   private Fixture fixture(int scope, String boundTable,
+                           java.util.function.Consumer<Worksheet> extraAssemblies)
+      throws Exception
+   {
       int n = ++count;
       AssetEntry src = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, "rcd79526_ws" + n, null);
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "CITY", "STATE", "ZIP");
+      t.setColumnSelection(t.getColumnSelection(false).clone(), true);
       ws.addAssembly(t);
       ws.addAssembly(TestWorksheets.tableWithColumns(ws, "U", "CITY", "STATE", "ZIP"));
+      extraAssemblies.accept(ws);
 
       AssetEntry dep = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
                                       "rcd79526_vs" + n, null);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getEntry()).thenReturn(src);
 
       if(scope != AssetRepository.TEMPORARY_SCOPE) {
          AssetUtil.getAssetRepository(false).setSheet(src, ws, null, true);
@@ -177,19 +368,97 @@ class RemoveColumnDependents79526Test {
             .updateSheetDependencies(vs, dep, true, false);
       }
 
-      return new Fixture(controller(ws, src), t, dep);
+      return new Fixture(controller(ws, src, rws), t, dep, rws);
+   }
+
+   /** A mirror of T, added to {@code ws} as "M1". */
+   private static void addMirrorOfT(Worksheet ws) {
+      TableAssembly t = (TableAssembly) ws.getAssembly("T");
+      ws.addAssembly(new MirrorTableAssembly(ws, "M1", t));
+   }
+
+   private static void addJoinOfTAndU(Worksheet ws) {
+      TableAssembly t = (TableAssembly) ws.getAssembly("T");
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable("T");
+      op.setRightTable("U");
+      op.setLeftAttribute(findColumn(t, "CITY"));
+      op.setRightAttribute(findColumn(u, "CITY"));
+      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+      TableAssembly[] tables = { t, u };
+      RelationalJoinTableAssembly j =
+         new RelationalJoinTableAssembly(ws, "J1", tables, new TableAssemblyOperator[] { top });
+      ColumnSelection columns = new ColumnSelection();
+
+      for(TableAssembly table : tables) {
+         ColumnSelection tcolumns = table.getColumnSelection(true);
+
+         for(int i = 0; i < tcolumns.getAttributeCount(); i++) {
+            ColumnRef tcolumn = (ColumnRef) tcolumns.getAttribute(i);
+            ColumnRef column = new ColumnRef(AssetUtil.getOuterAttribute(table.getName(), tcolumn));
+            column.setDataType(tcolumn.getDataType());
+            columns.addAttribute(column);
+         }
+
+         AssetUtil.fixAlias(columns);
+      }
+
+      j.setColumnSelection(columns, false);
+      j.setColumnSelection(columns.clone(), true);
+      ws.addAssembly(j);
+   }
+
+   /** A concatenation of T (first source) and a union-compatible V, added as "C1". */
+   private static void addConcatenationOfT(Worksheet ws) {
+      TableAssembly t = (TableAssembly) ws.getAssembly("T");
+      EmbeddedTableAssembly v = TestWorksheets.tableWithColumns(ws, "V", "CITY", "STATE", "ZIP");
+      v.setColumnSelection(v.getColumnSelection(false).clone(), true);
+      ws.addAssembly(v);
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+      ConcatenatedTableAssembly c = new ConcatenatedTableAssembly(
+         ws, "C1", new TableAssembly[] { t, v }, new TableAssemblyOperator[] { top });
+      ws.addAssembly(c);
+      c.initDefaultColumnSelection();
+      c.setColumnSelection(c.getColumnSelection(false).clone(), true);
+   }
+
+   private static ColumnRef findColumn(TableAssembly table, String name) {
+      ColumnSelection cs = table.getColumnSelection(true);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         ColumnRef c = (ColumnRef) cs.getAttribute(i);
+
+         if(name.equals(c.getAttribute())) {
+            return c;
+         }
+      }
+
+      fail("no column " + name + " on " + table.getName());
+      return null;
    }
 
    private WorksheetAgentController controller(Worksheet ws, AssetEntry src) throws Exception {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getEntry()).thenReturn(src);
+      return controller(ws, src, rws);
+   }
+
+   private WorksheetAgentController controller(Worksheet ws, AssetEntry src, RuntimeWorksheet rws)
+      throws Exception
+   {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(
          any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
          .thenReturn(true);
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
-      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
-      when(rws.getWorksheet()).thenReturn(ws);
-      when(rws.getEntry()).thenReturn(src);
       JoinSession s = new JoinSession("TOK", "Worksheet/ws1", "alice~;~host-org",
                                       SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
                                       JoinSession.ConnectionMode.PAIRED, null, null, null);
@@ -220,6 +489,24 @@ class RemoveColumnDependents79526Test {
    private EditRequest request(String column, boolean confirmed) throws Exception {
       return mapper.readValue("{\"op\":\"remove_column\",\"table\":\"T\",\"column\":\"" + column +
                               "\",\"confirmed\":" + confirmed + "}", EditRequest.class);
+   }
+
+   private EditRequest hideRequest(String column, boolean confirmed) throws Exception {
+      return mapper.readValue(
+         "{\"op\":\"set_column_visibility\",\"table\":\"T\",\"column\":\"" + column +
+         "\",\"visible\":false,\"confirmed\":" + confirmed + "}", EditRequest.class);
+   }
+
+   private EditRequest showRequest(String column) throws Exception {
+      return mapper.readValue(
+         "{\"op\":\"set_column_visibility\",\"table\":\"T\",\"column\":\"" + column +
+         "\",\"visible\":true}", EditRequest.class);
+   }
+
+   private EditRequest deleteTableRequest(boolean confirmed) throws Exception {
+      return mapper.readValue(
+         "{\"op\":\"delete_table\",\"table\":\"T\",\"confirmed\":" + confirmed + "}",
+         EditRequest.class);
    }
 
    @Configuration
