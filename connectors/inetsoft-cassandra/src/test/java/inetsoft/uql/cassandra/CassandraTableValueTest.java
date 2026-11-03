@@ -22,8 +22,10 @@ import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
 import com.datastax.oss.driver.api.core.data.CqlDuration;
 import com.datastax.oss.driver.api.core.type.DataType;
+import com.datastax.oss.driver.api.core.data.TupleValue;
 import com.datastax.oss.driver.api.core.data.UdtValue;
 import com.datastax.oss.driver.api.core.type.DataTypes;
+import com.datastax.oss.driver.api.core.type.TupleType;
 import com.datastax.oss.driver.api.core.type.UserDefinedType;
 import com.datastax.oss.protocol.internal.ProtocolConstants;
 import org.junit.jupiter.api.Test;
@@ -87,15 +89,42 @@ class CassandraTableValueTest {
    }
 
    @Test
-   void listOfUdt_isNotNull() throws Exception {
-      // frozen UDT elements pass through as the driver values, as a top-level UDT column does
+   void listOfUdt_rendersFormattedContents() throws Exception {
+      // frozen UDT elements render as formatted text, as a top-level UDT column does
       UserDefinedType udtType = mock(UserDefinedType.class);
       when(udtType.getProtocolCode()).thenReturn(ProtocolConstants.DataType.UDT);
       UdtValue udt = mock(UdtValue.class);
+      when(udt.getFormattedContents()).thenReturn("{street: 's1', zip: 'z1'}");
       DataType type = DataTypes.listOf(udtType);
       CassandraTable table = tableWith(type, List.of(udt));
       assertTrue(table.next());
-      assertEquals(List.of(udt), table.getObject(0));
+      assertEquals(List.of("{street: 's1', zip: 'z1'}"), table.getObject(0));
+   }
+
+   @Test
+   void listOfTuple_rendersFormattedContents() throws Exception {
+      // frozen tuple elements render as formatted text, as a top-level tuple column does
+      TupleType tupleType = mock(TupleType.class);
+      when(tupleType.getProtocolCode()).thenReturn(ProtocolConstants.DataType.TUPLE);
+      TupleValue tuple = mock(TupleValue.class);
+      when(tuple.getFormattedContents()).thenReturn("(1, 'a')");
+      DataType type = DataTypes.listOf(tupleType);
+      CassandraTable table = tableWith(type, List.of(tuple));
+      assertTrue(table.next());
+      assertEquals(List.of("(1, 'a')"), table.getObject(0));
+   }
+
+   @Test
+   void setOfUdt_rendersFormattedContents() throws Exception {
+      // the fix isn't list-specific: a frozen UDT element inside a set is converted too
+      UserDefinedType udtType = mock(UserDefinedType.class);
+      when(udtType.getProtocolCode()).thenReturn(ProtocolConstants.DataType.UDT);
+      UdtValue udt = mock(UdtValue.class);
+      when(udt.getFormattedContents()).thenReturn("{street: 's1', zip: 'z1'}");
+      DataType type = DataTypes.setOf(udtType);
+      CassandraTable table = tableWith(type, new LinkedHashSet<>(List.of(udt)));
+      assertTrue(table.next());
+      assertEquals(Set.of("{street: 's1', zip: 'z1'}"), table.getObject(0));
    }
 
    @Test

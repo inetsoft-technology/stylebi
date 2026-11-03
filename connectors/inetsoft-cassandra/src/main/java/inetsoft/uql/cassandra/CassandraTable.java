@@ -319,7 +319,7 @@ public class CassandraTable extends XTableNode {
     * Converts a value read with the driver's own codec for {@code type} to the class
     * {@link #getType(DataType)} reports for it. Collections are converted element by element with
     * the element's own type, so nested and frozen collections follow the same mapping as columns.
-    * Tuples and UDTs are returned as the driver values, as they are for a top-level column.
+    * Tuples and UDTs are rendered to formatted text, as they are for a top-level column.
     */
    private static Object convert(Object value, DataType type) {
       if(value == null) {
@@ -336,6 +336,10 @@ public class CassandraTable extends XTableNode {
          return new Date(((Instant) value).toEpochMilli());
       case ProtocolConstants.DataType.DURATION:
          return value.toString();
+      case ProtocolConstants.DataType.UDT:
+         return ((UdtValue) value).getFormattedContents();
+      case ProtocolConstants.DataType.TUPLE:
+         return ((TupleValue) value).getFormattedContents();
       case ProtocolConstants.DataType.LIST:
          DataType listElement = ((ListType) type).getElementType();
          List<Object> list = new ArrayList<>();
