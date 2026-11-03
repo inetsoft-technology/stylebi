@@ -6550,6 +6550,91 @@ public final class VSUtil {
       for(TableDataPath ntp : added.keySet()) {
          synMap.put(ntp, added.get(ntp));
       }
+
+      if(!fromSetInput && !fromDrill) {
+         clearNumberFormatOnCountChange(ocinfo, cinfo, aggNameMap, added.keySet(), synMap);
+      }
+   }
+
+   /**
+    * The measure key of a path-keyed setting never contains the formula, so changing
+    * Average(Discount) to Count(Discount) leaves the old number format (e.g. a percent) on the
+    * count (bug #80094). Drop the number/date format of every summary, total and hidden summary
+    * path whose measure key now holds a count (Count or DistinctCount) where it held a non-count,
+    * or the reverse. Count to DistinctCount, and swaps between non-count formulas, keep it.
+    * The origin of a path is decided per path: if its entry was written from the moved entries
+    * ({@code written}), it is the old aggregate carried onto that key; otherwise the entry is the
+    * one that was already there, so it is the old aggregate that had the same key (this covers an
+    * aggregate that was removed or inserted next to one on the same column). Known limit:
+    * Average -> Sum -> Count in two calls is not detected, as the formula is not stored with the
+    * format. A percent aggregate is skipped, as it renders as a percent either way. Entries are
+    * cloned first, as a format object can be shared between the retained old key and the new key.
+    */
+   @SuppressWarnings("unchecked")
+   private static <V> void clearNumberFormatOnCountChange(VSCrosstabInfo ocinfo,
+                                                          VSCrosstabInfo cinfo,
+                                                          Map<String, String> aggNameMap,
+                                                          Set<TableDataPath> written,
+                                                          Map<TableDataPath, V> synMap)
+   {
+      DataRef[] orefs = getRefs(ocinfo, true);
+      DataRef[] nrefs = getRefs(cinfo, true);
+      String[] onames = buildName(orefs, true);
+      String[] nnames = buildName(nrefs, true);
+
+      for(TableDataPath tp : new ArrayList<>(synMap.keySet())) {
+         String[] arr = tp.getPath();
+         int type = tp.getType();
+
+         if(arr == null || arr.length == 0 ||
+            type != TableDataPath.SUMMARY && type != TableDataPath.TRAILER &&
+            type != TableDataPath.HIDDEN_SUMMARY)
+         {
+            continue;
+         }
+
+         String key = arr[arr.length - 1];
+         int j = Arrays.asList(nnames).indexOf(key);
+
+         if(j < 0 || !(nrefs[j] instanceof VSAggregateRef)) {
+            continue;
+         }
+
+         VSAggregateRef nref = (VSAggregateRef) nrefs[j];
+         Calculator calc = nref.getCalculator();
+         boolean percent = (calc != null && calc.isPercent()) ||
+            nref.getPercentageOption() != XConstants.PERCENTAGE_NONE;
+         int origin = -1;
+
+         for(int i = 0; i < onames.length; i++) {
+            boolean match = written.contains(tp) ?
+               key.equals(aggNameMap.get(onames[i])) : key.equals(onames[i]);
+
+            if(match) {
+               origin = i;
+               break;
+            }
+         }
+
+         V obj = synMap.get(tp);
+
+         if(percent || origin < 0 || !(orefs[origin] instanceof VSAggregateRef) ||
+            isCountFormula(((VSAggregateRef) orefs[origin]).getFormula()) ==
+            isCountFormula(nref.getFormula()) || !(obj instanceof VSCompositeFormat))
+         {
+            continue;
+         }
+
+         VSCompositeFormat fmt = ((VSCompositeFormat) obj).clone();
+         fmt.getUserDefinedFormat().setFormatValue(null, false);
+         fmt.getUserDefinedFormat().setFormatExtentValue(null, false);
+         synMap.put(tp, (V) fmt);
+      }
+   }
+
+   private static boolean isCountFormula(AggregateFormula formula) {
+      return AggregateFormula.COUNT_ALL.equals(formula) ||
+         AggregateFormula.COUNT_DISTINCT.equals(formula);
    }
 
    /**
