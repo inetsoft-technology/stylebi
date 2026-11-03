@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.web.binding.handler.VSChartHandler;
+import inetsoft.web.wiz.viewsheet.ChartRenderCheck;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 
 import java.security.Principal;
@@ -169,39 +170,45 @@ public final class ChartGeoShelf {
       // nothing must not leave an undo step behind.
       requireSource(sessions.resolve(sessionToken, user), assemblyName);
       List<Detected> result = new ArrayList<>();
+      List<String> expressions = fields.stream()
+         .map(Field::column)
+         .filter(c -> c != null && c.startsWith("="))
+         .distinct()
+         .toList();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         Viewsheet vs = rvs.getViewsheet();
-         VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      sessions.mutate(sessionToken, user, ChartRenderCheck.checked(assemblyName, expressions,
+         (rvs, runtimeId, dispatcher) -> {
+            Viewsheet vs = rvs.getViewsheet();
+            VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
-         if(!(assembly instanceof ChartVSAssembly chart)) {
-            throw new IllegalArgumentException(
-               "Unknown chart '" + assemblyName + "'. Geo shelf writes only apply to charts.");
-         }
-
-         try {
-            result.addAll(apply(rvs, chart, handler, fields, requested));
-         }
-         catch(Exception e) {
-            // The write is already committed and mutate() does not undo a thrown mutation; the
-            // current checkpoint is the state before this call (see ChartBindingService.setShelf).
-            boolean restored = false;
+            if(!(assembly instanceof ChartVSAssembly chart)) {
+               throw new IllegalArgumentException(
+                  "Unknown chart '" + assemblyName + "'. Geo shelf writes only apply to charts.");
+            }
 
             try {
-               restored = rvs.restoreCurrentCheckpoint();
+               result.addAll(apply(rvs, chart, handler, fields, requested));
             }
-            catch(RuntimeException ignore) {
-            }
+            catch(Exception e) {
+               // The write is already committed and mutate() does not undo a thrown mutation; the
+               // current checkpoint is the state before this call (see ChartBindingService.setShelf).
+               boolean restored = false;
 
-            if(e instanceof IllegalArgumentException) {
-               throw new IllegalArgumentException(e.getMessage() + (restored
-                  ? " The chart was left as it was."
-                  : " The chart could not be restored; undo the last step in the Composer."), e);
-            }
+               try {
+                  restored = rvs.restoreCurrentCheckpoint();
+               }
+               catch(RuntimeException ignore) {
+               }
 
-            throw e;
-         }
-      });
+               if(e instanceof IllegalArgumentException) {
+                  throw new IllegalArgumentException(e.getMessage() + (restored
+                     ? " The chart was left as it was."
+                     : " The chart could not be restored; undo the last step in the Composer."), e);
+               }
+
+               throw e;
+            }
+         }));
 
       return result;
    }
