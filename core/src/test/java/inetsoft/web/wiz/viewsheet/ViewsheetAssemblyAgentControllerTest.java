@@ -4338,10 +4338,107 @@ class ViewsheetAssemblyAgentControllerTest {
             new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
             principal()));
       assertTrue(thrown.getMessage().contains("was modified by someone else"));
-      verifyNoInteractions(vsBookmarkService);
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
       // The ordering fix itself: bookmarkUpdated must be checked BEFORE requireOwnBookmark's own
       // containsBookmark call ever refreshes the in-memory baseline it needs to compare against.
       verify(rvs, never()).containsBookmark(anyString(), any(IdentityID.class));
+   }
+
+   /**
+    * Bug #80108 -- the conflict check must key on the bookmark's real owner, not the caller.
+    * Stubs use eq(owner) so an owner mix-up cannot pass.
+    */
+   @Test
+   void updateBookmark_otherOwnersWritableBookmark_staleBaseline_isRefused() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      IdentityID ownerA = IdentityID.getIdentityIDFromKey("alice");
+      when(rvs.bookmarkUpdated("Team View", ownerA)).thenReturn(true);
+      when(rvs.bookmarkUpdated("Team View", caller)).thenReturn(false);
+      when(rvs.checkBookmark("Team View", ownerA)).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Team View", VSBookmarkInfo.ALLSHARE, ownerA, false,
+                            System.currentTimeMillis())));
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Team View", null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("Team View"));
+      assertTrue(thrown.getMessage().contains("modified by someone else"));
+      verify(rvs).bookmarkUpdated("Team View", ownerA);
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
+      verify(rvs, never()).containsBookmark(anyString(), any(IdentityID.class));
+      verify(rvs, never()).bookmarkWritable(anyString(), any(IdentityID.class));
+   }
+
+   @Test
+   void updateBookmark_otherOwnersWritableBookmark_notStale_proceeds() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID ownerA = IdentityID.getIdentityIDFromKey("alice");
+      when(rvs.bookmarkUpdated("Team View", ownerA)).thenReturn(false);
+      when(rvs.checkBookmark("Team View", ownerA)).thenReturn(true);
+      when(rvs.containsBookmark(eq("Team View"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.bookmarkWritable("Team View", ownerA)).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Team View", VSBookmarkInfo.ALLSHARE, ownerA, false,
+                            System.currentTimeMillis())));
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Team View"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class), any(Principal.class))).thenReturn(ok);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Team View", null, null),
+         principal());
+
+      verify(rvs).bookmarkUpdated("Team View", ownerA);
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Team View"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_sameNameOwnedByCallerAndOther_usesCallersOwn() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      IdentityID ownerA = IdentityID.getIdentityIDFromKey("alice");
+      when(rvs.bookmarkUpdated("Team View", ownerA)).thenReturn(true);
+      when(rvs.bookmarkUpdated("Team View", caller)).thenReturn(false);
+      when(rvs.checkBookmark("Team View", caller)).thenReturn(true);
+      when(rvs.containsBookmark("Team View", caller)).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Team View", VSBookmarkInfo.ALLSHARE, ownerA, false,
+                            System.currentTimeMillis()),
+         new VSBookmarkInfo("Team View", VSBookmarkInfo.PRIVATE, caller, false,
+                            System.currentTimeMillis())));
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Team View"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class), any(Principal.class))).thenReturn(ok);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Team View", null, null),
+         principal());
+
+      verify(rvs).bookmarkUpdated("Team View", caller);
+      verify(rvs, never()).bookmarkUpdated("Team View", ownerA);
    }
 
    @Test
@@ -4367,7 +4464,8 @@ class ViewsheetAssemblyAgentControllerTest {
             new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
             principal()));
       assertTrue(thrown.getMessage().contains("was deleted by someone else"));
-      verifyNoInteractions(vsBookmarkService);
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
       verify(rvs, never()).containsBookmark(anyString(), any(IdentityID.class));
    }
 
@@ -5076,7 +5174,7 @@ class ViewsheetAssemblyAgentControllerTest {
          () -> controller.updateBookmark("tok",
             new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
             () -> "user0"));
-      assertTrue(thrown.getMessage().contains("owned by someone else"));
+      assertTrue(thrown.getMessage().contains("shared read-only by"));
       verify(rvs).bookmarkWritable(eq("Q1 Report"), eq(admin));
       verify(vsBookmarkService, never()).addBookmarkToViewSheet(
          any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());

@@ -149,6 +149,10 @@ public final class ChartBindingMutator {
          }
       }
 
+      // Incoming keyless dimensions that matched no old dimension (index -> new ref); resolved
+      // after the loop so they cannot take state a later same-column+level field claims.
+      Map<Integer, ChartDimensionRefModel> levelChangeCandidates = new LinkedHashMap<>();
+
       for(int i = 0; i < fieldList.size(); i++) {
          FieldRef field = fieldList.get(i);
          // Bug #79342: a worksheet-local group read back as "Custom" is accepted as an echo of
@@ -174,6 +178,9 @@ public final class ChartBindingMutator {
             if(previous != null) {
                unconsumedDimensions.remove(previous);
                preserveDimensionState(previous, dimension, field);
+            }
+            else if(field.timeSeries() == null) {
+               levelChangeCandidates.put(i, dimension);
             }
          }
 
@@ -221,6 +228,44 @@ public final class ChartBindingMutator {
       }
 
       assignShelf(model, name, refs);
+
+      // Bug #79917: a date-level change (month -> quarter) misses matches(), so the omitted
+      // timeSeries would fall to the fresh-ref default false. Carry only that flag from a
+      // same-column old dimension that no incoming field claimed by identity; sort/ranking state
+      // is level-specific and stays behind. Positional (same index) first, so a Year > Quarter
+      // drill of one column does not cross-wire. Judged on the post-write model (final dimension
+      // order) and only where the guard would accept the flag: a slot that cannot be time series
+      // (outer dimension ...) keeps the false the base produced, so no write the base accepted
+      // can start failing, and the old flag stays available to a later candidate.
+      for(Map.Entry<Integer, ChartDimensionRefModel> entry : levelChangeCandidates.entrySet()) {
+         int i = entry.getKey();
+         ChartDimensionRefModel dimension = entry.getValue();
+         FieldRef field = fieldList.get(i);
+         ChartDimensionRefModel levelChanged = null;
+
+         if(i < oldRefs.size() && oldRefs.get(i) instanceof ChartDimensionRefModel at &&
+            unconsumedDimensions.contains(at) && sameColumn(at, field))
+         {
+            levelChanged = at;
+         }
+
+         if(levelChanged == null) {
+            for(ChartDimensionRefModel candidate : unconsumedDimensions) {
+               if(sameColumn(candidate, field)) {
+                  levelChanged = candidate;
+                  break;
+               }
+            }
+         }
+
+         if(levelChanged != null && levelChanged.isTimeSeries() &&
+            ChartTimeSeriesGuard.unsupportedReason(model, guardPlace, name, i,
+                                                   dimension, false) == null)
+         {
+            unconsumedDimensions.remove(levelChanged);
+            dimension.setTimeSeries(true);
+         }
+      }
 
       // Checked on the post-write model (bug #78214); the shelf is put back on a refusal so the
       // caller's in-memory model is not left holding a write that was rejected.
@@ -555,9 +600,8 @@ public final class ChartBindingMutator {
       }
    }
 
-   /** Whether {@code previous} is the same occurrence of the same column as {@code field} --
-    *  same identity {@code TableBindingMutator.dimensions()}'s own {@code matches()} uses. */
-   static boolean matches(BDimensionRefModel previous, FieldRef field) {
+   /** Whether {@code previous} binds the same column as {@code field}, at any date level. */
+   static boolean sameColumn(BDimensionRefModel previous, FieldRef field) {
       if(previous == null || field.column() == null) {
          return false;
       }
@@ -565,7 +609,13 @@ public final class ChartBindingMutator {
       String previousColumn = previous.getColumnValue() == null
          ? previous.getName() : previous.getColumnValue();
 
-      if(previousColumn == null || !previousColumn.equalsIgnoreCase(field.column())) {
+      return previousColumn != null && previousColumn.equalsIgnoreCase(field.column());
+   }
+
+   /** Whether {@code previous} is the same occurrence of the same column as {@code field} --
+    *  same identity {@code TableBindingMutator.dimensions()}'s own {@code matches()} uses. */
+   static boolean matches(BDimensionRefModel previous, FieldRef field) {
+      if(!sameColumn(previous, field)) {
          return false;
       }
 

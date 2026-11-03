@@ -524,13 +524,23 @@ public class ViewsheetAssemblyAgentController {
       String name = requireBookmarkName(request.name(), "update_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         IdentityID owner = ownerOf(user);
-         requireFirstOpenerForHome(rvs, name, owner, "update_bookmark");
+         IdentityID caller = ownerOf(user);
+         requireFirstOpenerForHome(rvs, name, caller, "update_bookmark");
+         // The in-memory baseline is keyed by the bookmark's real owner (goto_bookmark stamps it
+         // there), so the checks must use that owner, resolved from a side-effect-free store read.
+         // Prefers the caller's own same-named bookmark, as requireOwnBookmark does.
+         List<VSBookmarkInfo> visible = visibleBookmarks(rvs, user);
+         IdentityID owner = visible.stream()
+            .filter(b -> b.getName().equals(name) && caller.equals(b.getOwner()))
+            .findFirst()
+            .or(() -> visible.stream().filter(b -> b.getName().equals(name)).findFirst())
+            .map(VSBookmarkInfo::getOwner)
+            .orElse(caller);
 
          if(rvs.bookmarkUpdated(name, owner)) {
             throw new IllegalArgumentException(
                "update_bookmark: bookmark '" + name + "' was modified by someone else since it " +
-               "was last read. Call list_bookmarks to see its current state before overwriting it.");
+               "was last read. Call goto_bookmark to load its current state before overwriting it.");
          }
 
          if(!rvs.checkBookmark(name, owner)) {
@@ -568,7 +578,7 @@ public class ViewsheetAssemblyAgentController {
          // Overriding someone else's writable bookmark only refreshes its captured state -- the
          // native Viewer's own "Save Current" resends the bookmark's own type/readOnly, and its
          // Edit dialog (the only place visibility changes) is disabled for non-owners.
-         if(!targetOwner.equals(owner) && (type != existingType || readOnly != existingReadOnly)) {
+         if(!targetOwner.equals(caller) && (type != existingType || readOnly != existingReadOnly)) {
             throw new IllegalArgumentException(
                "update_bookmark: bookmark '" + name + "' is owned by someone else -- only its " +
                "owner can change its type/readOnly. Omit 'type'/'readOnly' to just refresh its " +
@@ -968,6 +978,17 @@ public class ViewsheetAssemblyAgentController {
 
       if(rvs.bookmarkWritable(name, matched.getOwner())) {
          return matched.getOwner();
+      }
+
+      if("update_bookmark".equals(tool)) {
+         // update_bookmark DOES work on someone else's writable shared bookmark, so "only works on
+         // bookmarks you own" would be false here. Reaching this point means the visible bookmark
+         // is not writable for the caller: its owner shared it read-only (the normal case), or it
+         // changed/disappeared between the visibility read and this check.
+         throw new IllegalArgumentException(
+            tool + ": bookmark '" + name + "' is shared read-only by " + matched.getOwner().name +
+            " (its owner marked it not writable, or it changed since it was last read) -- only " +
+            "its owner can overwrite it.");
       }
 
       throw new IllegalArgumentException(

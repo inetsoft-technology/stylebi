@@ -163,6 +163,42 @@ class WizExportControllerTest {
    }
 
    @Test
+   void exportAsksTheServiceToFailOnAFailedQueryForEveryFormat() throws Exception {
+      // The unfixed controller exported the fabricated design-time sample row a failed live
+      // query is swallowed into (ORDER_ID 999 + now) as if it were data. The flag rides the
+      // CSVConfig, which is passed for every format, so it must be set for CSV and non-CSV alike.
+      for(int format : new int[] { FileFormatInfo.EXPORT_TYPE_CSV, FileFormatInfo.EXPORT_TYPE_EXCEL }) {
+         ExportControllerServiceProxy proxy = mock(ExportControllerServiceProxy.class);
+         SecurityEngine sec = mock(SecurityEngine.class);
+         Principal principal = mock(Principal.class);
+         when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+         BinaryTransfer data = mock(BinaryTransfer.class);
+         when(proxy.exportViewsheet(
+            eq("rt1"), eq(format), isNull(), eq(false), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class),
+            anyBoolean(), anyBoolean(), any(CSVConfig.class), eq(principal)))
+            .thenReturn(new ExportControllerService.ViewsheetExportResult(
+               data, "export", "application/octet-stream", "bin"));
+         HttpServletResponse response = mock(HttpServletResponse.class);
+         when(response.getOutputStream())
+            .thenReturn(capturingOutputStream(new ByteArrayOutputStream()));
+
+         WizExportController ctrl = new WizExportController(
+            mock(ExportDialogServiceProxy.class), proxy,
+            mock(AssemblyImageServiceProxy.class), mock(BinaryTransferService.class), sec);
+         ctrl.exportViewsheet(request("rt1", format), principal, response);
+
+         org.mockito.ArgumentCaptor<CSVConfig> config =
+            org.mockito.ArgumentCaptor.forClass(CSVConfig.class);
+         verify(proxy).exportViewsheet(
+            eq("rt1"), eq(format), isNull(), eq(false), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class),
+            anyBoolean(), anyBoolean(), config.capture(), eq(principal));
+         assertTrue(config.getValue().isFailOnFailedQuery(), "format " + format);
+      }
+   }
+
+   @Test
    void nonCsvFormatPassesRequestedMatchThrough() throws Exception {
       ExportControllerServiceProxy exportControllerServiceProxy = mock(ExportControllerServiceProxy.class);
       SecurityEngine sec = mock(SecurityEngine.class);

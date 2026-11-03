@@ -35,6 +35,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PresentationChangeRequest {
    public static final String VERB_UPDATE = "update";
+   /** Bug #80087: removes the calling organization's own override of a sub-model so it inherits the
+    * global value again (the org-scope counterpart of Enterprise Manager's Reset). Organization
+    * scope only; carries no {@code spec}. */
+   public static final String VERB_RESET = "reset";
    public static final String SCOPE_GLOBAL = "global";
    public static final String SCOPE_ORGANIZATION = "organization";
 

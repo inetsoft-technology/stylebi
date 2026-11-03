@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.scriptlibrary;
 
 import inetsoft.report.LibManager;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -248,6 +249,12 @@ public class ScriptLibraryChangePlanService {
          "delete script library entry \"" + name + "\" (no known dependents)" :
          "delete script library entry \"" + name + "\" (force: true -- still used by: " +
             String.join(", ", dependents) + ")";
+      // Bug #79920: apply removes the script's SCRIPT permission grants along with it (and restores
+      // them if the changeset is rolled back), so the plan says so when a grant is stored
+      if(scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, name) != null) {
+         description += "; its permission grants will also be removed (restored if rolled back)";
+      }
+
       return new PlanChange("scriptlibrary:" + name, null, before, null, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
    }

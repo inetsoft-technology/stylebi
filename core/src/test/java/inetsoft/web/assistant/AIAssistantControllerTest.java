@@ -61,8 +61,8 @@ import static org.mockito.Mockito.*;
  *
  * <p>Neither helper had test coverage before this class. In particular {@code applyAssistantTls}
  * fixed a real defect (a trust-all {@code X509TrustManager} alone skips certificate chain
- * validation but not hostname verification, unless {@code SSLParameters}' endpoint identification
- * algorithm is also cleared) with no regression test — this class is that regression test.</p>
+ * validation but not hostname verification) with no regression test; the real handshake is covered
+ * in {@link AssistantTlsHandshakeTest}.</p>
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -142,7 +142,7 @@ class AIAssistantControllerTest {
    }
 
    @Test
-   void disablesHostnameVerificationAndInstallsATrustAllContextWhenVerificationIsDisabled()
+   void installsATrustAllContextWhenVerificationIsDisabled()
       throws Exception
    {
       sreeEnvStatic.when(() -> SreeEnv.getProperty("chat.app.server.ssl.verify", "false"))
@@ -152,7 +152,6 @@ class AIAssistantControllerTest {
       AIAssistantController.applyAssistantTls(builder, "doc search");
       HttpClient client = builder.build();
 
-      assertEquals("", client.sslParameters().getEndpointIdentificationAlgorithm());
       // An untouched HttpClient.Builder's SSLContext is the JVM default (verified empirically:
       // HttpClient.newBuilder().build().sslContext() == SSLContext.getDefault()). A distinct
       // instance here confirms the trust-all context was actually installed, not just requested.

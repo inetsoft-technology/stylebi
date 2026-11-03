@@ -1392,7 +1392,7 @@ public class AssemblyHighlightService {
    static void requireNoDerivedConditionField(Highlight highlight,
                                               HighlightService.DateComparisonFields fields)
    {
-      requireNoDerivedConditionField(highlight, fields, Set.of());
+      requireNoDerivedConditionField(highlight, fields, fields.getDimensions());
    }
 
    /**
