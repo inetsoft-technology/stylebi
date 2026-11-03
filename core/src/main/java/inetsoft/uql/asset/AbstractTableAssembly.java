@@ -1403,7 +1403,52 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       AssetUtil.getConditionDependeds(ws, mvUpdatePostConds, set);
       AssetUtil.getConditionDependeds(ws, mvDeletePreConds, set);
       AssetUtil.getConditionDependeds(ws, mvDeletePostConds, set);
+      getConditionScriptDependeds(set);
       ginfo.getDependeds(set);
+   }
+
+   /**
+    * Get the tables referenced by the JavaScript values of the conditions, so a table read by
+    * a condition script can't be removed (Bug #80088).
+    */
+   private void getConditionScriptDependeds(Set<AssemblyRef> set) {
+      ConditionListWrapper[] lists = { preconds, postconds, topns, mvUpdatePreConds,
+         mvUpdatePostConds, mvDeletePreConds, mvDeletePostConds };
+
+      for(ConditionListWrapper list : lists) {
+         if(list == null || list instanceof ConditionAssembly) {
+            continue;
+         }
+
+         for(int i = 0; i < list.getConditionSize(); i += 2) {
+            XCondition condition = list.getConditionItem(i).getXCondition();
+
+            if(!(condition instanceof AssetCondition)) {
+               continue;
+            }
+
+            AssetCondition acondition = (AssetCondition) condition;
+
+            for(int j = 0; j < acondition.getValueCount(); j++) {
+               Object val = acondition.getValue(j);
+
+               if(val instanceof ExpressionValue) {
+                  ExpressionValue eval = (ExpressionValue) val;
+                  String exp = eval.getExpression();
+
+                  if(ExpressionValue.JAVASCRIPT.equals(eval.getType()) && exp != null &&
+                     !exp.isEmpty())
+                  {
+                     for(Assembly assembly : getScriptExpressionDependedAssemblies(exp)) {
+                        if(assembly instanceof TableAssembly) {
+                           set.add(new AssemblyRef(assembly.getAssemblyEntry()));
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
    }
 
    @Override
@@ -1430,6 +1475,10 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          Collectors.toSet());
       addToDependencyTypes(dependeds, conditionVariables, DependencyType.VARIABLE_FILTER );
       addToDependencyTypes(dependeds, conditionSubqueryTables, DependencyType.SUBQUERY_FILTER);
+      set.clear();
+
+      getConditionScriptDependeds(set);
+      addToDependencyTypes(dependeds, set, DependencyType.EXPRESSION);
       set.clear();
 
       ginfo.getDependeds(set);
