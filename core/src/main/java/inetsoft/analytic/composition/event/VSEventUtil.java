@@ -3068,7 +3068,8 @@ public final class VSEventUtil {
                limitRow = vsTableMaxRow;
             }
 
-            if(actualRowCount < limitRow) {
+            // an aggregate has fewer rows than its source, check if the source was cut
+            if(actualRowCount < limitRow && !Util.isAggregateSourceLimited(lens, limitRow)) {
                return null;
             }
 

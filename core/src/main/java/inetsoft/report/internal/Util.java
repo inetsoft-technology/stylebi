@@ -515,6 +515,34 @@ public class Util implements inetsoft.report.StyleConstants {
       return 0;
    }
 
+   /**
+    * Check whether the source of an aggregating table (e.g. a crosstab) has been cut by the
+    * row limit. The output of an aggregate has fewer rows than its source, so the output row
+    * count can't tell if the source reached the limit; the data the aggregate was built from
+    * is checked instead.
+    * @param table the table shown to the user.
+    * @param limit the row limit applied to the source.
+    * @return true if the table aggregates a source that reached the limit, false if the table
+    * is not an aggregate or its source is smaller than the limit.
+    */
+   public static boolean isAggregateSourceLimited(XTable table, int limit) {
+      while(table instanceof TableFilter && !(table instanceof CrossFilter)) {
+         table = ((TableFilter) table).getTable();
+      }
+
+      if(!(table instanceof CrossFilter) || limit <= 0) {
+         return false;
+      }
+
+      XTable base = ((CrossFilter) table).getTable();
+
+      if(base == null) {
+         return false;
+      }
+
+      return getAppliedMaxRows(base) > 0 || base.moreRows(base.getHeaderRowCount() + limit - 1);
+   }
+
    public static HashMap getHintBasedMaxRow(XTable table) {
       if(table instanceof RuntimeCalcTableLens) {
          CalcTableLens calcTableLens = ((RuntimeCalcTableLens) table).getCalcTableLens();
