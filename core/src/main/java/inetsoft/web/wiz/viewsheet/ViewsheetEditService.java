@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.AbstractSelectionVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.LockableVSAssembly;
+import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
@@ -1117,6 +1118,7 @@ public class ViewsheetEditService {
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
+         discardCachedSourceData(rvs, request.assembly());
          RefreshVSAssemblyEvent event = RefreshVSAssemblyEvent.builder()
             .vsRuntimeId(runtimeId)
             .assemblyName(request.assembly())
@@ -1125,6 +1127,47 @@ public class ViewsheetEditService {
             rvs, request.assembly(), dispatcher,
             () -> refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user));
       });
+   }
+
+   /**
+    * Bug #80147: makes the per-assembly refresh read the worksheet source afresh. The sandbox
+    * serves a data-bound assembly's query result from a cache that is discarded only when the
+    * runtime's touch timestamp passes the entry's creation time, and {@code refreshVsAssembly}
+    * re-executes the assembly without ever advancing it, so a source changed after the first
+    * load (then {@code refresh_data} on the worksheet) kept coming back stale. The whole-sheet
+    * refresh advances both timestamps the same way. The timestamp is runtime-wide, so other
+    * assemblies' cached results are also dropped at their next read, which is harmless. A
+    * selection list/tree also keeps its values in per-table metadata that a timestamp does not
+    * clear, so the metadata of the tables the refreshed selection filters is dropped too.
+    */
+   private static void discardCachedSourceData(RuntimeViewsheet rvs, String assemblyName) {
+      Optional<ViewsheetSandbox> sandbox = rvs == null ? Optional.empty() : rvs.getViewsheetSandbox();
+
+      if(sandbox.isEmpty()) {
+         return;
+      }
+
+      ViewsheetSandbox box = sandbox.get();
+      box.lockWrite();
+
+      try {
+         long now = System.currentTimeMillis();
+         rvs.setTouchTimestamp(now);
+         box.setTouchTimestamp(now);
+         Viewsheet vs = rvs.getViewsheet();
+         VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+         if(assembly instanceof SelectionVSAssembly selection) {
+            List<String> tables = selection.getTableNames();
+
+            if(tables != null) {
+               tables.forEach(box::resetTableMetaData);
+            }
+         }
+      }
+      finally {
+         box.unlockWrite();
+      }
    }
 
    /**
