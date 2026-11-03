@@ -21,6 +21,7 @@ import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
@@ -53,10 +54,10 @@ import java.util.stream.Collectors;
  * already establishes for this plugin. {@code delete} is still always classified {@code RISK_HIGH}
  * (see {@code ScriptLibraryChangePlanService}'s own javadoc for why) and always requires
  * {@code acknowledgeIrreversibleDelete: true}, even though its own content is fully recoverable.
- * A permission GRANT on a deleted script (if any) is left as a dangling, harmless entry rather
- * than removed and reconstructed -- consistent with this area not touching permissions at all on
- * {@code delete}, only on {@code rename} (which must, since a grant is keyed by the resource's own
- * name and would otherwise silently apply to nothing).
+ * A permission GRANT on a deleted script is removed with it (best-effort, as the Enterprise Manager
+ * and Composer deletes do) and captured in the undo so a rolled-back delete restores script and
+ * grant together; otherwise a later script created under the same name would silently inherit it
+ * (Bug #79920). {@code rename} moves the grant likewise.
  */
 @Component
 public class ScriptLibraryChangesetApplyService {
@@ -336,6 +337,8 @@ public class ScriptLibraryChangesetApplyService {
       }
 
       String before = ScriptLibraryChangePlanService.project(entry);
+      // captured before any mutation, so a failure here leaves nothing changed
+      Permission permission = scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, name);
       mutationEntered.set(true);
       // drop the function's edges to its callees so they are not refused as "used by" a deleted one
       DependencyHandler.getInstance().updateScriptDependencies(entry.text(), null, scriptEntry(name));
@@ -347,14 +350,25 @@ public class ScriptLibraryChangesetApplyService {
       String advisory = dependents.isEmpty() ? null :
          "still used by: " + String.join(", ", dependents) + " -- those will break while this " +
          "deletion stands";
+
+      if(verified) {
+         // registered before the grant removal and the audit write, so a rollback can always
+         // restore script and grant together
+         undoable.add(Undo.delete(key, entry, permission));
+
+         if(permission != null && !AbstractAssetEngine.removePermissionBestEffort(
+            scriptLibraryService.securityEngine, ResourceType.SCRIPT, name))
+         {
+            String note = "the script's permission grants could not be removed and may still be " +
+               "stored; a script created later under the name \"" + name + "\" would inherit them";
+            advisory = advisory == null ? note : advisory + "; " + note;
+         }
+      }
+
       results.add(new ScriptLibraryApplyOutcome(key, before, null, status,
          verified ? null : "script library entry still present after delete", advisory));
       writeAudit(txId, task, key, AdminChangeRecord.RISK_HIGH, AdminChangeRecord.ACTION_APPLY,
                 before, null, status, backupRef, reviewOutcome, user);
-
-      if(verified) {
-         undoable.add(Undo.delete(key, entry));
-      }
    }
 
    // ---------------------------------------------------------------- rollback
@@ -425,6 +439,12 @@ public class ScriptLibraryChangesetApplyService {
             }
 
             lib.save();
+
+            if(undo.permission != null) {
+               scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.name,
+                  undo.permission);
+            }
+
             verified = lib.getScript(undo.name) != null;
          }
       }
@@ -503,9 +523,9 @@ public class ScriptLibraryChangesetApplyService {
          return new Undo(UndoKind.UPDATE, key, name, null, priorDescription, null, null);
       }
 
-      static Undo delete(String key, ScriptLibraryEntryDetail entry) {
+      static Undo delete(String key, ScriptLibraryEntryDetail entry, Permission permission) {
          return new Undo(UndoKind.DELETE, key, entry.name(), null, entry.description(),
-                         entry.text(), null);
+                         entry.text(), permission);
       }
 
       private Undo(UndoKind kind, String key, String name, String newName, String description,
