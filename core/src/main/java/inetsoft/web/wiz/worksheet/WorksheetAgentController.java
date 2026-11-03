@@ -6213,6 +6213,8 @@ public class WorksheetAgentController {
       requireWholeSheetSession(sessionToken, user);
       editService.applyOnRuntime(sessionToken, user, rws -> {
          WorksheetInfo winfo = rws.getWorksheet().getWorksheetInfo();
+         // winfo is not persisted; the toolbar Save writes rws.getEntry(), so keep it in step
+         AssetEntry entry = rws.getEntry();
 
          if(body.alias() != null) {
             // L2-Group9: assetEntryBannedCharacters/assetNameStartWithCharDigit are Angular-
@@ -6228,10 +6230,12 @@ public class WorksheetAgentController {
             }
 
             winfo.setAlias(body.alias());
+            entry.setAlias(body.alias());
          }
 
          if(body.description() != null) {
             winfo.setDescription(body.description());
+            entry.setProperty("description", body.description());
          }
 
          return null;
