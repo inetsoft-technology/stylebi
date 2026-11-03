@@ -68,6 +68,8 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import {
    GettingStartedService
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
+import { DatasourceBrowserService } from "../datasource-browser.service";
+import { DataModelBrowserService } from "./database-data-model-browser/data-model-browser.service";
 import { DatasourcesDatabaseComponent } from "./datasources-database.component";
 
 // ---------------------------------------------------------------------------
@@ -133,6 +135,8 @@ function createProviders() {
          { provide: ActivatedRoute, useValue: { paramMap: EMPTY } },
          { provide: Router, useValue: router },
          { provide: NgbModal, useValue: {} },
+         { provide: DatasourceBrowserService, useValue: {} },
+         { provide: DataModelBrowserService, useValue: {} },
          { provide: AppInfoService, useValue: { isEnterprise: vi.fn(() => of(false)) } },
          {
             provide: GettingStartedService,

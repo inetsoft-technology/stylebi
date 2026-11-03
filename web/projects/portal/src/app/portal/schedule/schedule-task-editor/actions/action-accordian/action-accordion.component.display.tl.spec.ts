@@ -48,9 +48,9 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("ActionAccordion — top-level shell", () => {
 
-   it("renders .action-accordion-content once action and form are initialized", async () => {
+   it("renders .action-accordion-form once action and form are initialized", async () => {
       await renderActionAccordion();
-      expect(document.querySelector(".action-accordion-content")).not.toBeNull();
+      expect(document.querySelector(".action-accordion-form")).not.toBeNull();
    });
 });
 

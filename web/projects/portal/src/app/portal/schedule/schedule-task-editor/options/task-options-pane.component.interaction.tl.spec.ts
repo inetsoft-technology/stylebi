@@ -31,6 +31,7 @@
  */
 
 import { provideHttpClient } from "@angular/common/http";
+import { getDebugNode } from "@angular/core";
 import { FormBuilder } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render } from "@testing-library/angular";
@@ -132,9 +133,10 @@ describe("TaskOptionsPane - interaction", () => {
 
       it("should render the locale select with Default selected when the model locale is null", async () => {
          const { nativeElement } = await renderTaskOptionsPaneDom();
-         const localeSelect = nativeElement.querySelectorAll("select")[2] as HTMLSelectElement;
+         const localeSelect = Array.from(nativeElement.querySelectorAll("custom-select"))
+            .find((s: Element) => s.nextElementSibling?.textContent.trim() === "_#(Locale)");
 
-         expect(localeSelect.value).toBe("Default");
+         expect(getDebugNode(localeSelect)?.componentInstance.value).toBe("Default");
       });
    });
 
