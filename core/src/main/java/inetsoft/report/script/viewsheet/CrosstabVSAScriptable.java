@@ -203,13 +203,10 @@ public class CrosstabVSAScriptable extends TableDataVSAScriptable {
    }
 
    @Override
-   public void clearCache() {
-      addProperties();
-   }
-
-   @Override
    public void clearCache(int type) {
-      clearCache();
+      // reset the cached table array and dirty flag so script reads see the current data
+      super.clearCache(type);
+      addProperties();
    }
 
    private VSCrosstabBindingScriptable bindingInfo;
