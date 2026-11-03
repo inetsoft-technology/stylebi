@@ -357,6 +357,35 @@ class WorksheetReadServiceTest {
       assertEquals("qty", tableNamed(read(ws), "T").rankingConditions().get(0).of());
    }
 
+   // Bug #80039: a ranking condition on an aliased group column must report the alias in its
+   // own field, consistent with aggregates.groups[].field, so set_ranking/set_rankings round-
+   // trips the read-back field instead of receiving a physical column name that is not any
+   // visible column.
+   @Test
+   void rankingOnAliasedGroupColumnReportsTheAliasNotTheSourceColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "qty");
+      ws.addAssembly(t);
+
+      for(int i = 0; i < t.getColumnSelection(false).getAttributeCount(); i++) {
+         if(t.getColumnSelection(false).getAttribute(i) instanceof ColumnRef cr &&
+            "state".equals(cr.getAttribute()))
+         {
+            cr.setAlias("StateAlias");
+         }
+      }
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("StateAlias")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("qty", "SUM", "Total")));
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("StateAlias", 2, "TOP_N", false, "Total"));
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+      assertEquals("StateAlias", tm.aggregates().groups().get(0).field());
+      assertEquals("StateAlias", tm.rankingConditions().get(0).field());
+   }
+
    @Test
    void rankingWithoutOfAndNonRankingConditionsHaveNoOf() throws Exception {
       Worksheet ws = new Worksheet();

@@ -861,13 +861,18 @@ public class WorksheetReadService {
             }
 
             DataRef dataRef = item.getAttribute();
-            // aggregate/group refs (post/ranking conditions) keep the source column: consumers
-            // such as remove_filter match them against the aggregate's source column
+            XCondition xc = item.getXCondition();
+            // A pre/post filter's aggregate/group ref keeps the source column: remove_filter
+            // (resolveRemoveFilterField in worksheetTools.ts, backed by WorksheetMutationSupport.
+            // removeFilter server-side) matches it against the aggregate's source column. A ranking
+            // condition's own field is never scanned by remove_filter (it comes from a separate
+            // rankingConditionList, not pre/postConditionList), so it reports the alias instead,
+            // consistent with aggregates.groups[].field so set_ranking/set_rankings round-trips the
+            // read-back field (Bug #80039).
             String field = dataRef == null ? null
+               : xc instanceof RankingCondition ? outputName(dataRef)
                : (dataRef instanceof AggregateRef || dataRef instanceof GroupRef)
                ? dataRef.getAttribute() : outputName(dataRef);
-
-            XCondition xc = item.getXCondition();
             String operation = xc != null ? operationName(xc) : null;
             List<String> values = extractValues(xc);
             String choiceQuery = extractChoiceQuery(xc);
