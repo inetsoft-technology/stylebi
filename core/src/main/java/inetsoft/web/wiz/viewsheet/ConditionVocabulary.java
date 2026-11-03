@@ -64,7 +64,7 @@ public final class ConditionVocabulary {
    private static final Set<String> PAIRED = Set.of("between");
 
    /** Operations that take exactly one value (Condition.evaluate reads only the first). */
-   private static final Set<Integer> SINGLE_VALUED = Set.of(
+   static final Set<Integer> SINGLE_VALUED = Set.of(
       XCondition.EQUAL_TO, XCondition.LESS_THAN, XCondition.GREATER_THAN,
       XCondition.STARTING_WITH, XCondition.CONTAINS, XCondition.LIKE, XCondition.DATE_IN);
 
