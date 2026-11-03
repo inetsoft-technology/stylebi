@@ -151,19 +151,30 @@ class CSSChartStylesModernChromeTest {
    @Test
    void axisLineResolvesToModernWhenGateOnAndDefault() {
       String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+      String savedDark = SreeEnv.getProperty("viewsheet.darkMode");
 
       try {
          SreeEnv.setProperty("viewsheet.modernVisualization", "true");
-         assertEquals(VSChartChromeDefaults.gridlineColor(VizContext.ofGate()),
+         SreeEnv.setProperty("viewsheet.darkMode", "false");
+         assertEquals(VSChartChromeDefaults.axisLineColor(VizContext.ofGate()),
                       VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate()),
-                      "legacy-default axis line unifies with the gridlines under the gate");
+                      "legacy-default axis line takes the modern axis-line neutral under the gate");
+         assertEquals(new Color(0x85827A),
+                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate()),
+                      "the light axis-line value");
          assertEquals(Color.RED, VSChartChromeDefaults.resolveAxisLineColor(Color.RED, VizContext.ofGate()),
                       "a customer/user axis-line color is preserved");
          assertNull(VSChartChromeDefaults.resolveAxisLineColor(null, VizContext.ofGate()),
                     "null (no line color) stays null");
+
+         SreeEnv.setProperty("viewsheet.darkMode", "true");
+         assertEquals(new Color(0x7E7B86),
+                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate()),
+                      "the dark axis-line value");
       }
       finally {
          SreeEnv.setProperty("viewsheet.modernVisualization", saved);
+         SreeEnv.setProperty("viewsheet.darkMode", savedDark);
       }
    }
 
