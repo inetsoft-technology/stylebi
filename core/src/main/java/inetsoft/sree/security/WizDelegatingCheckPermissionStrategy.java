@@ -63,6 +63,16 @@ import java.security.Principal;
  * with the "wiz" tag removed, and with the login check skipped because the copy no longer
  * satisfies it through the tag, before anything is written or any folder is created. The write
  * itself still runs as the wiz principal.
+ * <p>
+ * <b>Recorded decision: no further carve-outs (Redmine bugs #80171, #80172; decision: documented,
+ * not narrowed).</b> The toolbar action {@code PageNavigation} (Undo/Redo) and the bookmark actions
+ * {@code Bookmark} (EM: "Open and Create Bookmark") and {@code OpenBookmark} stay under the bypass.
+ * StyleBI's own server path does not check {@code PageNavigation} for undo/redo: it is only a
+ * Viewer UI hint produced by {@code CoreLifecycleService.getPermissions} for runtime viewsheets.
+ * It does not check {@code OpenBookmark} at all either, which is likewise only a UI hint.
+ * {@code Bookmark} is checked server-side only when a bookmark is created or overwritten
+ * ({@code VSBookmarkService.checkAddBookmark}), and the bypass approves that check for plugin
+ * calls.
  */
 public class WizDelegatingCheckPermissionStrategy implements CheckPermissionStrategy {
    public WizDelegatingCheckPermissionStrategy(CheckPermissionStrategy delegate) {
