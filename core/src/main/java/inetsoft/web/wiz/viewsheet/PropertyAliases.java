@@ -603,7 +603,8 @@ public final class PropertyAliases {
             "you get a target that saves, lists back, and never draws: a tabFlag outside 0/1/2 " +
             "is a total no-op, a null measure or colour NPEs inside the commit, a non-numeric " +
             "value produces a line with no boundaries, and an index the descriptor does not " +
-            "have is silently dropped. Use add_chart_target_line / remove_chart_target_line, " +
+            "have is silently dropped. Use add_chart_target_line (fixed value) / add_chart_target " +
+            "(formula, band, statistics) / remove_chart_target_line, " +
             "which build the target from the model's own newTargetInfo template. Reading is " +
             "fine -- call get_assembly_properties with raw=true, or list_chart_target_lines.";
       }
