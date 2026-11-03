@@ -27,7 +27,13 @@ public class RenderNotReadyException extends RuntimeException {
    /** What was not ready. */
    public enum Subject {
       CHART,
-      TABLE
+      TABLE,
+      /**
+       * A refresh that clears the table's caches before every attempt (refresh_data {table}); a
+       * retry restarts the read, so unlike {@link #TABLE} the answer must not promise that a
+       * retry converges.
+       */
+      TABLE_REFRESH
    }
 
    public RenderNotReadyException(int retryAfter) {
@@ -35,8 +41,11 @@ public class RenderNotReadyException extends RuntimeException {
    }
 
    public RenderNotReadyException(int retryAfter, Subject subject) {
-      super((subject == Subject.TABLE ? "Table data not ready" : "Chart image not ready") +
-         "; retry after " + retryAfter + "s");
+      super(switch(subject) {
+         case TABLE -> "Table data not ready; retry after " + retryAfter + "s";
+         case TABLE_REFRESH -> "Table refresh did not finish within " + retryAfter + "s";
+         default -> "Chart image not ready; retry after " + retryAfter + "s";
+      });
       this.retryAfter = retryAfter;
       this.subject = subject;
    }

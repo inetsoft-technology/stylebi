@@ -5444,7 +5444,7 @@ public class WorksheetAgentController {
                   return null;
                }, refreshDataTableWaitMs,
                   (int) Math.max(1, refreshDataTableWaitMs / 1000),
-                  RenderNotReadyException.Subject.TABLE);
+                  RenderNotReadyException.Subject.TABLE_REFRESH);
             }
             catch(RenderNotReadyException e) {
                // Timed out waiting, not failed: the reload above is still running in the

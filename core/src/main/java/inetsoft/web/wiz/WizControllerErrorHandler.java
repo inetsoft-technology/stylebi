@@ -147,7 +147,12 @@ public class WizControllerErrorHandler {
       LOG.debug("Wiz render not ready: {}", e.getMessage());
 
       Map<String, String> payload = new HashMap<>();
-      if(e.getSubject() == RenderNotReadyException.Subject.TABLE) {
+      if(e.getSubject() == RenderNotReadyException.Subject.TABLE_REFRESH) {
+         payload.put("error", e.getMessage() + ". The datasource read for this table may be " +
+            "slow. A refresh restarts the read from scratch, so a repeated call is not " +
+            "guaranteed to finish either; this is not a failure of the table itself.");
+      }
+      else if(e.getSubject() == RenderNotReadyException.Subject.TABLE) {
          payload.put("error", e.getMessage() + ". The table data is still loading - this is " +
             "not a failure, and the same call should succeed once the query has finished.");
       }

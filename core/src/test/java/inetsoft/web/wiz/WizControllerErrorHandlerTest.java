@@ -235,6 +235,26 @@ class WizControllerErrorHandlerTest {
    }
 
    /**
+    * Bug #80102: refresh_data {table} restarts the read on every call, so its not-ready answer
+    * must not promise that a repeat call succeeds, and must carry no chart wording. Code and
+    * Retry-After stay.
+    */
+   @Test
+   void tableRefreshNotReadyDoesNotPromiseConvergenceNorUseChartWording() throws Exception {
+      String content = mvc.perform(get("/wiz-test/throw").param("type", "tablerefreshnotready"))
+         .andExpect(status().isServiceUnavailable())
+         .andExpect(header().string("Retry-After", "15"))
+         .andReturn().getResponse().getContentAsString();
+
+      assertTrue(content.contains("RENDER_NOT_READY"), content);
+      assertTrue(content.contains("Table refresh did not finish within 15s"), content);
+      assertFalse(content.contains("should succeed"), content);
+      assertFalse(content.contains("Chart"), content);
+      assertFalse(content.contains("graph"), content);
+      assertFalse(content.contains("retrying will fail"), content);
+   }
+
+   /**
     * Bug #77597: a second export of a runtime viewsheet while another one still holds the
     * Bug #77227 export claim. That is a wait, not a failure, so it must come back as 503 with a
     * {@code Retry-After}, not the catch-all's 500 that says retrying will fail the same way.
@@ -377,6 +397,10 @@ class WizControllerErrorHandlerTest {
 
          if("tablenotready".equals(type)) {
             throw new RenderNotReadyException(15, RenderNotReadyException.Subject.TABLE);
+         }
+
+         if("tablerefreshnotready".equals(type)) {
+            throw new RenderNotReadyException(15, RenderNotReadyException.Subject.TABLE_REFRESH);
          }
 
          if("exportinprogress".equals(type)) {

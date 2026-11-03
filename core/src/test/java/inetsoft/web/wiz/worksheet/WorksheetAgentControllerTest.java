@@ -3281,10 +3281,21 @@ class WorksheetAgentControllerTest {
             () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
          // Bug #80102: a worksheet table warm must not read as a chart render, and the retry hint
          // must match the wait that was actually applied.
-         assertEquals(RenderNotReadyException.Subject.TABLE, ex.getSubject());
+         assertEquals(RenderNotReadyException.Subject.TABLE_REFRESH, ex.getSubject());
          assertFalse(ex.getMessage().contains("Chart"), ex.getMessage());
          assertEquals(2, ex.getRetryAfter());
       }
+   }
+
+   /**
+    * Bug #80102: the single-table wait and the Retry-After it advertises share one value, so the
+    * default answer is 15s (the 503 header for that value is covered in
+    * WizControllerErrorHandlerTest#tableRefreshNotReadyDoesNotPromiseConvergenceNorUseChartWording).
+    */
+   @Test
+   void refreshDataDefaultWaitAdvertisesFifteenSeconds() {
+      assertEquals(15_000L, WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS);
+      assertEquals(15, WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS / 1000);
    }
 
    /**
