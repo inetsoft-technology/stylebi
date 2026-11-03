@@ -1108,6 +1108,47 @@ class AdminScheduleGatewayTest {
       assertTrue(ex.getMessage().contains("organization \"no-such-org\" does not exist"));
    }
 
+   // requireOwnerOrganizationExists -- Bug #80027, Gap 2: a schedule-task-import owner kept
+   // verbatim from the uploaded xml must not resolve to an organization that doesn't exist.
+   // Deliberately narrower than requireOwnerResolves -- a built-in system owner (an internal
+   // task's own owner, same as EM's own import sets) must still pass.
+
+   @Test
+   void requireOwnerOrganizationExists_refusesUnknownOrganization() {
+      ownerProvider("host-org", "admin");
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> gateway.requireOwnerOrganizationExists(
+            new IdentityID("admin", "qa-no-such-org-xyz")));
+      assertTrue(ex.getMessage().contains("admin"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("qa-no-such-org-xyz"), ex.getMessage());
+   }
+
+   @Test
+   void requireOwnerOrganizationExists_acceptsAKnownOrganization() {
+      ownerProvider("host-org", "admin");
+
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID("admin", "host-org")));
+   }
+
+   @Test
+   void requireOwnerOrganizationExists_acceptsABuiltInSystemOwner() {
+      ownerProvider("host-org", "admin");
+
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID(XPrincipal.SYSTEM, "host-org")));
+   }
+
+   @Test
+   void requireOwnerOrganizationExists_toleratesANullOrBlankOwner() {
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(null));
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID("admin", null)));
+      assertDoesNotThrow(() -> gateway.requireOwnerOrganizationExists(
+         new IdentityID("admin", "  ")));
+   }
+
    @Test
    void requireOwnerResolves_refusesBlankOrMissingOrganizationId() {
       ownerProvider("host-org", "admin");

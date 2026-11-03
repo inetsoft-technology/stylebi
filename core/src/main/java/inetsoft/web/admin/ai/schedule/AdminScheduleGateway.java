@@ -762,6 +762,29 @@ public class AdminScheduleGateway {
    }
 
    /**
+    * Bug #80027, Gap 2: refuses a schedule-task-import owner in an organization that does not
+    * exist, so a task is never stored under one. Deliberately narrower than {@link
+    * #requireOwnerResolves} -- that also refuses a built-in system/anonymous owner or one needing
+    * a user lookup, which an imported task legitimately carries (an internal task's own owner is
+    * {@code XPrincipal.SYSTEM}, same as EM's own import deliberately sets it) -- only the
+    * organization-existence check applies to an imported owner.
+    *
+    * @throws MessageException naming the owner and the missing organization.
+    */
+   public void requireOwnerOrganizationExists(IdentityID owner) {
+      if(owner == null || owner.getOrgID() == null || owner.getOrgID().isBlank()) {
+         return;
+      }
+
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+
+      if(provider != null && provider.getOrganization(owner.getOrgID()) == null) {
+         throw new MessageException("owner \"" + owner.getName() + "\" is in organization \"" +
+            owner.getOrgID() + "\", which does not exist");
+      }
+   }
+
+   /**
     * Bug #78125, an execute-as identity that doesn't resolve is refused instead of being stored as
     * no identity, which would make the task run as its owner. The owner itself is accepted, a task
     * without an execute-as identity runs as its owner.

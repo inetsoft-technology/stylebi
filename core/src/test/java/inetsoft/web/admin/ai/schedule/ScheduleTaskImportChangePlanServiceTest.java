@@ -63,6 +63,7 @@ class ScheduleTaskImportChangePlanServiceTest {
    @Mock private ScheduleManager scheduleManager;
    @Mock private ScheduleService scheduleService;
    @Mock private ScheduleTaskService scheduleTaskService;
+   @Mock private AdminScheduleGateway scheduleGateway;
    @Mock private Principal user;
 
    private ScheduleTaskTransferService transferService;
@@ -73,7 +74,7 @@ class ScheduleTaskImportChangePlanServiceTest {
    @BeforeEach void setUp() {
       transferService = new ScheduleTaskTransferService(scheduleManager, scheduleService);
       planService = new ScheduleTaskImportChangePlanService(transferService, scheduleManager,
-                                                         scheduleTaskService);
+                                                         scheduleTaskService, scheduleGateway);
       sreeEnv = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
@@ -181,6 +182,21 @@ class ScheduleTaskImportChangePlanServiceTest {
       assertTrue(d.contains("qa-st-dep-missing-probe"), d);
       assertTrue(d.contains("batch action"), d);
       assertFalse(d.contains("completion condition"), d);
+   }
+
+   // Bug #80027, Gap 2: the owner-organization check is delegated to AdminScheduleGateway (its
+   // own test covers the actual existence logic); this confirms resolveOne actually calls it,
+   // with the real staged task's owner, and lets its refusal propagate rather than swallowing it.
+   @Test void ownerInANonexistentOrganizationIsRefused() throws Exception {
+      ScheduleTask child = task("child");
+      doThrow(new inetsoft.util.MessageException("owner \"admin\" is in organization " +
+         "\"qa-no-such-org-xyz\", which does not exist"))
+         .when(scheduleGateway).requireOwnerOrganizationExists(any());
+      String token = stage(child);
+
+      inetsoft.util.MessageException ex = assertThrows(inetsoft.util.MessageException.class,
+         () -> planService.resolve(request(token, change(child.getTaskId())), user, LINK_URI));
+      assertTrue(ex.getMessage().contains("qa-no-such-org-xyz"), ex.getMessage());
    }
 
    @Test void flagDoesNotChangeThePlanHash() throws Exception {

@@ -48,11 +48,13 @@ public class ScheduleTaskImportChangePlanService {
    @Autowired
    public ScheduleTaskImportChangePlanService(ScheduleTaskTransferService transferService,
                                               ScheduleManager scheduleManager,
-                                              ScheduleTaskService scheduleTaskService)
+                                              ScheduleTaskService scheduleTaskService,
+                                              AdminScheduleGateway scheduleGateway)
    {
       this.scheduleTaskService = scheduleTaskService;
       this.transferService = transferService;
       this.scheduleManager = scheduleManager;
+      this.scheduleGateway = scheduleGateway;
    }
 
    /**
@@ -140,6 +142,10 @@ public class ScheduleTaskImportChangePlanService {
       String before = existing == null ? null : ScheduleXmlProjection.project(existing);
       ScheduleTask transformed = ScheduleTaskImportTransform.transformForPlan(
          label, staged, existing, linkURI, user, scheduleTaskService);
+      // Bug #80027, Gap 2: the staged task's owner is kept verbatim from the uploaded xml --
+      // refuse one in an organization that does not exist rather than letting the plan (and a
+      // later apply) store a task under it.
+      scheduleGateway.requireOwnerOrganizationExists(transformed.getOwner());
       String after = ScheduleXmlProjection.project(transformed);
       String risk = existing == null ? AdminChangeRecord.RISK_LOW : AdminChangeRecord.RISK_HIGH;
       String description = existing == null ?
@@ -269,4 +275,5 @@ public class ScheduleTaskImportChangePlanService {
    private final ScheduleTaskTransferService transferService;
    private final ScheduleManager scheduleManager;
    private final ScheduleTaskService scheduleTaskService;
+   private final AdminScheduleGateway scheduleGateway;
 }
