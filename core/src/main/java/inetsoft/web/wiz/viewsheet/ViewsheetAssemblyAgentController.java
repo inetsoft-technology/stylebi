@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -2920,6 +2921,23 @@ public class ViewsheetAssemblyAgentController {
             ancestor = ancestor.getParent();
          }
 
+         // Bug #80043: validate only the segments that are actually about to be newly created
+         // (between the nearest already-existing ancestor, exclusive, and 'parent', inclusive) --
+         // not the whole path -- so an ordinary re-save into an already-existing, possibly
+         // nonconforming, folder never gets refused.
+         String existingPrefix = ancestor != null && !ancestor.isRoot() ? ancestor.getPath() : null;
+         String newSegments = existingPrefix != null ?
+            path.substring(existingPrefix.length() + 1) : path;
+
+         for(String segment : newSegments.split("/")) {
+            try {
+               WorksheetPropertyDialogService.requireValidAlias(segment);
+            }
+            catch(MessageException e) {
+               throw new PairingException(e.getMessage());
+            }
+         }
+
          if(ancestor != null) {
             repository.checkAssetPermission(xp, ancestor, ResourceAction.WRITE);
          }
@@ -2927,6 +2945,16 @@ public class ViewsheetAssemblyAgentController {
          boolean userScope = entry.getScope() == AssetRepository.USER_SCOPE;
          IdentityID owner = userScope ? entry.getUser() : null;
          String registryPath = userScope ? Tool.MY_DASHBOARD + "/" + path : path;
+
+         // Bug #80043: ensureParentFolder only checked containsEntry(parent) (same-type, folder
+         // vs. folder), so a folder could be created at a path an existing viewsheet/dashboard
+         // already occupies. Mirrors RepositoryTreeController's own add-folder checks.
+         if(SUtil.isDuplicatedRepositoryPath(registryPath, owner)) {
+            throw new PairingException(
+               "Folder '" + path + "' cannot be created: '" + path +
+               "' already exists as a different asset.");
+         }
+
          repletRegistryService.addRepositoryFolder(registryPath, null, null, owner);
 
          if(!repository.containsEntry(parent)) {

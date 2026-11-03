@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.SecurityEngine;
@@ -189,6 +190,43 @@ class ViewsheetAssemblyAgentControllerSaveFolderTest {
       assertTrue(e.getMessage().startsWith("Failed to save viewsheet"), e.getMessage());
       verify(registryService).addRepositoryFolder("X", null, null, null);
       assertTrue(existing.contains("X"));
+   }
+
+   @Test
+   void existingNonconformingFolderIsReusedWithoutRevalidation() throws Exception {
+      // Bug #80043: a folder that already exists (however it got its name) must not be
+      // re-validated on an ordinary re-save into it -- only newly-created segments are checked.
+      existing.add("Seg<X");
+      save("Seg<X/vs", null);
+
+      verifyNoInteractions(registryService);
+   }
+
+   @Test
+   void newSegmentWithBannedCharacterIsRefusedBeforeCreatingTheFolder() throws Exception {
+      // Bug #80043 Finding 1: a non-leaf folder segment with a banned character must be refused
+      // up front, the same as the leaf already is, before any folder is created.
+      PairingException e = assertThrows(PairingException.class, () -> save("Seg<X/vs", null));
+
+      assertTrue(e.getMessage().contains("Seg<X"), e.getMessage());
+      verify(registryService, never()).addRepositoryFolder(any(), any(), any(), any());
+   }
+
+   @Test
+   void duplicatePathIsRefusedBeforeCreatingTheFolder() throws Exception {
+      // Bug #80043 Finding 2: a folder must not be created at a path a different kind of asset
+      // (e.g. a dashboard) already occupies.
+      try(MockedStatic<AutoSaveUtils> autoSave = mockStatic(AutoSaveUtils.class);
+          MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
+      {
+         sUtil.when(() -> SUtil.isDuplicatedRepositoryPath(anyString(), any())).thenReturn(true);
+
+         PairingException e = assertThrows(PairingException.class, () -> controller.save("tok",
+            new ViewsheetAssemblyAgentController.SaveRequest("X/vs", null), agent));
+
+         assertTrue(e.getMessage().contains("'X'"), e.getMessage());
+         verify(registryService, never()).addRepositoryFolder(any(), any(), any(), any());
+      }
    }
 
    @Test
