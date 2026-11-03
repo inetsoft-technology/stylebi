@@ -116,7 +116,11 @@ public class ViewsheetObjectPropertyDialogService {
          return null;
       }
 
-      ViewsheetVSAssemblyInfo info = (ViewsheetVSAssemblyInfo) embeddedVs.getVSAssemblyInfo();
+      // Edited on a clone, like the other property dialogs: editObjectProperty refuses a
+      // duplicate or invalid name only after this method has written the rest of the dialog, and
+      // a live-info write would stay applied when the rename is refused.
+      ViewsheetVSAssemblyInfo info =
+         (ViewsheetVSAssemblyInfo) Tool.clone(embeddedVs.getVSAssemblyInfo());
 
       GeneralPropPaneModel generalPropPaneModel = model.generalPropPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
