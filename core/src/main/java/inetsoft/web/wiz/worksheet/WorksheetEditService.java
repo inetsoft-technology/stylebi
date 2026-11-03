@@ -416,7 +416,8 @@ public class WorksheetEditService {
                      RuntimeHeartbeatKeepAlive.stop(heartbeat);
                   }
                   return null;
-               }, remaining, (int) Math.max(1, remaining / 1000));
+               }, remaining, (int) Math.max(1, remaining / 1000),
+                  RenderNotReadyException.Subject.TABLE);
                WorksheetEventUtil.fixAssemblyInfo(rws, ta);
             }
             catch(RenderNotReadyException ex) {

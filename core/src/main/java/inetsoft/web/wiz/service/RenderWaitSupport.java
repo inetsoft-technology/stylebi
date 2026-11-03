@@ -49,6 +49,16 @@ public final class RenderWaitSupport {
    public static <T> T awaitOrRetry(Callable<T> work, long timeoutMs, int retryAfterSeconds)
       throws Exception
    {
+      return awaitOrRetry(work, timeoutMs, retryAfterSeconds, RenderNotReadyException.Subject.CHART);
+   }
+
+   /**
+    * @param subject what is being waited for; only changes the wording of the not-ready answer.
+    */
+   public static <T> T awaitOrRetry(Callable<T> work, long timeoutMs, int retryAfterSeconds,
+                                    RenderNotReadyException.Subject subject)
+      throws Exception
+   {
       // work runs on a fresh virtual thread (see EXECUTOR below), not the calling thread, so the
       // caller's ThreadContext principal/locale must be captured here and re-installed inside the
       // callable -- otherwise any permission/entitlement check work performs sees no principal at
@@ -74,7 +84,7 @@ public final class RenderWaitSupport {
          return future.get(timeoutMs, TimeUnit.MILLISECONDS);
       }
       catch(TimeoutException e) {
-         throw new RenderNotReadyException(retryAfterSeconds);
+         throw new RenderNotReadyException(retryAfterSeconds, subject);
       }
       catch(ExecutionException e) {
          Throwable cause = e.getCause();

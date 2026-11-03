@@ -265,7 +265,8 @@ public class ViewsheetEditService {
 
       RenderWaitSupport.awaitOrRetry(() -> TableLensGuard.lensOrNull(box.get(), name, false),
          TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-         (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+         (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
+         RenderNotReadyException.Subject.TABLE);
    }
 
    /**
