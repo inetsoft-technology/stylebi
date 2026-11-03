@@ -2077,6 +2077,18 @@ public class ViewsheetAssemblyAgentController {
    public record TargetLineRequest(String assembly, String measure, String value, String label,
                                    String lineStyle, String lineColor) {}
 
+   public record FormulaTargetRequest(String assembly, String measure, String formula,
+                                      Boolean entireChart, String label, String lineStyle,
+                                      String lineColor) {}
+
+   public record BandTargetRequest(String assembly, String measure, String from, String to,
+                                   String fromLabel, String toLabel, String fillColor,
+                                   Boolean entireChart, String lineStyle, String lineColor) {}
+
+   public record StatisticsTargetRequest(String assembly, String measure, String statistic,
+                                         String value, Boolean sample, Boolean entireChart,
+                                         String label, String lineStyle, String lineColor) {}
+
    public record TargetLineDeleteRequest(String assembly, List<Integer> indexes) {}
 
    /**
@@ -2112,6 +2124,61 @@ public class ViewsheetAssemblyAgentController {
       return chartTargetLineService.add(sessionToken, user, request.assembly(), request.measure(),
                                         request.value(), request.label(), request.lineStyle(),
                                         request.lineColor(), linkUri);
+   }
+
+   /**
+    * {@code add_chart_target kind:"formula"}. A line target whose value is Average, Min, Max,
+    * Median or Sum of the chart's data, optionally over the Entire Chart rather than per facet
+    * panel -- the Line panel of the Targets dialog with a formula in the value box.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/formula")
+   public Map<String, Object> addChartFormulaTarget(
+      @PathVariable String sessionToken,
+      @RequestBody FormulaTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.addFormulaLine(
+         sessionToken, user, request.assembly(), request.measure(), request.formula(),
+         request.entireChart(), request.label(), request.lineStyle(), request.lineColor(),
+         linkUri);
+   }
+
+   /**
+    * {@code add_chart_target kind:"band"}. The Band panel of the Targets dialog: from/to
+    * boundaries (numbers or formulas), their labels, and an optional band fill.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/band")
+   public Map<String, Object> addChartBandTarget(
+      @PathVariable String sessionToken,
+      @RequestBody BandTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.addBand(
+         sessionToken, user, request.assembly(), request.measure(), request.from(), request.to(),
+         request.fromLabel(), request.toLabel(), request.fillColor(), request.entireChart(),
+         request.lineStyle(), request.lineColor(), linkUri);
+   }
+
+   /**
+    * {@code add_chart_target kind:"statistics"}. The Statistics panel of the Targets dialog:
+    * standard deviation, confidence interval, percentiles or quantiles.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/statistics")
+   public Map<String, Object> addChartStatisticsTarget(
+      @PathVariable String sessionToken,
+      @RequestBody StatisticsTargetRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.addStatistics(
+         sessionToken, user, request.assembly(), request.measure(), request.statistic(),
+         request.value(), request.sample(), request.entireChart(), request.label(),
+         request.lineStyle(), request.lineColor(), linkUri);
    }
 
    /**

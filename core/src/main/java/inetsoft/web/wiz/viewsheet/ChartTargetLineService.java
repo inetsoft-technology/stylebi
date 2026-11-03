@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.adhoc.model.property.ColorInfo;
 import inetsoft.web.adhoc.model.property.MeasureInfo;
+import inetsoft.web.adhoc.model.property.StrategyInfo;
 import inetsoft.web.adhoc.model.property.TargetInfo;
 import inetsoft.web.composer.model.vs.ChartAdvancedPaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
@@ -76,11 +77,13 @@ import java.util.regex.Pattern;
  * explicit user colour. Only the entry this call appends is marked changed. As a side effect the
  * silent-drop branch above becomes structurally unreachable from here.
  *
- * <p>Scope is deliberately one kind of target: a <b>fixed-value line</b>
- * ({@code TargetInfo.LINE_TARGET}). Bands and statistics targets are listed and removable — an
- * agent needs their indexes for that — but not creatable, because their own required shapes
- * ({@code StrategyInfo}, {@code CategoricalColorModel}) carry the same class of trap and no one
- * has asked for them.
+ * <p>{@link #add} writes a <b>fixed-value line</b> ({@code TargetInfo.LINE_TARGET}). The other
+ * kinds the Targets tab offers have their own methods, each mirroring one panel of the Composer's
+ * target dialog field for field rather than inventing defaults: {@link #addFormulaLine} (Line
+ * panel with a formula in the value box, plus "Entire Chart"), {@link #addBand} (Band panel) and
+ * {@link #addStatistics} (Statistics panel). All four share {@link #append}, so the commit-shape
+ * rules above are enforced in one place. None edits an existing target: an in-place edit would
+ * re-derive it through the lossy round trip described above.
  */
 @Service
 public class ChartTargetLineService {
@@ -153,6 +156,197 @@ public class ChartTargetLineService {
       throws Exception
    {
       String constant = requireFixedValue(value);
+
+      return append(sessionToken, user, assemblyName, measure, false, lineStyle, lineColor,
+                    linkUri, (chart, target, bound, result) -> {
+         target.setTabFlag(TargetInfo.LINE_TARGET);
+         target.setValue(constant);
+         target.setLabel(labelOrDefault(label));
+         result.put("kind", kind(TargetInfo.LINE_TARGET));
+         result.put("value", constant);
+         result.put("label", target.getLabel());
+      });
+   }
+
+   /**
+    * {@code add_chart_target kind:"formula"}. Appends a line target whose value is computed from
+    * the chart's data: the Targets tab's Line panel with Average/Min/Max/Median/Sum picked in the
+    * value box.
+    *
+    * <p>The measure must be a real one -- the Composer offers the formulas only once a field is
+    * chosen -- so {@code "all"} is refused, and a single-measure chart binds its one measure.
+    *
+    * @param entireChart the Line panel's "Entire Chart" box: compute the formula over the whole
+    *                    chart rather than once per facet panel. Null means unticked, the
+    *                    Composer's default.
+    */
+   public Map<String, Object> addFormulaLine(String sessionToken, Principal user,
+                                             String assemblyName, String measure, String formula,
+                                             Boolean entireChart, String label, String lineStyle,
+                                             String lineColor, String linkUri)
+      throws Exception
+   {
+      String name = requireFormula(formula, "formula");
+
+      return append(sessionToken, user, assemblyName, measure, true, lineStyle, lineColor,
+                    linkUri, (chart, target, bound, result) -> {
+         target.setTabFlag(TargetInfo.LINE_TARGET);
+         target.setValue(name);
+         target.setLabel(labelOrDefault(label));
+         target.setChartScope(Boolean.TRUE.equals(entireChart));
+         result.put("kind", kind(TargetInfo.LINE_TARGET));
+         result.put("formula", name);
+         result.put("entireChart", target.isChartScope());
+         result.put("label", target.getLabel());
+      });
+   }
+
+   /**
+    * {@code add_chart_target kind:"band"}. Appends a band target: two boundaries, each a number or
+    * a formula name, with the Band panel's own From/To labels and optional band fill.
+    *
+    * @param from        the first boundary: a number, or one of the five formula names.
+    * @param to          the second boundary, same rule.
+    * @param fromLabel   the From label ({@code {0}} when null).
+    * @param toLabel     the To label ({@code {0}} when null).
+    * @param fillColor   {@code #RRGGBB} for the band between the boundaries, or null to keep the
+    *                    Composer's default band fill.
+    * @param entireChart the "Entire Chart" box, which the Composer only enables when a boundary is
+    *                    a formula; refused when neither is.
+    */
+   public Map<String, Object> addBand(String sessionToken, Principal user, String assemblyName,
+                                      String measure, String from, String to, String fromLabel,
+                                      String toLabel, String fillColor, Boolean entireChart,
+                                      String lineStyle, String lineColor, String linkUri)
+      throws Exception
+   {
+      String start = requireBoundary(from, "from");
+      String end = requireBoundary(to, "to");
+      boolean formula = isFormula(start) || isFormula(end);
+      String fill = normalizeColor(fillColor);
+
+      if(Boolean.TRUE.equals(entireChart) && !formula) {
+         throw entireChartNeedsFormula("band");
+      }
+
+      return append(sessionToken, user, assemblyName, measure, formula, lineStyle, lineColor,
+                    linkUri, (chart, target, bound, result) -> {
+         target.setTabFlag(TargetInfo.BAND_TARGET);
+         target.setValue(start);
+         target.setToValue(end);
+         target.setLabel(labelOrDefault(fromLabel));
+         target.setToLabel(labelOrDefault(toLabel));
+         target.setChartScope(Boolean.TRUE.equals(entireChart));
+
+         if(fill != null) {
+            target.setFillBandColor(
+               new ColorInfo(fill, ChartPropertyService.TRANSENABLED_COLOR_PALETTE));
+         }
+
+         result.put("kind", kind(TargetInfo.BAND_TARGET));
+         result.put("from", start);
+         result.put("to", end);
+         result.put("fromLabel", target.getLabel());
+         result.put("toLabel", target.getToLabel());
+         result.put("entireChart", target.isChartScope());
+
+         if(fill != null) {
+            result.put("fillColor", fill);
+         }
+      });
+   }
+
+   /**
+    * {@code add_chart_target kind:"statistics"}. Appends a statistics target: the Targets tab's
+    * Statistics panel, with one of its computations (standard deviation, confidence interval,
+    * percentiles, quantiles).
+    *
+    * @param statistic   which computation; see {@link #requireStatistic}.
+    * @param value       the computation's parameter in the Composer's own format, or null for the
+    *                    default it offers on picking that computation.
+    * @param sample      standard deviation only: sample (the Composer's default) or population.
+    * @param entireChart the "Entire Chart" box -- always enabled on this panel.
+    * @param label       the one label every line the computation draws carries. A comma is kept
+    *                    as text: {@code updateStatLabel} escapes it before splitting, so the
+    *                    Composer's own dialog cannot produce a per-line label either.
+    */
+   public Map<String, Object> addStatistics(String sessionToken, Principal user,
+                                            String assemblyName, String measure,
+                                            String statistic, String value, Boolean sample,
+                                            Boolean entireChart, String label, String lineStyle,
+                                            String lineColor, String linkUri)
+      throws Exception
+   {
+      String computation = requireStatistic(statistic);
+      String parameter = requireStatisticValue(computation, value);
+
+      if(sample != null && !STD_DEVIATION.equals(computation)) {
+         throw new IllegalArgumentException(
+            "'sample' only applies to the standard_deviation statistic (sample vs population); " +
+            "'" + statisticToken(computation) + "' has no such option. Omit it.");
+      }
+
+      return append(sessionToken, user, assemblyName, measure, true, lineStyle, lineColor,
+                    linkUri, (chart, target, bound, result) -> {
+         VSChartInfo info = chart.getVSChartInfo();
+
+         // The Composer disables the Statistics tab on a box plot, which draws its own.
+         if(info != null && !info.isMultiStyles() &&
+            info.getChartType() == GraphTypes.CHART_BOXPLOT)
+         {
+            throw new IllegalArgumentException(
+               "A box plot has no statistics targets: the Composer disables that tab because the " +
+               "chart already draws its own quartile statistics.");
+         }
+
+         StrategyInfo strategy = new StrategyInfo(computation, parameter);
+         boolean isSample = sample == null || sample;
+
+         if(STD_DEVIATION.equals(computation)) {
+            strategy.setStandardIsSample(String.valueOf(isSample));
+         }
+
+         String text = labelOrDefault(label);
+         target.setTabFlag(TargetInfo.STATISTICS_TARGET);
+         target.setStrategyInfo(strategy);
+         target.setLabel(text);
+         // Where the Composer's Statistics panel keeps the label: updateStatLabel reads
+         // labelFormats, not label.
+         target.setLabelFormats(text);
+         target.setChartScope(Boolean.TRUE.equals(entireChart));
+         result.put("kind", kind(TargetInfo.STATISTICS_TARGET));
+         result.put("statistic", statisticToken(computation));
+         result.put("statisticValue", parameter);
+
+         if(STD_DEVIATION.equals(computation)) {
+            result.put("sample", isSample);
+         }
+
+         result.put("entireChart", target.isChartScope());
+         result.put("label", text);
+      });
+   }
+
+   /** What each kind of add fills in, once the shared scaffolding has built the target. */
+   @FunctionalInterface
+   private interface TargetFiller {
+      void fill(ChartVSAssembly chart, TargetInfo target, MeasureInfo bound,
+                Map<String, Object> result);
+   }
+
+   /**
+    * The shared write path for every kind: read the pane, build the target from the pane's own
+    * template, let {@code filler} set what is kind-specific, append it as the only changed entry,
+    * and commit once.
+    *
+    * @param requireBound true when the target needs a real measure (formulas and statistics),
+    *                     which refuses {@code "all"}.
+    */
+   private Map<String, Object> append(String sessionToken, Principal user, String assemblyName,
+                                      String measure, boolean requireBound, String lineStyle,
+                                      String lineColor, String linkUri, TargetFiller filler)
+      throws Exception
+   {
       String style = normalizeLineStyle(lineStyle);
       String color = normalizeColor(lineColor);
       Map<String, Object> result = new LinkedHashMap<>();
@@ -180,11 +374,9 @@ public class ChartTargetLineService {
                "build a target from. That is a chart the Targets tab cannot edit either.");
          }
 
-         MeasureInfo bound = resolveMeasure(pane, measure, assemblyName);
+         MeasureInfo bound = resolveMeasure(pane, measure, assemblyName, requireBound);
          TargetInfo target = fromPrototype(prototype);
          target.setMeasure(bound);
-         target.setValue(constant);
-         target.setLabel(label == null ? DEFAULT_LABEL : label.isBlank() ? BLANK_LABEL : label);
 
          if(style != null) {
             target.setLineStyle(LINE_STYLES.get(style));
@@ -194,10 +386,12 @@ public class ChartTargetLineService {
             target.setLineColor(new ColorInfo(color, ChartPropertyService.COLOR_PALETTE));
          }
 
-         // The three that updateAllTargets/updateTarget read structurally, set together because
-         // getting any one of them wrong is a silent no-op rather than an error. index == -1 is
-         // the only value that reaches addTarget.
-         target.setTabFlag(TargetInfo.LINE_TARGET);
+         result.put("assembly", assemblyName);
+         filler.fill(chart, target, bound, result);
+
+         // The two that updateAllTargets reads structurally, set together because getting either
+         // wrong is a silent no-op rather than an error. index == -1 is the only value that
+         // reaches addTarget. (tabFlag is the filler's: it is what makes the kind.)
          target.setIndex(-1);
          target.setChanged(true);
 
@@ -210,13 +404,10 @@ public class ChartTargetLineService {
          // updateAllTargets has appended, so its indexes would refer to a list that has moved.
          pane.setDeletedIndexList(new Integer[0]);
 
-         // Filled in before the write: the caller needs the new line's index to remove it, and the
-         // write may throw the chart's script error after storing the target.
-         result.put("assembly", assemblyName);
+         // Filled in before the write: the caller needs the new target's index to remove it, and
+         // the write may throw the chart's script error after storing the target.
          result.put("index", existing.length);
          result.put("measure", bound.getName().isEmpty() ? ALL_MEASURES : bound.getName());
-         result.put("value", constant);
-         result.put("label", target.getLabel());
          result.put("lineStyle", styleName(target.getLineStyle()));
 
          ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
@@ -381,7 +572,7 @@ public class ChartTargetLineService {
     * skips.
     */
    private static MeasureInfo resolveMeasure(ChartTargetLinesPaneModel pane, String measure,
-                                             String assemblyName)
+                                             String assemblyName, boolean requireBound)
    {
       MeasureInfo[] available = pane.getAvailableFields() == null
          ? new MeasureInfo[0] : pane.getAvailableFields();
@@ -404,6 +595,14 @@ public class ChartTargetLineService {
       String wanted = measure == null ? "" : measure.trim();
 
       if(ALL_MEASURES.equalsIgnoreCase(wanted)) {
+         if(requireBound) {
+            throw new IllegalArgumentException(
+               "measure:\"" + ALL_MEASURES + "\" is not available here: formulas and statistics " +
+               "are computed from one measure's data, and the Composer offers them only once a " +
+               "measure is chosen. " + (real.isEmpty() ? "'" + assemblyName + "' has no measure."
+                  : "Pick one of: " + names(real) + "."));
+         }
+
          return copy(unbound == null ? new MeasureInfo("", "", false) : unbound);
       }
 
@@ -432,9 +631,10 @@ public class ChartTargetLineService {
             if(field.isDateField() || field.isTimeField()) {
                throw new IllegalArgumentException(
                   "'" + field.getName() + "' is a " + (field.isTimeField() ? "time" : "date") +
-                  " field. This tool writes fixed numeric target lines; on a date-valued target " +
-                  "the value is parsed as a date and silently dropped when it does not match. " +
-                  "Pick a numeric measure.");
+                  " field. These tools write numeric target lines; on a date-valued target " +
+                  "the value is parsed as a date and silently dropped when it does not match, " +
+                  "and the Composer refuses statistics on one outright. Pick a numeric " +
+                  "measure.");
             }
 
             return copy(field);
@@ -487,6 +687,191 @@ public class ChartTargetLineService {
       }
 
       return text;
+   }
+
+   /** Only an absent label defaults to {0}; a blank one is "no label text", stored as a space. */
+   private static String labelOrDefault(String label) {
+      return label == null ? DEFAULT_LABEL : label.isBlank() ? BLANK_LABEL : label;
+   }
+
+   /** Exact, as {@code ChartPropertyService.isFormulaSupported} reads it. */
+   private static boolean isFormula(String value) {
+      return value != null && Arrays.asList(FORMULA_NAMES).contains(value);
+   }
+
+   /**
+    * The canonical formula name for what the caller typed. Case is noise, and the Composer's own
+    * menu labels ("Minimum", "Maximum") plus the usual spellings of average name exactly one
+    * formula each, so they are accepted; anything else is refused with the five names.
+    */
+   private static String formulaNamed(String text) {
+      if(text == null) {
+         return null;
+      }
+
+      String key = text.trim().toLowerCase();
+
+      return switch(key) {
+         case "average", "avg", "mean" -> "Average";
+         case "min", "minimum" -> "Min";
+         case "max", "maximum" -> "Max";
+         case "median" -> "Median";
+         case "sum" -> "Sum";
+         default -> null;
+      };
+   }
+
+   private static String requireFormula(String formula, String field) {
+      if(formula == null || formula.isBlank()) {
+         throw new IllegalArgumentException(
+            "'" + field + "' is required: one of " + String.join(", ", FORMULA_NAMES) + ".");
+      }
+
+      String name = formulaNamed(formula);
+
+      if(name == null) {
+         throw new IllegalArgumentException(
+            "'" + formula + "' is not a formula the Composer offers for a target line. Valid " +
+            "values: " + String.join(", ", FORMULA_NAMES) + ".");
+      }
+
+      return name;
+   }
+
+   /** A band boundary: a plain number or one of the five formula names, as the Band panel takes. */
+   private static String requireBoundary(String raw, String field) {
+      String text = raw == null ? "" : raw.trim();
+
+      if(text.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + field + "' is required for a band: a number, or one of " +
+            String.join(", ", FORMULA_NAMES) + ".");
+      }
+
+      String formula = formulaNamed(text);
+
+      if(formula != null) {
+         return formula;
+      }
+
+      if(!NUMERIC.matcher(text).matches() || !Double.isFinite(Double.parseDouble(text))) {
+         throw new IllegalArgumentException(
+            "'" + field + "' = '" + raw + "' is not a number or a formula name (" +
+            String.join(", ", FORMULA_NAMES) + "). A boundary that does not parse leaves the " +
+            "band with no geometry -- it saves, lists back, and draws nothing.");
+      }
+
+      return text;
+   }
+
+   private static IllegalArgumentException entireChartNeedsFormula(String what) {
+      return new IllegalArgumentException(
+         "'entireChart' only applies when the " + what + " uses a formula (" +
+         String.join(", ", FORMULA_NAMES) + "): the Composer greys the Entire Chart box out for " +
+         "fixed numbers, so there is nothing for it to widen. Omit it, or give a formula.");
+   }
+
+   /**
+    * The Statistics panel's computation names, as {@code ChartPropertyService.getComputation}
+    * dispatches on them. Percentage is the panel's fifth entry and is deliberately not offered
+    * here: it needs a second field (what the percentage is of) nobody has asked to set.
+    */
+   private static String requireStatistic(String statistic) {
+      if(statistic == null || statistic.isBlank()) {
+         throw new IllegalArgumentException(
+            "'statistic' is required: standard_deviation, confidence_interval, percentiles or " +
+            "quantiles.");
+      }
+
+      String key = statistic.trim().toLowerCase().replaceAll("[\\s_-]+", "");
+
+      return switch(key) {
+         case "standarddeviation", "stddev", "stdev", "sd", "standarddeviations" -> STD_DEVIATION;
+         case "confidenceinterval", "ci", "confidencelevel" -> CONFIDENCE_INTERVAL;
+         case "percentile", "percentiles" -> PERCENTILES;
+         case "quantile", "quantiles" -> QUANTILES;
+         case "percentage", "percentages" -> throw new IllegalArgumentException(
+            "The 'percentage' computation is not supported here. Valid statistics: " +
+            "standard_deviation, confidence_interval, percentiles, quantiles.");
+         default -> throw new IllegalArgumentException(
+            "'" + statistic + "' is not a statistic. Valid values: standard_deviation, " +
+            "confidence_interval, percentiles, quantiles.");
+      };
+   }
+
+   /** The API spelling of a computation name. */
+   private static String statisticToken(String computation) {
+      return computation.toLowerCase().replace(' ', '_').replace("-", "_");
+   }
+
+   /**
+    * The computation's parameter, held to the same rules as the Composer's computation dialog
+    * ({@code ComputationDialog.isValueValid}) and normalized to the comma-joined form it stores.
+    * A null/blank value takes the default the Composer's own list offers on picking that
+    * computation. Variables and expressions ({@code $(x)}, {@code =expr}) are not accepted.
+    */
+   private static String requireStatisticValue(String computation, String value) {
+      String text = value == null ? "" : value.trim();
+
+      if(text.isEmpty()) {
+         return switch(computation) {
+            case CONFIDENCE_INTERVAL -> "95";
+            case PERCENTILES -> "50";
+            case QUANTILES -> "4";
+            default -> "-1,1";
+         };
+      }
+
+      String token = statisticToken(computation);
+
+      switch(computation) {
+      case CONFIDENCE_INTERVAL -> {
+         if(!UNSIGNED.matcher(text).matches() || Double.parseDouble(text) <= 0 ||
+            Double.parseDouble(text) >= 100)
+         {
+            throw new IllegalArgumentException(
+               "'" + value + "' is not a valid confidence level for " + token + ": give a " +
+               "number strictly between 0 and 100 (95).");
+         }
+
+         return text;
+      }
+      case QUANTILES -> {
+         if(!DIGITS.matcher(text).matches() || Integer.parseInt(text) < 2 ||
+            Integer.parseInt(text) > 10)
+         {
+            throw new IllegalArgumentException(
+               "'" + value + "' is not a valid number of quantiles: give a whole number from 2 " +
+               "to 10 (4 for quartiles).");
+         }
+
+         return text;
+      }
+      default -> {
+         boolean percentiles = PERCENTILES.equals(computation);
+         List<String> parts = new ArrayList<>();
+
+         for(String part : text.split(",", -1)) {
+            String item = part.trim();
+            boolean valid = percentiles
+               ? UNSIGNED.matcher(item).matches() && Double.parseDouble(item) > 0 &&
+                 Double.parseDouble(item) <= 100
+               : SIGNED.matcher(item).matches();
+
+            if(!valid) {
+               throw new IllegalArgumentException(
+                  "'" + value + "' is not a valid value for " + token + ": give a comma-" +
+                  "separated list of " + (percentiles
+                     ? "numbers above 0 and up to 100 (50 or 25,50,75)."
+                     : "plain numbers, negatives allowed (-1,1 or 2)."));
+            }
+
+            parts.add(item);
+         }
+
+         return String.join(",", parts);
+      }
+      }
    }
 
    private static String normalizeLineStyle(String lineStyle) {
@@ -559,11 +944,46 @@ public class ChartTargetLineService {
       ColorInfo color = target.getLineColor();
       out.put("lineColor", color == null ? null : color.getColor());
 
+      // Where the Targets tab's "Entire Chart" box is stored: true computes a formula or
+      // statistic over the whole chart, false once per facet panel.
+      out.put("entireChart", target.isChartScope());
+
+      if(target.getTabFlag() == TargetInfo.LINE_TARGET) {
+         out.put("formula", isFormula(target.getValue()) ? target.getValue() : null);
+      }
+      else if(target.getTabFlag() == TargetInfo.BAND_TARGET) {
+         out.put("toValue", target.getToValue());
+         out.put("fromFormula", isFormula(target.getValue()) ? target.getValue() : null);
+         out.put("toFormula", isFormula(target.getToValue()) ? target.getToValue() : null);
+         out.put("toLabel", target.getToLabel());
+         ColorInfo fill = target.getFillBandColor();
+         out.put("fillColor", fill == null || fill.getColor() == null || fill.getColor().isEmpty()
+            ? null : fill.getColor());
+      }
+      else if(target.getTabFlag() == TargetInfo.STATISTICS_TARGET) {
+         StrategyInfo strategy = target.getStrategyInfo();
+
+         if(strategy != null && strategy.getName() != null) {
+            out.put("statistic", statisticToken(strategy.getName()));
+            out.put("statisticValue", strategy.getValue());
+
+            if(STD_DEVIATION.equals(strategy.getName())) {
+               out.put("sample", "true".equals(strategy.getStandardIsSample()));
+            }
+            else if(PERCENTAGE.equals(strategy.getName())) {
+               out.put("aggregate", strategy.getPercentageAggregateVal());
+            }
+         }
+
+         out.put("labelFormats", target.getLabelFormats());
+      }
+
       if(target.getTabFlag() != TargetInfo.LINE_TARGET) {
          out.put("editable", false);
-         out.put("note", "Band and statistics targets are read-only here -- this tool writes " +
-                         "fixed-value lines. The index is still what remove_chart_target_line " +
-                         "takes. Use the Composer's Targets tab to edit it.");
+         out.put("note", "Band and statistics targets cannot be edited in place by these tools. " +
+                         "The index is still what remove_chart_target_line takes; to change one, " +
+                         "remove it and add it again with add_chart_target (kind band or " +
+                         "statistics), or edit it in the Composer's Targets tab.");
       }
 
       return out;
@@ -725,6 +1145,15 @@ public class ChartTargetLineService {
    private static final Pattern NUMERIC =
       Pattern.compile("[+-]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?");
    private static final Pattern HEX_COLOR = Pattern.compile("#[0-9a-fA-F]{6}");
+   private static final Pattern UNSIGNED = Pattern.compile("[0-9]+(\\.[0-9]+)?");
+   private static final Pattern SIGNED = Pattern.compile("-?[0-9]+(\\.[0-9]+)?");
+   private static final Pattern DIGITS = Pattern.compile("[0-9]+");
+   /** {@code ChartPropertyService.getComputation}'s names for the Statistics panel. */
+   private static final String STD_DEVIATION = "Standard Deviation";
+   private static final String CONFIDENCE_INTERVAL = "Confidence Interval";
+   private static final String PERCENTILES = "Percentiles";
+   private static final String QUANTILES = "Quantiles";
+   private static final String PERCENTAGE = "Percentage";
 
    /** The {@code GraphConstants} line styles, named. Insertion order is the listed order. */
    static final Map<String, Integer> LINE_STYLES;
