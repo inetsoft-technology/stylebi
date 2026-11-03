@@ -4873,13 +4873,17 @@ public class WorksheetAgentController {
             scratchQuery, new VariableTable(), sqlTable, metaSession, null);
 
          if(columns == null || columns.getAttributeCount() == 0) {
-            if(sql.getParseResult() == UniformSQL.PARSE_FAILED) {
-               String wildcardMsg = wildcardOverRawTextPlaceholderMessage(expression);
+            String wildcardMsg = wildcardOverRawTextPlaceholderMessage(expression);
 
-               if(wildcardMsg != null) {
-                  throw new PairingException(wildcardMsg);
-               }
+            if(wildcardMsg != null) {
+               throw new PairingException(wildcardMsg);
+            }
 
+            // Bug #80023, an unresolved wildcard (e.g. its table doesn't exist) forces
+            // getParseResult() to PARSE_FAILED too (Bug #77617), so that alone no longer
+            // tells a genuine grammar failure apart from this case; fall through to the
+            // driver-error/generic branch below instead of the syntax-error message.
+            if(sql.getParseResult() == UniformSQL.PARSE_FAILED && !sql.isWildcardUnresolved()) {
                throw new PairingException(
                   "SQL could not be parsed — check syntax (punctuation, keywords, clause structure).");
             }
@@ -6471,13 +6475,17 @@ public class WorksheetAgentController {
             query, new VariableTable(), assembly, metaSession, null);
 
          if(columns == null || columns.getAttributeCount() == 0) {
-            if(sql.getParseResult() == UniformSQL.PARSE_FAILED) {
-               String wildcardMsg = wildcardOverRawTextPlaceholderMessage(body.sql());
+            String wildcardMsg = wildcardOverRawTextPlaceholderMessage(body.sql());
 
-               if(wildcardMsg != null) {
-                  throw new PairingException(wildcardMsg);
-               }
+            if(wildcardMsg != null) {
+               throw new PairingException(wildcardMsg);
+            }
 
+            // Bug #80023, an unresolved wildcard (e.g. its table doesn't exist) forces
+            // getParseResult() to PARSE_FAILED too (Bug #77617), so that alone no longer
+            // tells a genuine grammar failure apart from this case; fall through to the
+            // driver-error/generic branch below instead of the syntax-error message.
+            if(sql.getParseResult() == UniformSQL.PARSE_FAILED && !sql.isWildcardUnresolved()) {
                throw new PairingException(
                   "SQL could not be parsed — check syntax (punctuation, keywords, clause structure).");
             }

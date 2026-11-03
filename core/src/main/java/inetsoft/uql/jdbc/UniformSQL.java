@@ -5332,6 +5332,23 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Check whether a wildcard in this sql's selection couldn't be expanded because a
+    * referenced table/column wasn't found (as opposed to a genuine grammar parse failure),
+    * which also forces {@link #getParseResult()} to {@link #PARSE_FAILED} (Bug #77617).
+    */
+   public synchronized boolean isWildcardUnresolved() {
+      return wildcardUnresolved;
+   }
+
+   /**
+    * Set whether a wildcard in this sql's selection couldn't be expanded because a
+    * referenced table/column wasn't found.
+    */
+   public synchronized void setWildcardUnresolved(boolean wildcardUnresolved) {
+      this.wildcardUnresolved = wildcardUnresolved;
+   }
+
+   /**
     * Check whether the query string should be parsed into structured view.
     */
    public boolean isParseSQL() {
@@ -6364,6 +6381,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private transient UniformSQL outerSQL; // the query of a condition subquery, see getOuterSQL
    private XField[] columns = null;
    private int parseResult = PARSE_INIT;
+   // a wildcard that couldn't be expanded forced parseResult to PARSE_FAILED (Bug #77617)
+   // even though the grammar parse itself succeeded; set alongside, not instead of,
+   // parseResult so existing PARSE_FAILED consumers are unaffected (Bug #80023)
+   private boolean wildcardUnresolved = false;
    private XNode root;
    private boolean parseIt = true; // whether to parse the sql string
    private Map<String, Object> hints = new HashMap<>();

@@ -182,16 +182,20 @@ public class JDBCUtil {
          // sql. The sql runs as written and is never regenerated from the selection (merge, vpm
          // and the cache normalizer check the parse). Vpm can't narrow a wildcard of a table.
          int result = sql.getParseResult();
+         boolean wildcardUnresolved = (!expanded[0] || hasWildcard(sql)) && sql.hasSQLString() &&
+            (result == UniformSQL.PARSE_SUCCESS || result == UniformSQL.PARSE_PARTIALLY);
 
-         if((!expanded[0] || hasWildcard(sql)) && sql.hasSQLString() &&
-            (result == UniformSQL.PARSE_SUCCESS || result == UniformSQL.PARSE_PARTIALLY))
-         {
+         if(wildcardUnresolved) {
             LOG.debug("The columns of a wildcard are unknown, the sql is not parsed: {}",
                       sql.getSQLString());
             sql.setParseResult(UniformSQL.PARSE_FAILED);
             // as an unexpandable wildcard, it isn't kept for a regeneration to write
             removeWildcards(sql);
          }
+
+         // Bug #80023, distinguish this case from a genuine grammar parse failure for the
+         // two callers that need to pick a user-facing message; doesn't change parseResult
+         sql.setWildcardUnresolved(wildcardUnresolved);
       }
    }
 
