@@ -358,7 +358,7 @@ public class MapGenerator extends MergedGraphGenerator {
             String fld = var != null ? var.substring(0, var.length() - postfix.length()) : null;
             GeoShapeFrame frame = MapData.createShapeFrame(fld);
             elems[i].setShapeFrame(frame);
-            elems[i].setHint(PolygonElement.HINT_COLOR_AGGREGATE, getPolygonColorAggregate());
+            elems[i].setHint(PolygonElement.HINT_COLOR_AGGREGATE, getPolygonColorAggregate(fld));
          }
          else if(elems[i] instanceof LineElement) {
             pointAdded = true;
@@ -540,9 +540,10 @@ public class MapGenerator extends MergedGraphGenerator {
     * the already aggregated rows are supported (Sum, Count: add; Max, Min: max, min). For any
     * other formula (e.g. Average, DistinctCount, Median) null is returned and the polygon keeps
     * using the color of its first row.
+    * @param mappedGeoName the mapped geo field name of the polygon element being set up.
     * @return "Sum", "Count", "Max", "Min", or null if no aggregation should be applied.
     */
-   private String getPolygonColorAggregate() {
+   private String getPolygonColorAggregate(String mappedGeoName) {
       if(!desc.getPlotDescriptor().isPolygonColor()) {
          return null;
       }
@@ -554,11 +555,21 @@ public class MapGenerator extends MergedGraphGenerator {
          ref = colorField.getDataRef();
       }
 
-      GeoRef polyRef = GraphUtil.getPolygonField(getMapInfo());
-
+      // a calculator (running total, moving average, etc.) can't be re-aggregated by adding
       if(colorField == null || !colorField.isMeasure() || !(ref instanceof XAggregateRef) ||
-         polyRef == null)
+         ref instanceof ChartAggregateRef && ((ChartAggregateRef) ref).getCalculator() != null)
       {
+         return null;
+      }
+
+      // decide from the layer of this polygon element, not the first polygon field on the shelf
+      GeoRef polyRef = Arrays.stream(getMapInfo().getRTGeoFields())
+         .filter(r -> r instanceof GeoRef)
+         .map(r -> (GeoRef) r)
+         .filter(r -> (GraphUtil.MAPPED_HEADER_PREFIX + r.getName()).equals(mappedGeoName))
+         .findFirst().orElse(null);
+
+      if(polyRef == null) {
          return null;
       }
 

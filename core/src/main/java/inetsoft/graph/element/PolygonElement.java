@@ -179,16 +179,21 @@ public class PolygonElement extends GraphElement {
          }
 
          double[] tuple = scale(data, i, 0, graph);
-         Object val = data.getData(col, i);
 
-         if(tuple == null || !(val instanceof Number)) {
+         if(tuple == null) {
             continue;
          }
 
+         // every row of the polygon maps to its aggregate, including rows with a null measure,
+         // since the geometry is built from the first row regardless of its value
          String key = Arrays.toString(tuple);
+         Object val = data.getData(col, i);
          rowKeys.put(i, key);
-         aggs.merge(key, ((Number) val).doubleValue(), (a, b) -> "Max".equals(formula) ?
-            Math.max(a, b) : "Min".equals(formula) ? Math.min(a, b) : a + b);
+
+         if(val instanceof Number && !Double.isNaN(((Number) val).doubleValue())) {
+            aggs.merge(key, ((Number) val).doubleValue(), (a, b) -> "Max".equals(formula) ?
+               Math.max(a, b) : "Min".equals(formula) ? Math.min(a, b) : a + b);
+         }
       }
 
       if(aggs.isEmpty()) {
@@ -199,7 +204,7 @@ public class PolygonElement extends GraphElement {
          @Override
          protected Object getData0(int c, int row) {
             String key = c == col ? rowKeys.get(row) : null;
-            return key != null ? aggs.get(key) : super.getData0(c, row);
+            return key != null && aggs.containsKey(key) ? aggs.get(key) : super.getData0(c, row);
          }
       };
 
