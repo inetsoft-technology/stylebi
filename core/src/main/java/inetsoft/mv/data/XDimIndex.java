@@ -277,6 +277,15 @@ public abstract class XDimIndex extends XSwappable {
    }
 
    /**
+    * Check if a condition value is the code of a value that is not in the dictionary. The
+    * dictionary maps such a value to a negative insertion code, which is not a key of this index.
+    * Dimension indexes keyed by dictionary index override this.
+    */
+   protected boolean isAbsentKey(long val) {
+      return false;
+   }
+
+   /**
     * Get the bit set for the specified operation and value.
     */
    public BitSet getRows(String op, long val, boolean not, boolean cnull) {
@@ -287,6 +296,13 @@ public abstract class XDimIndex extends XSwappable {
             res = getRows(val, cnull);
          }
          else {
+            // an absent value is not equal to any row, so every non-null row matches. The range
+            // api below would take its negative code as a position and return null rows too.
+            if("=".equals(op) && isAbsentKey(val)) {
+               // not getAllRows(): DictDimIndex.getAllRows() is positional, not by key
+               return getRows(Integer.MIN_VALUE, true, Integer.MIN_VALUE, true, cnull);
+            }
+
             // @by billh, handle the case: column is not null
             cnull = ("null".equals(op)) ? false : cnull;
             BitSet set1 = getRows(Integer.MIN_VALUE, true, val, false, cnull);

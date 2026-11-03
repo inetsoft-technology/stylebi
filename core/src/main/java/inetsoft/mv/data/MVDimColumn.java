@@ -43,6 +43,17 @@ public final class MVDimColumn extends DictDimIndex implements XMVColumn {
    }
 
    /**
+    * The keys of a dimension column are dictionary indices (>= 0), so a negative condition value
+    * (other than the range api's open-end marker) is a value absent from the dictionary. Not
+    * inherited from DictDimIndex: MVIntColumn is a measure whose condition values are
+    * double bit patterns, negative for every negative number.
+    */
+   @Override
+   protected boolean isAbsentKey(long val) {
+      return val < 0 && val != Integer.MIN_VALUE;
+   }
+
+   /**
     * Set the number of items in the column.
     */
    public void setRowCount(int rcnt) {
