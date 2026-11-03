@@ -308,7 +308,8 @@ public class AssemblyHighlightService {
       if(box != null) {
          VariableOperandCheck.check(
             build(highlight, model).getVsConditionDialogModel().getConditionList(),
-            box.getAllVariables(), false, warnings);
+            box.getAllVariables(), VariableOperandCheck.declaredNames(box), false,
+            warnings);
       }
    }
 
