@@ -22,6 +22,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
@@ -29,6 +30,7 @@ import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
+import inetsoft.util.Tool;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Point;
+import java.io.ByteArrayInputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -149,5 +155,115 @@ class ViewsheetReadServiceTest {
       assertEquals(List.of("ListB", "ListA"), node.children());
       assertNull(model.assemblies().stream()
                     .filter(a -> "ListA".equals(a.name())).findFirst().orElseThrow().children());
+   }
+
+   /**
+    * An embedded Viewsheet's referenced dashboard is read from {@code Viewsheet.getEntry()}, the
+    * field {@code add_assembly} sets (via {@code Viewsheet.setEntry}), never from
+    * {@code ViewsheetVSAssemblyInfo}, which stays empty on the live assembly.
+    */
+   @Test
+   void embeddedViewsheetReportsItsGlobalDashboardPathAndScope() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(embed("Embed1", new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Sales", null)));
+
+      AssemblyNode node = nodeOf(vs, "Embed1");
+
+      assertEquals("Viewsheet", node.type());
+      assertEquals("Reports/Sales", node.embeddedPath());
+      assertEquals("global", node.embeddedScope());
+   }
+
+   /** A user dashboard and a global one can share a path, so the scope must tell them apart. */
+   @Test
+   void embeddedViewsheetReportsUserScope() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(embed("Embed1", new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Sales",
+         new IdentityID("alice", "host-org"))));
+
+      AssemblyNode node = nodeOf(vs, "Embed1");
+
+      assertEquals("Reports/Sales", node.embeddedPath());
+      assertEquals("user", node.embeddedScope());
+   }
+
+   /** A scope the tools never create is named, not silently reported as global. */
+   @Test
+   void embeddedViewsheetNamesAnUnexpectedScopeInsteadOfDefaultingToGlobal() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(embed("Embed1", new AssetEntry(
+         AssetRepository.REPORT_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Sales", null)));
+      vs.addAssembly(embed("Embed2", new AssetEntry(
+         AssetRepository.REPOSITORY_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Sales", null)));
+
+      assertEquals("report", nodeOf(vs, "Embed1").embeddedScope());
+      assertEquals("scope-" + AssetRepository.REPOSITORY_SCOPE,
+                   nodeOf(vs, "Embed2").embeddedScope());
+   }
+
+   /** An embed with no entry reports null, not empty strings and not "global". */
+   @Test
+   void embeddedViewsheetWithoutAnEntryReportsNothing() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(embed("Embed1", null));
+
+      AssemblyNode node = nodeOf(vs, "Embed1");
+
+      assertNull(node.embeddedPath());
+      assertNull(node.embeddedScope());
+   }
+
+   /** Only an embedded Viewsheet carries the fields. */
+   @Test
+   void nonEmbeddedAssembliesReportNoEmbeddedFields() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new TextVSAssembly(vs, "Text1"));
+
+      AssemblyNode node = nodeOf(vs, "Text1");
+
+      assertNull(node.embeddedPath());
+      assertNull(node.embeddedScope());
+   }
+
+   /** The entry survives save and reopen, so the read-back is not session-local. */
+   @Test
+   void embeddedViewsheetPathAndScopeSurviveASaveAndReload() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(embed("Embed1", new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Sales",
+         new IdentityID("alice", "host-org"))));
+
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      writer.println("<viewsheet>");
+      vs.writeXML(writer);
+      writer.println("</viewsheet>");
+      writer.flush();
+      Viewsheet reloaded = new Viewsheet();
+      reloaded.parseXML(Tool.parseXML(new ByteArrayInputStream(
+         buffer.toString().getBytes(StandardCharsets.UTF_8))).getDocumentElement(), false);
+
+      AssemblyNode node = nodeOf(reloaded, "Embed1");
+
+      assertEquals("Reports/Sales", node.embeddedPath());
+      assertEquals("user", node.embeddedScope());
+   }
+
+   /** Built the way {@code ComposerObjectService.addEmbeddedViewsheet} does. */
+   private static Viewsheet embed(String name, AssetEntry entry) {
+      Viewsheet embedded = new Viewsheet();
+      embedded.createVSAssembly(name);
+      embedded.setEntry(entry);
+      return embedded;
+   }
+
+   private static AssemblyNode nodeOf(Viewsheet vs, String name) {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      return new ViewsheetReadService().read(rvs).assemblies().stream()
+         .filter(a -> name.equals(a.name())).findFirst().orElseThrow();
    }
 }

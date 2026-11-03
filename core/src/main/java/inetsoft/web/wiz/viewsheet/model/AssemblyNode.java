@@ -33,18 +33,34 @@ import java.util.List;
  *
  * <p>{@code children} is populated only on a Selection Container, naming its children in display
  * order; the flat assembly list carries no such order, and a reorder cannot be checked without it.
+ *
+ * <p>{@code embeddedPath} and {@code embeddedScope} are populated only on an embedded Viewsheet
+ * that references a saved dashboard, naming that dashboard's repository path and scope
+ * ({@code "global"}, {@code "user"}, or {@code "report"} / {@code "scope-<n>"} for any other
+ * scope). {@code embeddedScope} reuses the vocabulary {@code add_assembly} accepts, because a user
+ * dashboard and a global one can share a path. Both are null on every other node.
  */
 public record AssemblyNode(String name, String type, int x, int y, int width, int height,
                            int zIndex, String container, boolean visible,
                            List<String> annotationParts, String annotationContent,
-                           String selectedPage, List<String> children) {
+                           String selectedPage, List<String> children,
+                           String embeddedPath, String embeddedScope) {
+   public AssemblyNode(String name, String type, int x, int y, int width, int height,
+                       int zIndex, String container, boolean visible,
+                       List<String> annotationParts, String annotationContent,
+                       String selectedPage, List<String> children)
+   {
+      this(name, type, x, y, width, height, zIndex, container, visible, annotationParts,
+           annotationContent, selectedPage, children, null, null);
+   }
+
    public AssemblyNode(String name, String type, int x, int y, int width, int height,
                        int zIndex, String container, boolean visible,
                        List<String> annotationParts, String annotationContent,
                        String selectedPage)
    {
       this(name, type, x, y, width, height, zIndex, container, visible, annotationParts,
-           annotationContent, selectedPage, null);
+           annotationContent, selectedPage, null, null, null);
    }
 
    public AssemblyNode(String name, String type, int x, int y, int width, int height,
@@ -52,12 +68,13 @@ public record AssemblyNode(String name, String type, int x, int y, int width, in
                        List<String> annotationParts, String annotationContent)
    {
       this(name, type, x, y, width, height, zIndex, container, visible, annotationParts,
-           annotationContent, null, null);
+           annotationContent, null, null, null, null);
    }
 
    public AssemblyNode(String name, String type, int x, int y, int width, int height,
                        int zIndex, String container, boolean visible)
    {
-      this(name, type, x, y, width, height, zIndex, container, visible, null, null, null, null);
+      this(name, type, x, y, width, height, zIndex, container, visible, null, null, null, null, null,
+           null);
    }
 }
