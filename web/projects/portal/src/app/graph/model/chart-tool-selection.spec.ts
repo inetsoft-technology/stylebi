@@ -110,7 +110,7 @@ describe("drawRegions chrome selection outline", () => {
    // a canvas inside an assembly wrapper that defines the selection-border token
    function tokenCanvas(): HTMLCanvasElement {
       host = document.createElement("div");
-      host.style.setProperty("--inet-viz-selected-border", TOKEN);
+      host.style.setProperty("--inet-viz-assembly-outline", TOKEN);
       const canvas = document.createElement("canvas");
       host.appendChild(canvas);
       document.body.appendChild(host);

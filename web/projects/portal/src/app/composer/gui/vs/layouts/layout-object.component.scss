@@ -50,7 +50,7 @@ span.wrapper {
 }
 
 .active .object {
-  border: 2px dotted var(--inet-viz-selected-border);
+  border: 2px dotted var(--inet-viz-assembly-outline);
 }
 
 // .viz-modern/.viz-dark live on an intermediate .object-container ancestor of .object

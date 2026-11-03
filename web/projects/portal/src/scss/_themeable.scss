@@ -110,7 +110,7 @@ body {
 }
 
 .bd-selected-cell {
-  border: 2px solid var(--inet-viz-selected-border) !important;
+  border: 2px solid var(--inet-viz-assembly-outline) !important;
 }
 
 .bd-selected-assembly {
@@ -130,7 +130,7 @@ body {
 .viz-modern.bd-selected-assembly,
 .viz-dark.bd-selected-assembly {
   border: none !important;
-  outline: 2px dashed var(--inet-viz-selected-border);
+  outline: 2px dashed var(--inet-viz-assembly-outline);
 }
 
 .bd-highlight-med-filler {
@@ -1359,7 +1359,7 @@ wizard-binding-tree .bg-node-selected {
 // Selection binds to the shipped focus family: a selection is a focus state, and #dc581e was an
 // orphan orange in no palette. --inet-focus-ring-color is already the primary at ~30% alpha, which
 // is what the old fill was approximating. drawRegions reads `color` as its fill and `border-color`
-// as its stroke from this rule's computed style. Chrome areas take --inet-viz-selected-border instead.
+// as its stroke from this rule's computed style. Chrome areas take --inet-viz-assembly-outline instead.
 .viz-modern .chart-object-canvas {
   color: var(--inet-focus-ring-color);
   border-color: var(--inet-primary-color);

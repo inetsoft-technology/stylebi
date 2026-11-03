@@ -327,6 +327,7 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-viz-selected-bg-modern", color: true},
       {name: "--inet-viz-selected-text-modern", color: true},
       {name: "--inet-viz-selected-border-modern", color: true},
+      {name: "--inet-viz-assembly-outline-modern", color: true},
       {name: "--inet-viz-sorted-color-modern", color: true},
 
       // script editor

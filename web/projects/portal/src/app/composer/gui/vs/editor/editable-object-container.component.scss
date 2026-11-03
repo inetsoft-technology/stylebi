@@ -146,7 +146,7 @@
 }
 
 .active .object  {
-  outline: 2px dotted var(--inet-viz-selected-border);
+  outline: 2px dotted var(--inet-viz-assembly-outline);
 }
 
 // Modern/dark objects switch to the dashed treatment; legacy objects keep the

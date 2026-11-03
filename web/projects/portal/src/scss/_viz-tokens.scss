@@ -35,6 +35,7 @@
   --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
   --inet-viz-selected-text: var(--inet-selected-item-text-color);
   --inet-viz-selected-border: var(--inet-primary-color);
+  --inet-viz-assembly-outline: var(--inet-viz-selected-border);
   --inet-viz-active-border: var(--inet-primary-color);
   --inet-viz-context-bg: var(--inet-shell-surface-subtle);
   --inet-viz-inline-edit-bg: var(--inet-shell-surface-default);
@@ -51,6 +52,7 @@
   --inet-viz-selected-bg-modern: #DDF1F5;
   --inet-viz-selected-text-modern: #123C44;
   --inet-viz-selected-border-modern: #BFDDE5;
+  --inet-viz-assembly-outline-modern: #2F7F93;
   --inet-viz-sorted-color-modern: #8C5510;
 
   // customer-overridable dark state colors, mirroring the -modern seam; consumed only inside
@@ -64,6 +66,7 @@
   // form getComputedStyle returns for a color-mix(), and drops it without error.
   --inet-viz-selected-fill-dark: rgba(168, 238, 245, 0.28);
   --inet-viz-selected-border-dark: #2DD4BF;
+  --inet-viz-assembly-outline-dark: #2DD4BF;
   // An alias, not a literal like its neighbours above: a hex here would keep drawing the old
   // orange after a customer rebrands primary. An override of this token still wins.
   --inet-viz-active-border-dark: var(--inet-primary-color-dark);
@@ -125,6 +128,17 @@
   // --inet-viz-dimmed-opacity keeps the :root value (0.5); no modern override.
 }
 
+// unmarked assemblies on an org-gated page keep the old outline; a var() resolves where it is declared
+.viz-shell {
+  --inet-viz-assembly-outline: var(--inet-viz-selected-border-modern);
+}
+
+// marked assemblies take the stronger outline; after .viz-shell so it wins on source order
+.viz-modern,
+[data-viz-theme="v2"] {
+  --inet-viz-assembly-outline: var(--inet-viz-assembly-outline-modern);
+}
+
 // Modern density matrices (DOM surfaces only). Legacy :root defaults above stay unchanged, so
 // gate-off is byte-identical. The density class (viz-density-<mode>) is carried per assembly on
 // the object wrapper next to .viz-modern, resolved server-side from that assembly's dashboard;
@@ -172,6 +186,16 @@
 // body carries viz-shell + viz-density-<mode> + viz-shell-dark instead. This block follows the
 // .viz-modern blocks so its selector wins on source order. Density stays driven by the
 // .viz-density-* matrices above; only color changes here.
+// unmarked assemblies on an org-gated dark page keep the old dark outline; a var() resolves where it is declared
+.viz-shell-dark {
+  --inet-viz-assembly-outline: var(--inet-viz-selected-border-dark);
+}
+
+// marked dark assemblies take the new outline; after .viz-shell-dark so it wins on source order
+.viz-dark {
+  --inet-viz-assembly-outline: var(--inet-viz-assembly-outline-dark);
+}
+
 .viz-dark,
 .viz-shell-dark {
   --inet-viz-hover-bg: var(--inet-viz-hover-bg-dark);
