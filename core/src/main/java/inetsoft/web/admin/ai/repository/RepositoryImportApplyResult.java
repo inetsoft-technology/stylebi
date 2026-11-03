@@ -20,15 +20,19 @@ package inetsoft.web.admin.ai.repository;
 import java.util.List;
 
 /**
- * Result of {@code POST .../import/apply}. {@code status} is {@code "applied"} or {@code
- * "failed"} only -- import has no live inverse in this cut (01-design.md section 6: {@code
+ * Result of {@code POST .../import/apply}. {@code status} is {@code "applied"} (the import
+ * finished), {@code "failed"}, or {@code "in-progress"} (the import is still running, or its
+ * state could not be determined, when the apply wait ended; {@code transactionId} identifies the
+ * audit record). Import has no live inverse in this cut (01-design.md section 6: {@code
  * DeployService.importAsset} is not decomposed into independently-undoable steps the way a
  * multi-entry properties/schedule plan is), so there is no {@code "rolled-back"}/{@code
- * "rollback-failed"} status the way {@code AdminChangesetApplyService}'s own {@code ApplyResult}
- * has -- the Tier-2 snapshot taken for this apply (backupRef) is the only recovery path.
+ * "rollback-failed"} status. {@code backupRef} is the Tier-2 snapshot taken for an overwriting
+ * apply and is {@code null} when the apply did not overwrite. {@code warnings} carries the import
+ * warnings (e.g. secrets that could not be decrypted); a warning does not fail the import.
  */
 public record RepositoryImportApplyResult(String transactionId, String status, String backupRef,
                                           List<String> failedAssets,
-                                          List<String> ignoreUserAssets)
+                                          List<String> ignoreUserAssets,
+                                          List<String> warnings)
 {
 }

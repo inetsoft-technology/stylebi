@@ -60,6 +60,17 @@ public interface SelectedAssetModel {
    @Nullable
    String appliedTargetLabel();
 
+   /**
+    * Unscoped repository path the asset is imported to when the import is retargeted to a
+    * target folder, null when there is no retarget.
+    */
+   @Nullable
+   String appliedTargetPath();
+
+   /** Owner of the retargeted destination, null for global scope or when not retargeted. */
+   @Nullable
+   IdentityID appliedTargetUser();
+
    static Builder builder() {
       return new Builder();
    }

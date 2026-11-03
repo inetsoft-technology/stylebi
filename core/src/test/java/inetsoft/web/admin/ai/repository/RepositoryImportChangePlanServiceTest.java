@@ -17,13 +17,22 @@
  */
 package inetsoft.web.admin.ai.repository;
 
+import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.content.repository.ImportAssetServiceProxy;
 import inetsoft.web.admin.content.repository.StagedImportNotFoundException;
+import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
 import inetsoft.web.admin.content.repository.model.RequiredAssetModel;
+import inetsoft.web.admin.content.repository.model.SelectedAssetModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.Answers;
+import org.mockito.MockedStatic;
+import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.List;
@@ -33,6 +42,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.withSettings;
 import static org.mockito.Mockito.when;
 
 @Tag("core")
@@ -152,5 +163,90 @@ class RepositoryImportChangePlanServiceTest {
          IllegalArgumentException.class, () -> apply.apply(req, principal));
       assertTrue(e.getMessage().startsWith(DESIGNED), e.getMessage());
       org.mockito.Mockito.verifyNoInteractions(backup);
+   }
+
+   // ---- Bug #80093: willOverwrite/willCreate follow the retargeted destination ----
+
+   private static SelectedAssetModel worksheet(String path, String targetPath,
+                                               IdentityID targetUser)
+   {
+      SelectedAssetModel.Builder b = SelectedAssetModel.builder().path(path).label(path)
+         .type(RepositoryEntry.WORKSHEET).typeName("WORKSHEET").typeLabel("Worksheet");
+
+      if(targetPath != null) {
+         b.appliedTargetPath(targetPath).appliedTargetUser(targetUser);
+      }
+
+      return b.build();
+   }
+
+   private RepositoryImportPlan resolveWith(SelectedAssetModel model, AssetRepository repo)
+      throws Exception
+   {
+      RepositoryImportChangePlanService svc = new RepositoryImportChangePlanService(importService, repo);
+      when(importService.getJarFileInfo(eq("tok"), any())).thenReturn(
+         ExportedAssetsModel.builder().selectedEntities(List.of(model))
+            .dependentAssets(List.of()).build());
+      RepositoryImportRequest req = request(null);
+      req.setStagingToken("tok");
+
+      try(MockedStatic<Tool> tool = mockStatic(Tool.class, withSettings().strictness(
+         Strictness.LENIENT).defaultAnswer(Answers.CALLS_REAL_METHODS)))
+      {
+         tool.when(() -> Tool.encryptPassword(anyString())).thenAnswer(inv -> "TKN:" + inv.getArgument(0));
+         return svc.resolve(req, principal);
+      }
+   }
+
+   private static AssetRepository repoHolding(int scope, String path, IdentityID user)
+      throws Exception
+   {
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.getAssetEntry(any())).thenAnswer(inv -> {
+         AssetEntry e = inv.getArgument(0);
+         boolean match = e.getScope() == scope && e.getPath().equals(path) &&
+            java.util.Objects.equals(e.getUser(), user);
+         return match ? e : null;
+      });
+      return repo;
+   }
+
+   @Test
+   void noRetargetUsesTheRecordedPath() throws Exception {
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", null, null),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "A/ws", null));
+      assertEquals(1, plan.willOverwrite().size());
+      assertTrue(plan.willCreate().isEmpty());
+      assertTrue(plan.acknowledgeOverwriteRequired());
+   }
+
+   @Test
+   void globalRetargetChecksTheDestinationNotTheOriginalPath() throws Exception {
+      // only the ORIGINAL path exists, the import lands in Target/A/ws, so nothing is overwritten
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", "Target/A/ws", null),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "A/ws", null));
+      assertTrue(plan.willOverwrite().isEmpty());
+      assertEquals(1, plan.willCreate().size());
+      assertFalse(plan.acknowledgeOverwriteRequired());
+   }
+
+   @Test
+   void globalRetargetOntoAnExistingAssetIsAnOverwrite() throws Exception {
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", "Target/A/ws", null),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "Target/A/ws", null));
+      assertEquals(1, plan.willOverwrite().size());
+      assertTrue(plan.acknowledgeOverwriteRequired());
+   }
+
+   @Test
+   void userScopeRetargetChecksTheTargetOwnersScope() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", "Target/A/ws", bob),
+         repoHolding(AssetRepository.USER_SCOPE, "Target/A/ws", bob));
+      assertEquals(1, plan.willOverwrite().size());
+
+      RepositoryImportPlan other = resolveWith(worksheet("A/ws", "Target/A/ws", bob),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "Target/A/ws", null));
+      assertEquals(1, other.willCreate().size());
    }
 }

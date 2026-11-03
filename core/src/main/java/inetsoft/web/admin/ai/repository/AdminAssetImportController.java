@@ -204,6 +204,15 @@ public class AdminAssetImportController {
                     "plan", ex.current());
    }
 
+   @ExceptionHandler(AdminAssetImportApplyService.ApplyInProgressException.class)
+   @ResponseStatus(HttpStatus.CONFLICT)
+   @ResponseBody
+   public Map<String, String> handleApplyInProgress(
+      AdminAssetImportApplyService.ApplyInProgressException ex)
+   {
+      return Map.of("status", "conflict", "error", String.valueOf(ex.getMessage()));
+   }
+
    @ExceptionHandler(AdminAssetImportApplyService.TaskTokenMismatchException.class)
    @ResponseStatus(HttpStatus.CONFLICT)
    @ResponseBody
