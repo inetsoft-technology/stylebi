@@ -506,11 +506,16 @@ public final class MVManager implements MessageListener {
                pending.put(key, job);
 
                try {
+                  // Bug #79854, the incremental update stores its read start in the MV file
+                  long previous = mv.getLastUpdateTime();
+
                   if(job.create()) {
                      getOrgLock(orgId).writeLock().lock();
 
                      try {
-                        mv.updateLastUpdateTime(); // set update ts
+                        // current == previous: the stored stamp is monotonic, so max(stored,
+                        // previous) can't lower anything; this path has no newer manager stamp
+                        mv.updateLastUpdateTimeAfterCreate(previous, previous); // set update ts
                         add(mv);
                         SharedMVUtil.shareCreatedMV(mv);
                      }
