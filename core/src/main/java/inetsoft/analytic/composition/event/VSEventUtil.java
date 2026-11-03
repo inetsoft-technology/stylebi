@@ -59,6 +59,7 @@ import java.io.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /**
  * Utility methods for viewsheet event.
@@ -2914,6 +2915,45 @@ public final class VSEventUtil {
    }
 
    /**
+    * Check if a table that aggregates its data (e.g. a crosstab) was built from a source cut by
+    * the row limit. The aggregate has fewer rows than its source, so comparing its row count with
+    * the limit can't tell. The aggregation may also have been done by the query on top of the
+    * limited table, then only the limited table itself shows if the limit was reached.
+    * @param lens the table shown to the user.
+    * @param limit the row limit.
+    * @param box the viewsheet sandbox.
+    * @param cappedTable the worksheet table the limit is set on, or null if unknown.
+    */
+   static boolean isAggregateSourceCut(XTable lens, int limit, ViewsheetSandbox box,
+                                       String cappedTable)
+   {
+      return isAggregateSourceCut(
+         lens, limit, () -> cappedTable != null && isLimitReached(box, cappedTable, limit));
+   }
+
+   static boolean isAggregateSourceCut(XTable lens, int limit, BooleanSupplier limitReached) {
+      return Util.getAggregateFilter(lens) != null &&
+         (Util.isAggregateSourceLimited(lens, limit) || limitReached.getAsBoolean());
+   }
+
+   /**
+    * Check if a worksheet table holds as many rows as the row limit.
+    */
+   private static boolean isLimitReached(ViewsheetSandbox box, String table, int limit) {
+      try {
+         AssetQuerySandbox wbox = box.getAssetQuerySandbox();
+         TableLens data = wbox == null ? null :
+            wbox.getTableLens(table, AssetQuerySandbox.RUNTIME_MODE);
+
+         return data != null && data.moreRows(data.getHeaderRowCount() + limit - 1);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the row count of the limited table {}", table, e);
+         return false;
+      }
+   }
+
+   /**
     * Add the add warning text command if the query.runtime.maxrow take effect.
     * @param appendToWarningAssembly create a text showing the warning at bottom of viewsheet.
     */
@@ -2942,6 +2982,7 @@ public final class VSEventUtil {
       }
 
       int amax = 0;
+      String cappedTable = null;
       HashMap maxRowHint = Util.getHintBasedMaxRow(lens);
       Object hintMax = maxRowHint == null ? null : maxRowHint.get(Util.HINT_MAX_ROW_KEY);
       Object baseMaxRow = maxRowHint == null ? null : maxRowHint.get(Util.BASE_MAX_ROW_KEY);
@@ -2975,6 +3016,7 @@ public final class VSEventUtil {
 
                   if(mirrorTable.getMaxRows() > 0) {
                      amax = mirrorTable.getMaxRows();
+                     cappedTable = mirrorTable.getName();
                      break;
                   }
 
@@ -2985,6 +3027,8 @@ public final class VSEventUtil {
                   ((TableAssembly) table).getMaxRows() > 0)
                {
                   amax = ((TableAssembly) table).getMaxRows();
+                  cappedTable = ((TableAssembly) table).isAggregate() ? null :
+                     ((TableAssembly) table).getName();
 
                   if(vsAssembly instanceof CalcTableVSAssembly) {
                      final RuntimeCalcTableLens runtimeCalcTableLens =
@@ -3069,7 +3113,9 @@ public final class VSEventUtil {
             }
 
             // an aggregate has fewer rows than its source, check if the source was cut
-            if(actualRowCount < limitRow && !Util.isAggregateSourceLimited(lens, limitRow)) {
+            if(actualRowCount < limitRow &&
+               !isAggregateSourceCut(lens, limitRow, box, cappedTable))
+            {
                return null;
             }
 
@@ -3098,7 +3144,9 @@ public final class VSEventUtil {
          // query will never prompt maxrow limit warning, here we need to check the
          // max row limit for the base query, and prompt for user.
          else if(hintMax != null && baseMaxRow != null) {
-            if(actualRowCount < (int) hintMax) {
+            if(actualRowCount < (int) hintMax &&
+               !isAggregateSourceCut(lens, (int) hintMax, box, cappedTable))
+            {
                return null;
             }
 

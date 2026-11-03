@@ -21,6 +21,7 @@ import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.lens.MaxRowsTableLens;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -79,5 +80,22 @@ class UtilAggregateSourceLimited80146Test {
    @Test
    void detailTableIsNeverLimitedBySourceCheck() {
       assertFalse(Util.isAggregateSourceLimited(source(80), 50));
+   }
+
+   @Test
+   void crosstabOverSourceCutByAnAppliedMaxIsLimitedEvenWhenFewRowsRemain() {
+      // the applied max tells the source was cut, whatever the limit passed in
+      TableLens cut = new MaxRowsTableLens(source(100), 51);
+
+      assertTrue(Util.getAppliedMaxRows(cut) > 0);
+      assertTrue(Util.isAggregateSourceLimited(crosstab(cut), 500));
+   }
+
+   @Test
+   void aggregateFilterIsFoundBehindWrappers() {
+      CrossFilter crosstab = crosstab(source(2));
+
+      assertTrue(Util.getAggregateFilter(filter(TableFilter.class, crosstab)) == crosstab);
+      assertTrue(Util.getAggregateFilter(source(2)) == null);
    }
 }
