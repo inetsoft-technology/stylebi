@@ -83,6 +83,9 @@ if one is set, and 100 if not.
 - The format pane shows 15 for an untouched modern card, and 100 once the author picks a colour.
 - Legacy is unaffected: its default alpha is 100.
 
+The seeded alpha is dropped only when the default tier holds the card tint. A legacy path that
+inherits an object alpha keeps it.
+
 Not taken: writing a user alpha of 100 whenever the author sets a colour. That misses `format.css`
 colours and every writer other than the format pane.
 
@@ -90,6 +93,12 @@ colours and every writer other than the format pane.
 
 A child inside a container takes no tint of its own. The container is the card. Otherwise the
 layers stack: two 15% layers give about 28%, three give about 39%.
+
+- Membership is looked up through `VSAssemblyInfo.isInSelectionContainer()`, which moves there from
+  `TimeSliderVSAssemblyInfo`.
+- Children skip the border-width write as well, so the 1px separators that `GroupingService` writes
+  survive.
+- Ad hoc filters skip the card surface.
 
 ### D6 — Modern only, no migration
 
@@ -104,8 +113,10 @@ border and seeds no tint. Its children are ordinary cards, so D5 does not apply 
 
 ### D8 — The calendar joins the modern card
 
-The calendar stops bypassing the modern hook and gets the same tint, no border and 6px radius as
-every other card.
+The calendar gets the same tint, no border and 6px radius as every other card. It keeps
+`bypassesBaseChrome()`, because the base hook's legacy radius is 0, not the calendar's 10. It is
+seeded in `CalendarVSAssemblyInfo.applyCalendarSeed`, for the calendar show type only. The dropdown
+calendar is untouched. `seededPrototype` therefore carries the card surface.
 
 ### D9 — Overlap is accepted
 
@@ -173,6 +184,7 @@ both modes. Each is retuned to keep its shipped contrast against the card compos
 | Gridline (table and chart) | `#E8E5DE` → `#D6D2C8` | `#3A383D` → `#4A484F` | 1.27 / 1.45 |
 | Axis line (new constant) | grid colour → `#85827A` | grid colour → `#7E7B86` | 3.22 / 3.16 |
 | Header separator and title rule | `#D9D5CC` → `#C7C4BB` | `#49454F` → `#544F5A` | 1.46 / 1.65 |
+| Slider active track | `#C8C2B7` → `#B7B2A8` | `#49454F` → `#544F5A` | 1.77 / 1.65 |
 | Header band | `#F1EFEA` → `#DEDCD7` | `#2D2B30` → `#38363C` | 1.15 / 1.10 |
 | Total band | `#E9E4DA` → `#D6D2C9` | `#35333A` → `#403E46` | 1.27 / 1.24 |
 | Subtotal band | `#EEEAE1` → `#DBD7CF` | `#302E34` → `#3B3940` | 1.20 / 1.15 |
@@ -182,6 +194,12 @@ both modes. Each is retuned to keep its shipped contrast against the card compos
   ratio against the card. The gridline and axis values are the ones proposed for Feature #80141: in
   light they are within rounding of the derived value, and in dark they are slightly stronger. Design
   may adjust any value, as long as it keeps at least the contrast in the table.
+- **The slider active track moves too.** Without its row, the dark inactive track (`#4A484F`) would
+  sit at 1.04:1 against the shipped active track. The dark active-to-inactive step is then 1.13,
+  against 1.24 shipped.
+- **Title rule.** Its colour is `VSTitleChromeDefaults.TITLE_BORDER` / `TITLE_BORDER_DARK`, read
+  through `titleRuleColors(ctx)`. Those two constants are retuned. The base hook's title colouring is
+  unchanged.
 - **Why one set.** It keeps the shipped order of emphasis (band, then rule, then gridline) in both
   modes. `VSOutputChromeDefaults` notes that these neutrals are coordinated so they read as one system.
 - **Why opaque.**
@@ -227,10 +245,10 @@ out both blends:
   1.1:1.
 - Blending against white would put a dark table's light ink on near-white cells.
 
-So wherever the background resolves to the default-tier tint, the Excel exporter uses the shipped
-opaque card colour instead: `#FFFFFF` in light, `#252428` in dark. That covers cell fills, text boxes
-and the chart image's backing. Excel output stays as it is today. PDF, PNG, SVG and PowerPoint paint
-the page and keep the tint (§3.4).
+So wherever the background resolves to the default-tier tint, the Excel export substitutes once, in
+`AbstractVSExporter.prepareAssembly`, on the cloned sheet. Chart and table get the shipped opaque card
+colour (`#FFFFFF` in light, `#252428` in dark), and other card types get no fill. Excel output stays
+as it is today. PDF, PNG, SVG and PowerPoint paint the page and keep the tint (§3.4).
 
 Not taken:
 - Per-surface blend targets keyed to the list of surfaces that go back to near-black. That is two
@@ -239,11 +257,13 @@ Not taken:
 
 ### D17 — A restore keeps the live border widths
 
-Table and chart bookmarks carry formats in all tiers, but not the mark (seeded-value-reversibility
-Decision 10). A bookmark saved while modern stores a border width of none. Restored after a Revert,
-R3's non-transition pass would write nothing, and the table or chart would lose its legacy frame.
-That is the un-revert Decision 10 rules out. R4 (§3.5) keeps the live assembly's default-tier border
-widths across a state restore.
+Bookmarks carry formats in all tiers, but not the mark (seeded-value-reversibility Decision 10).
+Table, chart, crosstab and calc table all carry formats in bookmark state (`<state_crosstabformat>`,
+`<state_calctable>` for the last two). A bookmark saved while modern stores a border width of none.
+Restored after a Revert, R3's non-transition pass would write nothing, and the assembly would lose its
+legacy frame. That is the un-revert Decision 10 rules out. R4 (§3.5) keeps the live assembly's
+default-tier border widths across a state restore, once, in `AbstractVSAssembly.parseState`, for every
+type.
 
 Not taken:
 - A stored flag. It is new state, and Decision 10 retired the earlier seed flags.
@@ -316,10 +336,17 @@ Not taken:
   - Add the border width and the tint (with its alpha, per D4) to this hook, following the rules in
     3.5. The tint goes to `isCornerSeedTarget()` types only (D11). The object border colour can stay,
     since it is latent without a width.
-  - Title rule (D13): in modern, the title border colour becomes the header separator value, so the
-    title rule and the table header rule stay one colour. `objectBorderColor` keeps `#D9D5CC` /
-    `#49454F` for the latent object border and for the tab strip's rule (`TabVSAssemblyInfo` ≈92),
-    which sits on the page, not on a card.
+  - Title rule (D13): the colour is `VSTitleChromeDefaults.TITLE_BORDER` / `TITLE_BORDER_DARK`, read
+    through `titleRuleColors(ctx)`. Retune those two constants to the header separator value, so the
+    title rule and the table header rule stay one colour. The base hook's title colouring is
+    unchanged. `objectBorderColor` keeps `#D9D5CC` / `#49454F` for the latent object border and for
+    the tab strip's rule (`TabVSAssemblyInfo` ≈92), which sits on the page, not on a card.
+  - The tint never propagates into sub-formats. These skip a default-tier tint:
+    - `FormatInfo.copyDefaultFormat`
+    - `VSFormatTableLens.copyDefaultFormat`
+    - `VSFormatTableLens.createCellFormat`
+
+    Without this, unstyled table cells and the chart title would double the tint.
 - Types whose creation installs the 1px frame (`setDefaultFormat(true)` / `THIN_LINE`). Their
   legacy width becomes the legacy value 3.5 writes back:
   - `TableVSAssemblyInfo` (≈75)
@@ -334,7 +361,8 @@ Not taken:
 - `TableDataVSAssemblyInfo.seedChromeDefaults` (≈1683): switch the modern branch from
   `cardBackgroundCss` to the tint.
 - `VSCompositeFormat.getAlpha()` (≈292): the default-tier alpha applies only while the background
-  resolves from the default tier (D4).
+  resolves from the default tier (D4). It drops the seeded alpha only when the default tier holds the
+  card tint. A legacy path that inherits an object alpha keeps it.
 - `VSTableStructureDefaults`:
   - Dark body `BODY_BG_DARK` `#252428` (line 120) must become `null` (transparent), as light already
     is. Otherwise it paints a darker rectangle inside the card.
@@ -359,11 +387,14 @@ Not taken:
     `legendBackground` (≈64), which `LegendsDescriptor` ≈104 and `LegendDescriptor` ≈78 seed. Light
     stays white.
 - `VSOutputChromeDefaults`: `SLIDER_INACTIVE_MODERN` and `SLIDER_INACTIVE_DARK` (≈103, ≈117) follow
-  the gridline values (D13).
+  the gridline values, and the slider active track takes `#B7B2A8` / `#544F5A` (D13).
 - `CalendarVSAssemblyInfo` joins the modern card (D8):
   - It bypasses the modern hook today (`VSAssemblyInfo` ≈1371) and keeps a legacy `#DADADA` 1px
-    border with radius 10 (≈1617–1629). Remove the bypass for modern. A modern calendar seeds the
-    tint, no border and `cardCornerRadius()`. Legacy keeps `#DADADA`, radius 10.
+    border with radius 10 (≈1617–1629). It keeps `bypassesBaseChrome()`, because the base hook's
+    legacy radius is 0, not 10. It is seeded in `CalendarVSAssemblyInfo.applyCalendarSeed`, for the
+    calendar show type only (the dropdown is untouched). A modern calendar seeds the tint, no border
+    and `cardCornerRadius()`. Legacy keeps `#DADADA`, radius 10. `seededPrototype` carries the card
+    surface.
   - Day and month cells use `bodyBackground` (≈185–190): transparent in dark too, via the change
     above.
   - The month/year header keeps an opaque band at the table header value (D13).
@@ -375,11 +406,14 @@ Not taken:
 ### 3.2 Nesting (D5)
 
 - **Selection container:**
-  - The container background is bound twice: the outer div
-    (`vs-selection-container.component.html` 27–33) and the children layer
-    (`vs-selection-container-children.component.html` 27–31). Paint it once, on the outer div.
+  - The container background is bound three times: the outer div
+    (`vs-selection-container.component.html` 27–33), the children layer
+    (`vs-selection-container-children.component.html` 27–31) and
+    `composer-selection-container-children.component.html`. Paint it once, on the outer div.
   - Children (selection lists, range sliders whose container is a `VSSelectionContainer`) seed no
-    tint.
+    tint and write no border width, so the 1px separators that `GroupingService` writes survive.
+    Membership is looked up through `VSAssemblyInfo.isInSelectionContainer()`, which moves there
+    from `TimeSliderVSAssemblyInfo`. Ad hoc filters skip the card surface.
 - **Group container (D7):**
   - Modern currently draws a client-side border, `:host-context(.viz-modern) .vs-group-container
     { border: 1px solid var(--inet-default-border-color) }` (`vs-group-container.component.scss`
@@ -395,22 +429,25 @@ Not taken:
 
 The child check needs to happen at seed time and again when an assembly is moved into or out of a
 container. Without the second check, a list dragged into a container keeps its tint.
+- **Drop-in:** `GroupingService.groupComponents` calls `seedCardSurface`.
+- **Move-out:** it already reseeds, through `initDefaultFormat`.
 
 ### 3.3 Client (`web/projects/portal`)
 
 #### Backdrops behind overlay controls
 
-Three selection-list elements sit over other content and carry a hard-coded light backdrop so the
-control stays readable. They are not decoration: making them transparent would let the content
-underneath show through.
+Four elements sit over other content and carry a hard-coded light backdrop so the control stays
+readable: three in the selection list and one in the calendar. They are not decoration: making them
+transparent would let the content underneath show through.
 
 | Element | Where | What it covers | Today |
 |---|---|---|---|
-| Header buttons (mini-menu, collapse toggle) | `vs-selection.component.html` ≈68 | Right end of the title, on hover, for a dropdown or in-container list | `rgba(255,255,255,0.75)` |
+| Header buttons (mini-menu, collapse toggle) | `vs-selection.component.html` ≈68 (an inline style binding, which moves to SCSS) | Right end of the title, on hover, for a dropdown or in-container list | `rgba(255,255,255,0.75)` |
 | Pending-submit icon | `vs-selection.component.scss` 213–216 (`.pending-alert.left`) | The title, for a dropdown or in-container list | `rgb(245,245,245)` |
-| Quick-switch button | `vs-selection.component.scss` 270–285 (`.quick-switch-overlay-btn`) | The rows (floating, with its own border and shadow) | `rgba(255,255,255,0.88)` |
+| Quick-switch button | `vs-selection.component.scss` 281–301 (`.quick-switch-overlay-btn`) | The rows (floating, with its own border and shadow) | `rgba(255,255,255,0.88)` |
+| Calendar pending-submit icon | `vs-calendar.component.scss` `.pending-alert.left` | The calendar header | its hard-coded light backdrop |
 
-All three are already white patches on a dark dashboard today; the tinted card makes them more
+All four are already white patches on a dark dashboard today; the tinted card makes them more
 noticeable. Give them the floating mini-toolbar's surface, which already solves this
 (`mini-toolbar.component.scss` 25–34, 294–296):
 
@@ -453,6 +490,8 @@ Define the token like its neighbours in `_viz-tokens.scss`:
   consumer of the new token renders exactly as before
 - list `--inet-viz-assembly-outline-modern` in the EM theme CSS editor next to
   `--inet-viz-selected-border-modern` (`theme-css-view.component.ts` ≈329)
+- `.viz-shell` needs its own mapping to `--inet-viz-selected-border-modern`. Unmarked assemblies on
+  org-gated pages inherit from `body.viz-shell`.
 
 #### Mark switch offer (D12)
 
@@ -470,8 +509,9 @@ This applies in the composer only.
 - **Accepting** switches the mark through `VizModernizeUtil.applyMark`, which is the path Viewsheet
   Options uses (`ViewsheetPropertyDialogService` ≈354).
 - **Image backgrounds** get no offer.
-- **Every composer path** that changes the dashboard background runs the check. The plan lists those
-  paths.
+- **The only author path** that changes the dashboard background is the format pane with nothing
+  selected (`FormatPainterService.setFormat`). The offer is a server command, `OfferVizMarkCommand`,
+  shown in the Modernize bar.
 
 #### Toolbar strip icon colour: no change
 
@@ -502,22 +542,23 @@ returns ARGB, and PDF writes an ExtGState `/ca`. One HTML caveat: some presenter
 `TYPE_INT_RGB` buffers (`HTMLCoordinateHelper` ≈64, ≈1256), where a translucent fill lands on black.
 Check it in the export test.
 
-**Excel (D16).** Wherever the background resolves to the default-tier tint, use the shipped opaque
-card colour for the mark (`CARD_BG` / `CARD_BG_DARK`):
-- **Cells:** `PoiExcelVSUtil.setCellBackground` (line 1561) falls back to the object's background for
-  every table, crosstab and selection cell without its own fill. Substitute there.
-- **Text boxes:** `PoiExcelVSExporter` line 1157, `tb.setFillColor(bg.getRed(), bg.getGreen(),
-  bg.getBlue())`, drops alpha. Substitute there.
-- **Chart images:** `AbstractVSExporter.getImageWithPadding` (≈1851) fills the image with
-  `fmt.getBackground()`, alpha included. When `!paintsPageBackground()`, fill it with the opaque card
-  colour instead.
+**Substitution happens once**, in `AbstractVSExporter.prepareAssembly`, on the cloned sheet. Wherever
+the background resolves to the default-tier tint, it is replaced before any format reader sees it.
+There is no per-site substitution in the cell, text box or image code.
+
+**Excel (D16).** Chart and table get the opaque card colour for the mark (`CARD_BG` /
+`CARD_BG_DARK`), and other card types get no fill. That is today's output.
+- The picture backing for chart, slider, range slider and calendar comes from
+  `VSFloatable.drawBackground`. `getImageWithPadding` is never called.
+- `PoiExcelVSUtil.setCellBackground` (line 1561) and `PoiExcelVSExporter` line 1157 (`tb.setFillColor`,
+  which drops alpha) then read the substituted value and need no change.
 - `PoiExcelVSUtil.getColorByAlpha` (line 1585) keeps blending author-set translucent colours against
   white, as today.
 
-**PowerPoint** paints the viewsheet background on the slide, so it keeps the tint:
-- `PPTValueHelper` (≈272, ≈390) blends against a hard-coded white.
-- Add an overload that takes the backdrop, and pass the viewsheet background resolved for the export.
-  Blending against white on a dark viewsheet would produce a light-grey card.
+**PowerPoint** paints the viewsheet background on the slide, so it keeps the tint. `prepareAssembly`
+blends the tint over the assembly's page background. This replaces the planned `PPTValueHelper`
+overload; `PPTValueHelper` (282–285, 400–403) keeps blending against its hard-coded white, which no
+longer sees the tint.
 
 Scheduled email attachments go through the same exporters and need no separate change.
 
@@ -567,17 +608,19 @@ The legacy background and alpha (R2) do not need this guard. The hook already wr
 background on every pass for table and chart, so restoring the opaque alpha there is the same
 value an old asset already holds.
 
-**R4 — A state restore keeps the live border widths (D17).** `TableVSAssembly.parseStateContent` and
-`ChartVSAssembly.parseStateContent` replace the format from the bookmark. Before they do, save the
-live assembly's default-tier border widths, and put them back afterwards.
+**R4 — A state restore keeps the live border widths (D17).** `AbstractVSAssembly.parseState` replaces
+the format from the bookmark. Before it does, save the live assembly's default-tier border widths, and
+put them back afterwards. It is implemented once there and applies to every type.
 - The live assembly already holds the right width for its mark: Revert wrote it, creation wrote it,
   or it is an old asset's own value.
 - So a bookmark saved under modern and opened after a Revert keeps the legacy frame, and a legacy
   asset's non-standard width still survives (R3).
-- Crosstab and calc table carry no formats in state (Decision 10), so they need nothing.
+- Crosstab and calc table carry formats in state too (`<state_crosstabformat>`, `<state_calctable>`),
+  so they are covered by the same code.
 
-**Calendar (D8).** It skips the base hook today (`bypassesBaseChrome()`, `VSAssemblyInfo` ≈1371). Once
-it joins, its legacy branch writes back the `#DADADA` 1px border and radius 10 (R1 and R3 apply).
+**Calendar (D8).** It keeps `bypassesBaseChrome()` (`VSAssemblyInfo` ≈1371) and is seeded in
+`CalendarVSAssemblyInfo.applyCalendarSeed`, for the calendar show type only. Its legacy branch writes
+back the `#DADADA` 1px border and radius 10 (R1 and R3 apply).
 
 **Unaffected:**
 
@@ -599,7 +642,7 @@ bottom-tabs strip are already re-laid out after a mark change (`restoreContained
   - For each D11 type, the modern seed writes no border width, the tint, and alpha 15. The legacy
     seed is unchanged.
   - Text, image and gauge seed no tint in modern.
-  - The chart's legacy seed writes no background.
+  - The chart's legacy seed keeps writing `#ffffff` with alpha 100 (R2).
   - D4:
     - an author colour with no author alpha resolves to alpha 100
     - so does a `format.css` colour
@@ -625,8 +668,8 @@ bottom-tabs strip are already re-laid out after a mark change (`restoreContained
   - Light to dark to light via `applyMark` leaves tint and alpha as seeded.
   - Restoring a legacy assembly whose stored default has a non-standard border width leaves that
     width untouched (R3).
-  - A table bookmark and a chart bookmark saved under modern, restored after Revert, keep the legacy
-    frame (R4).
+  - A bookmark saved under modern, restored after Revert, keeps the legacy frame (R4). Cover table,
+    chart, crosstab and calc table.
   - A user-set border and background survive Modernize and Revert unchanged.
   - A selection container with an expanded slider, and a bottom-tabs strip with children, keep
     their layout across the round trip.
@@ -634,7 +677,7 @@ bottom-tabs strip are already re-laid out after a mark change (`restoreContained
   - `vs-selection` and `vs-selection-container` specs: the container background is bound once, and
     there are no hard-coded white backgrounds in modern.
   - Re-run the strip-glyph-tone spec with a 15% `#AAAAAA` background on both bases.
-  - The three overlay backdrops resolve to the toolbar surface tokens in modern and dark, and keep
+  - The four overlay backdrops resolve to the toolbar surface tokens in modern and dark, and keep
     their current values in legacy.
   - Every outline in the §3.3 table uses `--inet-viz-assembly-outline` in modern and dark. Legacy
     renders unchanged.
@@ -649,7 +692,8 @@ bottom-tabs strip are already re-laid out after a mark change (`restoreContained
       `#AAAAAA` and never a blend.
     - Run it on a light and on a dark viewsheet.
     - A dark chart's image has an opaque `#252428` backing.
-  - PowerPoint: a tinted cell on a black viewsheet blends against the viewsheet background.
+    - Other card types (selection list, slider, calendar) get no fill.
+  - PowerPoint: a tinted cell on a black viewsheet blends against the assembly's page background.
   - Spot-check PDF, PNG and HTML on a black viewsheet.
 - **Manual, on Census 2 and one light dashboard:**
   - Light page, dark mode, black background, image background.
@@ -663,5 +707,5 @@ bottom-tabs strip are already re-laid out after a mark change (`restoreContained
     dark colour: no offer. Set it back to light: no offer, since that change doesn't contradict the
     mark.
   - A calendar before and after: the day table fills the card width with no 2px gap on the right.
-  - Hover a dropdown and an in-container selection list on a dark dashboard: the header buttons, the
-    pending-submit icon and the quick-switch button show a dark surface, not a white patch.
+  - Hover a dropdown and an in-container selection list on a dark dashboard, and the calendar: the
+    header buttons, the pending-submit icons and the quick-switch button show a dark surface, not a white patch.
