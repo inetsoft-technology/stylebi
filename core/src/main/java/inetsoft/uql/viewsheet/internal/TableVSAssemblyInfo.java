@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.Hyperlink;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableHighlightAttr;
@@ -77,6 +78,12 @@ public class TableVSAssemblyInfo extends TableDataVSAssemblyInfo {
       // to apply table style
       // getFormat().getDefaultFormat().setBackgroundValue("0xffffff");
       // getFormat().getDefaultFormat().setAlpha(60);
+   }
+
+   @Override
+   protected Insets legacyObjectBorders() {
+      return new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
    }
 
    @Override

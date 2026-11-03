@@ -140,18 +140,35 @@ class VSObjectChromeDefaultsTest {
          ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
          info.setVizMark(VizMark.fromGate());
          info.initDefaultFormat();
-         assertEquals(0x252428, rgb(info.getFormat().getDefaultFormat().getBackground()),
-                      "new chart under dark seeds the dark card background");
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_RGB,
+                      rgb(info.getFormat().getDefaultFormat().getBackground()),
+                      "new chart under dark seeds the same card tint as light");
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA,
+                      info.getFormat().getDefaultFormat().getAlphaValue());
       });
    }
 
    @Test
-   void chartCardSeedWhiteLightModern() {
+   void chartCardSeedTintLightModern() {
+      withGate("true", () -> {
+         ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+         info.setVizMark(VizMark.fromGate());
+         info.initDefaultFormat();
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_RGB,
+                      rgb(info.getFormat().getDefaultFormat().getBackground()),
+                      "light modern seeds the card tint");
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA,
+                      info.getFormat().getDefaultFormat().getAlphaValue());
+      });
+   }
+
+   @Test
+   void chartCardSeedWhiteUnmarked() {
       withGate("true", () -> {
          ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
          info.initDefaultFormat();
          assertEquals(0xFFFFFF, rgb(info.getFormat().getDefaultFormat().getBackground()),
-                      "light modern keeps the white chart card");
+                      "an unmarked chart keeps the white card under an open gate");
       });
    }
 

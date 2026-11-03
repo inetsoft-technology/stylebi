@@ -572,6 +572,8 @@ public class ComposerAdhocFilterService {
 
       titleFormat.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
       objFormat.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
+      // opaque, not at a seeded card alpha
+      objFormat.getDefaultFormat().setAlphaValue(100);
 
       if(moved instanceof TimeSliderVSAssembly) {
          objFormat.getDefaultFormat().setRoundCornerValue(0);

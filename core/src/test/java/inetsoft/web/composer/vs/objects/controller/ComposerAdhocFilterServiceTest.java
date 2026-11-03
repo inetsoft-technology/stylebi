@@ -273,6 +273,30 @@ class ComposerAdhocFilterServiceTest {
       assertEquals(6, objFormat.getDefaultFormat().getRoundCornerValue());
    }
 
+   @Test
+   void anAdhocListIsOpaqueWhiteUntilItReturns() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "List1");
+      vs.addAssembly(list);
+      VSAssemblyInfo info = list.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.initDefaultFormat();
+      assertTrue(info.getFormat().isDefaultCardTint(), "precondition: created as a card");
+
+      ComposerAdhocFilterService service = new ComposerAdhocFilterService(
+         mock(ViewsheetService.class), mock(CoreLifecycleService.class),
+         new VSTableService(null), mock(GroupingService.class));
+
+      invoke(service, "saveFormats", list);
+      VSCompositeFormat objFormat = info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+      assertEquals(java.awt.Color.WHITE.getRGB() & 0xFFFFFF,
+                   objFormat.getBackground().getRGB() & 0xFFFFFF);
+      assertEquals(100, objFormat.getAlpha(), "the white filter is opaque");
+
+      invoke(service, "restoreFormats", list);
+      assertTrue(info.getFormat().isDefaultCardTint(), "the card comes back");
+   }
+
    private static void invoke(ComposerAdhocFilterService service, String name, VSAssembly arg)
       throws Exception
    {

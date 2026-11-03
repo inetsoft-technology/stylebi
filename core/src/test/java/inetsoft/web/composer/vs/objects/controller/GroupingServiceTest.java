@@ -220,6 +220,33 @@ class GroupingServiceTest {
    }
 
    @Test
+   void aMarkedListDroppedIntoAContainerLosesItsTint() throws Exception {
+      when(rvs.getViewsheet()).thenReturn(parentVS);
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(parentVS, "CurrentSelection1");
+      container.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      container.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      container.getVSAssemblyInfo().setPixelSize(new Dimension(300, 360));
+      container.setAssemblies(new String[0]);
+      parentVS.addAssembly(container);
+
+      SelectionListVSAssembly list = new SelectionListVSAssembly(parentVS, "SelectionList1");
+      parentVS.addAssembly(list);
+      list.getSelectionListInfo().setVizMark(VizMark.MODERN_LIGHT);
+      list.getSelectionListInfo().initDefaultFormat();
+      assertTrue(list.getVSAssemblyInfo().getFormat().isDefaultCardTint(),
+                 "precondition: a free-standing list is a card");
+
+      service.groupComponents(rvs, container, list, true, "", dispatcher);
+
+      VSFormat def = list.getVSAssemblyInfo().getFormat().getDefaultFormat();
+      assertNull(def.getBackgroundValue(), "the container is the card");
+      assertEquals(100, def.getAlphaValue());
+      assertEquals(new Insets(1, 0, 1, 0), def.getBordersValue(),
+                   "the separators the drop writes survive");
+   }
+
+   @Test
    void aMarkedSliderDroppedIntoAContainerStoresItsBody() throws Exception {
       assertEquals(82, droppedSliderHeight(VizMark.MODERN_LIGHT, false, 60));
    }

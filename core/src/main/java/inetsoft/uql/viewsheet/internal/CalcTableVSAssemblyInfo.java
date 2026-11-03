@@ -67,6 +67,12 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
    }
 
    @Override
+   protected Insets legacyObjectBorders() {
+      return new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
+   }
+
+   @Override
    public void clearBinding() {
       super.clearBinding();
 

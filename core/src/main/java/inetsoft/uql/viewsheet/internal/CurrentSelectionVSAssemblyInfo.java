@@ -73,6 +73,12 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
    }
 
    @Override
+   protected Insets legacyObjectBorders() {
+      return new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
+   }
+
+   @Override
    protected void seedChromeDefaults(VizContext ctx) {
       super.seedChromeDefaults(ctx);
 

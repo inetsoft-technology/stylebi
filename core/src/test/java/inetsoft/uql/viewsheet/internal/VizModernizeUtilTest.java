@@ -451,6 +451,10 @@ class VizModernizeUtilTest {
       assertEquals(bf.getRoundCornerValue(), af.getRoundCornerValue());
       assertEquals(bf.getBorderColorsValue().topColor, af.getBorderColorsValue().topColor);
       assertEquals(bf.getBackgroundValue(), af.getBackgroundValue());
+      assertNotNull(bf.getBordersValue(), "a legacy table has the 1px frame; guards a null pass");
+      assertEquals(bf.getBordersValue(), af.getBordersValue());
+      assertEquals(bf.getAlphaValue(), af.getAlphaValue());
+      assertEquals(b.getPixelSize(), a.getPixelSize());
    }
 
    @Test
@@ -724,18 +728,26 @@ class VizModernizeUtilTest {
    }
 
    @Test
-   void applyMarkReseedsOnALightToDarkFlip() {
+   void aLightToDarkFlipKeepsTheTint() {
       Viewsheet vs = legacySheet();
       gateOn();
       VizModernizeUtil.modernize(vs);
       TableVSAssembly table = (TableVSAssembly) vs.getAssembly("Table1");
-      String light = table.getVSAssemblyInfo().getFormat().getDefaultFormat()
-         .getBackgroundValue();
+      VSFormat def = table.getVSAssemblyInfo().getFormat().getDefaultFormat();
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
+      Color light = VSObjectChromeDefaults.objectBorderColor(VizContext.of(VizMark.MODERN_LIGHT));
+      Color dark = VSObjectChromeDefaults.objectBorderColor(VizContext.of(VizMark.MODERN_DARK));
+      assertNotEquals(light, dark, "precondition: the border colour differs by mode");
+      assertEquals(light, def.getBorderColorsValue().topColor);
 
       VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK);
 
-      assertNotEquals(light, table.getVSAssemblyInfo().getFormat().getDefaultFormat()
-         .getBackgroundValue(), "the dark card background replaces the light one");
+      def = table.getVSAssemblyInfo().getFormat().getDefaultFormat();
+      assertEquals(dark, def.getBorderColorsValue().topColor, "the flip re-seeded the table");
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue(),
+                   "one tint serves light and dark");
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
    }
 
    @Test

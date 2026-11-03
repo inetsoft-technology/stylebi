@@ -442,13 +442,6 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       return (align & StyleConstants.H_LEFT) != 0 || (align & notLeft) == 0;
    }
 
-   private boolean isInSelectionContainer() {
-      Viewsheet vs = getViewsheet();
-      VSAssembly assembly = vs == null ? null : vs.getAssembly(getName());
-
-      return assembly != null && assembly.getContainer() instanceof CurrentSelectionVSAssembly;
-   }
-
    /**
     * Check if measure value shown as text.
     */

@@ -118,6 +118,8 @@ public class GroupingService {
             List<String> list = new ArrayList<>(Arrays.asList(assemblies));
             list.add(object.getName());
             container.setAssemblies(list.toArray(new String[list.size()]));
+            // the container is the card now
+            object.getVSAssemblyInfo().seedCardSurface(VizContext.of(object.getVSAssemblyInfo()));
 
             if(objectContainer instanceof CurrentSelectionVSAssembly) {
                ((CurrentSelectionVSAssembly) objectContainer)

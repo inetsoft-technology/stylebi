@@ -729,15 +729,17 @@ class SeedChromeDefaultsTest {
    @Test
    void aChartCardTakesTheCardBackground() {
       gateOn();
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(VizContext.ofGate()),
-                   objectDefault(newChart()).getBackgroundValue());
+      VSFormat def = objectDefault(newChart());
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
    }
 
    @Test
    void aTableCardTakesTheCardBackground() {
       gateOn();
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(VizContext.ofGate()),
-                   objectDefault(newTable()).getBackgroundValue());
+      VSFormat def = objectDefault(newTable());
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
    }
 
    @Test
@@ -766,6 +768,167 @@ class SeedChromeDefaultsTest {
 
       assertNull(objectDefault(info).getBackgroundValue(),
                  "an unmarked table must not gain a DEFAULT background from the hook");
+   }
+
+   // ---- the card surface: tint and no border in modern, the legacy frame on Revert ------------
+
+   private static final Insets THIN_FRAME = new Insets(StyleConstants.THIN_LINE,
+      StyleConstants.THIN_LINE, StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
+
+   @Test
+   void aModernCardTakesTheTintAndNoBorder() {
+      gateOn();
+      VSAssemblyInfo[] cards = { newTable(), newChart(), newSelectionList(), newSelectionTree(),
+                                 newTimeSlider(), newCurrentSelection(), newSlider() };
+
+      for(VSAssemblyInfo info : cards) {
+         VSFormat def = objectDefault(info);
+         String type = info.getClass().getSimpleName();
+
+         assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue(), type);
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue(), type);
+         assertNull(def.getBordersValue(), type + " has no card border in modern");
+      }
+   }
+
+   @Test
+   void textImageAndGaugeTakeNoTint() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      VSAssembly[] assemblies = { new TextVSAssembly(vs, "Text1"),
+                                  new ImageVSAssembly(vs, "Image1"),
+                                  new GaugeVSAssembly(vs, "Gauge1") };
+
+      for(VSAssembly assembly : assemblies) {
+         VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+         info.initDefaultFormat();
+
+         assertFalse(info.getFormat().isDefaultCardTint(),
+                     info.getClass().getSimpleName() + " stays transparent");
+      }
+   }
+
+   @Test
+   void aSelectionContainerChildTakesNoTint() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "C");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "L");
+      vs.addAssembly(container);
+      vs.addAssembly(list);
+      container.getVSAssemblyInfo().initDefaultFormat();
+      list.getVSAssemblyInfo().initDefaultFormat();
+      container.setAssemblies(new String[] { "L" });
+      VSFormat def = objectDefault(list.getVSAssemblyInfo());
+      def.setBordersValue(new Insets(1, 0, 1, 0));
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue(),
+                   "precondition: created outside the container, the list is a card");
+
+      list.getVSAssemblyInfo().seedCardSurface(VizContext.ofGate());
+
+      assertNull(def.getBackgroundValue(), "the container is the card");
+      assertEquals(100, def.getAlphaValue());
+      assertEquals(new Insets(1, 0, 1, 0), def.getBordersValue(),
+                   "the container's separators survive");
+
+      list.getVSAssemblyInfo().seedCardSurface(VizContext.ofTransition(vs, null));
+
+      assertNull(def.getBackgroundValue(), "a Revert gives the child no card either");
+      assertEquals(100, def.getAlphaValue());
+      assertEquals(new Insets(1, 0, 1, 0), def.getBordersValue(),
+                   "a Revert writes no legacy frame over the separators");
+   }
+
+   @Test
+   void anAdhocFilterKeepsItsWhite() {
+      gateOn();
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      String white = Color.WHITE.getRGB() + "";
+      // values a modern card seed would overwrite
+      objectDefault(info).setBackgroundValue(white);
+      objectDefault(info).setAlphaValue(100);
+      objectDefault(info).setBordersValue(new Insets(1, 1, 1, 1));
+      info.setAdhocFilter(true);
+
+      info.seedCardSurface(VizContext.ofGate());
+
+      assertEquals(white, objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+      assertEquals(new Insets(1, 1, 1, 1), objectDefault(info).getBordersValue());
+   }
+
+   @Test
+   void revertWritesTheLegacyFrameOnlyOnATransition() {
+      gateOn();
+      TableVSAssemblyInfo info = newTable();
+      assertNull(objectDefault(info).getBordersValue(), "precondition: no modern frame");
+      info.setVizMark(null);
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      assertNull(objectDefault(info).getBordersValue(), "a restore writes no width");
+
+      info.seedChromeDefaults(VizContext.ofTransition(info.getViewsheet(), null));
+      VSFormat def = objectDefault(info);
+      assertEquals(THIN_FRAME, def.getBordersValue(), "Revert writes the legacy frame");
+      assertNull(def.getBackgroundValue());
+      assertEquals(100, def.getAlphaValue());
+   }
+
+   @Test
+   void aLegacyRestoreLeavesAStoredWidthAlone() {
+      gateOff();
+      TableVSAssemblyInfo info = newTable();
+      objectDefault(info).setBordersValue(new Insets(2, 2, 2, 2));
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals(new Insets(2, 2, 2, 2), objectDefault(info).getBordersValue());
+   }
+
+   @Test
+   void aLegacyChartKeepsItsWhiteCardAndOpaqueAlpha() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals("#ffffff", objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+
+      // a bookmark saved while modern brings the tint back
+      objectDefault(info).setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+      objectDefault(info).setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals("#ffffff", objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+   }
+
+   @Test
+   void aLegacyTableDropsAStaleTint() {
+      gateOff();
+      TableVSAssemblyInfo info = newTable();
+      objectDefault(info).setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+      objectDefault(info).setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertNull(objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+   }
+
+   @Test
+   void aLegacyTableAndChartKeepTheirOwnAlpha() {
+      gateOff();
+      VSAssemblyInfo[] cards = { newTable(), newChart() };
+
+      for(VSAssemblyInfo info : cards) {
+         String type = info.getClass().getSimpleName();
+         objectDefault(info).setAlphaValue(60);
+
+         VizModernizeUtil.reseedAfterRestore(info);
+         assertEquals(60, objectDefault(info).getAlphaValue(), type + " after a restore");
+
+         info.seedChromeDefaults(VizContext.of((VizMark) null));
+         assertEquals(60, objectDefault(info).getAlphaValue(), type + " after a legacy pass");
+      }
    }
 
    // ---- the chart's plot seeds -----------------------------------------------------------------
@@ -1078,7 +1241,7 @@ class SeedChromeDefaultsTest {
       VizContext ctx = VizContext.ofGate();
       info.seedChromeDefaults(ctx);
 
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(ctx),
+      assertEquals(VSObjectChromeDefaults.cardTintValue(),
                    objectDefault(info).getBackgroundValue());
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
       assertEquals(0.3, plot.getBarCornerRadius(), 0.0001, "the plot seeds are reachable");
@@ -1098,7 +1261,7 @@ class SeedChromeDefaultsTest {
       VizContext ctx = VizContext.ofGate();
       info.seedChromeDefaults(ctx);
 
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(ctx),
+      assertEquals(VSObjectChromeDefaults.cardTintValue(),
                    objectDefault(info).getBackgroundValue());
       assertEquals(styleBefore, info.getTableStyleValue(),
                    "the default table style is not a gate-dependent seed");
