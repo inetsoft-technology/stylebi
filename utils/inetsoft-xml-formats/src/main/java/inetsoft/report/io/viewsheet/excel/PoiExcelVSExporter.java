@@ -1714,6 +1714,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    private void fixCellContent(Sheet newSheet, VSTableLens table, XSSFCellStyle style) {
       int rowCount = table != null ? table.getRowCount() : 0;
       int colCount = table != null ? table.getColCount() : 0;
+      int headerRows = table != null ? table.getHeaderRowCount() : 0;
+      int headerCols = table != null ? table.getHeaderColCount() : 0;
+      Map<String, CellStyle> numberStyles = new HashMap<>();
 
       for(int r = 0; r < rowCount; r++) {
          Row row = newSheet.createRow(r);
@@ -1726,21 +1729,90 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
                obj = ((DCMergeDatesCell) obj).getFormatedOriginalDate();
             }
 
+            CellStyle cellStyle = style;
+
             if(obj != null) {
-               // this is the limit by excel
-               final int MAXLEN = 32767;
-               String text = obj.toString();
+               // headers stay text, so numeric labels (e.g. year headers) keep their form
+               boolean header = r < headerRows || c < headerCols;
 
-               if(text.length() > MAXLEN) {
-                  text = text.substring(0, MAXLEN);
+               if(!header && obj instanceof Number && isExactNumber((Number) obj)) {
+                  double value = ((Number) obj).doubleValue();
+                  cell.setCellValue(value);
+
+                  if(Math.abs(value) >= 1E11 && Math.abs(value) < 1E15 &&
+                     value == Math.rint(value))
+                  {
+                     // General format shows 12+ digit integers in scientific notation
+                     cellStyle = numberStyles.computeIfAbsent("0", f -> {
+                        CellStyle intStyle = book.createCellStyle();
+                        intStyle.cloneStyleFrom(style);
+                        intStyle.setDataFormat(book.createDataFormat().getFormat(f));
+                        return intStyle;
+                     });
+                  }
                }
+               else if(!header && obj instanceof Boolean) {
+                  cell.setCellValue((Boolean) obj);
+               }
+               else if(!header && obj instanceof java.util.Date) {
+                  String format = getDataTabDateFormat((java.util.Date) obj);
+                  cellStyle = numberStyles.computeIfAbsent(format, f -> {
+                     CellStyle dateStyle = book.createCellStyle();
+                     dateStyle.cloneStyleFrom(style);
+                     dateStyle.setDataFormat(book.createDataFormat().getFormat(f));
+                     return dateStyle;
+                  });
+                  cell.setCellValue((java.util.Date) obj);
+               }
+               else {
+                  // this is the limit by excel
+                  final int MAXLEN = 32767;
+                  String text = obj.toString();
 
-               cell.setCellValue(text);
+                  if(text.length() > MAXLEN) {
+                     text = text.substring(0, MAXLEN);
+                  }
+
+                  cell.setCellValue(text);
+               }
             }
 
-            cell.setCellStyle(style);
+            cell.setCellStyle(cellStyle);
          }
       }
+   }
+
+   /**
+    * Whether the number can be stored in a numeric cell without losing digits. NaN and
+    * infinity cannot, and a Long, BigInteger or BigDecimal of more than 15 significant digits
+    * does not fit an Excel double, so those stay text.
+    */
+   private static boolean isExactNumber(Number num) {
+      if(num instanceof Long) {
+         long value = num.longValue();
+         return value > -1000000000000000L && value < 1000000000000000L;
+      }
+      else if(num instanceof java.math.BigInteger) {
+         return ((java.math.BigInteger) num).abs().compareTo(
+            java.math.BigInteger.valueOf(1000000000000000L)) < 0;
+      }
+      else if(num instanceof java.math.BigDecimal) {
+         return ((java.math.BigDecimal) num).precision() <= 15;
+      }
+
+      double value = num.doubleValue();
+      return !Double.isNaN(value) && !Double.isInfinite(value);
+   }
+
+   private static String getDataTabDateFormat(java.util.Date date) {
+      if(date instanceof java.sql.Time) {
+         return "hh:mm:ss";
+      }
+      else if(date instanceof java.sql.Date) {
+         return "yyyy-mm-dd";
+      }
+
+      return "yyyy-mm-dd hh:mm:ss";
    }
 
    /**
