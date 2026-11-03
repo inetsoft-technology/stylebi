@@ -21,8 +21,13 @@ import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -126,13 +131,18 @@ public class MVRule {
       }
    }
 
-   // the principal's organization takes precedence over the context holder, so the principal
-   // of the triggering user is suspended while working in another organization
+   // org-scoped property reads (e.g. mv.maxAge) only consult the org override when the
+   // current thread has a principal (PropertiesEngine.hasThreadPrincipal()); merely setting
+   // the org context holder is not enough. So the triggering user's principal is swapped for a
+   // SYSTEM principal scoped to the target organization, rather than nulled out, while working
+   // in another organization.
    private static void runInOrg(String orgID, Callable<Void> task) throws Exception {
       Principal principal = ThreadContext.getContextPrincipal();
+      SRPrincipal orgPrincipal =
+         SUtil.getPrincipal(new DefaultIdentity(XPrincipal.SYSTEM, orgID, Identity.USER), null, true);
 
       try {
-         ThreadContext.setContextPrincipal(null);
+         ThreadContext.setContextPrincipal(orgPrincipal);
          OrganizationManager.runInOrgScope(orgID, task);
       }
       finally {
