@@ -90,6 +90,71 @@ class TabularEndpointBindingSupportTest {
    }
 
    @Test
+   void applyEndpointContractOmittedOptionalParameterResetsPreviousValue() throws Exception {
+      assertOptionalParameterResetBy(null);
+   }
+
+   @Test
+   void applyEndpointContractBlankOptionalParameterResetsPreviousValue() throws Exception {
+      assertOptionalParameterResetBy(Map.of("step", "  "));
+   }
+
+   @Test
+   void applyEndpointContractSuppliedOptionalParameterStillApplies() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      RestParameter stepParam = new RestParameter();
+      stepParam.setName("step");
+      query.getParameters().getParameters().add(stepParam);
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      String suffix = TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", Map.of("step", " 7 "), null, null, null, "myds");
+
+      assertEquals("7", stepParam.getValue());
+      assertEquals("/Repos/7", suffix);
+   }
+
+   @Test
+   void applyEndpointContractOmittedRequiredParameterStillReportedMissingAfterEarlierValue()
+      throws Exception
+   {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      RestParameter idParam = new RestParameter();
+      idParam.setName("id");
+      idParam.setRequired(true);
+      query.getParameters().getParameters().add(idParam);
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", Map.of("id", "42"), null, null, null, "myds");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> TabularEndpointBindingSupport.applyEndpointContract(
+            query, pmap, "Repos", null, null, null, null, "myds"));
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+   }
+
+   private static void assertOptionalParameterResetBy(Map<String, String> restated)
+      throws Exception
+   {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      RestParameter stepParam = new RestParameter();
+      stepParam.setName("step");
+      query.getParameters().getParameters().add(stepParam);
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", Map.of("step", "7"), null, null, null, "myds");
+
+      // edit_table restates the whole query: the parameter comes back omitted or blank
+      String suffix = TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", restated, null, null, null, "myds");
+
+      assertNull(stepParam.getValue());
+      assertEquals("/Repos", suffix);
+      assertFalse(suffix.contains("7"), suffix);
+      assertFalse(suffix.contains("null"), suffix);
+   }
+
+   @Test
    void applyEndpointContractRejectsUnknownParameterName() {
       FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
       RestParameter idParam = new RestParameter();
