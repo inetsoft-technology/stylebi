@@ -30,7 +30,8 @@ import java.io.PrintWriter;
       @View1(type=ViewType.LABEL, text="The query is a CQL (Cassandra Query Language) " +
          "statement. CQL string literals are single-quoted and a quote inside a literal is " +
          "escaped by doubling it (''). A string $(name) variable inside a quoted literal " +
-         "is escaped, an unquoted string $(name) becomes an escaped literal, and $(@name) " +
+         "is escaped, an unquoted string $(name) becomes an escaped literal, an unquoted " +
+         "date or timestamp $(name) becomes a quoted literal, and $(@name) " +
          "embeds the raw text.")
    })
 public class CassandraQuery extends TabularQuery {
@@ -40,10 +41,11 @@ public class CassandraQuery extends TabularQuery {
 
    // CQL literals escape a quote only by doubling it (Bug #78594); a uuid or
    // timeuuid value in an unquoted placeholder is a bare token, so a uuid for
-   // a text column must be written quoted, '$(v)' (Bug #79597)
+   // a text column must be written quoted, '$(v)' (Bug #79597); CQL has no JDBC
+   // escapes, so an unquoted date or timestamp is a quoted ISO literal (Bug #80174)
    @Property(label="Enter Query", required=true, sql=true,
              literalEscapeStyle=VarSQL.LiteralEscapeStyle.SQL,
-             rawUuidStrings=true)
+             rawUuidStrings=true, quotedDateLiterals=true)
    @PropertyEditor(rows=10, columns=65)
    public String getQueryString() {
       return qstr;

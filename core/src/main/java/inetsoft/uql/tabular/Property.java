@@ -132,6 +132,17 @@ public @interface Property {
    boolean rawUuidStrings() default false;
 
    /**
+    * True if the dialect of a {@link #sql()} property with a non-JSON
+    * {@link #literalEscapeStyle()} has no JDBC escape syntax (CQL, executed by
+    * a native driver): an unquoted date, time or timestamp placeholder is then
+    * emitted as a single-quoted ISO literal instead of {d '..'}, {t '..'} or
+    * {ts '..'}; a timestamp carries an explicit offset. Left false for
+    * engines executed through a JDBC Statement (Hive, OrientDB, Aerospike),
+    * whose driver may process the escapes (Bug #80174).
+    */
+   boolean quotedDateLiterals() default false;
+
+   /**
     * The comment syntax of the language of a {@link #sql()} property, so
     * quotes and placeholders inside comments are ignored: {@code SQL}
     * ({@code --} and <code>/* *&#47;</code>, the default), {@code HASH}
