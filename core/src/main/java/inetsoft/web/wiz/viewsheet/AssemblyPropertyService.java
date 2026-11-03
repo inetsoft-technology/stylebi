@@ -147,7 +147,8 @@ public class AssemblyPropertyService {
                                   SubmitPropertyDialogService submitService,
                                   VSOutputService outputService,
                                   VSColumnHandler columnHandler,
-                                  DataOutputService dataOutputService)
+                                  DataOutputService dataOutputService,
+                                  ViewsheetObjectPropertyDialogService embeddedViewsheetService)
    {
       this.sessions = sessions;
       this.dataOutputService = dataOutputService;
@@ -210,6 +211,10 @@ public class AssemblyPropertyService {
                           "setSelectionContainerPropertyModel"));
       map.put("submit", new Binding(submitService, "getSubmitPropertyDialogModel",
                                     "setSubmitPropertyDialogModel"));
+      // An embedded viewsheet ASSEMBLY (bug #80150); the sheet's own properties are
+      // SheetPropertyService, keyed "sheet".
+      map.put("viewsheet", new Binding(embeddedViewsheetService, "getViewsheetPropertyModel",
+                                       "setViewsheetPropertyModel"));
       this.bindings = Collections.unmodifiableMap(map);
    }
 
@@ -348,6 +353,7 @@ public class AssemblyPropertyService {
             Object value = canonicalIntEnum(type, entry.getValue(), patch.get(entry.getKey()));
 
             requirePositiveSize(entry.getKey(), entry.getValue(), value);
+            requireNonNegativePosition(type, entry.getKey(), entry.getValue(), value);
             requireLabelGapInRange(entry.getKey(), entry.getValue(), value);
 
             if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
@@ -790,8 +796,8 @@ public class AssemblyPropertyService {
     * on the fields the patch wrote only.
     */
    static void requirePositiveSize(String key, String path, Object value) {
-      if(!path.endsWith(".sizePositionPaneModel.width") &&
-         !path.endsWith(".sizePositionPaneModel.height"))
+      if(!PropertyAliases.isSizePositionPath(path, "width") &&
+         !PropertyAliases.isSizePositionPath(path, "height"))
       {
          return;
       }
@@ -815,6 +821,41 @@ public class AssemblyPropertyService {
             key + ": must be a positive number of pixels (got " + value + "). StyleBI ignores " +
             "a non-positive size, so this write would report success and change nothing. " +
             "(A horizontal line is 1px tall.)");
+      }
+   }
+
+   /**
+    * {@code VSDialogService.setAssemblyPosition} applies a position only when both left and top
+    * are >= 0, so a written negative one reports success and changes nothing. Guarded for the
+    * embedded viewsheet only (bug #80150, a new surface); the other types share the behavior.
+    * Judged on the fields the patch wrote only.
+    */
+   static void requireNonNegativePosition(String type, String key, String path, Object value) {
+      if(!"viewsheet".equals(type) ||
+         !PropertyAliases.isSizePositionPath(path, "top") &&
+         !PropertyAliases.isSizePositionPath(path, "left"))
+      {
+         return;
+      }
+
+      Double number = null;
+
+      if(value instanceof Number n) {
+         number = n.doubleValue();
+      }
+      else if(value instanceof String str) {
+         try {
+            number = Double.parseDouble(str.trim());
+         }
+         catch(NumberFormatException ignore) {
+            // not numeric, left to the model's own type handling
+         }
+      }
+
+      if(number != null && number < 0) {
+         throw new IllegalArgumentException(
+            key + ": must be 0 or greater (got " + value + "). StyleBI ignores a negative " +
+            "position, so this write would report success and change nothing.");
       }
    }
 

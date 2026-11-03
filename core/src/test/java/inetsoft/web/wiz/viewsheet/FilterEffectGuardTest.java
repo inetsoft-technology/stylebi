@@ -457,7 +457,8 @@ class FilterEffectGuardTest {
             mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
             mock(RectanglePropertyDialogService.class), containerService,
             mock(SubmitPropertyDialogService.class), mock(VSOutputService.class),
-            mock(VSColumnHandler.class), mock(DataOutputService.class));
+            mock(VSColumnHandler.class), mock(DataOutputService.class),
+            mock(ViewsheetObjectPropertyDialogService.class));
       }
 
       List<String> set(String name, Map<String, Object> patch) throws Exception {

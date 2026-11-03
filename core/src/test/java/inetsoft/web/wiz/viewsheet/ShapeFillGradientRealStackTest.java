@@ -403,7 +403,8 @@ class ShapeFillGradientRealStackTest {
             mock(LinePropertyDialogService.class), oval, rectangle,
             mock(SelectionContainerPropertyDialogService.class),
             mock(SubmitPropertyDialogService.class), mock(VSOutputService.class),
-            mock(VSColumnHandler.class), mock(DataOutputService.class));
+            mock(VSColumnHandler.class), mock(DataOutputService.class),
+            mock(ViewsheetObjectPropertyDialogService.class));
 
          return new Stack(type, service, name);
       }

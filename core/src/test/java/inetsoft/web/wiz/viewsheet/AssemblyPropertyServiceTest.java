@@ -184,12 +184,22 @@ class AssemblyPropertyServiceTest {
       }
    }
 
-   /** The flip side of the exclusion above: the sheet must NOT be reachable this way. */
+   /**
+    * The flip side of the exclusion above: the sheet (key {@code sheet}) must NOT be reachable
+    * this way, while an embedded viewsheet ASSEMBLY (key {@code viewsheet}, bug #80150) is wired
+    * like any other, and both its service methods resolve with the shared 3/6-argument shapes.
+    */
    @Test
-   void viewsheetIsNotWiredIntoTheAssemblyDispatchTable() {
+   void embeddedViewsheetIsWiredAndTheSheetIsNot() {
       AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), null);
 
-      assertThrows(Exception.class, () -> service.bindingFor("viewsheet"));
+      assertThrows(Exception.class, () -> service.bindingFor(PropertyAliases.SHEET));
+
+      AssemblyPropertyService.Binding binding = service.bindingFor("viewsheet");
+      assertEquals("getViewsheetPropertyModel", binding.getter());
+      assertEquals("setViewsheetPropertyModel", binding.setter());
+      assertNotNull(AssemblyPropertyService.method(binding.service(), binding.getter(), 3));
+      assertNotNull(AssemblyPropertyService.method(binding.service(), binding.setter(), 6));
    }
 
    @Test
@@ -5323,7 +5333,8 @@ class AssemblyPropertyServiceTest {
          lastLine, lastOval, lastRectangle,
          selectionContainer,
          mock(SubmitPropertyDialogService.class),
-         outputService, columnHandler, lastDataOutput);
+         outputService, columnHandler, lastDataOutput,
+         mock(ViewsheetObjectPropertyDialogService.class));
    }
 
    // ── calendar viewMode / chart line-style int-enum domains (bug #78194) ───
