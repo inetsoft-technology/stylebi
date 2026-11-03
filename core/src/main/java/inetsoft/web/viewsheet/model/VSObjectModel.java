@@ -126,8 +126,15 @@ public abstract class VSObjectModel<T extends VSAssembly> {
                ((MaxModeSupportAssemblyInfo) assemblyInfo).getMaxSize() != null;
       }
 
+      // no page shows here, so flatten the tint over it
+      if((binding || wizard) && compositeFormat != null && compositeFormat.isDefaultCardTint()) {
+         VSCompositeFormat vsFmt = vs.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+         Color page = vsFmt != null ? vsFmt.getBackground() : null;
+         objectFormat.setBackground(
+            VSCSSUtil.getBackgroundColor(VSObjectChromeDefaults.cardTintOver(page)));
+      }
       // in editing mode, if chart is white on dark, keep the dark background
-      if((sheetMaxMode || binding || wizard) &&
+      else if((sheetMaxMode || binding || wizard) &&
          StringUtils.isEmpty(objectFormat.getBackground()))
       {
          FormatInfo vsFmtInfo = vs.getFormatInfo();

@@ -85,12 +85,20 @@ public final class VSObjectChromeDefaults {
 
    /** The opaque result of the card tint over a backdrop; a null backdrop counts as white. */
    public static Color cardTintOver(Color backdrop) {
+      return blend(new Color(CARD_TINT_RGB), CARD_TINT_ALPHA / 100f, backdrop);
+   }
+
+   /** The opaque colour a translucent fill shows over a backdrop; a null backdrop is white. */
+   public static Color flattenOver(Color fill, Color backdrop) {
+      return fill == null || fill.getAlpha() == 255 ? fill :
+         blend(fill, fill.getAlpha() / 255f, backdrop);
+   }
+
+   private static Color blend(Color fill, float a, Color backdrop) {
       Color base = backdrop == null ? Color.WHITE : backdrop;
-      float a = CARD_TINT_ALPHA / 100f;
-      Color tint = new Color(CARD_TINT_RGB);
-      return new Color(Math.round(base.getRed() * (1 - a) + tint.getRed() * a),
-                       Math.round(base.getGreen() * (1 - a) + tint.getGreen() * a),
-                       Math.round(base.getBlue() * (1 - a) + tint.getBlue() * a));
+      return new Color(Math.round(base.getRed() * (1 - a) + fill.getRed() * a),
+                       Math.round(base.getGreen() * (1 - a) + fill.getGreen() * a),
+                       Math.round(base.getBlue() * (1 - a) + fill.getBlue() * a));
    }
 
    /** Object-card corner radius default, in pixels; the top step of the DOM radius scale. */

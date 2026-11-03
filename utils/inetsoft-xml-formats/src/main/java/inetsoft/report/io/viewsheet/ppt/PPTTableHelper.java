@@ -109,6 +109,7 @@ public class PPTTableHelper extends VSTableHelper {
                                  Rectangle rec, Insets padding)
    {
       Rectangle2D rect = (pixelbounds == null) ? null : pixelbounds;
+      format = flattenCellFill(format, parentformat);
       PPTVSUtil.writeTableCell(startX, startY, bounds, rect, format, dispText,
                                dispObj, coordinationHelper, vHelper,
                                (PPTVSExporter) getExporter(),

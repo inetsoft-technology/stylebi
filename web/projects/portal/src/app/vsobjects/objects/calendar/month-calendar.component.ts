@@ -183,7 +183,7 @@ export class MonthCalendar implements OnChanges, AfterViewInit {
          // if background is set then use a shade of the background color for the selection
          // otherwise use our default selection color
          this.selectedBgColor = GuiTool.getSelectedColor(this.model.monthFormat.background ?
-            this.model.monthFormat.background : this.model.objectFormat.background, "#cdf7f6");
+            this.model.monthFormat.background : VSCalendar.getSelectionBase(this.model), "#cdf7f6");
          this.titleChanged.emit(this.secondCalendar);
          this.calendarHeight = this.getCalendarHeight();
       }

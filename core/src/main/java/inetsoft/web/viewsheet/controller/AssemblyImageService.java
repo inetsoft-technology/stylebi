@@ -975,11 +975,20 @@ public class AssemblyImageService {
                         (int) Math.ceil(bottom), (int) Math.ceil(right));
    }
 
-   private void drawBackground(Graphics2D g2, ChartVSAssembly chart, int imageW, int imageH) {
+   static void drawBackground(Graphics2D g2, ChartVSAssembly chart, int imageW, int imageH) {
       VSCompositeFormat format = chart.getVSAssemblyInfo().getFormat();
+      Color bg = format == null ? null : format.getBackground();
 
-      if(format != null && format.getBackground() != null) {
-         g2.setColor(format.getBackground());
+      // no page behind the image, so flatten the tint over the sheet's
+      if(format != null && format.isDefaultCardTint()) {
+         Viewsheet vs = chart.getViewsheet();
+         VSCompositeFormat page = vs == null ? null :
+            vs.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+         bg = VSObjectChromeDefaults.cardTintOver(page == null ? null : page.getBackground());
+      }
+
+      if(bg != null) {
+         g2.setColor(bg);
          g2.fillRect(0, 0, imageW, imageH);
       }
    }

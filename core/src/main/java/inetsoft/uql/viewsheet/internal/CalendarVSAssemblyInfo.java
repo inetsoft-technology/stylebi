@@ -210,8 +210,9 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          def.setRoundCornerValue(VSObjectChromeDefaults.cardCornerRadius());
       }
       else if(ctx.transition) {
-         def.setBackgroundValue(null);
-         def.setAlphaValue(100);
+         // undefined, as the legacy prototype holds them
+         def.setBackgroundValue(null, false);
+         def.setAlphaValue(100, false);
          def.setBordersValue(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
                                         StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
          def.setBorderColorsValue(new BorderColors(DEFAULT_BORDER_COLOR, DEFAULT_BORDER_COLOR,

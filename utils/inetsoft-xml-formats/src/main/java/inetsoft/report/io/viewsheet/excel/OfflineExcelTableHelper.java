@@ -409,6 +409,7 @@ public class OfflineExcelTableHelper extends ExcelTableHelper {
       }
 
       startY = PoiExcelVSUtil.ceilY(startY);
+      format = flattenCellFill(format, parentformat);
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
                                     dispText, dispObj, sheet, book,
                                     (PoiExcelVSExporter) getExporter(),

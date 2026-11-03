@@ -159,6 +159,7 @@ public class ExcelCrosstabHelper extends VSCrosstabHelper {
                                  VSCompositeFormat parentformat, Rectangle rec,
                                  Insets padding)
    {
+      format = flattenCellFill(format, parentformat);
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
                                     dispText, dispObj, sheet, book,
                                     (PoiExcelVSExporter) getExporter(),
@@ -199,6 +200,7 @@ public class ExcelCrosstabHelper extends VSCrosstabHelper {
 
       boolean dispValue = (dispObj instanceof Number)  || fmtPattern != null && !"General".equals(fmtPattern) &&
          !"@".equals(fmtPattern) && !(dispObj instanceof String) && !(dispObj instanceof Character);
+      format = flattenCellFill(format, parentformat);
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
                                     dispText, dispObj, sheet, book,
                                     (PoiExcelVSExporter) getExporter(), parentformat,

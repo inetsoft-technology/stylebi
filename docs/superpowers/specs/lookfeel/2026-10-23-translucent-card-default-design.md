@@ -118,6 +118,11 @@ The calendar gets the same tint, no border and 6px radius as every other card. I
 seeded in `CalendarVSAssemblyInfo.applyCalendarSeed`, for the calendar show type only. The dropdown
 calendar is untouched. `seededPrototype` therefore carries the card surface.
 
+Revert writes the legacy surface back exactly as the legacy prototype holds it, defined flags
+included: the background and alpha go back undefined, not as a defined null and a defined 100. A
+reverted calendar's object format therefore equals a never-modernized one, and the show-type swap's
+equality guard (`copyViewInfo`) still matches it.
+
 ### D9 — Overlap is accepted
 
 Where an author stacks objects on purpose, such as text over an image, the tints add up in the
@@ -247,8 +252,17 @@ out both blends:
 
 So wherever the background resolves to the default-tier tint, the Excel export substitutes once, in
 `AbstractVSExporter.prepareAssembly`, on the cloned sheet. Chart and table get the shipped opaque card
-colour (`#FFFFFF` in light, `#252428` in dark), and other card types get no fill. Excel output stays
-as it is today. PDF, PNG, SVG and PowerPoint paint the page and keep the tint (§3.4).
+colour (`#FFFFFF` in light, `#252428` in dark), and other card types get no fill. The card colour
+Excel writes stays as it is today. PDF, PNG and SVG paint the page and keep the tint. PowerPoint
+paints the page too, but a text box's fill blends against white, so it blends the tint over the
+page instead (§3.4).
+
+Neither Excel nor PowerPoint can show a translucent cell fill: Excel drops the alpha, and PowerPoint
+blends it against white. So for modern assemblies, both flatten a translucent table-style cell
+colour, such as the zebra stripe, over the substituted card before writing it. A modern Excel zebra
+is then a light stripe on the opaque card, not solid `#AAAAAA`, and a dark PowerPoint zebra is a
+dark stripe, not near-white. Legacy assemblies keep today's output, author translucent fills
+included.
 
 Not taken:
 - Per-surface blend targets keyed to the list of surfaces that go back to near-black. That is two
@@ -283,6 +297,11 @@ Not taken:
 - Treating the tint as no background, so the fallback applies. The fallback is light, so dark tips
   would get light ink on a light surface.
 - Keeping the tint.
+
+The same holds for surfaces that show a card without its page: the binding editor, the object
+wizard, and a chart's "Save Image As" or download. Each flattens the tint over the assembly's sheet
+page (`cardTintOver(page)`, white when the page has no colour), so the card stays the colour it is
+on the dashboard. Max mode paints its own page behind the card and keeps the tint.
 
 ### D19 — One outline colour for every selection
 
@@ -414,6 +433,9 @@ Not taken:
     tint and write no border width, so the 1px separators that `GroupingService` writes survive.
     Membership is looked up through `VSAssemblyInfo.isInSelectionContainer()`, which moves there
     from `TimeSliderVSAssemblyInfo`. Ad hoc filters skip the card surface.
+- **Slider:** the object background is bound on the host `vs-input-label-wrapper` and again on the
+  inner `.slider` div (`vs-slider.component.html`), so a translucent tint would paint twice. A
+  modern slider binds it once, on the wrapper. Legacy keeps both bindings.
 - **Group container (D7):**
   - Modern currently draws a client-side border, `:host-context(.viz-modern) .vs-group-container
     { border: 1px solid var(--inet-default-border-color) }` (`vs-group-container.component.scss`
@@ -554,11 +576,20 @@ There is no per-site substitution in the cell, text box or image code.
   which drops alpha) then read the substituted value and need no change.
 - `PoiExcelVSUtil.getColorByAlpha` (line 1585) keeps blending author-set translucent colours against
   white, as today.
+- Table-style cell colours (D16): on a modern table, crosstab or calc table, a translucent cell fill
+  such as the zebra stripe is flattened over the substituted card before it is written
+  (`VSTableDataHelper.flattenCellFill`, blended by `VSObjectChromeDefaults.flattenOver`, white when
+  the card has no fill). The Excel and PowerPoint table and crosstab helpers call it on every cell.
 
-**PowerPoint** paints the viewsheet background on the slide, so it keeps the tint. `prepareAssembly`
-blends the tint over the assembly's page background. This replaces the planned `PPTValueHelper`
-overload; `PPTValueHelper` (282–285, 400–403) keeps blending against its hard-coded white, which no
-longer sees the tint.
+**PowerPoint** paints the viewsheet background on the slide, but a text box's fill blends against
+white, so `prepareAssembly` blends the tint over the assembly's page background instead. This
+replaces the planned `PPTValueHelper` overload; `PPTValueHelper` (282–285, 400–403) keeps blending
+against its hard-coded white, which no longer sees the tint, nor a modern table's translucent cell
+fill, which is flattened over the card first (D16).
+
+**Off-page surfaces (D18).** The binding editor and the object wizard (`VSObjectModel`) and a chart's
+image download (`AssemblyImageService.drawBackground`) show the card without its page, so they
+flatten the tint over the sheet page with `cardTintOver`. Max mode is unchanged.
 
 Scheduled email attachments go through the same exporters and need no separate change.
 
@@ -620,7 +651,8 @@ put them back afterwards. It is implemented once there and applies to every type
 
 **Calendar (D8).** It keeps `bypassesBaseChrome()` (`VSAssemblyInfo` ≈1371) and is seeded in
 `CalendarVSAssemblyInfo.applyCalendarSeed`, for the calendar show type only. Its legacy branch writes
-back the `#DADADA` 1px border and radius 10 (R1 and R3 apply).
+back the `#DADADA` 1px border and radius 10 (R1 and R3 apply), and leaves the background and alpha
+undefined, as the legacy prototype holds them.
 
 **Unaffected:**
 
@@ -676,6 +708,7 @@ bottom-tabs strip are already re-laid out after a mark change (`restoreContained
 - **Client:**
   - `vs-selection` and `vs-selection-container` specs: the container background is bound once, and
     there are no hard-coded white backgrounds in modern.
+  - `vs-slider` spec: a modern slider binds its background on the wrapper only.
   - Re-run the strip-glyph-tone spec with a 15% `#AAAAAA` background on both bases.
   - The four overlay backdrops resolve to the toolbar surface tokens in modern and dark, and keep
     their current values in legacy.
@@ -690,10 +723,13 @@ bottom-tabs strip are already re-laid out after a mark change (`restoreContained
   - Excel: a golden-file or assertion test of a modern table.
     - The cell fill is the shipped opaque card colour (`#FFFFFF` light, `#252428` dark), never
       `#AAAAAA` and never a blend.
+    - A zebra row is the stripe flattened over that card (`#F2F2F2` light, `#2C2B2F` dark), never
+      `#AAAAAA`. A legacy translucent cell fill is written as today.
     - Run it on a light and on a dark viewsheet.
     - A dark chart's image has an opaque `#252428` backing.
     - Other card types (selection list, slider, calendar) get no fill.
-  - PowerPoint: a tinted cell on a black viewsheet blends against the assembly's page background.
+  - PowerPoint: a tinted cell on a black viewsheet blends against the assembly's page background,
+    and a modern zebra row is flattened over that blended card, light and dark.
   - Spot-check PDF, PNG and HTML on a black viewsheet.
 - **Manual, on Census 2 and one light dashboard:**
   - Light page, dark mode, black background, image background.

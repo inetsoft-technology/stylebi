@@ -306,11 +306,16 @@ public class FormatInfo implements AssetObject {
          tfmt.setFont(sfont, false);
       }
 
-      boolean cardTint = sfmt.isDefaultCardTint();
-
-      if(!cardTint && (!tfmt.isBackgroundValueDefined() ||
+      if(sfmt.isDefaultCardTint()) {
+         // a fill copied before the tint is stale
+         if(!tfmt.isBackgroundValueDefined()) {
+            tfmt.setBackgroundValue(null, false);
+            tfmt.setBackground(null, false);
+         }
+      }
+      else if(!tfmt.isBackgroundValueDefined() ||
          cssfmt.isBackgroundValueDefined() ||
-         userfmt.isBackgroundValueDefined() || userfmt.isBackgroundDefined()))
+         userfmt.isBackgroundValueDefined() || userfmt.isBackgroundDefined())
       {
          tfmt.setBackgroundValue(sfmt.getBackgroundValue(), false);
          tfmt.setBackground(sfmt.getBackground(), false);
@@ -325,8 +330,15 @@ public class FormatInfo implements AssetObject {
          tfmt.setBorderColors(sfmt.getBorderColors(), false);
       }
 
-      if(!sfmt.isDefaultCardTintAlpha() && (!tfmt.isAlphaValueDefined() || cssfmt.isAlphaValueDefined() ||
-         userfmt.isAlphaValueDefined() || userfmt.isAlphaDefined()))
+      if(sfmt.isDefaultCardTintAlpha()) {
+         // drop a stale copied alpha
+         if(!tfmt.isAlphaValueDefined()) {
+            tfmt.setAlphaValue(100, false);
+            tfmt.setAlpha(100, false);
+         }
+      }
+      else if(!tfmt.isAlphaValueDefined() || cssfmt.isAlphaValueDefined() ||
+         userfmt.isAlphaValueDefined() || userfmt.isAlphaDefined())
       {
          tfmt.setAlphaValue(sfmt.getAlphaValue(), false);
          tfmt.setAlpha(sfmt.getAlpha(), false);

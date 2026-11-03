@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.model;
 
+import inetsoft.analytic.composition.VSCSSUtil;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
@@ -36,6 +37,7 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.web.viewsheet.model.table.VSTableModel;
+import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -47,6 +49,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Color;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -184,6 +187,60 @@ class VSObjectModelVizContextTest {
       assertEquals("dense", VizContext.of(a.getVSAssemblyInfo()).density);
       assertEquals("comfortable", VizContext.of(b.getVSAssemblyInfo()).density,
                    "two composer tabs must not share one density");
+   }
+
+   // ---- a card shown without its page ----------------------------------------------------------
+
+   @Test
+   void theBindingEditorShowsTheCardTintOverThePage() throws Exception {
+      VSTableModel model = modernTableModel(false, true, false);
+
+      assertEquals(VSCSSUtil.getBackgroundColor(new Color(0x1A1A1A)),
+                   model.getObjectFormat().getBackground(),
+                   "an opaque 15% grey over the black page");
+   }
+
+   @Test
+   void theWizardShowsTheCardTintOverThePage() throws Exception {
+      VSTableModel model = modernTableModel(false, false, true);
+
+      assertEquals(VSCSSUtil.getBackgroundColor(new Color(0x1A1A1A)),
+                   model.getObjectFormat().getBackground());
+   }
+
+   @Test
+   void maxModeKeepsTheTranslucentTint() throws Exception {
+      String viewer = modernTableModel(false, false, false).getObjectFormat().getBackground();
+      String max = modernTableModel(true, false, false).getObjectFormat().getBackground();
+
+      assertNotNull(viewer);
+      assertEquals(viewer, max, "max mode paints its own page behind the card");
+   }
+
+   /** A gate-on table, so it carries the seeded tint, on a sheet whose page is black. */
+   private VSTableModel modernTableModel(boolean maxMode, boolean binding, boolean wizard)
+      throws Exception
+   {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      Viewsheet viewsheet = new Viewsheet();
+      viewsheet.getVSAssemblyInfo().initDefaultFormat();
+      viewsheet.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH)
+         .getUserDefinedFormat().setBackgroundValue("#000000");
+      TableVSAssembly assembly = new TableVSAssembly(viewsheet, "Table");
+      assembly.initDefaultFormat();
+      viewsheet.addAssembly(assembly);
+      assertTrue(assembly.getVSAssemblyInfo().getFormat().isDefaultCardTint(),
+                 "precondition: the seeded tint");
+      viewsheet.setMaxMode(maxMode);
+
+      Mockito.when(rvs.getViewsheet()).thenReturn(viewsheet);
+      Mockito.when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+      Mockito.when(rvs.isBinding()).thenReturn(binding);
+      Mockito.when(rvs.getVSTemporaryInfo()).thenReturn(wizard ? new VSTemporaryInfo() : null);
+      Mockito.when(sandbox.getVSTableLens(Mockito.anyString(), Mockito.anyBoolean()))
+         .thenReturn(createEmptyTable());
+
+      return new VSTableModel.VSTableModelFactory().createModel(assembly, rvs);
    }
 
    /** Builds a real {@link VSTableModel} through its factory, following {@link VSTableModelTest}'s harness. */

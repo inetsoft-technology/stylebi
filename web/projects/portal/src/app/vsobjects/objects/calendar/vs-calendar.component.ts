@@ -1404,6 +1404,12 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
       return "inherit";
    }
 
+   /** The object background a selection shade derives from; none for a modern translucent card. */
+   public static getSelectionBase(model: VSCalendarModel): string {
+      const bg = model?.objectFormat?.background;
+      return model?.vizModern && bg && new TinyColor(bg).getAlpha() < 1 ? undefined : bg;
+   }
+
    public getPendingIconPosition(model: VSCalendarModel): number {
       let pos;
 
