@@ -120,8 +120,16 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
          return;
       }
 
+      if(LOG.isWarnEnabled()) {
+         LOG.warn("DIAG-80020 validate entry name={} selectedObject={} selectedObjectType={} dataType={}",
+                   getAbsoluteName(), selectedObject,
+                   selectedObject == null ? null : Tool.getDataType(selectedObject), getDataType());
+      }
+
       //If the type of the value changes, selectObject should be null
       if(selectedObject != null && !Tool.equals(Tool.getDataType(selectedObject), getDataType())) {
+         LOG.warn("DIAG-80020 validate name={} cleared selectedObject={} due to type mismatch (type={} vs dataType={})",
+                   getAbsoluteName(), selectedObject, Tool.getDataType(selectedObject), getDataType());
          selectedObject = null;
       }
 
@@ -164,6 +172,8 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
             autoSelectValue = Tool.getPersistentDataString(defaultValue,getDataType());
          }
          else if(values.length > 0) {
+            LOG.warn("DIAG-80020 validate name={} not contained, falling back to values[0]={} (values={})",
+                      getAbsoluteName(), values[0], java.util.Arrays.toString(values));
             selectedObject = null;
             autoSelectValue = values[0];
          }

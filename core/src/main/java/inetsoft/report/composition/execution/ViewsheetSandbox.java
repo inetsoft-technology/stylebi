@@ -3332,6 +3332,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                VSAQuery query = VSAQuery.createVSAQuery(this, lassembly, DataMap.NORMAL);
                ((InputVSAQuery) query).refreshView(ldata);
                lassembly.setLabels(ldata.getLabels());
+               LOG.warn("DIAG-80020 inputDataChanged ListInputVSAssembly name={} selectedObjectBefore={} newValues={}",
+                         lassembly.getAbsoluteName(),
+                         ((ListInputVSAssemblyInfo) lassembly.getInfo()).getSelectedObject(),
+                         java.util.Arrays.toString(ldata.getValues()));
                lassembly.setValues(ldata.getValues());
                lassembly.setFormats(ldata.getFormats());
             }
@@ -4740,6 +4744,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       if(iassembly instanceof SingleInputVSAssembly) {
          cdata = ((SingleInputVSAssembly) iassembly).getSelectedObject();
+         LOG.warn("DIAG-80020 refreshVariable name={} initing={} cdata={}",
+                   iassembly.getAbsoluteName(), initing, cdata);
       }
       // checkbox should always be array so script don't need to check for different types
       else if(iassembly instanceof CompositeInputVSAssembly) {
