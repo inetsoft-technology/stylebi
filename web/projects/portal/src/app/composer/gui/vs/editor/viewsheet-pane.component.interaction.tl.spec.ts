@@ -23,6 +23,8 @@
  *   Group 1  [Risk 3] — processSetViewsheetInfoCommand: updates vs.label, vs.layouts,
  *                        vs.baseEntry, viewsheetBackground, vs.statusText, hasScript,
  *                        hideNotifications; sends bindingtree refresh event.
+ *   Group 1b [Risk 2] — processOfferVizMarkCommand: mark offer replaces the Modernize bar;
+ *                        switch-mark event, dismissal, withdrawn on a later page change.
  *   Group 2  [Risk 3] — @Output emitters: copyAssembly/cutAssembly/removeAssembly/
  *                        bringToFront/Forward/sendToBack/Backward emit correct outputs.
  *   Group 3  [Risk 3] — processAddVSObjectCommand: new object pushed; existing name →
@@ -343,6 +345,114 @@ describe("VSPane — processSetViewsheetInfoCommand", () => {
       // modernizable is recomputed on every refresh, so a reverted sheet re-arms the bar
       // immediately; reusing the per-session dismissal is what stops it offering to undo this
       expect(comp.vs.modernizeBarDismissed).toBe(true);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 1b: processOfferVizMarkCommand [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("VSPane — processOfferVizMarkCommand", () => {
+   // the bar renders as a bare element under componentImports: [], so read its bound properties
+   const bars = (fixture: any): any[] =>
+      Array.from(fixture.nativeElement.querySelectorAll("modernize-bar"));
+
+   const infoCommand = (background: string) => ({
+      assemblyInfo: { name: "VS" },
+      layouts: [],
+      baseEntry: null,
+      info: { viewsheetBackground: background, statusText: null, snapGrid: 20,
+              templateWidth: 0, templateHeight: 0, templateEnabled: false, metadata: false,
+              messageLevels: null, modernizable: true },
+      linkUri: null,
+      hasScript: false,
+      hideNotifications: false,
+      annotation: false,
+      annotated: false,
+      formTable: false,
+   });
+
+   it("should show the dark offer in place of the Modernize bar", async () => {
+      const mocks = makeMocks();
+      const { fixture, comp } = await renderComponent(mocks);
+      comp.vs.modernizable = true;
+      fixture.detectChanges();
+      expect(bars(fixture).map(bar => bar.message)).toEqual([comp.modernizeMessage]);
+
+      mocks.dispatchCommand("OfferVizMarkCommand", { dark: true });
+      fixture.detectChanges();
+
+      const shown = bars(fixture);
+      expect(shown).toHaveLength(1);
+      expect(shown[0].message).toBe("_#(js:composer.vs.markOffer.toDark.message)");
+      expect(shown[0].actionLabel).toBe("_#(js:composer.vs.markOffer.toDark.action)");
+   });
+
+   it("should show the light offer for a light target", async () => {
+      const mocks = makeMocks();
+      const { fixture } = await renderComponent(mocks);
+
+      mocks.dispatchCommand("OfferVizMarkCommand", { dark: false });
+      fixture.detectChanges();
+
+      const shown = bars(fixture);
+      expect(shown).toHaveLength(1);
+      expect(shown[0].message).toBe("_#(js:composer.vs.markOffer.toLight.message)");
+      expect(shown[0].actionLabel).toBe("_#(js:composer.vs.markOffer.toLight.action)");
+   });
+
+   it("should send the switch-mark event when the action is pressed", async () => {
+      const mocks = makeMocks();
+      const { fixture, comp } = await renderComponent(mocks);
+      mocks.dispatchCommand("OfferVizMarkCommand", { dark: true });
+      fixture.detectChanges();
+
+      bars(fixture)[0].dispatchEvent(new CustomEvent("onModernize"));
+      fixture.detectChanges();
+
+      expect(mocks.vsClient.sendEvent).toHaveBeenCalledWith(
+         "/events/composer/viewsheet/switch-mark", { dark: true });
+      expect(mocks.vsClient.sendEvent).not.toHaveBeenCalledWith(
+         "/events/composer/viewsheet/modernize");
+      expect(comp.markOffer).toBeNull();
+      expect(bars(fixture)).toHaveLength(0);
+   });
+
+   it("should hide the offer when dismissed", async () => {
+      const mocks = makeMocks();
+      const { fixture, comp } = await renderComponent(mocks);
+      mocks.dispatchCommand("OfferVizMarkCommand", { dark: true });
+      fixture.detectChanges();
+
+      bars(fixture)[0].dispatchEvent(new CustomEvent("onDismiss"));
+      fixture.detectChanges();
+
+      expect(comp.markOffer).toBeNull();
+      expect(bars(fixture)).toHaveLength(0);
+      expect(mocks.vsClient.sendEvent).not.toHaveBeenCalledWith(
+         "/events/composer/viewsheet/switch-mark", expect.anything());
+   });
+
+   it("should withdraw the offer when the page background changes again", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      mocks.dispatchCommand("SetViewsheetInfoCommand", infoCommand("#000000"));
+      mocks.dispatchCommand("OfferVizMarkCommand", { dark: true });
+
+      mocks.dispatchCommand("SetViewsheetInfoCommand", infoCommand("#ffffff"));
+
+      expect(comp.markOffer).toBeNull();
+   });
+
+   it("should keep the offer across a refresh that leaves the background alone", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      mocks.dispatchCommand("SetViewsheetInfoCommand", infoCommand("#000000"));
+      mocks.dispatchCommand("OfferVizMarkCommand", { dark: true });
+
+      mocks.dispatchCommand("SetViewsheetInfoCommand", infoCommand("#000000"));
+
+      expect(comp.markOffer).toBe("dark");
    });
 });
 

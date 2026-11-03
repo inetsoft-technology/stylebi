@@ -55,6 +55,7 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.command.AddLayoutObjectCommand;
+import inetsoft.web.composer.vs.command.OfferVizMarkCommand;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -565,6 +566,8 @@ public class FormatPainterService {
             }
 
             FormatInfo formatInfo = info.getFormatInfo();
+            // read before the change, for the mark switch offer
+            Color pageBefore = vs ? pageBackground(formatInfo) : null;
             TableDataPath[] paths = null;
 
             if(event.getData() != null && event.getData().size() > i
@@ -678,6 +681,14 @@ public class FormatPainterService {
                                                              commandDispatcher, false, false,
                                                              true, clist);
                }
+
+               VizMark target = PageMarkCheck.offer(pageBefore, pageBackground(formatInfo),
+                                                    viewsheet.getVSAssemblyInfo().getVizMark());
+
+               if(target != null) {
+                  commandDispatcher.sendCommand(
+                     new OfferVizMarkCommand(target == VizMark.MODERN_DARK));
+               }
             }
             else {
                this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
@@ -780,6 +791,15 @@ public class FormatPainterService {
       }
 
       return null;
+   }
+
+   /**
+    * The sheet's resolved page background, or null when it has none.
+    */
+   private static Color pageBackground(FormatInfo formatInfo) {
+      VSCompositeFormat format = formatInfo == null ? null :
+         formatInfo.getFormat(new TableDataPath(-1, TableDataPath.OBJECT));
+      return format == null ? null : format.getBackground();
    }
 
    private boolean handleHeaderFormats(FormatVSObjectEvent event, VSAssembly assembly, VSObjectFormatInfoModel format,

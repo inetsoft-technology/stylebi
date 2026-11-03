@@ -131,6 +131,60 @@ class ModernizeViewsheetServiceTest {
                            anyBoolean(), any());
    }
 
+   @Test
+   void switchMarkMovesEveryTargetToDarkAndRefreshes() throws Exception {
+      viewsheet.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      viewsheet.getAssembly("Text1").getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+
+      service.switchMark("rid", true, principal, dispatcher, "uri");
+
+      assertEquals(VizMark.MODERN_DARK, viewsheet.getVSAssemblyInfo().getVizMark());
+      assertEquals(VizMark.MODERN_DARK,
+                   viewsheet.getAssembly("Text1").getVSAssemblyInfo().getVizMark());
+      verify(assetRepository).checkAssetPermission(eq(principal), eq(entry), any());
+      verify(coreLifecycleService).setViewsheetInfo(eq(rvs), eq("uri"), eq(dispatcher));
+      verify(coreLifecycleService).refreshViewsheet(eq(rvs), eq("rid"), eq("uri"), eq(dispatcher),
+                                                   eq(false), eq(false), eq(true), any());
+   }
+
+   @Test
+   void switchMarkMovesADarkSheetToLight() throws Exception {
+      viewsheet.getVSAssemblyInfo().setVizMark(VizMark.MODERN_DARK);
+      viewsheet.getAssembly("Text1").getVSAssemblyInfo().setVizMark(VizMark.MODERN_DARK);
+
+      service.switchMark("rid", false, principal, dispatcher, "uri");
+
+      assertEquals(VizMark.MODERN_LIGHT, viewsheet.getVSAssemblyInfo().getVizMark());
+      assertEquals(VizMark.MODERN_LIGHT,
+                   viewsheet.getAssembly("Text1").getVSAssemblyInfo().getVizMark());
+   }
+
+   @Test
+   void switchMarkToTheHeldMarkOnlyDispatchesViewsheetInfo() throws Exception {
+      viewsheet.getVSAssemblyInfo().setVizMark(VizMark.MODERN_DARK);
+      viewsheet.getAssembly("Text1").getVSAssemblyInfo().setVizMark(VizMark.MODERN_DARK);
+
+      service.switchMark("rid", true, principal, dispatcher, "uri");
+
+      verify(coreLifecycleService).setViewsheetInfo(eq(rvs), eq("uri"), eq(dispatcher));
+      verify(coreLifecycleService, never())
+         .refreshViewsheet(any(), anyString(), anyString(), any(), anyBoolean(), anyBoolean(),
+                           anyBoolean(), any());
+   }
+
+   @Test
+   void switchMarkRefusesWithoutWritePermission() throws Exception {
+      viewsheet.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      doThrow(new SecurityException("denied"))
+         .when(assetRepository).checkAssetPermission(any(), any(), any());
+
+      assertThrows(SecurityException.class,
+                   () -> service.switchMark("rid", true, principal, dispatcher, "uri"));
+      assertEquals(VizMark.MODERN_LIGHT, viewsheet.getVSAssemblyInfo().getVizMark(),
+                   "the permission check precedes any write");
+      verify(coreLifecycleService).setViewsheetInfo(eq(rvs), eq("uri"), eq(dispatcher));
+   }
+
    private ModernizeViewsheetService service;
    private Viewsheet viewsheet;
    @Mock private ViewsheetEngine viewsheetEngine;

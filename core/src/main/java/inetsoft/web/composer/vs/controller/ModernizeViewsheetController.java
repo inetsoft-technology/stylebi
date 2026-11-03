@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.controller;
 
+import inetsoft.web.composer.vs.event.SwitchVizMarkEvent;
 import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -51,6 +53,21 @@ public class ModernizeViewsheetController {
    {
       modernizeViewsheetService.modernize(runtimeViewsheetRef.getRuntimeId(), principal,
                                          commandDispatcher, linkUri);
+   }
+
+   /**
+    * Accept the offer to switch the dashboard's mark. One undo step, like modernize.
+    */
+   @Undoable
+   @LoadingMask
+   @HandleAssetExceptions
+   @MessageMapping("composer/viewsheet/switch-mark")
+   public void switchMark(@Payload SwitchVizMarkEvent event, Principal principal,
+                          CommandDispatcher commandDispatcher, @LinkUri String linkUri)
+      throws Exception
+   {
+      modernizeViewsheetService.switchMark(runtimeViewsheetRef.getRuntimeId(), event.isDark(),
+                                          principal, commandDispatcher, linkUri);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;

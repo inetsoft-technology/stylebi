@@ -137,6 +137,7 @@ import { OpenSheetEventValidator } from "../../ws/socket/open-ws/open-sheet-even
 import { SaveSheetCommand } from "../../ws/socket/save-sheet-command";
 import { TouchAssetEvent } from "../../ws/socket/touch-asset-event";
 import { ChangeCurrentLayoutCommand } from "../command/change-current-layout-command";
+import { OfferVizMarkCommand } from "../command/offer-viz-mark-command";
 import { PopulateVSObjectTreeCommand } from "../command/populate-vs-object-tree-command";
 import { ReopenSheetCommand } from "../command/reopen-sheet-command";
 import { UpdateZIndexesCommand } from "../command/update-zindexes-command";
@@ -813,6 +814,12 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.label = command.assemblyInfo["name"];
       this.vs.layouts = command.layouts;
       this.vs.baseEntry = command.baseEntry;
+
+      // a later page change withdraws a stale offer
+      if(command.info["viewsheetBackground"] !== this.viewsheetBackground) {
+         this.markOffer = null;
+      }
+
       this.viewsheetBackground = command.info["viewsheetBackground"];
       this.vs.statusText = command.info["statusText"];
 
@@ -1746,6 +1753,35 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       // endpoint with nothing to do, and @Undoable would still checkpoint it
       this.vs.modernizable = false;
       this.vs.socketConnection.sendEvent("/events/composer/viewsheet/modernize");
+   }
+
+   /** The mark offered after the page background crossed sides, until acted on or superseded. */
+   markOffer: "dark" | "light" | null = null;
+
+   get markOfferMessage(): string {
+      return this.markOffer === "dark"
+         ? "_#(js:composer.vs.markOffer.toDark.message)"
+         : "_#(js:composer.vs.markOffer.toLight.message)";
+   }
+
+   get markOfferAction(): string {
+      return this.markOffer === "dark"
+         ? "_#(js:composer.vs.markOffer.toDark.action)"
+         : "_#(js:composer.vs.markOffer.toLight.action)";
+   }
+
+   processOfferVizMarkCommand(command: OfferVizMarkCommand): void {
+      this.markOffer = command.dark ? "dark" : "light";
+   }
+
+   switchMark(): void {
+      const dark = this.markOffer === "dark";
+      this.markOffer = null;
+      this.vs.socketConnection.sendEvent("/events/composer/viewsheet/switch-mark", {dark});
+   }
+
+   dismissMarkOffer(): void {
+      this.markOffer = null;
    }
 
    revert(): Promise<void> {
