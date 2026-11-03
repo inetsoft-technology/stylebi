@@ -21,11 +21,15 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
+import inetsoft.uql.viewsheet.CompositeSelectionValue;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.SelectionTreePropertyDialogService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -123,5 +127,92 @@ class SelectionBindingServiceDroppedSelectionTest {
       Map<String, Object> result = rebind(assembly(list("East", "West"), list("West")), "CITY");
 
       assertEquals(List.of("East"), result.get("droppedSelection"));
+   }
+
+   // ── selection tree (bug-80132) ──────────────────────────────────────────────
+
+   /** A State > City tree; each state is selected when named, each city when "State/City" is. */
+   private static SelectionList tree(String... selected) {
+      List<String> picks = List.of(selected);
+      SelectionList states = new SelectionList();
+
+      for(String state : List.of("East", "West")) {
+         CompositeSelectionValue stateValue = new CompositeSelectionValue(state, state);
+         stateValue.setLevel(0);
+         stateValue.setSelected(picks.contains(state));
+         SelectionList cities = new SelectionList();
+
+         for(String city : List.of("NY", "MA")) {
+            SelectionValue cityValue = new SelectionValue(city, city);
+            cityValue.setLevel(1);
+            cityValue.setSelected(picks.contains(state + "/" + city));
+            cities.addSelectionValue(cityValue);
+         }
+
+         stateValue.setSelectionList(cities);
+         states.addSelectionValue(stateValue);
+      }
+
+      return states;
+   }
+
+   private static SelectionTreeVSAssembly treeAssembly(SelectionList before, SelectionList after) {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      when(assembly.getStateSelectionList()).thenReturn(before, after);
+      return assembly;
+   }
+
+   private static Map<String, Object> rebindTree(SelectionTreeVSAssembly assembly, boolean idMode)
+      throws Exception
+   {
+      SelectionTreePropertyDialogService treeService =
+         mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
+
+      return idMode
+         ? harness(assembly, null, treeService, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                      "ORDER_DATE", false, "")
+         : harness(assembly, null, treeService, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE", "CITY"), null,
+                      null, null, null, null, false, "");
+   }
+
+   @Test
+   void disclosesTheTreeNodesAColumnModeRebindReset() throws Exception {
+      Map<String, Object> result = rebindTree(
+         treeAssembly(tree("East", "East/NY", "West/MA"), null), false);
+
+      assertEquals(List.of("East", "East > NY", "West > MA"), result.get("droppedSelection"));
+   }
+
+   @Test
+   void disclosesTheTreeNodesAnIdModeRebindReset() throws Exception {
+      Map<String, Object> result = rebindTree(treeAssembly(tree("West/NY"), null), true);
+
+      assertEquals(List.of("West > NY"), result.get("droppedSelection"));
+   }
+
+   @Test
+   void staysSilentWhenNoTreeNodeWasSelected() throws Exception {
+      assertFalse(rebindTree(treeAssembly(tree(), null), false).containsKey("droppedSelection"));
+      assertFalse(rebindTree(treeAssembly(tree(), null), true).containsKey("droppedSelection"));
+   }
+
+   @Test
+   void staysSilentWhenTheTreeKeepsItsSelection() throws Exception {
+      Map<String, Object> result =
+         rebindTree(treeAssembly(tree("East/NY"), tree("East/NY")), false);
+
+      assertFalse(result.containsKey("droppedSelection"));
+   }
+
+   @Test
+   void disclosesOnlyTheTreeNodesThatNoLongerStaySelected() throws Exception {
+      Map<String, Object> result =
+         rebindTree(treeAssembly(tree("East/NY", "West/MA"), tree("West/MA")), true);
+
+      assertEquals(List.of("East > NY"), result.get("droppedSelection"));
    }
 }
