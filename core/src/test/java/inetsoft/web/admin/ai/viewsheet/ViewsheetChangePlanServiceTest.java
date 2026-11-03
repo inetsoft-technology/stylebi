@@ -799,6 +799,9 @@ class ViewsheetChangePlanServiceTest {
          .changes().get(0).description();
 
       assertTrue(description.contains("rewrites the path/asset-identifier of every viewsheet"));
+      assertTrue(description.contains("rewrites the path/asset-identifier of every viewsheet currently"));
+      assertFalse(description.contains("viewsheet and worksheet"));
+      assertTrue(description.contains("Worksheets stored under the same folder path are not moved"));
       assertTrue(description.contains("re-points schedule-task viewsheet actions"));
       assertTrue(description.contains("scheduled tasks follow the rename"));
       assertTrue(description.contains("held outside StyleBI"));
