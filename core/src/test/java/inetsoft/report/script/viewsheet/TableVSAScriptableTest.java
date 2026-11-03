@@ -30,10 +30,14 @@ import inetsoft.report.script.TableRow;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.util.script.graal.ScriptValueConverter;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Value;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -354,6 +358,37 @@ public class TableVSAScriptableTest {
       tableVSAScriptable2.commit(2);//index 2 is appended row
       assertEquals(1, formRowCount(tableVSAScriptable2.getFormRows("added")));
       assertEquals(36, formRowCount(tableVSAScriptable2.getFormRows(FormTableRow.OLD)));
+   }
+
+   /**
+    * Bug #80033 (round 2): TableFormRowScriptable's getMember already answered "rowIndex"/
+    * "rowState", but it inherited XTableRow.hasMember unoverridden, which only recognizes
+    * "length" and column names. GraalJS's ArrayProxy only calls getMember for a key that
+    * hasMember reports present, so a plain Java-level assertion on getMember/getArrayElement
+    * (as in testFormTableActions) cannot catch this -- it never goes through GraalJS's
+    * hasMember gate. This test evaluates a real JS snippet against the actual
+    * ScriptValueConverter.toGuest-wrapped getFormRows() result to exercise that gate.
+    */
+   @Test
+   void testGetFormRowsExposedToGraalJS() throws Exception {
+      processAssembly("TableView2");
+
+      Object formRows = tableVSAScriptable2.getFormRows(FormTableRow.OLD);
+      AttributeTableLens tableLens2 = (AttributeTableLens) tableVSAScriptable2.getMember("tablelens");
+      String firstColumn = XUtil.getHeader(tableLens2, 0).toString();
+
+      try(Context ctx = Context.create("js")) {
+         ctx.getBindings("js").putMember("rows", ScriptValueConverter.toGuest(formRows));
+         ctx.getBindings("js").putMember("col", firstColumn);
+         Value result = ctx.eval("js",
+            "var r = rows[0]; " +
+            "({rowIndex: r.rowIndex, rowState: r.rowState, byName: r[col], byIndex: r[0]})");
+
+         assertFalse(result.getMember("rowIndex").isNull(), "rowIndex should not be undefined");
+         assertFalse(result.getMember("rowState").isNull(), "rowState should not be undefined");
+         assertFalse(result.getMember("byName").isNull(), "column read by name should not be undefined");
+         assertFalse(result.getMember("byIndex").isNull(), "column read by index should not be undefined");
+      }
    }
 
    /**

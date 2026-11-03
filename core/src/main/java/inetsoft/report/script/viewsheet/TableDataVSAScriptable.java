@@ -1460,6 +1460,21 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return null;
       }
 
+      /**
+       * GraalJS gates getMember behind hasMember for a ProxyObject -- without this override,
+       * the inherited XTableRow.hasMember (which only knows "length" and column names) hides
+       * the "rowState"/"rowIndex" branches that getMember already answers, so r.rowIndex and
+       * r.rowState read back undefined to script (Bug #80033).
+       */
+      @Override
+      public boolean hasMember(String name) {
+         if(name.equals("rowState") || name.equals("rowIndex")) {
+            return true;
+         }
+
+         return super.hasMember(name);
+      }
+
       private int rowState;
       private FormTableRow formRow;
    }
