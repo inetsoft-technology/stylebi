@@ -41,6 +41,9 @@
  *   Group 13 �?setQuickSwitchHover: overlay button positioning math (direct instantiation)
  */
 
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { Subject } from "rxjs";
 
 import { NavigationKeys } from "../navigation-keys";
@@ -907,5 +910,54 @@ describe("VSSelection corner kebab reserve (compiled CSS)", () => {
          /\.viz-corner-kebab[^{},]*pending-alert\.top[^{},]*:not\(\.left\)[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
       expect(styleText).toMatch(
          /\.viz-corner-kebab[^{},]*selection-list__header-buttons[^{},]*\{[^}]*right:\s*var\(--viz-corner-kebab-reserve\)/);
+   });
+});
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+describe("VSSelection overlay backdrops follow the mark (compiled CSS)", () => {
+   async function styles(): Promise<string> {
+      const { comp } = await renderComponent();
+      return ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+   }
+
+   function modernDark(sel: string, prop: string, light: string): [RegExp, RegExp, RegExp] {
+      return [
+         new RegExp(String.raw`${sel}[^{}]*\{[^}]*${prop}:\s*${light}`),
+         new RegExp(String.raw`\.viz-modern[^{}]*${sel}[^{}]*\{[^}]*${prop}:\s*var\(--inet-shell-surface-default\)`),
+         new RegExp(String.raw`\.viz-dark[^{}]*${sel}[^{}]*\{[^}]*${prop}:\s*var\(--inet-viz-surface-dark\)`)
+      ];
+   }
+
+   function expectOrdered(css: string, res: RegExp[]) {
+      res.forEach(re => expect(css).toMatch(re));
+      const modern = css.search(res[1]);
+      const dark = css.search(res[2]);
+      expect(dark).toBeGreaterThan(modern);
+   }
+
+   it("headerButtonBackdropFollowsTheMark", async () => {
+      expectOrdered(await styles(), modernDark(
+         "selection-list__header-buttons", "background-color", String.raw`rgba\(255,\s*255,\s*255,\s*0\.75\)`));
+   });
+
+   it("pendingAlertBackdropFollowsTheMark", async () => {
+      expectOrdered(await styles(), modernDark(
+         String.raw`pending-alert\.left`, "background-color", String.raw`rgb\(245,\s*245,\s*245\)`));
+   });
+
+   it("quickSwitchBackdropFollowsTheMark", async () => {
+      const css = await styles();
+      expectOrdered(css, modernDark(
+         "quick-switch-overlay-btn", "background", String.raw`rgba\(255,\s*255,\s*255,\s*0\.88\)`));
+      expect(css).toMatch(
+         /\.viz-modern[^{}]*quick-switch-overlay-btn[^{}]*\{[^}]*border-color:\s*var\(--inet-default-border-color\)/);
+      expect(css).toMatch(
+         /\.viz-dark[^{}]*quick-switch-overlay-btn[^{}]*\{[^}]*border-color:\s*var\(--inet-viz-hairline-dark\)/);
+   });
+
+   it("theTemplateHasNoInlineBackdrop", () => {
+      const html = readFileSync(join(__dirname, "vs-selection.component.html"), "utf-8");
+      expect(html).not.toContain("rgba(255,255,255,0.75)");
    });
 });

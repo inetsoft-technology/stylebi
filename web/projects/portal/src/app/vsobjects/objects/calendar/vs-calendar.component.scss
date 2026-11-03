@@ -168,6 +168,14 @@ year-calendar, month-calendar {
   height: calc(100% - 36px);
 }
 
+:host-context(.viz-modern) .day-table {
+  width: 100%;
+}
+
+:host-context(.dropdown-calendar) .day-table {
+  width: calc(100% - 2px);
+}
+
 .day-column {
   display: flex;
   flex-direction: column;
@@ -272,6 +280,14 @@ year-calendar, month-calendar {
     left: 1px;
     background-color: rgb(245, 245, 245);
   }
+}
+
+:host-context(.viz-modern) .pending-alert.left {
+  background-color: var(--inet-shell-surface-default);
+}
+
+:host-context(.viz-dark) .pending-alert.left {
+  background-color: var(--inet-viz-surface-dark);
 }
 
 // .calendar-body is a flex row, so a double calendar's second panel holds the top-right corner

@@ -657,3 +657,15 @@ describe("VSSelectionContainerChildren - layout helpers", () => {
       );
    });
 });
+
+describe("VSSelectionContainerChildren card layer", () => {
+   it("paints no background of its own, even when the container format has one", async () => {
+      const model = makeVsObject();
+      model.objectFormat.background = "rgba(170,170,170,0.15)";
+      const { fixture } = await renderComponent({ model });
+      const layer = fixture.nativeElement.querySelector(".selection-container-children") as HTMLElement;
+
+      expect(layer).not.toBeNull();
+      expect(layer.style.backgroundColor).toBe("");
+   });
+});

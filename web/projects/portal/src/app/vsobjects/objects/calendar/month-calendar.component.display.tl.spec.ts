@@ -563,3 +563,16 @@ describe("MonthCalendar corner kebab reserve (compiled CSS)", () => {
       expect(styleText).not.toMatch(/:not\(\.second-calendar\)[^{},]*child-calendar-title/);
    });
 });
+
+describe("MonthCalendar day table width (compiled CSS)", () => {
+   it("fills a non-dropdown modern calendar and keeps the 2px inset otherwise", () => {
+      const { comp } = createMonthCalendar();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(/\.day-table[^{}]*\{[^}]*width:\s*calc\(100%\s*-\s*2px\)/);
+      expect(styleText).toMatch(
+         /\.viz-modern[^{}]*\.day-table[^{}]*\{[^}]*width:\s*100%/);
+      expect(styleText).toMatch(
+         /\.dropdown-calendar[^{}]*\.day-table[^{}]*\{[^}]*width:\s*calc\(100%\s*-\s*2px\)/);
+   });
+});

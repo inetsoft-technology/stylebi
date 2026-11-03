@@ -160,6 +160,18 @@ describe("resolveStripBackground with translucent layers", () => {
       }
    });
 
+   it("clears the floor on the translucent card default for both pages", () => {
+      for(const vizDark of [false, true]) {
+         const m = model({ vizDark, objectFormat: { background: "rgba(170,170,170,0.15)" } });
+         const bg = resolveStripBackground(m);
+         const { tone, alpha } = stripGlyphTone(m);
+         const ink = tone === "light" ? "#000000" : "#FFFFFF";
+         const got = readability(new TinyColor(ink).setAlpha(alpha).onBackground(bg), bg);
+
+         expect(got).toBeGreaterThanOrEqual(3);
+      }
+   });
+
    it("accepts the rgba string form the server actually sends for an opaque colour", () => {
       // VSCSSUtil.getBackgroundRGBA always emits rgba(...), never hex
       expect(stripGlyphTone(model({ titleFormat: { background: "rgba(255,255,255,1.0)" } })))

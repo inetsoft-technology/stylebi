@@ -73,3 +73,24 @@ describe("VS Group Container Unit Test", () => {
       expect(image.style["opacity"]).toBe("0.3");
    });
 });
+
+describe("VS Group Container default border", () => {
+   it("has no modern client-side border rule and no no-default-border hook", () => {
+      TestBed.configureTestingModule({
+         imports: [VSGroupContainer],
+         schemas: [NO_ERRORS_SCHEMA],
+         providers: [
+            { provide: ContextProvider, useValue: {} },
+            { provide: ViewsheetClientService, useValue: { sendEvent: vi.fn(), runtimeId: "Viewsheet1" } },
+            { provide: DataTipService, useValue: { isDataTip: vi.fn(), scrolled: new Subject<void>() } },
+            PopComponentService
+         ]
+      });
+      const fixture = TestBed.createComponent(VSGroupContainer);
+      const styleText = ((fixture.componentInstance.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).not.toMatch(/viz-modern[^{}]*\{[^}]*border:/);
+      expect(styleText).not.toContain("no-default-border");
+      expect((fixture.componentInstance as any).hasAnyBorder).toBeUndefined();
+   });
+});
