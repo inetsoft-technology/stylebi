@@ -185,6 +185,42 @@ class VSTableDataHelperTest {
       assertEquals(4, cellfmt.getBorders().bottom);
    }
 
+   @Test
+   void writeSkipsObjectBorderOverlayForStyledTable() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle("style1");
+      info.setTitleVisible(false);
+      info.setPixelSize(new Dimension(400, 220));
+
+      TableDataVSAssembly assembly = Mockito.mock(TableDataVSAssembly.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(assembly.getInfo()).thenReturn(info);
+
+      VSTableDataHelper helper = helper();
+      helper.write(assembly, null);
+
+      Mockito.verify(helper, Mockito.times(1)).drawObjectFormat(info, null, false);
+      Mockito.verify(helper, Mockito.never()).drawObjectFormat(info, null, true);
+   }
+
+   @Test
+   void writeDrawsObjectBorderOverlayForUnstyledTable() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle(null);
+      info.setTitleVisible(false);
+      info.setPixelSize(new Dimension(400, 220));
+
+      TableDataVSAssembly assembly = Mockito.mock(TableDataVSAssembly.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(assembly.getInfo()).thenReturn(info);
+
+      VSTableDataHelper helper = helper();
+      helper.write(assembly, null);
+
+      Mockito.verify(helper, Mockito.times(1)).drawObjectFormat(info, null, false);
+      Mockito.verify(helper, Mockito.times(1)).drawObjectFormat(info, null, true);
+   }
+
    private VSTableDataHelper helper() {
       return Mockito.mock(VSTableDataHelper.class, Mockito.CALLS_REAL_METHODS);
    }
