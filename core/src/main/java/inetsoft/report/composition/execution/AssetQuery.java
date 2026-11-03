@@ -4558,6 +4558,8 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
          }
 
+         // post conditions are data conditions too: null is not "not equal to" a value, as in SQL
+         setNullNotEqualDropped(true);
          sarr = new AssetCondition[sconds.size()];
          sconds.toArray(sarr);
       }

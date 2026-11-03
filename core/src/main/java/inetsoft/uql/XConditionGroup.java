@@ -450,7 +450,7 @@ public class XConditionGroup implements Cloneable, Serializable {
       public XCondition condition;
       public int col;
       public String subCol;
-      public boolean nullNotEqualDropped;
+      private boolean nullNotEqualDropped;
    }
 
    /**
