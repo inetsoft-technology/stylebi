@@ -142,6 +142,9 @@ public class WizExportController {
       csvConfig.setKeepHeader(request.isKeepHeader());
       csvConfig.setTabDelimited(request.isTabDelimited());
       csvConfig.setExportAssemblies(Arrays.asList(tables));
+      // a table whose live query failed would otherwise export as the fabricated design-time
+      // sample row (e.g. ORDER_ID 999 and the current timestamp) the failure is swallowed into
+      csvConfig.setFailOnFailedQuery(true);
 
       // type=null (no output-extension override), matchesAssetIdFormat=false (see class doc),
       // previewPrintLayout=false, print=false — wiz never sets either of the last two.

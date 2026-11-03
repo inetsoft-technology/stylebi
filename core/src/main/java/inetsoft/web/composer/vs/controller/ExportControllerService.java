@@ -192,6 +192,12 @@ public class ExportControllerService {
          VSExporter exporter = AbstractVSExporter.getVSExporter(
             format, PortalThemesManager.getColorTheme(), out, print, csvConfig);
 
+         if(csvConfig != null && csvConfig.isFailOnFailedQuery() &&
+            exporter instanceof AbstractVSExporter)
+         {
+            ((AbstractVSExporter) exporter).setFailOnFailedQuery(true);
+         }
+
          if(exporter instanceof ExcelVSExporter) {
             ((ExcelVSExporter) exporter).setExcelToCSV(excelToCSV);
             ((ExcelVSExporter) exporter).setExportAllTabbedTables(exportAllTabbedTables);

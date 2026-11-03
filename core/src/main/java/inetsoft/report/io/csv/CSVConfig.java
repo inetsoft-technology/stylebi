@@ -131,6 +131,20 @@ public class CSVConfig implements Cloneable, Serializable, HttpXMLSerializable {
       this.exportAssemblies = exportAssemblies;
    }
 
+   /**
+    * Whether an export that reaches a table whose live query failed must fail instead of
+    * writing the design-time sample rows the failure is swallowed into. Honoured for every
+    * export format, not just CSV: the config is the options carrier the wiz export passes
+    * through the export service.
+    */
+   public boolean isFailOnFailedQuery() {
+      return failOnFailedQuery;
+   }
+
+   public void setFailOnFailedQuery(boolean failOnFailedQuery) {
+      this.failOnFailedQuery = failOnFailedQuery;
+   }
+
    @Override
    public Object clone() {
       try {
@@ -245,6 +259,7 @@ public class CSVConfig implements Cloneable, Serializable, HttpXMLSerializable {
    private String quote = null;
    private boolean keepHeader = true;
    private boolean tabDelimited = false;
+   private boolean failOnFailedQuery = false;
    private transient boolean encoding = false;
    private List<String> exportAssemblies;
 
