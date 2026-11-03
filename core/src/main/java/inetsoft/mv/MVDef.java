@@ -409,6 +409,35 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
+    * Stamp this def after a create finished. An incremental update stores the time its read
+    * started in the MV file (Bug #79854); use that instead of now() so a row inserted while it
+    * ran is selected by the next update, and never move the stamp backwards past
+    * {@code current}. Anything else (a full build) keeps the end stamp.
+    * @param previous the stamp before the create started.
+    * @param current  the stamp the manager holds now.
+    */
+   public void updateLastUpdateTimeAfterCreate(long previous, long current) {
+      long stored = getStoredUpdateTime(mvname);
+      updateLastUpdateTime(stored > previous ? Math.max(stored, current)
+                              : System.currentTimeMillis());
+   }
+
+   /**
+    * Get the last update time stored in the MV file, or -1 if it can't be read.
+    */
+   static long getStoredUpdateTime(String name) {
+      try {
+         MV mv = MVStorage.getInstance().get(MVStorage.getFile(name));
+         MVDef def = mv == null ? null : mv.getDef();
+         return def == null ? -1L : def.getLastUpdateTime();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to read the last update time of materialized view {}", name, ex);
+         return -1L;
+      }
+   }
+
+   /**
     * Refresh this mv def with the time the update started reading its source (Bug #79854).
     * The stamp is the lower bound of the next incremental update (MV.LastUpdateTime), so it
     * must not be later than the moment the update's data was read, or a row inserted while the

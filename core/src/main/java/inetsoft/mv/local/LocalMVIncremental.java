@@ -71,8 +71,6 @@ public class LocalMVIncremental extends MVIncremental {
    }
 
    private boolean update0() throws Exception {
-      // Bug #79854, taken before the source is read; refresh() stores it as the last update time
-      updateStart = System.currentTimeMillis();
       XServerNode server = FSService.getServer();
 
       if(server == null) {

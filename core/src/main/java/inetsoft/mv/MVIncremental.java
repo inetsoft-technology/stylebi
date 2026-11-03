@@ -32,6 +32,9 @@ import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.viewsheet.Viewsheet;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -77,7 +80,16 @@ public abstract class MVIncremental {
          // refresh MV's def
          // Bug #79854, stamp the time the update started reading, not the time it ended, so a
          // row inserted while the update runs is selected by the next update
-         long stamp = updateStart > 0 ? updateStart : System.currentTimeMillis();
+         long stamp = updateStart;
+
+         if(stamp <= 0) {
+            // an update that reaches refresh() has read its data through getData()
+            LOG.warn("The start of the update of materialized view {} was not recorded, " +
+                     "rows inserted while it ran may be missed by the next update",
+                     mvdef.getName());
+            stamp = System.currentTimeMillis();
+         }
+
          mv.updateLastModifiedTime(stamp);
          // MVDef.lastModified only be used in script, and we
          // just need to refresh the MV.mvdef
@@ -227,15 +239,22 @@ public abstract class MVIncremental {
       }
 
       // set time as now, not to use cached data when create mv
+      // Bug #79854, the stamp stored by refresh() must not be later than this read, and is
+      // taken after the lock waits and the delete pass so it does not widen the overlap window
+      long readStart = System.currentTimeMillis();
+      updateStart = readStart;
       return AssetDataCache.getCache().getData(
          null, (TableAssembly) assembly.clone(), box, null, AssetQuerySandbox.RUNTIME_MODE, false,
-         System.currentTimeMillis(), box.getQueryManager());
+         readStart, box.getQueryManager());
    }
 
    protected MV mv;
    protected MVDef mvdef;
+   private static final Logger LOG = LoggerFactory.getLogger(MVIncremental.class);
+
    /**
-    * The time the update started, before its data is read. Stored as the last update time.
+    * The time the update's data read started, set by {@link #getData}. Stored as the last
+    * update time by {@link #refresh()}; a subclass must read its data through getData().
     */
    protected long updateStart;
 }

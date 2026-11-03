@@ -182,6 +182,97 @@ class MVIncrementalTest {
       assertTrue(def.getLastUpdateTime() >= before);
    }
 
+   /**
+    * Bug #79854: the start is recorded by getData(), right before the source is read, so it is
+    * not later than the read and does not include the lock wait and delete pass before it.
+    */
+   @Test
+   void getDataRecordsTheStartOfTheRead() throws Exception {
+      MVDef def = new MVDef();
+      def.container = new MVDef.MVContainer(new ArrayList<>(), null);
+      MV mv = Mockito.mock(MV.class);
+      Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));
+      MVStorage storage = Mockito.mock(MVStorage.class);
+      Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+      AssetDataCache cache = Mockito.mock(AssetDataCache.class);
+      long[] readAt = new long[1];
+      long[] cacheTs = new long[1];
+      Mockito.when(cache.getData(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
+                                 Mockito.anyInt(), Mockito.anyBoolean(), Mockito.anyLong(),
+                                 Mockito.any()))
+         .thenAnswer(inv -> {
+            readAt[0] = System.currentTimeMillis();
+            cacheTs[0] = inv.getArgument(6);
+            return null;
+         });
+      Worksheet ws = new Worksheet();
+      TableAssembly table = table(ws, "T");
+
+      try(MockedStatic<MVStorage> storageStatics = Mockito.mockStatic(MVStorage.class);
+          MockedStatic<AssetDataCache> cacheStatics = Mockito.mockStatic(AssetDataCache.class))
+      {
+         storageStatics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         storageStatics.when(MVStorage::getInstance).thenReturn(storage);
+         cacheStatics.when(AssetDataCache::getCache).thenReturn(cache);
+         TestIncremental incremental = new TestIncremental(def);
+         assertEquals(0L, incremental.updateStart);
+         long before = System.currentTimeMillis();
+
+         incremental.getData(ws, table, new VariableTable());
+
+         assertTrue(incremental.updateStart >= before);
+         assertTrue(incremental.updateStart <= readAt[0]);
+         assertEquals(incremental.updateStart, cacheTs[0]);
+      }
+   }
+
+   /**
+    * Bug #79854: after a create, an incremental update's stored stamp is kept, the stamp never
+    * goes backwards, and anything else (a full build) keeps the end stamp.
+    */
+   @Test
+   void stampAfterCreateKeepsTheStoredStartAndNeverGoesBackwards() throws Exception {
+      long previous = System.currentTimeMillis() - 600_000L;
+      long stored = previous + 100_000L;
+
+      assertEquals(stored, afterCreate(stored, previous, previous));
+      // a concurrent update stored a newer stamp in the manager: not lowered
+      assertEquals(stored + 5_000L, afterCreate(stored, previous, stored + 5_000L));
+      // a full build leaves the stored stamp at the old value: end stamp as before
+      long before = System.currentTimeMillis();
+      assertTrue(afterCreate(previous, previous, previous) >= before);
+      // unreadable file: end stamp as before
+      assertTrue(afterCreate(-1L, previous, previous) >= before);
+   }
+
+   private static long afterCreate(long storedStamp, long previous, long current)
+      throws Exception
+   {
+      MVDef def = new MVDef();
+      def.setMVName("m");
+      MVStorage storage = Mockito.mock(MVStorage.class);
+
+      try(MockedStatic<MVStorage> statics = Mockito.mockStatic(MVStorage.class)) {
+         statics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         statics.when(MVStorage::getInstance).thenReturn(storage);
+
+         if(storedStamp < 0) {
+            Mockito.when(storage.get(Mockito.anyString())).thenThrow(new RuntimeException());
+         }
+         else {
+            MV mv = Mockito.mock(MV.class);
+            MVDef stored = new MVDef();
+            stored.updateLastUpdateTime(storedStamp);
+            Mockito.when(mv.getDef()).thenReturn(stored);
+            Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+         }
+
+         def.updateLastUpdateTimeAfterCreate(previous, current);
+      }
+
+      return def.getLastUpdateTime();
+   }
+
    private static void merge(MVDef def, TableAssembly table) throws Exception {
       MV mv = Mockito.mock(MV.class);
       Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));

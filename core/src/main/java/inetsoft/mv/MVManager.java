@@ -506,14 +506,14 @@ public final class MVManager implements MessageListener {
                pending.put(key, job);
 
                try {
-                  // Bug #79854, taken before the data is read
-                  long start = System.currentTimeMillis();
+                  // Bug #79854, the incremental update stores its read start in the MV file
+                  long previous = mv.getLastUpdateTime();
 
                   if(job.create()) {
                      getOrgLock(orgId).writeLock().lock();
 
                      try {
-                        mv.updateLastUpdateTime(start); // set update ts
+                        mv.updateLastUpdateTimeAfterCreate(previous, previous); // set update ts
                         add(mv);
                         SharedMVUtil.shareCreatedMV(mv);
                      }
