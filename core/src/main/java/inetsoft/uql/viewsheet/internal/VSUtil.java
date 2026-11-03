@@ -6550,6 +6550,96 @@ public final class VSUtil {
       for(TableDataPath ntp : added.keySet()) {
          synMap.put(ntp, added.get(ntp));
       }
+
+      if(!fromSetInput && !fromDrill) {
+         clearNumberFormatOnCountChange(ocinfo, cinfo, aggNameMap, synMap);
+      }
+   }
+
+   /**
+    * The measure key of a path-keyed setting never contains the formula, so changing
+    * Average(Discount) to Count(Discount) leaves the old number format (e.g. a percent) on the
+    * count (bug #80094). Drop the number/date format of every summary, total and hidden summary
+    * path whose measure key now holds a count (Count or DistinctCount) where it held a non-count,
+    * or the reverse. Count to DistinctCount, and swaps between non-count formulas, keep it.
+    * The origin of a key is the old aggregate that was carried onto it, otherwise the old
+    * aggregate that had the same key. Known limit: Average -> Sum -> Count in two calls is not
+    * detected, as the formula is not stored with the format. A percent aggregate is skipped, as it
+    * renders as a percent either way. Entries are cloned first, as a format object can be shared
+    * between the retained old key and the new key.
+    */
+   @SuppressWarnings("unchecked")
+   private static <V> void clearNumberFormatOnCountChange(VSCrosstabInfo ocinfo,
+                                                          VSCrosstabInfo cinfo,
+                                                          Map<String, String> aggNameMap,
+                                                          Map<TableDataPath, V> synMap)
+   {
+      DataRef[] orefs = getRefs(ocinfo, true);
+      DataRef[] nrefs = getRefs(cinfo, true);
+      String[] onames = buildName(orefs, true);
+      String[] nnames = buildName(nrefs, true);
+      boolean moved = hasRuntimeRowHeader(ocinfo);
+
+      for(int j = 0; j < nrefs.length; j++) {
+         if(!(nrefs[j] instanceof VSAggregateRef)) {
+            continue;
+         }
+
+         VSAggregateRef nref = (VSAggregateRef) nrefs[j];
+         Calculator calc = nref.getCalculator();
+
+         if(calc != null && calc.isPercent() || nref.getPercentageOption() != XConstants.PERCENTAGE_NONE) {
+            continue;
+         }
+
+         int origin = -1;
+
+         for(int i = 0; moved && i < onames.length; i++) {
+            if(nnames[j].equals(aggNameMap.get(onames[i]))) {
+               origin = i;
+               break;
+            }
+         }
+
+         for(int i = 0; origin < 0 && i < onames.length; i++) {
+            if(nnames[j].equals(onames[i])) {
+               origin = i;
+            }
+         }
+
+         if(origin < 0 || !(orefs[origin] instanceof VSAggregateRef) ||
+            isCountFormula(((VSAggregateRef) orefs[origin]).getFormula()) ==
+            isCountFormula(nref.getFormula()))
+         {
+            continue;
+         }
+
+         for(TableDataPath tp : new ArrayList<>(synMap.keySet())) {
+            String[] arr = tp.getPath();
+            int type = tp.getType();
+
+            if(arr == null || arr.length == 0 || !nnames[j].equals(arr[arr.length - 1]) ||
+               type != TableDataPath.SUMMARY && type != TableDataPath.TRAILER &&
+               type != TableDataPath.HIDDEN_SUMMARY)
+            {
+               continue;
+            }
+
+            V obj = synMap.get(tp);
+
+            if(obj instanceof VSCompositeFormat) {
+               VSCompositeFormat fmt = ((VSCompositeFormat) obj).clone();
+               fmt.getUserDefinedFormat().setFormatValue(null, false);
+               fmt.getUserDefinedFormat().setFormatExtentValue(null, false);
+               synMap.put(tp, (V) fmt);
+            }
+         }
+      }
+   }
+
+   private static boolean isCountFormula(AggregateFormula formula) {
+      return AggregateFormula.COUNT_ALL.equals(formula) ||
+         AggregateFormula.COUNT_DISTINCT.equals(formula);
    }
 
    /**

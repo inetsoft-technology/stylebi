@@ -18,12 +18,14 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.Hyperlink;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.graph.calc.ChangeCalc;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -104,7 +106,7 @@ class VSUtilSyncCrosstabAggregateCarryTest {
    }
 
    @Test
-   void aFormulaChangeInPlaceKeepsTheFormat() {
+   void aSumToAverageChangeKeepsTheFormat() {
       Map<TableDataPath, Object> map = sync(aggs(sum("Total"), sum("Discount")),
                                             aggs(sum("Total"), agg("Discount", "Average")), false,
                                             "Discount", "D-FMT");
@@ -234,7 +236,196 @@ class VSUtilSyncCrosstabAggregateCarryTest {
                    "dimension carry is unchanged by the aggregate rule");
    }
 
+   // -- Bug #80094: a count/non-count formula change on the same column drops the number format --
+
+   @Test
+   void averageToCountDropsTheNumberFormat() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(sum("Total"), agg("Discount", "Average")),
+                                               aggs(sum("Total"), agg("Discount", "Count")),
+                                               false, path("Discount"), path("Total"));
+
+      assertNull(userFmt(map, path("Discount")).getFormatValue());
+      assertNull(userFmt(map, path("Discount")).getFormatExtentValue());
+      assertEquals("PercentFormat", userFmt(map, path("Total")).getFormatValue(),
+                   "an unchanged measure keeps its format");
+   }
+
+   @Test
+   void averageToDistinctCountDropsTheNumberFormat() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")),
+                                               aggs(agg("Discount", "DistinctCount")), false,
+                                               path("Discount"));
+
+      assertNull(userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void countToAverageDropsTheNumberFormat() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Count")),
+                                               aggs(agg("Discount", "Average")), false,
+                                               path("Discount"));
+
+      assertNull(userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void countToDistinctCountKeepsTheNumberFormat() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Count")),
+                                               aggs(agg("Discount", "DistinctCount")), false,
+                                               path("Discount"));
+
+      assertEquals("PercentFormat", userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void nonCountSwapsKeepTheNumberFormat() {
+      for(String formula : new String[] { "Sum", "Max", "Min", "Variance", "First" }) {
+         Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")),
+                                                  aggs(agg("Discount", formula)), false,
+                                                  path("Discount"));
+
+         assertEquals("PercentFormat", userFmt(map, path("Discount")).getFormatValue(), formula);
+      }
+   }
+
+   @Test
+   void fontAndAlignmentSurviveTheDrop() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")),
+                                               aggs(agg("Discount", "Count")), false,
+                                               path("Discount"));
+
+      assertEquals(StyleConstants.H_RIGHT, userFmt(map, path("Discount")).getAlignmentValue());
+   }
+
+   @Test
+   void grandTotalSubtotalAndHiddenSummaryPathsAreCleared() {
+      TableDataPath total = new TableDataPath(-1, TableDataPath.GRAND_TOTAL, XSchema.DOUBLE,
+                                              new String[] { "Discount" });
+      TableDataPath subtotal = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+                                                 new String[] { "Region", "Discount" });
+      TableDataPath hidden = new TableDataPath(-1, TableDataPath.HIDDEN_SUMMARY, XSchema.DOUBLE,
+                                               new String[] { "Region", "Category", "Discount" });
+      TableDataPath header = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+                                               new String[] { "Discount" });
+
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")),
+                                               aggs(agg("Discount", "Count")), false, total,
+                                               subtotal, hidden, header);
+
+      assertNull(userFmt(map, total).getFormatValue());
+      assertNull(userFmt(map, subtotal).getFormatValue());
+      assertNull(userFmt(map, hidden).getFormatValue());
+      assertEquals("PercentFormat", userFmt(map, header).getFormatValue(), "labels keep theirs");
+   }
+
+   @Test
+   void hyperlinkAndHighlightMapsAreUntouched() {
+      Hyperlink link = new Hyperlink("http://x", Hyperlink.WEB_LINK);
+      HighlightGroup group = new HighlightGroup();
+      Map<TableDataPath, Object> links = new HashMap<>();
+      links.put(path("Discount"), link);
+      Map<TableDataPath, Object> hl = new HashMap<>();
+      hl.put(path("Discount"), group);
+
+      sync(aggs(agg("Discount", "Average")), aggs(agg("Discount", "Count")), false, links);
+      sync(aggs(agg("Discount", "Average")), aggs(agg("Discount", "Count")), false, hl);
+
+      assertSame(link, links.get(path("Discount")));
+      assertSame(group, hl.get(path("Discount")));
+   }
+
+   @Test
+   void reorderTogetherWithTheChangeDropsTheFormat() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(sum("Total"), agg("Discount", "Average")),
+                                               aggs(agg("Discount", "Count"), sum("Total")),
+                                               false, path("Discount"), path("Total"));
+
+      assertNull(userFmt(map, path("Discount")).getFormatValue());
+      assertEquals("PercentFormat", userFmt(map, path("Total")).getFormatValue());
+   }
+
+   @Test
+   void insertingACountBeforeTheAverageKeepsTheAveragesFormat() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")),
+                                               aggs(agg("Discount", "Count"),
+                                                    agg("Discount", "Average")), false,
+                                               path("Discount"));
+
+      assertNull(userFmt(map, path("Discount")).getFormatValue(), "the new count owns the key");
+      assertEquals("PercentFormat", userFmt(map, path("Discount.1")).getFormatValue(),
+                   "the average moved to .1 and keeps its (separate) format object");
+   }
+
+   @Test
+   void swappingACountAndANonCountCarriesEachFormatWithItsMeasure() {
+      TableDataPath second = path("Discount.1");
+      Map<TableDataPath, Object> map = new HashMap<>();
+      map.put(path("Discount"), fmt("PercentFormat"));
+      map.put(second, fmt("#,##0"));
+
+      sync(aggs(agg("Discount", "Average"), agg("Discount", "Count")),
+           aggs(agg("Discount", "Count"), agg("Discount", "Average")), false, map);
+
+      assertEquals("#,##0", userFmt(map, path("Discount")).getFormatValue(), "count keeps its own");
+      assertEquals("PercentFormat", userFmt(map, second).getFormatValue());
+   }
+
+   /** Known limit: the formula is not stored with the format, so a two-call route is not seen. */
+   @Test
+   void averageToSumColumnThenCountInTwoCallsIsNotDetected() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")),
+                                               aggs(sum("Total")), false, path("Discount"));
+      sync(aggs(sum("Total")), aggs(agg("Discount", "Count")), false, map);
+
+      assertEquals("PercentFormat", userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void fromSetInputKeepsTheFormat() {
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")),
+                                               aggs(agg("Discount", "Count")), true,
+                                               path("Discount"));
+
+      assertEquals("PercentFormat", userFmt(map, path("Discount")).getFormatValue());
+   }
+
+   @Test
+   void aPercentAggregateIsSkipped() {
+      VSAggregateRef count = agg("Discount", "Count");
+      count.setPercentageOption(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+
+      Map<TableDataPath, Object> map = syncFmt(aggs(agg("Discount", "Average")), aggs(count),
+                                               false, path("Discount"));
+
+      assertEquals("PercentFormat", userFmt(map, path("Discount")).getFormatValue());
+   }
+
    // -- fixture --
+
+   private Map<TableDataPath, Object> syncFmt(DataRef[] oldAggs, DataRef[] newAggs,
+                                              boolean fromSetInput, TableDataPath... paths)
+   {
+      Map<TableDataPath, Object> map = new HashMap<>();
+
+      for(TableDataPath tp : paths) {
+         map.put(tp, fmt("PercentFormat"));
+      }
+
+      sync(oldAggs, newAggs, fromSetInput, map);
+      return map;
+   }
+
+   private static VSCompositeFormat fmt(String number) {
+      VSCompositeFormat fmt = new VSCompositeFormat();
+      fmt.getUserDefinedFormat().setFormatValue(number, true);
+      fmt.getUserDefinedFormat().setFormatExtentValue("0.00", true);
+      fmt.getUserDefinedFormat().setAlignmentValue(StyleConstants.H_RIGHT);
+      return fmt;
+   }
+
+   private static VSFormat userFmt(Map<TableDataPath, Object> map, TableDataPath tp) {
+      return ((VSCompositeFormat) map.get(tp)).getUserDefinedFormat();
+   }
 
    private Map<TableDataPath, Object> sync(DataRef[] oldAggs, DataRef[] newAggs,
                                            boolean fromSetInput, String measure, Object value)
