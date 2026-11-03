@@ -371,7 +371,12 @@ public abstract class VSTableDataHelper extends ExporterHelper {
 
       // @by stephenwebster, draw after the data so the object borders are on top
       // of the data borders.
-      drawObjectFormat(info, lens, true);
+      // a styled table takes its borders from the table style, as in the viewer
+      // (same precedent as applyTableBorders above) - don't let the object's own
+      // default border overlay overwrite the style border.
+      if(!info.isStyled()) {
+         drawObjectFormat(info, lens, true);
+      }
    }
 
    /**
