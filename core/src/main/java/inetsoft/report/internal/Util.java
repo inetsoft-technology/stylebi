@@ -515,6 +515,48 @@ public class Util implements inetsoft.report.StyleConstants {
       return 0;
    }
 
+   /**
+    * Find the aggregating filter (crosstab or summary) a table is built on.
+    * @return the filter, or null if the table is not an aggregate.
+    */
+   public static TableFilter getAggregateFilter(XTable table) {
+      while(table instanceof TableFilter) {
+         if(table instanceof CrossFilter || table instanceof SummaryFilter) {
+            return (TableFilter) table;
+         }
+
+         table = ((TableFilter) table).getTable();
+      }
+
+      return null;
+   }
+
+   /**
+    * Check whether the data an aggregating table (e.g. a crosstab) is built from, as seen by the
+    * aggregate, has been cut by the row limit. The output of an aggregate has fewer rows than
+    * its source, so the output row count can't tell if the source reached the limit.
+    * @param table the table shown to the user.
+    * @param limit the row limit applied to the source.
+    * @return true if the table aggregates a source that reached the limit, false if the table
+    * is not an aggregate or its source is smaller than the limit. When the aggregation was
+    * pushed down to the query, the source is not visible here and false is returned.
+    */
+   public static boolean isAggregateSourceLimited(XTable table, int limit) {
+      TableFilter aggregate = getAggregateFilter(table);
+
+      if(aggregate == null || limit <= 0) {
+         return false;
+      }
+
+      XTable base = aggregate.getTable();
+
+      if(base == null) {
+         return false;
+      }
+
+      return getAppliedMaxRows(base) > 0 || base.moreRows(base.getHeaderRowCount() + limit - 1);
+   }
+
    public static HashMap getHintBasedMaxRow(XTable table) {
       if(table instanceof RuntimeCalcTableLens) {
          CalcTableLens calcTableLens = ((RuntimeCalcTableLens) table).getCalcTableLens();
