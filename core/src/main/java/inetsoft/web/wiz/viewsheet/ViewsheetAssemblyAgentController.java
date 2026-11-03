@@ -940,6 +940,17 @@ public class ViewsheetAssemblyAgentController {
          return matched.getOwner();
       }
 
+      if("update_bookmark".equals(tool)) {
+         // update_bookmark DOES work on someone else's writable shared bookmark, so "only works on
+         // bookmarks you own" would be false here. Reaching this point means the visible bookmark
+         // is not writable for the caller: its owner shared it read-only (the normal case), or it
+         // changed/disappeared between the visibility read and this check.
+         throw new IllegalArgumentException(
+            tool + ": bookmark '" + name + "' is shared read-only by " + matched.getOwner().name +
+            " (its owner marked it not writable, or it changed since it was last read) -- only " +
+            "its owner can overwrite it.");
+      }
+
       throw new IllegalArgumentException(
          tool + ": bookmark '" + name + "' exists but is owned by someone else -- " + tool +
          " only works on bookmarks you own.");

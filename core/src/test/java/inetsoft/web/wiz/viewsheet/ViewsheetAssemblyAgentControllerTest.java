@@ -4976,7 +4976,7 @@ class ViewsheetAssemblyAgentControllerTest {
          () -> controller.updateBookmark("tok",
             new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
             () -> "user0"));
-      assertTrue(thrown.getMessage().contains("owned by someone else"));
+      assertTrue(thrown.getMessage().contains("shared read-only by"));
       verify(rvs).bookmarkWritable(eq("Q1 Report"), eq(admin));
       verify(vsBookmarkService, never()).addBookmarkToViewSheet(
          any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
