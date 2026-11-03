@@ -218,9 +218,13 @@ public class PresentationChangesetApplyService {
                boolean readFailed = false;
 
                try {
-                  actualAfter = PresentationChangePlanService.projectedValue(
-                     entry.subModel(), PresentationJson.toNode(
-                        access.read(entry.subModel(), user, entry.global())));
+                  // a reset's "before" is the reset projection (both halves of the shared
+                  // welcome/banner entry), so re-read it the same way
+                  actualAfter = entry.reset()
+                     ? PresentationChangePlanService.resetProjection(access, entry.subModel(), user)
+                     : PresentationChangePlanService.projectedValue(
+                        entry.subModel(), PresentationJson.toNode(
+                           access.read(entry.subModel(), user, entry.global())));
                }
                catch(Exception readEx) {
                   // Can't tell whether anything moved -- fall through to the unknown-state branch

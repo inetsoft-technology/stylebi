@@ -1599,6 +1599,28 @@ class PresentationChangePlanServiceTest {
                       "a change in the organization's overrides between preview and apply must conflict");
    }
 
+   @Test
+   void toolbarResetPlanDescriptionListsEveryKeyItWillRemove() throws Exception {
+      stub(PresentationSubModel.VIEWSHEET_TOOLBAR, currentFor(PresentationSubModel.VIEWSHEET_TOOLBAR));
+      List<String> keys = new java.util.ArrayList<>();
+
+      for(int i = 0; i < 14; i++) {
+         keys.add("inetsoft.org.o.vs.element" + i + ".button");
+      }
+
+      keys.add("inetsoft.org.o.viewsheet toolbar hidden");
+      org.mockito.Mockito.when(access.resetKeysPresent(PresentationSubModel.VIEWSHEET_TOOLBAR))
+         .thenReturn(keys);
+
+      String description = service.resolve(
+         request("t", reset("viewsheetToolbar", "organization")), PRINCIPAL)
+         .changes().get(0).description();
+
+      for(String key : keys) {
+         assertTrue(description.contains(key), key + " missing from: " + description);
+      }
+   }
+
    private static final String LAF_EXPAND_GLOBAL_HASH =
       "195df86f0835a3d4bde496f4529ce47b814a60588aaa386fef3382537c1a950c";
    private static final String FORMATS_ORG_HASH =

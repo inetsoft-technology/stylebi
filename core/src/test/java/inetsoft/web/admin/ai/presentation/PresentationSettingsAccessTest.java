@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.presentation;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.web.admin.general.WebMapSettingsService;
 import inetsoft.web.admin.presentation.*;
 import inetsoft.web.admin.presentation.model.*;
@@ -271,7 +272,110 @@ class PresentationSettingsAccessTest {
       PresentationSettingsAccess access = access();
       access.setOrgStore(store);
       access.setWelcomeEntryProbe(() -> false);
+      access.setUploadProbe(() -> "");
       return access;
+   }
+
+   private static final List<String> TOOLBAR_ELEMENTS = List.of(
+      "vs.previous.button", "vs.next.button", "vs.edit.button", "vs.refresh.button",
+      "vs.email.button", "vs.share.button", "vs.schedule.button", "vs.export.button",
+      "vs.import.button", "vs.print.button", "vs.zoom", "vs.fullScreen.button", "vs.close.button",
+      "vs.bookmark.button");
+
+   private static FakeOrgStore toolbarPinnedOrg() {
+      FakeOrgStore store = new FakeOrgStore();
+
+      for(String element : TOOLBAR_ELEMENTS) {
+         store.props.put("inetsoft.org.o." + element, "false");
+      }
+
+      store.props.put(TOOLBAR_HIDDEN, "true");
+      store.props.put("inetsoft.org.o.dashboard.enabled", "false");
+      return store;
+   }
+
+   @Test
+   void toolbarKeyCatalogCoversEveryButtonTheServerDefines() {
+      assertEquals(TOOLBAR_ELEMENTS, SUtil.getVSToolBarPropertyNames());
+   }
+
+   @Test
+   void toolbarResetRemovesTheImportButtonKeyEvenWhenFormsAreDisabled() throws Exception {
+      FakeOrgStore store = toolbarPinnedOrg();
+      // like the real service with forms disabled: every element but the import button
+      doAnswer(inv -> {
+         for(String element : TOOLBAR_ELEMENTS) {
+            if(!"vs.import.button".equals(element)) {
+               store.props.remove("inetsoft.org.o." + element);
+            }
+         }
+
+         store.props.put(TOOLBAR_HIDDEN, "false");
+         return null;
+      }).when(toolbar).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.VIEWSHEET_TOOLBAR, PRINCIPAL);
+
+      assertEquals(Map.of("inetsoft.org.o.dashboard.enabled", "false"), store.props);
+      assertNull(access.checkReset(PresentationSubModel.VIEWSHEET_TOOLBAR, outcome));
+      assertEquals("false", outcome.restore().get("inetsoft.org.o.vs.import.button"));
+      assertEquals("true", outcome.restore().get(TOOLBAR_HIDDEN));
+
+      assertNull(access.undoReset(outcome));
+      assertEquals(toolbarPinnedOrg().props, store.props);
+   }
+
+   @Test
+   void toolbarResetPlanListsEveryToolbarKeyTheOrgHolds() {
+      PresentationSettingsAccess access = resetAccess(toolbarPinnedOrg());
+
+      List<String> keys = access.resetKeysPresent(PresentationSubModel.VIEWSHEET_TOOLBAR);
+
+      assertEquals(TOOLBAR_ELEMENTS.size() + 1, keys.size(), keys.toString());
+      assertTrue(keys.contains("inetsoft.org.o.vs.import.button"));
+      assertTrue(keys.contains(TOOLBAR_HIDDEN));
+      assertFalse(keys.contains("inetsoft.org.o.dashboard.enabled"));
+   }
+
+   @Test
+   void checkResetFlagsASurvivingToolbarElementKey() throws Exception {
+      FakeOrgStore store = toolbarPinnedOrg();
+      // a reset that leaves an element key behind and that the post-cleanup cannot see: the store
+      // refuses removal of that one key
+      FakeOrgStore stubborn = new FakeOrgStore() {
+         @Override
+         public void remove(String key) {
+            if(!key.endsWith("vs.zoom")) {
+               super.remove(key);
+            }
+         }
+      };
+      stubborn.props.putAll(store.props);
+      PresentationSettingsAccess access = resetAccess(stubborn);
+
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.VIEWSHEET_TOOLBAR, PRINCIPAL);
+      String problem = access.checkReset(PresentationSubModel.VIEWSHEET_TOOLBAR, outcome);
+
+      assertNotNull(problem);
+      assertTrue(problem.contains("inetsoft.org.o.vs.zoom"), problem);
+   }
+
+   @Test
+   void orgStateDigestBindsTheOrgUploadEntries() {
+      PresentationSettingsAccess access = access();
+      access.setOrgStore(new FakeOrgStore());
+      access.setWelcomeEntryProbe(() -> false);
+      String[] uploads = {"o/format.css"};
+      access.setUploadProbe(() -> uploads[0]);
+
+      String first = access.orgStateDigest();
+      assertEquals(first, access.orgStateDigest());
+
+      uploads[0] = "o/other.css";
+      assertNotEquals(first, access.orgStateDigest());
    }
 
    @Test

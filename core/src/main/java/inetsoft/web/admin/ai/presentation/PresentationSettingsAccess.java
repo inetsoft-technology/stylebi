@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.presentation;
 
 import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.PlanHashInputs;
@@ -33,6 +34,7 @@ import java.io.UncheckedIOException;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Bridges the 16-entry {@link PresentationSubModel} catalog to the real sub-services
@@ -305,6 +307,25 @@ public class PresentationSettingsAccess {
       this.welcomeEntryProbe = probe;
    }
 
+   /** Test seam for the organization's uploaded CSS/logo/favicon entries. */
+   void setUploadProbe(Supplier<String> probe) {
+      this.uploadProbe = probe;
+   }
+
+   /** The organization's own CSS, logo and favicon entries; a lookAndFeel reset deletes the files
+    * they name, so the plan hash binds them. */
+   private static String orgUploadEntries() {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(orgId == null) {
+         return "";
+      }
+
+      PortalThemesManager manager = PortalThemesManager.getManager();
+      return manager.getCssEntries().get(orgId) + "|" + manager.getLogoEntries().get(orgId) + "|" +
+         manager.getFaviconEntries().get(orgId);
+   }
+
    private static boolean orgWelcomeEntryExists() {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       return orgId != null && PortalThemesManager.getManager().getWelcomePage(orgId) != null;
@@ -340,6 +361,9 @@ public class PresentationSettingsAccess {
          resetter.reset(principal);
 
          if(subModel == PresentationSubModel.VIEWSHEET_TOOLBAR) {
+            // every toolbar key the update path can write, not only the ones resetSettings
+            // visits: it skips the import button while forms are disabled, and re-creates the
+            // hidden flag as false
             for(String key : keysFor(PresentationSubModel.VIEWSHEET_TOOLBAR, orgStore.keys())) {
                orgStore.remove(key);
             }
@@ -432,7 +456,7 @@ public class PresentationSettingsAccess {
    }
 
    /** A digest of every organization override (names and values) plus whether the organization has
-    * its own welcome entry, folded into a reset plan's hash so a change between preview and apply is
+    * its own welcome entry and which CSS/logo/favicon uploads it holds, folded into a reset plan's hash so a change between preview and apply is
     * a conflict. A digest, so secret values never appear in a plan. */
    public String orgStateDigest() {
       StringBuilder state = new StringBuilder();
@@ -441,7 +465,8 @@ public class PresentationSettingsAccess {
          state.append(e.getKey()).append('=').append(e.getValue()).append('\n');
       }
 
-      state.append("welcomeEntry=").append(welcomeEntryProbe.getAsBoolean());
+      state.append("welcomeEntry=").append(welcomeEntryProbe.getAsBoolean()).append('\n');
+      state.append("uploads=").append(uploadProbe.get());
       return PlanHashInputs.digest("presentation.orgState.", state.toString());
    }
 
@@ -508,7 +533,7 @@ public class PresentationSettingsAccess {
 
    /** The organization keys among {@code keys} that belong to {@code subModel}'s reset. */
    private static Set<String> keysFor(PresentationSubModel subModel, Set<String> keys) {
-      List<String> names = RESET_KEY_NAMES.getOrDefault(subModel, List.of());
+      List<String> names = resetKeyNames(subModel);
       Set<String> result = new TreeSet<>();
 
       for(String key : keys) {
@@ -524,15 +549,26 @@ public class PresentationSettingsAccess {
       return result;
    }
 
-   /** The property names each sub-model's {@code resetSettings(false)} removes (used to disclose and
-    * verify the removal; the rollback never relies on it). The toolbar's per-element names are
-    * dynamic and omitted. */
+   /** The property names the reset of {@code subModel} removes. The toolbar's are every button
+    * property {@link SUtil#getVSToolBarPropertyNames} lists (the full set the toolbar update path can
+    * write at organization scope) plus the hidden flag. */
+   private static List<String> resetKeyNames(PresentationSubModel subModel) {
+      if(subModel == PresentationSubModel.VIEWSHEET_TOOLBAR) {
+         List<String> names = new ArrayList<>(SUtil.getVSToolBarPropertyNames());
+         names.add("Viewsheet Toolbar Hidden");
+         return names;
+      }
+
+      return RESET_KEY_NAMES.getOrDefault(subModel, List.of());
+   }
+
+   /** The property names each other sub-model's {@code resetSettings(false)} removes (used to
+    * disclose and verify the removal; the rollback never relies on it). */
    private static final Map<PresentationSubModel, List<String>> RESET_KEY_NAMES = Map.ofEntries(
       Map.entry(PresentationSubModel.FORMATS,
                 List.of("format.date", "format.time", "format.date.time")),
       Map.entry(PresentationSubModel.DASHBOARD,
                 List.of("dashboard.enabled", "dashboard.tabs.top", "drill.tabs.top")),
-      Map.entry(PresentationSubModel.VIEWSHEET_TOOLBAR, List.of("Viewsheet Toolbar Hidden")),
       Map.entry(PresentationSubModel.LOOK_AND_FEEL, List.of("repository.tree.sort")),
       Map.entry(PresentationSubModel.PORTAL_INTEGRATION,
                 List.of("portal.customLoadingText", "portal.home.link", "em.home.link")),
@@ -675,5 +711,6 @@ public class PresentationSettingsAccess {
    private final EnumMap<PresentationSubModel, Adapter> adapters;
    private final EnumMap<PresentationSubModel, Resetter> resetters;
    private BooleanSupplier welcomeEntryProbe = PresentationSettingsAccess::orgWelcomeEntryExists;
+   private Supplier<String> uploadProbe = PresentationSettingsAccess::orgUploadEntries;
    private OrgPropertyStore orgStore = new SreeEnvOrgPropertyStore();
 }
