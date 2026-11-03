@@ -26,6 +26,7 @@
  */
 
 import { provideHttpClient } from "@angular/common/http";
+import { getDebugNode } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { provideRouter } from "@angular/router";
 import { RouterTestingHarness } from "@angular/router/testing";
@@ -41,6 +42,7 @@ import { ScheduleTaskEditorModel } from "../../../../../../shared/schedule/model
 import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/schedule/model/time-condition-model";
 import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 import { ScheduleTaskEditorComponent } from "./schedule-task-editor.component";
 import {
    makeScheduleTaskDialogModel,
@@ -200,13 +202,13 @@ describe("ScheduleTaskEditorComponent - unedited save keeps the time zone (Bug #
 
    it("posts the zone the user explicitly picks", async () => {
       const opened = await openEditor(dailyCondition("America/New_York"), DEEP_LINK);
-      const select = opened.root.querySelector<HTMLSelectElement>(
-         "task-condition-pane select[formControlName='timeZone']");
-      expect(select).not.toBeNull();
-      const option = Array.from(select.options).find(o => o.value.endsWith("US/Pacific"));
+      const selectElement = opened.root.querySelector(
+         "task-condition-pane custom-select[formControlName='timeZone']");
+      expect(selectElement).not.toBeNull();
+      const select = getDebugNode(selectElement)?.componentInstance as CustomSelectComponent;
+      const option = select.options.find(o => o.value === "US/Pacific");
       expect(option).toBeDefined();
-      select.value = option.value;
-      select.dispatchEvent(new Event("change"));
+      select.selectOption(option);
 
       const saved = await saveUnedited(opened);
 

@@ -36,6 +36,7 @@ import { DebounceService } from "../../../widget/services/debounce.service";
 import { DragService } from "../../../widget/services/drag.service";
 import { RepositoryClientService } from "../../../common/repository-client/repository-client.service";
 import { DataModelNameChangeService } from "../services/data-model-name-change.service";
+import { DataDetailsPaneService } from "../services/data-details-pane.service";
 import { OpenComposerService } from "../../../common/services/open-composer.service";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { DomService } from "../../../widget/dom-service/dom.service";
@@ -122,6 +123,7 @@ export interface TreeViewRenderConfig {
       vsClient: any;
       dropdownService: any;
       dataSourcesTreeActions: any;
+      dataDetailsPane: any;
    };
 }
 
@@ -140,7 +142,7 @@ export function buildRenderConfig(
 
    const routeMock = {
       queryParamMap: of(queryParamMap),
-      snapshot: { _routerState: { url: routerUrl } },
+      snapshot: { _routerState: { url: routerUrl }, queryParamMap },
    };
 
    const dataFolderServiceMock = {
@@ -207,6 +209,11 @@ export function buildRenderConfig(
       showWSFolderDetailsSubject: vi.fn().mockReturnValue(new Subject<any>()),
    };
 
+   const dataDetailsPaneMock = {
+      clear: vi.fn(),
+      requestWorksheetSelection: vi.fn(),
+   };
+
    const providers = [
       provideHttpClient(),
       { provide: DataBrowserService, useValue: dataFolderServiceMock },
@@ -237,6 +244,7 @@ export function buildRenderConfig(
       { provide: Router, useValue: routerMock },
       { provide: DomService, useValue: { addPortalContent: vi.fn() } },
       { provide: DataSourcesTreeActionsService, useValue: dataSourcesTreeActionsMock },
+      { provide: DataDetailsPaneService, useValue: dataDetailsPaneMock },
       {
          provide: GettingStartedService,
          useValue: { isProcessing: vi.fn().mockReturnValue(false), isEditWs: vi.fn().mockReturnValue(false) },
@@ -265,6 +273,7 @@ export function buildRenderConfig(
          vsClient: vsClientMock,
          dropdownService: dropdownServiceMock,
          dataSourcesTreeActions: dataSourcesTreeActionsMock,
+         dataDetailsPane: dataDetailsPaneMock,
       },
    };
 }

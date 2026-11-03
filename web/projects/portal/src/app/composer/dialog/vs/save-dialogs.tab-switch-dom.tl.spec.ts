@@ -47,6 +47,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.component";
 import { AssetClientService } from "../../../common/asset-client/asset-client.service";
 import { ModelService } from "../../../widget/services/model.service";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 
 @Component({ selector: "modal-header", template: "", standalone: true })
 class ModalHeaderStub {
@@ -245,23 +246,27 @@ describe("SaveViewsheetDialog - DOM-driven tab round trips (Bug #78413)", () => 
    it("a real invalid Options edit disables OK and stays visible after a round trip", async () => {
       const f = await renderVs(null, "Existing");
       await tab(f, "Options");
-      const snap = () => f.nativeElement.querySelector("input[formcontrolname=snapGrid]") as HTMLInputElement;
-      snap().value = "3";
-      snap().dispatchEvent(new Event("input"));
-      f.detectChanges();
+      const stepper = () => f.nativeElement.querySelector("number-stepper[formcontrolname=snapGrid]") as HTMLElement;
+      const snap = () => stepper().querySelector("input") as HTMLInputElement;
+      // the stepper commits typed text on blur
+      const typeSnap = (v: string) => {
+         snap().value = v;
+         snap().dispatchEvent(new Event("input"));
+         snap().dispatchEvent(new Event("blur"));
+         f.detectChanges();
+      };
+      typeSnap("3");
       expect(ok(f).disabled).toBe(true);
-      expect(snap().classList.contains("is-invalid")).toBe(true);
+      expect(stepper().classList.contains("is-invalid")).toBe(true);
 
       await tab(f, "Repository");
       expect(ok(f).disabled).toBe(true);
       await tab(f, "Options");
       expect(snap().value).toBe("3");
-      expect(snap().classList.contains("is-invalid")).toBe(true);
+      expect(stepper().classList.contains("is-invalid")).toBe(true);
       expect(ok(f).disabled).toBe(true);
 
-      snap().value = "15";
-      snap().dispatchEvent(new Event("input"));
-      f.detectChanges();
+      typeSnap("15");
       expect(ok(f).disabled).toBe(false);
    });
 
@@ -379,11 +384,13 @@ describe("EmailAddrDialog - DOM-driven tab round trips (Bug #78413)", () => {
       return fixture;
    }
 
+   // idx 0 is the User custom-select, 1 is the Email
    function choose(f: ComponentFixture<any>, idx: number, v: string) {
-      const s: HTMLSelectElement[] = Array.from(f.debugElement.query(By.directive(QueryEmailPane))
-         .nativeElement.querySelectorAll("select"));
-      s[idx].value = v;
-      s[idx].dispatchEvent(new Event("change"));
+      const s: CustomSelectComponent = f.debugElement.query(By.directive(QueryEmailPane))
+         .queryAll(By.directive(CustomSelectComponent))[idx].componentInstance;
+      const option = s.options.find(o => o.value === v);
+      expect(option).toBeDefined();
+      s.selectOption(option);
       f.detectChanges();
    }
 

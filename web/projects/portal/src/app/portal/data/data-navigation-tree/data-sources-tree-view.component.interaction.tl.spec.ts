@@ -41,7 +41,7 @@
  * | 14    | canCreateLogicalModel                                          |   4   |
  * | 15    | getDataSourceObjectType                                        |   3   |
  * | 16    | isDataSourceFolder, isDataWorksheetFolder                      |   4   |
- * | 17    | newFolderVisible, renameVisible, deleteVisible, detailVisible   |   8   |
+ * | 17    | newFolderVisible, renameVisible, deleteVisible, detailVisible   |   9   |
  * | 18    | isVpmVisible                                                   |   4   |
  * | 19    | createActions — action visibility/enabled conditions           |   5   |
  * | 20    | contextMenu                                                    |   2   |
@@ -134,6 +134,7 @@ async function renderComponent(opts: {
       dropdownService: mocks.dropdownService,
       dataSourcesTreeActions: mocks.dataSourcesTreeActions,
       vsClient: mocks.vsClient,
+      dataDetailsPane: mocks.dataDetailsPane,
    };
 }
 
@@ -209,8 +210,8 @@ describe("DataSourcesTreeViewComponent — ngOnInit: subscription wiring", () =>
       // Prime rootNode to avoid undefined access in changeDataSourcesTree
       comp.rootNode = makeRootNode();
       const changeFolderSpy = vi.spyOn(comp, "changeFolder");
-      subjects.folderChangedSubject.next({ path: "/myPath", type: PortalDataType.FOLDER });
-      expect(changeFolderSpy).toHaveBeenCalledWith("/myPath", null, PortalDataType.FOLDER);
+      subjects.folderChangedSubject.next({ path: "/myPath", scope: 1, type: PortalDataType.FOLDER });
+      expect(changeFolderSpy).toHaveBeenCalledWith("/myPath", "1", PortalDataType.FOLDER);
    });
 
    it("should call addVPM when onCreateEvent fires with vpm=true", async () => {
@@ -235,25 +236,27 @@ describe("DataSourcesTreeViewComponent — ngOnInit: subscription wiring", () =>
 // ---------------------------------------------------------------------------
 
 describe("DataSourcesTreeViewComponent — ngOnInit: router and route subscriptions", () => {
-   it("should select first child when NavigationEnd fires with url=/portal/tab/data", async () => {
+   it("should clear the selection when NavigationEnd fires with url=/portal/tab/data", async () => {
       const subjects = makeSubjects();
       const { comp } = await renderComponent({ subjects });
       await waitFor(() => expect(comp.rootNode).toBeTruthy());
-      const child = makeNode({ type: PortalDataType.DATA_SOURCE_ROOT_FOLDER });
-      comp.rootNode = makeRootNode([child]);
+      comp.activeTreeSection = "worksheets";
+      comp.selectedNodes = [makeNode({ type: PortalDataType.FOLDER })];
 
       subjects.routerEventsSubject.next(new NavigationEnd(1, "/portal/tab/data", "/portal/tab/data"));
 
-      expect(comp.selectedNodes).toContain(child);
+      expect(comp.selectedNodes).toEqual([]);
    });
 
-   it("should not select first child for NavigationEnd to a different url", async () => {
+   it("should keep the selection for NavigationEnd to a different url", async () => {
       const subjects = makeSubjects();
       const { comp } = await renderComponent({ subjects });
       await waitFor(() => expect(comp.rootNode).toBeTruthy());
-      comp.selectedNodes = [];
+      const node = makeNode({ type: PortalDataType.FOLDER });
+      comp.activeTreeSection = "worksheets";
+      comp.selectedNodes = [node];
       subjects.routerEventsSubject.next(new NavigationEnd(1, "/portal/tab/data/other", "/portal/tab/data/other"));
-      expect(comp.selectedNodes).toHaveLength(0);
+      expect(comp.selectedNodes).toEqual([node]);
    });
 
    it("should read initPath and initScope from queryParamMap and call initSeletedNodes when rootNode exists", async () => {
@@ -416,6 +419,8 @@ describe("DataSourcesTreeViewComponent — changeFolder", () => {
       const { comp } = await renderComponent();
       await waitFor(() => expect(comp.rootNode).toBeTruthy());
 
+      // FOLDER clears the worksheets section's selection
+      comp.activeTreeSection = "worksheets";
       comp.selectedNodes = [makeNode()];
       comp.rootNode = makeRootNode();
 
@@ -575,8 +580,8 @@ describe("DataSourcesTreeViewComponent — selectNode routing matrix", () => {
       );
    });
 
-   it("should call openWorksheet for a WORKSHEET node", async () => {
-      const { comp, dataFolderService, vsClient } = await renderComponent();
+   it("should show worksheet details instead of opening a WORKSHEET node", async () => {
+      const { comp, router, dataFolderService, dataDetailsPane } = await renderComponent();
       const node = makeNode({
          type: "WORKSHEET",
          data: {
@@ -589,10 +594,12 @@ describe("DataSourcesTreeViewComponent — selectNode routing matrix", () => {
          } as any,
       });
       comp.selectNode([node]);
-      expect(dataFolderService.openWorksheet).toHaveBeenCalledWith(
-         "1^128^__NULL__^/ws/myWS",
-         vsClient
+      expect(router.navigate).toHaveBeenCalledWith(
+         ["/portal/tab/data/folder"],
+         expect.objectContaining({ queryParams: expect.objectContaining({ path: "/ws", scope: "1" }) })
       );
+      expect(dataDetailsPane.requestWorksheetSelection).toHaveBeenCalledWith({ path: "/ws/myWS", scope: "1" });
+      expect(dataFolderService.openWorksheet).not.toHaveBeenCalled();
    });
 
    it("should navigate to database path for DATABASE node", async () => {
@@ -740,7 +747,7 @@ describe("DataSourcesTreeViewComponent — expandNode", () => {
       comp.expandNode(dbNode).subscribe(v => { result = v; });
 
       await waitFor(() => expect(result).not.toBeNull());
-      // openDatasourcesFolder for non-datasourceHome nodes returns of([])
+      // openDatasourcesFolder returns a non-data-model node's own (empty) children
       expect(result).toEqual([]);
    });
 });
@@ -992,10 +999,19 @@ describe("DataSourcesTreeViewComponent — visibility helpers", () => {
       expect(comp.deleteVisible(node)).toBe(false);
    });
 
-   it("detailVisible should return true for PRIVATE_WORKSHEETS_FOLDER", async () => {
+   it("detailVisible should return true for a WORKSHEET node", async () => {
+      const { comp } = await renderComponent();
+      const node = makeNode({
+         type: "WORKSHEET",
+         data: { path: "/ws/myWS", scope: 1, name: "myWS", type: AssetType.WORKSHEET, properties: {} } as any,
+      });
+      expect(comp.detailVisible(node)).toBe(true);
+   });
+
+   it("detailVisible should return false for PRIVATE_WORKSHEETS_FOLDER", async () => {
       const { comp } = await renderComponent();
       const node = makeNode({ type: PortalDataType.PRIVATE_WORKSHEETS_FOLDER });
-      expect(comp.detailVisible(node)).toBe(true);
+      expect(comp.detailVisible(node)).toBe(false);
    });
 
    it("detailVisible should return false for SHARED_WORKSHEETS_FOLDER", async () => {
@@ -1096,12 +1112,17 @@ describe("DataSourcesTreeViewComponent — createActions", () => {
       expect(action.visible()).toBe(true);
    });
 
-   it("should include worksheet-detail action visible for FOLDER node (not SHARED_WORKSHEETS_FOLDER)", async () => {
+   it("should include worksheet-detail action visible for a WORKSHEET node, not a FOLDER node", async () => {
       const { comp } = await renderComponent();
-      const node = makeNode({ type: PortalDataType.FOLDER });
-      const groups = (comp as any).createActions(node);
-      const action = groups[0].actions.find((a: any) => a.id() === "worksheet folder detail");
-      expect(action.visible()).toBe(true);
+      const sheet = makeNode({
+         type: "WORKSHEET",
+         data: { path: "/ws/myWS", scope: 1, name: "myWS", type: AssetType.WORKSHEET, properties: {} } as any,
+      });
+      const folder = makeNode({ type: PortalDataType.FOLDER });
+      const findDetail = (node: TreeNodeModel) => (comp as any).createActions(node)[0].actions
+         .find((a: any) => a.id() === "worksheet folder detail");
+      expect(findDetail(sheet).visible()).toBe(true);
+      expect(findDetail(folder).visible()).toBe(false);
    });
 });
 

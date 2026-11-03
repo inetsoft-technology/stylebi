@@ -22,7 +22,7 @@
  * Risk-first coverage:
  *   Group 1 [Risk 2] - assets setter and sort updates: keep-selection handoff, key reset,
  *                      ASC/DESC toggle, sortChanged emit
- *   Group 2 [Risk 2] - open/edit/menu flow: worksheet edit branch, open branch, menu-click
+ *   Group 2 [Risk 2] - open/edit/menu flow: worksheet details branch, open branch, menu-click
  *                      guard, clickMenu latch reset
  *   Group 3 [Risk 2] - drag/drop contracts: selectionOn vs multiObjectSelectList source,
  *                      folder-only drop target, root drop emit
@@ -147,29 +147,34 @@ describe("Group 1 - assets setter and sort updates", () => {
 });
 
 describe("Group 2 - open/edit/menu flow", () => {
-   it("should emit editWorksheet for editable worksheet assets", async () => {
+   it("should emit showDetails, not editWorksheet, for editable worksheet assets", async () => {
       const comp = await renderComp();
       const asset = makeAsset({ type: AssetType.WORKSHEET, editable: true });
+      const detailsSpy = vi.spyOn(comp.showDetails, "emit");
       const editSpy = vi.spyOn(comp.editWorksheet, "emit");
       const openSpy = vi.spyOn(comp.openAsset, "emit");
 
       comp.selectAsset(asset, {});
 
-      expect(editSpy).toHaveBeenCalledWith(asset);
+      expect(detailsSpy).toHaveBeenCalledWith(asset);
+      expect(editSpy).not.toHaveBeenCalled();
       expect(openSpy).not.toHaveBeenCalled();
    });
 
-   it("should emit openAsset for non-editable worksheets and folders", async () => {
+   it("should emit showDetails for non-editable worksheets and openAsset for folders", async () => {
       const comp = await renderComp();
       const nonEditableSheet = makeAsset({ editable: false });
       const folder = makeAsset({ type: AssetType.FOLDER, path: "/Folder" });
+      const detailsSpy = vi.spyOn(comp.showDetails, "emit");
       const openSpy = vi.spyOn(comp.openAsset, "emit");
 
       comp.selectAsset(nonEditableSheet, {});
       comp.selectAsset(folder, {});
 
-      expect(openSpy).toHaveBeenNthCalledWith(1, nonEditableSheet);
-      expect(openSpy).toHaveBeenNthCalledWith(2, folder);
+      expect(detailsSpy).toHaveBeenCalledOnce();
+      expect(detailsSpy).toHaveBeenCalledWith(nonEditableSheet);
+      expect(openSpy).toHaveBeenCalledOnce();
+      expect(openSpy).toHaveBeenCalledWith(folder);
    });
 
    it("should swallow one selectAsset click after clickMenu sets the menu latch", async () => {

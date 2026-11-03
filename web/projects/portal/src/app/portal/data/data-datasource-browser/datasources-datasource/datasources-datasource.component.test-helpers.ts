@@ -23,8 +23,8 @@
  *   datasources-datasource.component.risk.tl.spec.ts
  *
  * Mocking strategy: ActivatedRoute.paramMap is a controllable Subject so tests can
- * choose whether to trigger ngOnInit HTTP flows. AppInfoService and GettingStartedService
- * are mocked with vi.fn(). NgbModal is mocked to prevent real dialog opening.
+ * choose whether to trigger ngOnInit HTTP flows. AppInfoService, GettingStartedService and
+ * DatasourceBrowserService are mocked with vi.fn(). NgbModal is mocked to prevent real dialog opening.
  * DatasourcesDatasourceEditorComponent and DataNotificationsComponent are stubbed via
  * importOverrides; the DataNotificationsComponent stub exposes all four notification
  * methods so any danger/success/warning/info call paths in the component do not throw.
@@ -43,6 +43,7 @@ import { DataSourceDefinitionModel } from "../../../../../../../shared/util/mode
 import { GettingStartedService } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { DataNotificationsComponent } from "../../data-notifications.component";
 import { StubDataNotificationsComponent } from "../../data-notifications.stub";
+import { DatasourceBrowserService } from "../datasource-browser.service";
 
 export { StubDataNotificationsComponent as DataNotificationsStub };
 import { DatasourcesDatasourceEditorComponent } from "./datasources-datasource-editor/datasources-datasource-editor.component";
@@ -117,6 +118,12 @@ export const GETTING_STARTED_MOCK = {
    continue: vi.fn(),
 };
 
+export const DATASOURCE_BROWSER_MOCK = {
+   moveDataSource: vi.fn(),
+   deleteDataSourceByInfo: vi.fn(),
+   refreshTree: vi.fn(),
+};
+
 // Stable reference for afterEach cleanup: spec files call lastRenderedFixture?.destroy()
 // to ensure the fixture is torn down even when a test throws before returning.
 export let lastRenderedFixture: any = null;
@@ -135,6 +142,7 @@ export function resetMocks(): void {
    APP_INFO_MOCK.isEnterprise.mockReturnValue(of(false));
    Object.values(GETTING_STARTED_MOCK).forEach(m => typeof m.mockClear === "function" && m.mockClear());
    GETTING_STARTED_MOCK.isConnectTo.mockReturnValue(false);
+   Object.values(DATASOURCE_BROWSER_MOCK).forEach(m => m.mockClear());
    lastRenderedFixture = null;
 }
 
@@ -159,6 +167,7 @@ export async function renderDatasource(opts: RenderOpts = {}) {
          { provide: NgbModal, useValue: MODAL_MOCK },
          { provide: AppInfoService, useValue: APP_INFO_MOCK },
          { provide: GettingStartedService, useValue: GETTING_STARTED_MOCK },
+         { provide: DatasourceBrowserService, useValue: DATASOURCE_BROWSER_MOCK },
       ],
       importOverrides: [
          { replace: DatasourcesDatasourceEditorComponent, with: DatasourcesDatasourceEditorStub },

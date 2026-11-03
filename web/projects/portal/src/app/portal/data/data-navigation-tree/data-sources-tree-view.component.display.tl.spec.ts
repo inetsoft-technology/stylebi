@@ -85,9 +85,9 @@ describe("DataSourcesTreeViewComponent — getAssetIcon [Group 1, Display]", () 
       expect(comp.getAssetIcon(PortalDataType.DATA_SOURCE)).toBe("tabular-data-icon");
    });
 
-   it("should return 'data-source-folder-icon' for DATA_SOURCE_ROOT_FOLDER type", async () => {
+   it("should return 'folder-icon' for DATA_SOURCE_ROOT_FOLDER type", async () => {
       const { comp } = await renderComponent();
-      expect(comp.getAssetIcon(PortalDataType.DATA_SOURCE_ROOT_FOLDER)).toBe("data-source-folder-icon");
+      expect(comp.getAssetIcon(PortalDataType.DATA_SOURCE_ROOT_FOLDER)).toBe("folder-icon");
    });
 
    it.each([

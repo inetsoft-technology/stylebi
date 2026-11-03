@@ -57,6 +57,7 @@ import { BindingEditor } from "./binding-editor.component";
 import { BindingService } from "../services/binding.service";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ModelService } from "../../widget/services/model.service";
+import { ChartEditorService } from "../services/chart/chart-editor.service";
 import { SidebarTab } from "../widget/binding-tree/data-editor-tab-pane.component";
 import { GraphTypes } from "../../common/graph-types";
 import { ChartBindingModel } from "../data/chart/chart-binding-model";
@@ -86,6 +87,7 @@ const modalMock = {
    open: vi.fn().mockReturnValue({ result: Promise.resolve([]) }),
 };
 let modelServiceMock = { getModel: vi.fn() };
+const chartEditorServiceMock = { measureName: null as string | null, changeChartAesthetic: vi.fn() };
 
 async function renderComponent(props: Record<string, any> = {}) {
    const { fixture } = await render(BindingEditor, {
@@ -95,6 +97,7 @@ async function renderComponent(props: Record<string, any> = {}) {
          { provide: UIContextService, useValue: uiContextMock },
          { provide: NgbModal, useValue: modalMock },
          { provide: ModelService, useValue: modelServiceMock },
+         { provide: ChartEditorService, useValue: chartEditorServiceMock },
       ],
       componentProperties: { consoleMessages: [], ...props },
    });
@@ -350,6 +353,7 @@ describe("BindingEditor — ngOnDestroy and lifecycle", () => {
             { provide: UIContextService, useValue: uiContextMock },
             { provide: NgbModal, useValue: modalMock },
             { provide: ModelService, useValue: { getModel: vi.fn() } },
+            { provide: ChartEditorService, useValue: chartEditorServiceMock },
          ],
          componentProperties: { consoleMessages: [] },
       });
@@ -370,6 +374,7 @@ describe("BindingEditor — ngOnDestroy and lifecycle", () => {
             { provide: UIContextService, useValue: uiContextMock },
             { provide: NgbModal, useValue: modalMock },
             { provide: ModelService, useValue: { getModel: vi.fn().mockReturnValue(lateSource.asObservable()) } },
+            { provide: ChartEditorService, useValue: chartEditorServiceMock },
          ],
          componentProperties: { runtimeId: "test-rt", consoleMessages: [] },
       });

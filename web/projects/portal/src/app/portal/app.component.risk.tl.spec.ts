@@ -112,15 +112,43 @@ describe("PortalAppComponent — checkDefaultTab", () => {
       expect(routerMock.navigate).not.toHaveBeenCalled();
    });
 
-   it("navigates to dashboard uri when hasDashboards=true and dashboard tab exists", async () => {
+   it("navigates to report uri even when hasDashboards=true and dashboard tab exists", async () => {
       const { comp, routerMock } = await renderComponent();
       comp.currentUrl = "/portal";
       comp.model = makePortalModel({ homeVisible: false, hasDashboards: true });
       comp.portalTabs = [DASHBOARD_TAB, REPORT_TAB];
+      comp.securityEnabled = true;
 
       comp.checkDefaultTab();
 
-      expect(routerMock.navigate).toHaveBeenCalledWith(["/portal/" + DASHBOARD_TAB.uri]);
+      expect(routerMock.navigate).toHaveBeenCalledTimes(1);
+      expect(routerMock.navigate).toHaveBeenCalledWith(["/portal/" + REPORT_TAB.uri]);
+   });
+
+   it("navigates to dashboard uri when hasDashboards=true, security is enabled and there is no report tab",
+      async () => {
+         const { comp, routerMock } = await renderComponent();
+         comp.currentUrl = "/portal";
+         comp.model = makePortalModel({ homeVisible: false, hasDashboards: true });
+         comp.portalTabs = [DASHBOARD_TAB];
+         comp.securityEnabled = true;
+
+         comp.checkDefaultTab();
+
+         expect(routerMock.navigate).toHaveBeenCalledWith(["/portal/" + DASHBOARD_TAB.uri]);
+      }
+   );
+
+   it("does not navigate to dashboard uri when security is disabled", async () => {
+      const { comp, routerMock } = await renderComponent();
+      comp.currentUrl = "/portal";
+      comp.model = makePortalModel({ homeVisible: false, hasDashboards: true });
+      comp.portalTabs = [DASHBOARD_TAB];
+      comp.securityEnabled = false;
+
+      comp.checkDefaultTab();
+
+      expect(routerMock.navigate).not.toHaveBeenCalled();
    });
 
    it("navigates to report uri when hasDashboards=false and report tab exists", async () => {

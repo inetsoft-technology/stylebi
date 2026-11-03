@@ -31,7 +31,7 @@
  *   Group 7  [Risk 3] - deleteSelected: batch delete must clear selection after commit
  *   Group 8  [Risk 3] - ngOnDestroy: route and service subscriptions must be torn down
  *   Group 9  [Risk 3] - ngOnInit: route queryParamMap and changed() subscriptions deliver data (M4 mandatory)
- *   Group 10 [Risk 2] - clickItem: folder routes; editable non-folder edits; non-editable is no-op
+ *   Group 10 [Risk 2] - clickItem: folder routes; non-folder opens details; never navigates to edit
  *   Group 11 [Risk 2] - updateModels HTTP states: success populates+sorts; error is silently swallowed
  *   Group 12 [Risk 2] - refreshSearchBrowser: HTTP error triggers danger notification
  *   Group 13 [Risk 2] - getTypeLabel: correct label for each asset type and extend state
@@ -701,17 +701,16 @@ describe("DatabaseDataModelBrowserComponent - clickItem - navigation paths [Grou
       );
    });
 
-   it("should navigate to the edit route when an editable non-folder item is clicked", async () => {
+   it("should open the details pane instead of the edit route when an editable non-folder item is clicked", async () => {
       const { fixture, router } = await renderBrowser();
       const comp = fixture.componentInstance;
       comp.databaseName = "SalesDB";
+      const item = createPhysical({ name: "PhysView", editable: true, parentView: null });
 
-      comp.clickItem(createPhysical({ name: "PhysView", editable: true, parentView: null }));
+      comp.clickItem(item);
 
-      expect(router.navigate).toHaveBeenCalledWith(
-         expect.arrayContaining(["/portal/tab/data/datasources/database"]),
-         expect.anything()
-      );
+      expect(comp.showDetailsItem).toBe(item);
+      expect(router.navigate).not.toHaveBeenCalled();
    });
 
    it("should not navigate when a non-editable non-folder item is clicked", async () => {

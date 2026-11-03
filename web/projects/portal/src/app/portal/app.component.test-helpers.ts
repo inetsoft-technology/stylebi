@@ -53,6 +53,7 @@ import { HistoryBarService } from "./services/history-bar.service";
 import { PortalTabsService } from "./services/portal-tabs.service";
 import { CurrentRouteService } from "./services/current-route.service";
 import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
+import { ChartPaletteService } from "../widget/color-picker/chart-palette.service";
 import { MessageDialog } from "../widget/dialog/message-dialog/message-dialog.component";
 import { PortalAppComponent } from "./app.component";
 import { PortalModel } from "./portal-model";
@@ -186,6 +187,8 @@ export async function renderComponent(opts: RenderOpts = {}): Promise<AppCompone
          { provide: FirstDayOfWeekService,    useValue: { getFirstDay: vi.fn(() => of({ isoFirstDay: 1 })) } },
          { provide: LogoutService,            useValue: logoutSvc },
          { provide: GettingStartedService,    useValue: gettingStartedSvc },
+         // keeps the palette fetch out of the FIFO http.get queue
+         { provide: ChartPaletteService,      useValue: { ensureLoaded: vi.fn() } },
          { provide: Title,                    useValue: titleMock },
          { provide: DOCUMENT,                 useValue: document },
       ],

@@ -109,16 +109,16 @@ describe("Group 1 — getIcon", () => {
 // ===========================================================================
 
 describe("Group 2 — getToggleIcon", () => {
-   it("should return caret-down-icon for expanded node", async () => {
+   it("should return downward-icon for expanded node", async () => {
       const node = makeFolder([], { expanded: true });
       const { comp } = await renderTreeNode({ node });
-      expect(comp.getToggleIcon()).toBe("caret-down-icon icon-lg");
+      expect(comp.getToggleIcon()).toBe("downward-icon icon-lg");
    });
 
-   it("should return caret-right-icon for collapsed node", async () => {
+   it("should return forward-icon for collapsed node", async () => {
       const node = makeFolder([], { expanded: false });
       const { comp } = await renderTreeNode({ node });
-      expect(comp.getToggleIcon()).toBe("caret-right-icon icon-lg");
+      expect(comp.getToggleIcon()).toBe("forward-icon icon-lg");
    });
 
    it("should return node.toggleExpandedIcon when set and expanded", async () => {

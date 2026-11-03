@@ -153,6 +153,7 @@ describe("DatasourceBrowserService", () => {
 
          expect(emitted).toEqual([{
             path: "Root/Child",
+            scope: "0",
             type: PortalDataType.DATA_SOURCE_ROOT_FOLDER,
          }]);
       });
