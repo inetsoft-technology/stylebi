@@ -17,22 +17,19 @@
  */
 package inetsoft.report.io.viewsheet.html;
 
-import java.util.regex.Pattern;
-
 /**
  * Escaping rules shared by the HTML viewsheet export writers.
  *
  * The correct escaping depends on the output context, not on the writer:
  * <ul>
- *   <li>Element text with viewer-HTML semantics (plain table/crosstab cells, selection
- *   labels, Text assembly): {@link #viewerText} and {@link #viewerCellText} keep the
- *   string raw where the portal viewer would render it as markup and escape it otherwise.</li>
- *   <li>Element text without such semantics (input labels, combo box labels,
- *   textarea): {@link #text}.</li>
+ *   <li>Element text and titles (cells, labels, selection labels, Text assembly, component
+ *   titles): {@link #text}. Data such as {@code <none>} or {@code a<b}, and a title such as
+ *   {@code <html>...</html>}, must reach the file as written, so no string is treated as
+ *   markup.</li>
  *   <li>Single-quoted attribute values: {@link #attribute}.</li>
  * </ul>
  * HTMLPresenter cells and annotation rich text are written raw by their callers and never
- * pass through here. Raw text is not sanitized (the viewer sanitizes, the export does not).
+ * pass through here. Raw markup is not sanitized.
  */
 final class HTMLEscape {
    private HTMLEscape() {
@@ -50,41 +47,6 @@ final class HTMLEscape {
     */
    static String attribute(Object value) {
       return escape(value == null ? null : value.toString(), true);
-   }
-
-   /**
-    * Mirror of the viewer's plain table cell rule (vs-table-cell.component.ts updateCellType):
-    * a string that contains a tag like {@code <b>} is HTML, everything else is text. A newline
-    * alone does not make the text raw here, so {@code a<b} followed by a newline keeps its text;
-    * callers convert newlines to {@code <br>} after calling this method.
-    */
-   static String viewerCellText(Object value) {
-      String str = value == null ? null : value.toString();
-      return str != null && CELL_TAG.matcher(str).find() ? str : text(str);
-   }
-
-   /**
-    * Mirror of the viewer's rule for selection labels and Text assembly (an HTML parse that
-    * finds an element). Approximated by a start tag with optional attributes.
-    */
-   static String viewerText(Object value) {
-      String str = value == null ? null : value.toString();
-      return str != null && START_TAG.matcher(str).find() ? str : text(str);
-   }
-
-   /**
-    * Mirror of the viewer's title rule (vs-title/title-cell bind GuiTool.getHTMLText with
-    * innerHTML): a title wrapped in html tags is unwrapped and kept as markup, other
-    * text follows the {@link #viewerText} rule.
-    */
-   static String viewerTitle(Object value) {
-      String str = value == null ? null : value.toString();
-
-      if(str != null && str.startsWith("<html>") && str.endsWith("</html>") && str.length() >= 13) {
-         return str.substring(6, str.length() - 7);
-      }
-
-      return viewerText(str);
    }
 
    private static String escape(String str, boolean attribute) {
@@ -133,7 +95,4 @@ final class HTMLEscape {
 
       return buf == null ? str : buf.toString();
    }
-
-   private static final Pattern CELL_TAG = Pattern.compile("<[a-zA-Z]+>");
-   private static final Pattern START_TAG = Pattern.compile("<[a-zA-Z][^<>]*>");
 }

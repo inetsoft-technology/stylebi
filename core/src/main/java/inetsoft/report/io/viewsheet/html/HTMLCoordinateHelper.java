@@ -209,23 +209,11 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
    }
 
    /**
-    * Write plain text (labels). The text is always escaped.
+    * Write text. The text is always escaped.
     */
    public void writeText(Writer writer, Rectangle2D bounds, VSCompositeFormat format,
                          String dispText, Hyperlink.Ref ref, boolean autoSize, Insets padding,
                          boolean shadow, int zIndex)
-   {
-      writeText(writer, bounds, format, dispText, ref, autoSize, padding, shadow, zIndex, false);
-   }
-
-   /**
-    * Write text.
-    * @param viewerHtml true if the text has the viewer's HTML semantics (Text assembly), in
-    *                   which case markup is kept as is, false to always escape the text.
-    */
-   public void writeText(Writer writer, Rectangle2D bounds, VSCompositeFormat format,
-                         String dispText, Hyperlink.Ref ref, boolean autoSize, Insets padding,
-                         boolean shadow, int zIndex, boolean viewerHtml)
    {
       StringBuffer buf = new StringBuffer();
       buf.append("<div style='position:absolute;overflow:hidden;z-index:");
@@ -289,8 +277,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       buf.append("'>");
 
       if(dispText != null) {
-         String escaped = viewerHtml ? HTMLEscape.viewerText(dispText) : HTMLEscape.text(dispText);
-         buf.append(escaped.replaceAll("\n", "<br>"));
+         buf.append(HTMLEscape.text(dispText).replaceAll("\n", "<br>"));
       }
 
       buf.append("</div></div></div>");
@@ -953,7 +940,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       slist.append("'>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio1 +
                       ";white-space:nowrap'>");
-      slist.append(HTMLEscape.viewerTitle(title));
+      slist.append(HTMLEscape.text(title));
       slist.append("  </div>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio2 +
          ";white-space:nowrap'>");
@@ -1018,7 +1005,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(HTMLEscape.viewerTitle(title));
+            titleStr.append(HTMLEscape.text(title));
          }
 
          titleStr.append("</span></div>");
@@ -1039,7 +1026,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(HTMLEscape.viewerTitle(title));
+            titleStr.append(HTMLEscape.text(title));
          }
 
          titleStr.append("</span></div>");
@@ -1143,7 +1130,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          }
 
          slist.append("'>");
-         slist.append(HTMLEscape.viewerTitle(title));
+         slist.append(HTMLEscape.text(title));
          slist.append("</span>");
       }
 
@@ -1159,7 +1146,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          }
 
          slist.append("'>");
-         slist.append(HTMLEscape.viewerTitle(containerTitle));
+         slist.append(HTMLEscape.text(containerTitle));
          slist.append("</span>");
          slist.append("</div>");
       }

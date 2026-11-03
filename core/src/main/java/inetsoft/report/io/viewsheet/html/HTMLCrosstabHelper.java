@@ -370,16 +370,16 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
          }
       }
       else if(obj instanceof DCMergeDatesCell) {
-         table.append(HTMLEscape.viewerCellText(
+         table.append(HTMLEscape.text(
             Tool.toString(((DCMergeDatesCell) obj).getFormatedOriginalDate())));
       }
       else if(obj instanceof DCMergeDatePartFilter.MergePartCell) {
          Format cellfmt = TableFormat.getFormat(format.getFormat(), format.getFormatExtent());
          TableDateComparisonFormat dcDatePartFormat = new TableDateComparisonFormat(cellfmt);
-         table.append(HTMLEscape.viewerCellText(dcDatePartFormat.format(obj)));
+         table.append(HTMLEscape.text(dcDatePartFormat.format(obj)));
       }
       else if(getTableObject(lens, r, c) != null) {
-         table.append(HTMLEscape.viewerCellText(Tool.toString(getTableObject(lens, r, c))));
+         table.append(HTMLEscape.text(Tool.toString(getTableObject(lens, r, c))));
       }
 
       table.append("</div>");
