@@ -114,6 +114,32 @@ class CassandraQueryVariableEscapeTest {
       }
    }
 
+   @Test
+   void unquotedTimestampAndDate_becomeQuotedLiterals() {
+      java.util.TimeZone saved = java.util.TimeZone.getDefault();
+
+      try {
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"));
+         assertEquals("SELECT * FROM t WHERE ts >  '2026-10-01 05:00:00.000+0000'",
+                      replace("SELECT * FROM t WHERE ts > $(p)",
+                              java.sql.Timestamp.valueOf("2026-10-01 05:00:00")));
+         assertEquals("SELECT * FROM t WHERE d =  '2026-10-15'",
+                      replace("SELECT * FROM t WHERE d = $(p)", java.sql.Date.valueOf("2026-10-15")));
+         assertEquals("SELECT * FROM t WHERE d IN ( '2026-10-15' , '2026-10-16' )",
+                      replace("SELECT * FROM t WHERE d IN ($(p))", new java.sql.Date[] {
+                         java.sql.Date.valueOf("2026-10-15"), java.sql.Date.valueOf("2026-10-16") }));
+      }
+      finally {
+         java.util.TimeZone.setDefault(saved);
+      }
+   }
+
+   @Test
+   void quotedDatePlaceholder_isNotAJdbcEscape() {
+      assertEquals("SELECT * FROM t WHERE d = '2026-10-15'",
+                   replace("SELECT * FROM t WHERE d = '$(p)'", java.sql.Date.valueOf("2026-10-15")));
+   }
+
    private static String replace(String template, Object value) {
       CassandraQuery query = new CassandraQuery();
       query.setQueryString(template);

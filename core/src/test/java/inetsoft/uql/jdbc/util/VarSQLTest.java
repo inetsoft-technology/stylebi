@@ -539,6 +539,81 @@ public class VarSQLTest {
    }
 
    @Test
+   void quotedDateLiterals_unquotedTimestampDateTime() {
+      java.util.TimeZone saved = java.util.TimeZone.getDefault();
+
+      try {
+         VarSQL varSql = new VarSQL();
+         varSql.setSQLType(VarSQL.SQLType.STRING);
+         varSql.setQuotedDateLiterals(true);
+
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"));
+         java.sql.Timestamp ts = java.sql.Timestamp.valueOf("2026-10-01 05:00:00");
+         assertEquals("WHERE ts >  '2026-10-01 05:00:00.000+0000' ",
+                      varSql.replaceVariables("WHERE ts > $(p)", vars("p", ts)));
+         assertEquals("WHERE d =  '2026-10-15' ",
+                      varSql.replaceVariables("WHERE d = $(p)",
+                                              vars("p", java.sql.Date.valueOf("2026-10-15"))));
+         assertEquals("WHERE t =  '08:30:15' ",
+                      varSql.replaceVariables("WHERE t = $(p)",
+                                              vars("p", java.sql.Time.valueOf("08:30:15"))));
+
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/New_York"));
+         ts = java.sql.Timestamp.valueOf("2026-10-01 05:00:00");
+         assertEquals("WHERE ts >  '2026-10-01 05:00:00.000-0400' ",
+                      varSql.replaceVariables("WHERE ts > $(p)", vars("p", ts)));
+
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Kolkata"));
+         ts = java.sql.Timestamp.valueOf("2026-10-01 05:00:00");
+         assertEquals("WHERE ts >  '2026-10-01 05:00:00.000+0530' ",
+                      varSql.replaceVariables("WHERE ts > $(p)", vars("p", ts)));
+      }
+      finally {
+         java.util.TimeZone.setDefault(saved);
+      }
+   }
+
+   @Test
+   void quotedDateLiterals_inList() {
+      java.util.TimeZone saved = java.util.TimeZone.getDefault();
+
+      try {
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"));
+         VarSQL varSql = new VarSQL();
+         varSql.setSQLType(VarSQL.SQLType.STRING);
+         varSql.setQuotedDateLiterals(true);
+
+         assertEquals("WHERE d IN ( '2026-10-15' , '2026-10-16' )",
+                      varSql.replaceVariables("WHERE d IN ($(p))", vars("p", new java.sql.Date[] {
+                         java.sql.Date.valueOf("2026-10-15"), java.sql.Date.valueOf("2026-10-16") })));
+      }
+      finally {
+         java.util.TimeZone.setDefault(saved);
+      }
+   }
+
+   @Test
+   void quotedDateLiterals_quotedPositionUnchanged() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      java.sql.Date d = java.sql.Date.valueOf("2026-10-15");
+      String off = varSql.replaceVariables("WHERE d = '$(p)'", vars("p", d));
+      varSql.setQuotedDateLiterals(true);
+      assertEquals(off, varSql.replaceVariables("WHERE d = '$(p)'", vars("p", d)));
+      assertEquals("WHERE d = '2026-10-15'", off);
+   }
+
+   @Test
+   void quotedDateLiterals_offByDefault() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+
+      assertEquals("WHERE ts >  {ts '2026-10-01 05:00:00'} ",
+                   varSql.replaceVariables("WHERE ts > $(p)",
+                      vars("p", java.sql.Timestamp.valueOf("2026-10-01 05:00:00"))));
+   }
+
+   @Test
    void rawUuidStrings_offByDefault() {
       VarSQL varSql = new VarSQL();
       varSql.setSQLType(VarSQL.SQLType.STRING);

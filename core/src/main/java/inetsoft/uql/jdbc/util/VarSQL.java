@@ -207,6 +207,19 @@ public class VarSQL {
    }
 
    /**
+    * Set whether an unquoted date, time or timestamp placeholder is emitted
+    * as a single-quoted ISO literal instead of a JDBC escape ({d '..'},
+    * {t '..'}, {ts '..'}), for dialects that run the text through a native
+    * driver that has no escape processing (CQL). A timestamp carries an
+    * explicit numeric offset so the instant does not depend on the server
+    * time zone. Defaults to {@code false}, which leaves the JDBC-escape output
+    * that JDBC-Statement-backed engines may honor unchanged (Bug #80174).
+    */
+   public void setQuotedDateLiterals(boolean quotedDateLiterals) {
+      this.quotedDateLiterals = quotedDateLiterals;
+   }
+
+   /**
     * Get the values of the parameters used in the SQL.
     */
    public List<Object> getParameterValues() {
@@ -735,7 +748,15 @@ public class VarSQL {
    protected String toSQLConstant(Object val) {
       val = XUtil.toSQLValue(val, 0);
 
-      if(val instanceof java.util.Date) {
+      if(quotedDateLiterals && val instanceof java.util.Date) {
+         // digits, '-', ':', '.' and '+' only, so nothing can ride along
+         String pattern = val instanceof java.sql.Date ? "yyyy-MM-dd" :
+            val instanceof java.sql.Time ? "HH:mm:ss" : "yyyy-MM-dd HH:mm:ss.SSSZ";
+         // fresh formatter: 'Z' prints +0000 in UTC, and the shared CoreTool
+         // formatters are thread-local state that must not be changed here
+         return "'" + new java.text.SimpleDateFormat(pattern).format(val) + "'";
+      }
+      else if(val instanceof java.util.Date) {
          return AbstractCondition.getValueSQLString(val);
       }
       else if(val instanceof String && rawNumericStrings &&
@@ -768,6 +789,7 @@ public class VarSQL {
    private CommentSyntax commentSyntax = CommentSyntax.SQL;
    private boolean rawNumericStrings = false;
    private boolean rawUuidStrings = false;
+   private boolean quotedDateLiterals = false;
 
    /**
     * A String value emitted unquoted when {@link #setRawNumericStrings} is on:
