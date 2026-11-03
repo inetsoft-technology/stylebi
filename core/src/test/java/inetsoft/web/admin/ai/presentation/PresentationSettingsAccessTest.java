@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.presentation;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.web.admin.general.WebMapSettingsService;
 import inetsoft.web.admin.presentation.*;
 import inetsoft.web.admin.presentation.model.*;
@@ -84,7 +85,7 @@ class PresentationSettingsAccessTest {
    /** In-memory stand-in for the organization's property overrides plus a time sub-model whose
     * read falls back to the inherited global values (Sunday / true) for every key that is not
     * overridden -- the shape of every value-scope sub-model. */
-   private static final class FakeOrgStore implements PresentationSettingsAccess.OrgPropertyStore {
+   private static class FakeOrgStore implements PresentationSettingsAccess.OrgPropertyStore {
       final Map<String, String> props = new HashMap<>();
       int saves;
 
@@ -260,5 +261,337 @@ class PresentationSettingsAccessTest {
 
       assertSame(model, access().read(PresentationSubModel.FONT_MAPPING, PRINCIPAL, true));
       assertSame(model, access().read(PresentationSubModel.FONT_MAPPING, PRINCIPAL, false));
+   }
+
+   // ---------------------------------------------------------------- Bug #80087: organization reset
+
+   private static final String TOOLBAR_HIDDEN = "inetsoft.org.o.viewsheet toolbar hidden";
+   private static final String SLACK_URL = "inetsoft.org.o.share.slack.url";
+
+   private PresentationSettingsAccess resetAccess(FakeOrgStore store) {
+      PresentationSettingsAccess access = access();
+      access.setOrgStore(store);
+      access.setWelcomeEntryProbe(() -> false);
+      access.setUploadProbe(() -> "");
+      return access;
+   }
+
+   private static final List<String> TOOLBAR_ELEMENTS = List.of(
+      "vs.previous.button", "vs.next.button", "vs.edit.button", "vs.refresh.button",
+      "vs.email.button", "vs.share.button", "vs.schedule.button", "vs.export.button",
+      "vs.import.button", "vs.print.button", "vs.zoom", "vs.fullScreen.button", "vs.close.button",
+      "vs.bookmark.button");
+
+   private static FakeOrgStore toolbarPinnedOrg() {
+      FakeOrgStore store = new FakeOrgStore();
+
+      for(String element : TOOLBAR_ELEMENTS) {
+         store.props.put("inetsoft.org.o." + element, "false");
+      }
+
+      store.props.put(TOOLBAR_HIDDEN, "true");
+      store.props.put("inetsoft.org.o.dashboard.enabled", "false");
+      return store;
+   }
+
+   @Test
+   void toolbarKeyCatalogCoversEveryButtonTheServerDefines() {
+      assertEquals(TOOLBAR_ELEMENTS, SUtil.getVSToolBarPropertyNames());
+   }
+
+   @Test
+   void toolbarResetRemovesTheImportButtonKeyEvenWhenFormsAreDisabled() throws Exception {
+      FakeOrgStore store = toolbarPinnedOrg();
+      // like the real service with forms disabled: every element but the import button
+      doAnswer(inv -> {
+         for(String element : TOOLBAR_ELEMENTS) {
+            if(!"vs.import.button".equals(element)) {
+               store.props.remove("inetsoft.org.o." + element);
+            }
+         }
+
+         store.props.put(TOOLBAR_HIDDEN, "false");
+         return null;
+      }).when(toolbar).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.VIEWSHEET_TOOLBAR, PRINCIPAL);
+
+      assertEquals(Map.of("inetsoft.org.o.dashboard.enabled", "false"), store.props);
+      assertNull(access.checkReset(PresentationSubModel.VIEWSHEET_TOOLBAR, outcome));
+      assertEquals("false", outcome.restore().get("inetsoft.org.o.vs.import.button"));
+      assertEquals("true", outcome.restore().get(TOOLBAR_HIDDEN));
+
+      assertNull(access.undoReset(outcome));
+      assertEquals(toolbarPinnedOrg().props, store.props);
+   }
+
+   @Test
+   void toolbarResetPlanListsEveryToolbarKeyTheOrgHolds() {
+      PresentationSettingsAccess access = resetAccess(toolbarPinnedOrg());
+
+      List<String> keys = access.resetKeysPresent(PresentationSubModel.VIEWSHEET_TOOLBAR);
+
+      assertEquals(TOOLBAR_ELEMENTS.size() + 1, keys.size(), keys.toString());
+      assertTrue(keys.contains("inetsoft.org.o.vs.import.button"));
+      assertTrue(keys.contains(TOOLBAR_HIDDEN));
+      assertFalse(keys.contains("inetsoft.org.o.dashboard.enabled"));
+   }
+
+   @Test
+   void checkResetFlagsASurvivingToolbarElementKey() throws Exception {
+      FakeOrgStore store = toolbarPinnedOrg();
+      // a reset that leaves an element key behind and that the post-cleanup cannot see: the store
+      // refuses removal of that one key
+      FakeOrgStore stubborn = new FakeOrgStore() {
+         @Override
+         public void remove(String key) {
+            if(!key.endsWith("vs.zoom")) {
+               super.remove(key);
+            }
+         }
+      };
+      stubborn.props.putAll(store.props);
+      PresentationSettingsAccess access = resetAccess(stubborn);
+
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.VIEWSHEET_TOOLBAR, PRINCIPAL);
+      String problem = access.checkReset(PresentationSubModel.VIEWSHEET_TOOLBAR, outcome);
+
+      assertNotNull(problem);
+      assertTrue(problem.contains("inetsoft.org.o.vs.zoom"), problem);
+   }
+
+   @Test
+   void orgStateDigestBindsTheOrgUploadEntries() {
+      PresentationSettingsAccess access = access();
+      access.setOrgStore(new FakeOrgStore());
+      access.setWelcomeEntryProbe(() -> false);
+      String[] uploads = {"o/format.css"};
+      access.setUploadProbe(() -> uploads[0]);
+
+      String first = access.orgStateDigest();
+      assertEquals(first, access.orgStateDigest());
+
+      uploads[0] = "o/other.css";
+      assertNotEquals(first, access.orgStateDigest());
+   }
+
+   @Test
+   void resetRemovesTheOrgKeysAndTheOutcomeRestoresThem() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put(WEEK, "");
+      store.props.put(HOURS, "false");
+      store.props.put("inetsoft.org.o.dashboard.enabled", "false");
+      doAnswer(inv -> {
+         store.props.remove(WEEK);
+         store.props.remove(HOURS);
+         return null;
+      }).when(time).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.TIME, PRINCIPAL);
+
+      assertEquals(Map.of("inetsoft.org.o.dashboard.enabled", "false"), store.props);
+      assertEquals(Map.of(WEEK, "", HOURS, "false"), outcome.restore());
+      assertTrue(outcome.added().isEmpty());
+      assertNull(access.checkReset(PresentationSubModel.TIME, outcome));
+
+      assertNull(access.undoReset(outcome));
+      assertEquals(Map.of(WEEK, "", HOURS, "false", "inetsoft.org.o.dashboard.enabled", "false"),
+                   store.props);
+   }
+
+   @Test
+   void resetOfAnOrgWithNoOverridesIsAVerifiedNoOp() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = resetAccess(store);
+
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.TIME, PRINCIPAL);
+
+      assertTrue(outcome.restore().isEmpty());
+      assertNull(access.checkReset(PresentationSubModel.TIME, outcome));
+   }
+
+   @Test
+   void resetSavesExplicitlyBecauseExportMenuResetDoesNot() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put("inetsoft.org.o.vsexport.menu.options", "pdf");
+      doAnswer(inv -> {
+         store.props.remove("inetsoft.org.o.vsexport.menu.options");
+         return null;
+      }).when(exportMenu).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      access.resetOrg(PresentationSubModel.EXPORT_MENU, PRINCIPAL);
+
+      assertTrue(store.saves > 0, "the removal must be persisted");
+      assertTrue(store.props.isEmpty());
+   }
+
+   @Test
+   void toolbarResetDoesNotLeaveTheHiddenKeyPinned() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      doAnswer(inv -> {
+         store.props.put(TOOLBAR_HIDDEN, "false");
+         return null;
+      }).when(toolbar).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      // an org that never had the key ends without it
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.VIEWSHEET_TOOLBAR, PRINCIPAL);
+      assertTrue(store.props.isEmpty(), store.props.toString());
+      assertTrue(outcome.added().isEmpty());
+      assertNull(access.checkReset(PresentationSubModel.VIEWSHEET_TOOLBAR, outcome));
+
+      // an org pinned to true ends inheriting, and rollback brings the pin back
+      store.props.put(TOOLBAR_HIDDEN, "true");
+      outcome = access.resetOrg(PresentationSubModel.VIEWSHEET_TOOLBAR, PRINCIPAL);
+      assertTrue(store.props.isEmpty(), store.props.toString());
+      assertNull(access.checkReset(PresentationSubModel.VIEWSHEET_TOOLBAR, outcome));
+      assertNull(access.undoReset(outcome));
+      assertEquals(Map.of(TOOLBAR_HIDDEN, "true"), store.props);
+   }
+
+   @Test
+   void checkResetFlagsKeysLeftBehindCreatedOrRewritten() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put(WEEK, "Monday");
+      store.props.put(HOURS, "false");
+      doAnswer(inv -> {
+         store.props.put(HOURS, "true");
+         store.props.put("inetsoft.org.o.new.key", "x");
+         return null;
+      }).when(time).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      PresentationSettingsAccess.ResetOutcome outcome =
+         access.resetOrg(PresentationSubModel.TIME, PRINCIPAL);
+      String problem = access.checkReset(PresentationSubModel.TIME, outcome);
+
+      assertNotNull(problem);
+      assertTrue(problem.contains("created"), problem);
+      assertTrue(problem.contains("rewrote"), problem);
+      assertTrue(problem.contains("still present"), problem);
+
+      // the rollback restores the old values and deletes the created key
+      assertNull(access.undoReset(outcome));
+      assertEquals(Map.of(WEEK, "Monday", HOURS, "false"), store.props);
+   }
+
+   @Test
+   void aResetThatThrowsMidwayPutsTheKeysBack() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put(WEEK, "Monday");
+      store.props.put(HOURS, "false");
+      doAnswer(inv -> {
+         store.props.remove(WEEK);
+         throw new java.io.IOException("disk full");
+      }).when(time).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      assertThrows(java.io.IOException.class,
+                   () -> access.resetOrg(PresentationSubModel.TIME, PRINCIPAL));
+
+      assertEquals(Map.of(WEEK, "Monday", HOURS, "false"), store.props);
+   }
+
+   @Test
+   void aResetWhoseKeysCannotBeRestoredThrowsStateUnknown() throws Exception {
+      FakeOrgStore store = new FakeOrgStore() {
+         @Override
+         public void put(String key, String value) {
+            throw new IllegalStateException("store unavailable");
+         }
+      };
+      store.props.put(WEEK, "Monday");
+      doAnswer(inv -> {
+         store.props.remove(WEEK);
+         throw new java.io.IOException("disk full");
+      }).when(time).resetSettings(false);
+      PresentationSettingsAccess access = resetAccess(store);
+
+      assertThrows(PresentationSettingsAccess.ResetStateUnknownException.class,
+                   () -> access.resetOrg(PresentationSubModel.TIME, PRINCIPAL));
+   }
+
+   @Test
+   void welcomePageAndLoginBannerResetsAreCheckedAgainstTheSharedEntry() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = access();
+      access.setOrgStore(store);
+      boolean[] entryPresent = {true};
+      access.setWelcomeEntryProbe(() -> entryPresent[0]);
+      doAnswer(inv -> {
+         entryPresent[0] = false;
+         return null;
+      }).when(welcomePage).resetSettings(false);
+      doAnswer(inv -> null).when(loginBanner).resetSettings(false);
+
+      assertNull(access.checkReset(PresentationSubModel.WELCOME_PAGE,
+         access.resetOrg(PresentationSubModel.WELCOME_PAGE, PRINCIPAL)));
+
+      entryPresent[0] = true;
+      String problem = access.checkReset(PresentationSubModel.LOGIN_BANNER,
+         access.resetOrg(PresentationSubModel.LOGIN_BANNER, PRINCIPAL));
+      assertNotNull(problem);
+      assertTrue(problem.contains("welcome page/login banner entry still exists"), problem);
+   }
+
+   @Test
+   void everyOrganizationCapableSubModelHasAResetAndTheGlobalOnlyOnesDoNot() throws Exception {
+      FakeOrgStore store = new FakeOrgStore();
+      PresentationSettingsAccess access = resetAccess(store);
+
+      for(PresentationSubModel subModel : PresentationSubModel.values()) {
+         if(subModel.globalOnly()) {
+            assertThrows(IllegalArgumentException.class,
+                         () -> access.resetOrg(subModel, PRINCIPAL), subModel.key());
+         }
+         else {
+            assertNotNull(access.resetOrg(subModel, PRINCIPAL), subModel.key());
+         }
+      }
+
+      verify(time).resetSettings(false);
+      verify(share).resetSettings(false);
+      verify(webMap).resetSettings(PRINCIPAL, false);
+      verify(lookAndFeel).resetSettings(PRINCIPAL, false);
+      verify(fontMapping, never()).resetSettings();
+      verify(ai, never()).resetSettings();
+   }
+
+   @Test
+   void orgStateDigestTracksValuesWithoutRevealingThem() {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put(SLACK_URL, "https://hooks.example/secret-token");
+      PresentationSettingsAccess access = resetAccess(store);
+
+      String first = access.orgStateDigest();
+      assertFalse(first.contains("secret-token"));
+      assertEquals(first, access.orgStateDigest());
+
+      store.props.put(SLACK_URL, "https://hooks.example/other");
+      assertNotEquals(first, access.orgStateDigest());
+
+      store.props.remove(SLACK_URL);
+      assertNotEquals(first, access.orgStateDigest());
+   }
+
+   @Test
+   void resetKeysPresentNamesOnlyTheSubModelsOwnKeys() {
+      FakeOrgStore store = new FakeOrgStore();
+      store.props.put(WEEK, "Monday");
+      store.props.put("inetsoft.org.o.dashboard.enabled", "false");
+      PresentationSettingsAccess access = resetAccess(store);
+
+      assertEquals(List.of(WEEK), access.resetKeysPresent(PresentationSubModel.TIME));
+      assertEquals(List.of("inetsoft.org.o.dashboard.enabled"),
+                   access.resetKeysPresent(PresentationSubModel.DASHBOARD));
+      assertTrue(access.resetKeysPresent(PresentationSubModel.SHARE).isEmpty());
    }
 }

@@ -494,6 +494,21 @@ public class SUtil {
    }
 
    /**
+    * Gets the server property name of every dashboard toolbar button, regardless of whether the
+    * button is currently offered ({@link #getVSToolBarElements} omits the import button while forms
+    * are disabled, but an organization may still hold a value for it from when they were enabled).
+    */
+   public static List<String> getVSToolBarPropertyNames() {
+      List<String> names = new ArrayList<>(ToolBarElement.VSTOOLBAR_ELEMENTS.size());
+
+      for(ToolBarElementDef def : ToolBarElement.VSTOOLBAR_ELEMENTS) {
+         names.add(def.property());
+      }
+
+      return names;
+   }
+
+   /**
     * Represents an element in toolbar.
     */
    public static class ToolBarElement implements Comparable<ToolBarElement> {

@@ -1424,6 +1424,203 @@ class PresentationChangePlanServiceTest {
                   obj().put("compressText", false));
    }
 
+   // ---------------------------------------------------------------- Bug #80087: organization-scope reset
+
+   private static PresentationChangeRequest reset(String subModel, String scope) {
+      PresentationChangeRequest r = new PresentationChangeRequest();
+      r.setVerb("reset");
+      r.setSubModel(subModel);
+      r.setScope(scope);
+      return r;
+   }
+
+   @Test
+   void resetResolvesAtOrganizationScopeForEveryOrganizationCapableSubModel() throws Exception {
+      for(PresentationSubModel subModel : PresentationSubModel.values()) {
+         if(subModel.globalOnly()) {
+            continue;
+         }
+
+         stub(subModel, currentFor(subModel));
+         var plan = service.resolve(request("t", reset(subModel.key(), "organization")), PRINCIPAL);
+
+         assertEquals(1, plan.changes().size(), subModel.key());
+         var change = plan.changes().get(0);
+         assertEquals(subModel.key() + ":organization", change.property());
+         assertTrue(change.description().startsWith("reset " + subModel.key()), subModel.key());
+         assertTrue(change.proposedValue().contains("inherits global"), subModel.key());
+         assertNotEquals(change.currentValue(), change.proposedValue(), subModel.key());
+         assertTrue(plan.requiresAgentSignoff(), subModel.key());
+      }
+   }
+
+   @Test
+   void resetVerbIsCaseInsensitive() throws Exception {
+      stub(PresentationSubModel.TIME, currentFor(PresentationSubModel.TIME));
+      PresentationChangeRequest r = reset("time", "organization");
+      r.setVerb(" Reset ");
+
+      assertEquals(1, service.resolve(request("t", r), PRINCIPAL).changes().size());
+   }
+
+   @Test
+   void resetIsRefusedAtGlobalScopeForEverySubModel() throws Exception {
+      for(PresentationSubModel subModel : PresentationSubModel.values()) {
+         stub(subModel, currentFor(subModel));
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("t", reset(subModel.key(), "global")), PRINCIPAL),
+            subModel.key());
+         assertTrue(e.getMessage().contains("changes[0].verb"), e.getMessage());
+         assertTrue(e.getMessage().contains("only available at scope \"organization\""),
+                    e.getMessage());
+      }
+   }
+
+   @Test
+   void resetOfAGlobalOnlySubModelIsRefusedAtOrganizationScope() {
+      for(String key : List.of("fontMapping", "ai")) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("t", reset(key, "organization")), PRINCIPAL), key);
+         assertTrue(e.getMessage().contains("global-only"), e.getMessage());
+      }
+   }
+
+   @Test
+   void resetRefusesASpecInsteadOfIgnoringIt() throws Exception {
+      stub(PresentationSubModel.TIME, currentFor(PresentationSubModel.TIME));
+      PresentationChangeRequest r = reset("time", "organization");
+      r.setSpec(obj().put("weekStart", ""));
+
+      IllegalArgumentException e =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(request("t", r), PRINCIPAL));
+      assertTrue(e.getMessage().contains("changes[0].spec"), e.getMessage());
+      assertTrue(e.getMessage().contains("reset"), e.getMessage());
+   }
+
+   @Test
+   void resetIsRefusedOnASingleTenantDeployment() throws Exception {
+      sutil.when(SUtil::isMultiTenant).thenReturn(false);
+      stub(PresentationSubModel.TIME, currentFor(PresentationSubModel.TIME));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", reset("time", "organization")), PRINCIPAL));
+      assertTrue(e.getMessage().contains("single-tenant"), e.getMessage());
+   }
+
+   @Test
+   void resetAndUpdateOfTheSameSubModelAndScopeAreRefusedAsDuplicates() throws Exception {
+      stub(PresentationSubModel.TIME, currentFor(PresentationSubModel.TIME));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("t", reset("time", "organization"),
+            change("time", "organization", obj().put("weekStart", "Monday"))), PRINCIPAL));
+      assertTrue(e.getMessage().contains("duplicate entry"), e.getMessage());
+   }
+
+   @Test
+   void aVerbOtherThanUpdateOrResetNamesTheResetVerb() {
+      for(String verb : List.of("delete", "remove", "clear")) {
+         PresentationChangeRequest r = reset("time", "organization");
+         r.setVerb(verb);
+
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("t", r), PRINCIPAL), verb);
+         assertTrue(e.getMessage().contains("\"reset\""), e.getMessage());
+      }
+   }
+
+   @Test
+   void resetOfWelcomePageOrLoginBannerIsRefusedWithAnyOtherEntryForThePair() throws Exception {
+      stub(PresentationSubModel.WELCOME_PAGE, currentFor(PresentationSubModel.WELCOME_PAGE));
+      stub(PresentationSubModel.LOGIN_BANNER, currentFor(PresentationSubModel.LOGIN_BANNER));
+      PresentationChangeRequest bannerUpdate =
+         change("loginBanner", "organization", obj().put("loginBanner", "hi"));
+
+      for(List<PresentationChangeRequest> entries : List.of(
+         List.of(reset("welcomePage", "organization"), bannerUpdate),
+         List.of(bannerUpdate, reset("welcomePage", "organization")),
+         List.of(reset("welcomePage", "organization"), reset("loginBanner", "organization"))))
+      {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("t", entries.toArray(new PresentationChangeRequest[0])),
+                                  PRINCIPAL));
+         assertTrue(e.getMessage().contains("share one organization entry"), e.getMessage());
+      }
+   }
+
+   @Test
+   void resetOfWelcomePageShowsBothHalvesOfTheSharedEntry() throws Exception {
+      stub(PresentationSubModel.WELCOME_PAGE, currentFor(PresentationSubModel.WELCOME_PAGE));
+      stub(PresentationSubModel.LOGIN_BANNER, currentFor(PresentationSubModel.LOGIN_BANNER));
+
+      var change = service.resolve(request("t", reset("welcomePage", "organization")), PRINCIPAL)
+         .changes().get(0);
+
+      assertTrue(change.currentValue().contains("\"welcomePage\""), change.currentValue());
+      assertTrue(change.currentValue().contains("\"loginBanner\""), change.currentValue());
+      assertTrue(change.description().contains("BOTH"), change.description());
+   }
+
+   @Test
+   void resetOfWelcomePageAndAnUnrelatedUpdateMayShareAChangeset() throws Exception {
+      stub(PresentationSubModel.WELCOME_PAGE, currentFor(PresentationSubModel.WELCOME_PAGE));
+      stub(PresentationSubModel.LOGIN_BANNER, currentFor(PresentationSubModel.LOGIN_BANNER));
+      stub(PresentationSubModel.TIME, currentFor(PresentationSubModel.TIME));
+
+      assertEquals(2, service.resolve(request("t", reset("welcomePage", "organization"),
+         change("time", "organization", obj().put("weekStart", "Monday"))), PRINCIPAL)
+         .changes().size());
+   }
+
+   @Test
+   void resetPlanDisclosesTheStorageScopeAndLookAndFeelConsequences() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+      var change = service.resolve(request("t", reset("lookAndFeel", "organization")), PRINCIPAL)
+         .changes().get(0);
+
+      assertTrue(change.description().contains("permanently deletes"), change.description());
+      assertTrue(change.description().contains("cannot be rolled back"), change.description());
+   }
+
+   @Test
+   void resetPlanNamesTheOrganizationKeysItWillRemoveAndBindsTheOrgState() throws Exception {
+      stub(PresentationSubModel.TIME, currentFor(PresentationSubModel.TIME));
+      org.mockito.Mockito.when(access.resetKeysPresent(PresentationSubModel.TIME))
+         .thenReturn(List.of("inetsoft.org.o.week.start"));
+      org.mockito.Mockito.when(access.orgStateDigest()).thenReturn("digest-1", "digest-1", "digest-2");
+
+      var first = service.resolve(request("t", reset("time", "organization")), PRINCIPAL);
+      var same = service.resolve(request("t", reset("time", "organization")), PRINCIPAL);
+      var drifted = service.resolve(request("t", reset("time", "organization")), PRINCIPAL);
+
+      assertTrue(first.changes().get(0).description().contains("inetsoft.org.o.week.start"));
+      assertEquals(first.planHash(), same.planHash());
+      assertNotEquals(first.planHash(), drifted.planHash(),
+                      "a change in the organization's overrides between preview and apply must conflict");
+   }
+
+   @Test
+   void toolbarResetPlanDescriptionListsEveryKeyItWillRemove() throws Exception {
+      stub(PresentationSubModel.VIEWSHEET_TOOLBAR, currentFor(PresentationSubModel.VIEWSHEET_TOOLBAR));
+      List<String> keys = new java.util.ArrayList<>();
+
+      for(int i = 0; i < 14; i++) {
+         keys.add("inetsoft.org.o.vs.element" + i + ".button");
+      }
+
+      keys.add("inetsoft.org.o.viewsheet toolbar hidden");
+      org.mockito.Mockito.when(access.resetKeysPresent(PresentationSubModel.VIEWSHEET_TOOLBAR))
+         .thenReturn(keys);
+
+      String description = service.resolve(
+         request("t", reset("viewsheetToolbar", "organization")), PRINCIPAL)
+         .changes().get(0).description();
+
+      for(String key : keys) {
+         assertTrue(description.contains(key), key + " missing from: " + description);
+      }
+   }
+
    private static final String LAF_EXPAND_GLOBAL_HASH =
       "195df86f0835a3d4bde496f4529ce47b814a60588aaa386fef3382537c1a950c";
    private static final String FORMATS_ORG_HASH =
