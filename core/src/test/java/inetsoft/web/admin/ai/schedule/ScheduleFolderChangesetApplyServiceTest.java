@@ -577,6 +577,107 @@ class ScheduleFolderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // bug #80085: a verb whose mutating call returned normally but whose post-write check failed
+   // must not be reported as rolled back when the observed state differs from the pre-state.
+   // -------------------------------------------------------------------------
+
+   private ApplyResult applyOne(ScheduleFolderChangeRequest change) throws Exception {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      ResolvedPlan preview = planService.resolve(planRequest(change), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), change);
+      req.setReviewOutcome("approved");
+      return service.apply(req, user);
+   }
+
+   private static void assertStillChanged(ApplyResult result, String property) {
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals(property, result.rollbackFailures().get(0).property());
+   }
+
+   @Test void renameWhoseReadBackFailsButSourceIsGoneReportsRollbackFailed() throws Exception {
+      // Preview, apply re-resolve and before-capture see the source; afterwards it is gone and
+      // nothing exists at the requested path (the folder really landed elsewhere).
+      when(folderGateway.findFolder("SRC")).thenReturn(new AssetFolder(), new AssetFolder(),
+                                                       new AssetFolder(), (AssetFolder) null);
+
+      assertStillChanged(applyOne(renameChange("SRC", "PARENT/NEW")), "SRC");
+   }
+
+   @Test void renameWhoseReadBackFailsWithSourceStillInPlaceStaysRolledBack() throws Exception {
+      when(folderGateway.findFolder("SRC")).thenReturn(new AssetFolder());
+
+      ApplyResult result = applyOne(renameChange("SRC", "PARENT/NEW"));
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+   }
+
+   @Test void moveWhoseReadBackFailsButSourceIsGoneReportsRollbackFailed() throws Exception {
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.findFolder("Svc")).thenReturn(new AssetFolder(), new AssetFolder(),
+                                                       new AssetFolder(), (AssetFolder) null);
+
+      assertStillChanged(applyOne(moveChange("Svc", "Target")), "Svc");
+   }
+
+   @Test void moveWhoseReadBackFailsWithSourceStillInPlaceStaysRolledBack() throws Exception {
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.findFolder("Svc")).thenReturn(new AssetFolder());
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK,
+                   applyOne(moveChange("Svc", "Target")).status());
+   }
+
+   @Test void createWhoseReadBackFailsAfterTheMutationWasEnteredReportsRollbackFailed()
+      throws Exception
+   {
+      doAnswer(inv -> {
+         ((AtomicBoolean) inv.getArgument(2)).set(true);
+         return null;
+      }).when(folderGateway).createFolder(eq("NewFolder"), eq(user), any(AtomicBoolean.class));
+
+      assertStillChanged(applyOne(createChange(null, "NewFolder")), "NewFolder");
+   }
+
+   @Test void createWhoseReadBackFailsBeforeAnyMutationStaysRolledBack() throws Exception {
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK,
+                   applyOne(createChange(null, "NewFolder")).status());
+   }
+
+   @Test void moveTaskThatLandedInAnotherFolderReportsRollbackFailed() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Old", "Old", "Elsewhere");
+
+      assertStillChanged(applyOne(moveTaskChange("task1", "Target")), "task1");
+   }
+
+   @Test void moveTaskToRootWithNullReadBackPathIsVerified() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Old", "Old", (String) null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED,
+                   applyOne(moveTaskChange("task1", "/")).status());
+   }
+
+   @Test void deleteThatLeavesTheFolderWithFewerTasksReportsRollbackFailed() throws Exception {
+      when(folderGateway.findFolder("Gone")).thenReturn(new AssetFolder());
+      when(folderGateway.countContainedTasks("Gone")).thenReturn(3, 3, 3, 1);
+
+      assertStillChanged(applyOne(deleteChangeForce("Gone")), "Gone");
+   }
+
+   private static ScheduleFolderChangeRequest moveChange(String path, String targetPath) {
+      ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
+      change.setVerb(ScheduleFolderChangeRequest.VERB_MOVE);
+      change.setPath(path);
+      change.setTargetPath(targetPath);
+      return change;
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
 
