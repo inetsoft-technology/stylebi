@@ -734,9 +734,11 @@ public final class VSMVAnalyzer implements MVAnalyzer {
          return false;
       }
 
-      // a dynamic pre-condition on a named group column compares against the group
-      // labels in the MV, and matches nothing/everything (#79482)
-      if(containsDynamicConditionOnNamedGroup(tassembly)) {
+      // a pre-condition list that moves to the runtime list, with any item on a named group
+      // column, is compared against the group labels stored in the MV (#79482)
+      if(containsDynamicConditionOnNamedGroup(
+            tassembly, desc, Viewsheet.getVariableTable(ws)))
+      {
          UserInfo uinfo = new UserInfo(
             getVsPath(), tname,
             catalog.getString("mv.vs.namedgroup.condition.var", getVsPath()));
@@ -1000,29 +1002,40 @@ public final class VSMVAnalyzer implements MVAnalyzer {
    }
 
    /**
-    * Check if the table has a group column with a named group, and a dynamic
-    * (variable or expression valued) pre-condition on that same column. The named
-    * group rewrites the column values to the group labels, so the MV can't apply the
-    * condition (which is on the original values) to it.
+    * Check if the table has a pre-condition list that is moved to the runtime list, and any
+    * item of that list references a group column with a named group (assembly or inline).
+    * <p>
+    * TransformationDescriptor.processPreSelections moves the pre-condition list to the
+    * runtime list as a unit: one variable (or session variable, dynamic table, dynamic
+    * sub-query) item moves the constant items of the same list too. With a named group on
+    * the condition column the selection-up transformation fails and the table falls back to
+    * a sub-MV of the aggregated table. That MV stores the group labels in the column, and
+    * the runtime condition is compared with the labels (MV.fixFilter maps a raw value that
+    * is not a label to -1), so the condition does not filter. The axis is "the condition list
+    * moves to runtime x any item on a named-group column", not only a dynamic item.
+    * The list test is the one the mover uses (AbstractTransformer.isDynamicFilter); the
+    * item-level isDynamicCondition is kept as a union so expression values stay refused.
     */
-   private boolean containsDynamicConditionOnNamedGroup(TableAssembly table) {
+   private boolean containsDynamicConditionOnNamedGroup(TableAssembly table,
+                                                        TransformationDescriptor desc,
+                                                        VariableTable vars)
+   {
       AggregateInfo ainfo = table.getAggregateInfo();
       ConditionListWrapper wrapper = table.getPreConditionList();
       ConditionList conds = wrapper == null ? null : wrapper.getConditionList();
 
-      if(ainfo != null && conds != null) {
+      if(ainfo != null && conds != null && conds.getSize() > 0 &&
+         (AbstractTransformer.isDynamicFilter(desc, wrapper, vars) || hasDynamicItem(conds)))
+      {
          for(GroupRef group : ainfo.getGroups()) {
             if(group.getNamedGroupAssembly() == null && group.getNamedGroupInfo() == null) {
                continue;
             }
 
             for(int i = 0; i < conds.getSize(); i += 2) {
-               ConditionItem item = conds.getConditionItem(i);
-               DataRef attr = item.getAttribute();
+               DataRef attr = conds.getConditionItem(i).getAttribute();
 
-               if(attr != null && isSameColumn(group, attr) &&
-                  isDynamicCondition(item.getXCondition()))
-               {
+               if(attr != null && isSameColumn(group, attr)) {
                   return true;
                }
             }
@@ -1031,9 +1044,19 @@ public final class VSMVAnalyzer implements MVAnalyzer {
 
       if(table instanceof ComposedTableAssembly) {
          for(TableAssembly parent : ((ComposedTableAssembly) table).getTableAssemblies(false)) {
-            if(containsDynamicConditionOnNamedGroup(parent)) {
+            if(containsDynamicConditionOnNamedGroup(parent, desc, vars)) {
                return true;
             }
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean hasDynamicItem(ConditionList conds) {
+      for(int i = 0; i < conds.getSize(); i += 2) {
+         if(isDynamicCondition(conds.getConditionItem(i).getXCondition())) {
+            return true;
          }
       }
 
