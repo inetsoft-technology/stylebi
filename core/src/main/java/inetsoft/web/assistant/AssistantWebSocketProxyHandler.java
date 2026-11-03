@@ -30,15 +30,12 @@ import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 import org.springframework.http.HttpHeaders;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
-import java.net.Socket;
 import java.net.URI;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -289,54 +286,9 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
    private volatile ScheduledExecutorService cleanup;
    private final Map<String, WebSocketSession> upstreamSessions = new ConcurrentHashMap<>();
 
-   /**
-    * Trusts every certificate chain <em>and</em> every hostname, for
-    * chat.app.server.ssl.verify=false.
-    *
-    * <p>This must be an {@link X509ExtendedTrustManager}, not a plain {@code X509TrustManager},
-    * and that is not a style preference. JSSE performs hostname verification <em>inside</em> the
-    * trust manager, so a plain {@code X509TrustManager} gets wrapped in one that still runs the
-    * identity check -- and Tomcat's {@code WsWebSocketContainer.createSSLEngine} unconditionally
-    * sets the endpoint identification algorithm to "HTTPS" with no user property to override it.
-    * With a plain manager the chain is trusted but a certificate whose CN/SAN does not match the
-    * host is still refused, which is not what the operator asked for. Overriding the
-    * {@code SSLEngine} and {@code Socket} overloads here is what actually disables the check.
-    *
-    * <p>The HTTP-side counterpart is {@code AIAssistantController.createHealthClient}, which
-    * reaches the same result differently: {@code HttpClient} lets it clear the algorithm via
-    * {@code SSLParameters.setEndpointIdentificationAlgorithm("")}, an option the Tomcat
-    * WebSocket client does not expose.
-    */
-   private static final X509ExtendedTrustManager TRUST_ALL = new X509ExtendedTrustManager() {
-      @Override
-      public void checkClientTrusted(X509Certificate[] chain, String authType) {
-      }
-
-      @Override
-      public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) {
-      }
-
-      @Override
-      public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
-      }
-
-      @Override
-      public void checkServerTrusted(X509Certificate[] chain, String authType) {
-      }
-
-      @Override
-      public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) {
-      }
-
-      @Override
-      public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
-      }
-
-      @Override
-      public X509Certificate[] getAcceptedIssuers() {
-         return new X509Certificate[0];
-      }
-   };
+   /** Trust-all for chat.app.server.ssl.verify=false; see {@link AssistantTrustAllTrustManager}. */
+   private static final X509ExtendedTrustManager TRUST_ALL =
+      AssistantTrustAllTrustManager.INSTANCE;
 
    private static final List<String> FORWARD_WS_HEADERS =
       List.of("Authorization", "x-client-id", "x-request-id");
