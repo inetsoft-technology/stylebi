@@ -1396,59 +1396,14 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
    @Override
    public void getDependeds(Set<AssemblyRef> set) {
       getExpressionDependeds(set);
-      AssetUtil.getConditionDependeds(ws, preconds, set);
-      AssetUtil.getConditionDependeds(ws, postconds, set);
-      AssetUtil.getConditionDependeds(ws, topns, set);
-      AssetUtil.getConditionDependeds(ws, mvUpdatePreConds, set);
-      AssetUtil.getConditionDependeds(ws, mvUpdatePostConds, set);
-      AssetUtil.getConditionDependeds(ws, mvDeletePreConds, set);
-      AssetUtil.getConditionDependeds(ws, mvDeletePostConds, set);
-      getConditionScriptDependeds(set);
+      AssetUtil.getConditionDependeds(ws, preconds, set, this);
+      AssetUtil.getConditionDependeds(ws, postconds, set, this);
+      AssetUtil.getConditionDependeds(ws, topns, set, this);
+      AssetUtil.getConditionDependeds(ws, mvUpdatePreConds, set, this);
+      AssetUtil.getConditionDependeds(ws, mvUpdatePostConds, set, this);
+      AssetUtil.getConditionDependeds(ws, mvDeletePreConds, set, this);
+      AssetUtil.getConditionDependeds(ws, mvDeletePostConds, set, this);
       ginfo.getDependeds(set);
-   }
-
-   /**
-    * Get the tables referenced by the JavaScript values of the conditions, so a table read by
-    * a condition script can't be removed (Bug #80088).
-    */
-   private void getConditionScriptDependeds(Set<AssemblyRef> set) {
-      ConditionListWrapper[] lists = { preconds, postconds, topns, mvUpdatePreConds,
-         mvUpdatePostConds, mvDeletePreConds, mvDeletePostConds };
-
-      for(ConditionListWrapper list : lists) {
-         if(list == null || list instanceof ConditionAssembly) {
-            continue;
-         }
-
-         for(int i = 0; i < list.getConditionSize(); i += 2) {
-            XCondition condition = list.getConditionItem(i).getXCondition();
-
-            if(!(condition instanceof AssetCondition)) {
-               continue;
-            }
-
-            AssetCondition acondition = (AssetCondition) condition;
-
-            for(int j = 0; j < acondition.getValueCount(); j++) {
-               Object val = acondition.getValue(j);
-
-               if(val instanceof ExpressionValue) {
-                  ExpressionValue eval = (ExpressionValue) val;
-                  String exp = eval.getExpression();
-
-                  if(ExpressionValue.JAVASCRIPT.equals(eval.getType()) && exp != null &&
-                     !exp.isEmpty())
-                  {
-                     for(Assembly assembly : getScriptExpressionDependedAssemblies(exp)) {
-                        if(assembly instanceof TableAssembly) {
-                           set.add(new AssemblyRef(assembly.getAssemblyEntry()));
-                        }
-                     }
-                  }
-               }
-            }
-         }
-      }
    }
 
    @Override
@@ -1459,13 +1414,13 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       addToDependencyTypes(dependeds, set, DependencyType.EXPRESSION);
       set.clear();
 
-      AssetUtil.getConditionDependeds(ws, preconds, set);
-      AssetUtil.getConditionDependeds(ws, postconds, set);
-      AssetUtil.getConditionDependeds(ws, topns, set);
-      AssetUtil.getConditionDependeds(ws, mvUpdatePreConds, set);
-      AssetUtil.getConditionDependeds(ws, mvUpdatePostConds, set);
-      AssetUtil.getConditionDependeds(ws, mvDeletePreConds, set);
-      AssetUtil.getConditionDependeds(ws, mvDeletePostConds, set);
+      AssetUtil.getConditionDependeds(ws, preconds, set, this, false);
+      AssetUtil.getConditionDependeds(ws, postconds, set, this, false);
+      AssetUtil.getConditionDependeds(ws, topns, set, this, false);
+      AssetUtil.getConditionDependeds(ws, mvUpdatePreConds, set, this, false);
+      AssetUtil.getConditionDependeds(ws, mvUpdatePostConds, set, this, false);
+      AssetUtil.getConditionDependeds(ws, mvDeletePreConds, set, this, false);
+      AssetUtil.getConditionDependeds(ws, mvDeletePostConds, set, this, false);
 
       Set<AssemblyRef> conditionVariables = set.stream().filter(
          (ref) -> ref.getEntry().getType() == Worksheet.VARIABLE_ASSET).collect(
@@ -1477,7 +1432,12 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       addToDependencyTypes(dependeds, conditionSubqueryTables, DependencyType.SUBQUERY_FILTER);
       set.clear();
 
-      getConditionScriptDependeds(set);
+      for(ConditionListWrapper list : new ConditionListWrapper[] { preconds, postconds, topns,
+         mvUpdatePreConds, mvUpdatePostConds, mvDeletePreConds, mvDeletePostConds })
+      {
+         AssetUtil.getConditionScriptDependeds(ws, list, set, this);
+      }
+
       addToDependencyTypes(dependeds, set, DependencyType.EXPRESSION);
       set.clear();
 
@@ -1577,45 +1537,7 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     * @return a set containing the depended assemblies
     */
    private Set<Assembly> getScriptExpressionDependedAssemblies(String exp) {
-      Set<Assembly> dependeds = new HashSet<>();
-      ScriptIterator iterator = new ScriptIterator(exp);
-      ScriptListener listener = new ScriptListener() {
-         @Override
-         public void nextElement(Token token, Token pref, Token cref) {
-            if(token.isRef() && !FIELD.equals(token.val) &&
-               (pref == null || !FIELD.equals(pref.val)))
-            {
-               Assembly assembly = ws.getAssembly(token.val);
-
-               if(assembly instanceof TableAssembly &&
-                  !assembly.equals(AbstractTableAssembly.this))
-               {
-                  dependeds.add(assembly);
-               }
-            }
-
-            //bug1327952910298, make variable has depended.
-            if(token.isRef() && cref != null && cref.isRef() && pref == null &&
-               "parameter".equals(token.val))
-            {
-               Assembly[] assemblies = ws.getAssemblies();
-
-               for(Assembly assembly : assemblies) {
-                  if(assembly instanceof VariableAssembly) {
-                     UserVariable uvar = ((VariableAssembly) assembly).getVariable();
-
-                     if(uvar != null && uvar.getName().equals(cref.val)) {
-                        dependeds.add(assembly);
-                     }
-                  }
-               }
-            }
-         }
-      };
-
-      iterator.addScriptListener(listener);
-      iterator.iterate();
-      return dependeds;
+      return AssetUtil.getScriptDependedAssemblies(ws, exp, this);
    }
 
    /**

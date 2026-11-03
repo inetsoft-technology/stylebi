@@ -224,6 +224,25 @@ public class AssetUtil {
     */
    public static void getConditionDependeds(Worksheet ws,
                                             ConditionListWrapper list, Set set) {
+      getConditionDependeds(ws, list, set, null, true);
+   }
+
+   /**
+    * Get condition assemblies depended on, the tables read by JavaScript values included.
+    * @param self the assembly owning the condition, never a dependency of itself.
+    */
+   public static void getConditionDependeds(Worksheet ws, ConditionListWrapper list, Set set,
+                                            Assembly self)
+   {
+      getConditionDependeds(ws, list, set, self, true);
+   }
+
+   /**
+    * @param scripts true to include the tables read by JavaScript values (Bug #80088).
+    */
+   public static void getConditionDependeds(Worksheet ws, ConditionListWrapper list, Set set,
+                                            Assembly self, boolean scripts)
+   {
       if(list == null) {
          return;
       }
@@ -246,6 +265,10 @@ public class AssetUtil {
                acondition.getDependeds(set);
             }
 
+            if(scripts) {
+               getConditionScriptDependeds(ws, item, set, self);
+            }
+
             UserVariable[] vars = condition.getAllVariables();
 
             for(int j = 0; j < vars.length; j++) {
@@ -265,6 +288,97 @@ public class AssetUtil {
             }
          }
       }
+   }
+
+   /**
+    * Get the tables read by the JavaScript values of the conditions, so a table used by a
+    * condition script can't be removed (Bug #80088).
+    */
+   public static void getConditionScriptDependeds(Worksheet ws, ConditionListWrapper list,
+                                                  Set set, Assembly self)
+   {
+      if(list == null || list instanceof ConditionAssembly) {
+         return;
+      }
+
+      for(int i = 0; i < list.getConditionSize(); i += 2) {
+         getConditionScriptDependeds(ws, list.getConditionItem(i), set, self);
+      }
+   }
+
+   private static void getConditionScriptDependeds(Worksheet ws, ConditionItem item, Set set,
+                                                   Assembly self)
+   {
+      if(!(item.getXCondition() instanceof AssetCondition)) {
+         return;
+      }
+
+      AssetCondition acondition = (AssetCondition) item.getXCondition();
+
+      for(int j = 0; j < acondition.getValueCount(); j++) {
+         Object val = acondition.getValue(j);
+
+         if(val instanceof ExpressionValue) {
+            ExpressionValue eval = (ExpressionValue) val;
+            String exp = eval.getExpression();
+
+            if(ExpressionValue.JAVASCRIPT.equals(eval.getType()) && exp != null &&
+               !exp.isEmpty())
+            {
+               for(Assembly assembly : getScriptDependedAssemblies(ws, exp, self)) {
+                  if(assembly instanceof TableAssembly) {
+                     set.add(new AssemblyRef(assembly.getAssemblyEntry()));
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   /**
+    * Get the tables and variables a script reads.
+    * @param self the assembly owning the script, excluded from the result.
+    */
+   public static Set<Assembly> getScriptDependedAssemblies(Worksheet ws, String exp,
+                                                           Assembly self)
+   {
+      Set<Assembly> dependeds = new HashSet<>();
+      ScriptIterator iterator = new ScriptIterator(exp);
+      ScriptIterator.ScriptListener listener = new ScriptIterator.ScriptListener() {
+         @Override
+         public void nextElement(ScriptIterator.Token token, ScriptIterator.Token pref,
+                                 ScriptIterator.Token cref)
+         {
+            if(token.isRef() && !Assembly.FIELD.equals(token.val) &&
+               (pref == null || !Assembly.FIELD.equals(pref.val)))
+            {
+               Assembly assembly = ws.getAssembly(token.val);
+
+               if(assembly instanceof TableAssembly && !assembly.equals(self)) {
+                  dependeds.add(assembly);
+               }
+            }
+
+            //bug1327952910298, make variable has depended.
+            if(token.isRef() && cref != null && cref.isRef() && pref == null &&
+               "parameter".equals(token.val))
+            {
+               for(Assembly assembly : ws.getAssemblies()) {
+                  if(assembly instanceof VariableAssembly) {
+                     UserVariable uvar = ((VariableAssembly) assembly).getVariable();
+
+                     if(uvar != null && uvar.getName().equals(cref.val)) {
+                        dependeds.add(assembly);
+                     }
+                  }
+               }
+            }
+         }
+      };
+
+      iterator.addScriptListener(listener);
+      iterator.iterate();
+      return dependeds;
    }
 
    /**

@@ -91,6 +91,58 @@ class ConditionScriptDependency80088Test {
       assertEquals(0, ws.getDependings(ws.getAssembly("CATEGORIES").getAssemblyEntry()).length);
    }
 
+   @Test
+   void otherConditionListsAreDepended() {
+      Worksheet ws = worksheet();
+      EmbeddedTableAssembly products = (EmbeddedTableAssembly) ws.getAssembly("PRODUCTS");
+      String script = "CATEGORIES['CATEGORY_ID'][1]";
+      products.setPostConditionList(conditions(script));
+      assertDependings(ws, "PRODUCTS");
+      products.setPostConditionList(null);
+
+      products.setRankingConditionList(conditions(script));
+      assertDependings(ws, "PRODUCTS");
+      products.setRankingConditionList(null);
+
+      products.setMVUpdatePreConditionList(conditions(script));
+      assertDependings(ws, "PRODUCTS");
+      products.setMVUpdatePreConditionList(null);
+
+      products.setMVUpdatePostConditionList(conditions(script));
+      assertDependings(ws, "PRODUCTS");
+      products.setMVUpdatePostConditionList(null);
+
+      products.setMVDeletePostConditionList(conditions(script));
+      assertDependings(ws, "PRODUCTS");
+   }
+
+   @Test
+   void attachedConditionAssemblyScriptTableIsDepended() {
+      Worksheet ws = worksheet();
+      DefaultConditionAssembly cond = new DefaultConditionAssembly(ws, "COND");
+      cond.setConditionList(conditions("CATEGORIES['CATEGORY_ID'][1]"));
+      ws.addAssembly(cond);
+      EmbeddedTableAssembly products = (EmbeddedTableAssembly) ws.getAssembly("PRODUCTS");
+      products.setPreConditionList(cond);
+
+      assertDependings(ws, "COND");
+   }
+
+   @Test
+   void boundTableAttachedConditionAssemblyScriptTableIsDepended() {
+      Worksheet ws = worksheet();
+      BoundTableAssembly bound = new BoundTableAssembly(ws, "BOUND");
+      ws.addAssembly(bound);
+      SourceInfo source = new SourceInfo(SourceInfo.PHYSICAL_TABLE, "ds", "T");
+      bound.setSourceInfo(source);
+      DefaultConditionAssembly cond = new DefaultConditionAssembly(ws, "COND");
+      cond.setConditionList(conditions("CATEGORIES['CATEGORY_ID'][1]"));
+      cond.setAttachedSource(source);
+      bound.addConditionAssembly(cond);
+
+      assertDependings(ws, "BOUND");
+   }
+
    private void assertDependings(Worksheet ws, String expected) {
       AssemblyRef[] arr = ws.getDependings(ws.getAssembly("CATEGORIES").getAssemblyEntry());
       assertEquals(List.of(expected), Arrays.stream(arr).map(r -> r.getEntry().getName()).toList());
