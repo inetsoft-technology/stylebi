@@ -22,9 +22,8 @@ import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.XServerNode;
 import inetsoft.mv.local.LocalMVIncremental;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.test.*;
-import inetsoft.uql.VariableTable;
-import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,8 +41,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #79854: the time stored as the last update time of an incremental MV (the lower bound of
- * the next update's {@code MV.LastUpdateTime}) is taken when the update starts, before its source
- * is read.
+ * the next update's {@code MV.LastUpdateTime}) is the time {@code update0} starts reading its
+ * source, which it also passes to the data cache as the query time.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
@@ -54,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class LocalMVIncrementalUpdateStartTest {
    @Test
-   void updateStartIsTakenBeforeTheSourceIsRead() throws Exception {
+   void updateRecordsTheStartOfTheReadBeforeTheSourceReturns() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "T");
       table.setMVForceAppendUpdates(true);
@@ -70,22 +69,30 @@ class LocalMVIncrementalUpdateStartTest {
       Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
       XServerNode server = Mockito.mock(XServerNode.class);
       long[] readAt = { 0L };
+      Object[] cacheTs = { null };
 
       try(MockedStatic<MVStorage> storageStatics = Mockito.mockStatic(MVStorage.class);
-          MockedStatic<FSService> fsStatics = Mockito.mockStatic(FSService.class))
+          MockedStatic<FSService> fsStatics = Mockito.mockStatic(FSService.class);
+          MockedStatic<AssetDataCache> cacheStatics = Mockito.mockStatic(AssetDataCache.class))
       {
          storageStatics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
          storageStatics.when(MVStorage::getInstance).thenReturn(storage);
          fsStatics.when(FSService::getServer).thenReturn(server);
+         fsStatics.when(FSService::getConfig).thenReturn(Mockito.mock(inetsoft.mv.fs.FSConfig.class));
 
-         LocalMVIncremental incremental = new LocalMVIncremental(def) {
-            @Override
-            protected XTable getData(Worksheet ws, TableAssembly assembly, VariableTable vars) {
-               // the source is read here; a slow read takes its time after this point
+         // the real getData() runs; the data cache stands in for a source that fails once the
+         // read has started
+         AssetDataCache cache = Mockito.mock(AssetDataCache.class);
+         Mockito.when(cache.getData(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
+                                    Mockito.anyInt(), Mockito.anyBoolean(), Mockito.anyLong(),
+                                    Mockito.any()))
+            .thenAnswer(inv -> {
                readAt[0] = System.currentTimeMillis();
+               cacheTs[0] = inv.getArgument(6);
                throw new IllegalStateException("stop after the read started");
-            }
-         };
+            });
+         cacheStatics.when(AssetDataCache::getCache).thenReturn(cache);
+         LocalMVIncremental incremental = new LocalMVIncremental(def);
 
          long before = System.currentTimeMillis();
          Method update0 = LocalMVIncremental.class.getDeclaredMethod("update0");
@@ -94,9 +101,11 @@ class LocalMVIncrementalUpdateStartTest {
                                      () -> update0.invoke(incremental));
          assertInstanceOf(IllegalStateException.class, ex.getCause());
 
-         assertTrue(readAt[0] > 0, "getData was not reached");
-         assertTrue(incremental.updateStart >= before, "start not captured by update0: " + incremental.updateStart + " vs " + before);
-         assertTrue(incremental.updateStart <= readAt[0], "start must not be after the read");
+         assertTrue(readAt[0] > 0, "the source was not read");
+         assertTrue(incremental.updateStart >= before,
+                    "the start was not recorded by update0: " + incremental.updateStart);
+         assertTrue(incremental.updateStart <= readAt[0], "the start must not be after the read");
+         assertEquals(incremental.updateStart, cacheTs[0]);
       }
    }
 
