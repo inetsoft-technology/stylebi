@@ -644,6 +644,10 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
       // here and re-applied after parsing, before the chrome resolves against it.
       VSAssemblyInfo before = getVSAssemblyInfo();
       VizMark mark = before == null ? null : before.getVizMark();
+      // the live default-tier frame outranks the bookmark's, which may predate a revert
+      Insets liveBorders = before == null || before.getFormat() == null ? null :
+         before.getFormat().getDefaultFormat().getBordersValue();
+      liveBorders = liveBorders == null ? null : (Insets) liveBorders.clone();
 
       parseStateContent(elem);
 
@@ -651,6 +655,10 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
 
       if(after != null) {
          after.setVizMark(mark);
+
+         if(liveBorders != null && after.getFormat() != null) {
+            after.getFormat().getDefaultFormat().setBordersValue(liveBorders);
+         }
       }
 
       VizModernizeUtil.reseedRestored(this);
