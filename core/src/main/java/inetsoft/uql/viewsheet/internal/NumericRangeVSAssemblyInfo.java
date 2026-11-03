@@ -141,18 +141,6 @@ public class NumericRangeVSAssemblyInfo extends InputVSAssemblyInfo {
     */
    @Override
    public int setSelectedObject(Object val) {
-      if(LOG.isWarnEnabled()) {
-         StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-         StringBuilder sb = new StringBuilder();
-
-         for(int i = 2; i < trace.length && i < 10; i++) {
-            sb.append("\n    at ").append(trace[i]);
-         }
-
-         LOG.warn("DIAG-80020 setSelectedObject name={} val={} currentValue={}{}",
-                   getAbsoluteName(), val, this.value, sb);
-      }
-
       if(!(val instanceof Number)) {
          return VSAssembly.NONE_CHANGED;
       }
