@@ -2726,7 +2726,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          if(!postConditionList.isEmpty() && aggInfo != null && aggInfo.isCrosstab()) {
             stable.setConditionOnColHeader(true);
-            stable.setCondition(new ConditionGroup(postConditionList.getConditionList(), (name) -> {
+            ConditionGroup pgroup = new ConditionGroup(postConditionList.getConditionList(), (name) -> {
                for(int i = 0; i < groups.length; i++) {
                   if(groups[i].getName().equals(name)) {
                      return i;
@@ -2740,7 +2740,9 @@ public abstract class AssetQuery extends PreAssetQuery {
                }
 
                return -1;
-            }));
+            });
+            pgroup.setNullNotEqualDropped(true);
+            stable.setCondition(pgroup);
          }
 
          // apply sort order
