@@ -203,4 +203,82 @@ class AdminAssetImportApplyServiceTest {
       assertEquals("failed", result.status());
       assertEquals(List.of("ws1"), result.failedAssets());
    }
+
+   @Test
+   void clusterWrappedJobFailureIsFailedAndAudited() throws Exception {
+      importReturns(false, queued());
+      when(importService.importAsset(eq(STAGING), any(), any(), any(), any(), any(), anyBoolean(),
+                                     eq(true), any(), any()))
+         .thenThrow(new RuntimeException(new ExecutionException(new IllegalStateException("boom"))));
+
+      RepositoryImportApplyResult result = service().apply(request(false), user);
+
+      assertEquals("failed", result.status());
+      assertEquals(List.of("import job failed: boom"), result.failedAssets());
+      org.mockito.ArgumentCaptor<inetsoft.util.audit.AdminChangeRecord> rec =
+         org.mockito.ArgumentCaptor.forClass(inetsoft.util.audit.AdminChangeRecord.class);
+      verify(audit).auditAdminChange(rec.capture(), any());
+      assertEquals("failed", rec.getValue().getStatus());
+      assertNull(rec.getValue().getSnapshotScope());
+   }
+
+   @Test
+   void interruptedPollIsInProgressAndKeepsTheInterruptFlag() throws Exception {
+      importReturns(false, queued());
+      AdminAssetImportApplyService svc = new AdminAssetImportApplyService(planService,
+         importService, backupService, now::get, ms -> { throw new InterruptedException(); },
+         2_000L, 500L);
+
+      try {
+         RepositoryImportApplyResult result = svc.apply(request(false), user);
+         assertEquals("in-progress", result.status());
+         assertTrue(Thread.currentThread().isInterrupted());
+         verify(audit).auditAdminChange(any(), any());
+      }
+      finally {
+         Thread.interrupted();
+      }
+   }
+
+   @Test
+   void secondApplyWhileAnotherHoldsTheLockGetsApplyInProgressWithoutSideEffects()
+      throws Exception
+   {
+      // static mocks are thread-local, so another thread holds the apply lock directly
+      java.lang.reflect.Field field = AdminAssetImportApplyService.class
+         .getDeclaredField("APPLY_LOCK");
+      field.setAccessible(true);
+      java.util.concurrent.locks.ReentrantLock lock =
+         (java.util.concurrent.locks.ReentrantLock) field.get(null);
+      java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+      java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+      Thread holder = new Thread(() -> {
+         lock.lock();
+
+         try {
+            held.countDown();
+            release.await();
+         }
+         catch(InterruptedException ignore) {
+         }
+         finally {
+            lock.unlock();
+         }
+      });
+      holder.start();
+
+      try {
+         assertTrue(held.await(10, java.util.concurrent.TimeUnit.SECONDS));
+         // real clock and a short deadline so the lock wait (a quarter of it) is ~50 ms
+         AdminAssetImportApplyService second = new AdminAssetImportApplyService(planService,
+            importService, backupService, System::currentTimeMillis, Thread::sleep, 200L, 50L);
+         assertThrows(AdminAssetImportApplyService.ApplyInProgressException.class,
+                      () -> second.apply(request(true), user));
+         verifyNoInteractions(planService, backupService, importService);
+      }
+      finally {
+         release.countDown();
+         holder.join(10_000);
+      }
+   }
 }

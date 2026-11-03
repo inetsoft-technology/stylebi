@@ -119,7 +119,9 @@ public class AdminAssetImportApplyService {
    {
       long deadline = clock.getAsLong() + totalDeadlineMs;
 
-      if(!APPLY_LOCK.tryLock(totalDeadlineMs, TimeUnit.MILLISECONDS)) {
+      // the wait for another apply gets a share of the budget, the snapshot and the import
+      // poll need the rest
+      if(!APPLY_LOCK.tryLock(totalDeadlineMs / 4, TimeUnit.MILLISECONDS)) {
          throw new ApplyInProgressException();
       }
 
@@ -178,43 +180,48 @@ public class AdminAssetImportApplyService {
          Integer locationType = targetFolderPath == null ? null
             : computeLocationTypeFrom(plan.jarInfo());
 
-         ImportAssetResponse response = importService.importAsset(plan.stagingToken(),
-            targetFolderPath, locationType, targetOwner, true, ignoreList, req.isOverwrite(),
-            false, user, bookmarkResolutions);
+         ImportAssetResponse response = null;
          boolean inProgress = false;
          String jobError = null;
 
-         // the first call only queues a background job, poll it until it really finishes
-         while(response != null && !response.complete()) {
-            long remaining = deadline - clock.getAsLong();
+         try {
+            response = importService.importAsset(plan.stagingToken(),
+               targetFolderPath, locationType, targetOwner, true, ignoreList, req.isOverwrite(),
+               false, user, bookmarkResolutions);
 
-            if(remaining <= 0) {
-               inProgress = true;
-               break;
-            }
+            // the first call only queues a background job, poll it until it really finishes
+            while(response != null && !response.complete()) {
+               long remaining = deadline - clock.getAsLong();
 
-            sleeper.sleep(Math.min(pollIntervalMs, remaining));
+               if(remaining <= 0) {
+                  inProgress = true;
+                  break;
+               }
 
-            try {
+               sleeper.sleep(Math.min(pollIntervalMs, remaining));
                response = importService.importAsset(plan.stagingToken(), targetFolderPath,
                   locationType, targetOwner, true, ignoreList, req.isOverwrite(), true, user,
                   bookmarkResolutions);
-            }
-            catch(ExecutionException e) {
-               Throwable cause = e.getCause() == null ? e : e.getCause();
-               jobError = "import job failed: " + cause.getMessage();
-               response = null;
-               break;
-            }
 
-            if(response != null && response.complete() && response.failed() &&
-               response.failedAssets().isEmpty())
-            {
-               // the job is no longer known to the poll (evicted or on another node), so its
-               // outcome is unknown rather than failed
-               inProgress = true;
-               break;
+               if(response != null && response.complete() && response.failed() &&
+                  response.failedAssets().isEmpty())
+               {
+                  // the job is no longer known to the poll (evicted or on another node), so its
+                  // outcome is unknown rather than failed
+                  inProgress = true;
+                  break;
+               }
             }
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            inProgress = true;
+         }
+         catch(Exception e) {
+            Throwable cause = rootCause(e);
+            jobError = "import job failed: " +
+               (cause.getMessage() != null ? cause.getMessage() : cause.toString());
+            response = null;
          }
 
          try {
@@ -281,7 +288,11 @@ public class AdminAssetImportApplyService {
          record.setAction(AdminChangeRecord.ACTION_APPLY);
          record.setStatus(status);
          record.setRiskLevel(AdminChangeRecord.RISK_HIGH);
-         record.setSnapshotScope(AdminChangeRecord.SCOPE_STORAGE);
+
+         if(backupRef != null) {
+            record.setSnapshotScope(AdminChangeRecord.SCOPE_STORAGE);
+         }
+
          record.setBackupRef(backupRef);
          record.setReviewOutcome(reviewOutcome);
          record.setUserName(user == null ? null : user.getName());
@@ -293,6 +304,17 @@ public class AdminAssetImportApplyService {
          LOG.error("Failed to write repository-import admin change audit record for transaction {}",
                    txId, auditFailure);
       }
+   }
+
+   private static Throwable rootCause(Throwable t) {
+      // the cluster proxy wraps a job failure as RuntimeException(ExecutionException(cause))
+      while(t.getCause() != null && (t instanceof ExecutionException ||
+                                     t.getClass() == RuntimeException.class))
+      {
+         t = t.getCause();
+      }
+
+      return t;
    }
 
    private static String blankToNull(String value) {

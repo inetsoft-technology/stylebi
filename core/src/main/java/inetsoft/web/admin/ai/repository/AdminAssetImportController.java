@@ -200,8 +200,8 @@ public class AdminAssetImportController {
    public Map<String, Object> handlePlanHashMismatch(
       AdminAssetImportApplyService.PlanHashMismatchException ex)
    {
-      return Map.of("status", "conflict", "error", String.valueOf(ex.getMessage()),
-                    "plan", ex.current());
+      return Map.of("status", "conflict", "reason", "plan-drift",
+                    "error", String.valueOf(ex.getMessage()), "plan", ex.current());
    }
 
    @ExceptionHandler(AdminAssetImportApplyService.ApplyInProgressException.class)
@@ -210,7 +210,8 @@ public class AdminAssetImportController {
    public Map<String, String> handleApplyInProgress(
       AdminAssetImportApplyService.ApplyInProgressException ex)
    {
-      return Map.of("status", "conflict", "error", String.valueOf(ex.getMessage()));
+      return Map.of("status", "conflict", "reason", "apply-in-progress",
+                    "error", String.valueOf(ex.getMessage()));
    }
 
    @ExceptionHandler(AdminAssetImportApplyService.TaskTokenMismatchException.class)
@@ -219,8 +220,8 @@ public class AdminAssetImportController {
    public Map<String, Object> handleTaskTokenMismatch(
       AdminAssetImportApplyService.TaskTokenMismatchException ex)
    {
-      return Map.of("status", "conflict", "error", String.valueOf(ex.getMessage()),
-                    "plan", ex.current());
+      return Map.of("status", "conflict", "reason", "task-token-mismatch",
+                    "error", String.valueOf(ex.getMessage()), "plan", ex.current());
    }
 
    private final ImportAssetServiceProxy importService;
