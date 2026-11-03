@@ -749,6 +749,20 @@ public class VGraphPair {
          }
       }
 
+      // tree/network scaling is applied by setting width/height ratio (in GraphGenerator).
+      // we get that ratio directly instead of computing it from the current sizes.
+      // for tree/network the ratio is an absolute node scale, so the base must be 1 before
+      // the percent is converted to the unit ratio below, not plot/min (80095).
+      if(vgraph.getEGraph().getElementCount() > 0 &&
+         vgraph.getEGraph().getElement(0) instanceof RelationElement)
+      {
+         RelationElement elem = (RelationElement) vgraph.getEGraph().getElement(0);
+         effectiveWidthRatio = elem.getWidthRatio();
+         effectiveHeightRatio = elem.getHeightRatio();
+         initialWidthRatio = 1;
+         initialHeightRatio = 1;
+      }
+
       if(info.getUnitWidthRatioPercent() >= 1) {
          info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
       }
@@ -764,18 +778,6 @@ public class VGraphPair {
       boolean hScrollable = GraphUtil.isHScrollable(vgraph, info);
       final boolean singlePoint = isSinglePoint(egraph);
       final boolean invertedGraph = info.isInvertedGraph();
-
-      // tree/network scaling is applied by setting width/height ratio (in GraphGenerator).
-      // we get that ratio directly instead of computing it from the current sizes.
-      if(vgraph.getEGraph().getElementCount() > 0 &&
-         vgraph.getEGraph().getElement(0) instanceof RelationElement)
-      {
-         RelationElement elem = (RelationElement) vgraph.getEGraph().getElement(0);
-         effectiveWidthRatio = elem.getWidthRatio();
-         effectiveHeightRatio = elem.getHeightRatio();
-         initialWidthRatio = 1;
-         initialHeightRatio = 1;
-      }
 
       info.setInitialHeightRatio(initialHeightRatio);
       info.setInitialWidthRatio(initialWidthRatio);
