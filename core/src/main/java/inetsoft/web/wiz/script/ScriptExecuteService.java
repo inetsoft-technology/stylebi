@@ -424,8 +424,9 @@ public class ScriptExecuteService {
                ". Call get_script_context for " +
                (assemblyName != null && allOwn ? assemblyName + "'s" :
                   "the named assembly's") +
-               " real scriptable properties, or use get_assembly_properties/update_binding if " +
-               "you meant a different, non-scripted property.";
+               " real scriptable properties, or use get_assembly_properties/set_assembly_properties " +
+               "if you meant a different, non-scripted property (set_table_fields or " +
+               "set_chart_shelf to change a binding).";
          }
 
          String wsScopeMismatch = wsRunQueryNotes(wsOutcomes, rvs.getUser());
