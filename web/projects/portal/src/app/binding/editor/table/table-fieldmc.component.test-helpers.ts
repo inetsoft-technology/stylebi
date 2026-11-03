@@ -17,7 +17,7 @@
  */
 
 import { HttpParams } from "@angular/common/http";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { getDebugNode, NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { TableFieldmc } from "./table-fieldmc.component";
@@ -151,7 +151,9 @@ export function tableFieldCombo(container: HTMLElement): HTMLElement | null {
 }
 
 export function tableFieldComboValue(container: HTMLElement): string | null {
-   return tableFieldCombo(container)?.getAttribute("ng-reflect-value") ?? null;
+   // TL runs have no ng-reflect-* attributes
+   const combo = tableFieldCombo(container);
+   return combo ? getDebugNode(combo)?.componentInstance?.value ?? null : null;
 }
 
 export function tableFieldEditIcon(container: HTMLElement): HTMLElement | null {

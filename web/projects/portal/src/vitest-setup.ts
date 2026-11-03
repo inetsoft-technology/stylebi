@@ -154,13 +154,13 @@ function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
 
 // Patch configureTestingModule to:
 //   1. Inject provideNgReflectAttributes() for legacy ng-reflect-* assertions
-//      (Angular 20 stopped emitting these by default).
+//      (Angular 20 stopped emitting these by default), except in TL runs (vitest-setup-tl.ts).
 //   2. Scrub undefined slots from the dependency graph of every imported/declared class.
 const _originalConfigureTestingModule = TestBed.configureTestingModule.bind(TestBed);
 TestBed.configureTestingModule = function(moduleDef: any) {
    moduleDef = moduleDef ?? {};
    moduleDef.providers = [
-      provideNgReflectAttributes(),
+      ...((globalThis as any).__noNgReflectAttributes ? [] : [provideNgReflectAttributes()]),
       // Disable auto-detect so ComponentFixture only runs change detection when the test
       // calls fixture.detectChanges() explicitly. Under Angular 21 with the Vitest runner
       // the zoneless default flips autoDetect to true, which causes ngOnInit to fire

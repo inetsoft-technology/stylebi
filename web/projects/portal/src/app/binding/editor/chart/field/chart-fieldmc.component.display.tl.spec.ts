@@ -53,6 +53,7 @@ import {
    chartFieldEditIcon,
    chartTypeButton,
    createChartModel,
+   inputOf,
    renderChartFieldmc,
    uiContextMock,
 } from "./chart-fieldmc.component.test-helpers";
@@ -192,7 +193,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await openDimensionEditor(container);
 
          const editor = document.querySelector("dimension-editor");
-         expect(editor?.getAttribute("ng-reflect-sort-supported")).toBe("false");
+         expect(inputOf(editor, "sortSupported")).toBe(false);
       });
 
       it("should disable sort for geofields", async () => {
@@ -208,7 +209,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await openDimensionEditor(container);
 
          const editor = document.querySelector("dimension-editor");
-         expect(editor?.getAttribute("ng-reflect-sort-supported")).toBe("true");
+         expect(inputOf(editor, "sortSupported")).toBe(true);
       });
    });
 
@@ -226,7 +227,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await openDimensionEditor(container);
 
          const editor = document.querySelector("dimension-editor");
-         expect(editor?.getAttribute("ng-reflect-is-outer-dim-ref")).toBe("true");
+         expect(inputOf(editor, "isOuterDimRef")).toBe(true);
       });
 
       it("should return false for the last xfield dimension", async () => {
@@ -242,7 +243,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await openDimensionEditor(container);
 
          const editor = document.querySelector("dimension-editor");
-         expect(editor?.getAttribute("ng-reflect-is-outer-dim-ref")).toBe("false");
+         expect(inputOf(editor, "isOuterDimRef")).toBe(false);
       });
 
       it("should treat stock chart y dimensions as outer", async () => {
@@ -259,7 +260,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await openDimensionEditor(container);
 
          const editor = document.querySelector("dimension-editor");
-         expect(editor?.getAttribute("ng-reflect-is-outer-dim-ref")).toBe("true");
+         expect(inputOf(editor, "isOuterDimRef")).toBe(true);
       });
 
       it("should treat candle chart y dimensions as outer", async () => {
@@ -276,7 +277,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await openDimensionEditor(container);
 
          const editor = document.querySelector("dimension-editor");
-         expect(editor?.getAttribute("ng-reflect-is-outer-dim-ref")).toBe("true");
+         expect(inputOf(editor, "isOuterDimRef")).toBe(true);
       });
    });
 
@@ -476,7 +477,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await openDimensionEditor(container);
 
          const editor = document.querySelector("dimension-editor");
-         expect(editor?.getAttribute("ng-reflect-variables")).toBe("var1,var2");
+         expect(inputOf(editor, "variables")).toEqual(["var1", "var2"]);
       });
 
       it("should detect measure refs in a field list", async () => {
@@ -512,7 +513,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await userEvent.click(chartFieldEditIcon(container)!);
 
          const editor = document.querySelector("aggregate-editor");
-         expect(editor?.getAttribute("ng-reflect-is-secondary-axis-supported")).toBe("true");
+         expect(inputOf(editor, "isSecondaryAxisSupported")).toBe(true);
       });
 
       it("should return false when binding is separated", async () => {
@@ -529,7 +530,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          await userEvent.click(chartFieldEditIcon(container)!);
 
          const editor = document.querySelector("aggregate-editor");
-         expect(editor?.getAttribute("ng-reflect-is-secondary-axis-supported")).toBe("false");
+         expect(inputOf(editor, "isSecondaryAxisSupported")).toBe(false);
       });
    });
 
