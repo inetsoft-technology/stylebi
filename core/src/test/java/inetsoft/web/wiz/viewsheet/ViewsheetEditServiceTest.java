@@ -65,6 +65,7 @@ import inetsoft.web.composer.vs.objects.event.ResizeVSObjectTitleEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.MockedStatic;
 
 import java.awt.Dimension;
@@ -263,6 +264,80 @@ class ViewsheetEditServiceTest {
                                                eq("linkUri1"), any(Principal.class));
       assertEquals("Chart1", captor.getValue().getAssemblyName());
       verify(refreshService, never()).refreshVsAssemblyView(any(), any(), any(), any(), any());
+   }
+
+   /**
+    * Bug #80147: {@code edit op:"refresh"} reported ok but a data-bound assembly stayed on the
+    * pre-change rows after the worksheet source changed. The per-assembly refresh re-executes the
+    * assembly, but the sandbox serves its query result from a cache that is discarded only when
+    * the runtime's touch timestamp moves past the entry's creation time, and only the whole-sheet
+    * refresh advanced it. The timestamps must move, on both the runtime and the sandbox, before
+    * the assembly is re-executed, or the re-execution reads the cached stale table.
+    */
+   @Test
+   void refreshAdvancesTheTouchTimestampsBeforeReExecutingTheAssembly() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvs, readerReturning(new AssemblyNode("Chart1", "Chart", 0, 0, 400, 300, 0, null, true)),
+         refreshService);
+      long before = System.currentTimeMillis();
+
+      service.apply("tok", principal(), request("refresh", "Chart1"), "linkUri1");
+
+      ArgumentCaptor<Long> rvsTs = ArgumentCaptor.forClass(Long.class);
+      ArgumentCaptor<Long> boxTs = ArgumentCaptor.forClass(Long.class);
+      InOrder order = inOrder(box, rvs, refreshService);
+      order.verify(box).lockWrite();
+      order.verify(rvs).setTouchTimestamp(rvsTs.capture());
+      order.verify(box).setTouchTimestamp(boxTs.capture());
+      order.verify(box).unlockWrite();
+      order.verify(refreshService).refreshVsAssembly(eq("rt1"), any(), any(), eq("linkUri1"),
+                                                     any(Principal.class));
+      assertTrue(rvsTs.getValue() >= before, "the runtime timestamp must be advanced to now");
+      assertEquals(rvsTs.getValue(), boxTs.getValue());
+   }
+
+   /**
+    * Bug #80147, selection assemblies: the values a selection list/tree shows are kept in the
+    * sandbox's table metadata, which a timestamp bump does not clear, so refreshing the
+    * selection must drop the metadata of every table it filters.
+    */
+   @Test
+   void refreshingASelectionDropsTheCachedMetadataOfItsTables() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      SelectionListVSAssembly list = mock(SelectionListVSAssembly.class);
+      when(list.getTableNames()).thenReturn(List.of("Orders", "Returns"));
+      when(vs.getAssembly("List1")).thenReturn(list);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvs, readerReturning(new AssemblyNode("List1", "SelectionList", 0, 0, 100, 100, 0, null,
+                                               true)),
+         mock(VSRefreshService.class));
+
+      service.apply("tok", principal(), request("refresh", "List1"), "");
+
+      verify(box).resetTableMetaData("Orders");
+      verify(box).resetTableMetaData("Returns");
+   }
+
+   @Test
+   void refreshingAChartLeavesTheSelectionMetadataAlone() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvs, readerReturning(new AssemblyNode("Chart1", "Chart", 0, 0, 400, 300, 0, null, true)),
+         mock(VSRefreshService.class));
+
+      service.apply("tok", principal(), request("refresh", "Chart1"), "");
+
+      verify(box, never()).resetTableMetaData(any());
    }
 
    @Test
@@ -2563,6 +2638,31 @@ class ViewsheetEditServiceTest {
                                       mock(ComposerGroupService.class),
                                       mock(GroupingService.class),
                                       mock(VSRefreshService.class),
+                                      mock(CoreLifecycleService.class));
+   }
+
+   /** Runs the mutation against a supplied runtime with a supplied refresh service. */
+   private static ViewsheetEditService serviceWithRuntimeAndRefresh(
+      RuntimeViewsheet rvs, ViewsheetReadService reader, VSRefreshService refreshService)
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", null);
+            return null;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new ViewsheetEditService(sessions, mock(ComposerObjectService.class),
+                                      mock(ClipboardControllerService.class),
+                                      mock(VSObjectPropertyService.class), reader,
+                                      mock(ComposerGroupService.class),
+                                      mock(GroupingService.class), refreshService,
                                       mock(CoreLifecycleService.class));
    }
 
