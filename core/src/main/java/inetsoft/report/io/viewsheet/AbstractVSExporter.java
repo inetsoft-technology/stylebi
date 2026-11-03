@@ -2030,12 +2030,21 @@ public abstract class AbstractVSExporter implements VSExporter {
       // titled assemblies at once - and the slider joins them because VSSlider paints its labels
       // from format.getForeground(). The viewsheet is cloned upstream, so nothing persisted moves.
       VSAssemblyInfo vinfo = assembly.getVSAssemblyInfo();
+      VSCompositeFormat objFormat = vinfo == null ? null : vinfo.getFormat();
+      boolean cardTint = substitutesCardTint() && objFormat != null && objFormat.isDefaultCardTint();
+      // the opaque fill written in place of the tint, or null where the cells stay unfilled
+      Color cardFill = cardTint ? cardTintSubstitute(vinfo) : null;
 
       if(!paintsPageBackground() && vinfo != null && vinfo.getFormatInfo() != null
          && VizContext.of(vinfo).dark)
       {
          if(vinfo instanceof TitledVSAssemblyInfo) {
-            applyDarkOptOutInPlace(vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH));
+            VSCompositeFormat title = vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH);
+
+            // a title without its own fill sits on the card fill, so it keeps its modern ink
+            if(cardFill == null || title == null || title.getBackground() != null) {
+               applyDarkOptOutInPlace(title);
+            }
          }
 
          // the painted sliders: both draw their labels from the object foreground rather than a
@@ -2056,13 +2065,10 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       // swapped once here, so no format reader sees the tint
-      VSCompositeFormat objFormat = vinfo == null ? null : vinfo.getFormat();
-
-      if(substitutesCardTint() && objFormat != null && objFormat.isDefaultCardTint()) {
-         Color fill = cardTintSubstitute(vinfo);
+      if(cardTint) {
          VSFormat def = objFormat.getDefaultFormat();
          def.setBackgroundValue(
-            fill == null ? null : String.format("#%06x", fill.getRGB() & 0xFFFFFF));
+            cardFill == null ? null : String.format("#%06x", cardFill.getRGB() & 0xFFFFFF));
          def.setAlphaValue(100);
       }
    }

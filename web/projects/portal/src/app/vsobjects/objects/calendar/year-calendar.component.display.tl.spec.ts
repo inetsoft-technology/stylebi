@@ -409,4 +409,25 @@ describe("YearCalendar selection fill over a card", () => {
    it("still shades a legacy translucent object background", () => {
       expect(withObjectBackground(false, tint).selectedBgColor).not.toBe("#cdf7f6");
    });
+
+   // the light default would put the dark ink on a light fill
+   it("shades the opaque dark card under a dark modern tint", () => {
+      const objectFormat = { ...makeYearCalendarModel().objectFormat, background: tint };
+      const comp = createYearCalendar(
+         { model: { vizModern: true, vizDark: true, objectFormat } as any }).comp;
+
+      expect(comp.selectedBgColor).toBe("rgb(81, 80, 83)");
+   });
+});
+
+describe("YearCalendar dark cell surfaces (compiled CSS)", () => {
+   it("leaves the month cells on the card in dark, with a dark gridline", () => {
+      const { comp } = createYearCalendar();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-dark[^{}]*\.month-cell--surface[^{}]*\{[^}]*background:\s*transparent/);
+      expect(styleText).toMatch(
+         /\.viz-dark[^{}]*\.month-cell--surface[^{}]*\{[^}]*border-color:\s*#4A484F/i);
+   });
 });

@@ -264,6 +264,12 @@ is then a light stripe on the opaque card, not solid `#AAAAAA`, and a dark Power
 dark stripe, not near-white. Legacy assemblies keep today's output, author translucent fills
 included.
 
+A title cell with no fill of its own falls back to the card fill. So on a dark chart or table, whose
+card Excel fills with `#252428`, the title keeps its modern ink (`#CAC4D0`) instead of going back to
+near-black. The title, header and body then read as one dark block, the way a light title sits on
+the white card. A title with an author fill, and every type Excel leaves unfilled, still gets the
+near-black ink.
+
 Not taken:
 - Per-surface blend targets keyed to the list of surfaces that go back to near-black. That is two
   lists to keep in sync, and light dashboards would export grey blocks on white.
@@ -634,6 +640,13 @@ legacy width there would overwrite whatever an old asset's stored default holds 
 `VizContext.transition` is already set by `VizContext.ofTransition`, which `seedAll` uses only
 when a mark moves. A new legacy assembly keeps getting its width from `setDefaultFormat` at
 creation, as now.
+
+Known limit, accepted: Revert writes the width today's creation installs, not the one the asset had
+before Modernize. An asset whose default tier holds an older version's width loses it on a round
+trip. For example, the selection lists in *Examples/Census* carry a 1px `#888888` frame, and after
+Modernize then Revert they have none, like a list created today. Restoring the original would need
+the pre-Modernize width stored on the assembly, the kind of seed state the bookmark work retired.
+This is the same class as a range slider converted from a list losing its frame.
 
 The legacy background and alpha (R2) do not need this guard. The hook already writes the legacy
 background on every pass for table and chart, so restoring the opaque alpha there is the same

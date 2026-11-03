@@ -1311,11 +1311,15 @@ wizard-binding-tree .bg-node-selected {
   background-color: var(--inet-toolbar-bg-color);
 }
 
-// dark mode: the opaque sort-button fill (which masks the header text behind the icon) uses the
-// light toolbar token, reading as a bright box on the dark header. Match the dark header surface so
-// it blends. Live-only affordance (not exported), so a browser-CSS override is the right layer.
+// the opaque sort-button fill masks the header text behind the icon, so a marked table matches its
+// header band (VSTableStructureDefaults) for it to blend. Live-only affordance (not exported), so a
+// browser-CSS override is the right layer. Dark follows modern so it wins on source order.
+.viz-modern .vs-header-cell-button-sort {
+  background-color: #DEDCD7;
+}
+
 .viz-dark .vs-header-cell-button-sort {
-  background-color: #2D2B30;
+  background-color: #38363C;
 }
 
 // active sort only (asc/desc) — leave the passive hover affordance neutral.

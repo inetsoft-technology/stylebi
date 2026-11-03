@@ -115,6 +115,18 @@ year-calendar, month-calendar {
   background: var(--inet-shell-surface-subtle);
 }
 
+// dark cells with no fill of their own sit on the card, where the light surface hid the light ink
+:host-context(.viz-dark) {
+  .month-cell--surface,
+  .day-title-cell--surface {
+    background: transparent;
+  }
+
+  .month-cell--surface {
+    border-color: #4A484F;
+  }
+}
+
 .day-row.not-selectable .day-cell,
 .not-selectable {
   pointer-events: none;

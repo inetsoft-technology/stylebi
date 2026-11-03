@@ -21,9 +21,11 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.report.TableDataPath;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSTableStructureDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
@@ -38,6 +40,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,6 +81,55 @@ class ExcelCardFillTest {
    @Test
    void aLegacyTranslucentCellFillIsWrittenAsBefore() {
       assertEquals("AAAAAA", cellFill(null, zebraCell(VizMark.MODERN_LIGHT)));
+   }
+
+   // a title with no fill of its own is written on the card fill, so it keeps the card's ink
+
+   @Test
+   void aDarkModernTableTitleKeepsItsLightInkOnTheDarkCard() {
+      assertEquals(List.of("252428", "CAC4D0"), titleCell(VizMark.MODERN_DARK));
+   }
+
+   @Test
+   void aLightModernTableTitleIsUnchanged() {
+      assertEquals(List.of("FFFFFF", "6A685F"), titleCell(VizMark.MODERN_LIGHT));
+   }
+
+   // fill and font colour of the title cell
+   private static List<String> titleCell(VizMark mark) {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setVizMark(mark);
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      table.initDefaultFormat();
+      vs.addAssembly(table);
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) table.getVSAssemblyInfo();
+
+      XSSFWorkbook book = new XSSFWorkbook();
+      ExcelTableHelper helper = new ExcelTableHelper(book, book.createSheet(), table);
+      PoiExcelVSExporter exporter = new PoiExcelVSExporter(
+         Mockito.mock(ExcelContext.class), new ByteArrayOutputStream());
+      helper.setExporter(exporter);
+
+      exporter.prepareAssembly(table);
+      VSCompositeFormat title =
+         info.getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
+      helper.writeTitleCell(0, 0, new Dimension(80, 20), null, 0, 0, title, "Table", "Table",
+                            null, info.getFormat(), new Rectangle(0, 0, 1, 1));
+
+      XSSFCellStyle style =
+         (XSSFCellStyle) book.getSheetAt(0).getRow(0).getCell(0).getCellStyle();
+      return List.of(hex(style.getFillForegroundXSSFColor().getRGB()),
+                     hex(style.getFont().getXSSFColor().getRGB()));
+   }
+
+   private static String hex(byte[] rgb) {
+      StringBuilder hex = new StringBuilder();
+
+      for(byte b : rgb) {
+         hex.append(String.format("%02X", b & 0xFF));
+      }
+
+      return hex.toString();
    }
 
    /** A body row carrying the zebra stripe as the table lens resolves it. */

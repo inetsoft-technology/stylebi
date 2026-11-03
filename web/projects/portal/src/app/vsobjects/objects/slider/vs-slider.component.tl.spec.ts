@@ -37,11 +37,14 @@
  *              label, the text-decoration style binding, and the verticalCenter-driven wrapper
  *              top style) that cannot be observed on a directly-instantiated component.
  *   Group 12 - card background: a modern slider binds it on the wrapper only; legacy keeps both
+ *   Group 13 - track colours: the modern and dark tokens match the server slider painter
  *
  * Model defaults: min=0, max=100, increment=20, value=50, width=200, height=60, currentVisible=true.
  * Key derived values: handlePosition=100, verticalCenter=33.
  */
 
+import { readFileSync } from "fs";
+import { join } from "path";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { Subject } from "rxjs";
@@ -463,6 +466,39 @@ describe("VSSlider", () => {
          const slider = host.querySelector("div.slider") as HTMLElement;
 
          expect(slider.style.backgroundColor).toBe("rgba(170, 170, 170, 0.15)");
+      });
+   });
+
+   // ─── Group 13: the live track matches the server slider painter ──────────
+   // Read as source: the values are scoped by :host-context, which the test DOM never carries.
+   describe("Group 13 – track colours match VSOutputChromeDefaults", () => {
+      const source = readFileSync(join(__dirname, "vs-slider.component.scss"), "utf-8");
+
+      function block(selector: string): string {
+         const start = source.indexOf(selector + " {");
+         expect(start).toBeGreaterThanOrEqual(0);
+         return source.substring(start, source.indexOf("}", start));
+      }
+
+      it("uses the modern gridline and active track colours", () => {
+         const modern = block(":host-context(.viz-modern)");
+
+         expect(modern).toContain("--slider-inactive-track-color: #D6D2C8;");
+         expect(modern).toContain("--slider-active-track-color: #B7B2A8;");
+      });
+
+      it("uses the dark gridline and active track colours", () => {
+         const dark = block(":host-context(.viz-dark)");
+
+         expect(dark).toContain("--slider-inactive-track-color: #4A484F;");
+         expect(dark).toContain("--slider-active-track-color: #544F5A;");
+      });
+
+      it("keeps the legacy track colours on :host", () => {
+         const legacy = block(":host");
+
+         expect(legacy).toContain("--slider-inactive-track-color: #e0e0e0;");
+         expect(legacy).toContain("--slider-active-track-color: #9e9e9e;");
       });
    });
 });

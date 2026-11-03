@@ -600,4 +600,25 @@ describe("MonthCalendar selection fill over a card", () => {
    it("still shades a legacy translucent object background", () => {
       expect(withObjectBackground(false, tint).selectedBgColor).not.toBe("#cdf7f6");
    });
+
+   // the light default would put the dark ink on a light fill
+   it("shades the opaque dark card under a dark modern tint", () => {
+      const objectFormat = { ...makeMonthCalendarModel().objectFormat, background: tint };
+      const comp = createMonthCalendar(
+         { model: { vizModern: true, vizDark: true, objectFormat } as any }).comp;
+
+      expect(comp.selectedBgColor).toBe("rgb(81, 80, 83)");
+   });
+});
+
+describe("MonthCalendar dark cell surfaces (compiled CSS)", () => {
+   it("leaves the weekday header on the card in dark, over the light surface fallback", () => {
+      const { comp } = createMonthCalendar();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.day-title-cell--surface[^{}]*\{[^}]*background:\s*var\(--inet-shell-surface-subtle\)/);
+      expect(styleText).toMatch(
+         /\.viz-dark[^{}]*\.day-title-cell--surface[^{}]*\{[^}]*background:\s*transparent/);
+   });
 });

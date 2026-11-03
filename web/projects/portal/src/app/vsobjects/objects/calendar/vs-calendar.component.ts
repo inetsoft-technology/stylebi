@@ -116,6 +116,8 @@ function isCalendarSelectionSource(calendar: unknown): calendar is CalendarSelec
 })
 export class VSCalendar extends NavigationComponent<VSCalendarModel>
    implements AfterViewInit, DoCheck, OnDestroy, OnChanges, OnInit {
+   // the opaque dark card, whose shade keeps a dark selection readable
+   private static readonly DARK_CARD = "#252428";
    @Input() selected: boolean = false;
    @Input() atBottom = false;
    @Input() objectContainerHeight: number;
@@ -1404,10 +1406,18 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
       return "inherit";
    }
 
-   /** The object background a selection shade derives from; none for a modern translucent card. */
+   /**
+    * The object background a selection shade derives from. A modern translucent card gives none
+    * in light, so the default selection colour applies, and the opaque dark card in dark.
+    */
    public static getSelectionBase(model: VSCalendarModel): string {
       const bg = model?.objectFormat?.background;
-      return model?.vizModern && bg && new TinyColor(bg).getAlpha() < 1 ? undefined : bg;
+
+      if(model?.vizModern && bg && new TinyColor(bg).getAlpha() < 1) {
+         return model.vizDark ? VSCalendar.DARK_CARD : undefined;
+      }
+
+      return bg;
    }
 
    public getPendingIconPosition(model: VSCalendarModel): number {
