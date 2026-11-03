@@ -4199,6 +4199,106 @@ class ViewsheetAssemblyAgentControllerTest {
       }
    }
 
+   /** Bug #80112: (Home) is the initial view; only the first user to open the dashboard may update it. */
+   @Test
+   void updateBookmark_homeRefusedWhenAnotherUsersSheetHoldsTheLock() throws Exception {
+      inetsoft.uql.asset.AssetEntry entry = homeEntry();
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(engine.getLockOwner(any())).thenReturn(new IdentityID("first", "host-org").convertToKey());
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> updateHome(entry, engine, vsBookmarkService));
+
+      assertTrue(ex.getMessage().contains("(Home)"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("first user to open the dashboard"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("first"), ex.getMessage());
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(any(), any(), anyInt(),
+         anyBoolean(), anyBoolean(), any(Principal.class), any(Principal.class));
+      // the check must not leave its flag on the shared entry
+      assertNull(entry.getProperty("homeBookmarkSaved"));
+   }
+
+   @Test
+   void updateBookmark_homeAllowedForTheFirstOpener() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(engine.getLockOwner(any())).thenReturn(ownerKeyOfCaller());
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+
+      updateHome(homeEntry(), engine, vsBookmarkService);
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(any(), eq("(Home)"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_homeAllowedWhenNoOtherSheetIsOpen() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(engine.getLockOwner(any())).thenReturn(null);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+
+      updateHome(homeEntry(), engine, vsBookmarkService);
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(any(), eq("(Home)"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_otherBookmarksAreNotSubjectToTheFirstOpenerRule() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(homeEntry());
+      when(rvs.checkBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(any(), any(), anyInt(), anyBoolean(),
+         anyBoolean(), any(Principal.class), any(Principal.class))).thenReturn(ok);
+
+      controllerForBookmarks(sessions, vsBookmarkService, permissionDenied(), engine).updateBookmark(
+         "tok", new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+         principal());
+
+      verify(engine, never()).getLockOwner(any());
+   }
+
+   private static inetsoft.uql.asset.AssetEntry homeEntry() {
+      return new inetsoft.uql.asset.AssetEntry(inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         inetsoft.uql.asset.AssetEntry.Type.VIEWSHEET, "Dash", null, "host-org");
+   }
+
+   private static String ownerKeyOfCaller() {
+      return principal().getName();
+   }
+
+   private static void updateHome(inetsoft.uql.asset.AssetEntry entry,
+                                  inetsoft.analytic.composition.ViewsheetService engine,
+                                  VSBookmarkService vsBookmarkService) throws Exception
+   {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(entry);
+      when(rvs.bookmarkUpdated(eq("(Home)"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.checkBookmark(eq("(Home)"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.containsBookmark(eq("(Home)"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(any(), any(), anyInt(), anyBoolean(),
+         anyBoolean(), any(Principal.class), any(Principal.class))).thenReturn(ok);
+
+      controllerForBookmarks(sessions, vsBookmarkService, permissionDenied(), engine).updateBookmark(
+         "tok", new ViewsheetAssemblyAgentController.SaveBookmarkRequest("(Home)", null, null),
+         principal());
+   }
+
    @Test
    void updateBookmark_succeedsNormallyWhenNoConflict() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();
@@ -6102,6 +6202,14 @@ class ViewsheetAssemblyAgentControllerTest {
       ViewsheetSessionService sessions, VSBookmarkService vsBookmarkService,
       SecurityEngine securityEngine)
    {
+      return controllerForBookmarks(sessions, vsBookmarkService, securityEngine,
+                                    mock(inetsoft.analytic.composition.ViewsheetService.class));
+   }
+
+   private static ViewsheetAssemblyAgentController controllerForBookmarks(
+      ViewsheetSessionService sessions, VSBookmarkService vsBookmarkService,
+      SecurityEngine securityEngine, inetsoft.analytic.composition.ViewsheetService viewsheetService)
+   {
       return new ViewsheetAssemblyAgentController(featureOn(), mock(SheetJoinService.class),
                                           mock(SheetSessionService.class),
                                           sessions,
@@ -6129,7 +6237,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
-                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          viewsheetService,
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
                                           mock(LayoutSessionService.class),
