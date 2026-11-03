@@ -182,6 +182,18 @@ class AssemblyHighlightServiceCrosstabDerivedConditionTest {
          highlightOn(field), service.getDateComparisonFields(info, fields)));
    }
 
+   private void assertRefusedAsDimension(CrosstabVSAssemblyInfo info, Field[] fields,
+                                         String field)
+   {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> AssemblyHighlightService.requireNoDerivedConditionField(
+            highlightOn(field), service.getDateComparisonFields(info, fields)));
+      assertTrue(e.getMessage().contains("'" + field + "'"), e.getMessage());
+      assertTrue(e.getMessage().contains(
+         "Put the condition on a field that is listed without the date comparison, " +
+         "or clear the date comparison first."), e.getMessage());
+   }
+
    // L1: rows Year(ORDER_DATE), the comparison at year granularity. Lens headers as listed live.
    private static final Field[] YEAR_LENS = lens(DERIVED, BASE, "Year(ORDER_DATE)");
 
@@ -243,14 +255,14 @@ class AssemblyHighlightServiceCrosstabDerivedConditionTest {
 
    @Test
    void releveledDateDimensionIsRefused() {
-      assertRefused(crosstab(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH), MONTH_LENS,
-                    "MonthOfYear(ORDER_DATE)");
+      assertRefusedAsDimension(crosstab(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH),
+                               MONTH_LENS, "MonthOfYear(ORDER_DATE)");
    }
 
    @Test
    void insertedPeriodDimensionIsRefused() {
-      assertRefused(crosstab(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH), MONTH_LENS,
-                    "Year(ORDER_DATE)");
+      assertRefusedAsDimension(crosstab(XConstants.MONTH_DATE_GROUP, DateComparisonInfo.MONTH),
+                               MONTH_LENS, "Year(ORDER_DATE)");
    }
 
    @Test

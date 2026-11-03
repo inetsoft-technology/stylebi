@@ -648,6 +648,7 @@ public class HighlightService {
       Set<String> ambiguous = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
       Set<DataRef> paired = Collections.newSetFromMap(new IdentityHashMap<>());
       Set<String> suffixPaired = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      Set<String> dimensionNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
       addCrosstabRefs(info, fields, true, new ArrayList<>(), (listed, source) -> {
          String name = listed.getName();
@@ -676,6 +677,10 @@ public class HighlightService {
          }
          else {
             derived = source != null && comparisonDims.contains(name) && !designDims.contains(name);
+
+            if(derived) {
+               dimensionNames.add(name);
+            }
          }
 
          Boolean previous = verdicts.put(name, derived);
@@ -695,13 +700,18 @@ public class HighlightService {
       }
 
       Set<String> derived = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      Set<String> dimensions = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
       verdicts.forEach((name, isDerived) -> {
          if(isDerived && !ambiguous.contains(name)) {
             derived.add(name);
+
+            if(dimensionNames.contains(name)) {
+               dimensions.add(name);
+            }
          }
       });
 
-      return new DateComparisonFields(derived, ambiguous);
+      return new DateComparisonFields(derived, ambiguous, dimensions);
    }
 
    /**
@@ -733,8 +743,15 @@ public class HighlightService {
          new DateComparisonFields(Collections.emptySet(), Collections.emptySet());
 
       public DateComparisonFields(Collection<String> derived, Collection<String> ambiguous) {
+         this(derived, ambiguous, Collections.emptySet());
+      }
+
+      public DateComparisonFields(Collection<String> derived, Collection<String> ambiguous,
+                                  Collection<String> dimensions)
+      {
          this.derived = lowerCase(derived);
          this.ambiguous = lowerCase(ambiguous);
+         this.dimensions = lowerCase(dimensions);
       }
 
       public boolean isEmpty() {
@@ -749,6 +766,16 @@ public class HighlightService {
       /** Whether {@code field} names a field that cannot be told apart from a derived one. */
       public boolean isAmbiguous(String field) {
          return field != null && ambiguous.contains(field.toLowerCase());
+      }
+
+      /** Whether {@code field} names a derived field that is a dimension, not a measure. */
+      public boolean isDimension(String field) {
+         return field != null && dimensions.contains(field.toLowerCase());
+      }
+
+      /** The derived names, lower-cased, that are dimensions rather than measures. */
+      public Set<String> getDimensions() {
+         return Collections.unmodifiableSet(dimensions);
       }
 
       private static HashSet<String> lowerCase(Collection<String> names) {
@@ -767,6 +794,7 @@ public class HighlightService {
       private static final long serialVersionUID = 1L;
       private final HashSet<String> derived;
       private final HashSet<String> ambiguous;
+      private final HashSet<String> dimensions;
    }
 
    public List<String> getNamedGroupFields(RuntimeCalcTableLens table, List<DataRef> fields) {
