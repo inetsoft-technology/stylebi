@@ -304,7 +304,7 @@ public abstract class XDimIndex extends XSwappable {
             }
 
             // @by billh, handle the case: column is not null
-            cnull =("null".equals(op)) ? false : cnull;
+            cnull = ("null".equals(op)) ? false : cnull;
             BitSet set1 = getRows(Integer.MIN_VALUE, true, val, false, cnull);
             BitSet set2 = getRows(val, false, Integer.MIN_VALUE, true, cnull);
             res = set1 == null ? set2 : set2 == null ? set1 : set1.or(set2);

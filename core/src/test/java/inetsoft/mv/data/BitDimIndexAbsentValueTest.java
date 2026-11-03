@@ -120,17 +120,55 @@ class BitDimIndexAbsentValueTest {
    }
 
    private static XDimIndex[] dims() {
-      BitDimIndex bit = new BitDimIndex();
-      DictDimIndex dict = new DictDimIndex(4);
+      // 3 bits (PackedIntBuf) and 8 bits (ByteIntBuf)
+      XDimIndex[] dims = {
+         new BitDimIndex(), new MVDimColumn(4, KEYS.length, true),
+         new MVDimColumn(100, KEYS.length, true)
+      };
 
-      for(int row = 0; row < KEYS.length; row++) {
-         bit.addKey(KEYS[row], row);
-         dict.addKey(KEYS[row], row);
+      for(XDimIndex dim : dims) {
+         for(int row = 0; row < KEYS.length; row++) {
+            if(dim instanceof BitDimIndex) {
+               ((BitDimIndex) dim).addKey(KEYS[row], row);
+            }
+            else {
+               ((MVDimColumn) dim).setValue(row, KEYS[row]);
+            }
+         }
+
+         if(dim instanceof BitDimIndex) {
+            ((BitDimIndex) dim).complete();
+         }
+         else {
+            ((DictDimIndex) dim).complete();
+         }
       }
 
-      bit.complete();
-      dict.complete();
-      return new XDimIndex[] { bit, dict };
+      return dims;
+   }
+
+   /**
+    * An int measure column compares double bit patterns, negative for every negative number.
+    * It is a DictDimIndex but must never treat them as absent dictionary keys.
+    */
+   @Test
+   void negativeIntMeasureKeepsOldBehavior() {
+      // null, -5, 0, 7, -5
+      Double[] vals = { null, -5.0, 0.0, 7.0, -5.0 };
+      MVIntColumn col = new MVIntColumn(vals.length, -5, 7);
+
+      for(int i = 0; i < vals.length; i++) {
+         col.setValue(i, vals[i] == null ? Tool.NULL_DOUBLE : vals[i]);
+      }
+
+      long m5 = Double.doubleToLongBits(-5);
+      long m9 = Double.doubleToLongBits(-9);
+      assertEquals(rows(1, 4), col.getRows("=", m5, false, true));
+      assertEquals(rows(2, 3), col.getRows("=", m5, true, true));
+      assertEquals(rows(2, 3), col.getRows("IN", new long[] { m5, m9 }, true, true));
+      assertEquals(rows(1, 4), col.getRows("IN", new long[] { m5 }, false, true));
+      assertEquals(rows(2, 3), col.getRows(">", m5, false, true));
+      assertEquals(rows(1, 2, 4), col.getRows("<=", 0, false, true));
    }
 
    private static BitSet rows(int... rows) {
