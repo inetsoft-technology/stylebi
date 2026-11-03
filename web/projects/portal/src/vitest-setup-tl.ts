@@ -32,7 +32,8 @@ vi.setConfig({ testTimeout: 15000 });
 // No ng-reflect-* attributes in TL tests. An input bound to a new object on every check (such as
 // a getter that maps custom-select options) rewrites its attribute on every change detection,
 // and waitFor runs change detection on every DOM mutation, so it loops without yielding and the
-// test hangs instead of timing out.
+// test hangs instead of timing out. An open custom-select menu re-creates its option buttons on
+// every check for the same reason, so waitFor or findBy* can still hang while such a menu is open.
 (globalThis as any).__noNgReflectAttributes = true;
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));

@@ -136,6 +136,7 @@ describe("TaskOptionsPane - interaction", () => {
          const localeSelect = Array.from(nativeElement.querySelectorAll("custom-select"))
             .find((s: Element) => s.nextElementSibling?.textContent.trim() === "_#(Locale)");
 
+         expect(localeSelect).toBeDefined();
          expect(getDebugNode(localeSelect)?.componentInstance.value).toBe("Default");
       });
    });

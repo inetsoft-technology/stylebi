@@ -426,8 +426,7 @@ describe("ScreensPane — print layout input", () => {
       const { fixture } = await renderComponent({ printLayout: createPrintLayoutModel() });
       fixture.detectChanges();
 
-      const input = fixture.nativeElement.querySelector("input[formcontrolname='printLayout']")
-         ?? fixture.nativeElement.querySelector("input[ng-reflect-name='printLayout']");
+      const input = fixture.nativeElement.querySelector("input[formcontrolname='printLayout']");
       expect(input).not.toBeNull();
       expect(input.hasAttribute("readonly")).toBe(true);
    });
