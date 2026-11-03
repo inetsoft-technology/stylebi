@@ -271,4 +271,36 @@ class VSObjectChromeDefaultsTest {
       assertEquals(0x313034, rgb(VSObjectChromeDefaults.cardTintOver(new Color(0x1C1B1F))));
       assertEquals(0xF2F2F2, rgb(VSObjectChromeDefaults.cardTintOver(null)));
    }
+
+   private static <T extends VSAssemblyInfo> T marked(T info, VizMark mark) {
+      info.setVizMark(mark);
+      return info;
+   }
+
+   @Test
+   void excelCardFillIsTodaysOutput() {
+      VizMark light = VizMark.MODERN_LIGHT;
+      VizMark dark = VizMark.MODERN_DARK;
+
+      assertEquals(0xFFFFFF, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new ChartVSAssemblyInfo(), light))), "light chart");
+      assertEquals(0xFFFFFF, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new TableVSAssemblyInfo(), light))), "light table");
+      assertEquals(0x252428, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new ChartVSAssemblyInfo(), dark))), "dark chart");
+      assertEquals(0x252428, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new TableVSAssemblyInfo(), dark))), "dark table");
+
+      // white cells under the dark opt-out's near-black ink
+      for(VizMark mark : new VizMark[] { light, dark }) {
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new SelectionListVSAssemblyInfo(), mark)), "selection list " + mark);
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new TimeSliderVSAssemblyInfo(), mark)), "time slider " + mark);
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new CalendarVSAssemblyInfo(), mark)), "calendar " + mark);
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new CurrentSelectionVSAssemblyInfo(), mark)), "selection container " + mark);
+      }
+   }
 }

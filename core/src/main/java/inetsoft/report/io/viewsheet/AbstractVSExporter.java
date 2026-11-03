@@ -2054,6 +2054,32 @@ public abstract class AbstractVSExporter implements VSExporter {
             linfo.setFormats(darkOptOutCopy(linfo.getFormats()));
          }
       }
+
+      // swapped once here, so no format reader sees the tint
+      VSCompositeFormat objFormat = vinfo == null ? null : vinfo.getFormat();
+
+      if(substitutesCardTint() && objFormat != null && objFormat.isDefaultCardTint()) {
+         Color fill = cardTintSubstitute(vinfo);
+         VSFormat def = objFormat.getDefaultFormat();
+         def.setBackgroundValue(
+            fill == null ? null : String.format("#%06x", fill.getRGB() & 0xFFFFFF));
+         def.setAlphaValue(100);
+      }
+   }
+
+   /**
+    * Whether this format replaces a default-tier card tint before writing, because it cannot show
+    * the tint as the viewer does.
+    */
+   protected boolean substitutesCardTint() {
+      return false;
+   }
+
+   /**
+    * The opaque fill that replaces the card tint of this assembly, or null for no fill.
+    */
+   protected Color cardTintSubstitute(VSAssemblyInfo info) {
+      return null;
    }
 
    /**

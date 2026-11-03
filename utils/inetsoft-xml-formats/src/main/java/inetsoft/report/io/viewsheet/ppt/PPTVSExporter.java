@@ -189,6 +189,23 @@ public class PPTVSExporter extends AbstractVSExporter {
    }
 
    /**
+    * A text box's fill blends against white, so the card tint is flattened over the page instead.
+    */
+   @Override
+   protected boolean substitutesCardTint() {
+      return true;
+   }
+
+   @Override
+   protected Color cardTintSubstitute(VSAssemblyInfo info) {
+      Viewsheet vs = info.getViewsheet();
+      VSCompositeFormat page = vs == null ? null :
+         vs.getFormatInfo().getFormat(new TableDataPath(-1, TableDataPath.OBJECT));
+
+      return VSObjectChromeDefaults.cardTintOver(page == null ? null : page.getBackground());
+   }
+
+   /**
     * Check need use the region table lens or not.
     */
    @Override

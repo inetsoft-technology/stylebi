@@ -69,6 +69,15 @@ public final class VSObjectChromeDefaults {
       return ctx.dark ? CARD_BG_DARK : CARD_BG;
    }
 
+   /**
+    * The fill a spreadsheet writes in place of the card tint: the opaque card for a chart or table,
+    * none for any other card, whose dark-mode ink is put back to near-black on white cells.
+    */
+   public static Color excelCardFill(VSAssemblyInfo info) {
+      return info instanceof ChartVSAssemblyInfo || info instanceof TableDataVSAssemblyInfo ?
+         cardBackground(VizContext.of(info)) : null;
+   }
+
    /** The card tint as a default-tier background value. */
    public static String cardTintValue() {
       return String.format("#%06x", CARD_TINT_RGB);
