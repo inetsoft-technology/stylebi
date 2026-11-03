@@ -1247,6 +1247,140 @@ class ChartBindingMutatorTest {
          "an explicit false must clear a previously-true timeSeries, not be treated as omitted");
    }
 
+   // ── timeSeries survives a date-level change (bug #79917) ─────────────────────────────────
+
+   private static ChartDimensionRefModel tsDim(ChartBindingModel model, int i) {
+      return (ChartDimensionRefModel) model.getXFields().get(i);
+   }
+
+   private static ChartBindingModel xTimeSeries(String column, String level) {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries(column, level, true)));
+      return model;
+   }
+
+   @Test
+   void keylessDateLevelChangeCarriesTimeSeries() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null)));
+
+      assertTrue(tsDim(model, 0).isTimeSeries(),
+         "omitted timeSeries must survive month -> quarter, not reset to false");
+   }
+
+   @Test
+   void explicitFalseAtNewLevelStaysFalse() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "quarter", false)));
+
+      assertFalse(tsDim(model, 0).isTimeSeries());
+   }
+
+   @Test
+   void dateLevelChangeToPartLevelDoesNotCarryTimeSeries() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Order Date", "dimension", null, "month_of_year", null)));
+
+      assertFalse(tsDim(model, 0).isTimeSeries(),
+         "a part-of-date level has no time axis, so true must not be carried onto it");
+   }
+
+   @Test
+   void keylessOuterQuarterAboveExistingMonthKeepsMonthTimeSeriesAndDoesNotThrow() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Order Date", "dimension", null, "quarter", null),
+         new FieldRef("Order Date", "dimension", null, "month", null)));
+
+      assertFalse(tsDim(model, 0).isTimeSeries(), "outer quarter was never set, stays false");
+      assertTrue(tsDim(model, 1).isTimeSeries(), "the matching month keeps its stored true");
+   }
+
+   @Test
+   void keylessMonthThenQuarterRefusesOuterMonthLikeBefore() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+
+      // Unchanged from #80060: the matching month keeps true and is now outer.
+      assertThrows(IllegalArgumentException.class, () ->
+         ChartBindingMutator.setShelf(model, "x", List.of(
+            new FieldRef("Order Date", "dimension", null, "month", null),
+            new FieldRef("Order Date", "dimension", null, "quarter", null))));
+   }
+
+   @Test
+   void levelChangeIsNotCarriedOntoAnOuterDimensionAndTheWriteStaysAccepted() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+
+      // The base accepted this write (quarter=false); the carry must not turn it into a refusal.
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Order Date", "dimension", null, "quarter", null),
+         new FieldRef("Order Date", "dimension", null, "week", null)));
+
+      assertFalse(tsDim(model, 0).isTimeSeries(), "outer quarter cannot be time series");
+      assertTrue(tsDim(model, 1).isTimeSeries(), "the innermost replacement takes the flag");
+   }
+
+   @Test
+   void aMatchedDormantOuterDimensionDoesNotMakeTheWriteFail() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+      ChartBindingMutator.setShelf(model, "x", List.of(date("quarter", false), date("month", false)));
+      dimAt(model.getXFields(), 0).setTimeSeries(true);
+      dimAt(model.getXFields(), 1).setTimeSeries(true);
+
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Order Date", "dimension", null, "quarter", null),
+         new FieldRef("Order Date", "dimension", null, "month", null)));
+
+      assertTrue(tsDim(model, 1).isTimeSeries());
+   }
+
+   @Test
+   void dateLevelChangeOnADifferentColumnDoesNotCarryTimeSeries() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Ship Date", "dimension", null, "quarter", null)));
+
+      assertFalse(tsDim(model, 0).isTimeSeries());
+   }
+
+   @Test
+   void dateLevelChangeDoesNotCarrySortState() {
+      ChartBindingModel model = xTimeSeries("Order Date", "month");
+      tsDim(model, 0).setManualOrder(new java.util.ArrayList<>(List.of("a", "b")));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null)));
+
+      assertTrue(tsDim(model, 0).isTimeSeries());
+      assertTrue(tsDim(model, 0).getManualOrder() == null || tsDim(model, 0).getManualOrder().isEmpty(),
+         "level-specific sort state must not cross a level change");
+   }
+
+   @Test
+   void drillOfOneColumnCarriesTimeSeriesByPosition() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         dimensionWithTimeSeries("Order Date", "year", false),
+         dimensionWithTimeSeries("Order Date", "month", true)));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(
+         new FieldRef("Order Date", "dimension", null, "quarter", null),
+         new FieldRef("Order Date", "dimension", null, "week", null)));
+
+      assertFalse(tsDim(model, 0).isTimeSeries(), "outer year slot had false");
+      assertTrue(tsDim(model, 1).isTimeSeries(), "inner month slot had true");
+   }
+
    // ── secondaryColumn survives a shelf rewrite (bug #77014, VCS-020) ────────────────────────
    //
    // toChartRef only sets secondaryColumnValue when the incoming FieldRef explicitly carries one
