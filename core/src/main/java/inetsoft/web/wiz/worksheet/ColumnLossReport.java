@@ -110,11 +110,12 @@ final class ColumnLossReport {
 
       /**
        * edit_table: {@link #QUERY_EDIT} plus a downstream aggregate or group-by on the column
-       * (Bug #79594). Unlike edit_sql_query, whose accept-and-warn is documented in its tool
-       * description (WSQ-009), edit_table has no warnings channel, so the mirror would collapse
-       * unannounced; it is refused, naming the mirror.
+       * (Bug #79594), and the edited table's own group-by or aggregate input on the column
+       * (Bug #80042). Unlike edit_sql_query, whose accept-and-warn is documented in its tool
+       * description (WSQ-009), edit_table has no warnings channel, so the mirror (or the table
+       * itself) would collapse unannounced; it is refused, naming the mirror or the table.
        */
-      static final Scope TABULAR_EDIT = new Scope(true, true, false, true, false);
+      static final Scope TABULAR_EDIT = new Scope(true, true, false, true, true);
 
       /**
        * edit_unpivot shrinking the header columns: the melted column's name leaves the table, so
