@@ -445,7 +445,8 @@ describe("ChartPlotArea — scrollContainerWidth / scrollContainerHeight", () =>
       comp.chartObject.bounds = { x: 0, y: 0, width: 200, height: 100 } as any;
       comp.scrollbarWidth = 15;
 
-      expect(comp.scrollContainerWidth).toBe(200);
+      // the 1px border allowance applies with or without a scrollbar
+      expect(comp.scrollContainerWidth).toBe(200 + 1);
    });
 
    it("should add the scrollbar height plus 1px when the tile bounds are wider than the layout bounds", () => {
@@ -463,7 +464,7 @@ describe("ChartPlotArea — scrollContainerWidth / scrollContainerHeight", () =>
       comp.chartObject.bounds = { x: 0, y: 0, width: 200, height: 100 } as any;
       comp.scrollbarWidth = 10;
 
-      expect(comp.scrollContainerHeight).toBe(100);
+      expect(comp.scrollContainerHeight).toBe(100 + 1);
    });
 });
 

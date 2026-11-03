@@ -26,9 +26,9 @@
  * MSW. Only jsPlumb is faked: jspMock's connect() records each connection (type/data, like
  * real jsPlumb's connect({type, data})) and its setType(type, data) records restyles.
  *
- * The host mirrors DatabasePhysicalModelComponent: onNodeSelected re-derives
- * selectedGraphModels and, when the editing table changes, calls highlightConnections(null)
- * like the PhysicalTableJoinsComponent table setter does.
+ * The host mirrors DatabasePhysicalModelComponent: onNodeSelected copies the selected graph
+ * models into selectedGraphModels and, when the editing table changes, calls
+ * highlightConnections(null) like the PhysicalTableJoinsComponent table setter does.
  *
  * Harness notes (same as the Bug #77976 drag-refresh spec):
  *  - the jsPlumb getInstance spy stays active for the whole test: the network graph is
@@ -119,13 +119,11 @@ function twoJoinResponse(): any {
    template: `
       <physical-graph-pane physicalView="v" datasource="ds" runtimeId="rt"
          [selectedGraphModels]="selectedGraphModels"
-         (onPhysicalGraph)="gvm = $event"
          (onNodeSelected)="nodeSelected($event)"></physical-graph-pane>
    `,
    imports: [PhysicalGraphPane]
 })
 class HostComponent {
-   gvm: any;
    selectedGraphModels: any[] = [];
    table: string = null;
 
@@ -134,9 +132,9 @@ class HostComponent {
 
    // mirrors DatabasePhysicalModelComponent.graphNodesSelected -> tree selectNode ->
    // selectPhysicalGraphNode/changeEditingTable -> PhysicalTableJoinsComponent table setter
-   nodeSelected(paths: string[]): void {
-      this.selectedGraphModels = (this.gvm?.graphs ?? []).filter(g => paths.includes(g.node.treeLink));
-      const t = paths.length == 1 ? paths[0] : null;
+   nodeSelected(nodes: any[]): void {
+      this.selectedGraphModels = nodes ? [...nodes] : [];
+      const t = nodes?.length == 1 ? nodes[0].node.treeLink : null;
 
       if(this.table != t) {
          this.table = t;
