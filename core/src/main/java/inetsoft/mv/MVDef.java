@@ -615,6 +615,17 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
+    * Get the number of bytes that follow the last update time in the file block, as read from
+    * or written to the file (Bug #79854). It is not derived from the in-memory shareable flag:
+    * a file damaged by the old MV.updateDef reads back shareable=false but keeps the 4 byte
+    * string it was written with.
+    * @return the byte count, or -1 if this def was neither read from nor written to a file.
+    */
+   public int getBytesAfterStamp() {
+      return bytesAfterStamp;
+   }
+
+   /**
     * Get the file position.
     */
    public long getFilePosition() {
@@ -1632,6 +1643,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
 
       buf.putLong(lastUpdateTime);
       writeString(buf, shareable + "");
+      bytesAfterStamp = getStringLength(shareable + "");
 
       XSwapUtil.flip(buf);
 
@@ -1708,6 +1720,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       if(buf.remaining() > 0) {
          pre_v11_2 = false;
          lastUpdateTime = buf.getLong();
+         bytesAfterStamp = buf.remaining();
       }
       else {
          pre_v11_2 = true;
@@ -3015,6 +3028,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    private MVMetaData data;
    private boolean incremental = false;
    private boolean shareable = true;
+   private transient int bytesAfterStamp = -1;
    private Identity[] users = null; // user of this mv
    private List<String> parentVsIds = null; // parent vs identifiers
    private transient boolean changed = false; // check if is changed

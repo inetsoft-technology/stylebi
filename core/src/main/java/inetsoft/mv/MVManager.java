@@ -513,9 +513,11 @@ public final class MVManager implements MessageListener {
                      getOrgLock(orgId).writeLock().lock();
 
                      try {
-                        // current == previous: the stored stamp is monotonic, so max(stored,
-                        // previous) can't lower anything; this path has no newer manager stamp
-                        mv.updateLastUpdateTimeAfterCreate(previous, previous); // set update ts
+                        // refresh() stamped the cloned def in the manager, not mv, so
+                        // take the current stamp from the manager entry
+                        MVDef existing = get(mv.getName());
+                        long current = existing == null ? previous : existing.getLastUpdateTime();
+                        mv.updateLastUpdateTimeAfterCreate(previous, current); // set update ts
                         add(mv);
                         SharedMVUtil.shareCreatedMV(mv);
                      }
