@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.autosave;
 
 import inetsoft.util.Tool;
+import inetsoft.web.admin.ai.ResolvedPlan;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -124,6 +125,61 @@ class AutoSaveRecycleBinChangePlanServiceTest {
       when(autoSaveRecycleBinService.parentFolderExists(entry, "Reports/QA-name", user))
          .thenReturn(true);
       assertDoesNotThrow(() -> plan("Reports/QA-name"));
+   }
+
+   /** Bug #80195: overwrite:true only replaces a same-type sheet, so the text must not claim it
+    * destroys whatever occupies the path. */
+   @Test
+   void collisionWithoutOverwriteDoesNotClaimAnyOccupantIsDeleted() throws Exception {
+      occupy(AutoSaveRecycleBinService.Occupant.SAME_TYPE_SHEET);
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> plan("Existing", false));
+      assertTrue(e.getMessage().contains("changes[0].overwrite"), e.getMessage());
+      assertFalse(e.getMessage().contains("whatever currently occupies"), e.getMessage());
+   }
+
+   @Test
+   void overwriteDescriptionSaysOnlySameTypeSheetIsReplaced() throws Exception {
+      occupy(AutoSaveRecycleBinService.Occupant.SAME_TYPE_SHEET);
+      String description = plan("Existing", true).changes().get(0).description();
+      assertTrue(description.contains("PERMANENTLY DESTROYS the existing worksheet"), description);
+      assertTrue(description.contains("only a same-type sheet is replaced"), description);
+   }
+
+   @Test
+   void folderOccupantIsRefusedEvenWithOverwriteAndTextSaysSo() throws Exception {
+      occupy(AutoSaveRecycleBinService.Occupant.FOLDER);
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> plan("Existing", true));
+      assertTrue(e.getMessage().contains("only replaces a worksheet"), e.getMessage());
+      assertTrue(e.getMessage().contains("folder or viewsheet snapshot is never replaced"),
+                 e.getMessage());
+      assertTrue(e.getMessage().contains("choose a different assetName"), e.getMessage());
+   }
+
+   @Test
+   void snapshotOccupantIsRefusedEvenWithOverwrite() throws Exception {
+      occupy(AutoSaveRecycleBinService.Occupant.SNAPSHOT);
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> plan("Existing", true));
+      assertTrue(e.getMessage().contains("viewsheet snapshot"), e.getMessage());
+      assertTrue(e.getMessage().contains("left in place"), e.getMessage());
+   }
+
+   private void occupy(AutoSaveRecycleBinService.Occupant occupant) throws Exception {
+      when(autoSaveRecycleBinService.occupantOf(any(), eq("Existing"), any())).thenReturn(occupant);
+   }
+
+   private ResolvedPlan plan(String assetName, boolean overwrite) throws Exception {
+      AutoSaveRecycleBinChangeRequest r = new AutoSaveRecycleBinChangeRequest();
+      r.setVerb(AutoSaveRecycleBinChangeRequest.VERB_RESTORE);
+      r.setId("id1");
+      r.setAssetName(assetName);
+      r.setOverwrite(overwrite);
+      AutoSaveRecycleBinChangePlanRequest req = new AutoSaveRecycleBinChangePlanRequest();
+      req.setTask("restore draft");
+      req.setChanges(List.of(r));
+      return planService.resolve(req, user);
    }
 
    private void plan(String assetName) throws Exception {
