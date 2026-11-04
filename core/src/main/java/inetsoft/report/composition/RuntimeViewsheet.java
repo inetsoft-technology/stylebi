@@ -799,10 +799,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     *
     * @param target the viewsheet (a clone of the live one) to apply the saved state onto.
     */
-   private Viewsheet applySavedStateTo(Viewsheet target) throws Exception {
+   private Viewsheet applySavedStateTo(Viewsheet target, String action) throws Exception {
       if(entry == null || entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
          throw new MessageException(
-            "Cannot go to (Home): the viewsheet has not been saved yet, so there is no saved " +
+            "Cannot " + action + " (Home): the viewsheet has not been saved yet, so there is no saved " +
             "state to return to. Save the viewsheet first.");
       }
 
@@ -810,7 +810,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       if(!(stored instanceof Viewsheet)) {
          throw new MessageException(
-            "Cannot go to (Home): the saved viewsheet '" + entry.toView() + "' was not found.");
+            "Cannot " + action + " (Home): the saved viewsheet '" + entry.toView() + "' was not found.");
       }
 
       VSBookmark initial = new VSBookmark();
@@ -847,7 +847,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       else if(isHome && !isRuntime()) {
          // A design-mode runtime (Composer) never captures an initial-state snapshot, so (Home)
          // must return to the saved state. (Bug #79947)
-         processedViewsheet = applySavedStateTo((Viewsheet) vs.clone());
+         processedViewsheet = applySavedStateTo((Viewsheet) vs.clone(), "go to");
       }
 
       // Process the bookmark that was found
@@ -1131,6 +1131,20 @@ public class RuntimeViewsheet extends RuntimeSheet {
       if(VSBookmark.HOME_BOOKMARK.equals(name) && ibookmark != null) {
          processedViewsheet = ibookmark.getBookmark(VSBookmark.INITIAL_STATE,
                                                     processedViewsheet);
+      }
+      else if(VSBookmark.HOME_BOOKMARK.equals(name) && !isRuntime()) {
+         // A design-mode runtime (Composer) has no initial-state snapshot, so (Home) is the
+         // saved state, not the live (possibly unsaved) one. (Bug #79993)
+         try {
+            processedViewsheet = applySavedStateTo(processedViewsheet, "export");
+         }
+         catch(MessageException ex) {
+            throw ex;
+         }
+         catch(Exception ex) {
+            throw new MessageException("Cannot export (Home): failed to load the saved " +
+                                       "viewsheet state: " + ex.getMessage(), ex);
+         }
       }
 
       return VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep, user);

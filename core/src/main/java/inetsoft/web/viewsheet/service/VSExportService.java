@@ -942,6 +942,11 @@ public class VSExportService {
       rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", "true");
       Viewsheet vs = rvs.getOriginalBookmark(bookmark, rvs.getEntry().getOrgID());
       rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", null);
+      if(vs == null) {
+         throw new MessageException("Cannot export bookmark '" + bookmark +
+                                    "': the bookmark state could not be found.");
+      }
+
       VSEventUtil.clearScale(vs);
       ViewsheetSandbox sandbox = new ViewsheetSandbox(vs, vmode, principal, false, rvs.getEntry());
       createdBoxes.add(sandbox);
