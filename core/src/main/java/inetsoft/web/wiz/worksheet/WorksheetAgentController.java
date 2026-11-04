@@ -5560,6 +5560,9 @@ public class WorksheetAgentController {
                WorksheetColumnLoss.StoredInputs storedBefore =
                   WorksheetColumnLoss.StoredInputs.take(ws);
                boolean rediscovered = false;
+               // Tabular sources already re-discovered in this pass: a source under several
+               // dependents is discovered once, not once per dependent.
+               Set<String> discovered = new HashSet<>();
 
                for(Assembly a : ws.getAssemblies()) {
                   if(a instanceof TableAssembly table) {
@@ -5590,17 +5593,25 @@ public class WorksheetAgentController {
                      // one table's failure doesn't abort the refresh of the rest -- unlike
                      // WorksheetEventUtil.refreshColumnSelection, loadColumnSelection actually
                      // throws instead of swallowing.
-                     if(table instanceof TabularTableAssembly tabular) {
+                     // Bug #79595: this same single discovery also tells the dependents'
+                     // column-loss check below that the source was re-discovered.
+                     if(table instanceof TabularTableAssembly tabular &&
+                        discovered.add(table.getName()))
+                     {
                         try {
                            tabular.loadColumnSelection(
                               box.getVariableTable(), true, box.getQueryManager());
+                           rediscovered = true;
                         }
                         catch(Exception e) {
                            failures.add(e.getMessage());
                         }
                      }
+                     else if(table instanceof TabularTableAssembly) {
+                        rediscovered = true;
+                     }
 
-                     loadUpstreamTabularColumns(ws, table, box);
+                     loadUpstreamTabularColumns(ws, table, box, new HashSet<>(), discovered);
 
                      try {
                         clearBoundQueryCache(box, table, mode);
@@ -5608,17 +5619,6 @@ public class WorksheetAgentController {
                      catch(Exception e) {
                         LOG.warn("Failed to clear the bound query cache for table: " +
                            table.getName(), e);
-                     }
-
-                     if(table instanceof TabularTableAssembly tabular) {
-                        try {
-                           tabular.loadColumnSelection(
-                              box.getVariableTable(), true, box.getQueryManager());
-                           rediscovered = true;
-                        }
-                        catch(Exception e) {
-                           LOG.warn("Failed to reload the columns of table: " + table.getName(), e);
-                        }
                      }
                   }
                }
@@ -5651,7 +5651,17 @@ public class WorksheetAgentController {
                      box.getVariableTable().put("__refresh_report__", "true");
 
                      try {
-                        WorksheetEventUtil.refreshColumnSelection(rws, table.getName(), true);
+                        // refreshColumnSelection swallows what the sandbox throws, but not a
+                        // failure to obtain the sandbox itself; that must not abort the refresh
+                        // of the remaining tables.
+                        try {
+                           WorksheetEventUtil.refreshColumnSelection(rws, table.getName(), true);
+                        }
+                        catch(Exception e) {
+                           LOG.warn("Failed to refresh the columns of table: " +
+                                    table.getName(), e);
+                        }
+
                         forceRuntimeRead(box, table.getName());
                      }
                      catch(PairingException e) {
@@ -5704,11 +5714,16 @@ public class WorksheetAgentController {
    private static void loadUpstreamTabularColumns(Worksheet ws, TableAssembly table,
                                                   AssetQuerySandbox box)
    {
-      loadUpstreamTabularColumns(ws, table, box, new HashSet<>());
+      loadUpstreamTabularColumns(ws, table, box, new HashSet<>(), new HashSet<>());
    }
 
+   /**
+    * @param discovered tabular sources already re-discovered by the caller; skipped here and
+    *                   added to as they are loaded.
+    */
    private static void loadUpstreamTabularColumns(Worksheet ws, TableAssembly table,
-                                                  AssetQuerySandbox box, Set<String> visited)
+                                                  AssetQuerySandbox box, Set<String> visited,
+                                                  Set<String> discovered)
    {
       if(!(table instanceof ComposedTableAssembly composed)) {
          return;
@@ -5720,7 +5735,7 @@ public class WorksheetAgentController {
             continue;
          }
 
-         if(source instanceof TabularTableAssembly tabular) {
+         if(source instanceof TabularTableAssembly tabular && discovered.add(name)) {
             try {
                tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
             }
@@ -5729,7 +5744,7 @@ public class WorksheetAgentController {
             }
          }
 
-         loadUpstreamTabularColumns(ws, source, box, visited);
+         loadUpstreamTabularColumns(ws, source, box, visited, discovered);
       }
    }
 
