@@ -815,7 +815,9 @@ public final class WorksheetMutationSupport {
                      resolvedDone = true;
                   }
 
-                  if(!sameColumn(resolved, attr)) {
+                  if(!(resolved != null ? sameColumn(resolved, attr)
+                       : onlyColumnWithAttribute(t, field, attr)))
+                  {
                      continue;
                   }
                }
@@ -846,6 +848,31 @@ public final class WorksheetMutationSupport {
       ColumnRef cr = innerColumn(ref);
       return cr != null && cr.getAlias() != null && !cr.getAlias().isBlank()
          ? cr.getAlias() : ref.getAttribute();
+   }
+
+   /**
+    * An entity-qualified column renamed by rename_column does not resolve by its bare old name,
+    * so {@link #resolveFieldOrNull} finds nothing. It is still the column {@code field} names
+    * when it is the ONLY column of the table with that attribute: a self-join copy shares its
+    * attribute with the base, so two columns carry it and the bare name stays ambiguous.
+    */
+   private static boolean onlyColumnWithAttribute(TableAssembly t, String field, DataRef attr) {
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef only = null;
+
+      for(int i = 0; cs != null && i < cs.getAttributeCount(); i++) {
+         DataRef col = cs.getAttribute(i);
+
+         if(field.equals(col.getAttribute())) {
+            if(only != null) {
+               return false;
+            }
+
+            only = col;
+         }
+      }
+
+      return only != null && sameColumn(only, attr);
    }
 
    /** Whether {@code resolved} (the table's column for a field) is the column {@code attr} is on. */

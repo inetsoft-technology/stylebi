@@ -256,4 +256,52 @@ class RemoveFilterSelfJoinCopy80178Test {
       removeFilter(t, "CUST");
       assertEquals("", remaining(t));
    }
+
+   @Test
+   void anEntityQualifiedRenamedColumnIsRemovedByItsOldBareName() {
+      BoundTableAssembly t = renamed(true, EQ);
+      removeFilter(t, BASE);
+      assertEquals("", remaining(t));
+   }
+
+   /** Base renamed to CUST, copy aliased CUSTOMER_ID_1: both carry attribute CUSTOMER_ID. */
+   private static BoundTableAssembly renamedBaseSelfJoin(boolean entities) {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly t = new BoundTableAssembly(ws, "T");
+      ColumnRef base = new ColumnRef(new AttributeRef(entities ? "ORDERS" : null, BASE));
+      base.setAlias("CUST");
+      ColumnRef copy = new ColumnRef(new AttributeRef(entities ? "ORDERS1" : null, BASE));
+      copy.setAlias(COPY);
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(base);
+      cs.addAttribute(copy);
+      t.setColumnSelection(cs, false);
+      ConditionList cl = new ConditionList();
+      cl.append(item(base, EQ, "1"));
+      cl.append(new JunctionOperator(JunctionOperator.AND, 0));
+      cl.append(item(copy, GT, "2"));
+      t.setPreConditionList(cl);
+      ws.addAssembly(t);
+      return t;
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void aSelfJoinWithARenamedBaseNeverLosesTheCopyToTheBareName(boolean entities) {
+      BoundTableAssembly t = renamedBaseSelfJoin(entities);
+      removeFilter(t, BASE);
+      assertTrue(remaining(t).contains(COPY + GT + ";"), remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void aSelfJoinWithARenamedBaseIsStillRemovedByEachNewName(boolean entities) {
+      BoundTableAssembly t = renamedBaseSelfJoin(entities);
+      removeFilter(t, "CUST");
+      assertEquals(COPY + GT + ";", remaining(t));
+
+      t = renamedBaseSelfJoin(entities);
+      removeFilter(t, COPY);
+      assertEquals("CUST" + EQ + ";", remaining(t));
+   }
 }
