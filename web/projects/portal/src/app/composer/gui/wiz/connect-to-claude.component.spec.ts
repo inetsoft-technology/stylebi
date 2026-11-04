@@ -1084,6 +1084,18 @@ describe("ConnectToClaudeComponent", () => {
          expect(component.isConnected).toBe(false);
       });
 
+      it("renders the connected status from the sheet flag and removes it on detach", () => {
+         const status = () => fixture.nativeElement.querySelector(".wiz-connect-connected");
+
+         component.sheetAgentConnected = true;
+         fixture.detectChanges();
+         expect(status()).not.toBeNull();
+
+         component.sheetAgentConnected = false;
+         fixture.detectChanges();
+         expect(status()).toBeNull();
+      });
+
       it("falls back to the one-shot connected when no sheet state is passed", () => {
          component.connected = true;
          expect(component.isConnected).toBe(true);
