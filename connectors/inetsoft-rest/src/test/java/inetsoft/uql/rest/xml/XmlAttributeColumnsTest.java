@@ -163,7 +163,110 @@ public class XmlAttributeColumnsTest {
       assertCountryEntries(iterationPage("/wb:countries/wb:country"));
    }
 
+   // ---- multi-match xpaths: one row per matched node ----
+
+   @Test
+   void unpagedMultiMatchAttributeXpathYieldsOneRowPerNode() throws Exception {
+      assertSingleColumn(runUnpaged("/wb:countries/wb:country/@id"), "@id", "ABW", "AFG");
+   }
+
+   @Test
+   void unpagedMultiMatchNestedAttributeXpathYieldsOneRowPerNode() throws Exception {
+      assertSingleColumn(runUnpaged("/wb:countries/wb:country/wb:region/@id"), "@id",
+         "LCN", "SAS");
+   }
+
+   @Test
+   void unpagedMultiMatchLeafElementXpathYieldsOneRowPerNode() throws Exception {
+      assertSingleColumn(runUnpaged("/wb:countries/wb:country/wb:name"), "wb:name",
+         "Aruba", "Afghanistan");
+   }
+
+   @Test
+   void unpagedMultiMatchTextElementWithAttributesKeepsColumnsAligned() throws Exception {
+      final XTableNode table = runUnpaged("/wb:countries/wb:country/wb:region");
+
+      assertNotNull(table);
+      final List<String> cols = columns(table);
+      final int text = cols.indexOf("wb:region");
+      final int id = cols.indexOf("wb:region@id");
+      final int iso = cols.indexOf("wb:region@iso2code");
+      assertTrue(text >= 0 && id >= 0 && iso >= 0, cols.toString());
+      assertTrue(table.next());
+      assertEquals("Latin America & Caribbean", table.getObject(text));
+      assertEquals("LCN", table.getObject(id));
+      assertEquals("ZJ", table.getObject(iso));
+      assertTrue(table.next());
+      assertEquals("South Asia", table.getObject(text));
+      assertEquals("SAS", table.getObject(id));
+      assertEquals("8S", table.getObject(iso));
+      assertFalse(table.next());
+   }
+
+   @Test
+   void unpagedSingleMatchAttributeStillOneRow() throws Exception {
+      final XTableNode table = runUnpaged("/wb:countries/@total");
+
+      assertNotNull(table);
+      assertTrue(table.next());
+      assertEquals(296, ((Number) table.getObject(0)).intValue());
+      assertFalse(table.next());
+   }
+
+   @Test
+   void unpagedElementXpathStillOneRowPerElement() throws Exception {
+      final XTableNode table = runUnpaged("/wb:countries/wb:country");
+
+      assertNotNull(table);
+      int rows = 0;
+
+      while(table.next()) {
+         rows++;
+      }
+
+      assertEquals(2, rows);
+   }
+
+   @Test
+   void pageCountMultiMatchAttributeXpathYieldsOneRowPerNode() throws Exception {
+      final RestXMLQuery query = new RestXMLQuery();
+      final RestXMLDataSource dataSource = new RestXMLDataSource();
+      dataSource.setURL("http://host/{{pageNumber}}");
+      query.setDataSource(dataSource);
+      query.setXpath("/wb:countries/wb:country/@id");
+      final PaginationSpec spec = query.getPaginationSpec();
+      spec.setType(PaginationType.PAGE_COUNT);
+      spec.setPageNumberUrlVariable(
+         new PaginationParameter("pageNumber", PaginationParamType.URL_VARIABLE));
+      spec.setPageCountXpath(new PaginationParameter("/wb:countries/@pages",
+         PaginationParamType.XPATH));
+      spec.setZeroBasedPageIndex(false);
+
+      final List<RequestResponse> rr = new ArrayList<>();
+      rr.add(new RequestResponse(RestRequest.builder().query(query)
+         .urlVariables(Collections.singletonMap("pageNumber", "1")).build(),
+         new TestHttpResponse(fixture(""))));
+      final XTableNode table = new RestXMLQueryRunner(query,
+         new XMLRestDataIteratorStrategyFactory(new TestHttpHandler(rr))).run();
+
+      assertSingleColumn(table, "@id", "ABW", "AFG");
+   }
+
    // ---- helpers ----
+
+   private static void assertSingleColumn(XTableNode table, String column,
+                                          String... values)
+   {
+      assertNotNull(table);
+      assertEquals(Collections.singletonList(column), columns(table));
+
+      for(final String value : values) {
+         assertTrue(table.next());
+         assertEquals(value, table.getObject(0));
+      }
+
+      assertFalse(table.next());
+   }
 
    @SuppressWarnings("unchecked")
    private static void assertCountryEntries(MapNode page) {

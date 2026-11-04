@@ -18,6 +18,7 @@
 package inetsoft.uql.util;
 
 import inetsoft.uql.XMetaInfo;
+import inetsoft.util.ObjectWrapper;
 import inetsoft.util.Tool;
 import inetsoft.util.swap.XSwappableObjectList;
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
@@ -335,7 +336,9 @@ public class ExpandedJsonTable extends BaseJsonTable {
     */
    private boolean containsRecord(List<?> list) {
       for(Object obj : list) {
-         if(obj instanceof Map) {
+         // an ObjectWrapper is an XML matched-node value (attribute or text element);
+         // a list of them on the xpath-match root is a collection of rows, not a scalar array
+         if(obj instanceof Map || obj instanceof ObjectWrapper) {
             return true;
          }
       }
