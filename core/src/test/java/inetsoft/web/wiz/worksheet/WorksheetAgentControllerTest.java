@@ -12725,6 +12725,83 @@ class WorksheetAgentControllerTest {
          "SELECT COUNT(*) AS N FROM $(@v)"));
    }
 
+   /** Bug #80180: a placeholder only in a value position does not make the table a placeholder. */
+   @Test
+   void wildcardMessageIgnoresPlaceholdersInValuePositions() {
+      for(String sql : new String[] {
+         "SELECT * FROM SA.NO_SUCH_TABLE WHERE ORDER_ID = $(@n)",
+         "SELECT * FROM SA.ORDER_DETAILS WHERE ORDER_ID = $(@n)",
+         "SELECT t.* FROM SA.T t WHERE t.ID IN ($(@a), $(@b)) ORDER BY t.ID",
+         "SELECT * FROM SA.T t JOIN SA.U u ON t.ID = u.ID AND u.K = $(@k) WHERE t.X LIKE $(@p)",
+         "SELECT * FROM SA.T WHERE NAME = '$(@x)' GROUP BY A HAVING COUNT(*) > $(@n)",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k, SA.C c WHERE c.x = $(@n)",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = COALESCE(b.k, $(@n)) JOIN SA.C c ON c.k = $(@m)",
+         "SELECT a.*, b.* FROM SA.A a, SA.B b WHERE a.k = b.k AND a.v = $(@n)" })
+      {
+         assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
+      }
+
+      for(String sql : new String[] {
+         "SELECT * FROM $(@srcTable) WHERE ORDER_ID = $(@n)",
+         "SELECT * FROM SA.A a, SA.$(@t) b WHERE a.ID = $(@n)",
+         "SELECT * FROM SA.A a JOIN $(@t) b ON a.ID = b.ID",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k, $(@t) c",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k, SA.$(@t) c WHERE a.x = $(@n)",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k JOIN $(@t) c ON c.k = a.k",
+         "SELECT * FROM (SELECT k FROM SA.U WHERE k = 1) s, $(@t) t",
+         "SELECT a.*, $(@t).* FROM SA.X a",
+         "SELECT *, $(@t).* FROM SA.X a",
+         "SELECT a.* , b.*, $(@t).*, c.* FROM SA.X a" })
+      {
+         assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
+      }
+   }
+
+   /** Bug #80180: long quoted literals must not overflow the stack in the guard. */
+   @Test
+   void wildcardMessageHandlesLongQuotedLiterals() {
+      String plain = "x".repeat(10_000) + " $(@n) " + "y".repeat(10_000);
+      String escaped = "it''s $(@n) ".repeat(2_000);
+
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE NAME = '" + plain + "'"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE NAME = '" + escaped + "'"));
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM $(@t) WHERE NAME = '" + plain + "'"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE NAME = '" + plain));
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM $(@t) WHERE NAME = '" + plain));
+   }
+
+   /** Bug #80180: long unquoted qualifier chains / unclosed placeholders must not overflow or stall. */
+   @Test
+   void wildcardMessageHandlesLongQualifierChainsAndUnclosedPlaceholders() {
+      for(String q : new String[] { "a.", "\"q\".", "$(@q).", "averyverylongidentifier." }) {
+         assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+            "SELECT $(@n), " + q.repeat(5_000) + "x FROM t"), q);
+         String chained = WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+            "SELECT $(@n), " + q.repeat(5_000) + "* FROM t");
+
+         if(q.startsWith("$(@")) {
+            assertNotNull(chained, q);
+         }
+         else {
+            assertNull(chained, q);
+         }
+
+         assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+            "SELECT " + q.repeat(5_000) + "* FROM $(@t)"), q);
+      }
+
+      long start = System.nanoTime();
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE X = " + "$(@".repeat(100_000)));
+      assertTrue(System.nanoTime() - start < 5_000_000_000L,
+                 "unclosed placeholders must scan in linear time");
+   }
+
    /** Bug #80054: add_sql_query surfaces the cause-naming message for {@code $(@t).*}. */
    @Test
    void addSqlQueryNamesPlaceholderQualifiedWildcardWhenParseFails() throws Exception {
