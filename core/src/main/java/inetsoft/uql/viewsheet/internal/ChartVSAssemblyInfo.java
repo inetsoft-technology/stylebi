@@ -220,6 +220,16 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Adds the chart's text, plot, legend, axis, shape and colour slots.
+    */
+   @Override
+   protected List<ChromeSlot> chromeSlots() {
+      List<ChromeSlot> slots = new ArrayList<>(super.chromeSlots());
+      slots.addAll(ChartChromeSlots.of(this));
+      return slots;
+   }
+
+   /**
     * Writes the mark-appropriate palette onto every bound colour aesthetic, so Modernize and Revert
     * keep the chart's colours in step with the rest of its chrome: the categorical palette on every
     * call, and the measure-to-colour ramp on a mark transition only.

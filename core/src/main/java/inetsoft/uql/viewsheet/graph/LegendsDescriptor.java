@@ -632,6 +632,25 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       return list;
    }
 
+   /**
+    * The tiered value behind one of the legends' look properties, by field name: borderColor,
+    * border, gap or padding.
+    */
+   public CompositeValue<?> chromeValue(String field) {
+      switch(field) {
+      case "borderColor":
+         return borderColor;
+      case "border":
+         return border;
+      case "gap":
+         return gap;
+      case "padding":
+         return padding;
+      default:
+         throw new IllegalArgumentException("Not a legends look property: " + field);
+      }
+   }
+
    public void resetCompositeValues(CompositeValue.Type type) {
       borderColor.resetValue(type);
       border.resetValue(type);

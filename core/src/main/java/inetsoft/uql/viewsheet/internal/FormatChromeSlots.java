@@ -229,10 +229,24 @@ public final class FormatChromeSlots {
          return;
       }
 
-      int style = author.getStyle();
+      user.setFontValue(withFamily(author, family));
+   }
+
+   /**
+    * The author's size, style and line styles in the given family.
+    */
+   static StyleFont withFamily(Font author, String family) {
       int underline = author instanceof StyleFont ? ((StyleFont) author).getUnderlineStyle() : 0;
       int strike = author instanceof StyleFont ? ((StyleFont) author).getStrikelineStyle() : 0;
-      user.setFontValue(new StyleFont(family, style, author.getSize(), underline, strike));
+      return new StyleFont(family, author.getStyle(), author.getSize(), underline, strike);
+   }
+
+   /**
+    * The family to rebuild a font in: Default for a default StyleFont, else its name.
+    */
+   static String familyOf(Font font) {
+      return font == null ? null :
+         StyleFont.isDefaultFont(font) ? StyleFont.DEFAULT_FONT_FAMILY : font.getName();
    }
 
    private static Color color(String value) {
@@ -245,8 +259,6 @@ public final class FormatChromeSlots {
    }
 
    private static String defaultFamily(VSCompositeFormat fmt) {
-      Font font = fmt == null ? null : fmt.getDefaultFormat().getFontValue();
-      return font == null ? null :
-         StyleFont.isDefaultFont(font) ? StyleFont.DEFAULT_FONT_FAMILY : font.getName();
+      return fmt == null ? null : familyOf(fmt.getDefaultFormat().getFontValue());
    }
 }
