@@ -3165,6 +3165,45 @@ class ChartAestheticMutatorTest {
                     "the measures disagree, so the read must say so");
    }
 
+   /** Bug #79998: the per-measure aesthetic field (with its calculator) must be readable. */
+   @Test
+   @SuppressWarnings("unchecked")
+   void multiAestheticDescribeExposesEachMeasuresFieldRefWithItsCalculator() {
+      ChartBindingModel model = multiStyleModel();
+      inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo running =
+         new inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo();
+      running.setAggregate("Sum");
+      running.setResetLevel(-1);
+      y(model, 0).setColorField(boundField(
+         "color", new FieldRef("Total", "measure", "Average", null, null, null, null, null,
+                               running),
+         palette("#111111")));
+
+      Map<String, Object> color = (Map<String, Object>) ChartAestheticMutator
+         .describe(model, false, ALL_PER_MEASURE, true, true, true, true).get("color");
+
+      assertNull(color.get("fieldRef"), "fieldRef stays the write-back binding, null in multi");
+      Map<String, Object> refs = (Map<String, Object>) color.get("fieldRefsByMeasure");
+      assertNotNull(refs);
+      FieldRef sales = assertInstanceOf(FieldRef.class, refs.get("Sales"));
+      assertEquals("Average", sales.aggregate());
+      assertInstanceOf(inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo.class,
+                       sales.calculateInfo());
+      FieldRef profit = assertInstanceOf(FieldRef.class, refs.get("Profit"));
+      assertNull(profit.calculateInfo());
+   }
+
+   @Test
+   void singleStyleDescribeHasNoFieldRefsByMeasure() {
+      ChartBindingModel model = multiStyleModel();
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color = (Map<String, Object>) ChartAestheticMutator
+         .describe(model, false, ALL_PER_MEASURE, true, true, true, false).get("color");
+
+      assertFalse(color.containsKey("fieldRefsByMeasure"));
+   }
+
    @Test
    @SuppressWarnings("unchecked")
    void multiAestheticDescribeReadsTheMeasuresEvenWhenTheChartLevelFieldIsGone() {
