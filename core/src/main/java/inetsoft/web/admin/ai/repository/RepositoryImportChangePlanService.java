@@ -124,6 +124,7 @@ public class RepositoryImportChangePlanService {
 
       List<BookmarkConflict> bookmarkConflicts = importService.getBookmarkConflicts(
          stagingToken, targetFolderPath, locationType, targetOwner, true, ignoreList, principal);
+      validateBookmarkResolutions(req.getBookmarkResolutions(), bookmarkConflicts);
 
       List<AssetExistenceEntry> willOverwrite = new ArrayList<>();
       List<AssetExistenceEntry> willCreate = new ArrayList<>();
@@ -213,6 +214,49 @@ public class RepositoryImportChangePlanService {
          .filter(a -> wanted.contains(a.name()))
          .map(a -> Integer.toString(a.index()))
          .collect(Collectors.toList());
+   }
+
+   /**
+    * Refuses every {@code bookmarkResolutions} entry that matches none of the bookmark conflicts
+    * computed for this same request (same target folder/owner/ignore list). The import keys a
+    * resolution by the exact string {@code viewsheetPath|user|bookmarkName} (no trimming or case
+    * folding, {@code user} being the {@link BookmarkConflict#user()} identity key rather than
+    * its label), so an entry that does not match a conflict key is silently dropped and the
+    * imported bookmark wins. Entries with {@code keepImported} true are validated too, since
+    * they are equally a no-op typo. Shared by preview and apply through {@link #resolve}.
+    */
+   static void validateBookmarkResolutions(
+      List<RepositoryImportRequest.BookmarkResolutionEntry> resolutions,
+      List<BookmarkConflict> conflicts)
+   {
+      if(resolutions == null || resolutions.isEmpty()) {
+         return;
+      }
+
+      Set<String> valid = new TreeSet<>();
+
+      if(conflicts != null) {
+         for(BookmarkConflict c : conflicts) {
+            valid.add(c.viewsheetPath() + "|" + c.user() + "|" + c.bookmarkName());
+         }
+      }
+
+      for(int i = 0; i < resolutions.size(); i++) {
+         RepositoryImportRequest.BookmarkResolutionEntry r = resolutions.get(i);
+
+         if(r == null || !valid.contains(
+            r.getViewsheetPath() + "|" + r.getUser() + "|" + r.getBookmarkName()))
+         {
+            throw new IllegalArgumentException(
+               "bookmarkResolutions[" + i + "]: no bookmark conflict for viewsheetPath=" +
+               (r == null ? null : r.getViewsheetPath()) + ", user=" +
+               (r == null ? null : r.getUser()) + ", bookmarkName=" +
+               (r == null ? null : r.getBookmarkName()) +
+               " (user must be the conflict's user key, not userLabel; valid conflicts as " +
+               "viewsheetPath|user|bookmarkName: " +
+               (valid.isEmpty() ? "none" : String.join("; ", valid)) + ")");
+         }
+      }
    }
 
    private static String requireNonBlank(String field, String value) {
