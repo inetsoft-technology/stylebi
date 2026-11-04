@@ -17,10 +17,12 @@
  */
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.report.TableLens;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.function.BiConsumer;
 
 public class ExportResponse {
    public ExportResponse(OutputStream output) {
@@ -70,6 +72,19 @@ public class ExportResponse {
       }
    }
 
+   /**
+    * Optional observer a CSV export calls with each table assembly name and its lens just before
+    * the table is written (Bug #80182).
+    */
+   public BiConsumer<String, TableLens> getTableObserver() {
+      return tableObserver;
+   }
+
+   public void setTableObserver(BiConsumer<String, TableLens> tableObserver) {
+      this.tableObserver = tableObserver;
+   }
+
+   private BiConsumer<String, TableLens> tableObserver;
    private final OutputStream output;
    private final HttpServletResponse response;
 }
