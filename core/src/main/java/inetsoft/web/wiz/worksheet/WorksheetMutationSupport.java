@@ -780,39 +780,59 @@ public final class WorksheetMutationSupport {
    }
 
    /**
-    * Indexes of the condition items in {@code list} on {@code field} -- matched by the
-    * attribute's name or its attribute, the rule {@link #removeFilter} and
-    * {@link #replaceFilter} share.
+    * Indexes of the condition items in {@code list} on {@code field}, the rule
+    * {@link #removeFilter}, {@link #replaceFilter} and {@link #storedNumericType} share.
+    *
+    * <p>Bug #80178 (wbs-246): a condition is named by its {@code getName()} or by its output
+    * name (the alias if set, else the bare attribute -- what read_worksheet_model reports). On a
+    * join or mirror the un-aliased column's {@code getName()} is entity-qualified
+    * ({@code ORDERS.CUSTOMER_ID}) while its output name is bare, and a self-join copy has the
+    * alias ({@code CUSTOMER_ID_1}) for both. Only when no condition carries the requested name
+    * does the underlying attribute match, and then never for an aliased column: the copy
+    * {@code CUSTOMER_ID_1} is not the column {@code CUSTOMER_ID}.</p>
     */
    private static List<Integer> filterMatches(ConditionList list, String field) {
-      List<Integer> matches = new ArrayList<>();
+      List<Integer> named = new ArrayList<>();
+      List<Integer> byAttribute = new ArrayList<>();
 
       for(int i = 0; i < list.getSize(); i++) {
          if(list.getItem(i) instanceof ConditionItem ci) {
             DataRef attr = ci.getAttribute();
 
-            if(field.equals(attr.getName()) || field.equals(attr.getAttribute())) {
-               matches.add(i);
+            if(field.equals(attr.getName()) || field.equals(conditionOutputName(attr))) {
+               named.add(i);
+            }
+            else if(field.equals(attr.getAttribute()) && !isAliased(attr)) {
+               byAttribute.add(i);
             }
          }
       }
 
-      return matches;
+      return named.isEmpty() ? byAttribute : named;
    }
 
-   /** Indexes of the condition items whose attribute name is exactly {@code field}. */
-   private static List<Integer> exactNameMatches(ConditionList list, String field) {
-      List<Integer> matches = new ArrayList<>();
+   private static ColumnRef innerColumn(DataRef ref) {
+      DataRef inner = ref;
 
-      for(int i = 0; i < list.getSize(); i++) {
-         if(list.getItem(i) instanceof ConditionItem ci &&
-            field.equals(ci.getAttribute().getName()))
-         {
-            matches.add(i);
-         }
+      if(ref instanceof AggregateRef ar) {
+         inner = ar.getDataRef();
+      }
+      else if(ref instanceof GroupRef gr) {
+         inner = gr.getDataRef();
       }
 
-      return matches;
+      return inner instanceof ColumnRef cr ? cr : null;
+   }
+
+   /** The name a condition's column is shown under: its alias if set, else the bare attribute. */
+   private static String conditionOutputName(DataRef ref) {
+      ColumnRef cr = innerColumn(ref);
+      return cr != null && cr.getAlias() != null && !cr.getAlias().isBlank()
+         ? cr.getAlias() : ref.getAttribute();
+   }
+
+   private static boolean isAliased(DataRef ref) {
+      return !conditionOutputName(ref).equals(ref.getAttribute());
    }
 
    /**
@@ -847,13 +867,7 @@ public final class WorksheetMutationSupport {
       }
 
       ConditionList src = existing.getConditionList();
-      // Bug #80178 (wbs-246): a self-join copy (alias CUSTOMER_ID_1 over base CUSTOMER_ID) also
-      // matches a request for the base name through getAttribute(), so removing CUSTOMER_ID took
-      // the copy's condition with it. A condition whose own name is the requested field is the
-      // one named; the attribute match is only the fallback when no condition carries that name.
-      List<Integer> nameMatches = exactNameMatches(src, field);
-      java.util.Set<Integer> removeIdx = new java.util.HashSet<>(
-         nameMatches.isEmpty() ? filterMatches(src, field) : nameMatches);
+      java.util.Set<Integer> removeIdx = new java.util.HashSet<>(filterMatches(src, field));
 
       if(removeIdx.isEmpty()) {
          return;

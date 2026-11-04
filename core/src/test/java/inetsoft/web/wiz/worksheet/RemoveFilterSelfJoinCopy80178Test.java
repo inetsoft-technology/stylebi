@@ -24,6 +24,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static inetsoft.web.wiz.worksheet.WorksheetMutationSupport.removeFilter;
 import static inetsoft.web.wiz.worksheet.WorksheetMutationSupport.replaceFilter;
@@ -31,18 +33,27 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #80178 (wbs-246): on a self-join the copy column CUSTOMER_ID_1 is the base column
- * CUSTOMER_ID under an alias, so its {@code getAttribute()} is also CUSTOMER_ID. remove_filter
- * matched by name OR attribute and removed both conditions when asked for CUSTOMER_ID.
+ * CUSTOMER_ID under an alias, so its {@code getAttribute()} is also CUSTOMER_ID. On a real join
+ * the base column's {@code getName()} is entity-qualified (ORDERS.CUSTOMER_ID), so the
+ * conditions are named by their output name (alias, else bare attribute), never by getName().
  */
 @Tag("core")
 @WizAgentTestSupport
 class RemoveFilterSelfJoinCopy80178Test {
-   private static BoundTableAssembly table(boolean filterOriginal, boolean filterCopy) {
+   private static final String BASE = "CUSTOMER_ID";
+   private static final String COPY = "CUSTOMER_ID_1";
+
+   /**
+    * @param entities true builds the refs like a real join (entity = sub-table name on both),
+    *                 false builds them with a null entity
+    * @param conds    ordered conditions as "base:>:1", "copy:=:2"; AND-joined
+    */
+   private static BoundTableAssembly table(boolean entities, String... conds) {
       Worksheet ws = new Worksheet();
       BoundTableAssembly t = new BoundTableAssembly(ws, "T");
-      ColumnRef original = new ColumnRef(new AttributeRef(null, "CUSTOMER_ID"));
-      ColumnRef copy = new ColumnRef(new AttributeRef(null, "CUSTOMER_ID"));
-      copy.setAlias("CUSTOMER_ID_1");
+      ColumnRef original = new ColumnRef(new AttributeRef(entities ? "ORDERS" : null, BASE));
+      ColumnRef copy = new ColumnRef(new AttributeRef(entities ? "ORDERS1" : null, BASE));
+      copy.setAlias(COPY);
       ColumnSelection cs = new ColumnSelection();
       cs.addAttribute(original);
       cs.addAttribute(copy);
@@ -50,16 +61,14 @@ class RemoveFilterSelfJoinCopy80178Test {
 
       ConditionList cl = new ConditionList();
 
-      if(filterOriginal) {
-         cl.append(item(original, "1"));
-      }
+      for(String spec : conds) {
+         String[] p = spec.split(":");
 
-      if(filterCopy) {
          if(!cl.isEmpty()) {
             cl.append(new JunctionOperator(JunctionOperator.AND, 0));
          }
 
-         cl.append(item(copy, "2"));
+         cl.append(item("base".equals(p[0]) ? original : copy, Integer.parseInt(p[1]), p[2]));
       }
 
       t.setPreConditionList(cl);
@@ -67,13 +76,14 @@ class RemoveFilterSelfJoinCopy80178Test {
       return t;
    }
 
-   private static ConditionItem item(ColumnRef ref, String value) {
+   private static ConditionItem item(ColumnRef ref, int op, String value) {
       Condition c = new Condition(XSchema.STRING);
-      c.setOperation(XCondition.EQUAL_TO);
+      c.setOperation(op);
       c.addValue(value);
       return new ConditionItem(ref, c, 0);
    }
 
+   /** Output names (alias else bare attribute) and operation of the survivors. */
    private static String remaining(BoundTableAssembly t) {
       ConditionListWrapper w = t.getPreConditionList();
 
@@ -86,48 +96,109 @@ class RemoveFilterSelfJoinCopy80178Test {
 
       for(int i = 0; i < cl.getSize(); i++) {
          if(cl.getItem(i) instanceof ConditionItem ci) {
-            sb.append(ci.getAttribute().getName()).append(';');
+            ColumnRef cr = (ColumnRef) ci.getAttribute();
+            String out = cr.getAlias() != null ? cr.getAlias() : cr.getAttribute();
+            sb.append(out).append(((Condition) ci.getXCondition()).getOperation())
+               .append(';');
          }
       }
 
       return sb.toString();
    }
 
-   @Test
-   void removingTheBaseNameKeepsTheCopysCondition() {
-      BoundTableAssembly t = table(true, true);
+   private static final int EQ = XCondition.EQUAL_TO;
+   private static final int GT = XCondition.GREATER_THAN;
+   private static final int LT = XCondition.LESS_THAN;
 
-      removeFilter(t, "CUSTOMER_ID");
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void removingTheBaseNameKeepsTheCopysConditionBothOrders(boolean entities) {
+      BoundTableAssembly t = table(entities, "base:" + EQ + ":1", "copy:" + GT + ":2");
+      removeFilter(t, BASE);
+      assertEquals(COPY + GT + ";", remaining(t));
 
-      assertEquals("CUSTOMER_ID_1;", remaining(t));
+      t = table(entities, "copy:" + GT + ":2", "base:" + EQ + ":1");
+      removeFilter(t, BASE);
+      assertEquals(COPY + GT + ";", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void removingTheCopyNameKeepsTheBaseConditionBothOrders(boolean entities) {
+      BoundTableAssembly t = table(entities, "base:" + EQ + ":1", "copy:" + GT + ":2");
+      removeFilter(t, COPY);
+      assertEquals(BASE + EQ + ";", remaining(t));
+
+      t = table(entities, "copy:" + GT + ":2", "base:" + EQ + ":1");
+      removeFilter(t, COPY);
+      assertEquals(BASE + EQ + ";", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void removingTheBaseNameRemovesEveryBaseConditionAndKeepsTheCopy(boolean entities) {
+      BoundTableAssembly t = table(entities,
+         "base:" + GT + ":1", "base:" + LT + ":9", "copy:" + EQ + ":5");
+      removeFilter(t, BASE);
+      assertEquals(COPY + EQ + ";", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void aCopyOnlyFilterIsNotTakenForTheBaseColumn(boolean entities) {
+      BoundTableAssembly t = table(entities, "copy:" + GT + ":2");
+      removeFilter(t, BASE);
+      assertEquals(COPY + GT + ";", remaining(t));
    }
 
    @Test
-   void removingTheCopyNameKeepsTheBaseCondition() {
-      BoundTableAssembly t = table(true, true);
-
-      removeFilter(t, "CUSTOMER_ID_1");
-
-      assertEquals("CUSTOMER_ID;", remaining(t));
-   }
-
-   @Test
-   void theAttributeStillMatchesWhenNoConditionCarriesTheRequestedName() {
-      BoundTableAssembly t = table(false, true);
-
-      removeFilter(t, "CUSTOMER_ID");
-
+   void aBaseOnlyFilterIsRemovedByItsName() {
+      BoundTableAssembly t = table(true, "base:" + EQ + ":1");
+      removeFilter(t, BASE);
       assertEquals("", remaining(t));
    }
 
    @Test
-   void replaceFilterStillRefusesWhenTwoConditionsMatch() {
-      BoundTableAssembly t = table(true, true);
+   void theEntityQualifiedNameStillNamesTheBaseCondition() {
+      BoundTableAssembly t = table(true, "base:" + EQ + ":1", "copy:" + GT + ":2");
+      removeFilter(t, "ORDERS." + BASE);
+      assertEquals(COPY + GT + ";", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void replaceFilterOnTheBaseNameEditsOnlyTheBaseCondition(boolean entities) {
+      BoundTableAssembly t = table(entities, "base:" + EQ + ":1", "copy:" + GT + ":2");
+      replaceFilter(t, BASE, ">", "9");
+      assertEquals(BASE + GT + ";" + COPY + GT + ";", remaining(t));
+   }
+
+   @Test
+   void replaceFilterOnTheCopyNameEditsOnlyTheCopyCondition() {
+      BoundTableAssembly t = table(true, "base:" + EQ + ":1", "copy:" + GT + ":2");
+      replaceFilter(t, COPY, "<", "9");
+      assertEquals(BASE + EQ + ";" + COPY + LT + ";", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void replaceFilterWithOnlyTheCopyFilteredDoesNotMoveItToTheBaseColumn(boolean entities) {
+      BoundTableAssembly t = table(entities, "copy:" + GT + ":2");
+      replaceFilter(t, BASE, "=", "9");
+      // The copy's condition is untouched; the base column gets its own new condition.
+      assertEquals(COPY + GT + ";" + BASE + EQ + ";", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void replaceFilterStillRefusesWhenTwoConditionsOnTheSameColumnMatch(boolean entities) {
+      BoundTableAssembly t = table(entities,
+         "base:" + GT + ":1", "base:" + LT + ":9", "copy:" + EQ + ":5");
 
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-         () -> replaceFilter(t, "CUSTOMER_ID", "=", "9"));
+         () -> replaceFilter(t, BASE, "=", "9"));
 
       assertTrue(e.getMessage().contains("2 conditions"), e.getMessage());
-      assertEquals("CUSTOMER_ID;CUSTOMER_ID_1;", remaining(t));
+      assertEquals(BASE + GT + ";" + BASE + LT + ";" + COPY + EQ + ";", remaining(t));
    }
 }
