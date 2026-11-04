@@ -169,20 +169,26 @@ public class ParameterDiscoveryService {
          return text;
       }
 
+      InputVSAssembly named = findNameOwner(vs, name);
+
+      if(named != null) {
+         String text = "'" + name + "' matches the name of input assembly '" + named.getName() +
+            "'; collect_parameters does not offer a parameter that shares an input " +
+            "assembly's name, so set_parameters will not set it. To set that input, use " +
+            "set_input_value.";
+
+         if(disabled) {
+            text += " It is also listed in this viewsheet's disabledParameters.";
+         }
+
+         return text;
+      }
+
       if(disabled) {
          return "'" + name + "' is listed in this viewsheet's disabledParameters, so " +
             "set_parameters will not set it. To make it settable, remove it from " +
             "disabledParameters with set_viewsheet_properties. collect_parameters lists what " +
             "is settable here.";
-      }
-
-      InputVSAssembly named = findNameOwner(vs, name);
-
-      if(named != null) {
-         return "'" + name + "' matches the name of input assembly '" + named.getName() +
-            "'; collect_parameters does not offer a parameter that shares an input " +
-            "assembly's name, so set_parameters will not set it. To set that input, use " +
-            "set_input_value.";
       }
 
       return null;

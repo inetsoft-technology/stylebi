@@ -113,6 +113,37 @@ class ParameterMissingReasonTest {
    }
 
    @Test
+   void disabledAndTopLevelNameOnlyDoesNotAdviseRemoval() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(input("Combo1", null));
+      vs.getViewsheetInfo().addDisabledVariable("Combo1");
+
+      String msg = refusal(vs, "Combo1");
+
+      assertTrue(msg.contains("input assembly 'Combo1'"), msg);
+      assertTrue(msg.contains("disabledParameters"), msg);
+      assertFalse(msg.contains("remove it"), msg);
+      assertFalse(msg.contains("set_viewsheet_properties"), msg);
+   }
+
+   @Test
+   void disabledAndNestedLeafNameOnlyDoesNotAdviseRemoval() {
+      Viewsheet outer = new Viewsheet();
+      Viewsheet nested = new Viewsheet();
+      nested.getVSAssemblyInfo().setName("Nested1");
+      nested.addAssembly(input("LeafInput", null));
+      outer.addAssembly(nested);
+      outer.getViewsheetInfo().addDisabledVariable("LeafInput");
+
+      String msg = refusal(outer, "LeafInput");
+
+      assertTrue(msg.contains("input assembly 'LeafInput'"), msg);
+      assertTrue(msg.contains("disabledParameters"), msg);
+      assertFalse(msg.contains("remove it"), msg);
+      assertFalse(msg.contains("set_viewsheet_properties"), msg);
+   }
+
+   @Test
    void nameOnlyMatchDoesNotAssertAParameterExists() {
       Viewsheet vs = new Viewsheet();
       vs.addAssembly(input("TextInput1", null));
