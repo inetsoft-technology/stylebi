@@ -4226,6 +4226,102 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #80308: the bulk {@code refresh_data {}} form (no {@code table}) must also refresh a
+    * {@code TabularTableAssembly}'s own stored {@code ColumnSelection} -- mirrors
+    * {@code refreshDataDiscoversColumnsForANeverRunTabularQuery}'s single-table assertion, but
+    * through the all-tables branch ({@code refreshDataRequest(null)}).
+    */
+   @Test
+   void refreshDataAllTablesDiscoversColumnsForANeverRunTabularQuery() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly table = spy(new TabularTableAssembly(ws, "Table1"));
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      doNothing().when(table).loadColumnSelection(any(), anyBoolean(), any());
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD80308a"), any())).thenReturn(session("TOK-RD80308a"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD80308a", refreshDataRequest(null), agent);
+      }
+
+      verify(table).loadColumnSelection(any(), eq(true), any());
+   }
+
+   /**
+    * Bug #80308: a {@code TabularTableAssembly} whose {@code loadColumnSelection} throws (e.g. its
+    * upstream schema became unreachable) must not abort the bulk loop -- the next table in the same
+    * {@code refresh_data {}} request still gets its column selection refreshed, mirroring
+    * {@code forceRuntimeRead}'s own existing per-table {@code PairingException} containment.
+    */
+   @Test
+   void refreshDataAllTablesContinuesPastATabularTableWhoseColumnSelectionFails() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly failing = spy(new TabularTableAssembly(ws, "TableA"));
+      failing.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      doThrow(new RuntimeException("TableA schema unreachable"))
+         .when(failing).loadColumnSelection(any(), anyBoolean(), any());
+      ws.addAssembly(failing);
+
+      TabularTableAssembly healthy = spy(new TabularTableAssembly(ws, "TableB"));
+      healthy.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query2"));
+      doNothing().when(healthy).loadColumnSelection(any(), anyBoolean(), any());
+      ws.addAssembly(healthy);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD80308b"), any())).thenReturn(session("TOK-RD80308b"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ex = assertThrows(PairingException.class,
+            () -> ctrl.edit("TOK-RD80308b", refreshDataRequest(null), agent));
+      }
+
+      assertTrue(ex.getMessage().contains("TableA schema unreachable"), ex.getMessage());
+      verify(failing).loadColumnSelection(any(), eq(true), any());
+      verify(healthy).loadColumnSelection(any(), eq(true), any());
+      verify(box).getTableLens("TableB", AssetQuerySandbox.RUNTIME_MODE);
+   }
+
+   /**
     * #8: an invalid table (here, the same missing-SourceInfo shape the sibling tests above now
     * avoid) must refuse loudly instead of silently proceeding -- mirrors
     * {@code WorksheetEventUtil.refreshAssembly}'s own {@code checkValidity()} gate, which the UI's
