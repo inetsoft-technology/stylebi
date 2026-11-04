@@ -23,7 +23,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.RecycleUtils;
@@ -102,44 +101,111 @@ public class RecycleBinService {
          "have been restored/purged, or you may not have permission to see it"));
    }
 
+   /** What currently occupies a restore destination. Only {@link #SAME_TYPE_SHEET} can actually be
+    * overwritten -- {@code RecycleUtils.restoreSheet}'s {@code removeSheet} call is keyed by the
+    * destination {@code AssetEntry}'s own type (an {@code AssetEntry}'s {@code equals}/{@code
+    * hashCode}/{@code toIdentifier} all embed its type), so it cannot remove a differently-typed
+    * occupant at all; it only adds the restored sheet beside it. {@code restoreWSFolder}'s overwrite
+    * branch goes further and never touches the destination either way -- it merges the trashed
+    * folder's children in and discards the trash folder. */
+   public enum Occupant {
+      NONE, SAME_TYPE_SHEET, FOLDER, SNAPSHOT, WORKSHEET;
+
+      public boolean occupied() {
+         return this != NONE;
+      }
+
+      public boolean overwritable() {
+         return this == SAME_TYPE_SHEET;
+      }
+
+      /** Human-readable noun for the occupant, given the restored entry's own type label. */
+      public String describe(String draftType) {
+         switch(this) {
+         case FOLDER:
+            return "folder";
+         case SNAPSHOT:
+            return "viewsheet snapshot";
+         case WORKSHEET:
+            return "worksheet";
+         default:
+            return draftType;
+         }
+      }
+   }
+
    /**
-    * Whether restoring {@code entry} to its own {@code originalPath} would collide with something
-    * already occupying that destination -- mirrors the exact duplicate check {@code
-    * RecycleUtils.restoreSheet}/{@code restoreWSFolder} run internally via {@code
-    * AssetUtil.isDuplicatedEntry}, and the {@code registry.isFolder} check {@code
-    * RecycleUtils.restoreRepositoryFolder} runs for a repository (dashboard) folder, exposed here
-    * so {@link RecycleBinChangePlanService} can classify risk -- and refuse loud -- BEFORE ever
-    * calling the real, mutating restore (track-a-recycle-bin/01-design.md section 4 risk 1).
+    * Classifies what already occupies {@code entry}'s own {@code originalPath} for a restore --
+    * probes the same asset types {@code AssetUtil.isDuplicatedEntry} does (the check {@code
+    * RecycleUtils.restoreSheet}/{@code restoreWSFolder} run internally), but keeps the occupant's
+    * kind instead of collapsing it to a boolean, exposed here so {@link RecycleBinChangePlanService}
+    * can classify risk -- and refuse loud -- BEFORE ever calling the real, mutating restore
+    * (track-a-recycle-bin/01-design.md section 4 risk 1).
+    *
+    * <p>The repository (dashboard) folder branch is unchanged from this method's own former
+    * {@code wouldCollide} shape: {@code RecycleUtils.restoreRepositoryFolder} checks {@code
+    * registry.isFolder(originalPath)}, a {@code RepletRegistry} label with no {@code AssetEntry}
+    * type concept at all, and its only positive signal already names a folder -- the same type a
+    * recycled repository folder entry itself declares -- so there is nothing to misclassify there.
     */
-   public boolean wouldCollide(RecycleBin.Entry entry) throws Exception {
+   public Occupant occupantOf(RecycleBin.Entry entry) throws Exception {
       if(entry.isSheet()) {
          String originalPath = entry.getOriginalPath();
          originalPath = SUtil.isMyDashboard(originalPath) ?
             originalPath.substring(Tool.MY_DASHBOARD.length() + 1) : originalPath;
-         AssetEntry candidate = new AssetEntry(entry.getOriginalScope(),
-            entry.getType() == RepositoryEntry.WORKSHEET ?
-               AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET,
-            originalPath, entry.getOriginalUser());
-         return AssetUtil.isDuplicatedEntry(assetRepository, candidate);
+         int scope = entry.getOriginalScope();
+         IdentityID owner = entry.getOriginalUser();
+         boolean worksheet = entry.getType() == RepositoryEntry.WORKSHEET;
+
+         if(worksheet) {
+            if(contains(AssetEntry.Type.FOLDER, originalPath, scope, owner)) {
+               return Occupant.FOLDER;
+            }
+         }
+         else {
+            if(contains(AssetEntry.Type.REPOSITORY_FOLDER, originalPath, scope, owner)) {
+               return Occupant.FOLDER;
+            }
+
+            if(contains(AssetEntry.Type.VIEWSHEET_SNAPSHOT, originalPath, scope, owner)) {
+               return Occupant.SNAPSHOT;
+            }
+         }
+
+         AssetEntry.Type sheetType = worksheet ? AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET;
+         return contains(sheetType, originalPath, scope, owner) ?
+            Occupant.SAME_TYPE_SHEET : Occupant.NONE;
       }
 
       if(entry.isWSFolder()) {
-         AssetEntry candidate = new AssetEntry(entry.getOriginalScope(), AssetEntry.Type.FOLDER,
-            entry.getOriginalPath(), entry.getOriginalUser());
-         return AssetUtil.isDuplicatedEntry(assetRepository, candidate);
+         String originalPath = entry.getOriginalPath();
+         int scope = entry.getOriginalScope();
+         IdentityID owner = entry.getOriginalUser();
+
+         if(contains(AssetEntry.Type.WORKSHEET, originalPath, scope, owner)) {
+            return Occupant.WORKSHEET;
+         }
+
+         return contains(AssetEntry.Type.FOLDER, originalPath, scope, owner) ?
+            Occupant.SAME_TYPE_SHEET : Occupant.NONE;
       }
 
-      // Repository (dashboard) folder: RecycleUtils.restoreRepositoryFolder itself checks
-      // registry.isFolder(originalPath), not AssetUtil.isDuplicatedEntry -- a repository folder is
-      // a RepletRegistry label, not an AssetRepository entry.
+      // Repository (dashboard) folder -- see this method's own javadoc for why this branch keeps
+      // wouldCollide's former registry.isFolder check unchanged rather than an AssetUtil probe.
       RepletRegistry registry = RecycleUtils.getRegistry(entry.getOriginalPath(),
          entry.getOriginalUser());
-      return registry.isFolder(entry.getOriginalPath());
+      return registry.isFolder(entry.getOriginalPath()) ? Occupant.SAME_TYPE_SHEET : Occupant.NONE;
+   }
+
+   private boolean contains(AssetEntry.Type type, String path, int scope, IdentityID owner)
+      throws Exception
+   {
+      return assetRepository.containsEntry(new AssetEntry(scope, type, path, owner));
    }
 
    /**
     * Verifies that the recycled asset {@code entry} points at is still resolvable at its own trash
-    * path -- the source-side twin of {@link #wouldCollide}, mirroring the lookups {@code
+    * path -- the source-side twin of {@link #occupantOf}, mirroring the lookups {@code
     * RecycleUtils.restoreSheet}/{@code restoreWSFolder} run internally ({@code getSheetEntry}/{@code
     * getAssetEntry}/{@code getFolderAssetEntry}) and throw on, and the {@code RecycleUtils.getRegistry}
     * load {@code restoreRepositoryFolder} opens with, exposed here so {@code
@@ -212,7 +278,7 @@ public class RecycleBinService {
 
       // Repository (dashboard) folder: restoreRepositoryFolder opens with this same registry load,
       // the only thing it does before checkParentFolderExist starts mutating -- the same gate
-      // applyPurge's own repository-folder branch already uses. Today wouldCollide happens to run
+      // applyPurge's own repository-folder branch already uses. Today occupantOf happens to run
       // the identical load a few lines earlier on the restore path, so this is belt-and-braces
       // there; it is kept so this method's own contract holds for all three entry kinds rather
       // than silently no-opping for one of them.
