@@ -267,6 +267,7 @@ class MVAnalysisOwnershipTest {
       assertThrows(IllegalStateException.class,
                    () -> controller.setCycle(ID, request, foreignOrgAdmin));
       verify(mvManager, never()).add(any(MVDef.class), anyBoolean());
+      verify(mvManager, never()).add(any(MVDef.class), anyBoolean(), anyString());
       verifyNoInteractions(mvService);
 
       // positive control: the owner's set-cycle writes and keeps the owner's access
