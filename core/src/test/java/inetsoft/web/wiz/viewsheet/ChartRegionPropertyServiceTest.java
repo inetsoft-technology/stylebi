@@ -1815,7 +1815,7 @@ class ChartRegionPropertyServiceTest {
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
       assertTrue(props.stream().noneMatch(p -> p.containsKey("applies")));
-      assertNull(listed.get("note"));
+      assertFalse(String.valueOf(listed.get("note")).contains("dimension/date"));
    }
 
    /**
@@ -2454,6 +2454,7 @@ class ChartRegionPropertyServiceTest {
    void aDateMeasureAxisTakesADateRangeAndStoresItExactly() throws Exception {
       VSChartAggregateRef date = mock(VSChartAggregateRef.class);
       when(date.isDiscrete()).thenReturn(false);
+      when(date.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
       when(date.getFullName()).thenReturn("Max(ORDER_DATE)");
       when(date.getName()).thenReturn("ORDER_DATE");
       when(date.getDataType()).thenReturn(XSchema.DATE);
@@ -2611,6 +2612,353 @@ class ChartRegionPropertyServiceTest {
                                                    anyString(), any(Principal.class), any());
       assertTrue(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
                     .isEmpty());
+   }
+
+   private static void verifyNoAxisWrite(Harness h) throws Exception {
+      verify(h.regions, never()).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+   }
+
+   private static void verifyAxisWritten(Harness h) throws Exception {
+      verify(h.regions).setAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyInt(), any(), any(), anyString(),
+         any(Principal.class), any());
+   }
+
+   /** A harness whose axis dialog returns an axis already holding the given stored scale values. */
+   private static Harness scaleHarness(String min, String max, String increment, String minor)
+      throws Exception
+   {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAxisLinePaneModel().setMinimum(min);
+      model.getAxisLinePaneModel().setMaximum(max);
+      model.getAxisLinePaneModel().setIncrement(increment);
+      model.getAxisLinePaneModel().setMinorIncrement(minor);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+      return h;
+   }
+
+   private static void setAxis(Harness h, Map<String, Object> patch) throws Exception {
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null, patch, "");
+   }
+
+   private static Exception refusedAxis(Harness h, Map<String, Object> patch) throws Exception {
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> setAxis(h, patch));
+      verifyNoAxisWrite(h);
+      return thrown;
+   }
+
+   /** Bug #80321: minimum must stay below maximum, whichever side the patch writes. */
+   @Test
+   void refusesAMinimumNotBelowTheMaximum() throws Exception {
+      Exception both = refusedAxis(scaleHarness(null, null, null, null),
+                                   Map.of("minimum", "100", "maximum", "10"));
+      assertTrue(both.getMessage().contains("minimum"), both.getMessage());
+      assertTrue(both.getMessage().contains("maximum"), both.getMessage());
+
+      refusedAxis(scaleHarness(null, null, null, null),
+                  Map.of("minimum", "10", "maximum", "10"));
+   }
+
+   @Test
+   void judgesAPartialRangeWriteAgainstTheStoredOtherSide() throws Exception {
+      Exception onlyMax = refusedAxis(scaleHarness("50.0", null, null, null),
+                                      Map.of("maximum", "10"));
+      assertTrue(onlyMax.getMessage().contains("maximum"), onlyMax.getMessage());
+
+      refusedAxis(scaleHarness(null, "5.0E7", null, null), Map.of("minimum", "6e7"));
+   }
+
+   @Test
+   void acceptsAValidRangeAndClearingOneSide() throws Exception {
+      Harness h = scaleHarness("50.0", "100.0", null, null);
+      setAxis(h, Map.of("minimum", "0", "maximum", "200.5"));
+      verifyAxisWritten(h);
+
+      Harness cleared = scaleHarness("50.0", "100.0", null, null);
+      setAxis(cleared, Map.of("maximum", ""));
+      verifyAxisWritten(cleared);
+   }
+
+   @Test
+   void doesNotBlockAnUnrelatedWriteBecauseOfAnInvalidStoredRange() throws Exception {
+      Harness h = scaleHarness("100.0", "10.0", null, null);
+      setAxis(h, Map.of("showAxisLine", false));
+      verifyAxisWritten(h);
+   }
+
+   @Test
+   void refusesIncrementsAtOrBelowZero() throws Exception {
+      for(String bad : List.of("0", "-100000")) {
+         Exception thrown = refusedAxis(scaleHarness(null, null, null, null),
+                                        Map.of("increment", bad));
+         assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+      }
+
+      Exception minor = refusedAxis(scaleHarness(null, null, null, null),
+                                    Map.of("minorIncrement", "0"));
+      assertTrue(minor.getMessage().contains("minorIncrement"), minor.getMessage());
+   }
+
+   @Test
+   void refusesAMinorIncrementNotBelowTheIncrement() throws Exception {
+      Exception thrown = refusedAxis(scaleHarness(null, null, null, null),
+                                     Map.of("increment", "100", "minorIncrement", "1000"));
+      assertTrue(thrown.getMessage().contains("minorIncrement"), thrown.getMessage());
+
+      refusedAxis(scaleHarness(null, null, "100.0", null), Map.of("minorIncrement", "100"));
+      refusedAxis(scaleHarness(null, null, null, "50.0"), Map.of("increment", "10"));
+   }
+
+   @Test
+   void acceptsAValidIncrementPair() throws Exception {
+      Harness h = scaleHarness(null, null, null, null);
+      setAxis(h, Map.of("increment", "100", "minorIncrement", "0.5"));
+      verifyAxisWritten(h);
+   }
+
+   @Test
+   void enforcesTheDialogsInt32LimitsWithoutRejectingTheLimitsThemselves() throws Exception {
+      refusedAxis(scaleHarness(null, null, null, null), Map.of("maximum", "2147483648"));
+      refusedAxis(scaleHarness(null, null, null, null), Map.of("minimum", "-2147483649"));
+      refusedAxis(scaleHarness(null, null, null, null), Map.of("increment", "2147483648"));
+
+      Harness h = scaleHarness(null, null, null, null);
+      setAxis(h, Map.of("minimum", "-2147483648", "maximum", "2147483647",
+                        "increment", "2147483647", "minorIncrement", "1"));
+      verifyAxisWritten(h);
+   }
+
+   /** Bug #80321: a Mekko y axis lists the keys it ignores as not applying, as list and set agree. */
+   @Test
+   void listsTheMekkoYAxisKeysAsInapplicable() throws Exception {
+      Harness h = mekkoHarness();
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "y", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+
+      for(String key : List.of("minimum", "maximum", "increment", "minorIncrement",
+                               "logarithmicScale", "reverse", "shared", "labelOnSecondaryAxis"))
+      {
+         Map<String, Object> one = props.stream().filter(p -> key.equals(p.get("name")))
+            .findFirst().orElseThrow();
+         assertEquals(false, one.get("applies"), key);
+         assertTrue(String.valueOf(one.get("reason")).contains("Marimekko"), key);
+      }
+
+      Map<String, Object> shown = props.stream()
+         .filter(p -> "showAxisLine".equals(p.get("name"))).findFirst().orElseThrow();
+      assertFalse(shown.containsKey("applies"));
+   }
+
+   @Test
+   void doesNotListScaleKeysAsInapplicableOnANonMekkoAxis() throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>)
+         h.service.list("tok", principal(), "Chart1", "axis", "y", null).get("properties");
+
+      assertTrue(props.stream().filter(p -> "minimum".equals(p.get("name")))
+                    .noneMatch(p -> p.containsKey("applies")));
+   }
+
+   /** Writing back defaults (false, empty, null) on a Mekko y axis sets nothing, so it is accepted. */
+   @Test
+   void acceptsNoOpValuesOfTheScaleKeysOnTheMekkoYAxis() throws Exception {
+      Harness h = mekkoHarness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("reverse", false);
+      patch.put("logarithmicScale", "false");
+      patch.put("shared", false);
+      patch.put("minimum", "");
+      patch.put("maximum", null);
+      patch.put("increment", "");
+      patch.put("minorIncrement", null);
+
+      setAxis(h, patch);
+
+      verifyAxisWritten(h);
+   }
+
+   @Test
+   void stillRefusesARealValueNextToNoOpValuesOnTheMekkoYAxis() throws Exception {
+      Harness h = mekkoHarness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("reverse", false);
+      patch.put("minimum", "5");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> setAxis(h, patch));
+
+      assertTrue(thrown.getMessage().contains("minimum"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("reverse"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+   }
+
+   /** The Composer's time-series increment gets the same positive-number validator (bug #80321). */
+   @Test
+   void refusesANonPositiveOrOversizedIncrementOnATimeAxis() throws Exception {
+      for(String bad : List.of("0", "-100000", "2147483648")) {
+         Harness h = timeAxisHarness();
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+                                         () -> setAxis(h, Map.of("increment", bad)));
+         assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+         verifyNoAxisWrite(h);
+      }
+   }
+
+   @Test
+   void stillAcceptsAPositiveIncrementAndDatesOnATimeAxis() throws Exception {
+      Harness h = timeAxisHarness();
+
+      setAxis(h, Map.of("increment", "2", "minimum", "2025-01-01", "maximum", "2025-06-01"));
+
+      verifyAxisWritten(h);
+   }
+
+   /** A chart whose only y measure is date typed on a separated graph: the engine's TimeScale axis. */
+   private static Harness timeAxisHarness() throws Exception {
+      Viewsheet vs = viewsheet(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      VSChartAggregateRef date = (VSChartAggregateRef) info.getYFields()[0];
+      when(date.getDataType()).thenReturn(XSchema.DATE);
+      when(date.getFullName()).thenReturn("Max(Due)");
+      when(date.isDiscrete()).thenReturn(false);
+      AxisDescriptor dateDescriptor = mock(AxisDescriptor.class);
+      when(date.getAxisDescriptor()).thenReturn(dateDescriptor);
+      when(info.isSeparatedGraph()).thenReturn(true);
+      Harness h = harness(vs);
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+      return h;
+   }
+
+   private static Harness mekkoHarness() throws Exception {
+      Viewsheet vs = viewsheet(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      when(info.getRTChartType()).thenReturn(GraphTypes.CHART_MEKKO);
+      Harness h = harness(vs);
+      stubAxisModel(h);
+      return h;
+   }
+
+   /** Bug #80321: a Marimekko y axis is drawn with fixed bounds, so the scale keys are refused. */
+   @ParameterizedTest
+   @ValueSource(strings = {"minimum", "maximum", "increment", "minorIncrement", "logarithmicScale",
+                           "reverse", "shared"})
+   void refusesScaleKeysOnTheMekkoYAxis(String key) throws Exception {
+      Harness h = mekkoHarness();
+      Object value = List.of("logarithmicScale", "reverse", "shared").contains(key) ? true : "5";
+
+      Exception thrown =
+         assertThrows(IllegalArgumentException.class, () -> setAxis(h, Map.of(key, value)));
+
+      assertTrue(thrown.getMessage().contains(key), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Marimekko"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+   }
+
+   @Test
+   void refusesATruthyLabelOnSecondaryAxisOnTheMekkoYAxisButAcceptsFalse() throws Exception {
+      Harness h = mekkoHarness();
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> setAxis(h, Map.of("labelOnSecondaryAxis", true)));
+      assertTrue(thrown.getMessage().contains("labelOnSecondaryAxis"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+
+      Harness cleared = mekkoHarness();
+      setAxis(cleared, Map.of("labelOnSecondaryAxis", false));
+      verifyAxisWritten(cleared);
+   }
+
+   @Test
+   void stillAcceptsOtherAxisKeysOnTheMekkoYAxis() throws Exception {
+      Harness h = mekkoHarness();
+      setAxis(h, Map.of("showAxisLine", false, "showAxisLabel", false));
+      verifyAxisWritten(h);
+   }
+
+   /** The same keys stay valid on a non-Mekko chart, including a dual-axis primary y. */
+   @Test
+   void stillAcceptsLabelOnSecondaryAxisOnTheDualAxisPrimaryY() throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+
+      setAxis(h, Map.of("labelOnSecondaryAxis", true, "minimum", "0", "maximum", "10"));
+
+      verifyAxisWritten(h);
+   }
+
+   /** Bug #80321: a legend style outside the dialog's border constants is refused by name. */
+   @ParameterizedTest
+   @ValueSource(strings = {"999", "-1", "1", "abc", "4.5"})
+   void refusesAnUnknownLegendBorderStyle(String style) throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("style", style), ""));
+
+      assertTrue(thrown.getMessage().contains("'style'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("4098"), thrown.getMessage());
+      verifyNoLegendWrite(h);
+   }
+
+   @ParameterizedTest
+   @ValueSource(ints = {0, 4097, 4098, 4099, 8195, 4113, 4145, 4193, 4241, 266240, 528384})
+   void acceptsEveryLegendBorderStyleTheDialogRecognises(int style) throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null, Map.of("style", style), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals(style, captor.getValue().getLegendFormatGeneralPaneModel().getStyle());
+   }
+
+   /** Bug #80321: position, borderColor and style are shared by every legend; list() says so. */
+   @Test
+   void listsANoteThatLegendPositionBorderAndStyleAreShared() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      String note = String.valueOf(listed.get("note"));
+      assertTrue(note.contains("position"), note);
+      assertTrue(note.contains("borderColor"), note);
+      assertTrue(note.contains("style"), note);
+      assertTrue(note.contains("every legend"), note);
+   }
+
+   @Test
+   void keepsTheDimensionLegendNoteAlongsideTheSharedNote() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      String note = String.valueOf(
+         h.service.list("tok", principal(), "Chart1", "legend", "0", null).get("note"));
+
+      assertTrue(note.contains("dimension/date"), note);
+      assertTrue(note.contains("every legend"), note);
    }
 
    private static AxisPropertyDialogModel axisModel() {
