@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet;
 
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
+import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,8 @@ import org.w3c.dom.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Viewsheet bookmark, stores the bookmarks of a viewsheet per user.
@@ -290,6 +293,45 @@ public class VSBookmark implements XMLSerializable {
    }
 
    /**
+    * Blank the selected value of every password text input in the state bytes of a bookmark,
+    * the same way a Snapshot export leaves it out of the viewsheet itself.
+    */
+   static byte[] removePasswordState(byte[] bytes, Viewsheet vs) {
+      if(bytes == null) {
+         return null;
+      }
+
+      String xml = new String(bytes, StandardCharsets.UTF_8);
+      Matcher matcher = TEXT_INPUT_STATE.matcher(xml);
+      StringBuilder buf = new StringBuilder();
+      boolean changed = false;
+
+      while(matcher.find()) {
+         String body = matcher.group(3);
+         VSAssembly assembly = vs.getAssembly(matcher.group(2));
+
+         if(assembly instanceof TextInputVSAssembly &&
+            ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).isPassword())
+         {
+            body = SELECTED_OBJECT_STATE.matcher(body).replaceAll(Matcher.quoteReplacement(
+               "<state_selectedObject><![CDATA[" + Tool.getDataString(null) +
+               "]]></state_selectedObject>"));
+            changed = true;
+         }
+
+         matcher.appendReplacement(
+            buf, Matcher.quoteReplacement(matcher.group(1) + body + "</assembly>"));
+      }
+
+      if(!changed) {
+         return bytes;
+      }
+
+      matcher.appendTail(buf);
+      return buf.toString().getBytes(StandardCharsets.UTF_8);
+   }
+
+   /**
     * Add the default bookmark.
     * @param vs the specified viewsheet.
     */
@@ -401,6 +443,17 @@ public class VSBookmark implements XMLSerializable {
     */
    @Override
    public void writeXML(PrintWriter writer) {
+      writeXML(writer, null);
+   }
+
+   /**
+    * Write the xml segment to print writer.
+    * @param writer the destination print writer.
+    * @param snapshotVs the viewsheet of a Snapshot export, or null for an ordinary write. A
+    *                   bookmark holds the state bytes written when it was saved, so for a
+    *                   snapshot the value of every password text input is dropped from them.
+    */
+   public void writeXML(PrintWriter writer, Viewsheet snapshotVs) {
       writer.print("<bookmarks class=\"" + getClass().getName() + "\"");
 
       if(bookmark != null) {
@@ -423,6 +476,11 @@ public class VSBookmark implements XMLSerializable {
       for(Map.Entry<String, Object> e : bmap.entrySet()) {
          String key = e.getKey();
          byte[] bytes = (byte[]) e.getValue();
+
+         if(snapshotVs != null) {
+            bytes = removePasswordState(bytes, snapshotVs);
+         }
+
          String val = Encoder.encodeAsciiHex(bytes);
 
          writer.println("<bookmark>");
@@ -617,6 +675,12 @@ public class VSBookmark implements XMLSerializable {
       private final boolean parseError;
    }
 
+   // a text input has no nested assembly, so its state ends at the first closing tag
+   private static final Pattern TEXT_INPUT_STATE = Pattern.compile(
+      "(<assembly class=\"" + Pattern.quote(TextInputVSAssembly.class.getName()) +
+      "\"><name><!\\[CDATA\\[(.*?)\\]\\]></name>)(.*?)</assembly>", Pattern.DOTALL);
+   private static final Pattern SELECTED_OBJECT_STATE = Pattern.compile(
+      "<state_selectedObject[^>]*>.*?</state_selectedObject>", Pattern.DOTALL);
    private Map<String, Object> bmap; // bookmark map
    private String identifier; // viewsheet identifier
    private IdentityID user; // viewsheet user

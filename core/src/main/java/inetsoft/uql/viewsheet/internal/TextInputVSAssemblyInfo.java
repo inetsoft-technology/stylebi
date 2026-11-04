@@ -150,6 +150,17 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
    }
 
    /**
+    * Check whether the value of this text input must be left out of the XML being written, which
+    * is the case for a password input in a Snapshot export. A snapshot is an importable file that
+    * leaves the server, so the value is omitted (the input reopens empty) rather than masked,
+    * since a mask would be read back as the password.
+    */
+   public boolean isSnapshotSecret() {
+      Viewsheet vs = getViewsheet();
+      return isPassword() && vs != null && vs.isSnapshotExport();
+   }
+
+   /**
     * Get the text to render in an export or image. The viewer hides a password value in the
     * browser, but the server side exporters draw whatever string they are given, so every
     * exporter that renders the value of a text input must pass it through here.
@@ -252,7 +263,8 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      Object val = getText();
+      boolean secret = isSnapshotSecret();
+      Object val = secret ? null : getText();
 
       if(val != null) {
          writer.print("<text>");
@@ -260,7 +272,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
          writer.println("</text>");
       }
 
-      if(value != null) {
+      if(value != null && !secret) {
          String str = Tool.getDataString(value);
          writer.print("<value" + Tool.cdataDataAttr(str) + ">");
          writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
