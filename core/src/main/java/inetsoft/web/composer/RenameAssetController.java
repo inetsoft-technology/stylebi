@@ -32,6 +32,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.ai.scriptlibrary.ScriptLibraryValidator;
 import inetsoft.web.composer.model.RenameAssetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -197,6 +198,7 @@ public class RenameAssetController {
                             desc.substring(desc.lastIndexOf("/") + 1));
 
          if(entry.isScript()) {
+            ScriptLibraryValidator.requireValidName("name", nentry.getName());
             manager.renameScript(entry.getName(), nentry.getName());
             manager.save();
          }
@@ -278,6 +280,11 @@ public class RenameAssetController {
             messageCommand = new MessageCommand();
             messageCommand.setMessage(remoteException.getMessage());
             messageCommand.setType(MessageCommand.Type.WARNING);
+         }
+         else if(ex instanceof IllegalArgumentException) {
+            messageCommand = new MessageCommand();
+            messageCommand.setMessage(ex.getMessage());
+            messageCommand.setType(MessageCommand.Type.ERROR);
          }
 
          if(actionRecord != null) {

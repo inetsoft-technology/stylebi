@@ -544,4 +544,31 @@ describe("FormValidators", () => {
          expect(FormValidators.nameStartWithCharDigit(ctrl(" space"))).toEqual({ nameStartWithCharDigit: true });
       });
    });
+
+   // Bug #80303, this regex-only check accepted reserved words like "class", which are not
+   // valid JavaScript function declaration names, the same gap ScriptLibraryValidator (Java)
+   // already closes server-side.
+   describe("invalidJSFunctionName", () => {
+      it("returns null for a valid identifier", () => {
+         expect(FormValidators.invalidJSFunctionName(ctrl("myFunction"))).toBeNull();
+         expect(FormValidators.invalidJSFunctionName(ctrl("_private"))).toBeNull();
+         expect(FormValidators.invalidJSFunctionName(ctrl("$fn"))).toBeNull();
+      });
+
+      it("returns error for a name with an invalid shape", () => {
+         expect(FormValidators.invalidJSFunctionName(ctrl("a-b"))).toEqual({ invalidJSFunctionName: true });
+         expect(FormValidators.invalidJSFunctionName(ctrl("1x"))).toEqual({ invalidJSFunctionName: true });
+         expect(FormValidators.invalidJSFunctionName(ctrl("a b"))).toEqual({ invalidJSFunctionName: true });
+      });
+
+      it("returns error for a reserved word", () => {
+         expect(FormValidators.invalidJSFunctionName(ctrl("class"))).toEqual({ invalidJSFunctionName: true });
+         expect(FormValidators.invalidJSFunctionName(ctrl("function"))).toEqual({ invalidJSFunctionName: true });
+      });
+
+      it("returns null for a contextual (non-reserved) keyword-like name", () => {
+         expect(FormValidators.invalidJSFunctionName(ctrl("let"))).toBeNull();
+         expect(FormValidators.invalidJSFunctionName(ctrl("async"))).toBeNull();
+      });
+   });
 });

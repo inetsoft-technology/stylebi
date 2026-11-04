@@ -134,6 +134,31 @@ class RepositoryScriptControllerAuditTest {
       assertSingleRecord(ActionRecord.ACTION_STATUS_SUCCESS, "new name:s2");
    }
 
+   /**
+    * Bug #80303, a rename through the EM Script Library editor applied no server-side name
+    * check, so a name that isn't a valid JavaScript identifier (or is a reserved word) was
+    * written straight into the stored function's own declaration, corrupting it silently.
+    */
+   @Test
+   void renameToNonIdentifierNameIsRejectedAndNotApplied() {
+      ScriptSettingsModel model = ScriptSettingsModel.builder().name("a-b").oname("s1").build();
+
+      assertThrows(RuntimeException.class,
+                   () -> controller.setScriptModel("s1", 0, model, principal));
+
+      verify(manager, never()).renameScript(anyString(), anyString());
+   }
+
+   @Test
+   void renameToReservedWordIsRejectedAndNotApplied() {
+      ScriptSettingsModel model = ScriptSettingsModel.builder().name("class").oname("s1").build();
+
+      assertThrows(RuntimeException.class,
+                   () -> controller.setScriptModel("s1", 0, model, principal));
+
+      verify(manager, never()).renameScript(anyString(), anyString());
+   }
+
    private void assertSingleRecord(String status, String error) {
       assertEquals(1, records.size());
       ActionRecord record = records.get(0);

@@ -158,10 +158,20 @@ export class FormValidators {
 
    public static invalidJSFunctionName(control: UntypedFormControl): ValidationErrors {
       const str = control.value;
-      let validName: boolean = str && /^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(str);
+      let validName: boolean = str && /^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(str) &&
+         !FormValidators.JS_RESERVED_WORDS.has(str);
 
       return !validName ? {invalidJSFunctionName: true} : null;
    }
+
+   // mirrors ScriptLibraryValidator.RESERVED_WORDS (Java): ES reserved words only, contextual
+   // names (let, static, yield, await, async, of) stay legal.
+   private static readonly JS_RESERVED_WORDS = new Set([
+      "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
+      "do", "else", "enum", "export", "extends", "false", "finally", "for", "function", "if",
+      "import", "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw",
+      "true", "try", "typeof", "var", "void", "while", "with"
+   ]);
 
    public static mustBeValidReportIdentifier(control: UntypedFormControl): ValidationErrors {
       const value: string = control.value;

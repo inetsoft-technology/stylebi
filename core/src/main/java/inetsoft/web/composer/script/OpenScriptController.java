@@ -29,6 +29,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
+import inetsoft.web.admin.ai.scriptlibrary.ScriptLibraryValidator;
 import inetsoft.web.composer.model.script.*;
 import inetsoft.web.composer.script.service.ScriptService;
 import org.graalvm.polyglot.PolyglotException;
@@ -139,6 +140,7 @@ public class OpenScriptController {
          AssetEntry permissionEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
             AssetEntry.Type.SCRIPT, name, null);
          assetRepository.checkAssetPermission(principal, permissionEntry, ResourceAction.WRITE);
+         ScriptLibraryValidator.requireValidName("name", name);
 
          LibManager lib = libManagerProvider.getManager(principal);
          String scriptText = scriptModel.getText();
