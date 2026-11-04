@@ -114,6 +114,9 @@ public class WorksheetPreviewService {
       // runtime sheet). Snapshot the variable-bearing structures and restore them after.
       Map<String, ConditionSnapshot> snapshots = snapshotConditions(rws.getWorksheet());
       TableLens lens;
+      // Bug #79595: read right after the execution (variables still substituted), but raised
+      // below with the other warnings; independent of any cached execution.
+      List<String> upstreamLoss = List.of();
       // See RuntimeHeartbeatKeepAlive's own class comment: keeps the runtime's heartbeat fresh
       // for the duration of the blocking query below, so WorksheetEngine's recycle sweep never
       // disposes it mid-query.
@@ -121,6 +124,11 @@ public class WorksheetPreviewService {
 
       try {
          lens = box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
+
+         if(lens != null) {
+            upstreamLoss = WorksheetColumnLoss.missingUpstreamInputs(
+               rws.getWorksheet(), box, tableName);
+         }
       }
       catch(Exception e) {
          String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
@@ -192,6 +200,13 @@ public class WorksheetPreviewService {
          // detects that path without parsing text. getUserMessage() consumes the pending
          // message, hence it is read once here and carried forward.
          List<String> warnings = new ArrayList<>(captureWarnings());
+
+         for(String loss : upstreamLoss) {
+            if(warnings.stream().noneMatch(w -> w.contains(loss))) {
+               warnings.add(loss);
+            }
+         }
+
          String limitMessage = Util.getColumnLimitMessage();
          // pending messages are merged into one newline-joined string, so match by substring
          boolean limited = warnings.stream().anyMatch(w -> w.contains(limitMessage));

@@ -3575,6 +3575,116 @@ class WorksheetAgentControllerTest {
       assertEquals(0, unrelated.loads.get(), "tables outside the refreshed chain stay untouched");
    }
 
+   /** ev(id, v, n) tabular source and mirror ev_by_v = group by v, Sum(n); box drops v on refresh. */
+   private static Worksheet mirrorOverTabularWorksheet() {
+      Worksheet ws = new Worksheet();
+      CountingTabular ev = new CountingTabular(ws, "ev");
+      ev.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      setSelection(ev, "id", "v", "n");
+      ws.addAssembly(ev);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "ev_by_v", ev);
+      setSelection(mirror, "id", "v", "n");
+      TestWorksheets.withGroupSumAndSort(mirror, "v", "n");
+      ws.addAssembly(mirror);
+      return ws;
+   }
+
+   private static void setSelection(TableAssembly table, String... names) {
+      for(boolean pub : new boolean[] { false, true }) {
+         ColumnSelection cols = new ColumnSelection();
+
+         for(String name : names) {
+            cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+         }
+
+         table.setColumnSelection(cols, pub);
+      }
+   }
+
+   /** Stands in for the real refresh, which re-validates every dependent against the source. */
+   private static void dropColumnVOnRefresh(Worksheet ws, AssetQuerySandbox box) throws Exception {
+      doAnswer(inv -> {
+         setSelection((TableAssembly) ws.getAssembly("ev"), "id", "n");
+         setSelection((TableAssembly) ws.getAssembly("ev_by_v"), "id", "n");
+         return null;
+      }).when(box).refreshColumnSelection(anyString(), anyBoolean());
+   }
+
+   /** Bug #79595 (a): the single-table refresh dropped the mirror's group with no message. */
+   @Test
+   void refreshDataSingleTableWarnsWhenAMirrorLosesItsGroupColumn() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("ev_by_v"), agent);
+      }
+
+      assertNotNull(response.getBody(), "a refresh that dropped a group must not be a bare 204");
+      String note = response.getBody().note();
+      assertTrue(note.contains("ev_by_v") && note.contains("v") && note.contains("group"),
+                 "note: " + note);
+      assertEquals(0, ((TableAssembly) ws.getAssembly("ev_by_v")).getAggregateInfo()
+         .getGroupCount(), "the loss is real, the warning must not hide it");
+   }
+
+   /** Refreshing the tabular source itself reaches its dependents through the same diff. */
+   @Test
+   void refreshDataOfTheTabularSourceWarnsAboutItsDependents() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("ev"), agent);
+      }
+
+      assertNotNull(response.getBody());
+      assertTrue(response.getBody().note().contains("ev_by_v"), response.getBody().note());
+   }
+
+   @Test
+   void refreshDataSingleTableStaysSilentWhenNothingWasLost() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      WorksheetAgentController ctrl = refreshController(ws, mock(AssetQuerySandbox.class));
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("ev_by_v"), agent);
+      }
+
+      assertNull(response.getBody());
+   }
+
+   /** Bug #79595 (b): the bulk refresh re-discovers tabular columns and names the dependent. */
+   @Test
+   void refreshDataBulkWarnsWhenAMirrorLosesItsGroupColumn() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertEquals(1, ((CountingTabular) ws.getAssembly("ev")).loads.get(),
+                   "the bulk refresh must re-discover the tabular source");
+      assertNotNull(response.getBody());
+      String note = response.getBody().note();
+      assertTrue(note.contains("ev_by_v") && note.contains("group"), "note: " + note);
+   }
+
    /** Bug 76873: refreshing a table must also drop the cached results of its dependents. */
    @Test
    void refreshDataInvalidatesTransitiveDependentsOfTheRefreshedTable() throws Exception {

@@ -5299,6 +5299,11 @@ public class WorksheetAgentController {
             final int mode = assembly instanceof TableAssembly modeAssembly
                ? WorksheetEventUtil.getMode(modeAssembly) : -1;
 
+            // Bug #79595: the group/aggregate/sort inputs stored before the columns are
+            // re-discovered; the refresh drops the ones whose column vanished without a message.
+            final WorksheetColumnLoss.StoredInputs storedBefore =
+               assembly instanceof TableAssembly ? WorksheetColumnLoss.StoredInputs.take(ws) : null;
+
             if(assembly instanceof TableAssembly table) {
                // WSQueryService.runQuery (the UI's own "Run Query" action this tool mirrors) reaches
                // this same validity gate via WorksheetEventUtil.refreshAssembly, which this agent
@@ -5447,6 +5452,11 @@ public class WorksheetAgentController {
                      // messages are thread-local, so they must be read here, on that same thread.
                      CoreTool.clearUserMessage();
                      WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+
+                     if(storedBefore != null) {
+                        storedBefore.warnLost(ws);
+                     }
+
                      WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
 
                      // Bug #76711 round 6: loadTableData above only ever actually EXECUTES the
@@ -5544,6 +5554,12 @@ public class WorksheetAgentController {
 
             try {
                List<String> failures = new ArrayList<>();
+               // Bug #79595: like the single-table refresh, re-discover every tabular source's
+               // columns and re-validate its dependents, reporting the stored inputs that lose
+               // their column, before the forced reads below execute them.
+               WorksheetColumnLoss.StoredInputs storedBefore =
+                  WorksheetColumnLoss.StoredInputs.take(ws);
+               boolean rediscovered = false;
 
                for(Assembly a : ws.getAssemblies()) {
                   if(a instanceof TableAssembly table) {
@@ -5572,6 +5588,38 @@ public class WorksheetAgentController {
                            table.getName(), e);
                      }
 
+                     if(table instanceof TabularTableAssembly tabular) {
+                        try {
+                           tabular.loadColumnSelection(
+                              box.getVariableTable(), true, box.getQueryManager());
+                           rediscovered = true;
+                        }
+                        catch(Exception e) {
+                           LOG.warn("Failed to reload the columns of table: " + table.getName(), e);
+                        }
+                     }
+                  }
+               }
+
+               if(rediscovered) {
+                  box.getVariableTable().put("__refresh_report__", "true");
+
+                  try {
+                     for(Assembly a : ws.getAssemblies()) {
+                        if(a instanceof TabularTableAssembly tabular) {
+                           WorksheetEventUtil.refreshColumnSelection(rws, tabular.getName(), true);
+                        }
+                     }
+                  }
+                  finally {
+                     box.getVariableTable().remove("__refresh_report__");
+                  }
+
+                  storedBefore.warnLost(ws);
+               }
+
+               for(Assembly a : ws.getAssemblies()) {
+                  if(a instanceof TableAssembly table) {
                      box.getVariableTable().put("__refresh_report__", "true");
 
                      try {

@@ -3239,23 +3239,36 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             continue;
          }
 
-         DataRef ref = input instanceof GroupRef ? ((GroupRef) input).getDataRef() :
-            input instanceof AggregateRef ? ((AggregateRef) input).getDataRef() :
-            input instanceof SortRef ? ((SortRef) input).getDataRef() : null;
+         String message = upstreamColumnLossMessage(getTable().getName(), input);
 
-         if(input instanceof CompositeAggregateRef || ref == null || ref.isExpression() ||
-            ref instanceof CalculateRef || VSUtil.isAggregateCalc(ref) ||
-            ref instanceof ColumnRef && ((ColumnRef) ref).getDataRef() instanceof AliasDataRef)
-         {
-            continue;
+         if(message != null) {
+            CoreTool.addUserWarning(message);
          }
-
-         String kind = input instanceof GroupRef ? "group" :
-            input instanceof AggregateRef ? "aggregate" : "sort";
-         CoreTool.addUserWarning(Catalog.getCatalog().getString(
-            "viewer.worksheet.upstreamColumnMissing", getTable().getName(),
-            ref.getName(), kind));
       }
+   }
+
+   /**
+    * The warning for a stored group, aggregate or sort input that was dropped because its column
+    * no longer exists in the source table, or {@code null} when the input is one that is never
+    * reported (composite aggregates, expression, calc and alias references). Shared with the
+    * worksheet agent's refresh and preview checks so they word and filter the loss identically.
+    */
+   public static String upstreamColumnLossMessage(String tableName, Object input) {
+      DataRef ref = input instanceof GroupRef ? ((GroupRef) input).getDataRef() :
+         input instanceof AggregateRef ? ((AggregateRef) input).getDataRef() :
+         input instanceof SortRef ? ((SortRef) input).getDataRef() : null;
+
+      if(input instanceof CompositeAggregateRef || ref == null || ref.isExpression() ||
+         ref instanceof CalculateRef || VSUtil.isAggregateCalc(ref) ||
+         ref instanceof ColumnRef && ((ColumnRef) ref).getDataRef() instanceof AliasDataRef)
+      {
+         return null;
+      }
+
+      String kind = input instanceof GroupRef ? "group" :
+         input instanceof AggregateRef ? "aggregate" : "sort";
+      return Catalog.getCatalog().getString(
+         "viewer.worksheet.upstreamColumnMissing", tableName, ref.getName(), kind);
    }
 
    /**
