@@ -271,7 +271,7 @@ class MVAnalysisOwnershipTest {
 
       // positive control: the owner's set-cycle writes and keeps the owner's access
       controller.setCycle(ID, request, owner);
-      verify(mvManager).add(def, false);
+      verify(mvManager).add(def, false, ORG_B.toLowerCase());
       assertEquals(owner.getName(), backing.get(ID).getOwner());
       assertEquals(1, service.getMVStatusList(ID, owner).size());
    }
