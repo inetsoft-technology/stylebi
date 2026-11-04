@@ -34,6 +34,7 @@ import org.w3c.dom.Element;
 
 import java.awt.*;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -233,6 +234,23 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       cellPadding.resetUserValue();
    }
 
+
+   /**
+    * Adds the cell padding.
+    */
+   @Override
+   protected List<ChromeSlot> chromeSlots() {
+      List<ChromeSlot> slots = new ArrayList<>(super.chromeSlots());
+      slots.add(ChromeSlot.tiered("cellPadding", false, true,
+                                  info -> ((SelectionBaseVSAssemblyInfo) info).isUserCellPadding(),
+                                  info -> false,
+                                  info -> ((SelectionBaseVSAssemblyInfo) info).getCellPadding(),
+                                  info -> ((SelectionBaseVSAssemblyInfo) info).getCellPadding(),
+                                  info -> ((SelectionBaseVSAssemblyInfo) info)
+                                     .resetUserCellPadding(),
+                                  null));
+      return slots;
+   }
    @Override
    public double getListHeightScale() {
       return listHeightScale;

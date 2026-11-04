@@ -1483,6 +1483,27 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * The look slots Modernize reads and resets: every stored format path, plus the padding.
+    */
+   protected List<ChromeSlot> chromeSlots() {
+      List<ChromeSlot> slots = new ArrayList<>();
+
+      for(TableDataPath path : getFormatInfo().getPaths()) {
+         slots.addAll(FormatChromeSlots.forPath(path, true));
+      }
+
+      slots.add(paddingSlot());
+      return slots;
+   }
+
+   static ChromeSlot paddingSlot() {
+      return ChromeSlot.tiered("padding", false, true, VSAssemblyInfo::isUserPadding,
+                               info -> false, VSAssemblyInfo::getPadding,
+                               VSAssemblyInfo::getPadding,
+                               info -> info.setUserPadding(false), null);
+   }
+
+   /**
     * Get the padding space around the chart (between border and chart).
     */
    public Insets getPadding() {

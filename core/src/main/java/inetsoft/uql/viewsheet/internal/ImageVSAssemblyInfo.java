@@ -102,6 +102,14 @@ public class ImageVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
    }
 
    /**
+    * Shapes and images keep their look through Modernize.
+    */
+   @Override
+   protected List<ChromeSlot> chromeSlots() {
+      return List.of();
+   }
+
+   /**
     * Get the image to draw. This overrides the image path property.
     */
    public Image getRawImage() {
