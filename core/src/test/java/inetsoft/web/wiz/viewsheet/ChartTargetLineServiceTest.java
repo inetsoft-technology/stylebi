@@ -60,7 +60,7 @@ class ChartTargetLineServiceTest {
    void appendsOneChangedLineTargetAndLeavesTheRestUnchanged() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(existingLineTarget(0, "10")));
 
-      h.service.add("tok", principal(), "Chart1", null, "50000", "Goal {0}", null, null, "");
+      h.service.add("tok", principal(), "Chart1", null, "50000", "Goal {0}", null, null, null, null, "");
 
       TargetInfo[] written = writtenTargets(h);
       assertEquals(2, written.length);
@@ -79,7 +79,7 @@ class ChartTargetLineServiceTest {
    void theBuiltTargetHasNothingTheCommitWouldNpeOn() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, "");
 
       TargetInfo written = writtenTargets(h)[0];
       assertNotNull(written.getMeasure());
@@ -97,7 +97,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
       Map<String, Object> result =
-         h.service.add("tok", principal(), "Chart1", null, "1", blank, null, null, "");
+         h.service.add("tok", principal(), "Chart1", null, "1", blank, null, null, null, null, "");
 
       assertEquals(" ", writtenTargets(h)[0].getLabel());
       assertEquals(" ", result.get("label"));
@@ -106,11 +106,11 @@ class ChartTargetLineServiceTest {
    @Test
    void aNullLabelDefaultsAndACustomLabelIsKeptVerbatim() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
-      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, "");
       assertEquals("{0}", writtenTargets(h)[0].getLabel());
 
       Harness h2 = harness(chart(GraphTypes.CHART_BAR), pane());
-      h2.service.add("tok", principal(), "Chart1", null, "1", "Goal {0}", null, null, "");
+      h2.service.add("tok", principal(), "Chart1", null, "1", "Goal {0}", null, null, null, null, "");
       assertEquals("Goal {0}", writtenTargets(h2)[0].getLabel());
    }
 
@@ -119,7 +119,7 @@ class ChartTargetLineServiceTest {
    void bindsTheOnlyMeasureWhenNoneIsNamed() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, "");
 
       assertEquals("Sum(Total)", writtenTargets(h)[0].getMeasure().getName());
    }
@@ -137,7 +137,7 @@ class ChartTargetLineServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, ""));
+         () -> h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("Sum(Cost)"), "the refusal names the candidates");
       assertNoWrite(h);
    }
@@ -150,7 +150,7 @@ class ChartTargetLineServiceTest {
                                new MeasureInfo("Sum(Total)", "Sum(Total)", false),
                                new MeasureInfo("Sum(Cost)", "Sum(Cost)", false)));
 
-      h.service.add("tok", principal(), "Chart1", "all", "1", null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", "all", "1", null, null, null, null, null, "");
 
       assertEquals("", writtenTargets(h)[0].getMeasure().getName());
    }
@@ -165,7 +165,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR),
                           paneWith(new MeasureInfo("", "", false), grouped));
 
-      h.service.add("tok", principal(), "Chart1", "Sum(Total)", "1", null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", "Sum(Total)", "1", null, null, null, null, null, "");
 
       assertTrue(writtenTargets(h)[0].getMeasure().isGroupOthers(),
                  "a flag dropped here changes how the value is read, silently");
@@ -179,7 +179,7 @@ class ChartTargetLineServiceTest {
 
       assertThrows(Exception.class,
                    () -> h.service.add("tok", principal(), "Chart1", "Year(Order Date)", "1000",
-                                       null, null, null, ""));
+                                       null, null, null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -189,7 +189,7 @@ class ChartTargetLineServiceTest {
 
       assertThrows(Exception.class,
                    () -> h.service.add("tok", principal(), "Chart1", "Sum(Nope)", "1", null, null,
-                                       null, ""));
+                                       null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -204,7 +204,7 @@ class ChartTargetLineServiceTest {
 
       assertThrows(Exception.class,
                    () -> h.service.add("tok", principal(), "Chart1", null, value, null, null,
-                                       null, ""));
+                                       null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -213,7 +213,7 @@ class ChartTargetLineServiceTest {
    void acceptsAPlainNumber(String value) throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.add("tok", principal(), "Chart1", null, value, null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", null, value, null, null, null, null, null, "");
 
       assertEquals(value, writtenTargets(h)[0].getValue());
    }
@@ -230,7 +230,7 @@ class ChartTargetLineServiceTest {
 
       Exception thrown = assertThrows(
          Exception.class,
-         () -> h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, ""));
+         () -> h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("pie"), "the refusal names the chart type");
       assertNoWrite(h);
    }
@@ -240,7 +240,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(mock(TextVSAssembly.class), pane());
 
       assertThrows(Exception.class,
-                   () -> h.service.add("tok", principal(), "Text1", null, "1", null, null, null,
+                   () -> h.service.add("tok", principal(), "Text1", null, "1", null, null, null, null, null,
                                        ""));
       assertNoWrite(h);
    }
@@ -251,9 +251,9 @@ class ChartTargetLineServiceTest {
 
       assertThrows(Exception.class,
                    () -> h.service.add("tok", principal(), "Chart1", null, "1", null, "squiggly",
-                                       null, ""));
+                                       null, null, null, ""));
       assertThrows(Exception.class,
-                   () -> h.service.add("tok", principal(), "Chart1", null, "1", null, null, "red",
+                   () -> h.service.add("tok", principal(), "Chart1", null, "1", null, null, "red", null, null,
                                        ""));
       assertNoWrite(h);
    }
@@ -262,7 +262,7 @@ class ChartTargetLineServiceTest {
    void appliesANamedLineStyleAndColour() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.add("tok", principal(), "Chart1", null, "1", null, "dashed", "CC0000", "");
+      h.service.add("tok", principal(), "Chart1", null, "1", null, "dashed", "CC0000", null, null, "");
 
       TargetInfo written = writtenTargets(h)[0];
       assertEquals(inetsoft.graph.GraphConstants.DASH_LINE, written.getLineStyle());
@@ -282,7 +282,7 @@ class ChartTargetLineServiceTest {
          any(Principal.class), any());
 
       Map<String, Object> result =
-         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, "");
 
       assertEquals("Chart1", result.get("assembly"));
       assertEquals(0, result.get("index"));
@@ -314,7 +314,7 @@ class ChartTargetLineServiceTest {
          .mutate(anyString(), any(Principal.class), any());
 
       Map<String, Object> added =
-         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+         h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, "");
       Map<String, Object> removed =
          h.service.remove("tok", principal(), "Chart1", List.of(0), "");
 
@@ -326,7 +326,7 @@ class ChartTargetLineServiceTest {
    void addHasNoWarningsKeyWhenNothingWarned() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      assertFalse(h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "")
+      assertFalse(h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, "")
                      .containsKey("warnings"));
    }
 
@@ -335,7 +335,7 @@ class ChartTargetLineServiceTest {
    void addWritesExactlyOneModelInOneMutation() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null, null, "");
 
       verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
       verify(h.chartService, times(1)).setChartPropertyModel(
@@ -445,7 +445,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(existingLineTarget(0, "10")));
 
       Map<String, Object> result = h.service.addFormulaLine(
-         "tok", principal(), "Chart1", null, "Average", true, "Avg {0}", null, null, "");
+         "tok", principal(), "Chart1", null, "Average", true, "Avg {0}", null, null, null, null, "");
 
       TargetInfo[] written = writtenTargets(h);
       assertEquals(2, written.length);
@@ -469,7 +469,7 @@ class ChartTargetLineServiceTest {
    void aFormulaLineIsPerPanelUnlessEntireChartIsGiven() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.addFormulaLine("tok", principal(), "Chart1", null, "max", null, null, null, null,
+      h.service.addFormulaLine("tok", principal(), "Chart1", null, "max", null, null, null, null, null, null,
                                "");
 
       TargetInfo target = writtenTargets(h)[0];
@@ -484,7 +484,7 @@ class ChartTargetLineServiceTest {
    void aFormulaNameIsFoldedToTheFiveTheCommitReads(String name) throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.addFormulaLine("tok", principal(), "Chart1", null, name, null, null, null, null,
+      h.service.addFormulaLine("tok", principal(), "Chart1", null, name, null, null, null, null, null, null,
                                "");
 
       assertTrue(List.of("Average", "Min", "Max", "Median", "Sum")
@@ -499,7 +499,7 @@ class ChartTargetLineServiceTest {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addFormulaLine("tok", principal(), "Chart1", null, formula, null, null,
-                                        null, null, ""));
+                                        null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("formula"), "the refusal names the field");
       assertNoWrite(h);
    }
@@ -512,7 +512,7 @@ class ChartTargetLineServiceTest {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addFormulaLine("tok", principal(), "Chart1", "all", "Average", null,
-                                        null, null, null, ""));
+                                        null, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("Sum(Total)"), "the refusal names the candidates");
       assertNoWrite(h);
    }
@@ -523,7 +523,7 @@ class ChartTargetLineServiceTest {
 
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addFormulaLine("tok", principal(), "Chart1", null, "Sum", null,
-                                                  null, null, null, ""));
+                                                  null, null, null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -532,7 +532,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), twoMeasures());
 
       h.service.addFormulaLine("tok", principal(), "Chart1", "Sum(Cost)", "Sum", null, null, null,
-                               null, "");
+                               null, null, null, "");
 
       assertEquals("Sum(Cost)", writtenTargets(h)[0].getMeasure().getName());
    }
@@ -544,7 +544,7 @@ class ChartTargetLineServiceTest {
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> h.service.add("tok", principal(), "Chart1", null, "Average", null, null, null, ""));
+         () -> h.service.add("tok", principal(), "Chart1", null, "Average", null, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("formula"));
       assertNoWrite(h);
    }
@@ -554,7 +554,7 @@ class ChartTargetLineServiceTest {
    void theFixedValueAddIsStillPerPanel() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
-      h.service.add("tok", principal(), "Chart1", null, "5", null, null, null, "");
+      h.service.add("tok", principal(), "Chart1", null, "5", null, null, null, null, null, "");
 
       assertFalse(writtenTargets(h)[0].isChartScope());
    }
@@ -565,7 +565,7 @@ class ChartTargetLineServiceTest {
 
       Map<String, Object> result = h.service.addBand(
          "tok", principal(), "Chart1", null, "100", "250.5", "Low {0}", "High {0}", "#CCE5FF",
-         null, "dashed", "#cc0000", "");
+         null, "dashed", "#cc0000", null, null, "");
 
       TargetInfo target = writtenTargets(h)[0];
       assertEquals(TargetInfo.BAND_TARGET, target.getTabFlag());
@@ -594,7 +594,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane);
 
       h.service.addBand("tok", principal(), "Chart1", null, "1", "2", null, null, null, null,
-                        null, null, "");
+                        null, null, null, null, "");
 
       TargetInfo target = writtenTargets(h)[0];
       assertEquals("#eeeeee", target.getFillBandColor().getColor());
@@ -608,7 +608,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), twoMeasures());
 
       h.service.addBand("tok", principal(), "Chart1", "all", "1", "2", null, null, null, null,
-                        null, null, "");
+                        null, null, null, null, "");
 
       assertEquals("", writtenTargets(h)[0].getMeasure().getName());
    }
@@ -620,7 +620,7 @@ class ChartTargetLineServiceTest {
 
       Map<String, Object> result = h.service.addBand(
          "tok", principal(), "Chart1", null, "average", "5000", null, null, null, true, null,
-         null, "");
+         null, null, null, "");
 
       TargetInfo target = writtenTargets(h)[0];
       assertEquals("Average", target.getValue());
@@ -635,7 +635,7 @@ class ChartTargetLineServiceTest {
 
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addBand("tok", principal(), "Chart1", "all", "Min", "Max",
-                                           null, null, null, null, null, null, ""));
+                                           null, null, null, null, null, null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -647,7 +647,7 @@ class ChartTargetLineServiceTest {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addBand("tok", principal(), "Chart1", null, "1", "2", null, null, null,
-                                 true, null, null, ""));
+                                 true, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("entireChart"));
       assertNoWrite(h);
    }
@@ -660,12 +660,12 @@ class ChartTargetLineServiceTest {
       Exception first = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addBand("tok", principal(), "Chart1", null, bad, "2", null, null, null,
-                                 null, null, null, ""));
+                                 null, null, null, null, null, ""));
       assertTrue(first.getMessage().contains("'from'"), "the refusal names the field");
       Exception second = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addBand("tok", principal(), "Chart1", null, "1", bad, null, null, null,
-                                 null, null, null, ""));
+                                 null, null, null, null, null, ""));
       assertTrue(second.getMessage().contains("'to'"));
       assertNoWrite(h);
    }
@@ -676,7 +676,7 @@ class ChartTargetLineServiceTest {
 
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addBand("tok", principal(), "Chart1", null, "1", "2", null,
-                                           null, "lightblue", null, null, null, ""));
+                                           null, "lightblue", null, null, null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -688,21 +688,21 @@ class ChartTargetLineServiceTest {
 
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addBand("tok", principal(), "Chart1", "Year(Order Date)", "1",
-                                           "2", null, null, null, null, null, null, ""));
+                                           "2", null, null, null, null, null, null, null, null, ""));
       assertNoWrite(h);
    }
 
    /** The default each computation gets when the value is omitted is the Composer's own list. */
    @ParameterizedTest
    @CsvSource({ "standard_deviation,'-1,1'", "confidence_interval,95", "percentiles,50",
-                "quantiles,4" })
+                "quantiles,4", "percentage,80" })
    void aStatisticWithoutAValueTakesTheComposersDefault(String statistic, String expected)
       throws Exception
    {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
       Map<String, Object> result = h.service.addStatistics(
-         "tok", principal(), "Chart1", null, statistic, null, null, null, null, null, null, "");
+         "tok", principal(), "Chart1", null, statistic, null, null, null, null, null, null, null, null, null, "");
 
       TargetInfo target = writtenTargets(h)[0];
       assertEquals(TargetInfo.STATISTICS_TARGET, target.getTabFlag());
@@ -726,7 +726,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
       h.service.addStatistics("tok", principal(), "Chart1", null, given, null, null, null, null,
-                              null, null, "");
+                              null, null, null, null, null, "");
 
       assertEquals(name, writtenTargets(h)[0].getStrategyInfo().getName());
    }
@@ -737,7 +737,7 @@ class ChartTargetLineServiceTest {
 
       Map<String, Object> result = h.service.addStatistics(
          "tok", principal(), "Chart1", null, "standard_deviation", " -2 , 2 ", false, true,
-         "SD {0}", "thick", "#00aa00", "");
+         "SD {0}", "thick", "#00aa00", null, null, null, "");
 
       TargetInfo target = writtenTargets(h)[0];
       assertEquals("-2,2", target.getStrategyInfo().getValue(), "normalized, comma-joined");
@@ -756,7 +756,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
       h.service.addStatistics("tok", principal(), "Chart1", null, "standard_deviation", "1", null,
-                              null, null, null, null, "");
+                              null, null, null, null, null, null, null, "");
 
       assertEquals("true", writtenTargets(h)[0].getStrategyInfo().getStandardIsSample());
       assertFalse(writtenTargets(h)[0].isChartScope());
@@ -769,7 +769,7 @@ class ChartTargetLineServiceTest {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addStatistics("tok", principal(), "Chart1", null, "percentiles", "50",
-                                       true, null, null, null, null, ""));
+                                       true, null, null, null, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("'sample'"));
       assertNoWrite(h);
    }
@@ -787,7 +787,7 @@ class ChartTargetLineServiceTest {
 
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addStatistics("tok", principal(), "Chart1", null, statistic,
-                                                 value, null, null, null, null, null, ""));
+                                                 value, null, null, null, null, null, null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -799,20 +799,20 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
       h.service.addStatistics("tok", principal(), "Chart1", null, statistic, value, null, null,
-                              null, null, null, "");
+                              null, null, null, null, null, null, "");
 
       assertEquals(value, writtenTargets(h)[0].getStrategyInfo().getValue());
    }
 
    @ParameterizedTest
-   @ValueSource(strings = { "", "median", "percentage", "Percentages", "trend" })
-   void aStatisticMustBeOneOfTheFourOffered(String statistic) {
+   @ValueSource(strings = { "", "median", "trend" })
+   void aStatisticMustBeOneOfTheFiveOffered(String statistic) {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addStatistics("tok", principal(), "Chart1", null, statistic, null, null,
-                                       null, null, null, null, ""));
+                                       null, null, null, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("standard_deviation"),
                  "the refusal lists the valid statistics");
       assertNoWrite(h);
@@ -828,11 +828,11 @@ class ChartTargetLineServiceTest {
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addStatistics("tok", principal(), "Chart1", "all",
                                                  "percentiles", null, null, null, null, null,
-                                                 null, ""));
+                                                 null, null, null, null, ""));
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addStatistics("tok", principal(), "Chart1", "Year(Order Date)",
                                                  "percentiles", null, null, null, null, null,
-                                                 null, ""));
+                                                 null, null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -844,7 +844,7 @@ class ChartTargetLineServiceTest {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> h.service.addStatistics("tok", principal(), "Chart1", null, "percentiles", null,
-                                       null, null, null, null, null, ""));
+                                       null, null, null, null, null, null, null, null, ""));
       assertTrue(thrown.getMessage().contains("box plot"));
       assertNoWrite(h);
    }
@@ -858,13 +858,13 @@ class ChartTargetLineServiceTest {
 
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addFormulaLine("tok", principal(), "Chart1", null, "Sum", null,
-                                                  null, null, null, ""));
+                                                  null, null, null, null, null, ""));
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addBand("tok", principal(), "Chart1", null, "1", "2", null,
-                                           null, null, null, null, null, ""));
+                                           null, null, null, null, null, null, null, ""));
       assertThrows(IllegalArgumentException.class,
                    () -> h.service.addStatistics("tok", principal(), "Chart1", null, "quantiles",
-                                                 null, null, null, null, null, null, ""));
+                                                 null, null, null, null, null, null, null, null, null, ""));
       assertNoWrite(h);
    }
 
@@ -873,7 +873,7 @@ class ChartTargetLineServiceTest {
    void everyNewKindWritesOneModelInOneMutation() throws Exception {
       Harness formula = harness(chart(GraphTypes.CHART_BAR), pane());
       formula.service.addFormulaLine("tok", principal(), "Chart1", null, "Sum", null, null, null,
-                                     null, "");
+                                     null, null, null, "");
       verify(formula.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
       verify(formula.chartService, times(1)).setChartPropertyModel(
          anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
@@ -881,12 +881,12 @@ class ChartTargetLineServiceTest {
 
       Harness band = harness(chart(GraphTypes.CHART_BAR), pane());
       band.service.addBand("tok", principal(), "Chart1", null, "1", "2", null, null, null, null,
-                           null, null, "");
+                           null, null, null, null, "");
       verify(band.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
 
       Harness stat = harness(chart(GraphTypes.CHART_BAR), pane());
       stat.service.addStatistics("tok", principal(), "Chart1", null, "quantiles", null, null,
-                                 null, null, null, null, "");
+                                 null, null, null, null, null, null, null, "");
       verify(stat.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
 
@@ -899,7 +899,7 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(band));
 
       h.service.addStatistics("tok", principal(), "Chart1", null, "quantiles", null, null, null,
-                              null, null, null, "");
+                              null, null, null, null, null, null, "");
 
       TargetInfo[] written = writtenTargets(h);
       assertFalse(written[0].isChanged());
@@ -972,6 +972,221 @@ class ChartTargetLineServiceTest {
       Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(stat));
 
       assertEquals("statistics", listed(h).get(0).get("kind"));
+   }
+
+   // ---------------------------------------------------------------------------------------------
+   // Bug #80163: fill above/below on every kind, and the Percentage statistic.
+   // ---------------------------------------------------------------------------------------------
+
+   @Test
+   void aFixedLineCarriesFillAboveAndBelowAndReportsThem() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Map<String, Object> result = h.service.add(
+         "tok", principal(), "Chart1", null, "100", null, null, null, "#C8E6C9", "ffcdd2", "");
+
+      TargetInfo target = writtenTargets(h)[0];
+      assertEquals("#c8e6c9", target.getFillAboveColor().getColor());
+      assertEquals("#ffcdd2", target.getFillBelowColor().getColor());
+      assertEquals("#c8e6c9", result.get("fillAboveColor"));
+      assertEquals("#ffcdd2", result.get("fillBelowColor"));
+   }
+
+   @Test
+   void aLineWithNoFillLeavesTheFillsUntouchedAndUnreported() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Map<String, Object> result = h.service.add(
+         "tok", principal(), "Chart1", null, "100", null, null, null, "  ", null, "");
+
+      TargetInfo target = writtenTargets(h)[0];
+      assertEquals("", target.getFillAboveColor().getColor());
+      assertEquals("", target.getFillBelowColor().getColor());
+      assertFalse(result.containsKey("fillAboveColor"));
+      assertFalse(result.containsKey("fillBelowColor"));
+   }
+
+   @Test
+   void aFillOnOneSideOnlyIsKeptOnThatSide() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      h.service.add("tok", principal(), "Chart1", null, "100", null, null, null, null, "#ffcdd2",
+                    "");
+
+      TargetInfo target = writtenTargets(h)[0];
+      assertEquals("", target.getFillAboveColor().getColor());
+      assertEquals("#ffcdd2", target.getFillBelowColor().getColor());
+   }
+
+   @Test
+   void aBadFillColourIsRefusedByFieldName() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", null, "100", null, null, null, "red",
+                             null, ""));
+      assertTrue(thrown.getMessage().contains("fillAboveColor"), thrown.getMessage());
+      thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.addFormulaLine("tok", principal(), "Chart1", "Sum(Total)", "Max", null,
+                                        null, null, null, null, "nope", ""));
+      assertTrue(thrown.getMessage().contains("fillBelowColor"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void aFillIsRefusedWhereTheComposerDisablesIt() {
+      ChartTargetLinesPaneModel pane = pane();
+      pane.getNewTargetInfo().setSupportFill(false);
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", null, "100", null, null, null,
+                             "#c8e6c9", null, ""));
+      assertTrue(thrown.getMessage().contains("cannot shade"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void noFillIsStillAcceptedWhereTheComposerDisablesIt() throws Exception {
+      ChartTargetLinesPaneModel pane = pane();
+      pane.getNewTargetInfo().setSupportFill(false);
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane);
+
+      h.service.add("tok", principal(), "Chart1", null, "100", null, null, null, null, null, "");
+
+      assertEquals(1, writtenTargets(h).length);
+   }
+
+   @Test
+   void aFormulaBandAndStatisticsTargetEachCarryTheFills() throws Exception {
+      Harness formula = harness(chart(GraphTypes.CHART_BAR), pane());
+      formula.service.addFormulaLine("tok", principal(), "Chart1", "Sum(Total)", "Average", null,
+                                     null, null, null, "#c8e6c9", "#ffcdd2", "");
+      assertEquals("#c8e6c9", writtenTargets(formula)[0].getFillAboveColor().getColor());
+      assertEquals("#ffcdd2", writtenTargets(formula)[0].getFillBelowColor().getColor());
+
+      Harness band = harness(chart(GraphTypes.CHART_BAR), pane());
+      band.service.addBand("tok", principal(), "Chart1", null, "1", "2", null, null, "#cce5ff",
+                           null, null, null, "#c8e6c9", null, "");
+      assertEquals("#c8e6c9", writtenTargets(band)[0].getFillAboveColor().getColor());
+      assertEquals("", writtenTargets(band)[0].getFillBelowColor().getColor());
+      assertEquals("#cce5ff", writtenTargets(band)[0].getFillBandColor().getColor());
+
+      Harness stat = harness(chart(GraphTypes.CHART_BAR), pane());
+      stat.service.addStatistics("tok", principal(), "Chart1", null, "percentiles", "50", null,
+                                 null, null, null, null, null, "#ffcdd2", null, "");
+      assertEquals("", writtenTargets(stat)[0].getFillAboveColor().getColor());
+      assertEquals("#ffcdd2", writtenTargets(stat)[0].getFillBelowColor().getColor());
+   }
+
+   @Test
+   void listReportsFillsOnlyWhenSet() throws Exception {
+      TargetInfo filled = existingLineTarget(0, "10");
+      filled.setFillAboveColor(new ColorInfo("#c8e6c9", ChartPropertyService.COLOR_PALETTE));
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(filled, existingLineTarget(1, "20")));
+
+      List<Map<String, Object>> targets = listed(h);
+
+      assertEquals("#c8e6c9", targets.get(0).get("fillAboveColor"));
+      assertFalse(targets.get(0).containsKey("fillBelowColor"));
+      assertFalse(targets.get(1).containsKey("fillAboveColor"));
+      assertFalse(targets.get(1).containsKey("fillBelowColor"));
+   }
+
+   @Test
+   void aPercentageCommitsItsPercentagesAndTheBaseItIsOf() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Map<String, Object> result = h.service.addStatistics(
+         "tok", principal(), "Chart1", null, "Percentages", " 50 , 80 ", null, null, null, null,
+         null, null, null, "average", "");
+
+      StrategyInfo strategy = writtenTargets(h)[0].getStrategyInfo();
+      assertEquals("Percentage", strategy.getName());
+      assertEquals("50,80", strategy.getValue());
+      assertEquals("Average", strategy.getPercentageAggregateVal());
+      assertEquals("percentage", result.get("statistic"));
+      assertEquals("50,80", result.get("statisticValue"));
+      assertEquals("Average", result.get("percentageOf"));
+   }
+
+   @Test
+   void aPercentageDefaultsToEightyPercentOfMax() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      h.service.addStatistics("tok", principal(), "Chart1", null, "percentage", null, null, null,
+                              null, null, null, null, null, null, "");
+
+      StrategyInfo strategy = writtenTargets(h)[0].getStrategyInfo();
+      assertEquals("80", strategy.getValue());
+      assertEquals("Max", strategy.getPercentageAggregateVal());
+   }
+
+   @Test
+   void aPercentageMayBeOfAPlainNumber() throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      h.service.addStatistics("tok", principal(), "Chart1", null, "percentage", "10", null, null,
+                              null, null, null, null, null, "1000", "");
+
+      assertEquals("1000", writtenTargets(h)[0].getStrategyInfo().getPercentageAggregateVal());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "$(x)", "=Max", "abc", "NaN", "1e999" })
+   void aPercentageOfThatDoesNotParseIsRefused(String percentageOf) {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.addStatistics("tok", principal(), "Chart1", null, "percentage", null, null,
+                                       null, null, null, null, null, null, percentageOf, ""));
+      assertTrue(thrown.getMessage().contains("percentageOf"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "abc", "-", "50,,60", "$(x)" })
+   void aPercentageValueMustBeSignedNumbers(String value) {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.addStatistics("tok", principal(), "Chart1", null, "percentage",
+                                                 value, null, null, null, null, null, null, null,
+                                                 null, ""));
+      assertNoWrite(h);
+   }
+
+   @Test
+   void percentageOfIsRefusedOnOtherStatistics() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.addStatistics("tok", principal(), "Chart1", null, "percentiles", null,
+                                       null, null, null, null, null, null, null, "Max", ""));
+      assertTrue(thrown.getMessage().contains("percentageOf"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void listReportsAPercentageTargetWithItsBase() throws Exception {
+      TargetInfo stat = existingLineTarget(0, "");
+      stat.setTabFlag(TargetInfo.STATISTICS_TARGET);
+      StrategyInfo strategy = new StrategyInfo("Percentage", "80");
+      strategy.setPercentageAggregateVal("Min");
+      stat.setStrategyInfo(strategy);
+      Harness h = harness(chart(GraphTypes.CHART_BAR), paneWith(stat));
+
+      Map<String, Object> entry = listed(h).get(0);
+
+      assertEquals("percentage", entry.get("statistic"));
+      assertEquals("80", entry.get("statisticValue"));
+      assertEquals("Min", entry.get("percentageOf"));
    }
 
    @SuppressWarnings("unchecked")

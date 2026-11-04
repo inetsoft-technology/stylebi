@@ -5580,6 +5580,28 @@ public class WorksheetAgentController {
                      clearNormalizedCache(table, box);
                      WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
 
+                     // Bug #80308: port the single-assembly branch's column-selection refresh
+                     // (see above) here too -- forceRuntimeRead below only re-executes the query,
+                     // it never touches the TableAssembly's own stored ColumnSelection, so a
+                     // TabularTableAssembly's column list never picked up an upstream schema
+                     // change via this bulk form (it happened to work for a JDBC-bound table,
+                     // whose column list is a side effect of re-reading ResultSetMetaData).
+                     // Caught per table, like forceRuntimeRead's own PairingException below, so
+                     // one table's failure doesn't abort the refresh of the rest -- unlike
+                     // WorksheetEventUtil.refreshColumnSelection, loadColumnSelection actually
+                     // throws instead of swallowing.
+                     if(table instanceof TabularTableAssembly tabular) {
+                        try {
+                           tabular.loadColumnSelection(
+                              box.getVariableTable(), true, box.getQueryManager());
+                        }
+                        catch(Exception e) {
+                           failures.add(e.getMessage());
+                        }
+                     }
+
+                     loadUpstreamTabularColumns(ws, table, box);
+
                      try {
                         clearBoundQueryCache(box, table, mode);
                      }
@@ -5629,6 +5651,7 @@ public class WorksheetAgentController {
                      box.getVariableTable().put("__refresh_report__", "true");
 
                      try {
+                        WorksheetEventUtil.refreshColumnSelection(rws, table.getName(), true);
                         forceRuntimeRead(box, table.getName());
                      }
                      catch(PairingException e) {

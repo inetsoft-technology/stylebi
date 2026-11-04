@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.graph.data.PairsDataSet;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
@@ -123,6 +124,18 @@ public class ChartRegionPropertyService {
          if(incrementReason != null) {
             inapplicable.put("increment", incrementReason);
          }
+
+         if("y".equals(ChartRegionResolver.canonical(key)) &&
+            isMekkoChart(sessionToken, user, assembly))
+         {
+            for(String mekkoKey : MEKKO_Y_IGNORED_KEYS) {
+               inapplicable.put(mekkoKey, "No effect on the y axis of a Marimekko chart (fixed " +
+                  "0-100% range and ticks); refused when set to anything but false or empty.");
+            }
+
+            inapplicable.put("labelOnSecondaryAxis", "No effect on the y axis of a Marimekko " +
+               "chart; refused when set to true.");
+         }
       }
 
       String primary = time ? otherPrimaryGanttField(sessionToken, user, assembly, kind) : null;
@@ -187,6 +200,11 @@ public class ChartRegionPropertyService {
             "refused here when set to true.");
       }
 
+      if("legend".equals(name)) {
+         Object existing = out.get("note");
+         out.put("note", existing == null ? LEGEND_SHARED_NOTE : existing + " " + LEGEND_SHARED_NOTE);
+      }
+
       out.put("properties", properties);
       return out;
    }
@@ -249,6 +267,10 @@ public class ChartRegionPropertyService {
             timeRange = TimeRange.parse(properties);
          }
 
+         // A Marimekko y axis is drawn by MekkoCoord with fixed bounds and no descriptor-driven
+         // scale, so these keys would be stored and ignored (bug #80321).
+         requireMekkoYAxisKeysHonoured(sessionToken, user, assembly, key, properties);
+
          // Whether the axis takes the key at all comes before whether its value parses, so a
          // non-numeric value on an axis that refuses the key gets that reason rather than a
          // "must be a number" that steers the caller into the refusal (bug #79294).
@@ -265,6 +287,7 @@ public class ChartRegionPropertyService {
 
       if("legend".equals(name)) {
          requireSymbolSizeInRange(properties);
+         requireKnownLegendBorderStyle(properties);
       }
 
       if(properties.containsKey("rotation")) {
@@ -290,6 +313,13 @@ public class ChartRegionPropertyService {
 
       if("legend".equals(name)) {
          requireMeasureLegendForScaleKeys((LegendFormatDialogModel) model, properties);
+      }
+
+      // The stored range is needed to judge a partial write (only maximum, only increment), so
+      // this runs after readModel. A time axis takes dates, which TimeRange.parse already checks.
+      if("axis".equals(name)) {
+         requireConsistentAxisScale((AxisPropertyDialogModel) model, properties,
+                                    timeRange != null);
       }
 
       // A time axis's range is written exactly after the dialog write (writeTimeAxis), not
@@ -971,6 +1001,222 @@ public class ChartRegionPropertyService {
                "'" + key + "' must be a finite number (or empty to clear it); '" + text +
                "' is not. Nothing was changed.");
          }
+      }
+   }
+
+   private static final String LEGEND_SHARED_NOTE =
+      "position, borderColor and style are shared by every legend of this chart: writing them " +
+      "to one legend changes all of them.";
+
+   /** The legend border styles the Legend Format dialog recognises (its dropdown plus two more). */
+   private static final List<Integer> LEGEND_BORDER_STYLES = List.of(
+      StyleConstants.NO_BORDER, StyleConstants.THIN_LINE, StyleConstants.MEDIUM_LINE,
+      StyleConstants.THICK_LINE, StyleConstants.DOUBLE_LINE, StyleConstants.DOT_LINE,
+      StyleConstants.DASH_LINE, StyleConstants.MEDIUM_DASH, StyleConstants.LARGE_DASH,
+      StyleConstants.ULTRA_THIN_LINE, StyleConstants.THIN_THIN_LINE);
+
+   /**
+    * Refuses a legend {@code style} that is not one of the border-style constants the dialog
+    * recognises. {@code LegendsDescriptor.setBorder} stores any integer, so an unknown one reads
+    * back as written and draws no recognisable border (bug #80321).
+    */
+   private static void requireKnownLegendBorderStyle(Map<String, Object> properties) {
+      if(!properties.containsKey("style")) {
+         return;
+      }
+
+      Object value = properties.get("style");
+      Integer parsed = null;
+
+      if(value instanceof Number number) {
+         if(number.doubleValue() != number.intValue()) {
+            // a non-integral number is refused by PropertyPath.coerce, naming the property path
+            return;
+         }
+
+         parsed = number.intValue();
+      }
+      else if(value != null) {
+         try {
+            parsed = Integer.parseInt(String.valueOf(value).trim());
+         }
+         catch(NumberFormatException ignore) {
+            // refused below with the accepted values
+         }
+      }
+
+      if(parsed == null || !LEGEND_BORDER_STYLES.contains(parsed)) {
+         throw new IllegalArgumentException(
+            "'style' must be one of the legend border style constants " + LEGEND_BORDER_STYLES +
+            " (0 none, 4097 thin, 4098 medium, 4099 thick, 8195 double, 4113 dot, 4145 dash, " +
+            "4193 medium dash, 4241 large dash, 266240 ultra thin, 528384 thin-thin); '" +
+            value + "' is not. Nothing was changed.");
+      }
+   }
+
+   private static final Set<String> MEKKO_Y_IGNORED_KEYS = new TreeSet<>(List.of(
+      "minimum", "maximum", "increment", "minorIncrement", "logarithmicScale", "reverse",
+      "shared"));
+
+   /**
+    * Refuses axis keys a Marimekko chart's y axis never reads. {@code MekkoCoord} fixes the y
+    * range and builds its own scales, so these were stored and ignored; the Composer disables
+    * them there ({@code fakeScale}), but the model's flag is false on this path, so the chart
+    * type is checked directly. A truthy {@code labelOnSecondaryAxis} is refused for the same
+    * reason (its opposite-side bit is never read by {@code MekkoCoord}); false still clears it.
+    */
+   private void requireMekkoYAxisKeysHonoured(String sessionToken, Principal user,
+                                              String assembly, String axisTarget,
+                                              Map<String, Object> properties)
+      throws Exception
+   {
+      if(!"y".equals(ChartRegionResolver.canonical(axisTarget))) {
+         return;
+      }
+
+      Set<String> ignored = new TreeSet<>();
+
+      for(String ignoredKey : MEKKO_Y_IGNORED_KEYS) {
+         if(properties.containsKey(ignoredKey) && !isNoOpValue(properties.get(ignoredKey))) {
+            ignored.add(ignoredKey);
+         }
+      }
+
+      if(properties.containsKey("labelOnSecondaryAxis") &&
+         isTruthy(properties.get("labelOnSecondaryAxis")))
+      {
+         ignored.add("labelOnSecondaryAxis");
+      }
+
+      if(ignored.isEmpty()) {
+         return;
+      }
+
+      if(isMekkoChart(sessionToken, user, assembly)) {
+         boolean one = ignored.size() == 1;
+         throw new IllegalArgumentException(
+            "'" + String.join("', '", ignored) + "' " + (one ? "does" : "do") + " not apply to " +
+            "the y axis of a Marimekko chart (it has a fixed 0-100% range and fixed ticks), so " +
+            (one ? "it" : "they") + " would be stored and ignored. Omit " + (one ? "it" : "them") +
+            ". Nothing was changed.");
+      }
+   }
+
+   /** A value that sets nothing: null, "" or false, which clears a stale value rather than setting one. */
+   private static boolean isNoOpValue(Object value) {
+      return value == null || "".equals(value) || Boolean.FALSE.equals(value) ||
+         "false".equalsIgnoreCase(String.valueOf(value).trim());
+   }
+
+   private boolean isMekkoChart(String sessionToken, Principal user, String assembly)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         return GraphTypes.isMekko(info.getChartType()) ||
+            GraphTypes.isMekko(info.getRTChartType());
+      });
+   }
+
+   private static final double AXIS_VALUE_LIMIT = Integer.MAX_VALUE;
+
+   /**
+    * Cross-checks the axis scale values as the Composer's axis dialog does before it enables OK:
+    * minimum and maximum within -2147483648..2147483647 with minimum below maximum, increment and
+    * minorIncrement above zero and at most 2147483647 with minorIncrement below increment. A
+    * partial write is judged against the stored value of the other side, and a pair is only
+    * checked when the patch touches one of its keys, so an unrelated write is never blocked by a
+    * range stored earlier. Runs after {@link #requireNumericAxisValues}, so a written value
+    * parses; null or "" means cleared. A time axis only gets the increment rule (bug #80321).
+    */
+   private static void requireConsistentAxisScale(AxisPropertyDialogModel model,
+                                                  Map<String, Object> properties,
+                                                  boolean timeAxis)
+   {
+      AxisLinePaneModel pane = model.getAxisLinePaneModel();
+
+      if(pane == null) {
+         return;
+      }
+
+      if(timeAxis) {
+         // The dialog gives a time axis the same positive-increment validator; its minimum and
+         // maximum are dates (TimeRange.parse) and minorIncrement is refused there already.
+         Double step = effectiveAxisValue(properties, "increment", null);
+
+         if(properties.containsKey("increment") && step != null &&
+            (step <= 0 || step > AXIS_VALUE_LIMIT))
+         {
+            throw new IllegalArgumentException(
+               "'increment' must be greater than 0 and at most 2147483647; '" +
+               properties.get("increment") + "' is not. Nothing was changed.");
+         }
+
+         return;
+      }
+
+      Double min = effectiveAxisValue(properties, "minimum", pane.getMinimum());
+      Double max = effectiveAxisValue(properties, "maximum", pane.getMaximum());
+      Double increment = effectiveAxisValue(properties, "increment", pane.getIncrement());
+      Double minor = effectiveAxisValue(properties, "minorIncrement", pane.getMinorIncrement());
+
+      for(String key : List.of("minimum", "maximum")) {
+         Double value = "minimum".equals(key) ? min : max;
+
+         if(properties.containsKey(key) && value != null &&
+            (value < Integer.MIN_VALUE || value > AXIS_VALUE_LIMIT))
+         {
+            throw new IllegalArgumentException(
+               "'" + key + "' must be between -2147483648 and 2147483647; '" +
+               properties.get(key) + "' is not. Nothing was changed.");
+         }
+      }
+
+      for(String key : List.of("increment", "minorIncrement")) {
+         Double value = "increment".equals(key) ? increment : minor;
+
+         if(properties.containsKey(key) && value != null &&
+            (value <= 0 || value > AXIS_VALUE_LIMIT))
+         {
+            throw new IllegalArgumentException(
+               "'" + key + "' must be greater than 0 and at most 2147483647; '" +
+               properties.get(key) + "' is not. Nothing was changed.");
+         }
+      }
+
+      if((properties.containsKey("minimum") || properties.containsKey("maximum")) &&
+         min != null && max != null && min >= max)
+      {
+         throw new IllegalArgumentException(
+            "'minimum' must be less than 'maximum' (resulting range " + min + " to " + max +
+            "; a value you did not send is the one already set on the axis). Nothing was changed.");
+      }
+
+      if((properties.containsKey("increment") || properties.containsKey("minorIncrement")) &&
+         increment != null && minor != null && minor >= increment)
+      {
+         throw new IllegalArgumentException(
+            "'minorIncrement' must be less than 'increment' (resulting " + minor + " and " +
+            increment + "; a value you did not send is the one already set on the axis). " +
+            "Nothing was changed.");
+      }
+   }
+
+   /** The value after the patch: the written one if the patch names the key, else the stored one. */
+   private static Double effectiveAxisValue(Map<String, Object> properties, String key,
+                                            String stored)
+   {
+      Object value = properties.containsKey(key) ? properties.get(key) : stored;
+
+      if(value == null || "".equals(value)) {
+         return null;
+      }
+
+      try {
+         return Double.valueOf(String.valueOf(value).trim());
+      }
+      catch(NumberFormatException ex) {
+         return null;
       }
    }
 

@@ -469,9 +469,10 @@ class DashboardChangePlanServiceTest {
          () -> service.resolve(request("task", List.of(
             renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"),
             createDashboardChange("Dashboard2"))), user));
-      assertTrue(ex.getMessage().contains("changes[1]"));
-      assertTrue(ex.getMessage().contains("duplicate entry") ||
-                 ex.getMessage().contains("target of another change"));
+      assertTrue(ex.getMessage().contains("changes[1].name"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"Dashboard2\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("target of the rename in changes[0]"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("duplicate entry"), ex.getMessage());
    }
 
    @Test void resolveCreateThenRenameSameTargetIsRefused() throws Exception {
@@ -482,7 +483,7 @@ class DashboardChangePlanServiceTest {
             createDashboardChange("Dashboard2"),
             renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"))), user));
       assertTrue(ex.getMessage().contains("changes[1].name"));
-      assertTrue(ex.getMessage().contains("target of another change"));
+      assertTrue(ex.getMessage().contains("target of the create in changes[0]"), ex.getMessage());
    }
 
    @Test void resolveTwoRenamesToSameTargetIsRefused() throws Exception {
@@ -494,7 +495,7 @@ class DashboardChangePlanServiceTest {
             renameDashboardChange("Dashboard1__GLOBAL", "Dashboard2"),
             renameDashboardChange("Dashboard3__GLOBAL", "Dashboard2"))), user));
       assertTrue(ex.getMessage().contains("changes[1].name"));
-      assertTrue(ex.getMessage().contains("target of another change"));
+      assertTrue(ex.getMessage().contains("target of the rename in changes[0]"), ex.getMessage());
    }
 
    @Test void resolveNonRenameUpdateDoesNotClaimATargetName() throws Exception {

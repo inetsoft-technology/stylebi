@@ -101,7 +101,8 @@ public class TextInputVSAssembly extends InputVSAssembly
    protected void writeStateContent(PrintWriter writer, boolean runtime) {
       super.writeStateContent(writer, runtime);
 
-      Object obj = getSelectedObject();
+      TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) getVSAssemblyInfo();
+      Object obj = info.isSnapshotSecret() ? null : getSelectedObject();
 
       String str = Tool.getDataString(obj);
       writer.print("<state_selectedObject" + Tool.cdataDataAttr(str) + ">");

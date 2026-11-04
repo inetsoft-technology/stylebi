@@ -116,13 +116,141 @@ public class ParameterDiscoveryService {
     *         -- a caller can only set a variable this discovery call would also report.
     */
    public static UserVariable find(List<UserVariable> discovered, String name) {
+      return find(discovered, name, null);
+   }
+
+   /**
+    * Like {@link #find(List, String)}, but a name {@link #missingReason} can classify (disabled /
+    * input-bound) is refused with that specific reason instead of the generic text.
+    *
+    * @param vs the runtime viewsheet; may be null.
+    */
+   public static UserVariable find(List<UserVariable> discovered, String name, Viewsheet vs) {
       return discovered.stream()
          .filter(v -> v.getName().equals(name))
          .findFirst()
-         .orElseThrow(() -> new IllegalArgumentException(
-            "'" + name + "' is not a parameter this viewsheet's source or viewsheet tree " +
-            "references (or it is already bound to an on-canvas input assembly -- use " +
-            "set_input_value for that). collect_parameters lists what is settable here."));
+         .orElseThrow(() -> {
+            String reason = missingReason(vs, name);
+
+            return new IllegalArgumentException(reason != null ? reason :
+               "'" + name + "' is not a parameter this viewsheet's source or viewsheet tree " +
+               "references (or it is already bound to an on-canvas input assembly -- use " +
+               "set_input_value for that). collect_parameters lists what is settable here.");
+         });
+   }
+
+   /**
+    * Explains why {@code name} is absent from {@link #discover}, for a name that is neither a
+    * discovered variable nor unknown. Classified in this order: disabled via the viewsheet's
+    * disabledParameters (nested viewsheets included), driven by an input assembly's variable
+    * binding, or merely sharing an input assembly's name (the silent drops in
+    * {@code getPromptParameters} / {@code VSEventUtil.refreshParameters}).
+    *
+    * @return the refusal text, or {@code null} when none of those apply (the caller then falls
+    *         back to the generic unknown-name text of {@link #find}).
+    */
+   public static String missingReason(Viewsheet vs, String name) {
+      if(vs == null || name == null) {
+         return null;
+      }
+
+      boolean disabled = vs.getDisabledVariables().contains(name);
+      InputVSAssembly keyOwner = findKeyOwner(vs, name);
+
+      if(keyOwner != null) {
+         String text = "'" + name + "' is driven by the on-canvas input assembly '" +
+            keyOwner.getName() + "' (its variable binding), so set_parameters will not set it. " +
+            "Use set_input_value on that assembly instead.";
+
+         if(disabled) {
+            text += " It is also listed in this viewsheet's disabledParameters.";
+         }
+
+         return text;
+      }
+
+      InputVSAssembly named = findNameOwner(vs, name);
+
+      if(named != null) {
+         String text = "'" + name + "' matches the name of input assembly '" + named.getName() +
+            "'; collect_parameters does not offer a parameter that shares an input " +
+            "assembly's name, so set_parameters will not set it. To set that input, use " +
+            "set_input_value.";
+
+         if(disabled) {
+            text += " It is also listed in this viewsheet's disabledParameters.";
+         }
+
+         return text;
+      }
+
+      if(disabled) {
+         return "'" + name + "' is listed in this viewsheet's disabledParameters, so " +
+            "set_parameters will not set it. To make it settable, remove it from " +
+            "disabledParameters with set_viewsheet_properties. collect_parameters lists what " +
+            "is settable here.";
+      }
+
+      return null;
+   }
+
+   /** First input assembly (nested viewsheets included) whose variable binding is {@code name}. */
+   private static InputVSAssembly findKeyOwner(Viewsheet vs, String name) {
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof Viewsheet nested) {
+            InputVSAssembly found = findKeyOwner(nested, name);
+
+            if(found != null) {
+               return found;
+            }
+         }
+         else if(assembly instanceof InputVSAssembly input &&
+            name.equals(input.getVariableTableKey()))
+         {
+            return input;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * First input assembly whose name equals {@code name}, by either notion the discovery filters
+    * use: the leaf name inside each (nested) viewsheet, and the recursive names of
+    * {@code getAssemblies(true, true)}.
+    */
+   private static InputVSAssembly findNameOwner(Viewsheet vs, String name) {
+      InputVSAssembly leaf = findLeafNameOwner(vs, name);
+
+      if(leaf != null) {
+         return leaf;
+      }
+
+      for(Assembly assembly : vs.getAssemblies(true, true)) {
+         if(assembly instanceof InputVSAssembly input && name.equals(assembly.getName())) {
+            return input;
+         }
+      }
+
+      return null;
+   }
+
+   private static InputVSAssembly findLeafNameOwner(Viewsheet vs, String name) {
+      if(vs.containsAssembly(name) && vs.getAssembly(name) instanceof InputVSAssembly input) {
+         return input;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof Viewsheet nested) {
+            InputVSAssembly found = findLeafNameOwner(nested, name);
+
+            if(found != null) {
+               return found;
+            }
+         }
+      }
+
+      return null;
    }
 
    /** Maps one discovered variable to its agent-facing JSON shape. Pure, no I/O -- unit-tested. */

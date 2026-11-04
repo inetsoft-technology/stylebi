@@ -5767,6 +5767,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       this.snapshotExport = snapshotExport;
    }
 
+   /**
+    * Check whether this viewsheet is being written for a Snapshot (.vso) export.
+    */
+   public boolean isSnapshotExport() {
+      return snapshotExport;
+   }
+
    public WizInfo getWizInfo() {
       return wizInfo;
    }
