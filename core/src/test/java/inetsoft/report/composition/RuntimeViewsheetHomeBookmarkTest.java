@@ -106,19 +106,36 @@ class RuntimeViewsheetHomeBookmarkTest {
       return rvs;
    }
 
+   /** Bug #79993: export (Home) of a saved design-mode sheet is the saved state, not the live one. */
    @Test
-   void getOriginalBookmarkHomeFallsBackToLiveViewsheetWhenInitialSnapshotIsNull()
-      throws Exception
-   {
-      Viewsheet vs = mock(Viewsheet.class);
-      Viewsheet clone = mock(Viewsheet.class);
-      when(vs.clone()).thenReturn(clone);
-      RuntimeViewsheet rvs = designModeSheet(vs, new VSBookmark(), null);
+   void getOriginalBookmarkHomeInDesignModeUsesSavedState() throws Exception {
+      Viewsheet[] sheets = savedAndLive();
+      AssetEntry entry = entry(AssetRepository.REPOSITORY_SCOPE);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(eq(entry), any(), anyBoolean(), eq(AssetContent.ALL)))
+         .thenReturn(sheets[0]);
+      RuntimeViewsheet rvs = designModeSheet(sheets[1], new VSBookmark(), rep);
+      set(rvs, RuntimeSheet.class, "entry", entry);
 
       Viewsheet result = assertDoesNotThrow(() -> rvs.getOriginalBookmark(VSBookmark.HOME_BOOKMARK));
 
       assertNotNull(result);
-      assertSame(clone, result, "with no Home annotations the live-viewsheet clone is returned");
+      assertEquals(0, selectedCount(result), "saved state has no selection");
+      assertEquals(1, selectedCount(sheets[1]), "the live sheet itself is not mutated");
+   }
+
+   /** Bug #79993: a never-saved design-mode sheet has no saved Home; export refuses by name. */
+   @Test
+   void getOriginalBookmarkHomeInDesignModeOfUnsavedSheetFailsLoud() throws Exception {
+      Viewsheet[] sheets = savedAndLive();
+      RuntimeViewsheet rvs = designModeSheet(sheets[1], new VSBookmark(), mock(AssetRepository.class));
+      set(rvs, RuntimeSheet.class, "entry", entry(AssetRepository.TEMPORARY_SCOPE));
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> rvs.getOriginalBookmark(VSBookmark.HOME_BOOKMARK));
+
+      assertTrue(ex.getMessage().contains("export (Home)") && ex.getMessage().contains("saved"),
+                 ex.getMessage());
    }
 
    @Test
