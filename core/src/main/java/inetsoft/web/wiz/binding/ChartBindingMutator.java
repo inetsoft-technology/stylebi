@@ -161,6 +161,7 @@ public final class ChartBindingMutator {
          ChartRefModel ref = FieldRefFactory.toChartRef(
             field, model, rvs, source, refModelService,
             FieldRefFactory.findExpertPlaceholder(field, oldRefs));
+         requireDiscreteAllowed(model, name, field, ref);
 
          if(ref instanceof ChartDimensionRefModel dimension) {
             ChartDimensionRefModel previous = null;
@@ -418,7 +419,9 @@ public final class ChartBindingMutator {
          // Prefer column+aggregate+secondaryY, so a same-identity pair (differing only by
          // secondaryY) each restore onto their own match rather than either onto both.
          for(ChartAggregateRefModel old : survivors) {
-            if(sameMeasure(old, newAggregate) && old.isSecondaryY() == newAggregate.isSecondaryY()) {
+            if(sameMeasure(old, newAggregate) && old.isSecondaryY() == newAggregate.isSecondaryY() &&
+               old.isDiscrete() == newAggregate.isDiscrete())
+            {
                matched = old;
                break;
             }
@@ -437,6 +440,46 @@ public final class ChartBindingMutator {
             newAggregate.setChartType(matched.getChartType());
             survivors.remove(matched);
          }
+      }
+   }
+
+   /**
+    * Refuses {@code discrete:true} where the Composer disables its Discrete checkbox and the
+    * server would otherwise clear or ignore it silently (bug #80330): a boxplot, gantt, candle,
+    * stock or mekko chart (candle/stock/mekko have no discrete measure; boxplot and gantt cannot
+    * enable it), the high/low/open/close shelves, and the size channel of an interval chart.
+    * Cube sources and node/group channels are not judged here. A dimension or a non-true flag is
+    * left to {@code FieldRefFactory.toChartRef}.
+    *
+    * @param slot the shelf or aesthetic channel the field is written to.
+    */
+   static void requireDiscreteAllowed(ChartBindingModel model, String slot, FieldRef field,
+                                      ChartRefModel ref)
+   {
+      if(!Boolean.TRUE.equals(field.discrete()) || !(ref instanceof ChartAggregateRefModel)) {
+         return;
+      }
+
+      int type = model.getChartType();
+      String reason = null;
+
+      if(GraphTypes.isCandle(type) || GraphTypes.isStock(type) || GraphTypes.isMekko(type) ||
+         GraphTypes.isBoxplot(type) || GraphTypes.isGantt(type))
+      {
+         reason = "this chart type does not support a discrete measure (candle, stock, mekko, " +
+            "boxplot and gantt charts)";
+      }
+      else if(slot != null && List.of("high", "low", "open", "close").contains(slot)) {
+         reason = "the '" + slot + "' shelf takes a plain measure";
+      }
+      else if("size".equals(slot) && GraphTypes.isInterval(type)) {
+         reason = "the 'size' channel of an interval chart takes a plain measure";
+      }
+
+      if(reason != null) {
+         throw new IllegalArgumentException(
+            "Measure '" + field.column() + "' cannot be discrete: " + reason +
+            ". Omit 'discrete' or set it to false.");
       }
    }
 
@@ -482,8 +525,14 @@ public final class ChartBindingMutator {
          aggregate.setNumValue(previous.getNumValue());
       }
 
-      if(field.secondaryY() == null) {
+      // Discrete and Secondary Axis exclude each other (the Composer switches the other off), so
+      // an omitted one is restored only while the other is not being turned on by this write.
+      if(field.secondaryY() == null && !Boolean.TRUE.equals(field.discrete())) {
          aggregate.setSecondaryY(previous.isSecondaryY());
+      }
+
+      if(field.discrete() == null && !Boolean.TRUE.equals(field.secondaryY())) {
+         aggregate.setDiscrete(previous.isDiscrete());
       }
 
       if(field.secondaryColumn() == null) {
@@ -701,6 +750,8 @@ public final class ChartBindingMutator {
          field, model, rvs, source, refModelService,
          FieldRefFactory.findExpertPlaceholder(
             field, Collections.singletonList(readSingleShelf(model, name))));
+
+      requireDiscreteAllowed(model, name, field, ref);
 
       // After toChartRef so a missing/invalid 'type' keeps the type error, and before
       // assignSingleShelf so a refusal leaves the shelf and any prior binding untouched.
