@@ -142,7 +142,7 @@ public class DashboardChangePlanService {
       }
 
       List<PlanChange> changes = new ArrayList<>();
-      Set<String> seenKeys = new HashSet<>();
+      SeenKeys seenKeys = new SeenKeys();
       int index = 0;
 
       for(DashboardChangeRequest change : req.getChanges()) {
@@ -159,7 +159,7 @@ public class DashboardChangePlanService {
    }
 
    private PlanChange resolveOne(String label, DashboardChangeRequest change, Principal user,
-                                 Set<String> seenKeys) throws Exception
+                                 SeenKeys seenKeys) throws Exception
    {
       if(change == null) {
          throw new IllegalArgumentException(label + ": must not be null");
@@ -177,7 +177,7 @@ public class DashboardChangePlanService {
    // ---------------------------------------------------------------- dashboard
 
    private PlanChange resolveDashboard(String label, DashboardChangeRequest change, Principal user,
-                                       Set<String> seenKeys) throws Exception
+                                       SeenKeys seenKeys) throws Exception
    {
       String verb = requireDashboardVerb(label, change.getVerb());
       IdentityID owner = parseOwner(change.getOwner());
@@ -194,7 +194,7 @@ public class DashboardChangePlanService {
    }
 
    private PlanChange resolveDashboardCreate(String label, DashboardChangeRequest change,
-                                             IdentityID owner, Set<String> seenKeys)
+                                             IdentityID owner, SeenKeys seenKeys)
       throws Exception
    {
       requireUnused(label, "oname", change.getOname());
@@ -205,9 +205,21 @@ public class DashboardChangePlanService {
       String key = dashboardKey(registryName, owner);
 
       if(!seenKeys.add(key)) {
+         String claim = seenKeys.claimOf(key);
+
+         // Only a rename claim gets the "target of" wording; two creates of one name are a
+         // genuine same-unit duplicate and keep the duplicate-entry message below.
+         if(claim != null && claim.startsWith(RENAME_CLAIM)) {
+            throw new IllegalArgumentException(
+               label + ".name: dashboard \"" + name + "\" is already the target of " + claim +
+               ownerSuffix(owner));
+         }
+
          throw new IllegalArgumentException(
             label + ": duplicate entry for dashboard \"" + name + "\"; list each unit at most once");
       }
+
+      seenKeys.claim(key, "the create in " + label);
 
       if(registryFor(owner).getDashboard(registryName) != null) {
          throw new IllegalArgumentException(
@@ -223,7 +235,7 @@ public class DashboardChangePlanService {
    }
 
    private PlanChange resolveDashboardUpdate(String label, DashboardChangeRequest change,
-                                             IdentityID owner, Set<String> seenKeys, Principal user)
+                                             IdentityID owner, SeenKeys seenKeys, Principal user)
       throws Exception
    {
       String oname = requireNonBlank(label + ".oname", change.getOname());
@@ -275,9 +287,14 @@ public class DashboardChangePlanService {
       if(!newRegistryName.equals(registryOldName) &&
          !seenKeys.add(dashboardKey(newRegistryName, owner)))
       {
+         String claim = seenKeys.claimOf(dashboardKey(newRegistryName, owner));
          throw new IllegalArgumentException(
-            label + ".name: dashboard \"" + newDisplayName +
-            "\" is already the target of another change in this plan" + ownerSuffix(owner));
+            label + ".name: dashboard \"" + newDisplayName + "\" is already the target of " +
+            (claim != null ? claim : "another change in this plan") + ownerSuffix(owner));
+      }
+
+      if(!newRegistryName.equals(registryOldName)) {
+         seenKeys.claim(dashboardKey(newRegistryName, owner), RENAME_CLAIM + label);
       }
 
       String mergedDescription = newDescription != null ? blankToNull(newDescription) : current.description();
@@ -299,7 +316,7 @@ public class DashboardChangePlanService {
    }
 
    private PlanChange resolveDashboardDelete(String label, DashboardChangeRequest change,
-                                             IdentityID owner, Set<String> seenKeys, Principal user)
+                                             IdentityID owner, SeenKeys seenKeys, Principal user)
       throws Exception
    {
       requireUnused(label, "name", change.getName());
@@ -342,7 +359,7 @@ public class DashboardChangePlanService {
    // ---------------------------------------------------------------- dashboard folder
 
    private PlanChange resolveDashboardFolder(String label, DashboardChangeRequest change,
-                                             Principal user, Set<String> seenKeys) throws Exception
+                                             Principal user, SeenKeys seenKeys) throws Exception
    {
       requireFolderVerb(label, change.getVerb());
       IdentityID owner = parseOwner(change.getOwner());
@@ -664,4 +681,22 @@ public class DashboardChangePlanService {
    private final RepositoryDashboardService repositoryDashboardService;
    private final DashboardRegistryManager dashboardRegistryManager;
    private final DashboardManager dashboardManager;
+
+   /**
+    * The unit keys already used by earlier changes in a plan, plus which entry claimed a name as
+    * a create or rename target so a later conflicting entry can name it.
+    */
+   private static final String RENAME_CLAIM = "the rename in ";
+
+   private static final class SeenKeys extends HashSet<String> {
+      String claimOf(String key) {
+         return claims.get(key);
+      }
+
+      void claim(String key, String claim) {
+         claims.put(key, claim);
+      }
+
+      private final java.util.Map<String, String> claims = new java.util.HashMap<>();
+   }
 }
