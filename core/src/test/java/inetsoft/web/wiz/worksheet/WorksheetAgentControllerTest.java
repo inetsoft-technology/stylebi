@@ -12733,7 +12733,10 @@ class WorksheetAgentControllerTest {
          "SELECT * FROM SA.ORDER_DETAILS WHERE ORDER_ID = $(@n)",
          "SELECT t.* FROM SA.T t WHERE t.ID IN ($(@a), $(@b)) ORDER BY t.ID",
          "SELECT * FROM SA.T t JOIN SA.U u ON t.ID = u.ID AND u.K = $(@k) WHERE t.X LIKE $(@p)",
-         "SELECT * FROM SA.T WHERE NAME = '$(@x)' GROUP BY A HAVING COUNT(*) > $(@n)" })
+         "SELECT * FROM SA.T WHERE NAME = '$(@x)' GROUP BY A HAVING COUNT(*) > $(@n)",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k, SA.C c WHERE c.x = $(@n)",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = COALESCE(b.k, $(@n)) JOIN SA.C c ON c.k = $(@m)",
+         "SELECT a.*, b.* FROM SA.A a, SA.B b WHERE a.k = b.k AND a.v = $(@n)" })
       {
          assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
       }
@@ -12741,7 +12744,14 @@ class WorksheetAgentControllerTest {
       for(String sql : new String[] {
          "SELECT * FROM $(@srcTable) WHERE ORDER_ID = $(@n)",
          "SELECT * FROM SA.A a, SA.$(@t) b WHERE a.ID = $(@n)",
-         "SELECT * FROM SA.A a JOIN $(@t) b ON a.ID = b.ID" })
+         "SELECT * FROM SA.A a JOIN $(@t) b ON a.ID = b.ID",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k, $(@t) c",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k, SA.$(@t) c WHERE a.x = $(@n)",
+         "SELECT * FROM SA.A a JOIN SA.B b ON a.k = b.k JOIN $(@t) c ON c.k = a.k",
+         "SELECT * FROM (SELECT k FROM SA.U WHERE k = 1) s, $(@t) t",
+         "SELECT a.*, $(@t).* FROM SA.X a",
+         "SELECT *, $(@t).* FROM SA.X a",
+         "SELECT a.* , b.*, $(@t).*, c.* FROM SA.X a" })
       {
          assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
       }

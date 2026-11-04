@@ -6372,8 +6372,71 @@ public class WorksheetAgentController {
    private static final java.util.regex.Pattern QUOTED_LITERAL =
       java.util.regex.Pattern.compile("'(?:[^']|'')*'");
 
-   private static final java.util.regex.Pattern FROM_REGION = java.util.regex.Pattern.compile(
-      "(?is)\\b(?:from|join)\\b(.*?)(?=\\b(?:where|group\\s+by|having|order\\s+by|on|union|intersect|except|limit|from|join)\\b|;|$)");
+   private static final java.util.regex.Pattern SQL_TOKEN = java.util.regex.Pattern.compile(
+      "\\$\\(@[^)]*\\)|\\(|\\)|,|;|[A-Za-z_]+");
+
+   /**
+    * True when a {@code $(@var)} sits in a FROM/JOIN table list at any nesting level. A table
+    * list runs from FROM/JOIN until a clause keyword; an ON condition ends at the next comma or
+    * JOIN at its own level, so a comma-joined table after ON is a table position again.
+    */
+   private static boolean hasPlaceholderTable(String sql) {
+      final int none = 0, table = 1, cond = 2;
+      java.util.ArrayDeque<Integer> stack = new java.util.ArrayDeque<>();
+      int state = none;
+      java.util.regex.Matcher m = SQL_TOKEN.matcher(sql);
+
+      while(m.find()) {
+         String t = m.group();
+
+         if(t.startsWith("$(@")) {
+            if(state == table) {
+               return true;
+            }
+         }
+         else if("(".equals(t)) {
+            stack.push(state);
+            state = none;
+         }
+         else if(")".equals(t)) {
+            state = stack.isEmpty() ? none : stack.pop();
+         }
+         else if(",".equals(t)) {
+            state = state == cond ? table : state;
+         }
+         else if(";".equals(t)) {
+            state = none;
+         }
+         else {
+            switch(t.toLowerCase()) {
+            case "from":
+            case "join":
+               state = table;
+               break;
+            case "on":
+               state = cond;
+               break;
+            case "where":
+            case "group":
+            case "having":
+            case "order":
+            case "union":
+            case "intersect":
+            case "except":
+            case "limit":
+            case "offset":
+            case "fetch":
+            case "select":
+               state = none;
+               break;
+            default:
+               break;
+            }
+         }
+      }
+
+      return false;
+   }
 
    /**
     * Bug #79707: a wildcard select over a {@code $(@var)} raw-text table placeholder cannot be
@@ -6391,17 +6454,22 @@ public class WorksheetAgentController {
       // (WHERE x = $(@n)) leaves a literal table that is resolved normally.
       String masked = QUOTED_LITERAL.matcher(sql).replaceAll("''");
       java.util.regex.Matcher wildcard = SELECT_WILDCARD.matcher(masked);
+      boolean hasWildcard = false;
+      boolean placeholderPosition = false;
+      int pos = 0;
 
-      if(!wildcard.find()) {
+      // a match consumes its trailing comma, which the next wildcard needs as its prefix
+      while(!placeholderPosition && pos <= masked.length() && wildcard.find(pos)) {
+         hasWildcard = true;
+         placeholderPosition = wildcard.group().contains("$(@");
+         pos = Math.max(wildcard.end() - 1, wildcard.start() + 1);
+      }
+
+      if(!hasWildcard) {
          return null;
       }
 
-      boolean placeholderPosition = wildcard.group().contains("$(@");
-      java.util.regex.Matcher from = FROM_REGION.matcher(masked);
-
-      while(!placeholderPosition && from.find()) {
-         placeholderPosition = from.group(1).contains("$(@");
-      }
+      placeholderPosition = placeholderPosition || hasPlaceholderTable(masked);
 
       if(!placeholderPosition) {
          return null;
