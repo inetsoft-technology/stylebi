@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
@@ -214,5 +215,73 @@ class SelectionBindingServiceDroppedSelectionTest {
          rebindTree(treeAssembly(tree("East/NY", "West/MA"), tree("West/MA")), true);
 
       assertEquals(List.of("East > NY"), result.get("droppedSelection"));
+   }
+
+   /**
+    * A realistic ID-hierarchy state tree: node ids (1..4) differ from labels, two leaves under
+    * different parents share the label "X", and every selected node is also kept flat at the
+    * root, as SelectionTreeStateProcessor.selectIDValue leaves it.
+    */
+   private static SelectionList idTree(String labelSuffix, String... selectedIds) {
+      List<String> picks = List.of(selectedIds);
+      SelectionList roots = new SelectionList();
+      SelectionList echoes = new SelectionList();
+
+      for(String[] parent : new String[][] {{"1", "East", "2"}, {"3", "West", "4"}}) {
+         CompositeSelectionValue parentValue =
+            new CompositeSelectionValue(parent[1] + labelSuffix, parent[0]);
+         parentValue.setLevel(0);
+         SelectionValue leaf = new SelectionValue("X" + labelSuffix, parent[2]);
+         leaf.setLevel(1);
+         leaf.setSelected(picks.contains(parent[2]));
+         SelectionList children = new SelectionList();
+         children.addSelectionValue(leaf);
+         parentValue.setSelectionList(children);
+         roots.addSelectionValue(parentValue);
+
+         if(leaf.isSelected()) {
+            SelectionValue echo = new SelectionValue("X" + labelSuffix, parent[2]);
+            echo.setSelected(true);
+            echoes.addSelectionValue(echo);
+         }
+      }
+
+      for(SelectionValue echo : echoes.getSelectionValues()) {
+         roots.addSelectionValue(echo);
+      }
+
+      return roots;
+   }
+
+   private static SelectionTreeVSAssembly idTreeAssembly(SelectionList before,
+                                                        SelectionList after)
+   {
+      SelectionTreeVSAssembly assembly = treeAssembly(before, after);
+      when(assembly.getMode()).thenReturn(SelectionTreeVSAssemblyInfo.ID);
+      return assembly;
+   }
+
+   @Test
+   void idModeReportsLabelsAndEachSelectedNodeOnce() throws Exception {
+      Map<String, Object> result =
+         rebindTree(idTreeAssembly(idTree("", "2", "4"), null), true);
+
+      assertEquals(List.of("East > X", "West > X"), result.get("droppedSelection"));
+   }
+
+   @Test
+   void idModeDiffsByNodeIdNotByLabel() throws Exception {
+      Map<String, Object> result = rebindTree(
+         idTreeAssembly(idTree("", "2", "4"), idTree("", "2")), true);
+
+      assertEquals(List.of("West > X"), result.get("droppedSelection"));
+   }
+
+   @Test
+   void idModeStaysSilentWhenOnlyTheLabelsChange() throws Exception {
+      Map<String, Object> result = rebindTree(
+         idTreeAssembly(idTree("", "2", "4"), idTree("-new", "2", "4")), true);
+
+      assertFalse(result.containsKey("droppedSelection"));
    }
 }
