@@ -57,6 +57,11 @@
         _#(date.common.dateValid)
       </div>
     }
+    @else if (isOverlapping && !disable) {
+      <div class="alert alert-danger mb-0">
+        _#(date.comparison.customPeriods.overlap)
+      </div>
+    }
   </div>
   <div class="col-1">
     <button type="button" class="btn btn-sm btn-light-no-bg icon-size-medium add-icon"
