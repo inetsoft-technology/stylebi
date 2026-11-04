@@ -6367,13 +6367,13 @@ public class WorksheetAgentController {
                                    List<String> warnings) {}
 
    private static final java.util.regex.Pattern SELECT_WILDCARD = java.util.regex.Pattern.compile(
-      "(?i)(?:\\bselect|,)\\s*(?:distinct\\s+)?(?:(?:[\\w\"]+|\\$\\(@[^)]+\\))\\.)*\\*\\s*(?:,|\\bfrom\\b)");
+      "(?i)(?:\\bselect|,)\\s*(?:distinct\\s+)?(?:(?:[\\w\"]++|\\$\\(@[^()]++\\))\\.)*+\\*\\s*(?:,|\\bfrom\\b)");
 
    private static final java.util.regex.Pattern QUOTED_LITERAL =
       java.util.regex.Pattern.compile("'[^']*+(?:''[^']*+)*+'");
 
    private static final java.util.regex.Pattern SQL_TOKEN = java.util.regex.Pattern.compile(
-      "\\$\\(@[^)]*\\)|\\(|\\)|,|;|[A-Za-z_]+");
+      "\\$\\(@[^()]*+\\)|\\(|\\)|,|;|[A-Za-z_]+");
 
    /**
     * True when a {@code $(@var)} sits in a FROM/JOIN table list at any nesting level. A table

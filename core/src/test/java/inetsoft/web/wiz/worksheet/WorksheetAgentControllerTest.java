@@ -12775,6 +12775,33 @@ class WorksheetAgentControllerTest {
          "SELECT * FROM $(@t) WHERE NAME = '" + plain));
    }
 
+   /** Bug #80180: long unquoted qualifier chains / unclosed placeholders must not overflow or stall. */
+   @Test
+   void wildcardMessageHandlesLongQualifierChainsAndUnclosedPlaceholders() {
+      for(String q : new String[] { "a.", "\"q\".", "$(@q).", "averyverylongidentifier." }) {
+         assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+            "SELECT $(@n), " + q.repeat(5_000) + "x FROM t"), q);
+         String chained = WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+            "SELECT $(@n), " + q.repeat(5_000) + "* FROM t");
+
+         if(q.startsWith("$(@")) {
+            assertNotNull(chained, q);
+         }
+         else {
+            assertNull(chained, q);
+         }
+
+         assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+            "SELECT " + q.repeat(5_000) + "* FROM $(@t)"), q);
+      }
+
+      long start = System.nanoTime();
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE X = " + "$(@".repeat(100_000)));
+      assertTrue(System.nanoTime() - start < 5_000_000_000L,
+                 "unclosed placeholders must scan in linear time");
+   }
+
    /** Bug #80054: add_sql_query surfaces the cause-naming message for {@code $(@t).*}. */
    @Test
    void addSqlQueryNamesPlaceholderQualifiedWildcardWhenParseFails() throws Exception {
