@@ -374,7 +374,9 @@ final class ChartRegionResolver {
     * subtracted - a legend region needs the graph itself, so without one there is nothing to
     * read or write. Same wording as {@link #requireLegendField}.
     */
-   static void requireLegend(Legends legends, int index) {
+   static void requireLegend(Legends legends, int index,
+                             ChartVisibilityState.HiddenLegends hidden)
+   {
       if(!legends.measured()) {
          throw new IllegalArgumentException(
             "This chart has no laid-out graph yet - it is unbound, empty, or still computing - " +
@@ -386,8 +388,22 @@ final class ChartRegionResolver {
          return;
       }
 
+      // A legend whose descriptor is off is not built into the laid-out graph, so the list above
+      // cannot tell a hidden legend from an absent one (bug #80331). Only a bound legend whose
+      // descriptor says hidden is called hidden: an empty list alone is not evidence, because a
+      // legend with a single value is not drawn either.
+      if(hidden.any()) {
+         throw new IllegalArgumentException(
+            "This chart has " + hidden.hidden().size() + " legend(s) but they are hidden (" +
+            hidden.describe() + "); '" + index + "' " + (legends.count() == 0
+               ? "cannot be read or written while hidden"
+               : "is out of range for the " + legends.count() + " drawn legend(s)") +
+            ". Show them first with set_chart_element_visibility {element: 'legend', " +
+            "visible: true}, then retry.");
+      }
+
       String range = legends.count() == 0
-         ? "This chart has no legends"
+         ? "This chart has no legends (a legend with a single value is not drawn)"
          : legends.count() == 1
             ? "This chart has 1 legend, so the only valid index is 0"
             : "This chart has " + legends.count() + " legends, so the valid indexes are 0 to " +

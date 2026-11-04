@@ -30,6 +30,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -672,6 +673,38 @@ public class ChartElementService {
       out.put("axesMeasured", axes.measured());
       out.put("legends", describe(regions.legends()));
       out.put("legendsMeasured", regions.legends().measured());
+
+      // Hidden state is read from the descriptors, not the laid-out graph: a hidden legend is not
+      // built into the graph, so `legends` above cannot say it exists (bug #80331).
+      sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
+         ChartDescriptor desc = ChartVisibilityState.descriptor(chart);
+         VSChartInfo info = chart.getVSChartInfo();
+         boolean maxMode = ChartVisibilityState.maxMode(rvs, chart);
+         ChartVisibilityState.HiddenLegends hidden =
+            ChartVisibilityState.hiddenLegends(desc, info, maxMode);
+         List<Map<String, Object>> hiddenLegends = new ArrayList<>();
+
+         for(ChartVisibilityState.HiddenLegend legend : hidden.hidden()) {
+            Map<String, Object> one = new LinkedHashMap<>();
+            one.put("channel", legend.channel());
+            one.put("field", legend.field());
+            hiddenLegends.add(one);
+         }
+
+         out.put("legendsHidden", hidden.any());
+         out.put("hiddenLegends", hiddenLegends);
+
+         if(desc != null) {
+            out.put("axisVisibility",
+                    ChartVisibilityState.axisVisibility(info, axes.ordered(), maxMode));
+            out.put("titleVisibility",
+                    ChartVisibilityState.titleVisibility(desc, axes.ordered(), maxMode));
+         }
+
+         out.put("visibilityBasis", "descriptor");
+         return null;
+      });
 
       // Which measure(s) are on the secondary axis -- the piece a caller needs to pass
       // setVisibility's own 'secondary' correctly. Without this, "hide the axis for measure X"

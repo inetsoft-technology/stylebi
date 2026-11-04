@@ -735,6 +735,24 @@ class ChartElementServiceTest {
       assertTrue(String.valueOf(out.get("axesBasis")).contains("binding"));
    }
 
+   /**
+    * Bug #80331: the hidden-state keys are additive. A chart whose descriptors cannot be read
+    * still answers, with nothing hidden, and the keys that need a descriptor are left out rather
+    * than reported as a guess.
+    */
+   @Test
+   void vocabularyAddsTheHiddenStateKeysWithoutDisturbingTheExistingOnes() throws Exception {
+      Harness h = harness(boundChart(false));
+
+      Map<String, Object> out = h.service.vocabulary("tok", principal(), "Chart1");
+
+      assertEquals(false, out.get("legendsHidden"));
+      assertEquals(java.util.List.of(), out.get("hiddenLegends"));
+      assertEquals("descriptor", out.get("visibilityBasis"));
+      assertFalse(out.containsKey("axisVisibility"), "no descriptor, nothing to read");
+      assertEquals(java.util.List.of("x", "y"), out.get("axes"));
+   }
+
    @Test
    void readingTheVocabularyForOneChartSpendsNoUndoCheckpoint() throws Exception {
       Harness h = harness(boundChart(false));

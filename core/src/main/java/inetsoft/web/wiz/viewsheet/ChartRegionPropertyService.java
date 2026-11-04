@@ -747,7 +747,7 @@ public class ChartRegionPropertyService {
    /** The shelf refs that can render on the targeted axis: a measure on the other axis of this
     * type is not on it, and dimensions never render on a secondary axis. Shared by the ambiguity
     * guard and {@link #computeTrueAxisKind} so "one candidate" means the same in both. */
-   private static ChartRef[] axisCandidates(VSChartInfo info, String canonical) {
+   static ChartRef[] axisCandidates(VSChartInfo info, String canonical) {
       boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
       boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
       ChartRef[] shelf = onYShelf ? info.getYFields() : info.getXFields();
@@ -1899,7 +1899,16 @@ public class ChartRegionPropertyService {
                ChartRegionResolver.legends(
                   rvs, ChartRegionResolver.requireChart(rvs, assembly)));
 
-         ChartRegionResolver.requireLegend(legends, indexOf(target));
+         ChartVisibilityState.HiddenLegends hidden = sessions.read(
+            sessionToken, user,
+            (rvs, runtimeId, dispatcher) -> {
+               ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
+               return ChartVisibilityState.hiddenLegends(
+                  ChartVisibilityState.descriptor(chart), chart.getVSChartInfo(),
+                  ChartVisibilityState.maxMode(rvs, chart));
+            });
+
+         ChartRegionResolver.requireLegend(legends, indexOf(target), hidden);
          return;
       }
 
@@ -2117,7 +2126,7 @@ public class ChartRegionPropertyService {
     * {@code getChartRef} already, and mapping them to the long forms would change which shelf
     * {@code findDataRef} searches on a scatter matrix — a real behaviour change for no gain.
     */
-   private static String axisType(String target) {
+   static String axisType(String target) {
       return switch(ChartRegionResolver.canonical(target)) {
          case "y2" -> "right_y_axis";
          case "x2" -> "top_x_axis";
