@@ -17,8 +17,19 @@
  */
 package inetsoft.web.wiz.script.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Best-effort result of {@code get_function_signature} (the static "Layer A" metadata lookup).
  * Deliberately minimal for this slice — see {@code ScriptApiService} javadoc.
+ *
+ * <p>{@code didYouMean} is only set on a miss whose name matches a catalogue entry ignoring case:
+ * a {@code String} (the canonical spelling) for one match, a sorted {@code List<String>} for
+ * several. It is a hint only; {@code found} stays false.
  */
-public record FunctionSignature(String name, boolean found, String type, String url, boolean sample) {}
+public record FunctionSignature(String name, boolean found, String type, String url, boolean sample,
+                                @JsonInclude(JsonInclude.Include.NON_NULL) Object didYouMean) {
+   public FunctionSignature(String name, boolean found, String type, String url, boolean sample) {
+      this(name, found, type, url, sample, null);
+   }
+}

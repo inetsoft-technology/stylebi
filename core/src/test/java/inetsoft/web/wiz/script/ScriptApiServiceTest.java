@@ -17,7 +17,11 @@
  */
 package inetsoft.web.wiz.script;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.web.wiz.script.model.FunctionSignature;
+import java.util.List;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -98,5 +102,68 @@ class ScriptApiServiceTest {
    @Test
    void doesNotFlagUnknownNameAsSampleCode() {
       assertFalse(service.lookup("doesNotExist").sample());
+   }
+
+   @Test
+   void missWithDifferentCaseSuggestsCanonicalBareName() {
+      FunctionSignature dateAdd = service.lookup("dateadd");
+      assertFalse(dateAdd.found());
+      assertEquals("dateAdd", dateAdd.didYouMean());
+
+      // countDistinct lives under CALC and is flattened into the root
+      FunctionSignature countDistinct = service.lookup("countdistinct");
+      assertFalse(countDistinct.found());
+      assertEquals("countDistinct", countDistinct.didYouMean());
+   }
+
+   @Test
+   void missWithDifferentCaseSuggestsCanonicalTypeMethod() {
+      assertEquals("AreaElement.addDim", service.lookup("areaelement.adddim").didYouMean());
+      assertEquals("AreaElement.addDim", service.lookup("AreaElement.adddim").didYouMean());
+      assertEquals("AreaElement.addDim", service.lookup("areaelement.addDim").didYouMean());
+      assertFalse(service.lookup("areaelement.adddim").found());
+   }
+
+   @Test
+   void trueMissAndExactHitHaveNoSuggestion() {
+      assertNull(service.lookup("doesNotExist").didYouMean());
+      assertNull(service.lookup("AreaElement.noSuchMethod").didYouMean());
+      assertNull(service.lookup("dateAdd").didYouMean());
+      assertTrue(service.lookup("dateAdd").found());
+   }
+
+   @Test
+   void sreeOnlyNamesAreNeverSuggested() {
+      assertNull(service.lookup("showreport").didYouMean());
+   }
+
+   @Test
+   void ambiguousCaseInsensitiveMatchesReturnSortedList() throws Exception {
+      ObjectNode root = (ObjectNode) new ObjectMapper().readTree(
+         "{\"fooBar\":{\"!type\":\"fn()\"},\"FOOBAR\":{\"!type\":\"fn()\"},"
+         + "\"T\":{\"prototype\":{\"doIt\":{},\"DOIT\":{}}},\"!name\":{}}");
+      ScriptApiService svc = new ScriptApiService(root);
+
+      FunctionSignature bare = svc.lookup("foobar");
+      assertFalse(bare.found());
+      assertEquals(List.of("FOOBAR", "fooBar"), bare.didYouMean());
+
+      assertEquals(List.of("T.DOIT", "T.doIt"), svc.lookup("t.doit").didYouMean());
+      assertNull(svc.lookup("!NAME").didYouMean());
+   }
+
+   @Test
+   void didYouMeanSerializationShapes() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode single = mapper.valueToTree(service.lookup("dateadd"));
+      assertEquals("dateAdd", single.get("didYouMean").asText());
+
+      JsonNode list = mapper.valueToTree(
+         new FunctionSignature("x", false, null, null, false, List.of("A", "b")));
+      assertTrue(list.get("didYouMean").isArray());
+      assertEquals(2, list.get("didYouMean").size());
+
+      JsonNode none = mapper.valueToTree(service.lookup("doesNotExist"));
+      assertFalse(none.has("didYouMean"));
    }
 }
