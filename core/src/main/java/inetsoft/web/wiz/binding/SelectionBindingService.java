@@ -300,10 +300,10 @@ public class SelectionBindingService {
                   pane.setLabelRef(label.ref());
                }
 
-               List<String> selectedBefore = selectedTreePaths(treeAssembly);
+               Map<String, String> selectedBefore = selectedTreePaths(treeAssembly);
                selectionTreeService.setSelectionTreePropertyModel(
                   runtimeId, assemblyName, model, linkUri, user, dispatcher);
-               discloseDroppedSelection(
+               discloseDroppedTreeSelection(
                   selectedBefore,
                   selectedTreePaths((SelectionTreeVSAssembly) SelectionRuntimeService
                      .requireSelection(rvs, assemblyName)),
@@ -320,10 +320,10 @@ public class SelectionBindingService {
                pane.setMode(SelectionTreeVSAssemblyInfo.COLUMN);
                pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
                List<String> levelsBefore = singleSelectionLevelNames(treeAssembly);
-               List<String> selectedBefore = selectedTreePaths(treeAssembly);
+               Map<String, String> selectedBefore = selectedTreePaths(treeAssembly);
                selectionTreeService.setSelectionTreePropertyModel(
                   runtimeId, assemblyName, model, linkUri, user, dispatcher);
-               discloseDroppedSelection(
+               discloseDroppedTreeSelection(
                   selectedBefore,
                   selectedTreePaths((SelectionTreeVSAssembly) SelectionRuntimeService
                      .requireSelection(rvs, assemblyName)),
@@ -1138,25 +1138,38 @@ public class SelectionBindingService {
       return selected;
    }
 
+   private static final char ID_PATH_SEPARATOR = (char) 0x1f;
+
    /**
-    * The selected nodes of a selection tree as {@code " > "}-joined paths, read from the applied
-    * state tree. Recurses into every composite, since an ID-mode select never marks ancestors.
+    * The selected nodes of a selection tree, read from the applied state tree. Keys are the
+    * separator-joined node-id paths (identity, since labels are not unique) and values are the
+    * {@code " > "}-joined label paths shown to the caller (a null label falls back to the id).
+    * Recurses into every composite, since an ID-mode select never marks ancestors. In ID mode
+    * the state tree also keeps each selected node flat at its root, so a root entry whose id is
+    * also reached nested under another node is that echo and is skipped.
     */
-   private static List<String> selectedTreePaths(SelectionTreeVSAssembly assembly) {
+   private static Map<String, String> selectedTreePaths(SelectionTreeVSAssembly assembly) {
       SelectionList list = assembly.getStateSelectionList();
 
       if(list == null) {
          list = assembly.getSelectionList();
       }
 
-      List<String> selected = new ArrayList<>();
-      collectSelectedTreePaths(list == null ? null : list.getSelectionValues(), "", selected);
+      SelectionTreeVSAssemblyInfo info = assembly.getSelectionTreeInfo();
+      boolean idMode = info != null && info.getMode() == SelectionTreeVSAssemblyInfo.ID;
+      SelectionValue[] roots = list == null ? null : list.getSelectionValues();
+      Set<String> nestedIds = new HashSet<>();
+
+      if(idMode) {
+         collectNestedIds(roots, false, nestedIds);
+      }
+
+      Map<String, String> selected = new LinkedHashMap<>();
+      collectSelectedTreePaths(roots, "", "", idMode ? nestedIds : Set.of(), selected);
       return selected;
    }
 
-   private static void collectSelectedTreePaths(SelectionValue[] values, String prefix,
-                                                List<String> out)
-   {
+   private static void collectNestedIds(SelectionValue[] values, boolean nested, Set<String> out) {
       if(values == null) {
          return;
       }
@@ -1166,17 +1179,58 @@ public class SelectionBindingService {
             continue;
          }
 
-         String path = prefix + value.getValue();
+         if(nested && value.getValue() != null) {
+            out.add(value.getValue());
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList children = composite.getSelectionList();
+            collectNestedIds(children == null ? null : children.getSelectionValues(), true, out);
+         }
+      }
+   }
+
+   private static void collectSelectedTreePaths(SelectionValue[] values, String idPrefix,
+                                                String labelPrefix, Set<String> rootEchoes,
+                                                Map<String, String> out)
+   {
+      if(values == null) {
+         return;
+      }
+
+      for(SelectionValue value : values) {
+         if(value == null || idPrefix.isEmpty() && rootEchoes.contains(value.getValue())) {
+            continue;
+         }
+
+         String label = value.getLabel() == null || value.getLabel().isEmpty()
+            ? value.getValue() : value.getLabel();
+         String idPath = idPrefix + value.getValue();
+         String labelPath = labelPrefix + label;
 
          if(value.isSelected()) {
-            out.add(path);
+            out.putIfAbsent(idPath, labelPath);
          }
 
          if(value instanceof CompositeSelectionValue composite) {
             SelectionList children = composite.getSelectionList();
             collectSelectedTreePaths(
-               children == null ? null : children.getSelectionValues(), path + " > ", out);
+               children == null ? null : children.getSelectionValues(), idPath + ID_PATH_SEPARATOR,
+               labelPath + " > ", Set.of(), out);
          }
+      }
+   }
+
+   /** Tree counterpart of discloseDroppedSelection: diffs by node id, reports the labels. */
+   private static void discloseDroppedTreeSelection(Map<String, String> before,
+                                                    Map<String, String> after,
+                                                    Map<String, Object> result)
+   {
+      List<String> dropped = before.entrySet().stream()
+         .filter(entry -> !after.containsKey(entry.getKey())).map(Map.Entry::getValue).toList();
+
+      if(!dropped.isEmpty()) {
+         result.put("droppedSelection", dropped);
       }
    }
 
