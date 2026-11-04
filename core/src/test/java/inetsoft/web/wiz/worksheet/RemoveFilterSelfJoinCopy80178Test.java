@@ -201,4 +201,59 @@ class RemoveFilterSelfJoinCopy80178Test {
       assertTrue(e.getMessage().contains("2 conditions"), e.getMessage());
       assertEquals(BASE + GT + ";" + BASE + LT + ";" + COPY + EQ + ";", remaining(t));
    }
+
+   /** A single column renamed by rename_column: alias CUST over attribute CUSTOMER_ID. */
+   private static BoundTableAssembly renamed(boolean entity, int... ops) {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly t = new BoundTableAssembly(ws, "T");
+      ColumnRef col = new ColumnRef(new AttributeRef(entity ? "ORDERS" : null, BASE));
+      col.setAlias("CUST");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(col);
+      t.setColumnSelection(cs, false);
+      ConditionList cl = new ConditionList();
+
+      for(int op : ops) {
+         if(!cl.isEmpty()) {
+            cl.append(new JunctionOperator(JunctionOperator.AND, 0));
+         }
+
+         cl.append(item(col, op, "1"));
+      }
+
+      t.setPreConditionList(cl);
+      ws.addAssembly(t);
+      return t;
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { BASE, "CUST" })
+   void aRenamedColumnIsRemovedByItsOldAndItsNewName(String name) {
+      BoundTableAssembly t = renamed(false, EQ);
+      removeFilter(t, name);
+      assertEquals("", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { BASE, "CUST" })
+   void aRenamedColumnIsReplacedInPlaceByItsOldAndItsNewName(String name) {
+      BoundTableAssembly t = renamed(false, EQ);
+      replaceFilter(t, name, ">", "9");
+      assertEquals("CUST" + GT + ";", remaining(t));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { BASE, "CUST" })
+   void everyConditionOnARenamedColumnGoesByEitherName(String name) {
+      BoundTableAssembly t = renamed(false, GT, LT);
+      removeFilter(t, name);
+      assertEquals("", remaining(t));
+   }
+
+   @Test
+   void aRenamedColumnWithAnEntityIsRemovedByItsNewName() {
+      BoundTableAssembly t = renamed(true, EQ);
+      removeFilter(t, "CUST");
+      assertEquals("", remaining(t));
+   }
 }

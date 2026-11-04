@@ -610,7 +610,7 @@ public final class WorksheetMutationSupport {
       boolean post = resolveUnambiguousAggregateAlias(t, field) != null;
       ConditionListWrapper existing = post ? t.getPostConditionList() : t.getPreConditionList();
       List<Integer> matches = existing == null || existing.isEmpty()
-         ? List.of() : filterMatches(existing.getConditionList(), field);
+         ? List.of() : filterMatches(t, existing.getConditionList(), field);
 
       // Bug #80031 (WSC-048): field is routed by resolveUnambiguousAggregateAlias exactly as
       // addFilter/removeFilter route it (see removeFilter's own Bug #76752 note), so a group
@@ -624,7 +624,7 @@ public final class WorksheetMutationSupport {
       if(matches.isEmpty()) {
          ConditionListWrapper other = post ? t.getPreConditionList() : t.getPostConditionList();
          List<Integer> otherMatches = other == null || other.isEmpty()
-            ? List.of() : filterMatches(other.getConditionList(), field);
+            ? List.of() : filterMatches(t, other.getConditionList(), field);
 
          if(!otherMatches.isEmpty()) {
             throw new IllegalArgumentException(
@@ -650,7 +650,7 @@ public final class WorksheetMutationSupport {
             (post ? "set_post_conditions" : "set_conditions") + " instead.");
       }
 
-      String storedType = matches.isEmpty() ? null : storedNumericType(existing, field, null);
+      String storedType = matches.isEmpty() ? null : storedNumericType(t, existing, field, null);
       FilterItem built = buildFilterItem(t, field, operation, storedType, values);
 
       if(matches.isEmpty()) {
@@ -788,10 +788,16 @@ public final class WorksheetMutationSupport {
     * join or mirror the un-aliased column's {@code getName()} is entity-qualified
     * ({@code ORDERS.CUSTOMER_ID}) while its output name is bare, and a self-join copy has the
     * alias ({@code CUSTOMER_ID_1}) for both. Only when no condition carries the requested name
-    * does the underlying attribute match, and then never for an aliased column: the copy
-    * {@code CUSTOMER_ID_1} is not the column {@code CUSTOMER_ID}.</p>
+    * does the underlying attribute match, and an aliased column only when the field resolves to
+    * that very column: a renamed column ({@code CUST} over {@code CUSTOMER_ID}) is still found by
+    * its old name, but the self-join copy {@code CUSTOMER_ID_1} is not, because there
+    * {@code CUSTOMER_ID} resolves to the base column.</p>
     */
-   private static List<Integer> filterMatches(ConditionList list, String field) {
+   private static List<Integer> filterMatches(TableAssembly t, ConditionList list,
+                                                String field)
+   {
+      DataRef resolved = null;
+      boolean resolvedDone = false;
       List<Integer> named = new ArrayList<>();
       List<Integer> byAttribute = new ArrayList<>();
 
@@ -802,7 +808,18 @@ public final class WorksheetMutationSupport {
             if(field.equals(attr.getName()) || field.equals(conditionOutputName(attr))) {
                named.add(i);
             }
-            else if(field.equals(attr.getAttribute()) && !isAliased(attr)) {
+            else if(field.equals(attr.getAttribute())) {
+               if(isAliased(attr)) {
+                  if(!resolvedDone) {
+                     resolved = resolveFieldOrNull(t, field, false);
+                     resolvedDone = true;
+                  }
+
+                  if(!sameColumn(resolved, attr)) {
+                     continue;
+                  }
+               }
+
                byAttribute.add(i);
             }
          }
@@ -829,6 +846,18 @@ public final class WorksheetMutationSupport {
       ColumnRef cr = innerColumn(ref);
       return cr != null && cr.getAlias() != null && !cr.getAlias().isBlank()
          ? cr.getAlias() : ref.getAttribute();
+   }
+
+   /** Whether {@code resolved} (the table's column for a field) is the column {@code attr} is on. */
+   private static boolean sameColumn(DataRef resolved, DataRef attr) {
+      ColumnRef a = innerColumn(attr);
+
+      if(!(resolved instanceof ColumnRef r) || a == null) {
+         return false;
+      }
+
+      return r == a || (Tool.equals(r.getAlias(), a.getAlias()) &&
+         Tool.equals(r.getDataRef().getName(), a.getDataRef().getName()));
    }
 
    private static boolean isAliased(DataRef ref) {
@@ -867,7 +896,7 @@ public final class WorksheetMutationSupport {
       }
 
       ConditionList src = existing.getConditionList();
-      java.util.Set<Integer> removeIdx = new java.util.HashSet<>(filterMatches(src, field));
+      java.util.Set<Integer> removeIdx = new java.util.HashSet<>(filterMatches(t, src, field));
 
       if(removeIdx.isEmpty()) {
          return;
@@ -4174,7 +4203,7 @@ public final class WorksheetMutationSupport {
                }
 
                dtype = literalType(spec.field(), dtype,
-                                   storedNumericType(existing, spec.field(), op), literals);
+                                   storedNumericType(t, existing, spec.field(), op), literals);
             }
 
             DataRef ref = resolveField(t, spec.field(), post);
@@ -5499,7 +5528,8 @@ public final class WorksheetMutationSupport {
     *
     * @return that type, or {@code null} when there is no such condition or they disagree
     */
-   private static String storedNumericType(ConditionListWrapper existing, String field, Integer op)
+   private static String storedNumericType(TableAssembly t, ConditionListWrapper existing,
+                                            String field, Integer op)
    {
       if(existing == null || existing.isEmpty()) {
          return null;
@@ -5508,7 +5538,7 @@ public final class WorksheetMutationSupport {
       ConditionList list = existing.getConditionList();
       Set<String> types = new HashSet<>();
 
-      for(int i : filterMatches(list, field)) {
+      for(int i : filterMatches(t, list, field)) {
          if(list.getItem(i) instanceof ConditionItem ci &&
             ci.getXCondition() instanceof Condition c &&
             (op == null || c.getOperation() == op) && isNumericConditionType(c.getType()))
