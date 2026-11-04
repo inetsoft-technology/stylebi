@@ -20,6 +20,7 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.lens.TextSizeLimitTableLens;
 import inetsoft.util.Tool;
@@ -94,19 +95,102 @@ public final class ExportCellCapScanner {
             break;
          }
 
-         String name = headerRows > 0 ? Tool.toString(inner.getObject(0, col)) : null;
-         name = name == null || name.isEmpty() ? "#" + (col + 1) : name;
-
-         if(name.length() > MAX_COLUMN_NAME_LENGTH) {
-            name = name.substring(0, MAX_COLUMN_NAME_LENGTH) + "...";
-         }
-
-         names.append(listed++ == 0 ? "" : ", ").append(name);
+         names.append(listed++ == 0 ? "" : ", ").append(columnName(inner, headerRows, col));
       }
 
       return List.of(cells + " cell(s) in column(s) " + names + " were cut to " + cap +
          " characters + '...' because this organization's max.cell.size is " + cap +
          "; raise max.cell.size to export them whole");
+   }
+
+   /**
+    * Scans a viewsheet table assembly's lens (Bug #80182). A viewsheet table is cut at more than
+    * one layer: the worksheet query layer wraps the base table in a
+    * {@link TextSizeLimitTableLens}, and the viewsheet sandbox wraps the result again, so the
+    * outermost layer's inner table already holds the cut text. The scan therefore follows the
+    * {@link TableFilter} chain down to the deepest text-limit layer and reads that layer's inner
+    * table, which still holds the uncut values. The base table may hold rows a viewsheet filter
+    * later drops, so the warning names columns only, not a cell count.
+    *
+    * @param assemblyName name of the exported table assembly, shown in the warning.
+    * @param lens         the lens the export writes (a viewsheet table lens).
+    * @param cap          {@code Util.getOrganizationMaxCellSize()}; {@code <= 0} disables it.
+    * @return zero or one human-readable warning.
+    */
+   public static List<String> scanViewsheetTable(String assemblyName, TableLens lens, int cap) {
+      if(cap <= 0 || lens == null) {
+         return List.of();
+      }
+
+      Set<String> columns = new LinkedHashSet<>();
+      Set<TableLens> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+      TextSizeLimitTableLens deepest = null;
+      TableLens current = lens;
+
+      while(current != null && visited.add(current)) {
+         if(current instanceof TextSizeLimitTableLens limited && limited.getTable() != null) {
+            deepest = limited;
+         }
+
+         current = current instanceof TableFilter filter ? filter.getTable() : null;
+      }
+
+      // only the deepest layer: reading through an outer layer would run its own cut (and its
+      // user message) again, and the deepest layer is the one whose inner table is uncut
+      if(deepest != null) {
+         collectCutColumns(deepest.getTable(), cap, columns);
+      }
+
+      if(columns.isEmpty()) {
+         return List.of();
+      }
+
+      StringBuilder names = new StringBuilder();
+      int listed = 0;
+
+      for(String name : columns) {
+         if(listed == MAX_LISTED_COLUMNS) {
+            names.append(", ...");
+            break;
+         }
+
+         names.append(listed++ == 0 ? "" : ", ").append(name);
+      }
+
+      return List.of("Text in column(s) " + names + " of table " + assemblyName +
+         " was cut to " + cap + " characters + '...' because this organization's " +
+         "max.cell.size is " + cap + "; raise max.cell.size to export it whole");
+   }
+
+   private static void collectCutColumns(TableLens inner, int cap, Set<String> columns) {
+      int headerRows = inner.getHeaderRowCount();
+      int colCount = inner.getColCount();
+      Set<Integer> cutColumns = new TreeSet<>();
+
+      for(int row = headerRows; inner.moreRows(row); row++) {
+         for(int col = 0; col < colCount; col++) {
+            if(!cutColumns.contains(col) && inner.getObject(row, col) instanceof String s &&
+               s.length() > cap)
+            {
+               cutColumns.add(col);
+            }
+         }
+      }
+
+      for(int col : cutColumns) {
+         columns.add(columnName(inner, headerRows, col));
+      }
+   }
+
+   private static String columnName(TableLens inner, int headerRows, int col) {
+      String name = headerRows > 0 ? Tool.toString(inner.getObject(0, col)) : null;
+      name = name == null || name.isEmpty() ? "#" + (col + 1) : name;
+
+      if(name.length() > MAX_COLUMN_NAME_LENGTH) {
+         name = name.substring(0, MAX_COLUMN_NAME_LENGTH) + "...";
+      }
+
+      return name;
    }
 
    /**

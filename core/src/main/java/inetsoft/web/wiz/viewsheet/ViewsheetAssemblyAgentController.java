@@ -28,6 +28,7 @@ import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
 import inetsoft.web.composer.model.vs.EditorModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.WizUtil;
+import inetsoft.web.wiz.service.ExportCellCapScanner;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
 import inetsoft.web.wiz.viewsheet.model.ParameterModel;
@@ -84,6 +85,7 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -1267,11 +1269,22 @@ public class ViewsheetAssemblyAgentController {
       boolean effectiveMatch = formatType == FileFormatInfo.EXPORT_TYPE_CSV ?
          false : match == null || match;
 
+      // Bug #80182: a table cell longer than max.cell.size is cut while it is written, so the
+      // CSV export reports it (column and cap) in the same header the worksheet export uses.
+      List<String> cellCapWarnings = new ArrayList<>();
+      ExportResponse exportResponse = new ExportResponse(out);
+
+      if(formatType == FileFormatInfo.EXPORT_TYPE_CSV) {
+         int cap = inetsoft.report.internal.Util.getOrganizationMaxCellSize();
+         exportResponse.setTableObserver((name, lens) ->
+            cellCapWarnings.addAll(ExportCellCapScanner.scanViewsheetTable(name, lens, cap)));
+      }
+
       try {
          exportService.exportViewsheet(rvs, formatType, effectiveMatch,
             expandSelections != null && expandSelections, includeCurrent, false, false,
             bookmarkNames, false, onlyDataComponents != null && onlyDataComponents, csvConfig,
-            exportAllTabbedTables != null && exportAllTabbedTables, new ExportResponse(out), user);
+            exportAllTabbedTables != null && exportAllTabbedTables, exportResponse, user);
       }
       catch(ScriptException e) {
          throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
@@ -1281,6 +1294,12 @@ public class ViewsheetAssemblyAgentController {
       }
       catch(MessageException e) {
          throw new PairingException(e.getMessage());
+      }
+
+      String warningsHeader = ExportCellCapScanner.toHeaderValue(cellCapWarnings);
+
+      if(warningsHeader != null) {
+         servletResponse.setHeader(ExportCellCapScanner.WARNINGS_HEADER, warningsHeader);
       }
 
       writeAttachment(servletResponse, out.toByteArray(), VSExportService.getMime(formatType),

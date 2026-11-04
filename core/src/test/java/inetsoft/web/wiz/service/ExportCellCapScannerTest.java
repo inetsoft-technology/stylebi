@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.filter.DefaultTableFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.TextSizeLimitTableLens;
 import org.junit.jupiter.api.Tag;
@@ -117,5 +118,46 @@ class ExportCellCapScannerTest {
 
       assertTrue(value.length() < 4000, "length " + value.length());
       assertTrue(URLDecoder.decode(value, StandardCharsets.UTF_8).contains("max.cell.size"));
+   }
+
+   /** Bug #80182: the layers a viewsheet table lens is built from, outermost first. */
+   private static TableLens viewsheetLens(int cap, Object[][] data) {
+      TableLens worksheetLayer = capped(cap, data);
+      TableLens query = new DefaultTableFilter(worksheetLayer);
+      return new DefaultTableFilter(new TextSizeLimitTableLens(query, cap));
+   }
+
+   @Test
+   void viewsheetTableWarnsNamingTheTableTheColumnAndTheCap() {
+      TableLens lens = viewsheetLens(500, new Object[][] {
+         {"id", "BIG"}, {"1", repeat(5000)}});
+
+      List<String> warnings = ExportCellCapScanner.scanViewsheetTable("TV", lens, 500);
+
+      assertEquals(1, warnings.size());
+      assertTrue(warnings.get(0).contains("column(s) BIG of table TV"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("max.cell.size is 500"), warnings.get(0));
+   }
+
+   @Test
+   void viewsheetTableListsAColumnCutAtTwoLayersOnce() {
+      TableLens lens = viewsheetLens(500, new Object[][] {
+         {"id", "BIG"}, {"1", repeat(5000)}, {"2", repeat(700)}});
+
+      String warning = ExportCellCapScanner.scanViewsheetTable("TV", lens, 500).get(0);
+
+      assertEquals(warning.indexOf("BIG"), warning.lastIndexOf("BIG"), warning);
+      assertTrue(!warning.contains("id"), warning);
+   }
+
+   @Test
+   void viewsheetTableWithShortCellsOrNoCapYieldsNoWarning() {
+      assertTrue(ExportCellCapScanner.scanViewsheetTable("TV", viewsheetLens(500,
+         new Object[][] {{"BIG"}, {repeat(500)}}), 500).isEmpty());
+      assertTrue(ExportCellCapScanner.scanViewsheetTable("TV", viewsheetLens(0,
+         new Object[][] {{"BIG"}, {repeat(5000)}}), 0).isEmpty());
+      assertTrue(ExportCellCapScanner.scanViewsheetTable("TV",
+         new DefaultTableLens(new Object[][] {{"BIG"}, {repeat(5000)}}), 500).isEmpty());
+      assertTrue(ExportCellCapScanner.scanViewsheetTable("TV", null, 500).isEmpty());
    }
 }

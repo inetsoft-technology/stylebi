@@ -36,6 +36,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.List;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompressExporter {
@@ -226,6 +227,16 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
          ((VSTableLens) table).initTableGrid(assembly.getVSAssemblyInfo());
       }
 
+      if(tableObserver != null) {
+         try {
+            tableObserver.accept(assembly.getAbsoluteName(), table);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to inspect table for the cell size cap:" +
+                     assembly.getAbsoluteName(), e);
+         }
+      }
+
       try(OutputStream out = new FileOutputStream(csvFile)) {
          CSVUtil.writeTableDataAssembly(table, out, getDelim(), getQuote(), isKeepHeader());
          final String limitMessage = box.getLimitMessage(assembly.getName());
@@ -413,6 +424,14 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
       return new ArrayList<>(resultFiles);
    }
 
+   /**
+    * Sets an observer called with each table assembly name and its lens just before that table is
+    * written to CSV, while the lens still yields uncut values (Bug #80182).
+    */
+   public void setTableObserver(BiConsumer<String, TableLens> tableObserver) {
+      this.tableObserver = tableObserver;
+   }
+
    public void setExcelFile(File excelFile) {
       this.excelFile = excelFile;
    }
@@ -424,6 +443,7 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
    private File tmpDir;
    private List<File> resultFiles = new ArrayList<>();
    private File excelFile;
+   private BiConsumer<String, TableLens> tableObserver;
    private List<String> exportAssemblies = new ArrayList<>();
    private OutputStream stream;
    private String currentBookmark;

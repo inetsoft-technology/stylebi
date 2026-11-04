@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.analytic.composition.VSPortalHelper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
@@ -58,6 +59,7 @@ import java.nio.file.NoSuchFileException;
 import java.security.Principal;
 import java.util.*;
 import java.util.regex.Matcher;
+import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 
 @Component
@@ -399,6 +401,7 @@ public class VSExportService {
             writeViewsheetExport(
                rvs, response.getOutputStream(), principal, format, previewPrintLayout, print, match,
                expandSelections, current, bookmarks, onlyDataComponents, csvConfig, null,
+               response.getTableObserver(),
                excelToCSV, exportAllTabbedCrosstab);
          }
       }
@@ -679,7 +682,7 @@ public class VSExportService {
          // export to excel.
          try(OutputStream out = new FileOutputStream(excelFile)) {
             writeViewsheetExport(rvs, out, principal, fmt, previewPrintLayout, print, match,
-               expandSelections,  current, bookmarks, onlyDataComponents, csvConfig, null, true,
+               expandSelections,  current, bookmarks, onlyDataComponents, csvConfig, null, null, true,
                false);
          }
 
@@ -688,7 +691,7 @@ public class VSExportService {
             tempFile.write(out -> {
                writeViewsheetExport(rvs, out, principal, format,  previewPrintLayout, print,
                   false, expandSelections, current, bookmarks, onlyDataComponents, csvConfig,
-                     excelFile, true, false);
+                     excelFile, null, true, false);
             });
 
             response.setContentLength(tempFile.getLength());
@@ -703,7 +706,7 @@ public class VSExportService {
             writeViewsheetExport(
                     rvs, out, principal, format,  previewPrintLayout, print, match,
                     expandSelections, current, bookmarks, onlyDataComponents, csvConfig,
-                    null, false, exportAllTabbedCrosstab);
+                    null, null, false, exportAllTabbedCrosstab);
          });
 
          response.setContentLength(tempFile.getLength());
@@ -728,7 +731,9 @@ public class VSExportService {
                                      int format, boolean previewPrintLayout, boolean print,
                                      boolean match, boolean expandSelections, boolean current,
                                      String[] bookmarks, boolean onlyDataComponents,
-                                     CSVConfig csvConfig, File excelFile, boolean excelToCSV,
+                                     CSVConfig csvConfig, File excelFile,
+                                     BiConsumer<String, TableLens> tableObserver,
+                                     boolean excelToCSV,
                                      boolean exportAllTabbedTables)
       throws Exception
    {
@@ -746,6 +751,10 @@ public class VSExportService {
 
          if(!onlyDataComponents && exporter instanceof CSVVSExporter) {
             ((CSVVSExporter) exporter).setExcelFile(excelFile);
+         }
+
+         if(tableObserver != null && exporter instanceof CSVVSExporter) {
+            ((CSVVSExporter) exporter).setTableObserver(tableObserver);
          }
 
          writeViewsheetExport(rvs, exporter, principal, match, expandSelections, current, bookmarks,
