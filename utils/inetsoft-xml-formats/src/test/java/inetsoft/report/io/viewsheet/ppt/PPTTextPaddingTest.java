@@ -24,7 +24,11 @@ import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
+import org.apache.poi.xslf.usermodel.XSLFShape;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
+import org.apache.poi.xslf.usermodel.XSLFTextBox;
+import org.apache.poi.xslf.usermodel.XSLFTextRun;
+import inetsoft.report.internal.Common;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -38,6 +42,7 @@ import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Bug #78672: a Text component's padding must reach the PowerPoint text box as insets (in
@@ -83,6 +88,115 @@ class PPTTextPaddingTest {
    @Test
    void noPaddingKeepsOnePointInsets() throws Exception {
       assertInsets(new Insets(0, 0, 0, 0), 1, 1, 1, 1);
+   }
+
+   private static final String SENTENCE =
+      "The quick brown fox jumps over the lazy dog and keeps running across the wide open " +
+      "field until the night falls over the quiet hills far away from the town";
+
+   /** Padding reduces the width the lines are wrapped at, as well as the insets. */
+   @Test
+   void wrappedLinesFitPaddedWidth() throws Exception {
+      Insets padding = new Insets(0, 40, 0, 40);
+      XSLFTextBox box = write(SENTENCE, 300, 200, padding, true);
+      double areaW = box.getAnchor().getWidth() - 60;
+      double[] widths = lineWidths(box);
+      assertTrue(widths.length > 1);
+
+      for(double w : widths) {
+         assertTrue(w <= areaW - 2 + 0.01, w + " exceeds the text area " + (areaW - 2));
+      }
+
+      // more padding wraps into more lines
+      XSLFTextBox none = write(SENTENCE, 300, 200, new Insets(0, 0, 0, 1), true);
+      assertTrue(lines(box).length > lines(none).length);
+   }
+
+   /** The lines written are cut off at the padded height, not the component height. */
+   @Test
+   void lineCountFitsPaddedHeight() throws Exception {
+      String text = "one\ntwo\nthree\nfour\nfive\nsix";
+      int unpadded = lines(write(text, 300, 200, new Insets(0, 0, 0, 1), true)).length;
+      XSLFTextBox box = write(text, 300, 200, new Insets(60, 0, 60, 0), true);
+      int padded = lines(box).length;
+      double areaH = box.getAnchor().getHeight() - 90;
+      double fontH = Common.getHeight(new Font("Dialog", Font.PLAIN, 10));
+
+      assertTrue(unpadded > padded, "padded " + padded + " unpadded " + unpadded);
+      assertTrue(padded >= 1);
+      assertTrue((padded + 1) * fontH >= areaH && padded * fontH <= areaH + fontH,
+                 padded + " lines in " + areaH);
+   }
+
+   /** Without wrapping, the text is truncated at the padded width. */
+   @Test
+   void noWrapTruncatesAtPaddedWidth() throws Exception {
+      XSLFTextBox box = write(SENTENCE, 300, 200, new Insets(0, 40, 0, 40), false);
+      double[] widths = lineWidths(box);
+      assertEquals(1, widths.length);
+      assertTrue(widths[0] <= box.getAnchor().getWidth() - 60 - 2 + 0.01, "" + widths[0]);
+      XSLFTextBox none = write(SENTENCE, 300, 200, new Insets(0, 0, 0, 1), false);
+      assertTrue(lineWidths(none)[0] > widths[0]);
+   }
+
+   /** Padding larger than the box still writes at least the first line. */
+   @Test
+   void paddingLargerThanBoxWritesFirstLine() throws Exception {
+      XSLFTextBox box = write(SENTENCE, 100, 60, new Insets(80, 80, 80, 80), true);
+      String[] lines = lines(box);
+      assertTrue(lines.length >= 1);
+      assertTrue(lines[0].length() > 0);
+   }
+
+   /** All-zero padding keeps the unpadded wrapping. */
+   @Test
+   void zeroPaddingWrapsAtFullWidth() throws Exception {
+      XSLFTextBox box = write(SENTENCE, 300, 200, new Insets(0, 0, 0, 0), true);
+      double[] widths = lineWidths(box);
+      double areaW = box.getAnchor().getWidth() - 2;
+
+      for(double w : widths) {
+         assertTrue(w <= areaW + 0.01);
+      }
+
+      // the first line fills most of the full width, which padded text could not
+      assertTrue(widths[0] > areaW - 40, "" + widths[0]);
+   }
+
+   private XSLFTextBox write(String text, int w, int h, Insets padding, boolean wrap)
+      throws Exception
+   {
+      TextVSAssembly assembly = new TextVSAssembly(vs, "Text" + vs.getAssemblies().length);
+      TextVSAssemblyInfo info = (TextVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      info.setPadding(padding);
+      info.setPixelSize(new Dimension(w, h));
+      info.getFormat().getUserDefinedFormat().setFont(new Font("Dialog", Font.PLAIN, 12));
+      info.getFormat().getUserDefinedFormat().setWrapping(wrap);
+      vs.addAssembly(assembly);
+      int before = slide.getShapes().size();
+      exporter.writeText(assembly, text);
+      java.util.List<XSLFShape> shapes = slide.getShapes();
+      assertEquals(before + 1, shapes.size());
+      return (XSLFTextBox) shapes.get(shapes.size() - 1);
+   }
+
+   private String[] lines(XSLFTextBox box) {
+      String text = box.getText();
+      return text.split("[\\r\\n\\u000b]");
+   }
+
+   private double[] lineWidths(XSLFTextBox box) {
+      XSLFTextRun run = box.getTextParagraphs().get(0).getTextRuns().get(0);
+      Font font = new Font("Dialog", Font.PLAIN, (int) Math.round(run.getFontSize()));
+      FontMetrics fm = Common.getFractionalFontMetrics(font);
+      String[] lines = lines(box);
+      double[] widths = new double[lines.length];
+
+      for(int i = 0; i < lines.length; i++) {
+         widths[i] = fm.stringWidth(lines[i]);
+      }
+
+      return widths;
    }
 
    private void assertInsets(Insets padding, double top, double left, double bottom,
