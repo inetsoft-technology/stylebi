@@ -26,8 +26,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,10 +46,22 @@ public class ScriptApiService {
    private static final String RESOURCE_FUNCTIONS = "/inetsoft/web/binding/js-functions.json";
    private static final String RESOURCE_GENERATED = "/inetsoft/web/binding/js-functions.generated.json";
 
+   public ScriptApiService() {
+   }
+
+   /**
+    * Test seam: uses the given, already merged, catalogue root instead of loading the resources.
+    */
+   ScriptApiService(JsonNode root) {
+      this.root = root;
+   }
+
    /**
     * Looks up a top-level function ({@code "dateAdd"}) or a prototype method
     * ({@code "Type.method"}, e.g. {@code "AreaElement.setBorderColor"}).
-    * Returns {@code found=false} rather than throwing when nothing matches.
+    * Returns {@code found=false} rather than throwing when nothing matches; a miss whose name
+    * equals a catalogue entry ignoring case carries that canonical spelling as
+    * {@code didYouMean} (a String for one match, a sorted List for several).
     */
    public FunctionSignature lookup(String name) {
       if(name == null || name.isBlank()) {
@@ -69,13 +83,65 @@ public class ScriptApiService {
       }
 
       if(node == null || node.isMissingNode()) {
-         return new FunctionSignature(name, false, null, null, false);
+         return new FunctionSignature(name, false, null, null, false, suggest(r, name, dot));
       }
 
       String type = node.path("!type").asText(null);
       String url = node.path("!url").asText(null);
       boolean sample = node.path("!sample").asBoolean(false);
       return new FunctionSignature(name, true, type, url, sample);
+   }
+
+   /**
+    * Case-insensitive candidates for a missed name, over the same merged root {@code lookup}
+    * reads (so SREE_ONLY names are never suggested). Dotted names only match prototype methods,
+    * with both halves compared ignoring case.
+    */
+   private Object suggest(JsonNode r, String name, int dot) {
+      List<String> matches = new ArrayList<>();
+
+      if(dot > 0) {
+         String type = name.substring(0, dot);
+         String method = name.substring(dot + 1);
+
+         for(Iterator<String> types = r.fieldNames(); types.hasNext();) {
+            String t = types.next();
+
+            if(t.startsWith("!") || !t.equalsIgnoreCase(type)) {
+               continue;
+            }
+
+            for(Iterator<String> methods = r.get(t).path("prototype").fieldNames();
+                methods.hasNext();)
+            {
+               String m = methods.next();
+
+               if(!m.startsWith("!") && m.equalsIgnoreCase(method)) {
+                  matches.add(t + "." + m);
+               }
+            }
+         }
+      }
+      else {
+         for(Iterator<String> keys = r.fieldNames(); keys.hasNext();) {
+            String k = keys.next();
+
+            if(!k.startsWith("!") && k.equalsIgnoreCase(name)) {
+               matches.add(k);
+            }
+         }
+      }
+
+      if(matches.isEmpty()) {
+         return null;
+      }
+
+      if(matches.size() == 1) {
+         return matches.get(0);
+      }
+
+      matches.sort(null);
+      return matches;
    }
 
    private synchronized JsonNode root() {
