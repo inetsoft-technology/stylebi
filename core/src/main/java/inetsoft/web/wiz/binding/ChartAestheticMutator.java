@@ -2101,6 +2101,23 @@ public final class ChartAestheticMutator {
                                                  ganttField, ganttTargets));
       view.put("acceptsFrame", acceptsFrame(channel, colorShapeSupported));
 
+      if(multiView) {
+         // Bug #79998: fieldRef is null here by design, which hid each measure's own field and
+         // the calculator it carries. Read-only; set_aesthetic_field stays refused in this mode.
+         Map<String, Object> refsByMeasure = new LinkedHashMap<>();
+
+         for(ChartAggregateRefModel aggregate : multiTargets) {
+            AestheticInfo field = aggregateFieldFor(aggregate, channel);
+
+            if(field != null && field.getDataInfo() != null) {
+               refsByMeasure.put(measureLabel(aggregate),
+                                 FieldRefFactory.from(field.getDataInfo()));
+            }
+         }
+
+         view.put("fieldRefsByMeasure", refsByMeasure);
+      }
+
       Map<String, Object> perMeasureFrame =
          divergentMeasureFrames(model, channel, chartLevelField, perMeasureFrameChannels,
                                 multiTargets);
