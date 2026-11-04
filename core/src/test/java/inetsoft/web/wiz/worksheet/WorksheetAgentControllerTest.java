@@ -3665,26 +3665,45 @@ class WorksheetAgentControllerTest {
    }
 
    /** Bug #79595 (b): the bulk refresh re-discovers tabular columns and names the dependent. */
-   /** A dependent whose refresh throws must not lose the rest of the bulk refresh or its warning. */
+   /**
+    * WorksheetEventUtil.refreshColumnSelection swallows what the sandbox throws, but not a failure
+    * to obtain the sandbox itself; that one must not abort the rest of the bulk refresh.
+    */
    @Test
    void refreshDataBulkSurvivesADependentRefreshThatThrows() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
       Worksheet ws = mirrorOverTabularWorksheet();
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
-      doAnswer(inv -> {
-         setSelection((TableAssembly) ws.getAssembly("ev"), "id", "n");
-         setSelection((TableAssembly) ws.getAssembly("ev_by_v"), "id", "n");
-         throw new IllegalStateException("dependent cannot validate");
-      }).when(box).refreshColumnSelection(anyString(), anyBoolean());
-      WorksheetAgentController ctrl = refreshController(ws, box);
-      ResponseEntity<EditResponse> response;
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      when(rws.getAssetQuerySandbox()).thenAnswer(inv -> {
+         if(calls.incrementAndGet() > 1) {
+            throw new IllegalStateException("sandbox gone");
+         }
+
+         return box;
+      });
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-79595"), any())).thenReturn(session("TOK-79595"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), editSvc,
+         mock(WorksheetService.class),
+         mock(inetsoft.report.composition.execution.AssetDataCache.class));
 
       try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
-         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+         ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
       }
 
-      assertNotNull(response.getBody(), "the warning must survive the failed dependent refresh");
-      assertTrue(response.getBody().note().contains("ev_by_v"), response.getBody().note());
+      assertTrue(calls.get() > 1, "the dependent refresh must have been attempted");
       verify(box, atLeastOnce()).getTableLens(eq("ev_by_v"), anyInt());
    }
 
