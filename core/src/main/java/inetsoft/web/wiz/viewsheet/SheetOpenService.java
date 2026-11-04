@@ -167,6 +167,16 @@ public class SheetOpenService {
          // has already forgotten (or that close() otherwise cannot fully act on) must not block
          // the open that follows.
          sheetSessions.close(held.sessionToken());
+
+         // close() does not broadcast (controllers do), so the discarded session's Composer tab
+         // would keep its agent icon until the session TTL. Bug #80372.
+         try {
+            broadcast.sendAgentInactive(held);
+         }
+         catch(Exception ex) {
+            LOG.warn("Held session closed, but notifying the tab bar failed (runtimeId={})",
+                     held.runtimeId(), ex);
+         }
       }
 
       if(vsSession.socketSessionId() == null) {

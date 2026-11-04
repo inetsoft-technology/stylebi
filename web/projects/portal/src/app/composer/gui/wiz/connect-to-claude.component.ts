@@ -65,6 +65,24 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     */
    connected = false;
 
+   /**
+    * The sheet-level agent state ({@code Sheet.agentConnected}, the source the tab icon reads,
+    * driven by SetAgentActiveCommand). Passed only by the whole-sheet toolbar instance; pane-scoped
+    * instances (script pane, formula editor) leave it undefined and keep the one-shot
+    * {@link #connected}, since a whole-sheet flag says nothing about their own location.
+    * Bug #80372.
+    */
+   @Input() sheetAgentConnected?: boolean;
+
+   /** What the "Agent connected" status shows. */
+   get isConnected(): boolean {
+      if(!this.editorContext && this.sheetAgentConnected !== undefined) {
+         return this.sheetAgentConnected;
+      }
+
+      return this.connected;
+   }
+
    private mintSubscription: Subscription | null = null;
    private activeRequest: { settled: boolean } | null = null;
    private requestTimer: ReturnType<typeof setTimeout> | null = null;

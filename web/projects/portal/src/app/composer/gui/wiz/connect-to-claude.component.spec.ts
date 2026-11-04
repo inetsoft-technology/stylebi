@@ -1053,4 +1053,52 @@ describe("ConnectToClaudeComponent", () => {
       });
    });
 
+
+   // Bug #80372: the whole-sheet (toolbar) instance follows Sheet.agentConnected -- the same source
+   // as the tab icon -- instead of the one-shot join notice.
+   describe("sheet-level agent state", () => {
+      it("shows connected when the sheet says an agent is attached, with no join notice", () => {
+         component.sheetAgentConnected = true;
+         expect(component.isConnected).toBe(true);
+      });
+
+      it("clears when the sheet's agent goes away, even after a join notice set connected", () => {
+         component.sheetAgentConnected = true;
+         component.connected = true;
+         component.sheetAgentConnected = false;
+         expect(component.isConnected).toBe(false);
+      });
+
+      it("keeps following the sheet across a runtimeId change", () => {
+         component.sheetAgentConnected = true;
+         component.runtimeId = "rt-2";
+         component.ngOnChanges(
+            { runtimeId: { currentValue: "rt-2", previousValue: "rt-1",
+                           firstChange: false, isFirstChange: () => false } } as any);
+         expect(component.isConnected).toBe(true);
+      });
+
+      it("does not light a pane-scoped instance on a whole-sheet flag", () => {
+         component.editorContext = { kind: "onClick", assembly: "Chart1", name: null, table: null } as any;
+         component.sheetAgentConnected = true;
+         expect(component.isConnected).toBe(false);
+      });
+
+      it("renders the connected status from the sheet flag and removes it on detach", () => {
+         const status = () => fixture.nativeElement.querySelector(".wiz-connect-connected");
+
+         component.sheetAgentConnected = true;
+         fixture.detectChanges();
+         expect(status()).not.toBeNull();
+
+         component.sheetAgentConnected = false;
+         fixture.detectChanges();
+         expect(status()).toBeNull();
+      });
+
+      it("falls back to the one-shot connected when no sheet state is passed", () => {
+         component.connected = true;
+         expect(component.isConnected).toBe(true);
+      });
+   });
 });
