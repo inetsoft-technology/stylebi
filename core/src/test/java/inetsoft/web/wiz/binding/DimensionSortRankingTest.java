@@ -301,4 +301,103 @@ class DimensionSortRankingTest {
       assertTrue(DimensionSortRanking.sortTokens().contains("value_asc"));
       assertTrue(DimensionSortRanking.rankingTokens().contains("bottom"));
    }
+
+   // ── dynamic ($(Component)) mode and n, Bug #80337 ─────────────────────────
+
+   private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
+      new com.fasterxml.jackson.databind.ObjectMapper();
+
+   @Test
+   void deserializesNAsANumberOrADynamicStringFromTheRealRequestJson() throws Exception {
+      BindingAgentController.ChartRankingRequest number = JSON.readValue(
+         "{\"assembly\":\"Chart1\",\"shelf\":\"x\",\"column\":\"Region\"," +
+         "\"mode\":\"top\",\"n\":5,\"measure\":\"Sum(Total)\"}",
+         BindingAgentController.ChartRankingRequest.class);
+      BindingAgentController.ChartRankingRequest dynamic = JSON.readValue(
+         "{\"assembly\":\"Chart1\",\"shelf\":\"x\",\"column\":\"Region\"," +
+         "\"mode\":\"$(Combo)\",\"n\":\"$(Spin)\",\"measure\":\"Sum(Total)\"}",
+         BindingAgentController.ChartRankingRequest.class);
+      BindingAgentController.TableRankingRequest table = JSON.readValue(
+         "{\"assembly\":\"Cross1\",\"shelf\":\"rows\",\"column\":\"Region\"," +
+         "\"mode\":\"$(Combo)\",\"n\":\"$(Spin)\",\"measure\":\"Sum(Total)\"}",
+         BindingAgentController.TableRankingRequest.class);
+
+      BDimensionRefModel a = new BDimensionRefModel();
+      DimensionSortRanking.applyRanking(a, new DimensionSortRanking.Ranking(
+         number.mode(), number.n(), number.measure(), null));
+      assertEquals("5", a.getRankingN());
+      assertEquals(String.valueOf(XCondition.TOP_N), a.getRankingOption());
+
+      BDimensionRefModel b = new BDimensionRefModel();
+      DimensionSortRanking.applyRanking(b, new DimensionSortRanking.Ranking(
+         dynamic.mode(), dynamic.n(), dynamic.measure(), null));
+      assertEquals("$(Combo)", b.getRankingOption());
+      assertEquals("$(Spin)", b.getRankingN());
+
+      BDimensionRefModel c = new BDimensionRefModel();
+      DimensionSortRanking.applyRanking(c, new DimensionSortRanking.Ranking(
+         table.mode(), table.n(), table.measure(), null));
+      assertEquals("$(Combo)", c.getRankingOption());
+      assertEquals("$(Spin)", c.getRankingN());
+   }
+
+   @Test
+   void storesADynamicModeAndNVerbatimAndReadsThemBack() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+
+      DimensionSortRanking.applyRanking(
+         dimension, new DimensionSortRanking.Ranking("$(Combo)", "$(Spin)", "Sales", true));
+
+      assertEquals("$(Combo)", dimension.getRankingOption());
+      assertEquals("$(Spin)", dimension.getRankingN());
+      assertEquals("Sales", dimension.getRankingCol());
+      assertTrue(dimension.isGroupOthers());
+
+      Map<String, Object> described = DimensionSortRanking.describe(dimension);
+      assertEquals("$(Combo)", described.get("ranking"));
+      assertEquals("$(Spin)", described.get("rankingN"));
+   }
+
+   @Test
+   void aDynamicModeStillNeedsNAndMeasure() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(), ranking("$(Combo)", null, "Sales")));
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(), ranking("$(Combo)", 5, null)));
+   }
+
+   @Test
+   void aLiteralModeAcceptsADynamicNAndANumericString() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+
+      DimensionSortRanking.applyRanking(dimension,
+         new DimensionSortRanking.Ranking("bottom", "$(Spin)", "Sales", null));
+      assertEquals(String.valueOf(XCondition.BOTTOM_N), dimension.getRankingOption());
+      assertEquals("$(Spin)", dimension.getRankingN());
+
+      DimensionSortRanking.applyRanking(dimension,
+         new DimensionSortRanking.Ranking("top", "7", "Sales", null));
+      assertEquals("7", dimension.getRankingN());
+   }
+
+   @Test
+   void refusesAScriptOrJunkNAndAScriptMode() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(),
+                      new DimensionSortRanking.Ranking("top", "=1+1", "Sales", null)));
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(),
+                      new DimensionSortRanking.Ranking("top", "abc", "Sales", null)));
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(),
+                      new DimensionSortRanking.Ranking("top", 2.5, "Sales", null)));
+      assertThrows(IllegalArgumentException.class,
+                   () -> DimensionSortRanking.applyRanking(
+                      new BDimensionRefModel(), ranking("=mode", 5, "Sales")));
+   }
 }

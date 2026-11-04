@@ -246,7 +246,7 @@ public class BindingAgentController {
                                   List<String> manualOrder) {}
    /** @see TableRankingRequest */
    public record ChartRankingRequest(String assembly, String shelf, String column, Integer index,
-                                     String mode, Integer n, String measure, Boolean others) {}
+                                     String mode, Object n, String measure, Boolean others) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/sort")
    public Map<String, Object> setChartSort(@PathVariable String sessionToken,
@@ -720,7 +720,7 @@ public class BindingAgentController {
                                   String direction, String sortByField,
                                   List<String> manualOrder) {}
    public record TableRankingRequest(String assembly, String shelf, String column, Integer index,
-                                     String mode, Integer n, String measure, Boolean others) {}
+                                     String mode, Object n, String measure, Boolean others) {}
    public record TableLabelRequest(String assembly, Map<String, String> labels,
                                    List<ColumnLabelEntry> entries) {}
    public record TableOptionRequest(String assembly, Map<String, Object> options) {}
