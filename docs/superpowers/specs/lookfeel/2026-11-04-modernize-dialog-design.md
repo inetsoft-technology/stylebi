@@ -69,9 +69,21 @@ drops residue, and a destructive option that resets look and feel on a saved cop
 - The Modernize bar keeps today's visibility rule (`modernizeOffered` in
   `viewsheet-pane.component.ts`: modernizable, not deployed, not dismissed, not in layout mode).
   Its button opens the same dialog instead of modernizing in one click.
-- With the gate off, neither entry is shown. `VizModernizeUtil.modernize` is already a no-op
-  there, and a reset would produce content that changes when the gate turns on.
+- With the gate off, neither entry is shown: the org has chosen the classic look, and
+  `VizModernizeUtil.modernize` is already a no-op there (`VizMark.fromGate()` gives no mark).
 - Revert stays its own menu entry with today's visibility (`revertable`).
+- The **Options pane switch** ("Modern Visualization" in the dashboard properties dialog,
+  `viewsheet-options-pane.component.html`) stays a plain switch and offers no reset. Turning it on
+  behaves like "Keep my formatting", including residue cleanup (§4). It is a setting saved by the
+  same OK as description, alias, max rows and the rest (`ViewsheetPropertyDialogService`), so
+  folding a copy-and-switch-tabs action into it would leave unclear which dashboard those other
+  settings land on.
+  - When the author turns the switch on, the dashboard has unmarked content and the org gate is
+    on, one line appears under the switch: "This keeps your formatting. To reset it, use
+    Modernize… to create a modern copy."
+  - With the org gate off the switch still works, as today, but the line is not shown, because
+    Modernize… is not offered there. A gate-off org therefore has no reset copy; it has chosen
+    the classic look.
 
 ### 3.2 The dialog
 
@@ -351,6 +363,7 @@ recommendations wholesale and added residue cleanup). "Design" = settled in writ
 | 23 | "Keep my formatting" drops author values equal to the classic default | Owner |
 | 24 | Residue rule is strict; older-release gridline greys are not residue | Owner (§11.1) |
 | 25 | Residue cleanup also runs on the Options per-dashboard switch, on unmarked→marked only | Design |
+| 25a | The Options switch offers no reset; it shows a hint pointing to Modernize… when the gate is on and the dashboard has unmarked content, and no hint with the gate off | Owner |
 | 26 | Residue cleanup uses the reset's allowlist | Design |
 | 27 | Shapes, images and layouts are left alone by the reset | Design |
 | 28 | Legend position resets to `RIGHT`; bar corner radius and smooth lines are on the allowlist | Design |
@@ -420,6 +433,8 @@ recommendations wholesale and added residue cleanup). "Design" = settled in writ
 **Manual (composer):**
 
 - Both entry points open the dialog; deployed, gate-off and fully marked behaviour.
+- Options pane: turning "Modern Visualization" on shows the hint with the gate on and not with
+  it off; OK modernizes with residue cleanup and creates no copy.
 - Census (`Examples/Census`) and a customer-like dashboard: Keep shows modern gridlines and chart
   text where residue was; Reset produces a fully modern copy and the original is unchanged.
 - Revert on the copy shows the provenance text; Revert after Keep looks identical to the original.
