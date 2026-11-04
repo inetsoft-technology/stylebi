@@ -4916,8 +4916,20 @@ public class WorksheetAgentController {
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
 
-         List<String> sqlWarnings = WorksheetMutationSupport.untypedColumnWarnings(
-            WorksheetMutationSupport.applySqlResultTypes(columns, scratchQuery, sql, metaSession));
+         // Bug #80178: explicit columns over a missing table skip the empty-columns refusal above;
+         // the metadata call below is where the driver reports it (cleared first so an earlier
+         // error cannot be mistaken for this one).
+         scratchQuery.setLastQueryError(null);
+         List<String> untypedColumns = WorksheetMutationSupport.applySqlResultTypes(
+            columns, scratchQuery, sql, metaSession);
+         String missingTable = WorksheetMutationSupport.missingTableRefusal(
+            scratchQuery.getLastQueryError(), expression);
+
+         if(missingTable != null) {
+            throw new PairingException(missingTable);
+         }
+
+         List<String> sqlWarnings = WorksheetMutationSupport.untypedColumnWarnings(untypedColumns);
          WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
          WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
 
@@ -6534,8 +6546,18 @@ public class WorksheetAgentController {
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
 
-         List<String> sqlWarnings = WorksheetMutationSupport.untypedColumnWarnings(
-            WorksheetMutationSupport.applySqlResultTypes(columns, query, sql, metaSession));
+         // Bug #80178: see editSqlQuery, same swallow point for explicit columns.
+         query.setLastQueryError(null);
+         List<String> untypedColumns = WorksheetMutationSupport.applySqlResultTypes(
+            columns, query, sql, metaSession);
+         String missingTable = WorksheetMutationSupport.missingTableRefusal(
+            query.getLastQueryError(), body.sql());
+
+         if(missingTable != null) {
+            throw new PairingException(missingTable);
+         }
+
+         List<String> sqlWarnings = WorksheetMutationSupport.untypedColumnWarnings(untypedColumns);
          WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
          WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
          assembly.setColumnSelection(columns);
