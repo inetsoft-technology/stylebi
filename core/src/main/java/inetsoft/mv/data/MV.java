@@ -913,10 +913,35 @@ public final class MV implements Cloneable {
    private void updateDef(BlobChannel channel) {
       long pos = def.getFilePosition();
       // MVDef.write puts the shareable string after lastUpdateTime, so the stamp is not the last
-      // 8 bytes of the block; skip the string (4-byte length + 2 bytes per char). A pre-11.2
-      // def has no shareable string and the stamp is appended at the end (Bug #79854).
-      int tail = def.isPreV112() ? 0 : 4 + 2 * String.valueOf(def.isShareable()).length();
-      int len = def.getLength() + 4 - 8 - tail;
+      // 8 bytes of the block (Bug #79854). Take the block end and the bytes after the stamp from
+      // the file itself, not from getLength()/isShareable(): a file damaged by the old code reads
+      // back shareable=false but still holds the 4 char string, so those would be 2 bytes off.
+      int tail = def.isPreV112() ? 0 : def.getBytesAfterStamp();
+      int len = def.getLength() + 4 - 8;
+
+      if(!def.isPreV112()) {
+         if(tail < 0) {
+            tail = 4 + 2 * String.valueOf(def.isShareable()).length();
+         }
+
+         try {
+            ByteBuffer lbuf = ByteBuffer.allocate(4);
+            channel.position(pos);
+
+            while(lbuf.hasRemaining() && channel.read(lbuf) >= 0) {
+            }
+
+            XSwapUtil.flip(lbuf);
+            len = lbuf.getInt() + 4 - 8;
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to read the definition length: {}", file, ex);
+            return;
+         }
+
+         len -= tail;
+      }
+
       ByteBuffer buf = ByteBuffer.allocate(8);
       buf.putLong(def.getLastUpdateTime());
       XSwapUtil.flip(buf);

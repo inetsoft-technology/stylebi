@@ -20,7 +20,9 @@ package inetsoft.mv;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.test.*;
+import inetsoft.storage.BlobChannel;
 import inetsoft.storage.BlobStorageManager;
+import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.XMetaInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.nio.ByteBuffer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -120,5 +124,48 @@ class MVUpdateLastModifiedTimeTest {
       long before = System.currentTimeMillis();
       def.updateLastUpdateTimeAfterCreate(1000L, 1000L);
       assertTrue(def.getLastUpdateTime() >= before);
+   }
+
+   /**
+    * A file already damaged by the old updateDef (the 8 stamp bytes written over the shareable
+    * chars) reads back shareable=false but keeps its 4 char string; the stamp must still land on
+    * the real slot and the file must still parse.
+    */
+   @Test
+   void damagedByOldWriteIsUpdatedCorrectly() throws Exception {
+      saveMV(1000L, true);
+      MVDef loaded = MVStorage.getInstance().get(MVStorage.getFile(NAME)).getDef();
+      long end = loaded.getFilePosition() + loaded.getLength() + 4;
+
+      try(BlobTransaction<MVStorage.Metadata> tx = MVStorage.getInstance().getStorage(inetsoft.sree.security.OrganizationManager.getInstance().getCurrentOrgID()).beginTransaction();
+          BlobChannel channel = tx.newChannel(MVStorage.getFile(NAME), new MVStorage.Metadata()))
+      {
+         ByteBuffer buf = ByteBuffer.allocate(8);
+         buf.putLong(1000L);
+         buf.flip();
+         channel.position(end - 8);
+
+         while(buf.hasRemaining()) {
+            channel.write(buf);
+         }
+
+         tx.commit();
+      }
+
+      MVDef damaged = reread();
+      assertFalse(damaged.isShareable());
+      assertEquals(1000L, damaged.getLastUpdateTime());
+      assertEquals(12, damaged.getBytesAfterStamp());
+
+      MVStorage.getInstance().get(MVStorage.getFile(NAME)).updateLastModifiedTime(5000L);
+
+      MVDef after = reread();
+      assertEquals(5000L, after.getLastUpdateTime());
+      assertEquals(12, after.getBytesAfterStamp());
+      assertEquals(5000L, MVDef.getStoredUpdateTime(NAME));
+
+      // and a second update keeps working
+      MVStorage.getInstance().get(MVStorage.getFile(NAME)).updateLastModifiedTime(8000L);
+      assertEquals(8000L, reread().getLastUpdateTime());
    }
 }
