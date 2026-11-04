@@ -152,8 +152,8 @@ legacy context, initialise chart text defaults as the render does, resolve — a
 result with the author's value.
 
 - For a categorical palette entry, the classic value is the classic palette colour at that index.
-  For a static colour frame, its default colour. For padding, the classic default padding (then
-  `userPadding` is cleared too).
+  For a static colour frame, its default colour. For padding, the classic default padding, or the
+  `format.css` padding where one applies (then `userPadding` is cleared too).
 - Strict equality only. A value that equals an *older* release's default but not today's (the
   census's `#d2d2d2` and `#ebebeb` gridlines, about half of the customer charts) is not residue,
   and those charts keep classic gridlines after "Keep my formatting". The reset covers them. The
@@ -162,6 +162,19 @@ result with the author's value.
 - The census (appendix A) compared against the stored DEFAULT, so its residue shares are an upper
   bound; in orgs that use `format.css` this rule clears less.
 - Expression- or variable-bound values (`=…`, `$(…)`) are never residue.
+- Table, crosstab and calc cell paths (types HEADER, DETAIL, TRAILER, GROUP_HEADER, SUMMARY,
+  SUMMARY_HEADER and crosstab HIDDEN_SUMMARY) are never residue: their classic value is built at
+  render from the table style and data (`DataVSAQuery`, `VSFormatTableLens.createCellFormat`), so it
+  cannot be computed here. The reset still clears them.
+- Titles, cells and chart text inherit an author's object-level value, so that value is residue
+  only if clearing it also leaves every other property resolving as before: an object font equal
+  to the classic one is kept while it holds a table title off its bold default.
+- Render code that branches on whether an author value is set, not on its value, is outside the
+  classic simulation, so those properties are never residue: a table, crosstab or calc table's
+  object font, transparency and border colours (cells defer to the table style without them); the
+  font and colour of chart data labels, target labels and text-field labels (a set colour turns off
+  the automatic contrast colour, and only set values build text-layout specs); and a range
+  slider's padding (an unmarked slider draws only an author's).
 - Properties off the allowlist (alignment, wrapping, number and date formats, presenters, spans,
   shape and line settings) are never cleared.
 

@@ -345,8 +345,12 @@ final class ChartChromeSlots {
       BiConsumer<VSAssemblyInfo, VSAssemblyInfo> reset = prop == TextProperty.FONT && !wholeFont ?
          (info, fresh) -> keepSizeAndStyle(loc.on(info)) : null;
 
+      // a label's set font or colour changes the render whatever its value
+      boolean residueEligible = wholeFont ||
+         prop != TextProperty.FONT && prop != TextProperty.COLOR;
+
       return ChromeSlot.tiered(
-         site + ":" + prop, false, true,
+         site + ":" + prop, false, residueEligible,
          info -> {
             TextFormat fmt = user.on(info);
             return fmt != null && isDefined(fmt, prop);

@@ -48,11 +48,20 @@ public final class FormatChromeSlots {
    }
 
    public static List<ChromeSlot> forPath(TableDataPath path, boolean residueEligible) {
+      return forPath(path, prop -> residueEligible);
+   }
+
+   /**
+    * The slots of one path, each residue-eligible where the predicate says.
+    */
+   public static List<ChromeSlot> forPath(TableDataPath path,
+                                          Predicate<Property> residueEligible)
+   {
       boolean objectLevel = VSAssemblyInfo.OBJECTPATH.equals(path);
       List<ChromeSlot> slots = new ArrayList<>();
 
       for(Property prop : Property.values()) {
-         slots.add(slot(path, prop, objectLevel, residueEligible));
+         slots.add(slot(path, prop, objectLevel, residueEligible.test(prop)));
       }
 
       return slots;
@@ -167,31 +176,40 @@ public final class FormatChromeSlots {
       }
    }
 
+   // both tiers: a load restores the runtime flag, which would keep the value alive
    private static void clear(VSFormat user, Property prop) {
       switch(prop) {
       case FOREGROUND:
          user.setForegroundValue(null, false);
+         user.setForeground(null, false);
          break;
       case BACKGROUND:
          user.setBackgroundValue(null, false);
+         user.setBackground(null, false);
          break;
       case GRADIENT:
          user.setGradientColorValue(null, false);
+         user.setGradientColor(null, false);
          break;
       case FONT:
          user.setFontValue(null);
+         user.setFont(null, false);
          break;
       case BORDERS:
          user.setBordersValue(null, false);
+         user.setBorders(null, false);
          break;
       case BORDER_COLORS:
          user.setBorderColorsValue(null, false);
+         user.setBorderColors(null, false);
          break;
       case ALPHA:
          user.setAlphaValue(100, false);
+         user.setAlpha(100, false);
          break;
       default:
          user.setRoundCornerValue(0, false);
+         user.setRoundCorner(0, false);
          break;
       }
    }

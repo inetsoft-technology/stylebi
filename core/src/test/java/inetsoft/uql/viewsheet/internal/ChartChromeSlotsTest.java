@@ -116,6 +116,22 @@ class ChartChromeSlotsTest {
    }
 
    @Test
+   void labelFontAndColourAreNeverResidue() {
+      ChartVSAssemblyInfo info = chart();
+
+      for(String site : new String[] { "chart:plot:text", "chart:axis:labels" }) {
+         boolean label = site.equals("chart:plot:text");
+
+         for(ChartChromeSlots.TextProperty prop : ChartChromeSlots.TextProperty.values()) {
+            boolean setBranch = label && (prop == ChartChromeSlots.TextProperty.FONT ||
+               prop == ChartChromeSlots.TextProperty.COLOR);
+            assertEquals(!setBranch, find(info, site + ":" + prop).residueEligible(),
+                         site + ":" + prop);
+         }
+      }
+   }
+
+   @Test
    void aUserGridColorIsATieredSlot() {
       ChartVSAssemblyInfo info = chart();
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();

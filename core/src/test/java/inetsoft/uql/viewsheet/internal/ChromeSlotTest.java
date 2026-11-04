@@ -34,6 +34,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.Insets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -207,6 +208,72 @@ class ChromeSlotTest {
 
 
    @Test
+   void clearingAnAuthorFontUndefinesBothTiers() {
+      TextVSAssemblyInfo info = text();
+      info.initDefaultFormat();
+      VSCompositeFormat fmt = info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+      Font expected = fmt.getFont();
+      assertNotNull(expected);
+      Font author = new StyleFont("Arial", Font.BOLD, 16);
+      VSFormat user = fmt.getUserDefinedFormat();
+      // both tiers defined, as a loaded asset has them
+      user.setFontValue(author);
+      user.setFont(author, true);
+
+      find(info, VSAssemblyInfo.OBJECTPATH, FormatChromeSlots.Property.FONT).clearAuthor(info);
+
+      assertFalse(user.isFontValueDefined());
+      assertFalse(user.isFontDefined());
+      assertEquals(expected, fmt.getFont(), "the default tier shows through at render");
+   }
+
+   @Test
+   void clearingAnAuthorForegroundUndefinesBothTiers() {
+      TextVSAssemblyInfo info = text();
+      info.initDefaultFormat();
+      VSCompositeFormat fmt = info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH);
+      fmt.getDefaultFormat().setForegroundValue("0x0000ff");
+      fmt.getDefaultFormat().setForeground(Color.BLUE);
+      VSFormat user = fmt.getUserDefinedFormat();
+      user.setForegroundValue("0xff0000", true);
+      user.setForeground(Color.RED, true);
+
+      find(info, VSAssemblyInfo.OBJECTPATH, FormatChromeSlots.Property.FOREGROUND)
+         .clearAuthor(info);
+
+      assertFalse(user.isForegroundValueDefined());
+      assertFalse(user.isForegroundDefined());
+      assertEquals(Color.BLUE, fmt.getForeground(), "the default tier shows through at render");
+   }
+
+   @Test
+   void clearingUndefinesTheRuntimeTierOfEveryProperty() {
+      TextVSAssemblyInfo info = text();
+      VSFormat user = user(info, VSAssemblyInfo.OBJECTPATH);
+      user.setForeground(Color.RED, true);
+      user.setBackground(Color.RED, true);
+      user.setGradientColor(new GradientColor(), true);
+      user.setFont(new StyleFont("Arial", Font.BOLD, 16), true);
+      user.setBorders(new Insets(1, 1, 1, 1), true);
+      user.setBorderColors(new BorderColors(Color.RED, Color.RED, Color.RED, Color.RED), true);
+      user.setAlpha(50, true);
+      user.setRoundCorner(5, true);
+
+      for(FormatChromeSlots.Property prop : FormatChromeSlots.Property.values()) {
+         find(info, VSAssemblyInfo.OBJECTPATH, prop).clearAuthor(info);
+      }
+
+      assertFalse(user.isForegroundDefined());
+      assertFalse(user.isBackgroundDefined());
+      assertFalse(user.isGradientColorDefined());
+      assertFalse(user.isFontDefined());
+      assertFalse(user.isBordersDefined());
+      assertFalse(user.isBorderColorsDefined());
+      assertFalse(user.isAlphaDefined());
+      assertFalse(user.isRoundCornerDefined());
+   }
+
+   @Test
    void paddingSlotClearsUserPadding() {
       TextVSAssemblyInfo info = text();
       info.setUserPadding(true);
@@ -225,8 +292,13 @@ class ChromeSlotTest {
          user(info, cell);
 
          for(FormatChromeSlots.Property prop : FormatChromeSlots.Property.values()) {
+            // cells read whether these object values are set
+            boolean cellsRead = prop == FormatChromeSlots.Property.FONT ||
+               prop == FormatChromeSlots.Property.ALPHA ||
+               prop == FormatChromeSlots.Property.BORDER_COLORS;
             assertFalse(find(info, cell, prop).residueEligible());
-            assertTrue(find(info, VSAssemblyInfo.OBJECTPATH, prop).residueEligible());
+            assertEquals(!cellsRead,
+                         find(info, VSAssemblyInfo.OBJECTPATH, prop).residueEligible());
          }
       }
    }

@@ -17,16 +17,21 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.composition.graph.ChartFormatDefaults;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartRef;
 
 import java.awt.Dimension;
 import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -103,10 +108,20 @@ public final class VizModernizeUtil {
    }
 
    /**
-    * Stamp and seed the targets. A mark change re-seeds sizes and title lanes, so it re-flushes
-    * bottom-tabs children as a density change does. Nothing moves when nothing was seeded.
+    * Stamp and seed the targets, after an unmarked target moving to a modern mark drops its
+    * residue. A mark change re-seeds sizes and title lanes, so it re-flushes bottom-tabs children
+    * as a density change does. Nothing moves when nothing was seeded.
     */
    private static int moveMark(Viewsheet vs, VizMark mark, List<VSAssemblyInfo> targets) {
+      // only content leaving the classic look
+      if(mark != null) {
+         for(VSAssemblyInfo info : targets) {
+            if(info.getVizMark() == null) {
+               clearResidue(info);
+            }
+         }
+      }
+
       int seeded = seedAll(vs, mark, targets, true, true);
 
       if(seeded > 0) {
@@ -115,6 +130,128 @@ public final class VizModernizeUtil {
       }
 
       return seeded;
+   }
+
+   /**
+    * Clears the author values the classic look resolves to without them; returns how many.
+    */
+   static int clearResidue(VSAssemblyInfo info) {
+      List<ChromeSlot> slots = info.chromeSlots();
+      List<Integer> objectLevel = new ArrayList<>();
+      List<ChromeSlot> others = new ArrayList<>();
+
+      for(int i = 0; i < slots.size(); i++) {
+         ChromeSlot slot = slots.get(i);
+
+         // an undecodable value matches nothing
+         if(slot.residueEligible() && slot.isAuthorSet(info) && !slot.isExpression(info) &&
+            slot.authorValue(info) != null)
+         {
+            if(slot.objectLevel()) {
+               objectLevel.add(i);
+            }
+            else {
+               others.add(slot);
+            }
+         }
+      }
+
+      int cleared = 0;
+      List<Object> before = objectLevel.isEmpty() ? null :
+         resolveAll(slots, classic(info, List.of()));
+
+      // one at a time, as other slots inherit the object format and must resolve as before
+      for(int i : objectLevel) {
+         ChromeSlot slot = slots.get(i);
+         List<Object> after = resolveAll(slots, classic(info, List.of(slot)));
+         boolean residue = Objects.equals(slot.authorValue(info), after.get(i));
+
+         for(int j = 0; residue && j < slots.size(); j++) {
+            residue = j == i || Objects.equals(before.get(j), after.get(j));
+         }
+
+         if(residue) {
+            slot.clearAuthor(info);
+            // what info now resolves to
+            before = after;
+            cleared++;
+         }
+      }
+
+      // none inherits from another, so one clone serves them all
+      if(!others.isEmpty()) {
+         VSAssemblyInfo shadow = classic(info, others);
+
+         for(ChromeSlot slot : others) {
+            if(Objects.equals(slot.authorValue(info), slot.resolvedValue(shadow))) {
+               slot.clearAuthor(info);
+               cleared++;
+            }
+         }
+      }
+
+      return cleared;
+   }
+
+   private static List<Object> resolveAll(List<ChromeSlot> slots, VSAssemblyInfo shadow) {
+      List<Object> values = new ArrayList<>(slots.size());
+
+      for(ChromeSlot slot : slots) {
+         values.add(slot.resolvedValue(shadow));
+      }
+
+      return values;
+   }
+
+   /**
+    * A clone of info as Revert and a render leave it, less the given author values.
+    */
+   private static VSAssemblyInfo classic(VSAssemblyInfo info, List<ChromeSlot> cleared) {
+      VSAssemblyInfo shadow = info.clone();
+      shadow.setVizMark(null);
+      detachRuntimeAxes(shadow);
+
+      for(ChromeSlot slot : cleared) {
+         slot.clearAuthor(shadow);
+      }
+
+      shadow.seedChromeDefaults(VizContext.of(shadow));
+
+      // seeds skip a format.css padding, which is then the classic one
+      if(!shadow.isUserPadding()) {
+         shadow.resetPadding(VizContext.of(shadow));
+      }
+
+      if(shadow instanceof ChartVSAssemblyInfo chart) {
+         ChartFormatDefaults.fix(chart);
+      }
+
+      return shadow;
+   }
+
+   /**
+    * Drops the runtime axes a clone shares with the original, which the CSS pass writes.
+    */
+   private static void detachRuntimeAxes(VSAssemblyInfo shadow) {
+      VSChartInfo cinfo = shadow instanceof ChartVSAssemblyInfo chart ?
+         chart.getVSChartInfo() : null;
+
+      if(cinfo == null) {
+         return;
+      }
+
+      cinfo.setRTAxisDescriptor(null);
+      cinfo.setRTAxisDescriptor2(null);
+
+      for(ChartRef[] refs : new ChartRef[][] { cinfo.getXFields(), cinfo.getRTXFields(),
+                                              cinfo.getYFields(), cinfo.getRTYFields() })
+      {
+         for(ChartRef ref : refs) {
+            if(ref instanceof VSChartRef vsRef) {
+               vsRef.setRTAxisDescriptor(null);
+            }
+         }
+      }
    }
 
    /**

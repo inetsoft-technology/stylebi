@@ -1497,7 +1497,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    static ChromeSlot paddingSlot() {
-      return ChromeSlot.tiered("padding", false, true, VSAssemblyInfo::isUserPadding,
+      return paddingSlot(true);
+   }
+
+   static ChromeSlot paddingSlot(boolean residueEligible) {
+      return ChromeSlot.tiered("padding", false, residueEligible, VSAssemblyInfo::isUserPadding,
                                info -> false, VSAssemblyInfo::getPadding,
                                VSAssemblyInfo::getPadding,
                                info -> info.setUserPadding(false), null);

@@ -1826,14 +1826,15 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       new CompositeValue<>(Insets.class, null, true);
 
    /**
-    * Adds the table style and the cell padding; cell paths are never residue.
+    * Adds the table style and the cell padding; cell paths, and the object values whose being set
+    * cells read, are never residue.
     */
    @Override
    protected List<ChromeSlot> chromeSlots() {
       List<ChromeSlot> slots = new ArrayList<>();
 
       for(TableDataPath path : getFormatInfo().getPaths()) {
-         slots.addAll(FormatChromeSlots.forPath(path, !isCellPath(path)));
+         slots.addAll(FormatChromeSlots.forPath(path, prop -> isResidueEligible(path, prop)));
       }
 
       slots.add(paddingSlot());
@@ -1848,6 +1849,13 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
                                   info -> ((TableDataVSAssemblyInfo) info).resetUserCellPadding(),
                                   null));
       return slots;
+   }
+
+   // cells defer to the table style unless these object values are set
+   private static boolean isResidueEligible(TableDataPath path, FormatChromeSlots.Property prop) {
+      return !isCellPath(path) && !(OBJECTPATH.equals(path) &&
+         (prop == FormatChromeSlots.Property.FONT || prop == FormatChromeSlots.Property.ALPHA ||
+          prop == FormatChromeSlots.Property.BORDER_COLORS));
    }
 
    private static boolean isCellPath(TableDataPath path) {
