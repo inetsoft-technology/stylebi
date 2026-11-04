@@ -12725,6 +12725,28 @@ class WorksheetAgentControllerTest {
          "SELECT COUNT(*) AS N FROM $(@v)"));
    }
 
+   /** Bug #80180: a placeholder only in a value position does not make the table a placeholder. */
+   @Test
+   void wildcardMessageIgnoresPlaceholdersInValuePositions() {
+      for(String sql : new String[] {
+         "SELECT * FROM SA.NO_SUCH_TABLE WHERE ORDER_ID = $(@n)",
+         "SELECT * FROM SA.ORDER_DETAILS WHERE ORDER_ID = $(@n)",
+         "SELECT t.* FROM SA.T t WHERE t.ID IN ($(@a), $(@b)) ORDER BY t.ID",
+         "SELECT * FROM SA.T t JOIN SA.U u ON t.ID = u.ID AND u.K = $(@k) WHERE t.X LIKE $(@p)",
+         "SELECT * FROM SA.T WHERE NAME = '$(@x)' GROUP BY A HAVING COUNT(*) > $(@n)" })
+      {
+         assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
+      }
+
+      for(String sql : new String[] {
+         "SELECT * FROM $(@srcTable) WHERE ORDER_ID = $(@n)",
+         "SELECT * FROM SA.A a, SA.$(@t) b WHERE a.ID = $(@n)",
+         "SELECT * FROM SA.A a JOIN $(@t) b ON a.ID = b.ID" })
+      {
+         assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(sql), sql);
+      }
+   }
+
    /** Bug #80054: add_sql_query surfaces the cause-naming message for {@code $(@t).*}. */
    @Test
    void addSqlQueryNamesPlaceholderQualifiedWildcardWhenParseFails() throws Exception {

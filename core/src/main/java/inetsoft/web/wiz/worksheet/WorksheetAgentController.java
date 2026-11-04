@@ -6369,6 +6369,12 @@ public class WorksheetAgentController {
    private static final java.util.regex.Pattern SELECT_WILDCARD = java.util.regex.Pattern.compile(
       "(?i)(?:\\bselect|,)\\s*(?:distinct\\s+)?(?:(?:[\\w\"]+|\\$\\(@[^)]+\\))\\.)*\\*\\s*(?:,|\\bfrom\\b)");
 
+   private static final java.util.regex.Pattern QUOTED_LITERAL =
+      java.util.regex.Pattern.compile("'(?:[^']|'')*'");
+
+   private static final java.util.regex.Pattern FROM_REGION = java.util.regex.Pattern.compile(
+      "(?is)\\b(?:from|join)\\b(.*?)(?=\\b(?:where|group\\s+by|having|order\\s+by|on|union|intersect|except|limit|from|join)\\b|;|$)");
+
    /**
     * Bug #79707: a wildcard select over a {@code $(@var)} raw-text table placeholder cannot be
     * expanded because the table name is unresolved at parse time, so the parse fails and no
@@ -6376,7 +6382,28 @@ public class WorksheetAgentController {
     * that shape (so genuine syntax errors keep the generic message).
     */
    static String wildcardOverRawTextPlaceholderMessage(String sql) {
-      if(sql == null || !sql.contains("$(@") || !SELECT_WILDCARD.matcher(sql).find()) {
+      if(sql == null || !sql.contains("$(@")) {
+         return null;
+      }
+
+      // Bug #80180: only a placeholder in a table position (FROM/JOIN list) or used as a
+      // wildcard qualifier makes the wildcard unexpandable; one in a value position
+      // (WHERE x = $(@n)) leaves a literal table that is resolved normally.
+      String masked = QUOTED_LITERAL.matcher(sql).replaceAll("''");
+      java.util.regex.Matcher wildcard = SELECT_WILDCARD.matcher(masked);
+
+      if(!wildcard.find()) {
+         return null;
+      }
+
+      boolean placeholderPosition = wildcard.group().contains("$(@");
+      java.util.regex.Matcher from = FROM_REGION.matcher(masked);
+
+      while(!placeholderPosition && from.find()) {
+         placeholderPosition = from.group(1).contains("$(@");
+      }
+
+      if(!placeholderPosition) {
          return null;
       }
 

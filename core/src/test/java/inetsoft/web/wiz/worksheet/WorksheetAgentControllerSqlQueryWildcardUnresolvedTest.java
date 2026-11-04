@@ -130,6 +130,130 @@ class WorksheetAgentControllerSqlQueryWildcardUnresolvedTest {
    }
 
    /**
+    * Bug #80180: a literal missing table with a $(@var) only in a value position is not a
+    * raw-text placeholder table; the refusal must name the missing table.
+    */
+   @Test
+   void addSqlQueryNamesMissingTableWhenPlaceholderIsOnlyInValuePosition() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(mock(JDBCDataSource.class));
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-80180"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenAnswer(inv -> {
+            JDBCQuery q = inv.getArgument(0);
+            q.setLastQueryError(new Exception("Table/View 'SA.NO_SUCH_TABLE_ZZ' does not exist"));
+            return new ColumnSelection();
+         });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      WorksheetAgentController.SqlQueryRequest body = new WorksheetAgentController.SqlQueryRequest(
+         "MyDatasource", "SELECT * FROM SA.NO_SUCH_TABLE_ZZ WHERE ORDER_ID = $(@n)", null);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> {
+            stubUniformSqlConstruction(m, UniformSQL.PARSE_FAILED);
+            when(m.isWildcardUnresolved()).thenReturn(true);
+         }))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.addSqlQuery("TOK-SQ-80180", body, agent));
+         assertFalse(ex.getMessage().contains("check syntax (punctuation, keywords, clause structure)"),
+                    "must not be refused as a syntax error, got: " + ex.getMessage());
+         assertFalse(ex.getMessage().contains("raw-text"),
+                    "must not be refused as a raw-text placeholder table, got: " + ex.getMessage());
+         assertTrue(ex.getMessage().contains("syntactically valid but could not be resolved"),
+                    "should surface the driver-error variant, got: " + ex.getMessage());
+         assertTrue(ex.getMessage().contains("SA.NO_SUCH_TABLE_ZZ"),
+                    "should name the missing table, got: " + ex.getMessage());
+      }
+   }
+
+   /** Bug #80180, {@code edit_sql_query} twin of the value-position placeholder case above. */
+   @Test
+   void editSqlQueryNamesMissingTableWhenPlaceholderIsOnlyInValuePosition() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ESQ-80180"), any())).thenReturn(session("TOK-ESQ-80180"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenAnswer(inv -> {
+            JDBCQuery q = inv.getArgument(0);
+            q.setLastQueryError(new Exception("Table/View 'SA.NO_SUCH_TABLE_ZZ' does not exist"));
+            return new ColumnSelection();
+         });
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      WorksheetAgentController.EditSqlQueryRequest body =
+         new WorksheetAgentController.EditSqlQueryRequest(
+            "SqlTable1", "SELECT * FROM SA.NO_SUCH_TABLE_ZZ WHERE ORDER_ID = $(@n)", false);
+
+      try(MockedConstruction<UniformSQL> ignored = mockConstruction(UniformSQL.class,
+         (m, ctx) -> {
+            stubUniformSqlConstruction(m, UniformSQL.PARSE_FAILED);
+            when(m.isWildcardUnresolved()).thenReturn(true);
+         }))
+      {
+         PairingException ex = assertThrows(PairingException.class,
+            () -> ctrl.editSqlQuery("TOK-ESQ-80180", body, agent));
+         assertFalse(ex.getMessage().contains("check syntax (punctuation, keywords, clause structure)"),
+                    "must not be refused as a syntax error, got: " + ex.getMessage());
+         assertFalse(ex.getMessage().contains("raw-text"),
+                    "must not be refused as a raw-text placeholder table, got: " + ex.getMessage());
+         assertTrue(ex.getMessage().contains("syntactically valid but could not be resolved"),
+                    "should surface the driver-error variant, got: " + ex.getMessage());
+         assertTrue(ex.getMessage().contains("SA.NO_SUCH_TABLE_ZZ"),
+                    "should name the missing table, got: " + ex.getMessage());
+      }
+   }
+
+   /**
     * WSQ-030: same as above but with no captured driver error -- the refusal must still avoid
     * the hard syntax message and fall all the way back to the softer generic one.
     */
