@@ -1410,10 +1410,9 @@ public class AssemblyHighlightService {
          return;
       }
 
-      int index = 0;
+      for(int index = 0; index < highlight.conditions().size(); index++) {
+         ConditionVocabulary.Clause clause = highlight.conditions().get(index);
 
-      for(ConditionVocabulary.Clause clause : highlight.conditions()) {
-         index++;
          if(clause == null) {
             continue;
          }

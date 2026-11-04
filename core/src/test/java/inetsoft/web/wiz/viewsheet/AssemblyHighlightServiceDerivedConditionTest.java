@@ -25,6 +25,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.service.HighlightService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -340,5 +341,65 @@ class AssemblyHighlightServiceDerivedConditionTest {
          assertDoesNotThrow(() -> AssemblyHighlightService.requireNoDerivedConditionField(
             built.assembly(), highlightOn(dim)));
       }
+   }
+
+   private static ConditionVocabulary.Clause clause(String field, List<Object> values,
+                                                    String junction)
+   {
+      return new ConditionVocabulary.Clause(field, ">", values, junction, false, false, 0);
+   }
+
+   private static AssemblyHighlightService.Highlight highlightOf(
+      List<ConditionVocabulary.Clause> clauses)
+   {
+      return new AssemblyHighlightService.Highlight("h", "#ff0000", null, null, clauses, false);
+   }
+
+   private static String refusal(AssemblyHighlightService.Highlight hl,
+                                 HighlightService.DateComparisonFields fields)
+   {
+      return assertThrows(IllegalArgumentException.class,
+         () -> AssemblyHighlightService.requireNoDerivedConditionField(hl, fields)).getMessage();
+   }
+
+   private static final HighlightService.DateComparisonFields DERIVED_X =
+      new HighlightService.DateComparisonFields(List.of("X"), List.of("Amb"));
+
+   @Test
+   void firstConditionIsNumberedZero() {
+      String message = refusal(highlightOf(List.of(clause("X", List.of(0), null))), DERIVED_X);
+      assertTrue(message.startsWith("Condition 0's field 'X'"), message);
+   }
+
+   @Test
+   void derivedSecondConditionIsNumberedOne() {
+      String message = refusal(highlightOf(List.of(clause("ok", List.of(0), "and"),
+                                                   clause("X", List.of(0), null))), DERIVED_X);
+      assertTrue(message.startsWith("Condition 1's field 'X'"), message);
+   }
+
+   @Test
+   void nullClauseStillConsumesItsPosition() {
+      String message = refusal(highlightOf(Arrays.asList(null, clause("X", List.of(0), null))),
+                               DERIVED_X);
+      assertTrue(message.startsWith("Condition 1's field 'X'"), message);
+   }
+
+   @Test
+   void ambiguousFieldMessageIsNumberedFromZero() {
+      String message = refusal(highlightOf(List.of(clause("Amb", List.of(0), null))), DERIVED_X);
+      assertTrue(message.startsWith("Condition 0's field 'Amb' cannot be told apart"), message);
+   }
+
+   @Test
+   void valueOperandAndGroupFieldRolesShareTheConditionPosition() {
+      String operand = refusal(highlightOf(List.of(
+         clause("ok", List.of(0), "and"),
+         clause("ok", List.of(fieldOperand("field", "X")), null))), DERIVED_X);
+      assertTrue(operand.startsWith("Condition 1's value operand field 'X'"), operand);
+
+      String group = refusal(highlightOf(List.of(
+         clause("ok", List.of(Map.of("n", 3, "groupField", "X")), null))), DERIVED_X);
+      assertTrue(group.startsWith("Condition 0's ranking groupField 'X'"), group);
    }
 }
