@@ -68,7 +68,8 @@ public class ParameterValueService {
          List<VariableAssemblyModelInfo> variables = new ArrayList<>();
 
          for(Map.Entry<String, List<Object>> entry : values.entrySet()) {
-            UserVariable var = ParameterDiscoveryService.find(discovered, entry.getKey());
+            UserVariable var = ParameterDiscoveryService.find(discovered, entry.getKey(),
+                                                               rvs.getViewsheet());
             // Must run here, before collectParameters: fillVariableTable's exceptions are
             // swallowed (the call still returns ok), so a bad value would otherwise be stored
             // lossily and silently.
