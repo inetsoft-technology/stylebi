@@ -160,3 +160,83 @@ describe("AssetTreePane - Delete key shortcut (Bug #77289)", () => {
       expect(ComponentTool.showMessageDialog).not.toHaveBeenCalled();
    });
 });
+
+/**
+ * Bug #80303, the rename dialog validated every asset type (including scripts) with the
+ * generic asset-entry rule, which accepts names (hyphens, leading digits, reserved words) that
+ * are not valid JavaScript identifiers. A script's stored name is substituted verbatim into its
+ * function declaration, so an invalid name silently corrupts it.
+ */
+describe("AssetTreePane - showRenameAssetDialog validator selection (Bug #80303)", () => {
+   let fixture: ComponentFixture<AssetTreePane>;
+   let comp: AssetTreePane;
+   let modalOpen: ReturnType<typeof vi.fn>;
+
+   beforeEach(() => {
+      modalOpen = vi.fn().mockReturnValue({
+         componentInstance: {},
+         result: new Promise(() => {}),
+      });
+
+      TestBed.configureTestingModule({
+         providers: [
+            provideHttpClient(),
+            provideHttpClientTesting(),
+            { provide: NgbModal, useValue: { open: modalOpen } },
+            { provide: FixedDropdownService, useValue: { open: vi.fn() } },
+            { provide: DragService, useValue: { getDragData: vi.fn().mockReturnValue({}) } },
+            { provide: DomService, useValue: {} },
+            { provide: ModelService, useValue: { getModel: vi.fn().mockReturnValue(of([])) } },
+            {
+               provide: ComposerRecentService,
+               useValue: {
+                  addRecentlyViewed: vi.fn(),
+                  removeRecentlyViewed: vi.fn(),
+                  removeNonExistItems: vi.fn(),
+                  recentlyViewedChange: vi.fn().mockReturnValue(of([])),
+               },
+            },
+         ],
+      });
+      TestBed.overrideComponent(AssetTreePane, {
+         set: { imports: [], schemas: [NO_ERRORS_SCHEMA] },
+      });
+
+      fixture = TestBed.createComponent(AssetTreePane);
+      comp = fixture.componentInstance;
+      fixture.detectChanges();
+   });
+
+   afterEach(() => vi.restoreAllMocks());
+
+   function renameDialogFor(type: string): any {
+      const node = {
+         label: "oldName",
+         leaf: true,
+         treeView: TreeView.FULL_VIEW,
+         data: { scope: AssetConstants.GLOBAL_SCOPE, type, path: "Script Function/oldName",
+                 identifier: "id", properties: {}, folder: false },
+      } as any;
+
+      (comp as any).showRenameAssetDialog(node);
+      return modalOpen.mock.results[0].value.componentInstance;
+   }
+
+   it("uses the JS-identifier validator for a script entry", () => {
+      const dialog = renameDialogFor(AssetType.SCRIPT);
+      const validatorNames = dialog.validatorMessages.map((m: any) => m.validatorName);
+
+      expect(validatorNames).toContain("invalidJSFunctionName");
+      expect(validatorNames).not.toContain("assetEntryBannedCharacters");
+      expect(validatorNames).not.toContain("assetNameStartWithCharDigit");
+   });
+
+   it("keeps the generic asset-entry validators for a non-script entry", () => {
+      const dialog = renameDialogFor(AssetType.FOLDER);
+      const validatorNames = dialog.validatorMessages.map((m: any) => m.validatorName);
+
+      expect(validatorNames).toContain("assetEntryBannedCharacters");
+      expect(validatorNames).toContain("assetNameStartWithCharDigit");
+      expect(validatorNames).not.toContain("invalidJSFunctionName");
+   });
+});

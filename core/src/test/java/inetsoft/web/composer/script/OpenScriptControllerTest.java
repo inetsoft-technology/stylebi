@@ -94,6 +94,34 @@ class OpenScriptControllerTest {
       verify(libManager).save();
    }
 
+   /**
+    * Bug #80303, saveScriptAs stored whatever name the client sent with no check that it was a
+    * valid, non-reserved JavaScript identifier, the same class of defect as the EM rename editor.
+    * The rejection is surfaced as MessageException (round 1 follow-up), not the bare
+    * IllegalArgumentException requireValidName throws, since this controller's package has no
+    * REST @ExceptionHandler for IllegalArgumentException and the client would otherwise see a
+    * generic error with no message (bug #80303 review finding).
+    */
+   @Test
+   void saveScriptAsRejectsNonIdentifierNameAndDoesNotWriteLibrary() throws Exception {
+      MessageException ex = assertThrows(MessageException.class,
+         () -> controller.saveScriptAs(createRequest("a-b", AssetRepository.COMPONENT_SCOPE), principal));
+      assertNotNull(ex.getMessage());
+
+      verify(libManager, never()).setScript(anyString(), anyString());
+      verify(libManager, never()).save();
+   }
+
+   @Test
+   void saveScriptAsRejectsReservedWordNameAndDoesNotWriteLibrary() throws Exception {
+      MessageException ex = assertThrows(MessageException.class,
+         () -> controller.saveScriptAs(createRequest("class", AssetRepository.COMPONENT_SCOPE), principal));
+      assertNotNull(ex.getMessage());
+
+      verify(libManager, never()).setScript(anyString(), anyString());
+      verify(libManager, never()).save();
+   }
+
    @Test
    void saveScriptAsChecksTargetScriptIgnoringClientScope() throws Exception {
       // REPORT_SCOPE entries pass checkAssetPermission unconditionally, so the checked entry

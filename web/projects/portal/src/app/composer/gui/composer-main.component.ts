@@ -2188,6 +2188,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.focusedTab.asset.id = scriptId.toString();
                this.focusedTab.asset.label = result.name;
                setTimeout(() => { this.scriptEditPaneComponent.showNotifications(); }, 0);
+            }, (error) => {
+               ComponentTool.showHttpError("_#(js:Error)", error, this.modalService);
             });
 
             if(close) {

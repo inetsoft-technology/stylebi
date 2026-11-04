@@ -26,6 +26,7 @@ import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.ai.scriptlibrary.ScriptLibraryValidator;
 import inetsoft.web.admin.content.repository.model.ScriptSettingsModel;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.security.RequiredPermission;
@@ -125,6 +126,7 @@ public class RepositoryScriptController {
          }
 
          if(!Tool.equals(model.name(), model.oname())) {
+            ScriptLibraryValidator.requireValidName("name", model.name());
             actionRecord.setActionError("new name:" + model.name());
             manager.renameScript(model.oname(), model.name());
             npath = model.name();
