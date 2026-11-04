@@ -198,6 +198,17 @@ class SheetOpenServiceTest {
       assertEquals("ws-runtime-1", opened.runtimeId());
    }
 
+   /** Bug #80372: a failing tab-bar notification must not abort the open that follows. */
+   @Test
+   void forceStillOpensWhenNotifyingTheHeldSessionsTabFails() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, "ws-existing");
+      doThrow(new RuntimeException("boom")).when(broadcast).sendAgentInactive(any());
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs", principal(), true);
+
+      assertEquals("ws-runtime-1", opened.runtimeId());
+   }
+
    /**
     * {@code force:true} with nothing actually held must behave exactly like the ordinary happy
     * path -- no session to close, so {@code close} must never be called.
