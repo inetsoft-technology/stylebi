@@ -912,7 +912,11 @@ public final class MV implements Cloneable {
     */
    private void updateDef(BlobChannel channel) {
       long pos = def.getFilePosition();
-      int len = def.getLength() + 4 - 8;
+      // MVDef.write puts the shareable string after lastUpdateTime, so the stamp is not the last
+      // 8 bytes of the block; skip the string (4-byte length + 2 bytes per char). A pre-11.2
+      // def has no shareable string and the stamp is appended at the end (Bug #79854).
+      int tail = def.isPreV112() ? 0 : 4 + 2 * String.valueOf(def.isShareable()).length();
+      int len = def.getLength() + 4 - 8 - tail;
       ByteBuffer buf = ByteBuffer.allocate(8);
       buf.putLong(def.getLastUpdateTime());
       XSwapUtil.flip(buf);
