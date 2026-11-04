@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.dashboard;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
@@ -547,11 +548,18 @@ public class DashboardChangePlanService {
     * server-side save does not re-check, so without this a dashboard could be bound to nothing.
     * The id carries its own scope/user/org, so the lookup covers global and user-scoped viewsheets
     * for both global and owner-scoped dashboards.
+    * <p>
+    * {@code AssetRepository.getAssetEntry} is a folder-tree lookup, not an existence test: the
+    * engine returns its argument unchanged for QUERY scope (0) and for any root ("/") path, so it
+    * can never yield null for those ids. They are therefore refused up front: only a plain
+    * VIEWSHEET entry (not a snapshot) in GLOBAL or USER scope, with a non-root path and a valid
+    * shape, is looked up. The lookup itself stays permission-free so an owner-scoped dashboard can
+    * bind that owner's user-scope viewsheet.
     */
    private static void requireExistingViewsheet(String label, String assetId) throws Exception {
       requireValidAssetIdShape(label, assetId);
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
-      AssetEntry found = entry.isViewsheet() ?
+      AssetEntry found = isLookupCandidate(entry) ?
          AssetUtil.getAssetRepository(false).getAssetEntry(entry) : null;
 
       if(found == null) {
@@ -559,6 +567,31 @@ public class DashboardChangePlanService {
             label + ": no viewsheet found for \"" + assetId + "\" -- bind an existing viewsheet " +
             "(see list_viewsheets)");
       }
+   }
+
+   /**
+    * Whether the entry is of a kind the repository lookup can answer truthfully for a viewsheet.
+    */
+   private static boolean isLookupCandidate(AssetEntry entry) {
+      if(entry.getType() != AssetEntry.Type.VIEWSHEET) {
+         return false;
+      }
+
+      int scope = entry.getScope();
+
+      if(scope != AssetRepository.GLOBAL_SCOPE && scope != AssetRepository.USER_SCOPE) {
+         return false;
+      }
+
+      String path = entry.getPath();
+
+      if(path == null || path.trim().isEmpty() || entry.isRoot() ||
+         path.trim().replace("/", "").isEmpty())
+      {
+         return false;
+      }
+
+      return entry.isValid();
    }
 
    private static String requireNonBlank(String label, String value) {

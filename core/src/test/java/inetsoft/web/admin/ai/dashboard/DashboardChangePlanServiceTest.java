@@ -101,10 +101,19 @@ class DashboardChangePlanServiceTest {
       tool.when(() -> inetsoft.util.Tool.encryptPassword(anyString()))
          .thenAnswer(inv -> "TKN:" + inv.getArgument(0));
 
-      // Bug #79929: only the Examples/Census viewsheet exists in the repository fixture
+      // Bug #79929/#80193: only the Examples/Census viewsheet exists in the repository fixture.
+      // The mock mimics AbstractAssetEngine.getAssetEntry, which returns its argument unchanged
+      // for QUERY scope and for root ("/") paths regardless of existence.
       AssetRepository assetRepository = mock(AssetRepository.class, withSettings().lenient());
       when(assetRepository.getAssetEntry(any(AssetEntry.class))).thenAnswer(inv -> {
          AssetEntry e = inv.getArgument(0);
+
+         if(e.getScope() == AssetRepository.QUERY_SCOPE ||
+            e.isRoot() && e.getScope() != AssetRepository.REPORT_SCOPE)
+         {
+            return e;
+         }
+
          return EXISTING_VS_PATH.equals(e.getPath()) ? e : null;
       });
       assetUtilStatic = mockStatic(AssetUtil.class, withSettings().lenient());
@@ -743,6 +752,63 @@ class DashboardChangePlanServiceTest {
       inetsoft.sree.security.User owner = mock(inetsoft.sree.security.User.class);
       when(ownerProvider.getUser(any()))
          .thenAnswer(inv -> OWNER.equals(inv.getArgument(0)) ? owner : null);
+   }
+
+   // Bug #80193: ids on which the engine's getAssetEntry cannot return null must still be refused
+
+   @Test void resolveCreateThrowsWhenViewsheetIdIsQueryScope() throws Exception {
+      assertCreateRefused(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "QA-No-Such-Viewsheet-PD-RA", null, "host-org").toIdentifier());
+   }
+
+   @Test void resolveCreateThrowsWhenViewsheetIdIsQueryScopeEvenForExistingPath()
+      throws Exception
+   {
+      assertCreateRefused(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.VIEWSHEET,
+         EXISTING_VS_PATH, null, "host-org").toIdentifier());
+   }
+
+   @Test void resolveCreateThrowsWhenViewsheetPathIsRoot() throws Exception {
+      assertCreateRefused(new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "/", null, "host-org").toIdentifier());
+   }
+
+   @Test void resolveCreateThrowsWhenUserScopeViewsheetPathIsRoot() throws Exception {
+      assertCreateRefused(new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "/", OWNER, "host-org").toIdentifier());
+   }
+
+   @Test void resolveCreateThrowsWhenViewsheetIdIsSnapshotType() throws Exception {
+      assertCreateRefused(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET_SNAPSHOT, EXISTING_VS_PATH, null, "host-org").toIdentifier());
+   }
+
+   @Test void resolveUpdateRebindThrowsWhenViewsheetIdIsQueryScope() throws Exception {
+      stubGlobalDashboard1();
+      DashboardChangeRequest change = updateDashboardChange("Dashboard1__GLOBAL", null, null);
+      change.setViewsheet(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "QA-No-Such-Viewsheet-PD-RA", null, "host-org").toIdentifier());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].viewsheet"), ex.getMessage());
+   }
+
+   @Test void resolveCreateAcceptsExistingUserScopeViewsheet() throws Exception {
+      DashboardChangeRequest change = createDashboardChange("Dashboard1");
+      change.setViewsheet(new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+         EXISTING_VS_PATH, OWNER, "host-org").toIdentifier());
+
+      assertNotNull(service.resolve(request("task", List.of(change)), user).planHash());
+   }
+
+   private void assertCreateRefused(String viewsheetId) {
+      DashboardChangeRequest change = createDashboardChange("Dashboard1");
+      change.setViewsheet(viewsheetId);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("changes[0].viewsheet"), ex.getMessage());
    }
 
    // -------------------------------------------------------------------------
