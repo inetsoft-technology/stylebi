@@ -6370,7 +6370,7 @@ public class WorksheetAgentController {
       "(?i)(?:\\bselect|,)\\s*(?:distinct\\s+)?(?:(?:[\\w\"]+|\\$\\(@[^)]+\\))\\.)*\\*\\s*(?:,|\\bfrom\\b)");
 
    private static final java.util.regex.Pattern QUOTED_LITERAL =
-      java.util.regex.Pattern.compile("'(?:[^']|'')*'");
+      java.util.regex.Pattern.compile("'[^']*+(?:''[^']*+)*+'");
 
    private static final java.util.regex.Pattern SQL_TOKEN = java.util.regex.Pattern.compile(
       "\\$\\(@[^)]*\\)|\\(|\\)|,|;|[A-Za-z_]+");

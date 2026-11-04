@@ -12757,6 +12757,24 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /** Bug #80180: long quoted literals must not overflow the stack in the guard. */
+   @Test
+   void wildcardMessageHandlesLongQuotedLiterals() {
+      String plain = "x".repeat(10_000) + " $(@n) " + "y".repeat(10_000);
+      String escaped = "it''s $(@n) ".repeat(2_000);
+
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE NAME = '" + plain + "'"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE NAME = '" + escaped + "'"));
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM $(@t) WHERE NAME = '" + plain + "'"));
+      assertNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM SA.T WHERE NAME = '" + plain));
+      assertNotNull(WorksheetAgentController.wildcardOverRawTextPlaceholderMessage(
+         "SELECT * FROM $(@t) WHERE NAME = '" + plain));
+   }
+
    /** Bug #80054: add_sql_query surfaces the cause-naming message for {@code $(@t).*}. */
    @Test
    void addSqlQueryNamesPlaceholderQualifiedWildcardWhenParseFails() throws Exception {
