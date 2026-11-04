@@ -37,8 +37,9 @@ import java.util.*;
  *
  * <p>{@code restore}'s own risk shape mirrors {@code RecycleBinChangePlanService} exactly: a
  * destination collision is refused loud unless {@code overwrite: true}, in which case the entry is
- * accepted but classified {@code RISK_HIGH} (restoring over an existing asset permanently destroys
- * it). {@code delete}, by contrast, is ALWAYS {@code RISK_HIGH} unconditionally -- matching Script
+ * accepted but classified {@code RISK_HIGH} (restoring over an existing same-type sheet permanently
+ * destroys it; a folder or viewsheet snapshot occupant is refused regardless, see
+ * {@link #requireOverwritable}). {@code delete}, by contrast, is ALWAYS {@code RISK_HIGH} unconditionally -- matching Script
  * Library's own "delete is always high risk, regardless of what turns out to depend on it or not"
  * convention rather than a collision-dependent split -- even though (see
  * {@code AutoSaveRecycleBinChangesetApplyService}) its content is fully recoverable via rollback:
@@ -148,7 +149,7 @@ public class AutoSaveRecycleBinChangePlanService {
          throw new IllegalArgumentException(
             label + ".overwrite: the destination \"" + assetName + "\" is already occupied by an " +
             "existing " + entry.type() + " -- set overwrite: true to replace it (this permanently " +
-            "deletes whatever currently occupies that path), or choose a different assetName; " +
+            "deletes that " + entry.type() + "), or choose a different assetName; " +
             "refusing rather than silently doing nothing");
       }
 
@@ -156,7 +157,8 @@ public class AutoSaveRecycleBinChangePlanService {
       String description = collides ?
          "restore the auto-saved " + entry.type() + " draft at \"" + entry.path() + "\" to \"" +
             assetName + "\" (overwrite: true -- this PERMANENTLY DESTROYS the existing " +
-            entry.type() + " currently at that path before the restore proceeds)" :
+            entry.type() + " currently at that path before the restore proceeds; only a " +
+            "same-type sheet is replaced)" :
          "restore the auto-saved " + entry.type() + " draft at \"" + entry.path() + "\" to \"" +
             assetName + "\"" + (overwrite ?
                " (overwrite: true has no effect -- nothing currently occupies the destination)" : "");
@@ -177,7 +179,8 @@ public class AutoSaveRecycleBinChangePlanService {
             label + ": the destination \"" + assetName + "\" is occupied by a " +
             occupant.describe(draftType) + ", not by another " + draftType + " -- a " + draftType +
             " cannot share a name with a " + occupant.describe(draftType) + ", and overwrite: true " +
-            "does not replace it (it is left in place); choose a different assetName");
+            "only replaces a " + draftType + " (a folder or viewsheet snapshot is never replaced " +
+            "and is left in place); choose a different assetName");
       }
    }
 

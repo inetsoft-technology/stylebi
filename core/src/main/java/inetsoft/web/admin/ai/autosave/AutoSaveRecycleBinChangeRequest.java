@@ -44,8 +44,11 @@ public class AutoSaveRecycleBinChangeRequest {
    public void setAssetName(String v) { this.assetName = v; }
 
    /** {@code verb: "restore"} only, default {@code false}. If something already occupies the
-    * destination, {@code overwrite: false} refuses the plan loud; {@code overwrite: true} accepts
-    * the collision but PERMANENTLY DESTROYS whatever currently occupies that path. Refused
+    * destination, {@code overwrite: false} refuses the plan loud. {@code overwrite: true} accepts
+    * the collision only when the occupant is an existing sheet of the same type as the draft
+    * (viewsheet for a viewsheet draft, worksheet for a worksheet draft), and then PERMANENTLY
+    * DESTROYS that sheet. A folder or a viewsheet snapshot at the destination is refused even with
+    * {@code overwrite: true} and is left in place; choose a different {@code assetName}. Refused
     * (not merely ignored) when set on a {@code delete} entry. */
    public Boolean getOverwrite() { return overwrite; }
    public void setOverwrite(Boolean v) { this.overwrite = v; }
