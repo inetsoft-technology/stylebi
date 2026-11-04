@@ -1275,9 +1275,10 @@ public class ViewsheetAssemblyAgentController {
       ExportResponse exportResponse = new ExportResponse(out);
 
       if(formatType == FileFormatInfo.EXPORT_TYPE_CSV) {
-         int cap = inetsoft.report.internal.Util.getOrganizationMaxCellSize();
+         // read the cap per table, inside the export, not when the request is set up
          exportResponse.setTableObserver((name, lens) ->
-            cellCapWarnings.addAll(ExportCellCapScanner.scanViewsheetTable(name, lens, cap)));
+            cellCapWarnings.addAll(ExportCellCapScanner.scanViewsheetTable(name, lens,
+               inetsoft.report.internal.Util.getOrganizationMaxCellSize())));
       }
 
       try {
