@@ -554,10 +554,26 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    protected synchronized void writeContent0(AbstractSheet sheet0, PrintWriter writer)
       throws Exception
    {
-      if(isSnapshot() && sheet0 instanceof Viewsheet vs) {
-         vs.setSnapshotExport(true);
+      Viewsheet snapshotVs = isSnapshot() && sheet0 instanceof Viewsheet vs ? vs : null;
+      boolean oldSnapshotExport = snapshotVs != null && snapshotVs.isSnapshotExport();
+
+      if(snapshotVs != null) {
+         snapshotVs.setSnapshotExport(true);
       }
 
+      try {
+         writeContent1(sheet0, snapshotVs, writer);
+      }
+      finally {
+         if(snapshotVs != null) {
+            snapshotVs.setSnapshotExport(oldSnapshotExport);
+         }
+      }
+   }
+
+   private void writeContent1(AbstractSheet sheet0, Viewsheet snapshotVs, PrintWriter writer)
+      throws Exception
+   {
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       writer.println("<viewsheet>");
       sheet0.writeXML(writer);
@@ -572,7 +588,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
                writer.println("<name>");
                writer.println(user.convertToKey());
                writer.println("</name>");
-               vsBookmark.writeXML(writer);
+               vsBookmark.writeXML(writer, snapshotVs);
                writer.println("</user>");
             }
          }
