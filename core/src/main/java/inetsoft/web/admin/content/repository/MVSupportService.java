@@ -498,11 +498,11 @@ public class MVSupportService {
 
          def.setCycle(getCycle(dataCycle));
          def.setChanged(true);
-         mvManager.add(def, false);
+         mvManager.add(def, false, orgID);
       }
 
       if(event) {
-         mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+         mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null, orgID);
       }
    }
 
@@ -546,7 +546,7 @@ public class MVSupportService {
                // this is called when analyzing MV, don't trigger event
                // until it's actually created later to avoid creating
                // schedule task
-               mvManager.add(status.getDefinition(), false);
+               mvManager.add(status.getDefinition(), false, orgID);
             }
          }
       }
@@ -571,6 +571,20 @@ public class MVSupportService {
     * @throws Exception if the data generation could not be scheduled.
     */
    private void createMVBackground(List<MVStatus> statuses, Principal principal) throws Exception {
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
+      try {
+         ThreadContext.setContextPrincipal(principal);
+         createMVBackground0(statuses, principal);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
+      }
+   }
+
+   private void createMVBackground0(List<MVStatus> statuses, Principal principal)
+      throws Exception
+   {
       long time = System.currentTimeMillis() + 6000 * 2;
       TimeCondition condition = TimeCondition.at(new Date(time));
       ScheduleTask task = new ScheduleTask(MV_TASK_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
