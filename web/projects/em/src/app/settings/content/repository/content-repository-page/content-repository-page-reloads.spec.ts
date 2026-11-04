@@ -411,7 +411,7 @@ describe("Repository settings pages with settings", () => {
    });
 
    it("script page fills the form from real settings", () => {
-      const page = new RepositoryScriptSettingsPageComponent(null);
+      const page = new RepositoryScriptSettingsPageComponent(null, null);
       page.model = <any> { path: "s1", type: RepositoryEntryType.SCRIPT,
          scriptSettings: { name: "s1", description: "d" } };
       page.ngOnInit();

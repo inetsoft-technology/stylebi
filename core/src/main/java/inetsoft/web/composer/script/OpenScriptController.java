@@ -24,9 +24,11 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.util.log.LogLevel;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import inetsoft.web.admin.ai.scriptlibrary.ScriptLibraryValidator;
@@ -159,6 +161,13 @@ public class OpenScriptController {
          if(actionRecord != null) {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
             actionRecord.setActionError(ex.getMessage());
+         }
+
+         // IllegalArgumentException has no REST @ExceptionHandler in this controller's
+         // package, so it would otherwise reach the client as Spring's generic error body
+         // with no message. MessageException does (ComposerControllerErrorHandler).
+         if(ex instanceof IllegalArgumentException) {
+            throw new MessageException(ex.getMessage(), LogLevel.WARN, false);
          }
 
          throw ex;

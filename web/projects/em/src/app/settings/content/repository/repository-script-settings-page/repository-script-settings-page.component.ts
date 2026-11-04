@@ -22,6 +22,7 @@ import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {ScriptSettingsModel} from "./script-settings.model";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {Tool} from "../../../../../../../shared/util/tool";
+import {ErrorHandlerService} from "../../../../common/util/error/error-handler.service";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { MatInput } from "@angular/material/input";
@@ -53,7 +54,7 @@ export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges 
    _scriptChanged: boolean = false;
    private _oldModel: RepositoryScriptEditorModel;
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient, private errorService: ErrorHandlerService) {
    }
 
    ngOnInit() {
@@ -102,6 +103,8 @@ export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges 
          .subscribe(() => {
             this.editorChanged.emit(this.model.scriptSettings.name);
             this._scriptChanged = false;
+         }, (error) => {
+            this.errorService.showSnackBar(error);
          });
    }
 
