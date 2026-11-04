@@ -21,6 +21,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
@@ -161,6 +162,54 @@ class PPTTextPaddingTest {
 
       // the first line fills most of the full width, which padded text could not
       assertTrue(widths[0] > areaW - 40, "" + widths[0]);
+   }
+
+   /**
+    * Table/selection cells write through PPTValueHelper directly with the padding in points
+    * (scale 1); the cell text must wrap and be cut off inside the padded area as well.
+    */
+   @Test
+   void tableCellWrapsInsidePaddedArea() throws Exception {
+      String text = "Regional revenue summary for the quarter";
+      XSLFTextBox none = writeCell(text, new Insets(0, 0, 0, 0));
+      XSLFTextBox box = writeCell(text, new Insets(20, 30, 20, 30));
+      double areaW = box.getAnchor().getWidth() - box.getLeftInset() - box.getRightInset();
+      double areaH = box.getAnchor().getHeight() - box.getTopInset() - box.getBottomInset();
+      double fontH = Common.getHeight(new Font("Dialog", Font.PLAIN, 10));
+
+      for(double w : lineWidths(box)) {
+         assertTrue(w <= areaW + 0.01, w + " exceeds the cell area " + areaW);
+      }
+
+      assertTrue(lines(box).length >= 1);
+      assertTrue(lines(box).length < lines(none).length);
+      assertTrue((lines(box).length - 1) * fontH < areaH, lines(box).length + " in " + areaH);
+   }
+
+   /** A word longer than the padded area is broken instead of overflowing the insets. */
+   @Test
+   void unbreakableWordFitsPaddedWidth() throws Exception {
+      XSLFTextBox box = write("Supercalifragilisticexpialidocious_and_more_unbreakable next",
+                              200, 100, new Insets(20, 20, 20, 20), true);
+      double areaW = box.getAnchor().getWidth() - box.getLeftInset() - box.getRightInset();
+
+      for(double w : lineWidths(box)) {
+         assertTrue(w <= areaW + 0.01, w + " exceeds " + areaW);
+      }
+   }
+
+   private XSLFTextBox writeCell(String text, Insets padding) {
+      VSCompositeFormat fmt = new VSCompositeFormat();
+      fmt.getUserDefinedFormat().setFont(new Font("Dialog", Font.PLAIN, 12));
+      fmt.getUserDefinedFormat().setWrapping(true);
+      PPTValueHelper helper = new PPTValueHelper(slide);
+      helper.setBounds(new java.awt.geom.Rectangle2D.Double(10, 10, 120, 60));
+      helper.setFormat(fmt);
+      helper.setPadding(padding);
+      helper.setValue(text);
+      helper.writeTextBox(true);
+      java.util.List<XSLFShape> shapes = slide.getShapes();
+      return (XSLFTextBox) shapes.get(shapes.size() - 1);
    }
 
    private XSLFTextBox write(String text, int w, int h, Insets padding, boolean wrap)
