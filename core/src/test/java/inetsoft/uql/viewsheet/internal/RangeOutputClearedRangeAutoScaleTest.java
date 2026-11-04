@@ -110,4 +110,89 @@ class RangeOutputClearedRangeAutoScaleTest {
       reportedScenario(ThermometerVSAssemblyInfo::new, "15000000");
       reportedScenario(CylinderVSAssemblyInfo::new, "15000000");
    }
+
+   // the live flow: auto scale first (increments get stored), then Target and a fixed range
+   private static RangeOutputVSAssemblyInfo autoScaledThenFixed(
+      Supplier<RangeOutputVSAssemblyInfo> factory, String target)
+   {
+      RangeOutputVSAssemblyInfo info = factory.get();
+      refresh(info);
+
+      if(target != null) {
+         info.setTargetValue(target);
+      }
+
+      info.setMaxValue("20000000");
+      info.setMinValue("0");
+      return info;
+   }
+
+   private static void assertAutoMax(RangeOutputVSAssemblyInfo info) {
+      assertEquals("3.0E7", info.getMaxValue());
+      assertEquals("0", info.getMinValue());
+   }
+
+   @Test
+   void partialClearAfterAutoScaleWithTarget() {
+      for(String target : new String[] { "15000000", "50" }) {
+         RangeOutputVSAssemblyInfo info = autoScaledThenFixed(GaugeVSAssemblyInfo::new, target);
+         info.setMaxValue(null);
+         info.setMinValue(null);
+         refresh(info);
+         assertAutoMax(info);
+
+         info = autoScaledThenFixed(GaugeVSAssemblyInfo::new, target);
+         info.setMaxValue(null);
+         refresh(info);
+         assertAutoMax(info);
+      }
+   }
+
+   @Test
+   void partialClearAfterAutoScaleWithoutTarget() {
+      RangeOutputVSAssemblyInfo info = autoScaledThenFixed(GaugeVSAssemblyInfo::new, null);
+      info.setMaxValue(null);
+      info.setMinValue(null);
+      refresh(info);
+      assertAutoMax(info);
+   }
+
+   @Test
+   void allFourClearAfterAutoScaleWithTarget() {
+      RangeOutputVSAssemblyInfo info = autoScaledThenFixed(GaugeVSAssemblyInfo::new, "15000000");
+      clearRange(info);
+      refresh(info);
+      assertAutoMax(info);
+   }
+
+   @Test
+   void clearingOnlyIncrementsKeepsFixedMaxWithTarget() {
+      RangeOutputVSAssemblyInfo info = autoScaledThenFixed(GaugeVSAssemblyInfo::new, "15000000");
+      info.setMajorIncValue(null);
+      info.setMinorIncValue(null);
+      refresh(info);
+      assertEquals("20000000", info.getMaxValue());
+   }
+
+   @Test
+   void defaultTargetAfterAutoScaleUnchanged() {
+      RangeOutputVSAssemblyInfo info = autoScaledThenFixed(GaugeVSAssemblyInfo::new, "80");
+      info.setMaxValue(null);
+      info.setMinValue(null);
+      refresh(info);
+      assertAutoMax(info);
+   }
+
+   @Test
+   void siblingsPartialClearAfterAutoScale() {
+      for(Supplier<RangeOutputVSAssemblyInfo> f : java.util.List.<Supplier<RangeOutputVSAssemblyInfo>>of(
+         ThermometerVSAssemblyInfo::new, CylinderVSAssemblyInfo::new, SlidingScaleVSAssemblyInfo::new))
+      {
+         RangeOutputVSAssemblyInfo info = autoScaledThenFixed(f, "15000000");
+         info.setMaxValue(null);
+         info.setMinValue(null);
+         refresh(info);
+         assertAutoMax(info);
+      }
+   }
 }

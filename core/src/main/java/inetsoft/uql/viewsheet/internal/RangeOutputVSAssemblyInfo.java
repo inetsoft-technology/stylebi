@@ -1079,9 +1079,11 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       bindingChanged = false;
 
       // a non-default target only marks the gauge as customized while the range is still set;
-      // once max/min/increments are all cleared the automatic scale applies (#79996)
-      boolean rangeCleared = maxValue.getDValue() == null && minValue.getDValue() == null &&
-         majorIncValue.getDValue() == null && minorIncValue.getDValue() == null;
+      // once any of max/min/increments is cleared the automatic scale applies. The auto scale
+      // stores its increments in the user fields, so clearing only max/min is the natural
+      // partial clear and the increments stay non-null (#79996)
+      boolean rangeCleared = maxValue.getDValue() == null || minValue.getDValue() == null ||
+         majorIncValue.getDValue() == null || minorIncValue.getDValue() == null;
 
       // if the values have been set explicitly, don't change
       try {
