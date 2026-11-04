@@ -149,16 +149,19 @@ public class ChartTargetLineService {
     *                  reload (an empty string reloads as null) and draws nothing.
     * @param lineStyle one of {@link #LINE_STYLES}, or null for the chart's default.
     * @param lineColor {@code #RRGGBB}, or null for the chart's default target colour.
+    * @param fillAbove {@code #RRGGBB} shading everything above the line, or null for none.
+    * @param fillBelow {@code #RRGGBB} shading everything below the line, or null for none.
     */
    public Map<String, Object> add(String sessionToken, Principal user, String assemblyName,
                                   String measure, String value, String label, String lineStyle,
-                                  String lineColor, String linkUri)
+                                  String lineColor, String fillAbove, String fillBelow,
+                                  String linkUri)
       throws Exception
    {
       String constant = requireFixedValue(value);
 
       return append(sessionToken, user, assemblyName, measure, false, lineStyle, lineColor,
-                    linkUri, (chart, target, bound, result) -> {
+                    fillAbove, fillBelow, linkUri, (chart, target, bound, result) -> {
          target.setTabFlag(TargetInfo.LINE_TARGET);
          target.setValue(constant);
          target.setLabel(labelOrDefault(label));
@@ -183,13 +186,14 @@ public class ChartTargetLineService {
    public Map<String, Object> addFormulaLine(String sessionToken, Principal user,
                                              String assemblyName, String measure, String formula,
                                              Boolean entireChart, String label, String lineStyle,
-                                             String lineColor, String linkUri)
+                                             String lineColor, String fillAbove,
+                                             String fillBelow, String linkUri)
       throws Exception
    {
       String name = requireFormula(formula, "formula");
 
       return append(sessionToken, user, assemblyName, measure, true, lineStyle, lineColor,
-                    linkUri, (chart, target, bound, result) -> {
+                    fillAbove, fillBelow, linkUri, (chart, target, bound, result) -> {
          target.setTabFlag(TargetInfo.LINE_TARGET);
          target.setValue(name);
          target.setLabel(labelOrDefault(label));
@@ -217,7 +221,8 @@ public class ChartTargetLineService {
    public Map<String, Object> addBand(String sessionToken, Principal user, String assemblyName,
                                       String measure, String from, String to, String fromLabel,
                                       String toLabel, String fillColor, Boolean entireChart,
-                                      String lineStyle, String lineColor, String linkUri)
+                                      String lineStyle, String lineColor, String fillAbove,
+                                      String fillBelow, String linkUri)
       throws Exception
    {
       String start = requireBoundary(from, "from");
@@ -230,7 +235,7 @@ public class ChartTargetLineService {
       }
 
       return append(sessionToken, user, assemblyName, measure, formula, lineStyle, lineColor,
-                    linkUri, (chart, target, bound, result) -> {
+                    fillAbove, fillBelow, linkUri, (chart, target, bound, result) -> {
          target.setTabFlag(TargetInfo.BAND_TARGET);
          target.setValue(start);
          target.setToValue(end);
@@ -266,6 +271,8 @@ public class ChartTargetLineService {
     *                    default it offers on picking that computation.
     * @param sample      standard deviation only: sample (the Composer's default) or population.
     * @param entireChart the "Entire Chart" box -- always enabled on this panel.
+    * @param percentageOf percentage only: what the percentages are of -- one of the five formula
+    *                    names or a plain number; null means Max, the Composer's default.
     * @param label       the one label every line the computation draws carries. A comma is kept
     *                    as text: {@code updateStatLabel} escapes it before splitting, so the
     *                    Composer's own dialog cannot produce a per-line label either.
@@ -274,11 +281,13 @@ public class ChartTargetLineService {
                                             String assemblyName, String measure,
                                             String statistic, String value, Boolean sample,
                                             Boolean entireChart, String label, String lineStyle,
-                                            String lineColor, String linkUri)
+                                            String lineColor, String fillAbove, String fillBelow,
+                                            String percentageOf, String linkUri)
       throws Exception
    {
       String computation = requireStatistic(statistic);
       String parameter = requireStatisticValue(computation, value);
+      String percentBase = requirePercentageOf(computation, percentageOf);
 
       if(sample != null && !STD_DEVIATION.equals(computation)) {
          throw new IllegalArgumentException(
@@ -287,7 +296,7 @@ public class ChartTargetLineService {
       }
 
       return append(sessionToken, user, assemblyName, measure, true, lineStyle, lineColor,
-                    linkUri, (chart, target, bound, result) -> {
+                    fillAbove, fillBelow, linkUri, (chart, target, bound, result) -> {
          VSChartInfo info = chart.getVSChartInfo();
 
          // The Composer disables the Statistics tab on a box plot, which draws its own.
@@ -305,6 +314,9 @@ public class ChartTargetLineService {
          if(STD_DEVIATION.equals(computation)) {
             strategy.setStandardIsSample(String.valueOf(isSample));
          }
+         else if(PERCENTAGE.equals(computation)) {
+            strategy.setPercentageAggregateVal(percentBase);
+         }
 
          String text = labelOrDefault(label);
          target.setTabFlag(TargetInfo.STATISTICS_TARGET);
@@ -320,6 +332,9 @@ public class ChartTargetLineService {
 
          if(STD_DEVIATION.equals(computation)) {
             result.put("sample", isSample);
+         }
+         else if(PERCENTAGE.equals(computation)) {
+            result.put("percentageOf", percentBase);
          }
 
          result.put("entireChart", target.isChartScope());
@@ -344,11 +359,14 @@ public class ChartTargetLineService {
     */
    private Map<String, Object> append(String sessionToken, Principal user, String assemblyName,
                                       String measure, boolean requireBound, String lineStyle,
-                                      String lineColor, String linkUri, TargetFiller filler)
+                                      String lineColor, String fillAbove, String fillBelow,
+                                      String linkUri, TargetFiller filler)
       throws Exception
    {
       String style = normalizeLineStyle(lineStyle);
       String color = normalizeColor(lineColor);
+      String above = normalizeColor(fillAbove, "fillAboveColor");
+      String below = normalizeColor(fillBelow, "fillBelowColor");
       Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user,
@@ -374,6 +392,14 @@ public class ChartTargetLineService {
                "build a target from. That is a chart the Targets tab cannot edit either.");
          }
 
+         if((above != null || below != null) && !prototype.isSupportFill()) {
+            throw new IllegalArgumentException(
+               "This chart (" + describeChartTypes(chart) + ") cannot shade above or below a " +
+               "target: the Composer greys the Fill pickers out for a 3D bar and the renderer " +
+               "drops the fill. Omit fillAboveColor/fillBelowColor, or change the chart type " +
+               "with set_chart_type first.");
+         }
+
          MeasureInfo bound = resolveMeasure(pane, measure, assemblyName, requireBound);
          TargetInfo target = fromPrototype(prototype);
          target.setMeasure(bound);
@@ -386,8 +412,26 @@ public class ChartTargetLineService {
             target.setLineColor(new ColorInfo(color, ChartPropertyService.COLOR_PALETTE));
          }
 
+         if(above != null) {
+            target.setFillAboveColor(
+               new ColorInfo(above, ChartPropertyService.TRANSENABLED_COLOR_PALETTE));
+         }
+
+         if(below != null) {
+            target.setFillBelowColor(
+               new ColorInfo(below, ChartPropertyService.TRANSENABLED_COLOR_PALETTE));
+         }
+
          result.put("assembly", assemblyName);
          filler.fill(chart, target, bound, result);
+
+         if(above != null) {
+            result.put("fillAboveColor", above);
+         }
+
+         if(below != null) {
+            result.put("fillBelowColor", below);
+         }
 
          // The two that updateAllTargets reads structurally, set together because getting either
          // wrong is a silent no-op rather than an error. index == -1 is the only value that
@@ -773,14 +817,14 @@ public class ChartTargetLineService {
 
    /**
     * The Statistics panel's computation names, as {@code ChartPropertyService.getComputation}
-    * dispatches on them. Percentage is the panel's fifth entry and is deliberately not offered
-    * here: it needs a second field (what the percentage is of) nobody has asked to set.
+    * dispatches on them. Percentage is the panel's fifth entry; it takes a second field, what the
+    * percentage is of, see {@link #requirePercentageOf}.
     */
    private static String requireStatistic(String statistic) {
       if(statistic == null || statistic.isBlank()) {
          throw new IllegalArgumentException(
-            "'statistic' is required: standard_deviation, confidence_interval, percentiles or " +
-            "quantiles.");
+            "'statistic' is required: standard_deviation, confidence_interval, percentiles, " +
+            "quantiles or percentage.");
       }
 
       String key = statistic.trim().toLowerCase().replaceAll("[\\s_-]+", "");
@@ -790,13 +834,50 @@ public class ChartTargetLineService {
          case "confidenceinterval", "ci", "confidencelevel" -> CONFIDENCE_INTERVAL;
          case "percentile", "percentiles" -> PERCENTILES;
          case "quantile", "quantiles" -> QUANTILES;
-         case "percentage", "percentages" -> throw new IllegalArgumentException(
-            "The 'percentage' computation is not supported here. Valid statistics: " +
-            "standard_deviation, confidence_interval, percentiles, quantiles.");
+         case "percentage", "percentages" -> PERCENTAGE;
          default -> throw new IllegalArgumentException(
             "'" + statistic + "' is not a statistic. Valid values: standard_deviation, " +
-            "confidence_interval, percentiles, quantiles.");
+            "confidence_interval, percentiles, quantiles, percentage.");
       };
+   }
+
+   /**
+    * What the Percentage computation is a percentage of: one of the five formula names (the
+    * Composer's list, default Max) or a plain number (its "Enter a Value" box). A non-numeric
+    * constant would be dropped by {@code TargetStrategyWrapper} and leave a target with no
+    * geometry, so it is refused here. Other computations have no such field.
+    */
+   private static String requirePercentageOf(String computation, String percentageOf) {
+      String text = percentageOf == null ? "" : percentageOf.trim();
+
+      if(!PERCENTAGE.equals(computation)) {
+         if(!text.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'percentageOf' only applies to the percentage statistic (what the percentage is " +
+               "of); '" + statisticToken(computation) + "' has no such option. Omit it.");
+         }
+
+         return null;
+      }
+
+      if(text.isEmpty()) {
+         return "Max";
+      }
+
+      String formula = formulaNamed(text);
+
+      if(formula != null) {
+         return formula;
+      }
+
+      if(!NUMERIC.matcher(text).matches() || !Double.isFinite(Double.parseDouble(text))) {
+         throw new IllegalArgumentException(
+            "'" + percentageOf + "' is not a valid 'percentageOf': give one of " +
+            String.join(", ", FORMULA_NAMES) + " or a plain number. A constant that does not " +
+            "parse is dropped and leaves the target with no geometry.");
+      }
+
+      return text;
    }
 
    /** The API spelling of a computation name. */
@@ -818,6 +899,7 @@ public class ChartTargetLineService {
             case CONFIDENCE_INTERVAL -> "95";
             case PERCENTILES -> "50";
             case QUANTILES -> "4";
+            case PERCENTAGE -> "80";
             default -> "-1,1";
          };
       }
@@ -863,7 +945,9 @@ public class ChartTargetLineService {
                   "'" + value + "' is not a valid value for " + token + ": give a comma-" +
                   "separated list of " + (percentiles
                      ? "numbers above 0 and up to 100 (50 or 25,50,75)."
-                     : "plain numbers, negatives allowed (-1,1 or 2)."));
+                     : PERCENTAGE.equals(computation)
+                        ? "plain numbers in percent units, negatives allowed (80 or 50,80)."
+                        : "plain numbers, negatives allowed (-1,1 or 2)."));
             }
 
             parts.add(item);
@@ -891,6 +975,10 @@ public class ChartTargetLineService {
    }
 
    private static String normalizeColor(String lineColor) {
+      return normalizeColor(lineColor, null);
+   }
+
+   private static String normalizeColor(String lineColor, String field) {
       if(lineColor == null || lineColor.isBlank()) {
          return null;
       }
@@ -900,6 +988,7 @@ public class ChartTargetLineService {
 
       if(!HEX_COLOR.matcher(color).matches()) {
          throw new IllegalArgumentException(
+            (field == null ? "" : "'" + field + "': ") +
             "'" + lineColor + "' is not a colour. Give #RRGGBB, e.g. #cc0000.");
       }
 
@@ -948,6 +1037,18 @@ public class ChartTargetLineService {
       // statistic over the whole chart, false once per facet panel.
       out.put("entireChart", target.isChartScope());
 
+      // Reported only when set: an unset fill is the default and not worth a key on every entry.
+      ColorInfo above = target.getFillAboveColor();
+      ColorInfo below = target.getFillBelowColor();
+
+      if(above != null && above.getColor() != null && !above.getColor().isEmpty()) {
+         out.put("fillAboveColor", above.getColor());
+      }
+
+      if(below != null && below.getColor() != null && !below.getColor().isEmpty()) {
+         out.put("fillBelowColor", below.getColor());
+      }
+
       if(target.getTabFlag() == TargetInfo.LINE_TARGET) {
          out.put("formula", isFormula(target.getValue()) ? target.getValue() : null);
       }
@@ -972,6 +1073,7 @@ public class ChartTargetLineService {
             }
             else if(PERCENTAGE.equals(strategy.getName())) {
                out.put("aggregate", strategy.getPercentageAggregateVal());
+               out.put("percentageOf", strategy.getPercentageAggregateVal());
             }
          }
 

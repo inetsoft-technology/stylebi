@@ -367,7 +367,7 @@ class ChartRenderCheckRealStackTest {
       ChartTargetLineService service = new ChartTargetLineService(seam(rvs), dialogs);
 
       java.util.Map<String, Object> result = service.add(
-         "tok", principal(), CHART, null, "100", null, null, null, "");
+         "tok", principal(), CHART, null, "100", null, null, null, null, null, "");
 
       assertEquals(0, result.get("index"));
       assertEquals("100", result.get("value"));
@@ -391,7 +391,7 @@ class ChartRenderCheckRealStackTest {
       ChartTargetLineService service = new ChartTargetLineService(seam(rvs), dialogs);
 
       java.util.Map<String, Object> result = service.add(
-         "tok", principal(), CHART, null, "100", null, null, null, "");
+         "tok", principal(), CHART, null, "100", null, null, null, null, null, "");
 
       assertEquals(0, result.get("index"));
       assertFalse(result.containsKey("warnings"), result.toString());

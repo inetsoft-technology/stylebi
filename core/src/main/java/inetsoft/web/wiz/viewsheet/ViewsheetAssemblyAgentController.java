@@ -2131,19 +2131,24 @@ public class ViewsheetAssemblyAgentController {
    }
 
    public record TargetLineRequest(String assembly, String measure, String value, String label,
-                                   String lineStyle, String lineColor) {}
+                                   String lineStyle, String lineColor, String fillAboveColor,
+                                   String fillBelowColor) {}
 
    public record FormulaTargetRequest(String assembly, String measure, String formula,
                                       Boolean entireChart, String label, String lineStyle,
-                                      String lineColor) {}
+                                      String lineColor, String fillAboveColor,
+                                      String fillBelowColor) {}
 
    public record BandTargetRequest(String assembly, String measure, String from, String to,
                                    String fromLabel, String toLabel, String fillColor,
-                                   Boolean entireChart, String lineStyle, String lineColor) {}
+                                   Boolean entireChart, String lineStyle, String lineColor,
+                                   String fillAboveColor, String fillBelowColor) {}
 
    public record StatisticsTargetRequest(String assembly, String measure, String statistic,
                                          String value, Boolean sample, Boolean entireChart,
-                                         String label, String lineStyle, String lineColor) {}
+                                         String label, String lineStyle, String lineColor,
+                                         String fillAboveColor, String fillBelowColor,
+                                         String percentageOf) {}
 
    public record TargetLineDeleteRequest(String assembly, List<Integer> indexes) {}
 
@@ -2179,7 +2184,8 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       return chartTargetLineService.add(sessionToken, user, request.assembly(), request.measure(),
                                         request.value(), request.label(), request.lineStyle(),
-                                        request.lineColor(), linkUri);
+                                        request.lineColor(), request.fillAboveColor(),
+                                        request.fillBelowColor(), linkUri);
    }
 
    /**
@@ -2198,7 +2204,7 @@ public class ViewsheetAssemblyAgentController {
       return chartTargetLineService.addFormulaLine(
          sessionToken, user, request.assembly(), request.measure(), request.formula(),
          request.entireChart(), request.label(), request.lineStyle(), request.lineColor(),
-         linkUri);
+         request.fillAboveColor(), request.fillBelowColor(), linkUri);
    }
 
    /**
@@ -2216,12 +2222,13 @@ public class ViewsheetAssemblyAgentController {
       return chartTargetLineService.addBand(
          sessionToken, user, request.assembly(), request.measure(), request.from(), request.to(),
          request.fromLabel(), request.toLabel(), request.fillColor(), request.entireChart(),
-         request.lineStyle(), request.lineColor(), linkUri);
+         request.lineStyle(), request.lineColor(), request.fillAboveColor(),
+         request.fillBelowColor(), linkUri);
    }
 
    /**
     * {@code add_chart_target kind:"statistics"}. The Statistics panel of the Targets dialog:
-    * standard deviation, confidence interval, percentiles or quantiles.
+    * standard deviation, confidence interval, percentiles, quantiles or percentage.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/statistics")
    public Map<String, Object> addChartStatisticsTarget(
@@ -2234,7 +2241,8 @@ public class ViewsheetAssemblyAgentController {
       return chartTargetLineService.addStatistics(
          sessionToken, user, request.assembly(), request.measure(), request.statistic(),
          request.value(), request.sample(), request.entireChart(), request.label(),
-         request.lineStyle(), request.lineColor(), linkUri);
+         request.lineStyle(), request.lineColor(), request.fillAboveColor(),
+         request.fillBelowColor(), request.percentageOf(), linkUri);
    }
 
    /**

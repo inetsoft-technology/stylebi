@@ -72,7 +72,7 @@ class ChartTargetKindsCommitTest {
    @Test
    void aFormulaLineWithEntireChartCommitsAsAnAllScopeAverageLine() throws Exception {
       TargetInfo built = build(h -> h.service.addFormulaLine(
-         "tok", user(), "Chart1", "Sum(Total)", "Average", true, "Avg {0}", "dashed", "#cc0000",
+         "tok", user(), "Chart1", "Sum(Total)", "Average", true, "Avg {0}", "dashed", "#cc0000", null, null,
          ""));
 
       GraphTarget target = commit(built);
@@ -95,7 +95,7 @@ class ChartTargetKindsCommitTest {
    @Test
    void aFormulaLineWithoutEntireChartCommitsAsASubchartLine() throws Exception {
       TargetInfo built = build(h -> h.service.addFormulaLine(
-         "tok", user(), "Chart1", null, "Max", null, null, null, null, ""));
+         "tok", user(), "Chart1", null, "Max", null, null, null, null, null, null, ""));
 
       GraphTarget target = commit(built);
 
@@ -109,7 +109,7 @@ class ChartTargetKindsCommitTest {
    void aBandCommitsWithBothBoundariesLabelsAndFill() throws Exception {
       TargetInfo built = build(h -> h.service.addBand(
          "tok", user(), "Chart1", null, "100", "250.5", "Low {0}", "High {0}", "#cce5ff", null,
-         null, null, ""));
+         null, null, null, null, ""));
 
       GraphTarget target = commit(built);
 
@@ -130,7 +130,7 @@ class ChartTargetKindsCommitTest {
    @Test
    void aBandWithAFormulaBoundaryAndEntireChartCommits() throws Exception {
       TargetInfo built = build(h -> h.service.addBand(
-         "tok", user(), "Chart1", null, "Min", "Max", null, null, null, true, null, null, ""));
+         "tok", user(), "Chart1", null, "Min", "Max", null, null, null, true, null, null, null, null, ""));
 
       GraphTarget target = commit(built);
 
@@ -144,7 +144,7 @@ class ChartTargetKindsCommitTest {
    void aStandardDeviationCommitsWithItsFactorsAndSampleFlag() throws Exception {
       TargetInfo built = build(h -> h.service.addStatistics(
          "tok", user(), "Chart1", null, "standard_deviation", "-2,2", false, true, "SD {0}, ok",
-         null, null, ""));
+         null, null, null, null, null, ""));
 
       GraphTarget target = commit(built);
 
@@ -167,12 +167,12 @@ class ChartTargetKindsCommitTest {
    void theOtherStatisticsCommitAsTheirOwnStrategies() throws Exception {
       assertInstanceOf(ConfidenceIntervalWrapper.class, commit(build(h -> h.service.addStatistics(
          "tok", user(), "Chart1", null, "confidence_interval", "90", null, null, null, null,
-         null, ""))).getStrategy());
+         null, null, null, null, ""))).getStrategy());
       assertInstanceOf(PercentileWrapper.class, commit(build(h -> h.service.addStatistics(
-         "tok", user(), "Chart1", null, "percentiles", "25,75", null, null, null, null, null,
+         "tok", user(), "Chart1", null, "percentiles", "25,75", null, null, null, null, null, null, null, null,
          ""))).getStrategy());
       assertInstanceOf(QuantileWrapper.class, commit(build(h -> h.service.addStatistics(
-         "tok", user(), "Chart1", null, "quantiles", "5", null, null, null, null, null,
+         "tok", user(), "Chart1", null, "quantiles", "5", null, null, null, null, null, null, null, null,
          ""))).getStrategy());
    }
 

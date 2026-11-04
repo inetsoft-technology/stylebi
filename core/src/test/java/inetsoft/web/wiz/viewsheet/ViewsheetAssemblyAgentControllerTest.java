@@ -1197,11 +1197,31 @@ class ViewsheetAssemblyAgentControllerTest {
       controller.addChartTargetLine(
          "tok",
          new ViewsheetAssemblyAgentController.TargetLineRequest(
-            "Chart1", "Sum(Total)", "50000", "Goal {0}", "dashed", "#cc0000"),
+            "Chart1", "Sum(Total)", "50000", "Goal {0}", "dashed", "#cc0000", "#c8e6c9",
+            "#ffcdd2"),
          "", principal());
 
       verify(targetService).add(eq("tok"), any(Principal.class), eq("Chart1"), eq("Sum(Total)"),
-                                eq("50000"), eq("Goal {0}"), eq("dashed"), eq("#cc0000"), eq(""));
+                                eq("50000"), eq("Goal {0}"), eq("dashed"), eq("#cc0000"),
+                                eq("#c8e6c9"), eq("#ffcdd2"), eq(""));
+   }
+
+   @Test
+   void addChartStatisticsTargetForwardsFillsAndPercentageOf() throws Exception {
+      ChartTargetLineService targetService = mock(ChartTargetLineService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(targetService);
+
+      controller.addChartStatisticsTarget(
+         "tok",
+         new ViewsheetAssemblyAgentController.StatisticsTargetRequest(
+            "Chart1", "Sum(Total)", "percentage", "80", null, true, "L", "dashed", "#cc0000",
+            "#c8e6c9", "#ffcdd2", "Max"),
+         "", principal());
+
+      verify(targetService).addStatistics(
+         eq("tok"), any(Principal.class), eq("Chart1"), eq("Sum(Total)"), eq("percentage"),
+         eq("80"), isNull(), eq(true), eq("L"), eq("dashed"), eq("#cc0000"), eq("#c8e6c9"),
+         eq("#ffcdd2"), eq("Max"), eq(""));
    }
 
    @Test
