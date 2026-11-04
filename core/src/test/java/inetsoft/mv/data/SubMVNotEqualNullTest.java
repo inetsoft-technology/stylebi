@@ -34,10 +34,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Bug #79505: a 'not equal to' condition on an MV column dropped the rows containing null (or
- * empty), because it is evaluated as the two index ranges around the value and ranges never
- * contain null. Non-MV evaluation ({@code Condition}) keeps them. 'not in' must keep dropping
- * null, as non-MV does.
+ * Bugs #79505 / #79870: a 'not equal to' condition on an MV column is evaluated as the two index
+ * ranges around the value, which never contain null (or empty, stored as null), exactly as the
+ * SQL '<>' that a database table is filtered with and as the data condition groups of an
+ * in-memory table (bug #79870). NOT IN and ranges drop null as before. See also
+ * {@link NotEqualNullAbTest}.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -49,24 +50,24 @@ class SubMVNotEqualNullTest {
    private static final int[] KEYS = { 0, 1, 2, 0, 3, 1 };
 
    @Test
-   void bitDimNotEqualKeepsNull() throws Exception {
-      assertEquals(rows(0, 1, 3, 4, 5), eval(bitDim(), "=", "2", true));
+   void bitDimNotEqualDropsNull() throws Exception {
+      assertEquals(rows(1, 4, 5), eval(bitDim(), "=", "2", true));
    }
 
    @Test
-   void dictDimNotEqualKeepsNull() throws Exception {
-      assertEquals(rows(0, 1, 3, 4, 5), eval(dictDim(), "=", "2", true));
+   void dictDimNotEqualDropsNull() throws Exception {
+      assertEquals(rows(1, 4, 5), eval(dictDim(), "=", "2", true));
    }
 
    @Test
-   void measureNotEqualKeepsNull() throws Exception {
+   void measureNotEqualDropsNull() throws Exception {
       // null, 5, 0, null, 7, 0
-      assertEquals(rows(0, 1, 3, 4), eval(measure(), "=", "0", true));
+      assertEquals(rows(1, 4), eval(measure(), "=", "0", true));
    }
 
    @Test
-   void notEqualToNullDoesNotAddNull() throws Exception {
-      // null != null is false
+   void notEqualToNullKeepsNonNullRows() throws Exception {
+      // not equal to a null value: the non-null rows, null is not matched
       assertEquals(rows(1, 2, 4, 5), eval(measure(), "=", null, true));
    }
 

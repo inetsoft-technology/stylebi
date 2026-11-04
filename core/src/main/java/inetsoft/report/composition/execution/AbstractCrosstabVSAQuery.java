@@ -782,6 +782,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
          if(!isMetadata() && pcond != null && !pcond.isEmpty()) {
             ConditionGroup cgroup = new ConditionGroup(pcond, findColumn);
+            cgroup.setNullNotEqualDropped(true);
             crosstab.setCondition(cgroup);
          }
 
