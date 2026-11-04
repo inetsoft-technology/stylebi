@@ -92,4 +92,55 @@ describe("DateComparisonService.hasOverlappingFixedPeriods", () => {
       expect(service.hasOverlappingFixedPeriods([])).toBe(false);
       expect(service.hasOverlappingFixedPeriods(null)).toBe(false);
    });
+
+   it("should treat reversed start and end within one range as the same range", () => {
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-03-31", "2020-01-01"), fixed("2020-02-01", "2020-02-10")])).toBe(true);
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-03-31", "2020-01-01"), fixed("2020-04-01", "2020-04-10")])).toBe(false);
+   });
+
+   it("should reject identical ranges and single-day ranges that share a day", () => {
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-01-01", "2020-01-31"), fixed("2020-01-01", "2020-01-31")])).toBe(true);
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-05-05", "2020-05-05"), fixed("2020-05-05", "2020-05-05")])).toBe(true);
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-05-05", "2020-05-05"), fixed("2020-05-06", "2020-05-06")])).toBe(false);
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-05-01", "2020-05-31"), fixed("2020-05-05", "2020-05-05")])).toBe(true);
+   });
+
+   it("should accept three or more disjoint ranges in any order", () => {
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-07-01", "2020-09-30"), fixed("2020-01-01", "2020-03-31"),
+         fixed("2020-04-01", "2020-06-30"), fixed("2020-10-01", "2020-12-31")])).toBe(false);
+   });
+
+   it("should ignore a partially filled row but still check the complete ones", () => {
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-01-01", "2020-03-31"), fixed(null, "2020-02-01"),
+         fixed("2020-03-31", "2020-04-30")])).toBe(true);
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-01-01", "2020-03-31"), fixed("", ""), fixed("2020-04-01", "2020-04-30")]))
+         .toBe(false);
+   });
+
+   it("should skip a range with only one variable end but check the fixed ones", () => {
+      const mixed: DatePeriodModel = {
+         start: { value: "2020-02-01", type: ValueTypes.VALUE },
+         end: { value: "$(e)", type: ValueTypes.VARIABLE }
+      };
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-01-01", "2020-03-31"), mixed])).toBe(false);
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-01-01", "2020-03-31"), mixed, fixed("2020-03-01", "2020-03-05")]))
+         .toBe(true);
+   });
+
+   it("should not check values that carry a time part", () => {
+      expect(service.hasOverlappingFixedPeriods([
+         fixed("2020-01-01 00:00:00", "2020-03-31 23:59:59"),
+         fixed("2020-02-01 00:00:00", "2020-02-02 00:00:00")])).toBe(false);
+   });
 });
