@@ -5740,6 +5740,9 @@ public class WorksheetAgentController {
                tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
             }
             catch(Exception e) {
+               // Let the caller's own pass over this source retry it, so the failure is reported
+               // there instead of only logged here, whatever the assembly order.
+               discovered.remove(name);
                LOG.warn("Failed to reload the columns of upstream table: " + name, e);
             }
          }

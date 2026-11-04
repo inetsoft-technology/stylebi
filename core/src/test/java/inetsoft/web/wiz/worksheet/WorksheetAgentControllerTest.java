@@ -3664,23 +3664,26 @@ class WorksheetAgentControllerTest {
       assertNull(response.getBody());
    }
 
-   /** Bug #79595 (b): the bulk refresh re-discovers tabular columns and names the dependent. */
    /**
-    * WorksheetEventUtil.refreshColumnSelection swallows what the sandbox throws, but not a failure
-    * to obtain the sandbox itself; that one must not abort the rest of the bulk refresh.
+    * Bug #79595 (b): WorksheetEventUtil.refreshColumnSelection swallows what the sandbox throws,
+    * but not a failure to obtain the sandbox itself; that one must not abort the rest of the bulk
+    * refresh, and the column-loss warning gathered before it must still reach the response.
     */
    @Test
    void refreshDataBulkSurvivesADependentRefreshThatThrows() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
       Worksheet ws = mirrorOverTabularWorksheet();
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
       when(box.getWorksheet()).thenReturn(ws);
       when(box.getVariableTable()).thenReturn(new VariableTable());
       java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      // Lookup 1 is the controller's own, lookup 2 the dependents' re-validation that drops column
+      // v (and so produces the warning); every later lookup, the per-table loop's, fails.
       when(rws.getAssetQuerySandbox()).thenAnswer(inv -> {
-         if(calls.incrementAndGet() > 1) {
+         if(calls.incrementAndGet() > 2) {
             throw new IllegalStateException("sandbox gone");
          }
 
@@ -3699,11 +3702,15 @@ class WorksheetAgentControllerTest {
          mock(WorksheetService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class));
 
+      ResponseEntity<EditResponse> response;
+
       try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
-         ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
       }
 
-      assertTrue(calls.get() > 1, "the dependent refresh must have been attempted");
+      assertTrue(calls.get() > 2, "the per-table refresh must have been attempted");
+      assertNotNull(response.getBody(), "the warning must survive the failed dependent refresh");
+      assertTrue(response.getBody().note().contains("ev_by_v"), response.getBody().note());
       verify(box, atLeastOnce()).getTableLens(eq("ev_by_v"), anyInt());
    }
 
