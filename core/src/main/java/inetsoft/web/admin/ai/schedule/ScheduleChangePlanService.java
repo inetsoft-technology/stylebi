@@ -385,6 +385,71 @@ public class ScheduleChangePlanService {
    }
 
    /**
+    * Appends the condition to the plan text, printing only the fields the condition's type
+    * persists ({@code TimeCondition.writeXML}) and the schedule reads, so a field the type ignores
+    * is never shown to the reviewer (apply would drop it). Types not listed (the deprecated
+    * DAY_OF_MONTH/WEEK_OF_MONTH, and any future type) keep printing every field.
+    */
+   private static void appendCondition(StringBuilder sb, TimeCondition tc) {
+      TimeCondition.Type type = tc.getType();
+      boolean atType = type == TimeCondition.Type.AT;
+      sb.append(";condition[type=").append(type);
+
+      if(atType) {
+         sb.append(",date=").append(tc.getDate());
+      }
+      else {
+         sb.append(",hour=").append(tc.getHour())
+            .append(",minute=").append(tc.getMinute())
+            .append(",second=").append(tc.getSecond());
+      }
+
+      if(type == TimeCondition.Type.EVERY_HOUR) {
+         sb.append(",daysOfWeek=").append(Arrays.toString(tc.getDaysOfWeek()))
+            .append(",hourEnd=").append(tc.getHourEnd())
+            .append(",minuteEnd=").append(tc.getMinuteEnd())
+            .append(",secondEnd=").append(tc.getSecondEnd())
+            .append(",hourlyInterval=").append(tc.getHourlyInterval());
+      }
+      else if(type == TimeCondition.Type.EVERY_DAY) {
+         sb.append(",interval=").append(tc.getInterval())
+            .append(",weekdayOnly=").append(tc.isWeekdayOnly());
+      }
+      else if(type == TimeCondition.Type.EVERY_WEEK || type == TimeCondition.Type.DAY_OF_WEEK) {
+         sb.append(",interval=").append(tc.getInterval())
+            .append(",daysOfWeek=").append(Arrays.toString(tc.getDaysOfWeek()));
+      }
+      else if(type == TimeCondition.Type.EVERY_MONTH) {
+         if(tc.getWeekOfMonth() > 0) {
+            sb.append(",weekOfMonth=").append(tc.getWeekOfMonth())
+               .append(",dayOfWeek=").append(tc.getDayOfWeek());
+         }
+         else {
+            sb.append(",dayOfMonth=").append(tc.getDayOfMonth());
+         }
+
+         sb.append(",monthsOfYear=").append(Arrays.toString(tc.getMonthsOfYear()));
+      }
+      else if(!atType) {
+         sb.append(",interval=").append(tc.getInterval())
+            .append(",daysOfWeek=").append(Arrays.toString(tc.getDaysOfWeek()))
+            .append(",dayOfMonth=").append(tc.getDayOfMonth())
+            .append(",weekOfMonth=").append(tc.getWeekOfMonth())
+            .append(",dayOfWeek=").append(tc.getDayOfWeek())
+            .append(",monthsOfYear=").append(Arrays.toString(tc.getMonthsOfYear()))
+            .append(",weekdayOnly=").append(tc.isWeekdayOnly())
+            .append(",hourEnd=").append(tc.getHourEnd())
+            .append(",minuteEnd=").append(tc.getMinuteEnd())
+            .append(",secondEnd=").append(tc.getSecondEnd())
+            .append(",hourlyInterval=").append(tc.getHourlyInterval());
+      }
+
+      sb.append(",timeRange=").append(tc.getTimeRange())
+         .append(",timeZone=").append(tc.getTimeZone())
+         .append(']');
+   }
+
+   /**
     * A preview-only projection of a NOT-YET-CREATED task, built directly from the request rather
     * than by round-tripping through {@code ScheduleApiService}'s private converters (which cannot
     * be called without side effects). Deliberately narrower than {@link ScheduleXmlProjection}: it
@@ -408,25 +473,7 @@ public class ScheduleChangePlanService {
 
       for(ScheduleCondition c : spec.getConditions()) {
          TimeCondition tc = (TimeCondition) c;
-         sb.append(";condition[type=").append(tc.getType())
-            .append(",hour=").append(tc.getHour())
-            .append(",minute=").append(tc.getMinute())
-            .append(",second=").append(tc.getSecond())
-            .append(",interval=").append(tc.getInterval())
-            .append(",daysOfWeek=").append(Arrays.toString(tc.getDaysOfWeek()))
-            .append(",dayOfMonth=").append(tc.getDayOfMonth())
-            .append(",weekOfMonth=").append(tc.getWeekOfMonth())
-            .append(",dayOfWeek=").append(tc.getDayOfWeek())
-            .append(",monthsOfYear=").append(Arrays.toString(tc.getMonthsOfYear()))
-            .append(",weekdayOnly=").append(tc.isWeekdayOnly())
-            .append(",hourEnd=").append(tc.getHourEnd())
-            .append(",minuteEnd=").append(tc.getMinuteEnd())
-            .append(",secondEnd=").append(tc.getSecondEnd())
-            .append(",hourlyInterval=").append(tc.getHourlyInterval())
-            .append(",date=").append(tc.getDate())
-            .append(",timeRange=").append(tc.getTimeRange())
-            .append(",timeZone=").append(tc.getTimeZone())
-            .append(']');
+         appendCondition(sb, tc);
       }
 
       for(ScheduleAction a : spec.getActions()) {

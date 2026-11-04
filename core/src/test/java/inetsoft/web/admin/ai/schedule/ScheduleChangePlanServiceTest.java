@@ -562,6 +562,73 @@ class ScheduleChangePlanServiceTest {
       assertTrue(tuesday.changes().get(0).proposedValue().contains("dayOfWeek=3"));
    }
 
+   // bug #79424
+   private static final String[] CONDITION_FIELDS = {
+      "hour", "minute", "second", "date", "interval", "daysOfWeek", "dayOfMonth", "weekOfMonth",
+      "dayOfWeek", "monthsOfYear", "weekdayOnly", "hourEnd", "minuteEnd", "secondEnd",
+      "hourlyInterval"
+   };
+
+   private static TimeCondition everyFieldSet(TimeCondition.Type type, int weekOfMonth) {
+      TimeCondition condition = timeCondition(7, 5);
+      condition.setType(type);
+      condition.setSecond(9);
+      condition.setInterval(3);
+      condition.setDaysOfWeek(new int[]{2, 4});
+      condition.setDayOfMonth(11);
+      condition.setWeekOfMonth(weekOfMonth);
+      condition.setDayOfWeek(5);
+      condition.setMonthsOfYear(new int[]{1, 6});
+      condition.setWeekdayOnly(true);
+      condition.setHourEnd(18);
+      condition.setMinuteEnd(17);
+      condition.setSecondEnd(16);
+      condition.setHourlyInterval(2.5f);
+
+      if(type == TimeCondition.Type.AT) {
+         condition.setDate(java.time.OffsetDateTime.parse("2030-01-02T03:04:05Z"));
+      }
+
+      return condition;
+   }
+
+   private void assertShowsOnly(TimeCondition condition, String... shownFields) throws Exception {
+      String shown = resolveCreateOf(specWith(condition)).changes().get(0).proposedValue();
+      List<String> expected = List.of(shownFields);
+
+      for(String field : CONDITION_FIELDS) {
+         boolean present = shown.contains("," + field + "=");
+         assertEquals(expected.contains(field), present,
+                      condition.getType() + " field " + field + " in: " + shown);
+      }
+   }
+
+   @Test void planShowsOnlyTheFieldsEachConditionTypePersists() throws Exception {
+      assertShowsOnly(everyFieldSet(TimeCondition.Type.AT, 0), "date");
+      assertShowsOnly(everyFieldSet(TimeCondition.Type.EVERY_HOUR, 0),
+         "hour", "minute", "second", "daysOfWeek", "hourEnd", "minuteEnd", "secondEnd",
+         "hourlyInterval");
+      assertShowsOnly(everyFieldSet(TimeCondition.Type.EVERY_DAY, 0),
+         "hour", "minute", "second", "interval", "weekdayOnly");
+      assertShowsOnly(everyFieldSet(TimeCondition.Type.EVERY_WEEK, 0),
+         "hour", "minute", "second", "interval", "daysOfWeek");
+      assertShowsOnly(everyFieldSet(TimeCondition.Type.DAY_OF_WEEK, 0),
+         "hour", "minute", "second", "interval", "daysOfWeek");
+      assertShowsOnly(everyFieldSet(TimeCondition.Type.EVERY_MONTH, 0),
+         "hour", "minute", "second", "dayOfMonth", "monthsOfYear");
+      assertShowsOnly(everyFieldSet(TimeCondition.Type.EVERY_MONTH, 2),
+         "hour", "minute", "second", "weekOfMonth", "dayOfWeek", "monthsOfYear");
+   }
+
+   @Test void everyDayPlanHasNoDaysOfWeekText() throws Exception {
+      TimeCondition condition = timeCondition(9, 0);
+      condition.setType(TimeCondition.Type.EVERY_DAY);
+      condition.setDaysOfWeek(new int[]{2, 4});
+      String shown = resolveCreateOf(specWith(condition)).changes().get(0).proposedValue();
+
+      assertFalse(shown.contains("daysOfWeek"), shown);
+   }
+
    private static inetsoft.web.api.schedule.ViewsheetAction vsAction() {
       inetsoft.web.api.schedule.ViewsheetAction action =
          new inetsoft.web.api.schedule.ViewsheetAction();
