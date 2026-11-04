@@ -124,6 +124,18 @@ public class ChartRegionPropertyService {
          if(incrementReason != null) {
             inapplicable.put("increment", incrementReason);
          }
+
+         if("y".equals(ChartRegionResolver.canonical(key)) &&
+            isMekkoChart(sessionToken, user, assembly))
+         {
+            for(String mekkoKey : MEKKO_Y_IGNORED_KEYS) {
+               inapplicable.put(mekkoKey, "No effect on the y axis of a Marimekko chart (fixed " +
+                  "0-100% range and ticks); refused when set to anything but false or empty.");
+            }
+
+            inapplicable.put("labelOnSecondaryAxis", "No effect on the y axis of a Marimekko " +
+               "chart; refused when set to true.");
+         }
       }
 
       String primary = time ? otherPrimaryGanttField(sessionToken, user, assembly, kind) : null;
@@ -305,8 +317,9 @@ public class ChartRegionPropertyService {
 
       // The stored range is needed to judge a partial write (only maximum, only increment), so
       // this runs after readModel. A time axis takes dates, which TimeRange.parse already checks.
-      if("axis".equals(name) && timeRange == null) {
-         requireConsistentAxisScale((AxisPropertyDialogModel) model, properties);
+      if("axis".equals(name)) {
+         requireConsistentAxisScale((AxisPropertyDialogModel) model, properties,
+                                    timeRange != null);
       }
 
       // A time axis's range is written exactly after the dialog write (writeTimeAxis), not
@@ -1015,7 +1028,12 @@ public class ChartRegionPropertyService {
       Object value = properties.get("style");
       Integer parsed = null;
 
-      if(value instanceof Number number && number.doubleValue() == number.intValue()) {
+      if(value instanceof Number number) {
+         if(number.doubleValue() != number.intValue()) {
+            // a non-integral number is refused by PropertyPath.coerce, naming the property path
+            return;
+         }
+
          parsed = number.intValue();
       }
       else if(value != null) {
@@ -1056,8 +1074,13 @@ public class ChartRegionPropertyService {
          return;
       }
 
-      Set<String> ignored = new TreeSet<>(properties.keySet());
-      ignored.retainAll(MEKKO_Y_IGNORED_KEYS);
+      Set<String> ignored = new TreeSet<>();
+
+      for(String ignoredKey : MEKKO_Y_IGNORED_KEYS) {
+         if(properties.containsKey(ignoredKey) && !isNoOpValue(properties.get(ignoredKey))) {
+            ignored.add(ignoredKey);
+         }
+      }
 
       if(properties.containsKey("labelOnSecondaryAxis") &&
          isTruthy(properties.get("labelOnSecondaryAxis")))
@@ -1069,13 +1092,7 @@ public class ChartRegionPropertyService {
          return;
       }
 
-      boolean mekko = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
-         return GraphTypes.isMekko(info.getChartType()) ||
-            GraphTypes.isMekko(info.getRTChartType());
-      });
-
-      if(mekko) {
+      if(isMekkoChart(sessionToken, user, assembly)) {
          boolean one = ignored.size() == 1;
          throw new IllegalArgumentException(
             "'" + String.join("', '", ignored) + "' " + (one ? "does" : "do") + " not apply to " +
@@ -1083,6 +1100,22 @@ public class ChartRegionPropertyService {
             (one ? "it" : "they") + " would be stored and ignored. Omit " + (one ? "it" : "them") +
             ". Nothing was changed.");
       }
+   }
+
+   /** A value that sets nothing: null, "" or false, which clears a stale value rather than setting one. */
+   private static boolean isNoOpValue(Object value) {
+      return value == null || "".equals(value) || Boolean.FALSE.equals(value) ||
+         "false".equalsIgnoreCase(String.valueOf(value).trim());
+   }
+
+   private boolean isMekkoChart(String sessionToken, Principal user, String assembly)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         return GraphTypes.isMekko(info.getChartType()) ||
+            GraphTypes.isMekko(info.getRTChartType());
+      });
    }
 
    private static final double AXIS_VALUE_LIMIT = Integer.MAX_VALUE;
@@ -1094,14 +1127,31 @@ public class ChartRegionPropertyService {
     * partial write is judged against the stored value of the other side, and a pair is only
     * checked when the patch touches one of its keys, so an unrelated write is never blocked by a
     * range stored earlier. Runs after {@link #requireNumericAxisValues}, so a written value
-    * parses; null or "" means cleared (bug #80321).
+    * parses; null or "" means cleared. A time axis only gets the increment rule (bug #80321).
     */
    private static void requireConsistentAxisScale(AxisPropertyDialogModel model,
-                                                  Map<String, Object> properties)
+                                                  Map<String, Object> properties,
+                                                  boolean timeAxis)
    {
       AxisLinePaneModel pane = model.getAxisLinePaneModel();
 
       if(pane == null) {
+         return;
+      }
+
+      if(timeAxis) {
+         // The dialog gives a time axis the same positive-increment validator; its minimum and
+         // maximum are dates (TimeRange.parse) and minorIncrement is refused there already.
+         Double step = effectiveAxisValue(properties, "increment", null);
+
+         if(properties.containsKey("increment") && step != null &&
+            (step <= 0 || step > AXIS_VALUE_LIMIT))
+         {
+            throw new IllegalArgumentException(
+               "'increment' must be greater than 0 and at most 2147483647; '" +
+               properties.get("increment") + "' is not. Nothing was changed.");
+         }
+
          return;
       }
 

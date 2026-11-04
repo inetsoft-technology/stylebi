@@ -1921,7 +1921,7 @@ class ChartRegionPropertyServiceTest {
          () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
                              Map.of("legendFormatGeneralPaneModel.style", 2.5), ""));
 
-      assertTrue(thrown.getMessage().contains("style"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("legendFormatGeneralPaneModel.style"));
       verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
                                                             any(), anyString(),
                                                             any(Principal.class), any());
@@ -2454,6 +2454,7 @@ class ChartRegionPropertyServiceTest {
    void aDateMeasureAxisTakesADateRangeAndStoresItExactly() throws Exception {
       VSChartAggregateRef date = mock(VSChartAggregateRef.class);
       when(date.isDiscrete()).thenReturn(false);
+      when(date.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
       when(date.getFullName()).thenReturn("Max(ORDER_DATE)");
       when(date.getName()).thenReturn("ORDER_DATE");
       when(date.getDataType()).thenReturn(XSchema.DATE);
@@ -2730,6 +2731,116 @@ class ChartRegionPropertyServiceTest {
       setAxis(h, Map.of("minimum", "-2147483648", "maximum", "2147483647",
                         "increment", "2147483647", "minorIncrement", "1"));
       verifyAxisWritten(h);
+   }
+
+   /** Bug #80321: a Mekko y axis lists the keys it ignores as not applying, as list and set agree. */
+   @Test
+   void listsTheMekkoYAxisKeysAsInapplicable() throws Exception {
+      Harness h = mekkoHarness();
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "y", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+
+      for(String key : List.of("minimum", "maximum", "increment", "minorIncrement",
+                               "logarithmicScale", "reverse", "shared", "labelOnSecondaryAxis"))
+      {
+         Map<String, Object> one = props.stream().filter(p -> key.equals(p.get("name")))
+            .findFirst().orElseThrow();
+         assertEquals(false, one.get("applies"), key);
+         assertTrue(String.valueOf(one.get("reason")).contains("Marimekko"), key);
+      }
+
+      Map<String, Object> shown = props.stream()
+         .filter(p -> "showAxisLine".equals(p.get("name"))).findFirst().orElseThrow();
+      assertFalse(shown.containsKey("applies"));
+   }
+
+   @Test
+   void doesNotListScaleKeysAsInapplicableOnANonMekkoAxis() throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>)
+         h.service.list("tok", principal(), "Chart1", "axis", "y", null).get("properties");
+
+      assertTrue(props.stream().filter(p -> "minimum".equals(p.get("name")))
+                    .noneMatch(p -> p.containsKey("applies")));
+   }
+
+   /** Writing back defaults (false, empty, null) on a Mekko y axis sets nothing, so it is accepted. */
+   @Test
+   void acceptsNoOpValuesOfTheScaleKeysOnTheMekkoYAxis() throws Exception {
+      Harness h = mekkoHarness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("reverse", false);
+      patch.put("logarithmicScale", "false");
+      patch.put("shared", false);
+      patch.put("minimum", "");
+      patch.put("maximum", null);
+      patch.put("increment", "");
+      patch.put("minorIncrement", null);
+
+      setAxis(h, patch);
+
+      verifyAxisWritten(h);
+   }
+
+   @Test
+   void stillRefusesARealValueNextToNoOpValuesOnTheMekkoYAxis() throws Exception {
+      Harness h = mekkoHarness();
+      Map<String, Object> patch = new java.util.LinkedHashMap<>();
+      patch.put("reverse", false);
+      patch.put("minimum", "5");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> setAxis(h, patch));
+
+      assertTrue(thrown.getMessage().contains("minimum"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("reverse"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+   }
+
+   /** The Composer's time-series increment gets the same positive-number validator (bug #80321). */
+   @Test
+   void refusesANonPositiveOrOversizedIncrementOnATimeAxis() throws Exception {
+      for(String bad : List.of("0", "-100000", "2147483648")) {
+         Harness h = timeAxisHarness();
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+                                         () -> setAxis(h, Map.of("increment", bad)));
+         assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+         verifyNoAxisWrite(h);
+      }
+   }
+
+   @Test
+   void stillAcceptsAPositiveIncrementAndDatesOnATimeAxis() throws Exception {
+      Harness h = timeAxisHarness();
+
+      setAxis(h, Map.of("increment", "2", "minimum", "2025-01-01", "maximum", "2025-06-01"));
+
+      verifyAxisWritten(h);
+   }
+
+   /** A chart whose only y measure is date typed on a separated graph: the engine's TimeScale axis. */
+   private static Harness timeAxisHarness() throws Exception {
+      Viewsheet vs = viewsheet(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      VSChartAggregateRef date = (VSChartAggregateRef) info.getYFields()[0];
+      when(date.getDataType()).thenReturn(XSchema.DATE);
+      when(date.getFullName()).thenReturn("Max(Due)");
+      when(date.isDiscrete()).thenReturn(false);
+      AxisDescriptor dateDescriptor = mock(AxisDescriptor.class);
+      when(date.getAxisDescriptor()).thenReturn(dateDescriptor);
+      when(info.isSeparatedGraph()).thenReturn(true);
+      Harness h = harness(vs);
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+      return h;
    }
 
    private static Harness mekkoHarness() throws Exception {
