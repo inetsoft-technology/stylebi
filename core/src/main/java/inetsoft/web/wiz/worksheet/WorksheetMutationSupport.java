@@ -800,6 +800,21 @@ public final class WorksheetMutationSupport {
       return matches;
    }
 
+   /** Indexes of the condition items whose attribute name is exactly {@code field}. */
+   private static List<Integer> exactNameMatches(ConditionList list, String field) {
+      List<Integer> matches = new ArrayList<>();
+
+      for(int i = 0; i < list.getSize(); i++) {
+         if(list.getItem(i) instanceof ConditionItem ci &&
+            field.equals(ci.getAttribute().getName()))
+         {
+            matches.add(i);
+         }
+      }
+
+      return matches;
+   }
+
    /**
     * Removes every condition whose attribute name equals {@code field} from the table's
     * pre-condition list, or its post-condition (HAVING) list when {@code field} resolves
@@ -832,7 +847,13 @@ public final class WorksheetMutationSupport {
       }
 
       ConditionList src = existing.getConditionList();
-      java.util.Set<Integer> removeIdx = new java.util.HashSet<>(filterMatches(src, field));
+      // Bug #80178 (wbs-246): a self-join copy (alias CUSTOMER_ID_1 over base CUSTOMER_ID) also
+      // matches a request for the base name through getAttribute(), so removing CUSTOMER_ID took
+      // the copy's condition with it. A condition whose own name is the requested field is the
+      // one named; the attribute match is only the fallback when no condition carries that name.
+      List<Integer> nameMatches = exactNameMatches(src, field);
+      java.util.Set<Integer> removeIdx = new java.util.HashSet<>(
+         nameMatches.isEmpty() ? filterMatches(src, field) : nameMatches);
 
       if(removeIdx.isEmpty()) {
          return;
@@ -2224,6 +2245,41 @@ public final class WorksheetMutationSupport {
 
       return List.of("Could not determine the data type of column(s) " + untypedColumns +
          "; they were left as string. If they hold numbers, set the type with change_column_type.");
+   }
+
+   private static final java.util.regex.Pattern MISSING_TABLE_ERROR = java.util.regex.Pattern.compile(
+      "(?is)\\b(table|view|relation|object)\\b[^\\n]{0,120}?(does not exist|doesn't exist|" +
+      "not found|not exist)|no such table|invalid object name|unknown table|object not found");
+
+   /**
+    * Bug #80178 (wsq-032): the refusal for a query whose tables do not resolve. With explicit
+    * columns the parser types what it can and the result-metadata call in
+    * {@link #applySqlResultTypes} is the first thing to touch the datasource; it swallows the
+    * driver failure into {@link JDBCQuery#getLastQueryError()}, so the caller reads that error
+    * here. Only a missing-table/view/object error refuses: an unbound {@code $(param)} or any
+    * other metadata failure (window functions, driver quirks) stays accepted as before, and SQL
+    * carrying a {@code $(@var)} raw-text placeholder is skipped because its table name is not
+    * known until runtime.
+    *
+    * @param driverError the query's last error after {@link #applySqlResultTypes}, or null
+    * @param sql         the SQL text as submitted
+    * @return the refusal message, or null when the SQL should be accepted
+    */
+   static String missingTableRefusal(Exception driverError, String sql) {
+      if(driverError == null || sql == null || sql.contains("$(@")) {
+         return null;
+      }
+
+      for(Throwable t = driverError; t != null; t = t.getCause() == t ? null : t.getCause()) {
+         String msg = t.getMessage();
+
+         if(msg != null && MISSING_TABLE_ERROR.matcher(msg).find()) {
+            return "SQL is syntactically valid but could not be resolved against the datasource: "
+               + msg + " — check table/column references.";
+         }
+      }
+
+      return null;
    }
 
    /**
