@@ -25,6 +25,8 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.content.repository.ImportAssetServiceProxy;
 import inetsoft.web.admin.content.repository.StagedImportNotFoundException;
+import inetsoft.web.admin.ai.TaskAuditToken;
+import inetsoft.web.admin.content.repository.model.BookmarkConflict;
 import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
 import inetsoft.web.admin.content.repository.model.RequiredAssetModel;
 import inetsoft.web.admin.content.repository.model.SelectedAssetModel;
@@ -44,6 +46,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.withSettings;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @Tag("core")
@@ -248,5 +253,126 @@ class RepositoryImportChangePlanServiceTest {
       RepositoryImportPlan other = resolveWith(worksheet("A/ws", "Target/A/ws", bob),
          repoHolding(AssetRepository.GLOBAL_SCOPE, "Target/A/ws", null));
       assertEquals(1, other.willCreate().size());
+   }
+
+   private static BookmarkConflict conflict(String path, String user, String label, String name) {
+      return BookmarkConflict.builder().viewsheetPath(path).user(user).userLabel(label)
+         .bookmarkName(name).existingCreated(0L).existingModified(0L).importedCreated(0L)
+         .importedModified(0L).build();
+   }
+
+   private static RepositoryImportRequest.BookmarkResolutionEntry res(
+      String path, String user, String name, boolean keepImported)
+   {
+      RepositoryImportRequest.BookmarkResolutionEntry r =
+         new RepositoryImportRequest.BookmarkResolutionEntry();
+      r.setViewsheetPath(path);
+      r.setUser(user);
+      r.setBookmarkName(name);
+      r.setKeepImported(keepImported);
+      return r;
+   }
+
+   private static final BookmarkConflict REAL = conflict("Reports/Sales", "alice~;~host-org",
+      "alice", "Q3");
+
+   @Test
+   void resolutionMatchingNoConflictIsRefusedNamingItsIndex() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> RepositoryImportChangePlanService.validateBookmarkResolutions(
+            List.of(res("Nope/Nope", "nobody", "typo", false)), List.of(REAL)));
+      assertTrue(e.getMessage().startsWith("bookmarkResolutions[0]:"), e.getMessage());
+      assertTrue(e.getMessage().contains("Reports/Sales|alice~;~host-org|Q3"), e.getMessage());
+   }
+
+   @Test
+   void matchingResolutionIsAcceptedForBothKeepValues() {
+      RepositoryImportChangePlanService.validateBookmarkResolutions(
+         List.of(res("Reports/Sales", "alice~;~host-org", "Q3", false)), List.of(REAL));
+      RepositoryImportChangePlanService.validateBookmarkResolutions(
+         List.of(res("Reports/Sales", "alice~;~host-org", "Q3", true)), List.of(REAL));
+   }
+
+   @Test
+   void unmatchedKeepImportedTrueEntryIsRefusedToo() {
+      assertThrows(IllegalArgumentException.class,
+         () -> RepositoryImportChangePlanService.validateBookmarkResolutions(
+            List.of(res("Reports/Sales", "alice~;~host-org", "Typo", true)), List.of(REAL)));
+   }
+
+   @Test
+   void mixedListNamesOnlyTheBadIndex() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> RepositoryImportChangePlanService.validateBookmarkResolutions(
+            List.of(res("Reports/Sales", "alice~;~host-org", "Q3", false),
+               res("Reports/Sales", "alice~;~host-org", "Q4", false)), List.of(REAL)));
+      assertTrue(e.getMessage().startsWith("bookmarkResolutions[1]:"), e.getMessage());
+      assertFalse(e.getMessage().contains("bookmarkResolutions[0]"), e.getMessage());
+   }
+
+   @Test
+   void anyEntryIsRefusedWhenThereAreNoConflicts() {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> RepositoryImportChangePlanService.validateBookmarkResolutions(
+            List.of(res("Reports/Sales", "alice~;~host-org", "Q3", false)), List.of()));
+      assertTrue(e.getMessage().contains("none"), e.getMessage());
+      assertThrows(IllegalArgumentException.class,
+         () -> RepositoryImportChangePlanService.validateBookmarkResolutions(
+            List.of(res("Reports/Sales", "alice~;~host-org", "Q3", false)), null));
+   }
+
+   @Test
+   void userLabelInsteadOfKeyAndCaseDifferenceAreRefused() {
+      assertThrows(IllegalArgumentException.class,
+         () -> RepositoryImportChangePlanService.validateBookmarkResolutions(
+            List.of(res("Reports/Sales", "alice", "Q3", false)), List.of(REAL)));
+      assertThrows(IllegalArgumentException.class,
+         () -> RepositoryImportChangePlanService.validateBookmarkResolutions(
+            List.of(res("reports/sales", "alice~;~host-org", "q3", false)), List.of(REAL)));
+   }
+
+   @Test
+   void noResolutionsNeverFails() {
+      RepositoryImportChangePlanService.validateBookmarkResolutions(null, null);
+      RepositoryImportChangePlanService.validateBookmarkResolutions(List.of(), List.of());
+   }
+
+   private static RepositoryImportRequest bookmarkRequest(
+      RepositoryImportRequest.BookmarkResolutionEntry... entries)
+   {
+      RepositoryImportRequest req = new RepositoryImportRequest();
+      req.setTask("t");
+      req.setStagingToken("tok");
+      req.setBookmarkResolutions(List.of(entries));
+      return req;
+   }
+
+   private static RepositoryImportChangePlanService service(List<BookmarkConflict> conflicts)
+      throws Exception
+   {
+      ImportAssetServiceProxy proxy = mock(ImportAssetServiceProxy.class);
+      ExportedAssetsModel info = ExportedAssetsModel.builder().selectedEntities(List.of())
+         .dependentAssets(List.of()).build();
+      when(proxy.getJarFileInfo(anyString(), any())).thenReturn(info);
+      when(proxy.getBookmarkConflicts(anyString(), isNull(), isNull(), isNull(), anyBoolean(),
+         anyList(), any())).thenReturn(conflicts);
+      return new RepositoryImportChangePlanService(proxy, mock(AssetRepository.class));
+   }
+
+   @Test
+   void resolveRefusesUnmatchedResolutionAndKeepsHashForMatchingOnes() throws Exception {
+      RepositoryImportChangePlanService svc = service(List.of(REAL));
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> svc.resolve(bookmarkRequest(res("Nope/Nope", "nobody", "typo", false)), null));
+      assertTrue(e.getMessage().startsWith("bookmarkResolutions[0]:"), e.getMessage());
+
+      try(MockedStatic<TaskAuditToken> token = mockStatic(TaskAuditToken.class)) {
+         token.when(() -> TaskAuditToken.issue(anyString(), anyString())).thenReturn("tt");
+         String matching = svc.resolve(
+            bookmarkRequest(res("Reports/Sales", "alice~;~host-org", "Q3", false)), null).planHash();
+         assertEquals(matching, svc.resolve(
+            bookmarkRequest(res("Reports/Sales", "alice~;~host-org", "Q3", false)), null).planHash());
+         assertNotEquals(matching, svc.resolve(bookmarkRequest(), null).planHash());
+      }
    }
 }
