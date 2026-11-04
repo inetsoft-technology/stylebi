@@ -166,7 +166,16 @@ final class WorksheetColumnLoss {
          return;
       }
 
+      AggregateInfo info = composed.getAggregateInfo();
+      // an aggregate table sorts on its own output columns (Sum(n), aggregate aliases), which are
+      // not source columns; its lost group/aggregate inputs already report the loss
+      boolean aggregated = info != null && !info.isEmpty();
+
       for(Object input : storedInputs(composed)) {
+         if(aggregated && input instanceof SortRef) {
+            continue;
+         }
+
          String message = PreAssetQuery.upstreamColumnLossMessage(composed.getName(), input);
 
          if(message == null) {

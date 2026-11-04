@@ -3665,6 +3665,29 @@ class WorksheetAgentControllerTest {
    }
 
    /** Bug #79595 (b): the bulk refresh re-discovers tabular columns and names the dependent. */
+   /** A dependent whose refresh throws must not lose the rest of the bulk refresh or its warning. */
+   @Test
+   void refreshDataBulkSurvivesADependentRefreshThatThrows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      doAnswer(inv -> {
+         setSelection((TableAssembly) ws.getAssembly("ev"), "id", "n");
+         setSelection((TableAssembly) ws.getAssembly("ev_by_v"), "id", "n");
+         throw new IllegalStateException("dependent cannot validate");
+      }).when(box).refreshColumnSelection(anyString(), anyBoolean());
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertNotNull(response.getBody(), "the warning must survive the failed dependent refresh");
+      assertTrue(response.getBody().note().contains("ev_by_v"), response.getBody().note());
+      verify(box, atLeastOnce()).getTableLens(eq("ev_by_v"), anyInt());
+   }
+
    @Test
    void refreshDataBulkWarnsWhenAMirrorLosesItsGroupColumn() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");

@@ -197,6 +197,44 @@ class WorksheetColumnLoss79595Test {
          ws, box(lens("id", "n")), "ev_by_v"));
    }
 
+   private static void sortBy(Worksheet ws, String name) {
+      TableAssembly m = (TableAssembly) ws.getAssembly("ev_by_v");
+      SortInfo sort = m.getSortInfo();
+      SortRef ref = new SortRef(new ColumnRef(new AttributeRef(null, name)));
+      ref.setOrder(inetsoft.uql.XConstants.SORT_DESC);
+      sort.addSort(ref);
+      m.setSortInfo(sort);
+   }
+
+   @Test
+   void previewCheckIgnoresASortOnAnAggregateOutputColumn() throws Exception {
+      Worksheet ws = worksheet(true);
+      sortBy(ws, "Sum(n)");
+      assertEquals(List.of(), WorksheetColumnLoss.missingUpstreamInputs(
+         ws, box(lens("id", "v", "n")), "ev_by_v"));
+   }
+
+   @Test
+   void previewCheckIgnoresASortOnAnAggregateAlias() throws Exception {
+      Worksheet ws = worksheet(true);
+      AggregateInfo info = ((TableAssembly) ws.getAssembly("ev_by_v")).getAggregateInfo();
+      info.getAggregate(0).getDataRef();
+      ((ColumnRef) info.getAggregate(0).getDataRef()).setAlias("total");
+      sortBy(ws, "total");
+      assertEquals(List.of(), WorksheetColumnLoss.missingUpstreamInputs(
+         ws, box(lens("id", "v", "n")), "ev_by_v"));
+   }
+
+   @Test
+   void previewCheckStillWarnsAboutAVanishedGroupOfASortedMirror() throws Exception {
+      Worksheet ws = worksheet(true);
+      sortBy(ws, "Sum(n)");
+      List<String> warnings = WorksheetColumnLoss.missingUpstreamInputs(
+         ws, box(lens("id", "n")), "ev_by_v");
+      assertEquals(1, warnings.size(), "warnings: " + warnings);
+      assertTrue(warnings.get(0).contains("group"), warnings.get(0));
+   }
+
    @Test
    void previewCheckSkipsACrosstab() throws Exception {
       Worksheet ws = worksheet(true);

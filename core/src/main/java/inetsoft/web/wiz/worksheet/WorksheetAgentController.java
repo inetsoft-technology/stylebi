@@ -5607,15 +5607,21 @@ public class WorksheetAgentController {
                   try {
                      for(Assembly a : ws.getAssemblies()) {
                         if(a instanceof TabularTableAssembly tabular) {
-                           WorksheetEventUtil.refreshColumnSelection(rws, tabular.getName(), true);
+                           try {
+                              WorksheetEventUtil.refreshColumnSelection(
+                                 rws, tabular.getName(), true);
+                           }
+                           catch(Exception e) {
+                              LOG.warn("Failed to refresh the columns below table: " +
+                                       tabular.getName(), e);
+                           }
                         }
                      }
                   }
                   finally {
                      box.getVariableTable().remove("__refresh_report__");
+                     storedBefore.warnLost(ws);
                   }
-
-                  storedBefore.warnLost(ws);
                }
 
                for(Assembly a : ws.getAssemblies()) {
