@@ -192,6 +192,8 @@ class SheetOpenServiceTest {
       JoinSession opened = service.openBaseWorksheet("tok-vs", principal(), true);
 
       verify(sheetSessions).close("tok-ws-held");
+      // Bug #80372: the discarded session's tab must be told its agent is gone.
+      verify(broadcast).sendAgentInactive(argThat(s -> "tok-ws-held".equals(s.sessionToken())));
       assertEquals(SheetType.WORKSHEET, opened.sheetType());
       assertEquals("ws-runtime-1", opened.runtimeId());
    }
@@ -207,6 +209,7 @@ class SheetOpenServiceTest {
       service.openBaseWorksheet("tok-vs", principal(), true);
 
       verify(sheetSessions, never()).close(anyString());
+      verify(broadcast, never()).sendAgentInactive(any());
    }
 
    /**

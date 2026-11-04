@@ -46,6 +46,43 @@ describe("Sheet copy constructor", () => {
       expect(copy.closedOnServer).toBe(true);
    });
 
+   // Bug #80372: the agent-connected state is pushed ONCE (OpenComposerAssetCommand.agentActive on
+   // open, SetAgentActiveCommand on a code join) onto the current Worksheet, but the pane replaces
+   // the tab's Worksheet by copy on the OpenWorksheetCommand init, after table load, and on every
+   // UpdateUndoStateCommand (every agent edit). A copy that drops the flag clears the tab icon.
+   it("preserves agentConnected and agentOwnerLabel for an agent-opened worksheet", () => {
+      const original = new Worksheet();
+      original.agentConnected = true;
+      original.agentOwnerLabel = "Alice";
+
+      const copy = new Worksheet(original);
+
+      expect(copy.agentConnected).toBe(true);
+      expect(copy.agentOwnerLabel).toBe("Alice");
+   });
+
+   it("keeps a code-paired worksheet's agent state through repeated undo-state copies", () => {
+      const paired = new Worksheet();
+      paired.runtimeId = "ws-user-1";
+      // what ws-pane's processSetAgentActiveCommand does after a code join
+      paired.agentConnected = true;
+      paired.agentOwnerLabel = "Bob";
+
+      // each agent edit -> UpdateUndoStateCommand -> new Worksheet(this.worksheet)
+      const afterEdit1 = new Worksheet(paired);
+      const afterEdit2 = new Worksheet(afterEdit1);
+
+      expect(afterEdit2.agentConnected).toBe(true);
+      expect(afterEdit2.agentOwnerLabel).toBe("Bob");
+   });
+
+   it("copies a disconnected worksheet as disconnected", () => {
+      const copy = new Worksheet(new Worksheet());
+
+      expect(copy.agentConnected).toBe(false);
+      expect(copy.agentOwnerLabel).toBeUndefined();
+   });
+
    it("still defaults closeOnServer to true for a browser-opened sheet", () => {
       expect(new Worksheet().closeOnServer).toBe(true);
       expect(new Worksheet(new Worksheet()).closeOnServer).toBe(true);
