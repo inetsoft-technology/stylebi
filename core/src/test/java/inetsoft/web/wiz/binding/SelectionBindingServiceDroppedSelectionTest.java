@@ -257,9 +257,7 @@ class SelectionBindingServiceDroppedSelectionTest {
                                                         SelectionList after)
    {
       SelectionTreeVSAssembly assembly = treeAssembly(before, after);
-      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
-      info.setMode(SelectionTreeVSAssemblyInfo.ID);
-      when(assembly.getSelectionTreeInfo()).thenReturn(info);
+      when(assembly.getMode()).thenReturn(SelectionTreeVSAssemblyInfo.ID);
       return assembly;
    }
 

@@ -1155,8 +1155,7 @@ public class SelectionBindingService {
          list = assembly.getSelectionList();
       }
 
-      SelectionTreeVSAssemblyInfo info = assembly.getSelectionTreeInfo();
-      boolean idMode = info != null && info.getMode() == SelectionTreeVSAssemblyInfo.ID;
+      boolean idMode = assembly.getMode() == SelectionTreeVSAssemblyInfo.ID;
       SelectionValue[] roots = list == null ? null : list.getSelectionValues();
       Set<String> nestedIds = new HashSet<>();
 
