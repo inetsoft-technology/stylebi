@@ -161,4 +161,123 @@ class OrgIdChangeGuardTest {
          registry.shutdown();
       }
    }
+
+   private static Throwable inOtherThread(ThrowingRunnable action) throws Exception {
+      AtomicReference<Throwable> error = new AtomicReference<>();
+      Thread t = new Thread(() -> {
+         try {
+            action.run();
+         }
+         catch(Throwable e) {
+            error.set(e);
+         }
+      });
+      t.start();
+      t.join();
+      return error.get();
+   }
+
+   private interface ThrowingRunnable {
+      void run() throws Exception;
+   }
+
+   private static void assertRefused(Throwable e) {
+      Throwable t = e;
+
+      while(t != null && !(t instanceof OrgIdChangeGuard.OrganizationChangingException)) {
+         t = t.getCause();
+      }
+
+      assertNotNull(t, "expected a refusal, got " + e);
+   }
+
+   /** F2: the new id is refused during the change, the owner and its threads are not. */
+   @Test
+   void newIdIsGuardedWhileTheChangeRuns() throws Exception {
+      String oldId = "bug79856n1";
+      String newId = "bug79856n2";
+      BlobIndexedStorage storage = new BlobIndexedStorage(blobStorageManager);
+      OrgIdChangeGuard.begin(oldId, newId);
+
+      try {
+         assertRefused(writeFromOtherThread(storage, folderKey(newId, "retry")));
+         assertFalse(storage.contains(folderKey(newId, "retry"), newId));
+         // the owner and the threads that adopt its snapshot are exempt
+         storage.putXMLSerializable(folderKey(newId, "copied"), new AssetFolder());
+         AtomicReference<Throwable> child = new AtomicReference<>();
+         var owner = OrgIdChangeGuard.snapshot();
+         Thread t = new Thread(() -> {
+            try {
+               OrgIdChangeGuard.adopt(owner);
+               storage.putXMLSerializable(folderKey(newId, "copied2"), new AssetFolder());
+            }
+            catch(Throwable e) {
+               child.set(e);
+            }
+         });
+         t.start();
+         t.join();
+         assertNull(child.get());
+      }
+      finally {
+         OrgIdChangeGuard.end(oldId, true);
+      }
+
+      // the new id is writable once the change is over, the old one stays refused
+      assertNull(writeFromOtherThread(storage, folderKey(newId, "after")));
+      assertRefused(writeFromOtherThread(storage, folderKey(oldId, "late")));
+      OrgIdChangeGuard.clear(oldId);
+   }
+
+   /** F1: org scoped data space paths and the other org scoped blob stores are refused. */
+   @Test
+   void dataSpaceAndOtherBlobStoresAreGuarded() throws Exception {
+      String org = "bug79856d1";
+      DataSpace space = DataSpace.getDataSpace();
+      var library = blobStorageManager.<java.io.Serializable>getStorage(org + "__library", false);
+      OrgIdChangeGuard.begin(org, "bug79856d2");
+
+      try {
+         for(String path : new String[] { "portal/" + org + "/dashboard-registry.xml",
+                                          org + "/other.xml",
+                                          "sreeUserData/u_" + org + ".xml" })
+         {
+            String dir = path.substring(0, path.lastIndexOf('/'));
+            String file = path.substring(path.lastIndexOf('/') + 1);
+            assertRefused(inOtherThread(() -> space.withOutputStream(dir, file, o -> o.write(1))));
+            assertFalse(space.exists(dir, file), path);
+         }
+
+         assertRefused(inOtherThread(() -> library.createDirectory("lib", null)));
+         assertFalse(library.exists("lib"));
+         // an unrelated path is not affected
+         assertNull(inOtherThread(() -> space.withOutputStream(
+            "bug79856other", "x.xml", o -> o.write(1))));
+      }
+      finally {
+         OrgIdChangeGuard.end(org, false);
+         OrgIdChangeGuard.clear(org);
+      }
+   }
+
+   /** F3: a case-only change refuses the registry of either spelling. */
+   @Test
+   void caseOnlyChangeIsGuarded() throws Exception {
+      String oldId = "Bug79856Cs";
+      RepletRegistry registry = new RepletRegistry(oldId);
+      registry.addFolder("early");
+      OrgIdChangeGuard.begin(oldId, oldId.toLowerCase());
+
+      try {
+         assertRefused(inOtherThread(registry::save));
+         assertFalse(DataSpace.getDataSpace().exists(null, oldId + "/repository.xml"));
+      }
+      finally {
+         OrgIdChangeGuard.end(oldId, true);
+         registry.shutdown();
+      }
+
+      // nothing is retired after a case-only change
+      assertFalse(OrgIdChangeGuard.isBlocked(oldId));
+   }
 }

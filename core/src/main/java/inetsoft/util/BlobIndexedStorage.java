@@ -640,7 +640,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       // read (a write that was already past the organization's write guard when an id change
       // started, or an unguarded copy) is migrated by the following rounds when renaming. The
       // modified times are read first, so a change in between shows in the next round.
-      Map<String, Long> migrated = new HashMap<>(getModifiedTimes(oId, null));
+      Map<String, Long> migrated =
+         rename ? new HashMap<>(getModifiedTimes(oId, null)) : new HashMap<>();
       Set<String> allKeys = getKeys(null, oId);
       int numThreads = Runtime.getRuntime().availableProcessors();
 
@@ -653,8 +654,13 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             }
          }
 
+         // the workers write into the new organization, part of the guarded id change
+         Map<String, String> guarded = OrgIdChangeGuard.snapshot();
          ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
-            Thread t = new Thread(r, "BlobStorageMigrateOrg");
+            Thread t = new Thread(() -> {
+               OrgIdChangeGuard.adopt(guarded);
+               r.run();
+            }, "BlobStorageMigrateOrg");
             t.setDaemon(true);
             return t;
          });

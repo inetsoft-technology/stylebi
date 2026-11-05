@@ -139,15 +139,16 @@ public abstract class AbstractEditableAuthenticationProvider
    {
       // Bug #79856, the copy below reads the old organization's stores from one-shot snapshots
       // and then removes them, so a write into the old organization from any node meanwhile
-      // would be acknowledged and lost. Refuse such writes until the change is over. A change
-      // that only differs in letter case keeps the storage buckets, so nothing is lost there.
+      // would be acknowledged and lost. Refuse such writes, into the new id too, until the change
+      // is over. A change that only differs in letter case is guarded too: the data space paths
+      // keep the case of the id.
       String fromId = fromOrganization.getId();
-      boolean guarded = replace && fromId != null && !fromId.equalsIgnoreCase(newOrgID);
+      boolean guarded = replace && fromId != null;
       boolean completed = false;
       OrgIdChangeGuard.clear(newOrgID);
 
       if(guarded) {
-         OrgIdChangeGuard.begin(fromId);
+         OrgIdChangeGuard.begin(fromId, newOrgID);
       }
 
       try {
