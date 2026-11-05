@@ -456,7 +456,10 @@ public final class ChartBindingMutator {
    static void requireDiscreteAllowed(ChartBindingModel model, String slot, FieldRef field,
                                       ChartRefModel ref)
    {
-      if(!Boolean.TRUE.equals(field.discrete()) || !(ref instanceof ChartAggregateRefModel)) {
+      // A null field clears the shelf (set_chart_single_shelf field:null), so there is nothing to judge.
+      if(field == null || !Boolean.TRUE.equals(field.discrete()) ||
+         !(ref instanceof ChartAggregateRefModel))
+      {
          return;
       }
 
