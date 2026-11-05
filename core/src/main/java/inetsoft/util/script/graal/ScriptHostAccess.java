@@ -249,8 +249,30 @@ public final class ScriptHostAccess {
    // be a type Java.type returned. The wrappers use only what they captured when
    // installed, so a script that changes a built-in prototype cannot change them.
    private static final String TYPE_LOOKUP_CHECK_JS =
-      "(function(allowed) {" +
+      "(function(allowed, guarded) {" +
       "  var J = Java, javaType = J.type, javaTo = J.to, isType = J.isType, TE = TypeError;" +
+      "  var hasInst = Symbol.hasInstance, O = Object, R = Reflect;" +
+      // Bug #79860: a class that declares JVM-global mutators is handed to the script
+      // as a stand-in for its host class that omits them, for every lookup route.
+      "  var guard = function(host, members) {" +
+      "     var F = function() { return new host(...arguments); };" +
+      "     var def = function(k, d) {" +
+      "        try { O.defineProperty(F, k, d); } catch(e) {}" +
+      "     };" +
+      "     var method = function(k) {" +
+      "        def(k, {value: function() { return R.apply(host[k], host, arguments); }," +
+      "           enumerable: true});" +
+      "     };" +
+      "     var member = function(k) {" +
+      "        def(k, {get: function() { return host[k]; }, enumerable: true});" +
+      "     };" +
+      "     for(var i = 0; i < members.length; i++) {" +
+      "        var m = members[i];" +
+      "        if(m.charAt(0) === 'm') { method(m.substring(2)); } else { member(m.substring(2)); }" +
+      "     }" +
+      "     def(hasInst, {value: function(x) { return x instanceof host; }});" +
+      "     return F;" +
+      "  };" +
       "  var check = function(name) {" +
       "     if(typeof name !== 'string') {" +
       "        throw new TE('Java.type expects one string argument');" +
@@ -260,7 +282,8 @@ public final class ScriptHostAccess {
       "     }" +
       "  };" +
       "  Object.defineProperty(J, 'type', {value: function type(name) {" +
-      "     check(name); return javaType(name); }," +
+      "     check(name); var t = javaType(name);" +
+      "     var m = guarded(name); return m === null ? t : guard(t, m); }," +
       "     writable: false, configurable: false, enumerable: false});" +
       "  Object.defineProperty(J, 'to', {value: function to(value, name) {" +
       "     if(arguments.length < 2) { return javaTo(value); }" +
@@ -995,7 +1018,53 @@ public final class ScriptHostAccess {
    public static void installTypeLookupCheck(Context context, Predicate<String> filter) {
       Value install = context.eval(Source.create("js", TYPE_LOOKUP_CHECK_JS));
       install.execute((ProxyExecutable) args -> args.length > 0 && args[0].isString() &&
-         isTypeNameAllowed(args[0].asString(), filter));
+                         isTypeNameAllowed(args[0].asString(), filter),
+                      (ProxyExecutable) args -> args.length > 0 && args[0].isString()
+                         ? guardedStaticMembers(args[0].asString()) : null);
+   }
+
+   /**
+    * For a class that declares or inherits a JVM-wide default setter
+    * ({@code TimeZone.setDefault}, {@code Locale.setDefault}), a mutator that changes
+    * the default for every user, the static members a script may use, as "m:name" for
+    * a method and "f:name" for a field or nested type; null for any other class.
+    * Graal 24.1.2 cannot deny a single member, and these classes are needed for their
+    * instances, so {@code Java.type} hands out a stand-in with these members only.
+    * The host class is reachable from a script only through that stand-in, so every
+    * route (detached reference, bracket access, {@code with}, the legacy shim,
+    * {@code importClass}, a subclass's inherited static) sees the same members.
+    * (Bug #79860)
+    */
+   private static String[] guardedStaticMembers(String name) {
+      Class<?> cls = LegacyJavaShim.tryLoad(name);
+
+      if(cls == null || !java.util.TimeZone.class.isAssignableFrom(cls) &&
+         !java.util.Locale.class.isAssignableFrom(cls))
+      {
+         return null;
+      }
+
+      Set<String> members = new TreeSet<>();
+
+      for(java.lang.reflect.Method method : cls.getMethods()) {
+         if(java.lang.reflect.Modifier.isStatic(method.getModifiers()) &&
+            !"setDefault".equals(method.getName()))
+         {
+            members.add("m:" + method.getName());
+         }
+      }
+
+      for(java.lang.reflect.Field field : cls.getFields()) {
+         if(java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+            members.add("f:" + field.getName());
+         }
+      }
+
+      for(Class<?> nested : cls.getClasses()) {
+         members.add("f:" + nested.getSimpleName());
+      }
+
+      return members.toArray(new String[0]);
    }
 
    /**
