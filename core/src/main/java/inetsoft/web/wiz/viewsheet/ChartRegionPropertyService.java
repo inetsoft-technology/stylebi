@@ -768,12 +768,20 @@ public class ChartRegionPropertyService {
     * model, on shelves that may still be mid-edit, and deliberately ignores the other shelf in
     * its lenient mode (the other shelf's write may follow); this one judges the settled
     * viewsheet state the renderer will read.
+    *
+    * <p>Stock and candle charts override that rule in {@code CandleGraphGenerator}: their measures
+    * live on the open/high/low/close shelves, so the x shelf's last dimension is always the inner
+    * scale regardless of the y shelf, and a y-shelf dimension is never consumed.
     */
    private static boolean isInnermostConsumed(ChartRef[] shelf, ChartRef[] other, ChartRef ref,
-                                              int chartType)
+                                              int chartType, boolean onYShelf)
    {
       if(GraphTypes.isPolar(chartType) || GraphTypes.isMap(chartType)) {
          return false;
+      }
+
+      if(chartType == GraphTypes.CHART_STOCK || chartType == GraphTypes.CHART_CANDLE) {
+         return !onYShelf && shelf.length > 0 && shelf[shelf.length - 1] == ref;
       }
 
       if(shelf.length == 0 || shelf[shelf.length - 1] != ref) {
@@ -858,7 +866,8 @@ public class ChartRegionPropertyService {
             boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
             ChartRef[] shelf = onYShelf ? info.getYFields() : info.getXFields();
             ChartRef[] other = onYShelf ? info.getXFields() : info.getYFields();
-            return !isInnermostConsumed(shelf, other, kind.matchedRef(), info.getChartType());
+            return !isInnermostConsumed(shelf, other, kind.matchedRef(), info.getChartType(),
+                                      onYShelf);
          });
 
       if(outer) {
