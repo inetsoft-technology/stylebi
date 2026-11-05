@@ -102,7 +102,7 @@ public class InputValueService {
       final Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         InputVSAssembly assembly = requireInput(rvs, assemblyName);
+         InputVSAssembly assembly = requireInput(rvs, assemblyName, false);
          boolean multi = assembly instanceof CheckBoxVSAssembly;
 
          if(!multi && values.size() > 1) {
@@ -136,9 +136,7 @@ public class InputValueService {
          VSAssembly applied = rvs.getViewsheet().getAssembly(assemblyName);
 
          if(applied != null && applied.getVSAssemblyInfo() instanceof InputVSAssemblyInfo info) {
-            Object[] stored = info.getSelectedObjects();
-            List<Object> held = stored == null ? List.of() :
-               Arrays.stream(stored).filter(Objects::nonNull).toList();
+            List<Object> held = heldValues(info);
 
             if(isSecret(info)) {
                // the write persisted; the secret itself must not travel back into the agent's
@@ -156,6 +154,87 @@ public class InputValueService {
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * Reads the value(s) the runtime currently holds for the named input assemblies, without
+    * writing, running a script or taking an undo checkpoint (the read-only counterpart of
+    * {@link #setValue}). Goes through {@link ViewsheetSessionService#read}, the checkpoint-free
+    * path.
+    *
+    * <p>The value is the one held by the paired runtime ({@code InputVSAssemblyInfo
+    * .getSelectedObjects()}): a value the user or agent has set, or the design default before
+    * either has. A single-value input reports a list of one; a check box reports every selected
+    * value and a cleared input an empty list. A text input whose Input Editor is a password reports
+    * {@link #SECRET_MASK} per held value and {@code masked: true}, exactly as {@code setValue}
+    * does, so the secret never reaches the caller.
+    *
+    * @param assemblyNames the inputs to read; null or empty reads every input assembly in the
+    *                      viewsheet.
+    */
+   public Map<String, Object> getValues(String sessionToken, Principal user,
+                                        List<String> assemblyNames)
+      throws Exception
+   {
+      List<String> names = assemblyNames == null ? List.of() :
+         assemblyNames.stream().filter(n -> n != null && !n.isBlank()).distinct().toList();
+
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         List<InputVSAssembly> inputsToRead = new ArrayList<>();
+
+         if(names.isEmpty()) {
+            Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+            if(vs != null) {
+               for(inetsoft.uql.asset.Assembly assembly : vs.getAssemblies()) {
+                  if(assembly instanceof InputVSAssembly input) {
+                     inputsToRead.add(input);
+                  }
+               }
+            }
+         }
+         else {
+            for(String name : names) {
+               inputsToRead.add(requireInput(rvs, name, true));
+            }
+         }
+
+         List<Map<String, Object>> entries = new ArrayList<>();
+
+         for(InputVSAssembly assembly : inputsToRead) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("assembly", assembly.getAbsoluteName());
+            entry.put("type", describe(assembly));
+
+            if(assembly.getVSAssemblyInfo() instanceof InputVSAssemblyInfo info) {
+               List<Object> held = heldValues(info);
+
+               if(isSecret(info)) {
+                  entry.put("values", held.stream().map(v -> (Object) SECRET_MASK).toList());
+                  entry.put("masked", true);
+               }
+               else {
+                  entry.put("values", held);
+               }
+            }
+            else {
+               entry.put("values", List.of());
+            }
+
+            entries.add(entry);
+         }
+
+         Map<String, Object> result = new LinkedHashMap<>();
+         result.put("inputs", entries);
+         return result;
+      });
+   }
+
+   /** The non-null values the assembly holds, in stored order. */
+   private static List<Object> heldValues(InputVSAssemblyInfo info) {
+      Object[] stored = info.getSelectedObjects();
+      return stored == null ? List.of() :
+         Arrays.stream(stored).filter(Objects::nonNull).toList();
    }
 
    /**
@@ -524,14 +603,18 @@ public class InputValueService {
          ? String.valueOf((long) value) : String.valueOf(value);
    }
 
-   private static InputVSAssembly requireInput(RuntimeViewsheet rvs, String assemblyName) {
+   private static InputVSAssembly requireInput(RuntimeViewsheet rvs, String assemblyName,
+                                               boolean read)
+   {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
       if(assembly == null) {
          throw new IllegalArgumentException(
-            "Unknown assembly '" + assemblyName + "'. The input endpoint returns success and " +
-            "changes nothing for a name it cannot find, so this is refused here instead.");
+            "Unknown assembly '" + assemblyName + "'." + (read
+               ? " There is no input assembly with that name to read."
+               : " The input endpoint returns success and changes nothing for a name it cannot " +
+                  "find, so this is refused here instead."));
       }
 
       if(!(assembly instanceof InputVSAssembly input)) {
