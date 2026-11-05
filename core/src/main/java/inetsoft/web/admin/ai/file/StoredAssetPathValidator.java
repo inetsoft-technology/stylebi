@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.ai.file;
 
+import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
+
 import java.util.regex.Pattern;
 
 /**
@@ -117,6 +119,32 @@ public final class StoredAssetPathValidator {
       if(segment.startsWith("~")) {
          throw new IllegalArgumentException(
             field + ": must not contain a segment starting with \"~\" (got \"" + raw + "\")");
+      }
+   }
+
+   /**
+    * Enterprise Manager's own DataSpace name dialog forbids certain characters and a leading/
+    * trailing dot ({@link DataSpaceContentSettingsService#validateName}, the same rule mirrored
+    * for themes/dashboards/identities). {@link #requireSafeSegment} above intentionally does NOT
+    * check this -- it also guards list/download navigation of pre-existing (possibly pre-rule)
+    * names, where refusing on these characters would be a regression. This is a separate check
+    * for the leaf name a create/write/rename is newly establishing.
+    *
+    * @throws IllegalArgumentException naming {@code field} if {@code leaf} contains a forbidden
+    *         character or starts/ends with a dot (except the literal name {@code .stylereport}).
+    */
+   public static void requireValidNameChars(String leaf, String field) {
+      if(leaf.isEmpty()) {
+         return;
+      }
+
+      try {
+         DataSpaceContentSettingsService.validateName(leaf);
+      }
+      catch(IllegalArgumentException e) {
+         throw new IllegalArgumentException(
+            field + ": must not contain a character Enterprise Manager forbids in a stored-asset " +
+            "name, or start/end with a dot/period (got \"" + leaf + "\")", e);
       }
    }
 
