@@ -36,12 +36,16 @@ import java.util.concurrent.*;
  * new id is refused too, until the change completes, because the copy overwrites what is written
  * there meanwhile.
  * <p>
- * The record is kept in a replicated map, which a put updates on every node before it returns.
- * The node running the change renews its records every HEARTBEAT_PERIOD, and a record that is not
- * renewed for ACTIVE_TIMEOUT (the node crashed) is dropped with a warning, so that it can't block
- * the organization forever. After a completed change the old id stays "retired" for a while, so
- * that a node that still holds the old organization's registry can't recreate its files; it is
- * writable again as soon as an organization of that id exists.
+ * The record is kept in a replicated map, which a put updates on every node before it returns,
+ * and which every check reads locally by key. The record names the node that runs the change.
+ * A reader never removes an active record: it only treats it as stale when that node has left
+ * the cluster, so a clock difference or a stalled heartbeat can't drop the guard of a running
+ * change. The running node re-puts its records every HEARTBEAT_PERIOD, so that a record that was
+ * lost for any reason comes back. A change is never given up while its node runs, so a hung
+ * change keeps both ids refused (a warning is logged), which is the safe side of the trade.
+ * After a completed change the old id stays "retired" for a while, so that a node that still
+ * holds the old organization's registry can't recreate its files; it is writable again as soon
+ * as an organization of that id exists.
  */
 public final class OrgIdChangeGuard {
    private OrgIdChangeGuard() {
@@ -51,53 +55,73 @@ public final class OrgIdChangeGuard {
     * Marks the organization as being changed. The calling thread, which runs the change, and the
     * threads that adopt its snapshot are exempt from the refusal until {@link #end}.
     */
-   public static void begin(String orgId) {
-      begin(orgId, null);
+   public static String begin(String orgId) {
+      return begin(orgId, null);
    }
 
    /**
     * Marks the old organization, and the new one when it is a different id, as being changed.
+    *
+    * @return the id of the change, for {@link #end(String, String, boolean)}.
     */
-   public static void begin(String oldId, String newId) {
+   public static String begin(String oldId, String newId) {
       if(oldId == null) {
-         return;
+         return null;
       }
 
       String opId = UUID.randomUUID().toString();
       String oldKey = key(oldId);
       Set<String> oldIds = new LinkedHashSet<>(List.of(oldId));
-      List<String> keys = new ArrayList<>(List.of(oldKey));
-      DistributedMap<String, Record> map = getMap();
+      Map<String, Record> records = new LinkedHashMap<>();
       boolean caseOnly = newId != null && key(newId).equals(oldKey);
+      String node = Cluster.getInstance().getLocalNodeId();
 
       if(caseOnly) {
          oldIds.add(newId);
       }
 
-      map.put(oldKey, new Record(opId, System.currentTimeMillis(), true, oldIds));
+      records.put(oldKey, new Record(opId, node, System.currentTimeMillis(), true, oldIds));
 
       if(newId != null && !caseOnly) {
-         map.put(key(newId), new Record(opId, System.currentTimeMillis(), true, Set.of(newId)));
-         keys.add(key(newId));
+         records.put(key(newId),
+                     new Record(opId, node, System.currentTimeMillis(), true, Set.of(newId)));
       }
 
-      Operation op = new Operation(opId, keys, caseOnly);
-      OPERATIONS.put(oldKey, op);
+      DistributedMap<String, Record> map = getMap();
 
-      for(String k : keys) {
+      try {
+         for(Map.Entry<String, Record> e : records.entrySet()) {
+            map.put(e.getKey(), e.getValue());
+         }
+      }
+      catch(RuntimeException e) {
+         // leave nothing behind that nothing would renew or remove
+         for(Map.Entry<String, Record> r : records.entrySet()) {
+            try {
+               map.remove(r.getKey());
+            }
+            catch(RuntimeException ignore) {
+            }
+         }
+
+         throw e;
+      }
+
+      Operation op = new Operation(opId, oldKey, records, caseOnly);
+      OPERATIONS.put(opId, op);
+
+      for(String k : records.keySet()) {
          OWNER.get().put(k, opId);
       }
 
       op.heartbeat = HEARTBEAT.scheduleAtFixedRate(() -> renew(op), HEARTBEAT_PERIOD,
                                                    HEARTBEAT_PERIOD, TimeUnit.MILLISECONDS);
+      return opId;
    }
 
    /**
-    * Ends the change started by {@link #begin}.
-    *
-    * @param completed true if the old organization was removed, which keeps writes into its id
-    *                  refused for RETIRED_TIMEOUT; false if the change failed and the
-    *                  organization stays in use.
+    * Ends the change that {@link #begin(String)} started for the old id, the latest of them if
+    * several are running.
     */
    public static void end(String orgId, boolean completed) {
       if(orgId == null) {
@@ -105,7 +129,25 @@ public final class OrgIdChangeGuard {
       }
 
       String oldKey = key(orgId);
-      Operation op = OPERATIONS.remove(oldKey);
+
+      for(Operation op : new ArrayList<>(OPERATIONS.values())) {
+         if(op.oldKey.equals(oldKey)) {
+            end(op.id, orgId, completed);
+            return;
+         }
+      }
+   }
+
+   /**
+    * Ends the change started by {@link #begin}.
+    *
+    * @param opId      the id that begin returned.
+    * @param completed true if the old organization was removed, which keeps writes into its id
+    *                  refused for RETIRED_TIMEOUT; false if the change failed and the
+    *                  organization stays in use.
+    */
+   public static void end(String opId, String orgId, boolean completed) {
+      Operation op = opId == null ? null : OPERATIONS.remove(opId);
 
       if(op == null) {
          return;
@@ -114,7 +156,7 @@ public final class OrgIdChangeGuard {
       op.heartbeat.cancel(false);
       DistributedMap<String, Record> map = getMap();
 
-      for(String k : op.keys) {
+      for(String k : op.records.keySet()) {
          OWNER.get().remove(k);
          Record record = map.get(k);
 
@@ -125,7 +167,29 @@ public final class OrgIdChangeGuard {
 
       // a change that only differs in letter case keeps the id, there is nothing to retire
       if(completed && !op.caseOnly) {
-         map.put(oldKey, new Record(op.id, System.currentTimeMillis(), false, Set.of(orgId)));
+         map.put(op.oldKey, new Record(op.id, null, System.currentTimeMillis(), false,
+                                       Set.of(orgId)));
+      }
+   }
+
+   private static void renew(Operation op) {
+      try {
+         DistributedMap<String, Record> map = getMap();
+         long now = System.currentTimeMillis();
+
+         // put unconditionally, a record that is gone is restored
+         for(Map.Entry<String, Record> e : op.records.entrySet()) {
+            Record r = e.getValue();
+            map.put(e.getKey(), new Record(op.id, r.node, now, true, r.ids));
+         }
+
+         if(now - op.started > HUNG_WARNING && ++op.renewals % 20 == 0) {
+            LOG.warn("The id change of organization {} has run for {} min and still refuses " +
+                     "writes into it.", op.oldKey, (now - op.started) / 60000);
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to renew the id change record of an organization", e);
       }
    }
 
@@ -142,23 +206,6 @@ public final class OrgIdChangeGuard {
     */
    public static void adopt(Map<String, String> owner) {
       OWNER.get().putAll(owner);
-   }
-
-   private static void renew(Operation op) {
-      try {
-         DistributedMap<String, Record> map = getMap();
-
-         for(String k : op.keys) {
-            Record record = map.get(k);
-
-            if(record != null && op.id.equals(record.opId) && record.active) {
-               map.put(k, new Record(op.id, System.currentTimeMillis(), true, record.ids));
-            }
-         }
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to renew the id change record of an organization", e);
-      }
    }
 
    /**
@@ -189,45 +236,58 @@ public final class OrgIdChangeGuard {
          return false;
       }
 
-      long age = System.currentTimeMillis() - record.time;
-
       if(record.active) {
-         if(age > ACTIVE_TIMEOUT) {
-            LOG.warn("The id change record of organization {} was not renewed for {} ms, the " +
-                     "node that ran the change is gone. Writes into it are accepted again.",
-                     key, age);
-            getMap().remove(key);
+         if(record.node != null && !Cluster.getInstance().getClusterNodeIds().contains(record.node))
+         {
+            // never remove it, only stop refusing, the node may be back
+            if(WARNED.add(record.opId)) {
+               LOG.warn("The node {} that ran the id change of organization {} has left the " +
+                        "cluster. Writes into it are accepted again.", record.node, key);
+            }
+
             return false;
          }
 
          return true;
       }
 
-      // a retired id is writable again once an organization of that id exists
-      return age <= RETIRED_TIMEOUT && !exists(key);
+      return System.currentTimeMillis() - record.time <= RETIRED_TIMEOUT && !exists(key, record);
    }
 
    private static boolean exempt(String key, Record record) {
       return record.active && record.opId.equals(OWNER.get().get(key));
    }
 
-   private static boolean exists(String orgId) {
+   // a retired id is writable again once an organization of that id exists, which is looked up
+   // once in a while, not on every write
+   private static boolean exists(String key, Record record) {
+      long now = System.currentTimeMillis();
+      long[] cached = EXISTS_CACHE.get(key);
+
+      if(cached != null && now - cached[0] < EXISTS_TTL) {
+         return cached[1] == 1L;
+      }
+
+      boolean exists = false;
+
       try {
          String[] ids = SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs();
 
          if(ids != null) {
             for(String id : ids) {
-               if(orgId.equalsIgnoreCase(id)) {
-                  return true;
+               if(key.equalsIgnoreCase(id)) {
+                  exists = true;
+                  break;
                }
             }
          }
       }
       catch(Exception e) {
-         LOG.debug("Failed to check whether organization {} exists, keeping the refusal", orgId, e);
+         LOG.debug("Failed to check whether organization {} exists, keeping the refusal", key, e);
       }
 
-      return false;
+      EXISTS_CACHE.put(key, new long[] { now, exists ? 1L : 0L });
+      return exists;
    }
 
    /**
@@ -240,14 +300,8 @@ public final class OrgIdChangeGuard {
          return;
       }
 
-      DistributedMap<String, Record> map = getMap();
-
-      if(map.isEmpty()) {
-         return;
-      }
-
       String key = key(orgId);
-      Record record = map.get(key);
+      Record record = getMap().get(key);
 
       if(record != null && isBlocked(key, record) && !exempt(key, record)) {
          throw new OrganizationChangingException(orgId);
@@ -267,16 +321,12 @@ public final class OrgIdChangeGuard {
 
       DistributedMap<String, Record> map = getMap();
 
-      if(map.isEmpty()) {
-         return;
-      }
+      // the org id is one segment of the path, so only a few candidates have to be looked up
+      for(String candidate : getOrgCandidates(path)) {
+         String key = key(candidate);
+         Record record = map.get(key);
 
-      for(Map.Entry<String, Record> entry : new ArrayList<>(map.entrySet())) {
-         Record record = entry.getValue();
-
-         if(record == null || !isBlocked(entry.getKey(), record) ||
-            exempt(entry.getKey(), record))
-         {
+         if(record == null || !isBlocked(key, record) || exempt(key, record)) {
             continue;
          }
 
@@ -288,30 +338,64 @@ public final class OrgIdChangeGuard {
       }
    }
 
+   private static List<String> getOrgCandidates(String path) {
+      List<String> list = new ArrayList<>();
+      String[] segments = path.split("/");
+      String first = segments[0];
+
+      if(first.equals("portal") && segments.length > 1) {
+         list.add(segments[1]);
+      }
+      else if(first.equals("sreeUserData") && segments.length > 1) {
+         String file = segments[segments.length - 1];
+
+         if(file.endsWith(".xml")) {
+            file = file.substring(0, file.length() - 4);
+
+            // a legacy org id may contain "_"
+            for(int i = file.indexOf('_'); i >= 0; i = file.indexOf('_', i + 1)) {
+               list.add(file.substring(i + 1));
+            }
+         }
+      }
+      else {
+         list.add(first);
+         int index = first.indexOf("__");
+
+         if(index > 0) {
+            list.add(first.substring(0, index));
+         }
+      }
+
+      return list;
+   }
+
    private static String key(String orgId) {
       return orgId.toLowerCase();
    }
 
-   private static synchronized DistributedMap<String, Record> getMap() {
+   private static DistributedMap<String, Record> getMap() {
+      MapHolder h = holder;
       Cluster cluster = Cluster.getInstance();
 
-      if(cluster != mapCluster || map == null) {
-         map = cluster.getReplicatedMap(MAP_NAME);
-         mapCluster = cluster;
+      if(h == null || h.cluster != cluster) {
+         h = new MapHolder(cluster, cluster.getReplicatedMap(MAP_NAME));
+         holder = h;
       }
 
-      return map;
+      return h.map;
    }
 
-   private static DistributedMap<String, Record> map;
-   private static Cluster mapCluster;
+   private static volatile MapHolder holder;
    private static final Logger LOG = LoggerFactory.getLogger(OrgIdChangeGuard.class);
    private static final String MAP_NAME = OrgIdChangeGuard.class.getName() + ".orgIdChanges";
    private static final long HEARTBEAT_PERIOD = TimeUnit.SECONDS.toMillis(30);
-   // a record not renewed for this long belongs to a node that is gone
-   private static final long ACTIVE_TIMEOUT = TimeUnit.MINUTES.toMillis(3);
+   private static final long HUNG_WARNING = TimeUnit.MINUTES.toMillis(30);
    private static final long RETIRED_TIMEOUT = TimeUnit.MINUTES.toMillis(10);
+   private static final long EXISTS_TTL = TimeUnit.SECONDS.toMillis(5);
    private static final Map<String, Operation> OPERATIONS = new ConcurrentHashMap<>();
+   private static final Map<String, long[]> EXISTS_CACHE = new ConcurrentHashMap<>();
+   private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
    private static final ScheduledExecutorService HEARTBEAT =
       Executors.newSingleThreadScheduledExecutor(r -> {
          Thread t = new Thread(r, "OrgIdChangeGuardHeartbeat");
@@ -322,28 +406,46 @@ public final class OrgIdChangeGuard {
    private static final ThreadLocal<Map<String, String>> OWNER =
       ThreadLocal.withInitial(HashMap::new);
 
+   private static final class MapHolder {
+      MapHolder(Cluster cluster, DistributedMap<String, Record> map) {
+         this.cluster = cluster;
+         this.map = map;
+      }
+
+      final Cluster cluster;
+      final DistributedMap<String, Record> map;
+   }
+
    private static final class Operation {
-      Operation(String id, List<String> keys, boolean caseOnly) {
+      Operation(String id, String oldKey, Map<String, Record> records, boolean caseOnly) {
          this.id = id;
-         this.keys = keys;
+         this.oldKey = oldKey;
+         this.records = records;
          this.caseOnly = caseOnly;
+         this.started = System.currentTimeMillis();
       }
 
       final String id;
-      final List<String> keys;
+      final String oldKey;
+      final Map<String, Record> records;
       final boolean caseOnly;
+      final long started;
+      int renewals;
       volatile ScheduledFuture<?> heartbeat;
    }
 
    private static final class Record implements Serializable {
-      Record(String opId, long time, boolean active, Set<String> ids) {
+      Record(String opId, String node, long time, boolean active, Set<String> ids) {
          this.opId = opId;
+         this.node = node;
          this.time = time;
          this.active = active;
          this.ids = new LinkedHashSet<>(ids);
       }
 
       final String opId;
+      // the node that runs the change
+      final String node;
       final long time;
       final boolean active;
       // the spellings of the organization id

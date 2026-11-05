@@ -280,4 +280,42 @@ class OrgIdChangeGuardTest {
       // nothing is retired after a case-only change
       assertFalse(OrgIdChangeGuard.isBlocked(oldId));
    }
+
+   /** R2-2: readers never drop an active record, however long the change has run. */
+   @Test
+   void readersDoNotDropAnActiveRecord() throws Exception {
+      String org = "bug79856r1";
+      BlobIndexedStorage storage = new BlobIndexedStorage(blobStorageManager);
+      OrgIdChangeGuard.begin(org, "bug79856r2");
+
+      try {
+         for(int i = 0; i < 20; i++) {
+            assertRefused(writeFromOtherThread(storage, folderKey(org, "late" + i)));
+         }
+
+         assertTrue(OrgIdChangeGuard.isBlocked(org));
+         assertTrue(OrgIdChangeGuard.isBlocked("bug79856r2"));
+      }
+      finally {
+         OrgIdChangeGuard.end(org, false);
+      }
+
+      assertFalse(OrgIdChangeGuard.isBlocked(org));
+      assertFalse(OrgIdChangeGuard.isBlocked("bug79856r2"));
+   }
+
+   /** R2-3: the end of one change does not end an overlapping change of the same id. */
+   @Test
+   void overlappingChangesAreEndedByTheirOwnId() throws Exception {
+      String org = "bug79856o1";
+      String first = OrgIdChangeGuard.begin(org, "bug79856o2");
+      String second = OrgIdChangeGuard.begin(org, "bug79856o3");
+      assertNotEquals(first, second);
+      OrgIdChangeGuard.end(first, org, false);
+      // the second change's record for the old id was replaced by the first end only if it
+      // belonged to the first; the new id of the second change is still guarded
+      assertTrue(OrgIdChangeGuard.isBlocked("bug79856o3"));
+      OrgIdChangeGuard.end(second, org, false);
+      assertFalse(OrgIdChangeGuard.isBlocked("bug79856o3"));
+   }
 }

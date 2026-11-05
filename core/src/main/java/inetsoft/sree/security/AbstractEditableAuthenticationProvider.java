@@ -145,13 +145,14 @@ public abstract class AbstractEditableAuthenticationProvider
       String fromId = fromOrganization.getId();
       boolean guarded = replace && fromId != null;
       boolean completed = false;
+      String opId = null;
       OrgIdChangeGuard.clear(newOrgID);
 
-      if(guarded) {
-         OrgIdChangeGuard.begin(fromId, newOrgID);
-      }
-
       try {
+         if(guarded) {
+            opId = OrgIdChangeGuard.begin(fromId, newOrgID);
+         }
+
          copyOrganizationInternal0(fromOrganization, editedNewOrganization, newOrgID, newOrgName,
                                    identityService, themeService, dashboardRegistryManager,
                                    dataCycleManager, principal, replace, defaultPassword);
@@ -159,7 +160,7 @@ public abstract class AbstractEditableAuthenticationProvider
       }
       finally {
          if(guarded) {
-            OrgIdChangeGuard.end(fromId, completed);
+            OrgIdChangeGuard.end(opId, fromId, completed);
          }
       }
    }
