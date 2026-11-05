@@ -425,6 +425,32 @@ class ConditionTest {
    }
 
    @Test
+   void oneOf_integerType_stringProbeThenIntegerProbe_sameCondition() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "9", "24");
+      assertTrue(cond.evaluate("9"));
+      assertTrue(cond.evaluate(9));
+      assertTrue(cond.evaluate(24));
+      assertFalse(cond.evaluate(5));
+   }
+
+   @Test
+   void oneOf_longType_stringProbeThenLongProbe_sameCondition() {
+      Condition cond = oneOf(XSchema.LONG, false, "9", "24");
+      assertTrue(cond.evaluate("24"));
+      assertTrue(cond.evaluate(9L));
+      assertTrue(cond.evaluate(24L));
+      assertFalse(cond.evaluate(5L));
+   }
+
+   @Test
+   void oneOf_integerType_unparseableNumericLookingString_fallsBackToLinear() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "9", "0x10", "24");
+      assertTrue(cond.evaluate(9));
+      assertTrue(cond.evaluate(24));
+      assertFalse(cond.evaluate(5));
+   }
+
+   @Test
    void oneOf_integerType_integerValues_unchanged() {
       Condition cond = oneOf(XSchema.INTEGER, false, 9, 24);
       assertTrue(cond.evaluate(9));

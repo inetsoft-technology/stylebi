@@ -27,6 +27,7 @@ import inetsoft.uql.schema.*;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.pojava.datetime.DateTime;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -633,7 +634,15 @@ public class Condition extends AbstractCondition {
 
             Collections.sort(currentSortedValues, comp);
 
-            if(value != null && !"".equals(value) && !unsafeForBinarySearch) {
+            // only cache a list whose normalization matches the condition type, otherwise a
+            // later probe of the declared type would reuse a list sorted in the wrong order
+            boolean numericType = XSchema.INTEGER.equals(type) || XSchema.LONG.equals(type) ||
+               XSchema.SHORT.equals(type) || XSchema.BYTE.equals(type) ||
+               XSchema.DOUBLE.equals(type) || XSchema.FLOAT.equals(type);
+
+            if(value != null && !"".equals(value) && !unsafeForBinarySearch &&
+               (value instanceof Number) == numericType)
+            {
                sortedValues = currentSortedValues;
             }
          }
@@ -1594,7 +1603,7 @@ public class Condition extends AbstractCondition {
       for(int i = 0; i < list.size(); i++) {
          Object obj = list.get(i);
 
-         if(obj instanceof String && org.apache.commons.lang3.math.NumberUtils.isCreatable((String) obj)) {
+         if(obj instanceof String && NumberUtils.isCreatable((String) obj)) {
             try {
                list.set(i, Double.valueOf(((String) obj).trim()));
             }
