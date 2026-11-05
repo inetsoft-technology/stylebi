@@ -522,8 +522,12 @@ public class BindingAgentController {
     *                 NOT commit.
     * @param rewrittenDependents on a rename, the other calc fields whose expression referenced
     *                 the old name and was rewritten to the new one; empty otherwise.
+    * @param trapDetected {@code true} when the expression mixes columns across a data-model trap
+    *                 (see {@code CalcFieldAgentService.CalcFieldResult#trapDetected}); the write
+    *                 still committed either way.
     */
-   public record CalcFieldResponse(List<String> warnings, List<String> rewrittenDependents) {}
+   public record CalcFieldResponse(List<String> warnings, List<String> rewrittenDependents,
+                                   boolean trapDetected) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc-field")
    public CalcFieldResponse modifyCalcField(@PathVariable String sessionToken,
@@ -535,7 +539,8 @@ public class BindingAgentController {
       requireEnabled();
       CalcFieldAgentService.CalcFieldResult result =
          calcFieldService.modify(sessionToken, user, request, linkUri);
-      return new CalcFieldResponse(result.warnings(), result.rewrittenDependents());
+      return new CalcFieldResponse(
+         result.warnings(), result.rewrittenDependents(), result.trapDetected());
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")

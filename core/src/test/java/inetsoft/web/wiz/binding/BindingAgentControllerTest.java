@@ -806,7 +806,8 @@ class BindingAgentControllerTest {
          "Crosstab1: could not refresh the crosstab's aggregate info after the write; the " +
          "calc field was saved");
       when(calcFieldService.modify(eq("tok"), any(Principal.class), any(), eq("")))
-         .thenReturn(new CalcFieldAgentService.CalcFieldResult(expectedWarnings, List.of("Discount Share")));
+         .thenReturn(new CalcFieldAgentService.CalcFieldResult(
+            expectedWarnings, List.of("Discount Share"), false));
 
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions,
@@ -826,6 +827,38 @@ class BindingAgentControllerTest {
       assertEquals(List.of("Discount Share"), response.rewrittenDependents());
    }
 
+   /**
+    * Bug #80441: the wiz-agent-facing response must relay {@code trapDetected} the same way it
+    * already relays {@code warnings}/{@code rewrittenDependents} -- this is the layer the plugin's
+    * add_calc_field/edit_calc_field tools actually read over HTTP, so a trap signal that reaches
+    * {@code CalcFieldAgentService.CalcFieldResult} but not this response would never reach them.
+    */
+   @Test
+   void modifyCalcFieldReturnsTrapDetectedTheServiceReported() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      CalcFieldAgentService calcFieldService = mock(CalcFieldAgentService.class);
+      when(calcFieldService.modify(eq("tok"), any(Principal.class), any(), eq("")))
+         .thenReturn(new CalcFieldAgentService.CalcFieldResult(List.of(), List.of(), true));
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions,
+         mock(BindableFieldsService.class), mock(BindingReadService.class),
+         mock(ChartBindingService.class), mock(ChartAestheticAgentService.class),
+         mock(TableBindingService.class), mock(CalcTableService.class),
+         mock(SelectionBindingService.class), calcFieldService, mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
+
+      CalcFieldAgentService.CalcFieldRequest request = new CalcFieldAgentService.CalcFieldRequest(
+         "ORDERS", "Crosstab1", "NetTotal", null, "field['Total']", "double", false, true, false,
+         true);
+
+      BindingAgentController.CalcFieldResponse response =
+         controller.modifyCalcField("tok", request, "", principal());
+
+      assertTrue(response.trapDetected());
+   }
+
    /** A clean write (no guarded refresh failure) must report an empty warnings list, not null. */
    @Test
    void modifyCalcFieldReturnsAnEmptyWarningsListWhenNothingWarned() throws Exception {
@@ -834,7 +867,7 @@ class BindingAgentControllerTest {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       CalcFieldAgentService calcFieldService = mock(CalcFieldAgentService.class);
       when(calcFieldService.modify(eq("tok"), any(Principal.class), any(), eq("")))
-         .thenReturn(new CalcFieldAgentService.CalcFieldResult(List.of(), List.of()));
+         .thenReturn(new CalcFieldAgentService.CalcFieldResult(List.of(), List.of(), false));
 
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions,
