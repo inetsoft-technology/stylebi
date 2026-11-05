@@ -331,4 +331,15 @@ class ChartDiscreteMeasureTest {
          () -> ChartAestheticMutator.setField(model, "color", field));
       assertTrue(e.getMessage().contains("discrete"), e.getMessage());
    }
+
+   @Test
+   void clearingASingleShelfOrAChannelWithANullFieldIsNotJudgedForDiscrete() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(model, "path", measure("true", null));
+
+      assertDoesNotThrow(() -> ChartBindingMutator.setSingleShelf(model, "path", null));
+      // An aesthetic channel has its own clear tool; a null field is a named refusal, never an NPE.
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartAestheticMutator.setField(model, "color", null));
+   }
 }
