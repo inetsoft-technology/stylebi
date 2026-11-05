@@ -156,12 +156,17 @@ public final class OrgIdChangeGuard {
       op.heartbeat.cancel(false);
       DistributedMap<String, Record> map = getMap();
 
-      for(String k : op.records.keySet()) {
-         OWNER.get().remove(k);
-         Record record = map.get(k);
+      // a renew that is running finishes first, and none puts a record after this
+      synchronized(op) {
+         op.closed = true;
 
-         if(record != null && op.id.equals(record.opId)) {
-            map.remove(k);
+         for(String k : op.records.keySet()) {
+            OWNER.get().remove(k);
+            Record record = map.get(k);
+
+            if(record != null && op.id.equals(record.opId)) {
+               map.remove(k);
+            }
          }
       }
 
@@ -172,15 +177,21 @@ public final class OrgIdChangeGuard {
       }
    }
 
-   private static void renew(Operation op) {
+   static void renew(Operation op) {
       try {
          DistributedMap<String, Record> map = getMap();
          long now = System.currentTimeMillis();
+         String node = Cluster.getInstance().getLocalNodeId();
 
-         // put unconditionally, a record that is gone is restored
-         for(Map.Entry<String, Record> e : op.records.entrySet()) {
-            Record r = e.getValue();
-            map.put(e.getKey(), new Record(op.id, r.node, now, true, r.ids));
+         synchronized(op) {
+            if(op.closed) {
+               return;
+            }
+
+            // put unconditionally, a record that is gone is restored
+            for(Map.Entry<String, Record> e : op.records.entrySet()) {
+               map.put(e.getKey(), new Record(op.id, node, now, true, e.getValue().ids));
+            }
          }
 
          if(now - op.started > HUNG_WARNING && ++op.renewals % 20 == 0) {
@@ -191,6 +202,11 @@ public final class OrgIdChangeGuard {
       catch(Exception e) {
          LOG.warn("Failed to renew the id change record of an organization", e);
       }
+   }
+
+   // for tests: the running change with the id
+   static Operation getOperation(String opId) {
+      return OPERATIONS.get(opId);
    }
 
    /**
@@ -416,7 +432,7 @@ public final class OrgIdChangeGuard {
       final DistributedMap<String, Record> map;
    }
 
-   private static final class Operation {
+   static final class Operation {
       Operation(String id, String oldKey, Map<String, Record> records, boolean caseOnly) {
          this.id = id;
          this.oldKey = oldKey;
@@ -432,6 +448,8 @@ public final class OrgIdChangeGuard {
       final long started;
       int renewals;
       volatile ScheduledFuture<?> heartbeat;
+      // set by end(), under the monitor of the operation
+      boolean closed;
    }
 
    private static final class Record implements Serializable {

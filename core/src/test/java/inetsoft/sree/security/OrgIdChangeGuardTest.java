@@ -318,4 +318,17 @@ class OrgIdChangeGuardTest {
       OrgIdChangeGuard.end(second, org, false);
       assertFalse(OrgIdChangeGuard.isBlocked("bug79856o3"));
    }
+
+   /** R3-1: a renew that runs after the end of the change puts no record. */
+   @Test
+   void renewAfterEndLeavesNoRecord() throws Exception {
+      String org = "bug79856h1";
+      String opId = OrgIdChangeGuard.begin(org, "bug79856h2");
+      OrgIdChangeGuard.Operation op = OrgIdChangeGuard.getOperation(opId);
+      assertNotNull(op);
+      OrgIdChangeGuard.end(opId, org, false);
+      OrgIdChangeGuard.renew(op);
+      assertFalse(OrgIdChangeGuard.isBlocked(org));
+      assertFalse(OrgIdChangeGuard.isBlocked("bug79856h2"));
+   }
 }
