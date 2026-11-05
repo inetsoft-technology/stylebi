@@ -2083,6 +2083,9 @@ public class ViewsheetAssemblyAgentController {
 
    public record HierarchyDimensionDeleteRequest(String assembly, int index) {}
 
+   public record HierarchyDimensionUpdateRequest(String assembly, int index,
+                                                 List<String> columns, List<String> dateLevels) {}
+
    /**
     * {@code list_hierarchy_dimensions}. A chart or crosstab's custom drill hierarchy dimensions,
     * with the index each one is removed by, plus the columns still free to build one from.
@@ -2128,6 +2131,23 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       return hierarchyDimensionService.remove(sessionToken, user, request.assembly(),
                                               request.index(), linkUri);
+   }
+
+   /**
+    * {@code update_hierarchy_dimension}. Replaces the ordered levels of the dimension at the index
+    * {@code list_hierarchy_dimensions} reports, keeping that index.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions/update")
+   public Map<String, Object> updateHierarchyDimension(
+      @PathVariable String sessionToken,
+      @RequestBody HierarchyDimensionUpdateRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return hierarchyDimensionService.update(sessionToken, user, request.assembly(),
+                                              request.index(), request.columns(),
+                                              request.dateLevels(), linkUri);
    }
 
    public record TargetLineRequest(String assembly, String measure, String value, String label,

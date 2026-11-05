@@ -607,7 +607,8 @@ public final class PropertyAliases {
          "PropertyPath builds arrays of primitives, String and enums and nothing else -- and " +
          "hand-writing one is how a column ends up silently double-booked as a measure, or the " +
          "write throws outright, depending on whether the column happens to be found in the " +
-         "pane's own column list. Use add_hierarchy_dimension / remove_hierarchy_dimension, " +
+         "pane's own column list. Use add_hierarchy_dimension / update_hierarchy_dimension / " +
+         "remove_hierarchy_dimension, " +
          "which build the dimension from the pane's own column catalog. Reading is fine -- call " +
          "get_assembly_properties with raw=true, or list_hierarchy_dimensions.";
    }
