@@ -290,6 +290,64 @@ class ScriptJvmDefaultSetterTest {
          + ".getCountry()"));
    }
 
+   private static final String[] REALM_ROUTES = {
+      "var g2 = loadWithNewGlobal({name: 'x', script: 'this'});"
+         + "g2.Java.type('java.util.TimeZone').setDefault(java.util.TimeZone.getTimeZone('Pacific/Kiritimati'));",
+      "var g2 = loadWithNewGlobal({name: 'x', script: 'this'});"
+         + "g2.java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone('Pacific/Kiritimati'));",
+      "var g2 = loadWithNewGlobal({name: 'x', script: 'this'});"
+         + "g2.java.util.Locale.setDefault(java.util.Locale.FRANCE);",
+      "load({name: 'x', script: 'java.util.Locale.setDefault(java.util.Locale.FRANCE)'});",
+      "loadWithNewGlobal('x.js');",
+      "Polyglot.eval('js', \"Java.type('java.util.Locale').setDefault(java.util.Locale.FRANCE)\");",
+      "Debug.createRealm().eval('js', 'java.util.Locale.setDefault(java.util.Locale.FRANCE)');",
+      "var r = Realm.create(); Realm.eval(r, 'java.util.Locale.setDefault(java.util.Locale.FRANCE)');",
+      "$262.createRealm().global.java.util.Locale.setDefault(java.util.Locale.FRANCE);",
+      "new (Java.type('org.graalvm.polyglot.Context'))();",
+      "var c = Packages.org.graalvm.polyglot.Context.create('js');"
+         + "c.eval('js', \"java.util.Locale.setDefault(java.util.Locale.FRANCE)\");",
+      "var m = new (Java.type('javax.script.ScriptEngineManager'))();"
+         + "m.getEngineByName('js').eval('java.util.Locale.setDefault(java.util.Locale.FRANCE)');",
+      "Function('return this')().Java.type('java.util.Locale').setDefault(java.util.Locale.FRANCE);",
+      "(0, eval)('Java.type(\"java.util.Locale\")').setDefault(java.util.Locale.FRANCE);",
+   };
+
+   /**
+    * Every way a script might reach a global or realm that has no guard: a new global from
+    * load/loadWithNewGlobal (which are not available), other realm builtins, nested contexts and
+    * script engines (classes the filter refuses), and the same realm by other names.
+    */
+   @ParameterizedTest
+   @CsvSource({ "graal,true", "graal,false", "report,true", "report,false" })
+   void everyWayToAnotherGlobalIsClosed(String kind, boolean restricted) throws Exception {
+      open(kind);
+      FormulaContext.setRestricted(restricted);
+
+      for(String route : REALM_ROUTES) {
+         attempt(route);
+         assertDefaultsUnchanged();
+      }
+
+      assertEquals("undefined", eval("typeof loadWithNewGlobal"));
+      assertEquals("undefined", eval("typeof load"));
+      assertEquals("undefined", eval("typeof Debug"));
+      assertEquals("undefined", eval("typeof Realm"));
+      assertEquals("undefined", eval("typeof $262"));
+
+      // a nested polyglot context or a script engine is not a class a script can name
+      for(String cls : new String[] { "org.graalvm.polyglot.Context", "javax.script.ScriptEngineManager",
+                                      "org.graalvm.polyglot.Engine" })
+      {
+         assertEquals("refused", eval("(function() { try { Java.type('" + cls
+            + "'); return 'found'; } catch(e) { return 'refused'; } })()"), cls);
+      }
+
+      // the same realm by other names still has the guarded Java.type
+      assertEquals("undefined", eval("typeof Function('return this')().Java.type('java.util.Locale')"
+         + ".setDefault"));
+      assertEquals("undefined", eval("typeof (0, eval)('Java').type('java.util.Locale').setDefault"));
+   }
+
    @ParameterizedTest
    @ValueSource(strings = { "graal", "report" })
    void legitimateUseStillWorks(String kind) throws Exception {

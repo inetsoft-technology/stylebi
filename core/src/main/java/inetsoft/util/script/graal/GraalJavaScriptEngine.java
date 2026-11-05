@@ -202,6 +202,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .engine(polyglotEngine())
             .allowHostAccess(hostAccessPolicy())
             .allowHostClassLookup(classFilter)
+            // Bug #79860: load/loadWithNewGlobal create or fill a global that has none of
+            // the Java.type wrapper, the legacy shim or the TimeZone/Locale stand-ins
+            // installed here, so a script could get any admitted host class unguarded
+            // from it. No shipped script uses them.
+            .allowExperimentalOptions(true)
+            .option("js.load", "false")
             .allowIO(false)
             .allowCreateThread(false)
             .allowNativeAccess(false)
