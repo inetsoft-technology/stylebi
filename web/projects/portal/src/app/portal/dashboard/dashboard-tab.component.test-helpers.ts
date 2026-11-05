@@ -21,7 +21,7 @@
  * Imported by interaction / risk / display spec files.
  */
 
-import { Component, Directive, NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component, Directive, EventEmitter, NO_ERRORS_SCHEMA } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { ActivatedRoute, Router, RouterOutlet } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -86,6 +86,7 @@ export const TAB_MODEL: DashboardTabModel = {
 // ---------------------------------------------------------------------------
 
 export const newDashboard$ = new Subject<void>();
+export const dashboardTabModelChanged$ = new EventEmitter<DashboardTabModel>();
 
 export const ROUTER_MOCK = {
    navigate: vi.fn().mockResolvedValue(true),
@@ -161,7 +162,13 @@ export async function renderComp(opts: RenderOpts = {}) {
          { provide: AiAssistantService, useValue: AI_ASSISTANT_SERVICE_MOCK },
       ],
       componentProviders: [
-         { provide: DashboardService, useValue: { newDashboard: newDashboard$ } },
+         {
+            provide: DashboardService,
+            useValue: {
+               newDashboard: newDashboard$,
+               dashboardTabModelChanged: dashboardTabModelChanged$,
+            },
+         },
       ],
       importOverrides: [
          { replace: ResponsiveTabsComponent, with: ResponsiveTabsStub },

@@ -17,7 +17,7 @@
  */
 
 import { HttpParams } from "@angular/common/http";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { getDebugNode, NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { of } from "rxjs";
@@ -155,12 +155,17 @@ export function chartFieldCombo(container: HTMLElement): HTMLElement | null {
    return container.querySelector('[data-test="chart-field-value-dropdown"]');
 }
 
+/** An input of the component on a host element; TL runs have no ng-reflect-* attributes. */
+export function inputOf(el: Element | null, name: string): any {
+   return el ? getDebugNode(el)?.componentInstance?.[name] ?? null : null;
+}
+
 export function chartFieldComboLabel(container: HTMLElement): string | null {
-   return chartFieldCombo(container)?.getAttribute("ng-reflect-label") ?? null;
+   return inputOf(chartFieldCombo(container), "label");
 }
 
 export function chartFieldComboValue(container: HTMLElement): string | null {
-   return chartFieldCombo(container)?.getAttribute("ng-reflect-value") ?? null;
+   return inputOf(chartFieldCombo(container), "value");
 }
 
 export function chartFieldEditIcon(container: HTMLElement): HTMLElement | null {

@@ -158,16 +158,18 @@ describe("Group 1 — openFolder non-init: auto-selects most recent file", () =>
       expect(emitSpy).toHaveBeenCalledWith([fileRecent]);
    });
 
-   it("should NOT reset selection or re-select files when onInit=true", async () => {
+   it("should clear selection without auto-selecting a file when onInit=true", async () => {
       const file = makeFile("F", "/f", 1000);
       const view = makeView({ files: [file] });
       const { comp } = await renderBrowser({ openFolderRequest: vi.fn().mockReturnValue(of(view)) });
 
       comp.selectedFiles = [makeFile("Prev", "/prev", 50)];
-      comp.openFolder("/", null, true);  // onInit=true → no selection reset
+      comp.openFolder("/", null, true);  // onInit=true → no auto-selection
 
-      // browserView updates but selection is untouched
-      expect(comp.selectedFiles).toEqual([makeFile("Prev", "/prev", 50)]);
+      // selection resets on every open, but the newest file is not picked
+      expect(comp.browserView).toBe(view);
+      expect(comp.selectedFiles).toEqual([]);
+      expect(comp.selectedFolders).toEqual([]);
    });
 });
 

@@ -181,11 +181,14 @@ describe("AddJoinDialogComponent - single pass", () => {
    describe("Group 4 - focus and cancel", () => {
       it("should focus the first select after view init", () => {
          const comp = createComponent();
-         comp.selectFocus = { nativeElement: { focus: vi.fn() } } as any;
+         // the select is a custom-select, so its trigger button gets the focus
+         const trigger = { focus: vi.fn() };
+         comp.selectFocus = { nativeElement: { querySelector: vi.fn(() => trigger) } } as any;
 
          comp.ngAfterViewInit();
 
-         expect(comp.selectFocus.nativeElement.focus).toHaveBeenCalledTimes(1);
+         expect(comp.selectFocus.nativeElement.querySelector).toHaveBeenCalledWith("button");
+         expect(trigger.focus).toHaveBeenCalledTimes(1);
       });
 
       it("should emit cancel", () => {

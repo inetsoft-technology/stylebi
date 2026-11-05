@@ -227,10 +227,10 @@ describe("ElementTreeNode - single pass", () => {
          expect(emitSpy).toHaveBeenCalledWith({ entity, toggle: true });
       });
 
-      it("should return caret-down-icon from getToggleIcon when expanded", () => {
+      it("should return chevron-down-icon from getToggleIcon when expanded", () => {
          const { comp } = createComponent({ node: makeEntity(), expanded: true });
 
-         expect(comp.getToggleIcon()).toBe("caret-down-icon");
+         expect(comp.getToggleIcon()).toBe("chevron-down-icon");
       });
 
       it("should expose the entity node through the entityNode getter", () => {

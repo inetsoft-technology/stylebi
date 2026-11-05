@@ -31,6 +31,7 @@ import { BindingEditor } from "./binding-editor.component";
 import { BindingService } from "../services/binding.service";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ModelService } from "../../widget/services/model.service";
+import { ChartEditorService } from "../services/chart/chart-editor.service";
 
 // heavy child components (import only for importOverrides identity comparison)
 import { EditorTitleBar } from "./editor-title-bar.component";
@@ -152,6 +153,11 @@ export const MODAL_MOCK = {
    open: vi.fn(),
 };
 
+export const CHART_EDITOR_SERVICE_MOCK = {
+   measureName: null as string | null,
+   changeChartAesthetic: vi.fn(),
+};
+
 // ---------------------------------------------------------------------------
 // Shared reset — call in each spec file's top-level beforeEach
 // ---------------------------------------------------------------------------
@@ -170,6 +176,9 @@ export function resetMocks(): void {
    MODEL_SERVICE_MOCK.getModel.mockClear();
 
    MODAL_MOCK.open.mockClear();
+
+   CHART_EDITOR_SERVICE_MOCK.measureName = null;
+   CHART_EDITOR_SERVICE_MOCK.changeChartAesthetic.mockClear();
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +249,7 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
          { provide: UIContextService, useValue: UI_CONTEXT_MOCK },
          { provide: ModelService,     useValue: MODEL_SERVICE_MOCK },
          { provide: NgbModal,         useValue: MODAL_MOCK },
+         { provide: ChartEditorService, useValue: CHART_EDITOR_SERVICE_MOCK },
       ],
       importOverrides: IMPORT_OVERRIDES,
       schemas: [NO_ERRORS_SCHEMA],

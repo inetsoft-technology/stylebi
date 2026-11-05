@@ -139,10 +139,12 @@ describe("DataBrowserService", () => {
          expect(emitted).toEqual([
             {
                path: "My Worksheets",
+               scope: AssetEntryHelper.USER_SCOPE,
                type: PortalDataType.PRIVATE_WORKSHEETS_FOLDER,
             },
             {
                path: "Shared Worksheets",
+               scope: AssetEntryHelper.GLOBAL_SCOPE,
                type: PortalDataType.SHARED_WORKSHEETS_FOLDER,
             },
          ]);

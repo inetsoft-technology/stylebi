@@ -40,6 +40,7 @@ import { QueryEmailPane } from "./query-email-pane.component";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 import { AssetTreeComponent } from "../asset-tree/asset-tree.component";
 import { AssetClientService } from "../../common/asset-client/asset-client.service";
+import { CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({ selector: "embedded-email-pane", template: "<div class='embedded'></div>", standalone: true })
 class EmbeddedEmailPaneStub {
@@ -114,11 +115,13 @@ function queryPane(fixture: ComponentFixture<any>): QueryEmailPane {
    return fixture.debugElement.query(By.directive(QueryEmailPane))?.componentInstance;
 }
 
+// selectIndex 0 is the User custom-select, 1 is the Email
 function chooseOption(fixture: ComponentFixture<any>, selectIndex: number, value: string): void {
-   const selects: HTMLSelectElement[] =
-      Array.from(fixture.debugElement.query(By.directive(QueryEmailPane)).nativeElement.querySelectorAll("select"));
-   selects[selectIndex].value = value;
-   selects[selectIndex].dispatchEvent(new Event("change"));
+   const select: CustomSelectComponent = fixture.debugElement.query(By.directive(QueryEmailPane))
+      .queryAll(By.directive(CustomSelectComponent))[selectIndex].componentInstance;
+   const option = select.options.find(o => o.value === value);
+   expect(option).toBeDefined();
+   select.selectOption(option);
    fixture.detectChanges();
 }
 

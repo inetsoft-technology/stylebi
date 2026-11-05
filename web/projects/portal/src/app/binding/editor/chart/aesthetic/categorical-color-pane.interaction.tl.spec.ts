@@ -34,6 +34,7 @@
  */
 
 import { HttpParams } from "@angular/common/http";
+import { getDebugNode } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, screen, waitFor } from "@testing-library/angular";
 import userEvent from "@testing-library/user-event";
@@ -88,9 +89,10 @@ function createColorMappingModel(overrides: Partial<ColorMappingDialogModel> = {
    };
 }
 
+// the editor's color input; TL runs have no ng-reflect-* attributes
 function swatchColor(container: HTMLElement, index: number): string {
-   return container.querySelector(`static-color-editor[data-test="sce${index}"]`)
-      ?.getAttribute("ng-reflect-color") || "";
+   const editor = container.querySelector(`static-color-editor[data-test="sce${index}"]`);
+   return (editor && getDebugNode(editor)?.componentInstance?.color) || "";
 }
 
 const HOST_WITH_CONTEXT = {

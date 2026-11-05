@@ -18,7 +18,9 @@
 
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { DrillParameterModel } from "../../../../../../../model/datasources/database/physical-model/logical-model/drill-parameter-model";
+import { CustomSelectComponent } from "../../../../../../../../../widget/custom-select/custom-select.component";
 import { ModalHeaderComponent } from "../../../../../../../../../widget/modal-header/modal-header.component";
 import { stubWestOfUtcDate } from "../../../../../../../../../widget/date-type-editor/west-of-utc-date.test-helpers";
 import { ParameterDialog } from "./parameter-dialog.component";
@@ -105,10 +107,12 @@ describe.each(ZONES)("ParameterDialog date constant with %s", (_name, setUpZone)
       input.dispatchEvent(new Event("change"));
    }
 
-   function chooseOption(select: HTMLSelectElement, value: string): void {
-      select.value = Array.from(select.options)
-         .find(o => o.value === value || o.value.endsWith(": " + value)).value;
-      select.dispatchEvent(new Event("change"));
+   function chooseOption(controlName: string, value: string): void {
+      const select: CustomSelectComponent = fixture.debugElement
+         .query(By.css(`custom-select[formcontrolname=${controlName}]`)).componentInstance;
+      const option = select.options.find(o => o.value === value);
+      expect(option).toBeDefined();
+      select.selectOption(option);
    }
 
    function ok(): void {
@@ -149,7 +153,7 @@ describe.each(ZONES)("ParameterDialog date constant with %s", (_name, setUpZone)
       name.dispatchEvent(new Event("input"));
       el().querySelectorAll<HTMLInputElement>("input[type=radio]")[1].click();
       await settle();
-      chooseOption(el().querySelector<HTMLSelectElement>("select[formcontrolname=type]"), "date");
+      chooseOption("type", "date");
       await settle();
 
       typeInto(dateInput(), "2026-03-04");

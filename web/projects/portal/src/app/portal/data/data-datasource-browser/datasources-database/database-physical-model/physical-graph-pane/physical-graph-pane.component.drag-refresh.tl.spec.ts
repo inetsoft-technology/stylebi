@@ -25,8 +25,8 @@
  * MSW. Only jsPlumb is faked: jspMock's draggable() captures the real
  * JoinNodeGraphComponent start/drag/stop callbacks so the test can drive a drag.
  *
- * The host mirrors DatabasePhysicalModelComponent: onNodeSelected re-derives
- * selectedGraphModels and, when the editing table changes, calls
+ * The host mirrors DatabasePhysicalModelComponent: onNodeSelected copies the selected graph
+ * models into selectedGraphModels and, when the editing table changes, calls
  * highlightConnections(null) like the PhysicalTableJoinsComponent table setter does.
  * A model change (emitModelChange(false)) during the drag makes PhysicalGraphPane re-fetch
  * the graph, so the network graph receives NEW GraphModel objects while the drag is in
@@ -99,13 +99,11 @@ function graphResponse(tables: string[] = ["ORDERS", "CUSTOMERS", "PRODUCTS"]): 
    template: `
       <physical-graph-pane physicalView="v" datasource="ds" runtimeId="rt"
          [selectedGraphModels]="selectedGraphModels"
-         (onPhysicalGraph)="gvm = $event"
          (onNodeSelected)="nodeSelected($event)"></physical-graph-pane>
    `,
    imports: [PhysicalGraphPane]
 })
 class HostComponent {
-   gvm: any;
    selectedGraphModels: any[] = [];
    table: string = null;
 
@@ -114,9 +112,9 @@ class HostComponent {
 
    // mirrors DatabasePhysicalModelComponent.graphNodesSelected -> tree selectNode ->
    // selectPhysicalGraphNode/changeEditingTable -> PhysicalTableJoinsComponent table setter
-   nodeSelected(paths: string[]): void {
-      this.selectedGraphModels = (this.gvm?.graphs ?? []).filter(g => paths.includes(g.node.treeLink));
-      const t = paths.length == 1 ? paths[0] : null;
+   nodeSelected(nodes: any[]): void {
+      this.selectedGraphModels = nodes ? [...nodes] : [];
+      const t = nodes?.length == 1 ? nodes[0].node.treeLink : null;
 
       if(this.table != t) {
          this.table = t;

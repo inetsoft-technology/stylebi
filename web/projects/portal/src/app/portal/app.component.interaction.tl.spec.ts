@@ -37,7 +37,7 @@
  *   the ATL fixture teardown. The existing app.component.tl.spec.ts uses the same strategy.
  *
  * Out of scope this pass (app.component.risk.tl.spec.ts):
- *   updateAccessibility, setTabOrder, checkDefaultTab, showPreferences, handleMessageEvent
+ *   updateAccessibility, checkDefaultTab, showPreferences, handleMessageEvent
  *
  * Out of scope this pass (existing app.component.tl.spec.ts):
  *   ngOnDestroy subscription cleanup, window 'message' listener lifecycle memory-leak tests
@@ -327,11 +327,23 @@ describe("PortalAppComponent — Group 7: getTab and tooltip helpers", () => {
       expect(comp.getTab(PortalTabs.DATA)).toBeNull();
    });
 
-   it("getDashboardTabTooltip should return '_#(js:Dashboard)' when DASHBOARD tab exists", async () => {
-      const { comp } = await renderComponent();
-      comp.portalTabs = [DASHBOARD_TAB];
-      expect(comp.getDashboardTabTooltip()).toBe("_#(js:Dashboard)");
-   });
+   it("getDashboardTabTooltip should return '_#(js:Pinboard)' when DASHBOARD tab exists and security is enabled",
+      async () => {
+         const { comp } = await renderComponent();
+         comp.portalTabs = [DASHBOARD_TAB];
+         comp.securityEnabled = true;
+         expect(comp.getDashboardTabTooltip()).toBe("_#(js:Pinboard)");
+      }
+   );
+
+   it("getDashboardTabTooltip should explain the security requirement when DASHBOARD tab exists and security is disabled",
+      async () => {
+         const { comp } = await renderComponent();
+         comp.portalTabs = [DASHBOARD_TAB];
+         comp.securityEnabled = false;
+         expect(comp.getDashboardTabTooltip()).toBe("_#(js:Pinboard requires security to be enabled.)");
+      }
+   );
 
    it("getDashboardTabTooltip should return empty string when DASHBOARD tab is absent", async () => {
       const { comp } = await renderComponent();
@@ -414,9 +426,26 @@ describe("PortalAppComponent — Group 8: isTabSelected", () => {
 
 describe("PortalAppComponent — Group 9: openComposer", () => {
 
+   it("should NOT request wizard status or open a window when composerEnabled is false", async () => {
+      const { comp, httpMock } = await renderComponent({ composerOpen: false });
+      comp.model = makePortalModel({ composerEnabled: false });
+      httpMock.get.mockClear();
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+      try {
+         comp.openComposer(true);
+         comp.openComposer(false);
+         expect(httpMock.get).not.toHaveBeenCalled();
+         expect(openSpy).not.toHaveBeenCalled();
+      }
+      finally {
+         openSpy.mockRestore();
+      }
+   });
+
    // 🔁 Regression-sensitive: vsWizard=true when wizard status is null (first time).
    it("should open composer with vsWizard=true when vs=true and wizard status is null", async () => {
       const { comp, httpMock } = await renderComponent({ composerOpen: false });
+      comp.model = makePortalModel({ composerEnabled: true });
       // The default httpMock returns makePortalModel() which has no viewsheetWizardStatus
       // (undefined == null → vsWizard = true).
       httpMock.get.mockReturnValueOnce(of({ viewsheetWizardStatus: null, worksheetWizardStatus: null }));
@@ -432,6 +461,7 @@ describe("PortalAppComponent — Group 9: openComposer", () => {
 
    it("should open composer with vsWizard=false when viewsheetWizardStatus is 'hide'", async () => {
       const { comp, httpMock } = await renderComponent({ composerOpen: false });
+      comp.model = makePortalModel({ composerEnabled: true });
       httpMock.get.mockReturnValueOnce(of({ viewsheetWizardStatus: "hide", worksheetWizardStatus: "hide" }));
       const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
       try {
@@ -445,6 +475,7 @@ describe("PortalAppComponent — Group 9: openComposer", () => {
 
    it("should open composer with wsWizard=true when vs=false and wizard status is null", async () => {
       const { comp, httpMock } = await renderComponent({ composerOpen: false });
+      comp.model = makePortalModel({ composerEnabled: true });
       httpMock.get.mockReturnValueOnce(of({ viewsheetWizardStatus: null, worksheetWizardStatus: null }));
       const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
       try {
@@ -465,6 +496,7 @@ describe("PortalAppComponent — Group 9: openComposer", () => {
             .mockImplementation(() => {});
          try {
             const { comp, modalSvc } = await renderComponent({ composerOpen: true });
+            comp.model = makePortalModel({ composerEnabled: true });
             comp.openComposer(true);
             expect(postMsgSpy).toHaveBeenCalledWith("vsWizard");
             expect(modalSvc.open).toHaveBeenCalled();
@@ -480,6 +512,7 @@ describe("PortalAppComponent — Group 9: openComposer", () => {
          .mockImplementation(() => {});
       try {
          const { comp } = await renderComponent({ composerOpen: true });
+         comp.model = makePortalModel({ composerEnabled: true });
          comp.openComposer(false);
          expect(postMsgSpy).toHaveBeenCalledWith("wsWizard");
       }

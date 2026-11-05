@@ -563,12 +563,23 @@ describe("ChartPlotArea — updateChartObject", () => {
    it("should redraw the current selection when it belongs to the plot area", () => {
       const { comp } = createComponent();
       setupCanvasWithContext(comp);
-      comp.chartSelection = { chartObject: { areaName: "plot_area" }, regions: [{}] } as any;
+      comp.chartSelection = { chartObject: comp.chartObject, regions: [{}] } as any;
       const drawSpy = vi.spyOn(ChartTool, "drawRegions").mockImplementation(() => {});
 
       comp.updateChartObject();
 
       expect(drawSpy).toHaveBeenCalled();
+   });
+
+   it("should NOT redraw a plot-area selection left on a replaced plot", () => {
+      const { comp } = createComponent();
+      setupCanvasWithContext(comp);
+      comp.chartSelection = { chartObject: { areaName: "plot_area" }, regions: [{}] } as any;
+      const drawSpy = vi.spyOn(ChartTool, "drawRegions").mockImplementation(() => {});
+
+      comp.updateChartObject();
+
+      expect(drawSpy).not.toHaveBeenCalled();
    });
 
    it("should NOT redraw when the current selection belongs to a different area", () => {

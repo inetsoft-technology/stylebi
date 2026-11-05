@@ -123,7 +123,7 @@ describe("ExecuteAsDialog", () => {
          }));
          expect(comp.usersNode.children[1000]).toEqual(expect.objectContaining({
             label: "Limited to 1000",
-            cssClass: "alert alert-danger disable-actions",
+            cssClass: "shell-alert shell-alert--danger disable-actions",
          }));
          expect(expandSpy).toHaveBeenCalledWith(
             "_#(js:schedule.task.options.userTreeLimited)",
@@ -303,7 +303,7 @@ describe("ExecuteAsDialog", () => {
             leaf: true,
             expanded: false,
             icon: "alert-circle-icon",
-            cssClass: "alert alert-danger disable-actions",
+            cssClass: "shell-alert shell-alert--danger disable-actions",
          });
       });
    });

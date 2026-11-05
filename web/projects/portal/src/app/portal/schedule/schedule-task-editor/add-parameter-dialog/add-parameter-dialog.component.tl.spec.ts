@@ -441,7 +441,7 @@ describe("AddParameterDialog - single pass", () => {
 
          const ok = Array.from(nativeElement.querySelectorAll("button"))
             .find(b => b.textContent.trim() === "_#(OK)") as HTMLButtonElement;
-         const alert = nativeElement.querySelector(".alert-danger");
+         const alert = nativeElement.querySelector(".shell-alert--danger");
 
          return { comp, ok, alertText: alert?.textContent.trim() ?? "" };
       }

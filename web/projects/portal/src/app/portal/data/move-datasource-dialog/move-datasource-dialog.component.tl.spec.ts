@@ -37,6 +37,8 @@
 
 import { NO_ERRORS_SCHEMA, SimpleChange } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
+import { ComponentFixture } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { render, waitFor } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { http, HttpResponse as MswHttpResponse } from "msw";
@@ -45,6 +47,7 @@ import { Subject, firstValueFrom } from "rxjs";
 import { server } from "@test-mocks/server";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { MoveDataSourceDialogComponent, FAKE_ROOT_PATH } from "./move-datasource-dialog.component";
+import { DataSourcesBrowser } from "../data-datasource-browser/data-source-browser/data-sources-browser.component";
 import { DataSourceInfo } from "../model/data-source-info";
 import { PortalDataType } from "../data-navigation-tree/portal-data-type";
 
@@ -98,6 +101,13 @@ async function renderDialog(inputs: Partial<any> = {}) {
    return { comp: fixture.componentInstance as MoveDataSourceDialogComponent, fixture };
 }
 
+// the browser's first load emits its empty selection, which clears folderPath
+async function waitForBrowserLoad(fixture: ComponentFixture<MoveDataSourceDialogComponent>) {
+   const browser: DataSourcesBrowser =
+      fixture.debugElement.query(By.directive(DataSourcesBrowser)).componentInstance;
+   await waitFor(() => expect(browser.browserView).toBeDefined());
+}
+
 beforeEach(() => {
    MODAL_MOCK.open.mockClear();
 });
@@ -112,7 +122,8 @@ describe("Group 1 — ok(): POST checkDuplicate drives onCommit vs error dialog"
    // 🔁 Regression-sensitive: onCommit must carry the currently selected folderPath,
    //    not the initial null — callers use this value to move the datasource.
    it("should emit onCommit with folderPath when server returns duplicate=false", async () => {
-      const { comp } = await renderDialog({ items: [] });
+      const { comp, fixture } = await renderDialog({ items: [] });
+      await waitForBrowserLoad(fixture);
       comp.folderPath = "/target";
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
