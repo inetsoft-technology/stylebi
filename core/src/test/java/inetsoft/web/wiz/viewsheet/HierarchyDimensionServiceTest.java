@@ -402,6 +402,228 @@ class HierarchyDimensionServiceTest {
       assertNoWrite(h);
    }
 
+   // ---- Redmine #80333: one date column at several levels, and update_hierarchy_dimension ----
+
+   /** Year > Quarter > Month on ONE date column, the shape the Composer builds. */
+   @Test
+   void addAcceptsOneDateColumnAtSeveralLevelsInOrder() throws Exception {
+      Harness h = harnessChart(paneWith(dateColumn("Order Date"), column("State")));
+
+      h.service.add("tok", principal(), "Chart1",
+                    List.of("Order Date", "Order Date", "Order Date"),
+                    List.of("year", "quarter", "month"), "");
+
+      VSDimensionMemberModel[] members = writtenDimensions(h)[0].getMembers();
+      assertEquals(3, members.length);
+      assertEquals(DateRangeRef.YEAR_INTERVAL, members[0].getOption());
+      assertEquals(DateRangeRef.QUARTER_INTERVAL, members[1].getOption());
+      assertEquals(DateRangeRef.MONTH_INTERVAL, members[2].getOption());
+      assertEquals("Order Date", members[2].getDataRef().getName());
+      assertEquals("State", writtenColumnList(h)[0].getName(),
+                   "the date column is consumed, the other column stays a measure");
+   }
+
+   /** VSDimension.addLevel would collapse two equal (column, option) members, so refuse. */
+   @Test
+   void addRefusesTheSameDateColumnAtTheSameLevelTwice() {
+      Harness h = harnessChart(paneWith(dateColumn("Order Date")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", List.of("Order Date", "Order Date"),
+                             List.of("year", "year"), ""));
+
+      assertTrue(thrown.getMessage().contains("more than once at date level 'year'"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("dateLevels"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   /** A repeated date column with no dateLevels collapses to (year, year): refused with the hint. */
+   @Test
+   void addRefusesARepeatedDateColumnWhenDateLevelsAreOmitted() {
+      Harness h = harnessChart(paneWith(dateColumn("Order Date")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", List.of("Order Date", "Order Date"),
+                             null, ""));
+
+      assertTrue(thrown.getMessage().contains("dateLevels"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   /** The pinned sentence for a NON-date repeat is unchanged (vs-table-bind-18 and guardrails). */
+   @Test
+   void addKeepsTheExactNonDateRepeatSentence() {
+      Harness h = harnessChart(paneWith(column("Country")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", List.of("Country", "Country"),
+                             null, ""));
+
+      assertTrue(thrown.getMessage().contains(
+         "is listed more than once in 'columns' -- a hierarchy level can only use a column once"),
+         thrown.getMessage());
+   }
+
+   @Test
+   void addRefusesADateColumnAnotherDimensionHoldsEvenWithADifferentLevel() {
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[] { dateColumn("Order Date") },
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, dateColumn("Order Date"))));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.add("tok", principal(), "Chart1", List.of("Order Date"),
+                                       List.of("month"), ""));
+      assertNoWrite(h);
+   }
+
+   @Test
+   void updateReordersLevelsInPlaceKeepingTheIndex() throws Exception {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Country"), column("State"), column("City"),
+                                      column("Revenue") },
+         dimension(column("Country")),
+         dimension(column("State"), column("City")));
+      Harness h = harnessChart(pane);
+
+      Map<String, Object> result = h.service.update(
+         "tok", principal(), "Chart1", 1, List.of("City", "State"), null, "");
+
+      VSDimensionModel[] written = writtenDimensions(h);
+      assertEquals(2, written.length);
+      assertEquals("Country", written[0].getMembers()[0].getDataRef().getName());
+      assertEquals("City", written[1].getMembers()[0].getDataRef().getName());
+      assertEquals("State", written[1].getMembers()[1].getDataRef().getName());
+      assertEquals(1, result.get("index"));
+      verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void updateCanDropOneLevelAndFreesItsColumn() throws Exception {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Country"), column("State"), column("City") },
+         dimension(column("Country"), column("State"), column("City")));
+      Harness h = harnessChart(pane);
+
+      h.service.update("tok", principal(), "Chart1", 0, List.of("Country", "City"), null, "");
+
+      assertEquals(2, writtenDimensions(h)[0].getMembers().length);
+      OutputColumnRefModel[] remaining = writtenColumnList(h);
+      assertEquals(1, remaining.length);
+      assertEquals("State", remaining[0].getName());
+   }
+
+   @Test
+   void updateChangesADateLevelAndBuildsASeveralLevelDateDimension() throws Exception {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { dateColumn("Order Date") },
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, dateColumn("Order Date")));
+      Harness h = harnessChart(pane);
+
+      h.service.update("tok", principal(), "Chart1", 0,
+                       List.of("Order Date", "Order Date"), List.of("month", "day"), "");
+
+      VSDimensionMemberModel[] members = writtenDimensions(h)[0].getMembers();
+      assertEquals(DateRangeRef.MONTH_INTERVAL, members[0].getOption());
+      assertEquals(DateRangeRef.DAY_INTERVAL, members[1].getOption());
+   }
+
+   @Test
+   void updateIgnoresItsOwnColumnsButRefusesAnotherDimensionsColumn() {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Country"), column("State"), column("City") },
+         dimension(column("Country"), column("State")),
+         dimension(column("City")));
+      Harness h = harnessChart(pane);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.update("tok", principal(), "Chart1", 0, List.of("Country", "City"),
+                                null, ""));
+
+      assertTrue(thrown.getMessage().contains("'City'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("dimension 1"),
+                 "names the real holder index, not its position among the others: "
+                    + thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void updateMovesALevelBetweenDimensionsInTwoCalls() throws Exception {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Country"), column("State"), column("City") },
+         dimension(column("Country"), column("State")),
+         dimension(column("City")));
+      Harness h = harnessChart(pane);
+
+      h.service.update("tok", principal(), "Chart1", 0, List.of("Country"), null, "");
+      // A real second call re-reads the pane, whose columnList is the full catalog again.
+      pane.setColumnList(new OutputColumnRefModel[] {
+         column("Country"), column("State"), column("City") });
+      h.service.update("tok", principal(), "Chart1", 1, List.of("City", "State"), null, "");
+
+      VSDimensionModel[] dims = pane.getDimensions();
+      assertEquals(1, dims[0].getMembers().length);
+      assertEquals("State", dims[1].getMembers()[1].getDataRef().getName());
+   }
+
+   @Test
+   void updateRefusesAnOutOfRangeIndex() {
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[] { column("Country") }, dimension(column("Country"))));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.update("tok", principal(), "Chart1", 3, List.of("Country"), null, ""));
+
+      assertTrue(thrown.getMessage().contains("list_hierarchy_dimensions"));
+      assertNoWrite(h);
+   }
+
+   @Test
+   void updateRefusesAnEmptyListAndPointsToRemove() {
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[] { column("Country") }, dimension(column("Country"))));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.update("tok", principal(), "Chart1", 0, List.of(), null, ""));
+
+      assertTrue(thrown.getMessage().contains("remove_hierarchy_dimension"));
+      assertNoWrite(h);
+   }
+
+   @Test
+   void updateRefusesARepeatedDateColumnAtOneLevel() {
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[] { dateColumn("Order Date") },
+         dimensionWithOption(DateRangeRef.YEAR_INTERVAL, dateColumn("Order Date"))));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.update("tok", principal(), "Chart1", 0,
+                                List.of("Order Date", "Order Date"), null, ""));
+
+      assertTrue(thrown.getMessage().contains("dateLevels"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void updateWritesThroughTheCrosstabTarget() throws Exception {
+      HierarchyPropertyPaneModel pane = paneWithDimensions(
+         new OutputColumnRefModel[] { column("Region"), column("State") },
+         dimension(column("Region"), column("State")));
+      Harness h = harnessCrosstab(pane);
+
+      h.service.update("tok", principal(), "CT1", 0, List.of("State", "Region"), null, "");
+
+      VSDimensionModel[] written = writtenCrosstabDimensions(h);
+      assertEquals("State", written[0].getMembers()[0].getDataRef().getName());
+   }
+
    @Test
    void listDoesNotWrite() throws Exception {
       Harness h = harnessChart(paneWith(column("Country"), column("State")));
@@ -570,6 +792,13 @@ class HierarchyDimensionServiceTest {
       column.setEntity(null);
       column.setAttribute(name);
       column.setDataType(name.toLowerCase().contains("date") ? "timestamp" : "string");
+      return column;
+   }
+
+   /** A column whose type is a real date type, so the date-repeat rule applies to it. */
+   private static OutputColumnRefModel dateColumn(String name) {
+      OutputColumnRefModel column = column(name);
+      column.setDataType(XSchema.DATE);
       return column;
    }
 
