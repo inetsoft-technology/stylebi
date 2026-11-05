@@ -99,7 +99,7 @@ function createModel(overrides: Partial<ViewsheetOptionsPaneModel> = {}): Viewsh
 
 async function renderComponent(
    modelOverrides: Partial<ViewsheetOptionsPaneModel> = {},
-   componentInputOverrides: Partial<{ showVizControls: boolean }> = {})
+   componentInputOverrides: Partial<{ showVizControls: boolean, modernizeHint: boolean }> = {})
 {
    const form = new UntypedFormGroup({});
    const model = createModel(modelOverrides);
@@ -600,5 +600,21 @@ describe("ViewsheetOptionsPane — visualization controls", () => {
       expect(screen.queryByLabelText("_#(Modern Visualization)")).toBeNull();
       expect(screen.queryByLabelText("_#(Dark Mode)")).toBeNull();
       expect(screen.queryByLabelText("_#(Visualization Density)")).toBeNull();
+   });
+
+   it("shows the hint when the switch is turned on and a hint is allowed", async () => {
+      await renderComponent({ vizModern: true }, { modernizeHint: true });
+
+      expect(screen.getByText("_#(composer.vs.modernize.optionsHint)")).toBeTruthy();
+   });
+
+   it("hides the hint when the switch is off or no hint is allowed", async () => {
+      await renderComponent({ vizModern: false }, { modernizeHint: true });
+      expect(screen.queryByText("_#(composer.vs.modernize.optionsHint)")).toBeNull();
+   });
+
+   it("hides the hint when no hint is allowed", async () => {
+      await renderComponent({ vizModern: true }, { modernizeHint: false });
+      expect(screen.queryByText("_#(composer.vs.modernize.optionsHint)")).toBeNull();
    });
 });

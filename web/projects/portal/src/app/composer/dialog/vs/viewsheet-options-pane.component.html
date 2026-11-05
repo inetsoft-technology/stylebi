@@ -106,6 +106,9 @@
                   _#(Modern Visualization)
                 </label>
               </div>
+              @if (modernizeHint && model.vizModern) {
+                <div class="form-text">_#(composer.vs.modernize.optionsHint)</div>
+              }
             </div>
             <div class="col">
               <div class="form-check form-switch">

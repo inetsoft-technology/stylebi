@@ -354,6 +354,22 @@ describe("ViewsheetPropertyDialog — saveChanges", () => {
    });
 });
 
+describe("ViewsheetPropertyDialog — modernize hint", () => {
+   it("allows the hint only for a classic dashboard that is modernizable", async () => {
+      const { comp } = await renderComponent();
+
+      comp["viewsheet"] = { modernizable: true } as any;
+      expect(comp.modernizeHint).toBe(true);
+
+      comp["viewsheet"] = { modernizable: false } as any;
+      expect(comp.modernizeHint).toBe(false);
+
+      comp["viewsheet"] = { modernizable: true } as any;
+      comp["loadedVizModern"] = true;
+      expect(comp.modernizeHint).toBe(false);
+   });
+});
+
 // ---------------------------------------------------------------------------
 // Group 6: isDefaultOrgAsset [Risk 1]
 // ---------------------------------------------------------------------------
