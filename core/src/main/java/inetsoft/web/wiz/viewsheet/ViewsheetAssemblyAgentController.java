@@ -1824,6 +1824,21 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * {@code get_input_value}. Read-only: the value(s) the runtime currently holds for the named
+    * input assemblies (every input assembly when none is named). No checkpoint, no script run.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/input/value")
+   public Map<String, Object> getInputValue(@PathVariable String sessionToken,
+                                            @RequestParam(required = false)
+                                            List<String> assembly,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return inputService.getValues(sessionToken, user, assembly);
+   }
+
+   /**
     * {@code set_assembly_maximized}. Toggles an assembly's runtime Maximize/Restore state --
     * the title-bar "Show Enlarged"/"Show Actual Size" button -- distinct from the assembly's
     * persisted design-time size ({@code edit(op:"resize")}).
