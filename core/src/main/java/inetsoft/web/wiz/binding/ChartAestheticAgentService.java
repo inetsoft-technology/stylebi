@@ -88,6 +88,19 @@ public class ChartAestheticAgentService {
    public List<String> setField(String sessionToken, Principal user, String assemblyName, String channel,
                         FieldRef field, String sourceTable, String linkUri) throws Exception
    {
+      return setField(sessionToken, user, assemblyName, channel, field, sourceTable, null,
+                      linkUri);
+   }
+
+   /**
+    * @param measure bug #80332: the measure of a multi-style chart to bind the field on, or
+    *                {@link ChartAestheticMutator#ALL_MEASURES}; {@code null} writes the chart-level
+    *                slot, which a multi-style chart refuses.
+    */
+   public List<String> setField(String sessionToken, Principal user, String assemblyName, String channel,
+                        FieldRef field, String sourceTable, String measure, String linkUri)
+      throws Exception
+   {
       // Validated before the runtime is touched, so a bad channel costs nothing and does not
       // open a checkpoint the caller then has to undo. This still needs the chart itself — node
       // channels are only valid on a relation chart, and size only on chart types that render
@@ -98,7 +111,14 @@ public class ChartAestheticAgentService {
       boolean shapeFamilySupported = isShapeFamilySupported(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFieldChannel(
          channel, relationChart, sizeSupported, colorShapeSupported, shapeFamilySupported);
-      requireNotMultiAesthetic(sessionToken, user, assemblyName);
+
+      if(measure == null) {
+         requireNotMultiAesthetic(sessionToken, user, assemblyName);
+      }
+      else {
+         requireMeasureWriteAllowed(sessionToken, user, assemblyName, name, measure, true);
+      }
+
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       return sessions.mutate(sessionToken, user,
@@ -107,8 +127,21 @@ public class ChartAestheticAgentService {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
          ChartBindingService.applySource(model, sourceTable);
+         List<Integer> written = null;
 
-         if(isGantt(chart)) {
+         if(measure != null) {
+            written = ChartAestheticMutator.setMeasureField(
+               model, name, field, rvs, chart.getSourceInfo(), refModelService,
+               perMeasureFrameChannels(chart), measure);
+
+            // Bug #80332: the shelf-conflict check reads the chart-level slot, which a measure
+            // write leaves empty, so each written measure's own field is checked instead.
+            for(int index : written) {
+               ChartBindingService.requireAestheticNamedGroupAgreesWithShelf(
+                  model, name, field, ChartAestheticMutator.measureField(model, name, index));
+            }
+         }
+         else if(isGantt(chart)) {
             ChartAestheticMutator.setGanttField(
                model, name, field, rvs, chart.getSourceInfo(), refModelService);
          }
@@ -119,6 +152,7 @@ public class ChartAestheticAgentService {
             ChartBindingService.requireAestheticNamedGroupAgreesWithShelf(model, name, field);
          }
 
+         List<Integer> writtenMeasures = written;
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
          event.setFieldType(name);
@@ -126,10 +160,28 @@ public class ChartAestheticAgentService {
          aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
 
          try {
-            ChartBindingService.requireAestheticCalculatorResolved(
-               requireChart(rvs, assemblyName).getVSChartInfo(), name, field);
-            ChartBindingService.requireAestheticNamedGroupKept(
-               requireChart(rvs, assemblyName).getVSChartInfo(), name, field);
+            VSChartInfo written0 = requireChart(rvs, assemblyName).getVSChartInfo();
+
+            if(writtenMeasures != null) {
+               // Bug #80332: read back each written measure's own runtime field. The position in
+               // the runtime list is the position in the model's, as the shelves are untouched by
+               // an aesthetic write.
+               List<ChartAggregateRef> runtime =
+                  written0 == null ? List.of() : written0.getAestheticAggregateRefs(false);
+
+               for(int index : writtenMeasures) {
+                  if(index >= 0 && index < runtime.size()) {
+                     AestheticRef bound = aestheticFieldOf(runtime.get(index), name);
+                     ChartBindingService.requireAestheticCalculatorResolvedOn(
+                        written0, bound, field);
+                     ChartBindingService.requireAestheticNamedGroupKeptOn(bound, name, field);
+                  }
+               }
+            }
+            else {
+               ChartBindingService.requireAestheticCalculatorResolved(written0, name, field);
+               ChartBindingService.requireAestheticNamedGroupKept(written0, name, field);
+            }
          }
          catch(IllegalArgumentException e) {
             // The write is already committed and mutate() does not undo a thrown mutation; see
@@ -151,17 +203,35 @@ public class ChartAestheticAgentService {
    public List<String> clearField(String sessionToken, Principal user, String assemblyName,
                           String channel, String linkUri) throws Exception
    {
+      return clearField(sessionToken, user, assemblyName, channel, null, linkUri);
+   }
+
+   /** @param measure see {@link #setField(String, Principal, String, String, FieldRef, String,
+    *                String, String)}. */
+   public List<String> clearField(String sessionToken, Principal user, String assemblyName,
+                          String channel, String measure, String linkUri) throws Exception
+   {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       // Clearing is always safe, so only the channel name (and node channels) is validated, not
       // whether this chart type renders it -- otherwise a binding left on a channel the type
       // does not render could never be removed (#77024 P7 hardening).
       String name = AestheticChannels.requireFieldChannel(channel, relationChart);
-      requireNotMultiAesthetic(sessionToken, user, assemblyName);
+
+      if(measure == null) {
+         requireNotMultiAesthetic(sessionToken, user, assemblyName);
+      }
+      else {
+         requireMeasureWriteAllowed(sessionToken, user, assemblyName, name, measure, false);
+      }
+
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       return apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> {
-               if(isGantt(chart)) {
+               if(measure != null) {
+                  ChartAestheticMutator.clearMeasureField(model, name, measure);
+               }
+               else if(isGantt(chart)) {
                   ChartAestheticMutator.clearGanttField(model, name);
                }
                else {
@@ -488,23 +558,92 @@ public class ChartAestheticAgentService {
       }
 
       if(info != null && info.isMultiAesthetic()) {
-         if(info.isAppliedDateComparison() && !info.isDesignMultiStyles()) {
-            throw new IllegalArgumentException(
-               "This chart is multi-style right now because its active date comparison " +
-               "(changeAndValue/percentChangeAndValue) forces multi-style rendering, even " +
-               "though the design setting is off — binding a field here would corrupt the " +
-               "chart's rendering with no way to undo it. set_chart_type(multi:false) cannot " +
-               "turn this off while the comparison is active, since it only writes the design " +
-               "flag. Call clear_date_comparison first, bind the field, then reapply the " +
-               "comparison if it is still wanted.");
-         }
+         requireNotDateComparisonForcedMultiStyle(info);
 
          throw new IllegalArgumentException(
             "This chart is multi-style, and binding a field here while multi-style is already " +
             "on corrupts the chart's rendering with no way to undo it. Turn multi-style off " +
             "(set_chart_type with multi:false), bind the field, then turn multi-style back on " +
-            "— that order redistributes the field into each measure correctly.");
+            "— that order redistributes the field into each measure correctly. To keep " +
+            "multi-style on and bind the field for one measure (or every measure) instead, " +
+            "pass 'measure' (a measure name as get_binding reports it, or 'all').");
       }
+   }
+
+   /**
+    * Bug #80332: the date-comparison-forced multi-style refusal, shared by the chart-level and
+    * the measure-scoped write. {@code ChartDcProcessor.updateAestheticField()} rewrites the
+    * aesthetic field of every aesthetic aggregate on each run, so a per-measure write there would
+    * be silently overwritten just as a chart-level one would.
+    */
+   private static void requireNotDateComparisonForcedMultiStyle(VSChartInfo info) {
+      if(info != null && info.isMultiAesthetic() && info.isAppliedDateComparison() &&
+         !info.isDesignMultiStyles())
+      {
+         throw new IllegalArgumentException(
+            "This chart is multi-style right now because its active date comparison " +
+            "(changeAndValue/percentChangeAndValue) forces multi-style rendering, even " +
+            "though the design setting is off — binding a field here would corrupt the " +
+            "chart's rendering with no way to undo it. set_chart_type(multi:false) cannot " +
+            "turn this off while the comparison is active, since it only writes the design " +
+            "flag. Call clear_date_comparison first, bind the field, then reapply the " +
+            "comparison if it is still wanted.");
+      }
+   }
+
+   /**
+    * Bug #80332: the guards of a measure-scoped field write, the replacement for
+    * {@link #requireNotMultiAesthetic} when {@code measure} is given. Everything is refused by
+    * name before anything is written: a blank measure, a Gantt chart (whose field writes already
+    * go onto its start/milestone measures; {@code measure} does not apply), a single-style chart
+    * (the chart-level write is the right one there), a date-comparison-forced multi-style state,
+    * and a channel with no per-measure slot. Only the plain design-multi-style case is let
+    * through; the channel/size/colour-shape support checks run before this, unchanged.
+    */
+   private void requireMeasureWriteAllowed(String sessionToken, Principal user,
+                                           String assemblyName, String channel, String measure,
+                                           boolean writing)
+      throws Exception
+   {
+      if(measure.isBlank()) {
+         throw new IllegalArgumentException(
+            "'measure' must name a measure of this chart (as get_binding reports it), or be " +
+            "'all'. Omit it to write the chart-level field of a single-style chart.");
+      }
+
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ChartVSAssembly chart = requireChart(rvs, assemblyName);
+      VSChartInfo info = chart.getVSChartInfo();
+
+      if(isGantt(chart)) {
+         throw new IllegalArgumentException(
+            "'measure' does not apply to a Gantt chart: its " + channel + " field is already " +
+            "written onto its start and milestone measures. Omit 'measure'.");
+      }
+
+      if(info == null || !info.isMultiAesthetic()) {
+         throw new IllegalArgumentException(
+            "'measure' applies only to a multi-style chart, and this chart is not one. Turn " +
+            "multi-style on with set_chart_type (multi:true) first, or omit 'measure' to " +
+            "write the " + channel + " field for the whole chart.");
+      }
+
+      requireNotDateComparisonForcedMultiStyle(info);
+      // Clearing is always safe, so only a write is held to the channels the chart renders per
+      // measure (as clearField's own channel check does).
+      ChartAestheticMutator.requireMeasureChannel(
+         channel, writing ? perMeasureFrameChannels(chart) : null);
+   }
+
+   /** The field {@code bindable} carries on a field channel, or {@code null}. */
+   private static AestheticRef aestheticFieldOf(ChartBindable bindable, String channel) {
+      return switch(channel) {
+         case "color" -> bindable.getColorField();
+         case "shape" -> bindable.getShapeField();
+         case "size" -> bindable.getSizeField();
+         case "text" -> bindable.getTextField();
+         default -> null;
+      };
    }
 
    /**
