@@ -1764,6 +1764,60 @@ class ChartRegionPropertyServiceTest {
    }
 
    @Test
+   void refusesNotShowNullOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("notShowNull", true), ""));
+
+      assertTrue(thrown.getMessage().contains("notShowNull"));
+      verifyNoLegendWrite(h);
+   }
+
+   /**
+    * A time-scale legend also refuses notShowNull, but for UI parity (the Composer's dialog hides
+    * the control there too, same as for a dimension-only measure legend), not because the engine
+    * is verified to ignore it the way it is for a measure legend -- TimeScale does read
+    * Scale.NO_NULL, unlike LinearScale/LogScale/PowerScale.
+    */
+   @Test
+   void refusesNotShowNullOnTimeLegend() throws Exception {
+      Harness h = legendHarness(false, true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("notShowNull", true), ""));
+
+      assertTrue(thrown.getMessage().contains("notShowNull"));
+      verifyNoLegendWrite(h);
+   }
+
+   @Test
+   void acceptsNotShowNullOnDimensionLegend() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("notShowNull", true), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void acceptsFalseNotShowNullOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("notShowNull", false), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
    void staleLegendScaleValueNotInPatchIsNotRefused() throws Exception {
       Harness h = harness();
       LegendFormatDialogModel model = legendModel();
@@ -1814,8 +1868,37 @@ class ChartRegionPropertyServiceTest {
 
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
-      assertTrue(props.stream().noneMatch(p -> p.containsKey("applies")));
+      List<String> scaleKeys = List.of("logarithmicScale", "reverse", "includeZero");
+      assertTrue(props.stream().filter(p -> scaleKeys.contains(p.get("name")))
+                    .noneMatch(p -> p.containsKey("applies")));
       assertFalse(String.valueOf(listed.get("note")).contains("dimension/date"));
+   }
+
+   @Test
+   void listFlagsNotShowNullInapplicableOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> notShowNull = props.stream()
+         .filter(p -> "notShowNull".equals(p.get("name"))).findFirst().orElseThrow();
+      assertEquals(false, notShowNull.get("applies"));
+      assertTrue(String.valueOf(listed.get("note")).contains("bound to a dimension"));
+   }
+
+   @Test
+   void listDoesNotFlagNotShowNullOnDimensionLegend() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> notShowNull = props.stream()
+         .filter(p -> "notShowNull".equals(p.get("name"))).findFirst().orElseThrow();
+      assertFalse(notShowNull.containsKey("applies"));
    }
 
    /**
@@ -2694,7 +2777,7 @@ class ChartRegionPropertyServiceTest {
       Map<String, Object> flagged = flaggedKeys(
          h.service.list("tok", principal(), "Chart1", "legend", "0", null));
 
-      assertEquals(java.util.Set.of("reverse"), flagged.keySet());
+      assertEquals(java.util.Set.of("reverse", "notShowNull"), flagged.keySet());
       assertTrue(flagged.get("reverse").toString().contains("treemap Size legend"));
    }
 
@@ -2707,8 +2790,8 @@ class ChartRegionPropertyServiceTest {
 
       verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
                                                    anyString(), any(Principal.class), any());
-      assertTrue(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
-                    .isEmpty());
+      assertFalse(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
+                    .containsKey("reverse"));
    }
 
    private static void verifyNoAxisWrite(Harness h) throws Exception {
