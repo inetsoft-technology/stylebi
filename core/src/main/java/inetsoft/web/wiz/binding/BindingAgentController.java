@@ -357,7 +357,15 @@ public class BindingAgentController {
     *        every measure, which is what a chart with one measure wants.
     */
    public record AestheticFrameRequest(String assembly, String channel,
-                                       Map<String, Object> frame, String measure) {}
+                                       Map<String, Object> frame, String measure,
+                                       Boolean summary) {
+      /** Pre-{@code summary} shape, kept so existing callers keep compiling. */
+      public AestheticFrameRequest(String assembly, String channel, Map<String, Object> frame,
+                                   String measure)
+      {
+         this(assembly, channel, frame, measure, null);
+      }
+   }
    /** @param measure see {@link AestheticFrameRequest#measure()}. */
    public record AestheticResetRequest(String assembly, String channel, String measure) {}
 
@@ -381,7 +389,7 @@ public class BindingAgentController {
                                                Principal user)
    {
       requireEnabled();
-      return aestheticService.options();
+      return aestheticService.options(user);
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field")
@@ -424,7 +432,8 @@ public class BindingAgentController {
       requireEnabled();
       return ViewsheetSessionService.warningsBody(
          aestheticService.setFrame(sessionToken, user, request.assembly(), request.channel(),
-                                request.frame(), request.measure(), linkUri));
+                                request.frame(), request.measure(), linkUri,
+                                Boolean.TRUE.equals(request.summary())));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/frame/reset")

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.LineFrame;
 import inetsoft.graph.aesthetic.TextureFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
@@ -32,6 +33,8 @@ import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.binding.controller.ChangeChartAestheticService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.model.ChartBindingModel;
@@ -43,7 +46,9 @@ import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.awt.Color;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -179,15 +184,34 @@ public class ChartAestheticAgentService {
    public List<String> setFrame(String sessionToken, Principal user, String assemblyName, String channel,
                         Map<String, Object> frame, String measure, String linkUri) throws Exception
    {
+      return setFrame(sessionToken, user, assemblyName, channel, frame, measure, linkUri, false);
+   }
+
+   /**
+    * @param summary true to set a waterfall's Total bar colour/texture instead of the regular
+    *                frame; see {@link ChartAestheticMutator#setSummaryFrame}.
+    */
+   public List<String> setFrame(String sessionToken, Principal user, String assemblyName, String channel,
+                        Map<String, Object> frame, String measure, String linkUri,
+                        boolean summary) throws Exception
+   {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFrameChannel(
          channel, relationChart, isShapeFrameSupported(sessionToken, user, assemblyName));
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       return apply(sessionToken, user, assemblyName, name, linkUri,
-            (chart, model) -> ChartAestheticMutator.setFrame(
-               model, name, frame, relationChart, perMeasureFrameChannels(chart), measure,
-               isMultiAesthetic(chart)));
+            (chart, model) -> {
+               if(summary) {
+                  ChartAestheticMutator.setSummaryFrame(
+                     model, name, frame, relationChart, measure, isMultiAesthetic(chart));
+               }
+               else {
+                  ChartAestheticMutator.setFrame(
+                     model, name, frame, relationChart, perMeasureFrameChannels(chart), measure,
+                     isMultiAesthetic(chart));
+               }
+            });
    }
 
    /** The aesthetic panes' "Reset to Default" button. */
@@ -308,6 +332,15 @@ public class ChartAestheticAgentService {
     * {@code frameTypes} is kept as the union across channels for callers that read it.
     */
    public Map<String, Object> options() {
+      return options(null);
+   }
+
+   /**
+    * @param user the caller. The categorical palettes are organization-scoped
+    *             ({@code ColorPalettes} keys on the thread's context principal), so they are
+    *             read with the caller's principal in force and the previous one restored after.
+    */
+   public Map<String, Object> options(Principal user) {
       Map<String, Object> typesByChannel = new LinkedHashMap<>();
       Set<String> union = new TreeSet<>();
 
@@ -330,10 +363,65 @@ public class ChartAestheticAgentService {
               "frameTypes is the union across channels; frameTypesByChannel is what each " +
               "channel actually accepts, and is what set_visual_frame validates against.");
       out.put("palettes", List.copyOf(VisualFrameAliases.PALETTES.keySet()));
+      out.put("categoricalPalettes", categoricalPalettes(user));
+      out.put("categoricalPalettesNote",
+              "categoricalPalettes are the Composer's categorical 'Select Palette' lists " +
+              "(name + colors, organization-scoped); palettes are the measure colour ramps for " +
+              "{type: \"palette\"}. They are different lists.");
       out.put("nodeChannels", AestheticChannels.NODE_CHANNELS);
       out.put("nodeChannelsNote",
               "node-color and node-size apply only to relation charts (network, tree, chord) " +
               "— call get_chart_aesthetics on the chart to see whether they apply here.");
+      return out;
+   }
+
+   /**
+    * The organization's categorical colour palettes, as the Composer's palette dialog lists them.
+    * Empty, never an exception, when the organization has none or they cannot be loaded.
+    */
+   List<Map<String, Object>> categoricalPalettes(Principal user) {
+      Principal previous = ThreadContext.getContextPrincipal();
+      boolean switched = user != null && user != previous;
+      List<Map<String, Object>> out = new ArrayList<>();
+
+      try {
+         if(switched) {
+            ThreadContext.setContextPrincipal(user);
+         }
+
+         for(String name : List.copyOf(ColorPalettes.getPaletteNames())) {
+            CategoricalColorFrame frame = ColorPalettes.getPalette(name);
+
+            if(frame == null) {
+               continue;
+            }
+
+            List<String> colors = new ArrayList<>();
+
+            for(int i = 0; i < frame.getColorCount(); i++) {
+               Color color = frame.getDefaultColor(i);
+
+               if(color != null) {
+                  colors.add(String.format("#%06X", color.getRGB() & 0xFFFFFF));
+               }
+            }
+
+            Map<String, Object> palette = new LinkedHashMap<>();
+            palette.put("name", name);
+            palette.put("colors", colors);
+            out.add(palette);
+         }
+      }
+      catch(RuntimeException e) {
+         // No palette map for this organization (ColorPalettes does not guard it).
+         return new ArrayList<>();
+      }
+      finally {
+         if(switched) {
+            ThreadContext.setContextPrincipal(previous);
+         }
+      }
+
       return out;
    }
 
