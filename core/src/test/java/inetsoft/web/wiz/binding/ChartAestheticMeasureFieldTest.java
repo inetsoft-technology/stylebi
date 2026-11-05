@@ -342,6 +342,82 @@ class ChartAestheticMeasureFieldTest {
          () -> ChartBindingService.requireAestheticNamedGroupKeptOn(null, "color", field));
    }
 
+   // ── rollback of an `all` write refused part-way, and the per-measure calculator validator
+
+   /**
+    * M1 already holds a time-series PHASE (so re-sending it is an echo the time-series guard lets
+    * through), M2 holds nothing (so the same write is refused there). The `all` write binds M1
+    * first and is refused on M2; M1 must be put back exactly as it was, not left rebound or null.
+    */
+   @Test
+   void anAllWriteRefusedOnALaterMeasureRestoresEarlierMeasuresExactly() throws Exception {
+      Pipeline p = pipeline(true);
+      ChartBindingModel model = p.model();
+      ChartAestheticMutator.setMeasureField(
+         model, "color", REGION, null, null, null, AestheticChannels.FRAME_CHANNELS, "M1");
+      inetsoft.web.binding.model.graph.AestheticInfo m1 =
+         ChartAestheticMutator.measureField(model, "color", 0);
+      ((inetsoft.web.binding.model.graph.ChartDimensionRefModel) m1.getDataInfo())
+         .setTimeSeries(true);
+      Object dataBefore = m1.getDataInfo();
+      Object frameBefore = m1.getFrame();
+      String nameBefore = m1.getFullName();
+      assertEquals("REGION", nameBefore);
+
+      FieldRef timeSeries = new FieldRef("REGION", "dimension", null, null, null, null, null,
+                                         null, null, null, null, null, Boolean.TRUE, null);
+
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setMeasureField(
+         model, "color", timeSeries, null, null, null, AestheticChannels.FRAME_CHANNELS, "all"));
+
+      assertSame(m1, ChartAestheticMutator.measureField(model, "color", 0));
+      assertSame(dataBefore, m1.getDataInfo(), "M1's data is put back, not left rebound");
+      assertSame(frameBefore, m1.getFrame());
+      assertEquals(nameBefore, m1.getFullName());
+      assertNull(ChartAestheticMutator.measureField(model, "color", 1),
+                 "M2 was never bound");
+   }
+
+   /**
+    * A running total whose breakBy passes the pre-write check (it contains a bound column) but
+    * names no dimension exactly, so the runtime drops it: the measure write must still be refused
+    * by the read-back validator, as the chart-level write is.
+    */
+   @Test
+   void aCalculatorTheRuntimeDroppedIsStillRefusedOnAMeasureWrite() throws Exception {
+      Pipeline p = pipeline(true, true);
+      inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo();
+      calc.setAggregate("Sum");
+      calc.setResetLevel(-1);
+      calc.setBreakBy("Month(PHASE)");
+      FieldRef field = new FieldRef("M2", "measure", "Sum", null, null, null, null, null, calc,
+                                    null, null, null, null, null);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> p.service.setField("tok", principal(), "Chart1", "size", field, null, "M1", ""));
+      assertTrue(e.getMessage().contains("calculateInfo.breakBy"), e.getMessage());
+   }
+
+   @Test
+   void theCalculatorValidatorReadsTheGivenRefNotTheChartLevelSlot() {
+      VSAestheticRef dropped = new VSAestheticRef();
+      VSChartAggregateRef aggregate = measure("M2");
+      aggregate.setCalculator(new inetsoft.report.composition.graph.calc.RunningTotalCalc());
+      dropped.setDataRef(aggregate);
+      inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo();
+      calc.setBreakBy("Month(PHASE)");
+      FieldRef field = new FieldRef("M2", "measure", "Sum", null, null, null, null, null, calc,
+                                    null, null, null, null, null);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingService.requireAestheticCalculatorResolvedOn(
+            new DefaultVSChartInfo(), dropped, field));
+      assertDoesNotThrow(() -> ChartBindingService.requireAestheticCalculatorResolvedOn(
+         new DefaultVSChartInfo(), null, field));
+   }
+
    private static String fieldName(ChartRef ref, String channel) {
       ChartBindable bindable = (ChartBindable) ref;
       AestheticRef field = switch(channel) {
@@ -412,6 +488,14 @@ class ChartAestheticMeasureFieldTest {
     * change-ref service's write is its {@code updateAssembly}.
     */
    private static Pipeline pipeline(boolean multi) throws Exception {
+      return pipeline(multi, false);
+   }
+
+   /**
+    * @param dropBreakBy simulates {@code ChangeChartProcessor} clearing a calculator's dimension
+    *        reference it cannot match, on every aesthetic field of every measure, after the write.
+    */
+   private static Pipeline pipeline(boolean multi, boolean dropBreakBy) throws Exception {
       VSChartBindingFactory factory = realVSChartBindingFactory();
 
       Viewsheet vs = new Viewsheet();
@@ -442,6 +526,27 @@ class ChartAestheticMeasureFieldTest {
       doAnswer(invocation -> {
          ChangeChartRefEvent event = invocation.getArgument(1);
          factory.updateAssembly(event.getModel(), chart);
+
+         if(dropBreakBy) {
+            for(ChartAggregateRef aggregate :
+               ((DefaultVSChartInfo) chart.getVSChartInfo()).getAestheticAggregateRefs(false))
+            {
+               for(AestheticRef field : List.of(
+                  aggregate instanceof ChartBindable b && b.getColorField() != null
+                     ? b.getColorField() : new VSAestheticRef(),
+                  aggregate instanceof ChartBindable b2 && b2.getSizeField() != null
+                     ? b2.getSizeField() : new VSAestheticRef()))
+               {
+                  if(field.getDataRef() instanceof inetsoft.uql.viewsheet.XAggregateRef xa &&
+                     xa.getCalculator() instanceof
+                        inetsoft.report.composition.graph.calc.RunningTotalCalc rt)
+                  {
+                     rt.setBreakBy(null);
+                  }
+               }
+            }
+         }
+
          return null;
       }).when(aesthetics).changeChartAesthetic(any(), any(), any(), any(), any());
 
