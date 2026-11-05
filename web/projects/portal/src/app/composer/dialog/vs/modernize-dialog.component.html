@@ -1,0 +1,91 @@
+<modal-header [title]="'_#(composer.vs.modernize.dialog.title)'" (onCancel)="cancel()">
+</modal-header>
+@if (model && saveAs) {
+  <div class="modal-body modernize-dialog">
+    <fieldset>
+      <legend class="visually-hidden">_#(composer.vs.modernize.dialog.title)</legend>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" id="modernize-keep" name="modernize-choice"
+               value="keep" [checked]="choice === 'keep'" [disabled]="!model.keepAvailable"
+               aria-describedby="modernize-keep-desc" (change)="selectChoice('keep')">
+        <label class="form-check-label" for="modernize-keep">_#(composer.vs.modernize.keep)</label>
+        <div class="form-text" id="modernize-keep-desc">
+          @if (model.keepAvailable) {
+            _#(composer.vs.modernize.keep.description)
+          }
+          @else {
+            _#(composer.vs.modernize.keep.none)
+          }
+        </div>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" id="modernize-reset" name="modernize-choice"
+               value="reset" [checked]="choice === 'reset'" [disabled]="model.neverSaved"
+               aria-describedby="modernize-reset-desc" (change)="selectChoice('reset')">
+        <label class="form-check-label" for="modernize-reset">_#(composer.vs.modernize.reset)</label>
+        <div class="form-text" id="modernize-reset-desc">
+          @if (model.neverSaved) {
+            _#(composer.vs.modernize.reset.neverSaved)
+          }
+          @else {
+            _#(composer.vs.modernize.reset.description)
+          }
+        </div>
+      </div>
+    </fieldset>
+    @if (choice === 'reset') {
+      <div class="modernize-reset-details">
+        <div class="form-floating">
+          <input class="form-control" type="text" id="modernize-save-as" trim
+                 [formControl]="saveAs" defaultFocus [autoSelect]="true"
+                 [class.is-invalid]="nameInvalid" [attr.aria-invalid]="nameInvalid"
+                 aria-describedby="modernize-save-as-error">
+          <label for="modernize-save-as">_#(composer.vs.modernize.saveAs)</label>
+          <div id="modernize-save-as-error" role="alert">
+            @if (saveAs.errors?.['required']) {
+              <span class="invalid-feedback d-block">_#(viewer.nameValid)</span>
+            }
+            @if (saveAs.errors?.['assetNameStartWithCharDigit']) {
+              <span class="invalid-feedback d-block">_#(asset.tree.checkStart)</span>
+            }
+            @else if (saveAs.errors?.['assetEntryBannedCharacters']) {
+              <span class="invalid-feedback d-block">_#(composer.sheet.checkSpeChar)</span>
+            }
+            @if (nameExists) {
+              <span class="invalid-feedback d-block">_#(composer.vs.modernize.nameExists)</span>
+            }
+            @if (permissionDenied) {
+              <span class="invalid-feedback d-block">{{permissionDenied}}</span>
+            }
+            @if (invalidName) {
+              <span class="invalid-feedback d-block">{{invalidName}}</span>
+            }
+          </div>
+        </div>
+        <p class="modernize-note">_#(composer.vs.modernize.links)</p>
+        @if (modified) {
+          <p class="modernize-note modernize-unsaved">_#(composer.vs.modernize.unsaved)</p>
+        }
+        @if (model.embedsDashboards) {
+          <p class="modernize-note">_#(composer.vs.modernize.embedded)</p>
+        }
+        @if (model.scriptWarning) {
+          <p class="modernize-note modernize-script-warning">{{model.scriptWarning}}</p>
+        }
+      </div>
+    }
+  </div>
+}
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!canCommit">
+    @if (choice === 'keep') {
+      _#(composer.vs.modernize.action)
+    }
+    @else {
+      _#(composer.vs.modernize.createCopy)
+    }
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
+    _#(Cancel)
+  </button>
+</div>
