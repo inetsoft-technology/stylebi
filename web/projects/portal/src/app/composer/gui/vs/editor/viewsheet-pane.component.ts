@@ -29,6 +29,7 @@ import {
    OnInit,
    Output,
    Renderer2,
+   TemplateRef,
    ViewChild
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
@@ -118,6 +119,8 @@ import { PlaceholderDragElementModel } from "../../../../widget/placeholder-drag
 import { DebounceService } from "../../../../widget/services/debounce.service";
 import { DragService } from "../../../../widget/services/drag.service";
 import { FontService } from "../../../../widget/services/font.service";
+import { ModernizeDialogModel, ModernizeDialogResult } from "../../../data/vs/modernize-dialog-model";
+import { ModernizeDialogComponent } from "../../../dialog/vs/modernize-dialog.component";
 import { ModelService } from "../../../../widget/services/model.service";
 import { ScaleService } from "../../../../widget/services/scale/scale-service";
 import {
@@ -203,7 +206,7 @@ const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
         },
         ChatService
     ],
-    imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent, CustomSelectComponent, ModernizeBarComponent]
+    imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent, CustomSelectComponent, ModernizeBarComponent, ModernizeDialogComponent]
 })
 export class VSPane extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    _vs: Viewsheet;
@@ -269,6 +272,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    @ViewChild(InteractContainerDirective) interactContainer: InteractContainerDirective;
    @ViewChild("notifications") notifications: NotificationsComponent;
    @ViewChild("consoleDialog") consoleDialog: ConsoleDialogComponent;
+   @ViewChild("modernizeDialog") modernizeDialog: TemplateRef<any>;
+   modernizeDialogModel: ModernizeDialogModel;
+   modernizeDialogModified = false;
+   private modernizeDialogOpening = false;
    variableInputDialogModel: VariableInputDialogModel;
    placeholderDragElementModel: PlaceholderDragElementModel = <PlaceholderDragElementModel> {
       top: 0,
@@ -419,11 +426,12 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          },
          {
             id: () => "composer vspane modernize",
-            label: () => "_#(js:composer.vs.modernize.menu)",
+            label: () => "_#(js:composer.vs.modernize.menu)...",
             icon: () => "star-icon",
             enabled: () => true,
-            visible: () => this.vs.modernizable && !this.deployed,
-            action: () => this.modernize()
+            visible: () => this.vs.modernizeAvailable && !this.deployed &&
+               (this.vs.modernizable || !this.vs.newSheet),
+            action: () => this.openModernizeDialog()
          },
          {
             id: () => "composer vspane revert",
@@ -837,6 +845,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.snapGrid = command.info["snapGrid"];
       this.vs.modernizable = !!command.info["modernizable"];
       this.vs.revertable = !!command.info["revertable"];
+      this.vs.modernizeAvailable = !!command.info["modernizeAvailable"];
+      this.vs.modernCopyOf = command.info["modernCopyOf"] ?? null;
       this.hasScript = command.hasScript;
       this.hideNotifications = !!command.hideNotifications;
       this.refreshStatus();
@@ -1748,6 +1758,44 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.modernizeBarDismissed = true;
    }
 
+   openModernizeDialog(): void {
+      if(this.modernizeDialogOpening) {
+         return;
+      }
+
+      this.modernizeDialogOpening = true;
+      const runtimeId = this.vs.runtimeId;
+      this.modelService.getModel<ModernizeDialogModel>(
+         "../api/composer/vs/modernize-dialog-model/" + Tool.byteEncode(runtimeId))
+         .subscribe({
+            next: (model) => {
+               try {
+                  this.modernizeDialogModel = model;
+                  this.modernizeDialogModified = this.vs.isModified();
+                  this.modalService.open(this.modernizeDialog, {backdrop: "static"}).result.then(
+                     (result: ModernizeDialogResult) => {
+                        this.modernizeDialogOpening = false;
+
+                        if(result.choice === "copy") {
+                           this.vs.socketConnection.sendEvent(
+                              "/events/composer/viewsheet/modernize-copy", {name: result.name});
+                        }
+                        else {
+                           this.modernize();
+                        }
+                     },
+                     () => this.modernizeDialogOpening = false);
+               }
+               catch(e) {
+                  this.modernizeDialogOpening = false;
+                  console.error(e);
+               }
+            },
+            // getModel already reports the failure
+            error: () => this.modernizeDialogOpening = false
+         });
+   }
+
    modernize(): void {
       // hide both affordances at once: a second press before the refresh lands would reach the
       // endpoint with nothing to do, and @Undoable would still checkpoint it
@@ -1785,7 +1833,11 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    }
 
    revert(): Promise<void> {
-      return this.confirm("_#(js:composer.vs.revert.confirm)").then((ok: boolean) => {
+      const text = this.vs.modernCopyOf
+         ? Tool.formatCatalogString("_#(js:composer.vs.revert.confirmCopy)", [this.vs.modernCopyOf])
+         : "_#(js:composer.vs.revert.confirm)";
+
+      return this.confirm(text).then((ok: boolean) => {
          if(!ok) {
             return;
          }

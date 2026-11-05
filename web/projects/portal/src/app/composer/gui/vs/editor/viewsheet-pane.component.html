@@ -40,7 +40,7 @@
     </modernize-bar>
   } @else if (modernizeOffered) {
     <modernize-bar [message]="modernizeMessage"
-      (onModernize)="modernize()" (onDismiss)="dismissModernize()">
+      (onModernize)="openModernizeDialog()" (onDismiss)="dismissModernize()">
     </modernize-bar>
   }
   @if (vs) {
@@ -232,6 +232,13 @@
 <ng-template #variableInputDialog let-close="close" let-dismiss="dismiss">
   <variable-input-dialog [model]="variableInputDialogModel" [enterParameters]="initialParametersCollect"
   (onCommit)="close($event)" (onCancel)="dismiss($event)"></variable-input-dialog>
+</ng-template>
+
+<ng-template #modernizeDialog let-close="close" let-dismiss="dismiss">
+  <modernize-dialog [model]="modernizeDialogModel" [runtimeId]="vs?.runtimeId"
+    [modified]="modernizeDialogModified"
+    (onCommit)="close($event)" (onCancel)="dismiss()">
+  </modernize-dialog>
 </ng-template>
 
 <ng-template #consoleDialog let-close="close" let-dismiss="dismiss">

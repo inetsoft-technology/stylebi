@@ -56,6 +56,10 @@ export class Viewsheet extends Sheet {
    modernizeBarDismissed: boolean = false;
    /** Server-computed: this sheet holds marked content. No gate term, unlike modernizable. */
    revertable: boolean = false;
+   /** Server-computed: the org gate for modernizing is on. */
+   modernizeAvailable: boolean = false;
+   /** Server-computed: path of the original when this sheet is a modern copy the user can read. */
+   modernCopyOf: string = null;
 
    private removeAssemblySubject: Subject<string> = new Subject<string>();
    private layoutChangeSubject: Subject<any> = new Subject<any>();

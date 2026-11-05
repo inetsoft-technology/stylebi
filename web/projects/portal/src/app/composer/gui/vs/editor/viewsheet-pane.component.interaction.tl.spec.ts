@@ -64,6 +64,9 @@ import { VSLayoutModel } from "../../../data/vs/vs-layout-model";
 import { UIContextService } from "../../../../common/services/ui-context.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { By } from "@angular/platform-browser";
+import { of, Subject, throwError } from "rxjs";
+import { Tool } from "../../../../../../../shared/util/tool";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -258,28 +261,189 @@ describe("VSPane — processSetViewsheetInfoCommand", () => {
       expect(comp.vs.modernizable).toBe(false);
    });
 
-   it("should offer Modernize in the canvas menu only where there is unmarked content", async () => {
+   const modernizeEntry = (comp: any) => comp.menuActions
+      .reduce((all: any[], group: any) => all.concat(group.actions), [])
+      .find((action: any) => action.id() === "composer vspane modernize");
+
+   it("shows Modernize... whenever modernization is available, even with nothing unmarked", async () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
-      const entry = comp.menuActions
-         .reduce((all, group) => all.concat(group.actions), [])
-         .find(action => action.id() === "composer vspane modernize");
-
+      comp.vs.modernizeAvailable = true;
       comp.vs.modernizable = false;
+      comp.vs.newSheet = false;
+
+      const entry = modernizeEntry(comp);
+
+      expect(entry.label()).toBe("_#(js:composer.vs.modernize.menu)...");
+      expect(entry.visible()).toBe(true);
+   });
+
+   it("hides Modernize... when deployed or unavailable", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.modernizable = true;
+      comp.vs.modernizeAvailable = false;
+      const entry = modernizeEntry(comp);
+
       expect(entry.visible()).toBe(false);
 
+      comp.vs.modernizeAvailable = true;
+      comp.deployed = true;
+      expect(entry.visible()).toBe(false);
+   });
+
+   it("hides Modernize... when the sheet is fully modern and never saved", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.modernizeAvailable = true;
+      comp.vs.modernizable = false;
+      comp.vs.newSheet = true;
+
+      expect(modernizeEntry(comp).visible()).toBe(false);
+   });
+
+   it("opens the dialog from the bar", async () => {
+      const mocks = makeMocks();
+      const { comp, fixture } = await renderComponent(mocks);
+      const spy = vi.spyOn(comp, "openModernizeDialog").mockImplementation(() => {});
       comp.vs.modernizable = true;
-      expect(entry.visible()).toBe(true);
+      comp.vs.modernizeBarDismissed = false;
+      comp.deployed = false;
+      fixture.detectChanges();
+
+      fixture.debugElement.query(By.css("modernize-bar")).triggerEventHandler("onModernize");
+
+      expect(spy).toHaveBeenCalled();
+   });
+
+   const openWith = async (result: any) => {
+      const mocks = makeMocks();
+      mocks.modelService.getModel.mockReturnValue(of({ keepAvailable: true }));
+      mocks.modalService.open.mockReturnValue({ result: Promise.resolve(result) });
+      const { comp } = await renderComponent(mocks);
+      comp.vs.runtimeId = "rt 1";
+      comp.vs.modernizable = true;
+      comp.openModernizeDialog();
+      return { mocks, comp };
+   };
+
+   it("sends the modernize event for keep", async () => {
+      const { mocks } = await openWith({ choice: "keep" });
+
+      await vi.waitFor(() => expect(mocks.vsClient.sendEvent).toHaveBeenCalledWith(
+         "/events/composer/viewsheet/modernize"));
+      expect(mocks.modelService.getModel).toHaveBeenCalledWith(
+         "../api/composer/vs/modernize-dialog-model/" + Tool.byteEncode("rt 1"));
+   });
+
+   it("sends the copy event with the name", async () => {
+      const { mocks } = await openWith({ choice: "copy", name: "S (modern)" });
+
+      await vi.waitFor(() => expect(mocks.vsClient.sendEvent).toHaveBeenCalledWith(
+         "/events/composer/viewsheet/modernize-copy", { name: "S (modern)" }));
+   });
+
+   it("sends nothing when the dialog is cancelled", async () => {
+      const mocks = makeMocks();
+      mocks.modelService.getModel.mockReturnValue(of({ keepAvailable: true }));
+      const { comp } = await renderComponent(mocks);
+
+      comp.openModernizeDialog();
+      await vi.waitFor(() => expect(mocks.modalService.open).toHaveBeenCalled());
+      await Promise.resolve();
+
+      expect(mocks.vsClient.sendEvent).not.toHaveBeenCalledWith(
+         "/events/composer/viewsheet/modernize");
+   });
+
+   it("opens only one dialog when pressed twice before the model arrives", async () => {
+      const mocks = makeMocks();
+      const model = new Subject<any>();
+      mocks.modelService.getModel.mockReturnValue(model);
+      const { comp } = await renderComponent(mocks);
+
+      comp.openModernizeDialog();
+      comp.openModernizeDialog();
+      model.next({ keepAvailable: true });
+
+      expect(mocks.modelService.getModel).toHaveBeenCalledTimes(1);
+      expect(mocks.modalService.open).toHaveBeenCalledTimes(1);
+   });
+
+   it("clears the guard when the model fetch fails", async () => {
+      const mocks = makeMocks();
+      mocks.modelService.getModel.mockReturnValueOnce(throwError(() => "boom"));
+      const { comp } = await renderComponent(mocks);
+
+      comp.openModernizeDialog();
+
+      expect(mocks.modalService.open).not.toHaveBeenCalled();
+
+      mocks.modelService.getModel.mockReturnValue(of({ keepAvailable: true }));
+      comp.openModernizeDialog();
+
+      expect(mocks.modalService.open).toHaveBeenCalledTimes(1);
+   });
+
+   it("clears the guard when opening the modal throws", async () => {
+      const mocks = makeMocks();
+      mocks.modelService.getModel.mockReturnValue(of({ keepAvailable: true }));
+      mocks.modalService.open.mockImplementationOnce(() => { throw new Error("open failed"); });
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { comp } = await renderComponent(mocks);
+
+      comp.openModernizeDialog();
+      comp.openModernizeDialog();
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.objectContaining({ message: "open failed" }));
+      expect(mocks.modelService.getModel).toHaveBeenCalledTimes(2);
+      expect(mocks.modalService.open).toHaveBeenCalledTimes(2);
+   });
+
+   it("uses the copy wording in Revert's confirm on a copy", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      comp.vs.revertable = true;
+      comp.vs.modernCopyOf = "A/B";
+      const confirmSpy = vi.spyOn<any, any>(comp, "confirm").mockResolvedValue(false);
+      const formatSpy = vi.spyOn(Tool, "formatCatalogString").mockReturnValue("copy wording A/B");
+
+      await comp.revert();
+
+      expect(formatSpy).toHaveBeenCalledWith("_#(js:composer.vs.revert.confirmCopy)", ["A/B"]);
+      expect(confirmSpy).toHaveBeenCalledWith("copy wording A/B");
+   });
+
+   it("stores the modernizeAvailable and modernCopyOf info keys", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+
+      mocks.dispatchCommand("SetViewsheetInfoCommand", {
+         assemblyInfo: { name: "VS" },
+         layouts: [],
+         baseEntry: null,
+         info: { viewsheetBackground: "#ffffff", statusText: null, snapGrid: 20,
+                 templateWidth: 0, templateHeight: 0, templateEnabled: false, metadata: false,
+                 messageLevels: null, modernizeAvailable: true, modernCopyOf: "A/B" },
+         linkUri: null,
+         hasScript: false,
+         hideNotifications: false,
+         annotation: false,
+         annotated: false,
+         formTable: false,
+      });
+
+      expect(comp.vs.modernizeAvailable).toBe(true);
+      expect(comp.vs.modernCopyOf).toBe("A/B");
    });
 
    it("should keep the menu entry after the bar is dismissed", async () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
       comp.vs.modernizable = true;
+      comp.vs.modernizeAvailable = true;
       comp.vs.modernizeBarDismissed = true;
-      const entry = comp.menuActions
-         .reduce((all, group) => all.concat(group.actions), [])
-         .find(action => action.id() === "composer vspane modernize");
+      const entry = modernizeEntry(comp);
 
       expect(entry.visible()).toBe(true);
       expect(comp.modernizeOffered).toBe(false);
@@ -289,6 +453,8 @@ describe("VSPane — processSetViewsheetInfoCommand", () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
       comp.vs.modernizable = true;
+      comp.vs.modernizeAvailable = true;
+      comp.vs.newSheet = true;
 
       comp.modernize();
 
