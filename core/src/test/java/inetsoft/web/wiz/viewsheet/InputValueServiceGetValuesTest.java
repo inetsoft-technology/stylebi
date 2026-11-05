@@ -148,6 +148,7 @@ class InputValueServiceGetValuesTest {
          () -> service().getValues("tok", null, List.of("Nope")));
 
       assertTrue(ex.getMessage().contains("'Nope'"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("endpoint"), ex.getMessage());
    }
 
    @Test

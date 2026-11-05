@@ -102,7 +102,7 @@ public class InputValueService {
       final Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         InputVSAssembly assembly = requireInput(rvs, assemblyName);
+         InputVSAssembly assembly = requireInput(rvs, assemblyName, false);
          boolean multi = assembly instanceof CheckBoxVSAssembly;
 
          if(!multi && values.size() > 1) {
@@ -195,7 +195,7 @@ public class InputValueService {
          }
          else {
             for(String name : names) {
-               inputsToRead.add(requireInput(rvs, name));
+               inputsToRead.add(requireInput(rvs, name, true));
             }
          }
 
@@ -603,14 +603,18 @@ public class InputValueService {
          ? String.valueOf((long) value) : String.valueOf(value);
    }
 
-   private static InputVSAssembly requireInput(RuntimeViewsheet rvs, String assemblyName) {
+   private static InputVSAssembly requireInput(RuntimeViewsheet rvs, String assemblyName,
+                                               boolean read)
+   {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
       if(assembly == null) {
          throw new IllegalArgumentException(
-            "Unknown assembly '" + assemblyName + "'. The input endpoint returns success and " +
-            "changes nothing for a name it cannot find, so this is refused here instead.");
+            "Unknown assembly '" + assemblyName + "'." + (read
+               ? " There is no input assembly with that name to read."
+               : " The input endpoint returns success and changes nothing for a name it cannot " +
+                  "find, so this is refused here instead."));
       }
 
       if(!(assembly instanceof InputVSAssembly input)) {
