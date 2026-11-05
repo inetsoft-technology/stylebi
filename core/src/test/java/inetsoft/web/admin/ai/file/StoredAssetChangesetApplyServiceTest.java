@@ -443,6 +443,40 @@ class StoredAssetChangesetApplyServiceTest {
       assertFalse(folders.contains("target-folder"));
    }
 
+   /**
+    * Entry 1's rename is written; entry 2's create then hits its own apply-time pre-mutation guard
+    * because "late-folder" appeared after the plan was resolved (a concurrent actor). Entry 2's
+    * mutating call never ran, so entry 1's verified undo must yield STATUS_ROLLED_BACK, not
+    * STATUS_ROLLBACK_FAILED.
+    */
+   @Test void appliesRollsBackCleanlyWhenALaterCreateThrowsFromItsOwnPreMutationGuard() throws Exception {
+      folders.add("old-folder");
+      StoredAssetChangeRequest rename =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_RENAME, "old-folder");
+      rename.setNewName("renamed-folder");
+      StoredAssetChangeRequest create =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "late-folder");
+      String hash = planService.resolve(request(rename, create), user).planHash();
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, rename, create);
+
+      // exists(late-folder): call 1 is apply's re-resolve (still free); from call 2 on --
+      // applyCreate's own guard -- the folder is there.
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      lenient().when(dataSpace.exists(isNull(), eq("late-folder")))
+         .thenAnswer(inv -> calls.incrementAndGet() >= 2);
+
+      StoredAssetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertTrue(folders.contains("old-folder"));
+      assertFalse(folders.contains("renamed-folder"));
+   }
+
    @Test void reportsRollbackFailedWhenAnUndoItselfFails() throws Exception {
       StoredAssetChangeRequest create =
          change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "new-folder");

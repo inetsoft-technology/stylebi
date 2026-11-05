@@ -1076,8 +1076,7 @@ class ViewsheetChangePlanServiceTest {
          () -> service.resolve(request("task", List.of(
             deleteFolderChange("Examples/G", null),
             renameFolderChange("Examples/A", "Examples/G", null))), user));
-      assertTrue(ex.getMessage().contains(".newPath") || ex.getMessage().contains("duplicate"),
-                 ex.getMessage());
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
    }
 
    // -------------------------------------------------------------------------
