@@ -299,7 +299,13 @@ public final class PropertyAliases {
       // lexical connection to the Composer's own caption for the checkbox --
       // text-pane.component.html's `_#(Embed content from URL)` -- the same category of gap
       // "primary" fixed above.
-      "embedUrl", "Embed content from URL");
+      "embedUrl", "Embed content from URL",
+      // DataOutputPaneModel.num: the N of Nth*/the P of PthPercentile, captioned "N/P" in
+      // data-output-pane (bug #80464). Not lexically related to "num".
+      "nthOperand", "N/P",
+      // dataInputPaneModel.table: the write-back "Target" tree of data-input-pane, as opposed to
+      // the list's own "table" query (bug #80464).
+      "writeBackTable", "Target");
 
    /**
     * Where a property's caption is itself model state rather than a fixed string, keyed by the
@@ -1400,9 +1406,10 @@ public final class PropertyAliases {
     * declared per caller rather than assumed from the shape the other two parameters share.
     *
     * <p>{@code checkBox} marks the one list type whose Composer dialog differs on the Data pane
-    * and the list-values pane (Redmine #80464): it shows only the write-back Target (no Column,
-    * Row or Write Back to Storage -- the {@code dataInputPaneModel} column/row/writeBackDirectly
-    * fields are refused for it, bug #78579) and is the only one with Select First Item.
+    * and the list-values pane (Redmine #80464): it has no write-back Column, Row or Write Back to
+    * Storage (the {@code dataInputPaneModel} column/row/writeBackDirectly fields are refused for
+    * it, bug #78579), its Target is variables-only so no write-back alias is registered for it,
+    * and it is the only one with Select First Item.
     */
    private static Map<String, String> listInput(String prefix, boolean hasTitle,
                                                  boolean hasInputLabel, boolean checkBox)
@@ -1436,10 +1443,11 @@ public final class PropertyAliases {
       }
 
       // Write-back target. Named writeBack* because the plain "table"/"column" aliases below
-      // are the list's own query. Check box: Target only (see the javadoc).
-      aliases.put("writeBackTable", "dataInputPaneModel.table");
-
+      // are the list's own query. The check box is excluded entirely: its Target tree offers
+      // variables only (VSInputService passes onlyVars=true), so a plain table name would be a
+      // dead write; writeBackTable on a check box needs a variables-only guard (bug #80464 PR3).
       if(!checkBox) {
+         aliases.put("writeBackTable", "dataInputPaneModel.table");
          aliases.put("writeBackColumn", "dataInputPaneModel.columnValue");
          aliases.put("writeBackRow", "dataInputPaneModel.rowValue");
          aliases.put("writeBackDirectly", "dataInputPaneModel.writeBackDirectly");
@@ -1512,8 +1520,6 @@ public final class PropertyAliases {
       aliases.put("placeholderText", "textInputGeneralPaneModel.toolTip");
       aliases.put("defaultText", "textInputGeneralPaneModel.defaultText");
       aliases.put("insetStyle", "textInputGeneralPaneModel.insetStyle");
-      // The Input Control select; applied unconditionally by setTextInputPropertyDialogModel.
-      aliases.put("inputControl", "textInputColumnOptionPaneModel.type");
       dataInput(aliases);
       return aliases;
    }

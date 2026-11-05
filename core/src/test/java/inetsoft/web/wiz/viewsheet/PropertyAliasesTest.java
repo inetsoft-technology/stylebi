@@ -2042,10 +2042,10 @@ class PropertyAliasesTest {
          "slider", "dataInputPaneModel.writeBackDirectly",
          "radiobutton", "dataInputPaneModel.writeBackDirectly",
          "combobox", "dataInputPaneModel.writeBackDirectly")),
-      // the write-back Target is shown for the check box too; Column and Row are not
+      // the check box is excluded: its Target tree is variables-only (VSInputService onlyVars),
+      // so the alias waits for a variables-only guard
       new AliasCase("writeBackTable", "T1", paths(
-         "checkbox", "dataInputPaneModel.table", "radiobutton", "dataInputPaneModel.table",
-         "combobox", "dataInputPaneModel.table")),
+         "radiobutton", "dataInputPaneModel.table", "combobox", "dataInputPaneModel.table")),
       new AliasCase("writeBackColumn", "c1", paths(
          "radiobutton", "dataInputPaneModel.columnValue",
          "combobox", "dataInputPaneModel.columnValue")),
@@ -2059,8 +2059,6 @@ class PropertyAliasesTest {
          "textinput", "textInputGeneralPaneModel.defaultText")),
       new AliasCase("insetStyle", true, paths(
          "textinput", "textInputGeneralPaneModel.insetStyle")),
-      new AliasCase("inputControl", "Date", paths(
-         "textinput", "textInputColumnOptionPaneModel.type")),
       // list values pane
       new AliasCase("dataType", "integer", paths(
          "checkbox", CHECKBOX + LIST_EDITOR, "combobox", COMBOBOX + LIST_EDITOR,
@@ -2099,7 +2097,7 @@ class PropertyAliasesTest {
          }
       }
 
-      assertTrue(checked >= 53, "checked " + checked);
+      assertEquals(51, checked);
    }
 
    /**
@@ -2160,18 +2158,18 @@ class PropertyAliasesTest {
    }
 
    /**
-    * The check box applies only the write-back Target (VSInputService:650-660). Column, Row and
-    * Write Back to Storage are hidden by the dialog and refused by bug #78579's guard, so they
-    * must never be advertised on it.
+    * The check box has no write-back Column, Row or Write Back to Storage (hidden by the dialog,
+    * refused by bug #78579's guard), and its Target tree is variables-only
+    * (VSInputService.java:592), so a plain table name written through {@code writeBackTable}
+    * would be a dead write. None of the four is advertised on it until the variables-only guard
+    * lands (bug #80464 PR3).
     */
    @Test
-   void checkboxAdvertisesTheWriteBackTargetButNotColumnRowOrWriteBack() {
+   void checkboxAdvertisesNoWriteBackAlias() {
       Map<String, String> aliases = PropertyAliases.forType("checkbox").aliases();
 
-      assertEquals("dataInputPaneModel.table", aliases.get("writeBackTable"));
-
-      for(String dead : List.of("writeBackColumn", "writeBackRow", "writeBackDirectly",
-                                "columnValue", "rowValue"))
+      for(String dead : List.of("writeBackTable", "writeBackColumn", "writeBackRow",
+                                "writeBackDirectly", "columnValue", "rowValue"))
       {
          assertFalse(aliases.containsKey(dead), dead);
       }
@@ -2180,14 +2178,14 @@ class PropertyAliasesTest {
    /**
     * Names deliberately NOT registered: {@code noDefault} is never read by VSInputService (the
     * Composer just clears the default value), and the rest belong to later parts of bug #80464
-    * (combobox-only fields need DEAD_FIELDS entries; multiLine and the static items need new
-    * validation). Registering one here would be the "exposes but does nothing" trap or would
+    * (combobox-only fields need DEAD_FIELDS entries; multiLine, inputControl (an unrecognised
+    * type is silently dropped) and the static items need new validation). Registering one here would be the "exposes but does nothing" trap or would
     * ship before its guard.
     */
    @Test
    void deferredOrDeadNamesAreNotRegisteredOnAnyInputOrOutputType() {
       for(String type : FORM_OUTPUT_TYPES) {
-         for(String name : List.of("noDefault", "multiLine", "editable", "queryDateFormat",
+         for(String name : List.of("noDefault", "multiLine", "inputControl", "editable", "queryDateFormat",
                                    "dateFormatPattern", "calendar", "serverTZ", "minDate",
                                    "maxDate", "defaultValue", "staticLabels", "staticValues"))
          {
@@ -2206,6 +2204,52 @@ class PropertyAliasesTest {
                         entry.getKey() + " " + entry.getValue());
          }
       }
+   }
+
+   /**
+    * The new aliases land on paths that existing guards key on, so those guards fire for the
+    * short name too (they are judged on the resolved path, not the caller's key). The labelGap
+    * range check and the list sortType domain are driven here directly; the Image popComponent
+    * reference check is pinned by its registered suffix, because it needs a live viewsheet to
+    * run end to end.
+    */
+   @Test
+   void existingGuardsFireThroughTheNewAliases() throws Exception {
+      for(String type : List.of("combobox", "slider", "spinner", "textinput")) {
+         String path = PropertyAliases.resolveForWrite(type, "labelGap");
+         assertThrows(IllegalArgumentException.class,
+                      () -> AssemblyPropertyService.requireLabelGapInRange("labelGap", path, 5000),
+                      type);
+         assertDoesNotThrow(
+            () -> AssemblyPropertyService.requireLabelGapInRange("labelGap", path, 12), type);
+      }
+
+      Method canonical = AssemblyPropertyService.class.getDeclaredMethod(
+         "canonicalIntEnum", String.class, String.class, Object.class);
+      canonical.setAccessible(true);
+
+      for(String type : List.of("checkbox", "combobox", "radiobutton")) {
+         String path = PropertyAliases.resolveForWrite(type, "sortType");
+         assertEquals(2, canonical.invoke(null, type, path, "descending"), type);
+         java.lang.reflect.InvocationTargetException thrown = assertThrows(
+            java.lang.reflect.InvocationTargetException.class,
+            () -> canonical.invoke(null, type, path, "bogus"), type);
+         assertInstanceOf(IllegalArgumentException.class, thrown.getCause(), type);
+      }
+
+      java.lang.reflect.Field fields =
+         AssemblyPropertyService.class.getDeclaredField("REFERENCE_FIELDS");
+      fields.setAccessible(true);
+      String imagePop = PropertyAliases.resolveForWrite("image", "popComponent");
+      boolean covered = false;
+
+      for(Object field : (List<?>) fields.get(null)) {
+         Method suffix = field.getClass().getDeclaredMethod("suffix");
+         suffix.setAccessible(true);
+         covered |= imagePop.endsWith((String) suffix.invoke(field));
+      }
+
+      assertTrue(covered, imagePop);
    }
 
    /**
