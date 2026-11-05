@@ -1041,15 +1041,27 @@ public final class MVManager implements MessageListener {
     * Add one mv.
     */
    public void add(MVDef mv, boolean event) {
+      add(mv, event, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Add one mv to an explicitly supplied organization. Callers that run off the request thread
+    * have no context principal, so the current organization would fall back to the host
+    * organization.
+    */
+   public void add(MVDef mv, boolean event, String orgID) {
       if(mv == null) {
          return;
       }
 
+      final String org =
+         orgID == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgID;
+
       try {
-         mvs.put(mv.getName(), mv);
+         OrganizationManager.runInOrgScope(org, () -> mvs.put(mv.getName(), mv, org));
 
          if(event) {
-            fireEvent("mvmanager_" + mv.getName(), MV_CHANGE_EVENT, null, null);
+            fireEvent("mvmanager_" + mv.getName(), MV_CHANGE_EVENT, null, null, org);
          }
       }
       catch(Exception e) {
@@ -1629,8 +1641,11 @@ public final class MVManager implements MessageListener {
     * Fire property change event.
     */
    public void fireEvent(String src, String name, Object oval, Object nval) {
+      fireEvent(src, name, oval, nval, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public void fireEvent(String src, String name, Object oval, Object nval, String orgId) {
       try {
-         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
          cluster.sendMessage(
             new MVChangedMessage(Util.getOrgEventSourceID(src, orgId), name, oval, nval));
       }
