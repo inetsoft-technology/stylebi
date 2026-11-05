@@ -328,6 +328,118 @@ class ConditionTest {
       assertFalse(cond.evaluate(9));
    }
 
+   // ---- ONE_OF on integer-family columns whose stored values are Strings (bug #80356) ----------
+
+   private static Condition oneOf(String type, boolean negated, Object... vals) {
+      Condition cond = new Condition(type);
+      cond.setOperation(XCondition.ONE_OF);
+      cond.setNegated(negated);
+
+      for(Object v : vals) {
+         cond.addValue(v);
+      }
+
+      return cond;
+   }
+
+   @Test
+   void oneOf_integerType_stringValues_nineAndTwentyFour_allMatch() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "9", "24");
+      assertTrue(cond.evaluate(9));
+      assertTrue(cond.evaluate(24));
+      assertFalse(cond.evaluate(5));
+      assertFalse(cond.evaluate(7));
+   }
+
+   @Test
+   void oneOf_integerType_stringValues_threeValues_allMatch() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "24", "9", "5");
+      assertTrue(cond.evaluate(24));
+      assertTrue(cond.evaluate(9));
+      assertTrue(cond.evaluate(5));
+      assertFalse(cond.evaluate(7));
+   }
+
+   @Test
+   void oneOf_integerType_stringValues_longerList() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "9", "24", "5", "7", "100", "12");
+
+      for(int i : new int[] { 9, 24, 5, 7, 100, 12 }) {
+         assertTrue(cond.evaluate(i), "expected match for " + i);
+      }
+
+      assertFalse(cond.evaluate(8));
+      assertFalse(cond.evaluate(1));
+   }
+
+   @Test
+   void oneOf_longType_stringValues_allMatch() {
+      Condition cond = oneOf(XSchema.LONG, false, "9", "24");
+      assertTrue(cond.evaluate(9L));
+      assertTrue(cond.evaluate(24L));
+      assertFalse(cond.evaluate(5L));
+   }
+
+   @Test
+   void oneOf_shortType_stringValues_allMatch() {
+      Condition cond = oneOf(XSchema.SHORT, false, "9", "24");
+      assertTrue(cond.evaluate((short) 9));
+      assertTrue(cond.evaluate((short) 24));
+      assertFalse(cond.evaluate((short) 5));
+   }
+
+   @Test
+   void oneOf_integerType_stringValues_negated() {
+      Condition cond = oneOf(XSchema.INTEGER, true, "9", "24");
+      assertFalse(cond.evaluate(9));
+      assertFalse(cond.evaluate(24));
+      assertTrue(cond.evaluate(5));
+   }
+
+   @Test
+   void oneOf_integerType_stringValues_withNonNumericAndEmpty() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "9", "abc", "", "24");
+      assertTrue(cond.evaluate(9));
+      assertTrue(cond.evaluate(24));
+      assertFalse(cond.evaluate(5));
+   }
+
+   @Test
+   void oneOf_integerType_sameConditionProbedRepeatedly() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "9", "24");
+
+      for(int round = 0; round < 3; round++) {
+         assertTrue(cond.evaluate(9));
+         assertTrue(cond.evaluate(24));
+         assertFalse(cond.evaluate(5));
+      }
+   }
+
+   @Test
+   void oneOf_integerType_sameConditionDifferentProbeTypes() {
+      Condition cond = oneOf(XSchema.INTEGER, false, "9", "24");
+      assertTrue(cond.evaluate(9));
+      assertTrue(cond.evaluate(24L));
+      assertTrue(cond.evaluate(9));
+      assertFalse(cond.evaluate(5L));
+   }
+
+   @Test
+   void oneOf_integerType_integerValues_unchanged() {
+      Condition cond = oneOf(XSchema.INTEGER, false, 9, 24);
+      assertTrue(cond.evaluate(9));
+      assertTrue(cond.evaluate(24));
+      assertFalse(cond.evaluate(5));
+   }
+
+   @Test
+   void oneOf_stringType_numericLookingStrings_unchanged() {
+      Condition cond = oneOf(XSchema.STRING, false, "9", "24");
+      assertTrue(cond.evaluate("9"));
+      assertTrue(cond.evaluate("24"));
+      assertFalse(cond.evaluate("5"));
+   }
+
    // ---- STARTING_WITH / CONTAINS / LIKE: wildcard semantics (case-sensitivity is Section 2c) --
 
    @Test
