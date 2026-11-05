@@ -107,7 +107,7 @@ public class ChartRegionPropertyService {
       if("axis".equals(name)) {
          field = resolveAxisField(sessionToken, user, assembly, key, field);
          requireUnambiguousAxis(sessionToken, user, assembly, key, field);
-         requireDrawnAxis(sessionToken, user, assembly, key, field, true);
+         field = requireDrawnAxis(sessionToken, user, assembly, key, field, true);
       }
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
@@ -135,6 +135,14 @@ public class ChartRegionPropertyService {
 
             inapplicable.put("labelOnSecondaryAxis", "No effect on the y axis of a Marimekko " +
                "chart; refused when set to true.");
+         }
+
+         String ignored = labelOnSecondaryAxisIgnoredBy(sessionToken, user, assembly, key,
+                                                        kind.linear());
+
+         if(ignored != null) {
+            inapplicable.putIfAbsent("labelOnSecondaryAxis", "Does not apply to " + ignored +
+               "; refused when set to true.");
          }
       }
 
@@ -285,6 +293,21 @@ public class ChartRegionPropertyService {
          // scale, so these keys would be stored and ignored (bug #80321).
          requireMekkoYAxisKeysHonoured(sessionToken, user, assembly, key, properties);
 
+         // The same applicability list() reports, so the key is never stored and ignored on the
+         // other chart types that never draw it (bug #80354).
+         if(properties.containsKey("labelOnSecondaryAxis") &&
+            isTruthy(properties.get("labelOnSecondaryAxis")))
+         {
+            String ignored = labelOnSecondaryAxisIgnoredBy(sessionToken, user, assembly, key,
+                                                           kind.linear());
+
+            if(ignored != null) {
+               throw new IllegalArgumentException(
+                  "'labelOnSecondaryAxis' does not apply to " + ignored + ", so it cannot take " +
+                  "effect. Omit it. Nothing was changed.");
+            }
+         }
+
          // Whether the axis takes the key at all comes before whether its value parses, so a
          // non-numeric value on an axis that refuses the key gets that reason rather than a
          // "must be a number" that steers the caller into the refusal (bug #79294).
@@ -320,7 +343,7 @@ public class ChartRegionPropertyService {
       // After every value check, which refuse without touching the region service, and with the
       // field as the write will send it (a time axis names its own field above).
       if("axis".equals(name)) {
-         requireDrawnAxis(sessionToken, user, assembly, key, field, false);
+         field = requireDrawnAxis(sessionToken, user, assembly, key, field, false);
       }
 
       Object model = readModel(sessionToken, user, assembly, name, key, field);
@@ -660,24 +683,26 @@ public class ChartRegionPropertyService {
     *
     * @param read true for a read; false for a write.
     */
-   private void requireDrawnAxis(String sessionToken, Principal user, String assembly,
-                                 String axisTarget, String field, boolean read)
+   private String requireDrawnAxis(String sessionToken, Principal user, String assembly,
+                                   String axisTarget, String field, boolean read)
       throws Exception
    {
       boolean blank = field == null || field.isBlank();
 
       if(!read && !blank) {
-         return;
+         return field;
       }
 
-      String hidden = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      // [0] the hidden axis' name, or null; [1] the measure to use for a blank field whose axis
+      // only had its labels moved to the opposite side, or null.
+      String[] drawn = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
          VSChartInfo info = chart.getVSChartInfo();
          ChartArea chartArea = regions.getChartArea(
             rvs, chart, "", rvs.getViewsheet().isMaxMode());
 
          if(chartArea == null) {
-            return null;
+            return new String[2];
          }
 
          AxisArea area = switch(ChartRegionResolver.canonical(axisTarget)) {
@@ -689,22 +714,40 @@ public class ChartRegionPropertyService {
          };
 
          if(area == null || area.getAllAreas().length > 0) {
-            return null;
+            return new String[2];
          }
+
+         boolean max = rvs.getViewsheet().isMaxMode() && chart.getChartInfo() != null &&
+            chart.getChartInfo().getMaxSize() != null;
 
          if(blank) {
             ChartRef[] refs = axisCandidates(info, ChartRegionResolver.canonical(axisTarget));
-            return refs.length > 0 ? refs[0].getFullName() : "";
+
+            // The labels were moved to the opposite side (labelOnSecondaryAxis in a facet or a
+            // date comparison), so the axis is not hidden, only no longer laid out here (bug
+            // #80354). Name the one measure so the handler never indexes the empty area. Only a
+            // single measure: with several, which one a blank field means is the area order.
+            if(refs.length == 1 && refs[0] instanceof ChartAggregateRef) {
+               AxisDescriptor desc = regionHandler.getAxisDescriptor(
+                  info, refs[0].getFullName(), axisType(axisTarget), new AtomicBoolean());
+               boolean shown = max ? desc.isMaxModeLabelVisible() || desc.isMaxModeLineVisible()
+                  : desc.isLabelVisible() || desc.isLineVisible();
+
+               if(desc.isLabelOnSecondaryAxis() && shown) {
+                  return new String[] { null, refs[0].getFullName() };
+               }
+            }
+
+            return new String[] { refs.length > 0 ? refs[0].getFullName() : "", null };
          }
 
          AxisDescriptor desc = regionHandler.getAxisDescriptor(
             info, field, axisType(axisTarget), new AtomicBoolean());
-         boolean max = rvs.getViewsheet().isMaxMode() && chart.getChartInfo() != null &&
-            chart.getChartInfo().getMaxSize() != null;
          boolean off = max ? !desc.isMaxModeLabelVisible() && !desc.isMaxModeLineVisible()
             : !desc.isLabelVisible() && !desc.isLineVisible();
-         return off ? field : null;
+         return new String[] { off ? field : null, null };
       });
+      String hidden = drawn[0];
 
       if(hidden != null) {
          throw new IllegalArgumentException(
@@ -714,6 +757,8 @@ public class ChartRegionPropertyService {
             "first with set_chart_element_visibility {element: 'axis', visible: true} (no target; " +
             "showing restores all axes), then retry.");
       }
+
+      return drawn[1] != null ? drawn[1] : field;
    }
 
    /**
@@ -1139,6 +1184,46 @@ public class ChartRegionPropertyService {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
          return GraphTypes.isMekko(info.getChartType()) ||
             GraphTypes.isMekko(info.getRTChartType());
+      });
+   }
+
+   /**
+    * What the targeted axis is, when {@code labelOnSecondaryAxis} cannot take effect on it, or
+    * null when it can (bug #80354). The renderer never reads the opposite-side bit on a Pareto
+    * measure axis, a radar or a Marimekko chart, and a 3D bar loses the axis when it is set
+    * (#74007). The chart type is checked as the stored and the runtime type, as
+    * {@link #isMekkoChart} does.
+    *
+    * @param linear whether the targeted axis is a measure axis, as {@link AxisKind#linear()}.
+    */
+   private String labelOnSecondaryAxisIgnoredBy(String sessionToken, Principal user,
+                                                String assembly, String axisTarget,
+                                                boolean linear)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+
+         for(int type : new int[] { info.getChartType(), info.getRTChartType() }) {
+            if(GraphTypes.isMekko(type)) {
+               return "a Marimekko chart's axes (they are placed at fixed positions)";
+            }
+
+            if(GraphTypes.isRadar(type)) {
+               return "a radar chart's axes";
+            }
+
+            if(GraphTypes.is3DBar(type)) {
+               return "a 3D bar chart (not supported, the axis disappears)";
+            }
+
+            if(linear && GraphTypes.isPareto(type)) {
+               return "the measure axis of a Pareto chart (the right side is the " +
+                  "cumulative-percentage axis)";
+            }
+         }
+
+         return null;
       });
    }
 
