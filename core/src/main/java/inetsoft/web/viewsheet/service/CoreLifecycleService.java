@@ -52,6 +52,7 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
+import inetsoft.web.composer.vs.controller.ModernCopyProvenance;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.messaging.MessageAttributes;
@@ -316,6 +317,13 @@ public class CoreLifecycleService {
          // no gate term, unlike modernizable: Revert is offered under both gate states on purpose,
          // so an author in a modern org can keep one dashboard classic
          infoMap.put("revertable", VizModernizeUtil.hasMarked(vs));
+         infoMap.put("modernizeAvailable", VSDensityDefaults.isModern());
+         String modernCopyOf = ModernCopyProvenance.displayPath(
+            vsInfo.getModernCopyOf(), rvs.getAssetRepository(), rvs.getUser());
+
+         if(modernCopyOf != null) {
+            infoMap.put("modernCopyOf", modernCopyOf);
+         }
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()
