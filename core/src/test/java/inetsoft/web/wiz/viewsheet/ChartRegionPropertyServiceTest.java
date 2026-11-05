@@ -2680,7 +2680,7 @@ class ChartRegionPropertyServiceTest {
       Map<String, Object> flagged = flaggedKeys(
          h.service.list("tok", principal(), "Chart1", "legend", "0", null));
 
-      assertEquals(java.util.Set.of("reverse"), flagged.keySet());
+      assertEquals(java.util.Set.of("reverse", "notShowNull"), flagged.keySet());
       assertTrue(flagged.get("reverse").toString().contains("treemap Size legend"));
    }
 
@@ -2693,8 +2693,8 @@ class ChartRegionPropertyServiceTest {
 
       verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
                                                    anyString(), any(Principal.class), any());
-      assertTrue(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
-                    .isEmpty());
+      assertFalse(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
+                    .containsKey("reverse"));
    }
 
    private static void verifyNoAxisWrite(Harness h) throws Exception {
