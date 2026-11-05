@@ -180,6 +180,7 @@ public class BlobTransaction<T extends Serializable> implements Closeable {
    }
 
    private void commit(Context<T, ? extends Closeable> context) throws IOException {
+      storage.checkWritable(context.path);
       context.close();
 
       if(context.beforeCommit != null) {
