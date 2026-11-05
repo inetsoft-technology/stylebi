@@ -47,8 +47,9 @@ import java.util.stream.Collectors;
  * really writes to: when {@code targetFolderPath} is supplied, {@code DeployService.getJarFileInfo}
  * reports it as {@code SelectedAssetModel.appliedTargetPath()}/{@code appliedTargetUser()} (from
  * {@code DeployManagerService.getChangeRootFolderAsset}); without a retarget the recorded
- * {@code path()}/{@code user()} are used. {@code label} is the recorded label, not the
- * destination label. Dependent assets are not classified here. Only {@code VIEWSHEET}/{@code WORKSHEET} entries are
+ * {@code path()}/{@code user()} are used. Each entry's {@code path}/{@code user} name that same destination
+ * (the retargeted path and its owner when retargeted, the recorded ones otherwise; {@code user}
+ * is null for the global scope). {@code label} is the recorded label, not the destination label. Dependent assets are not classified here. Only {@code VIEWSHEET}/{@code WORKSHEET} entries are
  * classified at all (this track's own scope, 03-reconcile.md) -- any other asset type present in
  * an uploaded jar (e.g. a data source or script from a jar built outside this plugin) is left out
  * of both lists.
@@ -136,7 +137,9 @@ public class RepositoryImportChangePlanService {
             continue;
          }
 
-         AssetExistenceEntry entry = new AssetExistenceEntry(model.path(), model.label(), null);
+         Destination dest = destination(model);
+         AssetExistenceEntry entry = new AssetExistenceEntry(
+            dest.path(), dest.userKey(), model.label(), null);
 
          if(alreadyExists(model)) {
             willOverwrite.add(entry);
@@ -158,11 +161,29 @@ public class RepositoryImportChangePlanService {
          acknowledgeOverwriteRequired, true, true, planHash, taskToken);
    }
 
-   private boolean alreadyExists(SelectedAssetModel model) {
-      String unscoped = SUtil.getUnscopedPath(
-         model.appliedTargetPath() != null ? model.appliedTargetPath() : model.path());
-      IdentityID user = model.appliedTargetPath() != null ? model.appliedTargetUser() : model.user();
+   /** The destination the import writes to: the retargeted path/user when one was applied,
+    * otherwise the recorded ones. Shared by the entry naming and {@link #alreadyExists} so the
+    * reported name and the existence classification cannot diverge. A null or {@code __NULL__}
+    * user is the global scope. */
+   private static Destination destination(SelectedAssetModel model) {
+      boolean retargeted = model.appliedTargetPath() != null;
+      String path = retargeted ? model.appliedTargetPath() : model.path();
+      IdentityID user = retargeted ? model.appliedTargetUser() : model.user();
       boolean isUserScope = user != null && !"__NULL__".equals(user.name);
+      return new Destination(path, isUserScope ? user : null);
+   }
+
+   private record Destination(String path, IdentityID user) {
+      String userKey() {
+         return user == null ? null : user.convertToKey();
+      }
+   }
+
+   private boolean alreadyExists(SelectedAssetModel model) {
+      Destination dest = destination(model);
+      String unscoped = SUtil.getUnscopedPath(dest.path());
+      IdentityID user = dest.user();
+      boolean isUserScope = user != null;
       int scope = isUserScope ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
       AssetEntry.Type type = model.type() == RepositoryEntry.WORKSHEET
          ? AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET;
@@ -313,11 +334,15 @@ public class RepositoryImportChangePlanService {
       }
 
       for(AssetExistenceEntry entry : willOverwrite) {
-         canonical.append("overwrite:").append(entry.path()).append(SEP);
+         canonical.append("overwrite:").append(entry.path());
+         appendUser(canonical, entry);
+         canonical.append(SEP);
       }
 
       for(AssetExistenceEntry entry : willCreate) {
-         canonical.append("create:").append(entry.path()).append(SEP);
+         canonical.append("create:").append(entry.path());
+         appendUser(canonical, entry);
+         canonical.append(SEP);
       }
 
       try {
@@ -333,6 +358,13 @@ public class RepositoryImportChangePlanService {
       }
       catch(NoSuchAlgorithmException e) {
          throw new IllegalStateException("SHA-256 is required to hash a repository import plan", e);
+      }
+   }
+
+   /** Global-scope entries (null user) hash exactly as before the user was reported. */
+   private static void appendUser(StringBuilder canonical, AssetExistenceEntry entry) {
+      if(entry.user() != null) {
+         canonical.append("|user:").append(entry.user());
       }
    }
 
