@@ -233,6 +233,11 @@ public class ScheduleTaskImportChangesetApplyService {
       // Bug #80027, Gap 2: re-check at apply time, same as preview -- the owner's organization
       // could have been removed since the plan was reviewed.
       scheduleGateway.requireOwnerOrganizationExists(staged.getOwner());
+      // Bug #80355, sibling of #79974: setScheduleTask makes every one of its refusals (action
+      // viewsheet READ, org boundary, scheduler permission, ...) before its first write, so run
+      // them first -- a refusal here proves nothing was touched and mustn't be reported as a state
+      // that is unknown (rollback-failed).
+      scheduleManager.checkScheduleTaskSave(taskId, staged, user);
 
       mutationEntered.set(true);
       // Bug #78592, an overwrite keeps the task in the folder it is stored in, a save without a

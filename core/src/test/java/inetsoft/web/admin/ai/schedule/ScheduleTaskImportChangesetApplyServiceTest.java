@@ -44,8 +44,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -290,14 +293,91 @@ class ScheduleTaskImportChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bug #80355 (P1), sibling of #79974: a refusal the save makes before its first write must end
+   // rolled-back, not rollback-failed with a spurious "state unknown" failure.
+   // -------------------------------------------------------------------------
+
+   @Test void refusalBeforeTheWriteEndsRolledBackAndNeverSaves() throws Exception {
+      ScheduleTask sourceTask = taskWithViewsheetAction("t6", "http://x/");
+      String taskId = sourceTask.getTaskId();
+      String stagingToken = stage(sourceTask);
+      ScheduleTaskImportPlanRequest planReq =
+         planRequest(stagingToken, "refuse", importChange(taskId, false));
+      ResolvedPlan plan = planService.resolve(planReq, user, "http://x/");
+      ScheduleTaskImportApplyRequest applyReq = applyRequest(planReq, plan);
+
+      // preview was clean (default no-op); the refusal arrives only at applyOne's own check
+      AtomicInteger calls = new AtomicInteger();
+      doAnswer(inv -> {
+         // 1st call is apply's re-resolve of the plan, 2nd is applyOne's own pre-write check
+         if(calls.incrementAndGet() >= 2) {
+            throw new SecurityException("principal cannot read viewsheet vs1");
+         }
+
+         return null;
+      }).when(scheduleManager).checkScheduleTaskSave(eq(taskId), any(), eq(user));
+
+      ScheduleTaskImportApplyResult result = applyService.apply(applyReq, user, "http://x/");
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any(), any());
+      assertTrue(result.results().get(0).error().contains("cannot read viewsheet"),
+                 String.valueOf(result.results().get(0).error()));
+   }
+
+   @Test void mixedPlanWithALaterRefusalUndoesTheEarlierWriteAndIsRolledBack() throws Exception {
+      ScheduleTask a = taskWithViewsheetAction("tA", "http://x/");
+      ScheduleTask b = taskWithViewsheetAction("tB", "http://x/");
+      String idA = a.getTaskId();
+      String idB = b.getTaskId();
+      String stagingToken = stage(a, b);
+      ScheduleTaskImportPlanRequest planReq = planRequest(stagingToken, "mixed",
+         importChange(idA, false), importChange(idB, false));
+      ResolvedPlan plan = planService.resolve(planReq, user, "http://x/");
+      ScheduleTaskImportApplyRequest applyReq = applyRequest(planReq, plan);
+
+      AtomicBoolean aStored = new AtomicBoolean();
+      when(scheduleManager.getScheduleTask(idA)).thenAnswer(
+         inv -> aStored.get() ? sreeTask("tA", "admin") : null);
+      lenient().when(scheduleManager.getScheduleTask(idB)).thenReturn(null);
+      doAnswer(inv -> {
+         aStored.set(true);
+         return null;
+      }).when(scheduleManager).setScheduleTask(eq(idA), any(), any(), any());
+      doAnswer(inv -> {
+         aStored.set(false);
+         return null;
+      }).when(scheduleGateway).removeScheduleTask(eq(idA), any(), any());
+
+      AtomicInteger bCalls = new AtomicInteger();
+      lenient().doAnswer(inv -> {
+         // 1st call is apply's re-resolve, 2nd is applyOne's own pre-write check
+         if(bCalls.incrementAndGet() >= 2) {
+            throw new SecurityException("principal cannot read viewsheet vs1");
+         }
+
+         return null;
+      }).when(scheduleManager).checkScheduleTaskSave(eq(idB), any(), eq(user));
+
+      ScheduleTaskImportApplyResult result = applyService.apply(applyReq, user, "http://x/");
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(scheduleManager, never()).setScheduleTask(eq(idB), any(), any(), any());
+      verify(scheduleGateway).removeScheduleTask(eq(idA), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
 
-   private String stage(ScheduleTask task) throws Exception {
+   private String stage(ScheduleTask... tasks) throws Exception {
       StringWriter sw = new StringWriter();
 
       try(PrintWriter pw = new PrintWriter(sw)) {
-         task.writeXML(pw);
+         for(ScheduleTask task : tasks) {
+            task.writeXML(pw);
+         }
       }
 
       String xml = "<schedule>" + sw + "</schedule>";
@@ -335,12 +415,12 @@ class ScheduleTaskImportChangesetApplyServiceTest {
    }
 
    private static ScheduleTaskImportPlanRequest planRequest(String stagingToken, String taskDesc,
-                                                            ScheduleTaskImportChangeRequest change)
+                                                            ScheduleTaskImportChangeRequest... changes)
    {
       ScheduleTaskImportPlanRequest req = new ScheduleTaskImportPlanRequest();
       req.setTask(taskDesc);
       req.setStagingToken(stagingToken);
-      req.setChanges(List.of(change));
+      req.setChanges(List.of(changes));
       return req;
    }
 
