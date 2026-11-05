@@ -137,6 +137,38 @@ public abstract class AbstractEditableAuthenticationProvider
                                          DashboardRegistryManager dashboardRegistryManager,
                                          DataCycleManager dataCycleManager, Principal principal, boolean replace, String defaultPassword)
    {
+      // Bug #79856, the copy below reads the old organization's stores from one-shot snapshots
+      // and then removes them, so a write into the old organization from any node meanwhile
+      // would be acknowledged and lost. Refuse such writes until the change is over. A change
+      // that only differs in letter case keeps the storage buckets, so nothing is lost there.
+      String fromId = fromOrganization.getId();
+      boolean guarded = replace && fromId != null && !fromId.equalsIgnoreCase(newOrgID);
+      boolean completed = false;
+      OrgIdChangeGuard.clear(newOrgID);
+
+      if(guarded) {
+         OrgIdChangeGuard.begin(fromId);
+      }
+
+      try {
+         copyOrganizationInternal0(fromOrganization, editedNewOrganization, newOrgID, newOrgName,
+                                   identityService, themeService, dashboardRegistryManager,
+                                   dataCycleManager, principal, replace, defaultPassword);
+         completed = true;
+      }
+      finally {
+         if(guarded) {
+            OrgIdChangeGuard.end(fromId, completed);
+         }
+      }
+   }
+
+   private void copyOrganizationInternal0(Organization fromOrganization, Organization editedNewOrganization,
+                                          String newOrgID, String newOrgName,
+                                          IdentityService identityService, IdentityThemeService themeService,
+                                          DashboardRegistryManager dashboardRegistryManager,
+                                          DataCycleManager dataCycleManager, Principal principal, boolean replace, String defaultPassword)
+   {
       FSOrganization newOrg = new FSOrganization(newOrgID);
       newOrg.setName(newOrgName == null ? newOrgID : newOrgName);
       identityService.addCopiedIdentityPermission(fromOrganization.getIdentityID(), new IdentityID(newOrg.getName(), newOrgID),
