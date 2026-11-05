@@ -143,6 +143,15 @@ public final class FieldRefFactory {
       requireType(field);
 
       if(MEASURE.equalsIgnoreCase(field.type())) {
+         // The Composer's Discrete and Secondary Axis checkboxes switch each other off, so a
+         // write that sets both is ambiguous; an omitted one is resolved by the shelf mutators.
+         if(Boolean.TRUE.equals(field.discrete()) && Boolean.TRUE.equals(field.secondaryY())) {
+            throw new IllegalArgumentException(
+               "Measure '" + field.column() + "' sets both discrete:true and secondaryY:true. " +
+               "They are mutually exclusive (a discrete measure is drawn as categories on the " +
+               "primary axis) -- send only one of them as true.");
+         }
+
          ChartAggregateRefModel ref = new ChartAggregateRefModel();
          ref.setColumnValue(field.column());
          ref.setName(field.column());
@@ -177,7 +186,28 @@ public final class FieldRefFactory {
 
          ref.setSecondaryY(Boolean.TRUE.equals(field.secondaryY()));
 
+         if(Boolean.TRUE.equals(field.discrete())) {
+            // Judged on the RESOLVED formula (an omitted aggregate was defaulted above, and an
+            // aggregate-based calc field resolves to None): the Composer disables Discrete for
+            // formula None, which is also why such a measure cannot be grouped like a dimension.
+            if(NONE.equalsIgnoreCase(ref.getFormula())) {
+               throw new IllegalArgumentException(
+                  "Measure '" + field.column() + "' cannot be discrete: its aggregate resolves " +
+                  "to 'none' (an unaggregated measure, or an aggregate-based calculated " +
+                  "field). Discrete needs a real aggregate such as Sum or Count.");
+            }
+
+            ref.setDiscrete(true);
+         }
+
          return ref;
+      }
+
+      if(Boolean.TRUE.equals(field.discrete())) {
+         throw new IllegalArgumentException(
+            "'" + field.column() + "' is a dimension; 'discrete' applies to measures only " +
+            "(a dimension is already drawn as categories). Omit 'discrete' or set it to " +
+            "false/null.");
       }
 
       refuseAggregateCalcFieldAsChartDimension(field, model, rvs, source);
@@ -822,11 +852,13 @@ public final class FieldRefFactory {
       if(ref instanceof BAggregateRefModel aggregate) {
          Boolean secondaryY = aggregate instanceof ChartAggregateRefModel chartAggregate
             ? chartAggregate.isSecondaryY() : null;
+         Boolean discrete = aggregate instanceof ChartAggregateRefModel chartAggregate
+            ? chartAggregate.isDiscrete() : null;
 
          return new FieldRef(aggregate.getColumnValue(), MEASURE, aggregate.getFormula(),
                              null, null, null, null, null, aggregate.getCalculateInfo(),
                              null, secondaryY, null, null, aggregate.getSecondaryColumnValue(),
-                             operandOf(aggregate));
+                             operandOf(aggregate), discrete);
       }
 
       if(ref instanceof BDimensionRefModel dimension) {
