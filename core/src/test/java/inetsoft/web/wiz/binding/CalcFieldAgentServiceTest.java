@@ -645,6 +645,57 @@ class CalcFieldAgentServiceTest {
       assertFalse(captor.getValue().calculateRef().isBaseOnDetail());
    }
 
+   /**
+    * Bug #80441: add_calc_field/edit_calc_field never consulted native's trap check before
+    * writing, so a calc field whose expression mixed columns across a data-model trap was
+    * written silently. {@code modify()} must call the proxy's {@code checkTrap(...)} before the
+    * write -- mirroring {@code ModifyCalculateFieldController.checkTrap}'s own call -- and report
+    * a positive result, without refusing the write (native Composer's Trap dialog warns, it does
+    * not refuse).
+    */
+   @Test
+   void reportsTrapDetectedWhenTheProxyChecksPositive() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      when(proxy.checkTrap(eq("rt1"), eq("ORDERS"), eq("Fresh"), eq("true"), any(), any()))
+         .thenReturn("true");
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Fresh", null,
+         "field['Total']*(1-field['Discount'])", "double", false, null, false, true);
+
+      assertTrue(service.modify("tok", principal(), req, "").trapDetected());
+      // The write still proceeds -- a detected trap is a warning, not a refusal.
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
+   @Test
+   void trapDetectedIsFalseWhenTheProxyChecksNegative() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      when(proxy.checkTrap(any(), any(), any(), any(), any(), any())).thenReturn("false");
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Fresh", null,
+         "field['Total']*(1-field['Discount'])", "double", false, null, false, true);
+
+      assertFalse(service.modify("tok", principal(), req, "").trapDetected());
+   }
+
+   /** A remove has no CalculateRef to check a trap against. */
+   @Test
+   void removeNeverCallsCheckTrapAndReportsNoTrap() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "NetTotal", null, null, null, null, null, true, false);
+
+      assertFalse(service.modify("tok", principal(), req, "").trapDetected());
+      verify(proxy, never()).checkTrap(any(), any(), any(), any(), any(), any());
+   }
+
    private static CalculateRef calc(String name, String expression, boolean baseOnDetail) {
       ExpressionRef eref = new ExpressionRef(null, name);
       eref.setExpression(expression);
