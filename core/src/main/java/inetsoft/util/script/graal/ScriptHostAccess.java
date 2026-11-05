@@ -258,21 +258,19 @@ public final class ScriptHostAccess {
       "  var hasInst = Symbol.hasInstance, defProp = Object.defineProperty;" +
       "  var cache = Object.create(null);" +
       "  var guard = function(members, inv) {" +
-      "     var F = function(a, b, c, d, e, f, g, h) {" +
-      "        return inv(2, '', arguments.length, a, b, c, d, e, f, g, h); };" +
+      "     var F = function() { return inv(2, '', ...arguments); };" +
       "     var method = function(k) {" +
-      "        defProp(F, k, {value: function(a, b, c, d, e, f, g, h) {" +
-      "           return inv(0, k, arguments.length, a, b, c, d, e, f, g, h); }," +
+      "        defProp(F, k, {value: function() { return inv(0, k, ...arguments); }," +
       "           enumerable: true});" +
       "     };" +
       "     var member = function(k) {" +
-      "        defProp(F, k, {get: function() { return inv(1, k, 0); }, enumerable: true});" +
+      "        defProp(F, k, {get: function() { return inv(1, k); }, enumerable: true});" +
       "     };" +
       "     for(var i = 0; i < members.length; i++) {" +
       "        var m = members[i];" +
       "        if(m.charAt(0) === 'm') { method(m.substring(2)); } else { member(m.substring(2)); }" +
       "     }" +
-      "     defProp(F, hasInst, {value: function(x) { return inv(3, '', 1, x); }});" +
+      "     defProp(F, hasInst, {value: function(x) { return inv(3, '', x); }});" +
       "     return F;" +
       "  };" +
       "  var check = function(name) {" +
@@ -1031,7 +1029,7 @@ public final class ScriptHostAccess {
 
    /**
     * The operations of a guarded class's stand-in, as a function the stand-in code calls:
-    * inv(op, member, argCount, args...) with op 0 = invoke a static method, 1 = read a
+    * inv(op, member, args...) with op 0 = invoke a static method, 1 = read a
     * static field or nested type, 2 = construct, 3 = instanceof. Only the members
     * {@link #guardedStaticMembers} lists are served. The host class is looked up here
     * and held only by the returned function. (Bug #79860)
@@ -1042,17 +1040,13 @@ public final class ScriptHostAccess {
 
       return args -> {
          int op = args[0].asInt();
-         int count = args[2].asInt();
+         int count = args.length - 2;
          String member = args[1].isString() ? args[1].asString() : "";
-
-         if(count < 0 || count > 8) {
-            throw new IllegalArgumentException("Too many arguments");
-         }
 
          Object[] params = new Object[count];
 
          for(int i = 0; i < count; i++) {
-            params[i] = args[3 + i];
+            params[i] = args[2 + i];
          }
 
          switch(op) {
@@ -1079,7 +1073,9 @@ public final class ScriptHostAccess {
                   "instantiate on " + name + " failed due to: Message not supported.");
             }
          case 3:
-            return count > 0 && host.isMetaInstance(params[0]);
+            // only a host object can be an instance: null, undefined, primitives and
+            // script objects are not, whatever the meta-object test says for them
+            return count > 0 && args[2].isHostObject() && host.isMetaInstance(args[2]);
          default:
          }
 

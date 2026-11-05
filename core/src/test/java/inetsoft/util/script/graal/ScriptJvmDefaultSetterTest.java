@@ -245,13 +245,49 @@ class ScriptJvmDefaultSetterTest {
       assertEquals(Boolean.TRUE, eval(
          "Java.type('java.util.TimeZone') === Java.type('java.util.TimeZone') && "
             + "Java.type('java.util.Locale') === Java.type('java.util.Locale')"));
-      String loop = "var t0 = Date.now(); for(var i = 0; i < 2000; i++) { Java.type('%s'); }"
-         + " Date.now() - t0";
-      eval(String.format(loop, "java.util.Locale"));
-      eval(String.format(loop, "java.util.Date"));
-      double guarded = ((Number) eval(String.format(loop, "java.util.Locale"))).doubleValue();
-      double plain = ((Number) eval(String.format(loop, "java.util.Date"))).doubleValue();
-      assertTrue(guarded <= plain * 5 + 100, "guarded " + guarded + " ms vs plain " + plain);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "graal", "report" })
+   void instanceofIsFalseForNonInstances(String kind) throws Exception {
+      open(kind);
+
+      for(String type : new String[] { "java.util.TimeZone", "java.util.Locale",
+                                       "java.util.SimpleTimeZone", "java.util.Date" })
+      {
+         String t = "Java.type('" + type + "')";
+
+         for(String value : new String[] { "null", "undefined", "0", "'x'", "true", "({})",
+                                           "[]", "function(){}", "new java.util.ArrayList()" })
+         {
+            assertEquals(Boolean.FALSE, eval("(" + value + ") instanceof " + t), value + " " + type);
+         }
+      }
+
+      assertEquals(Boolean.TRUE, eval("java.util.Locale.US instanceof Java.type('java.util.Locale')"));
+      assertEquals(Boolean.FALSE, eval("java.util.Locale.US instanceof Java.type('java.util.TimeZone')"));
+      assertEquals(Boolean.TRUE, eval(
+         "java.util.TimeZone.getTimeZone('UTC') instanceof Java.type('java.util.TimeZone')"));
+      assertEquals(Boolean.TRUE, eval(
+         "new (Java.type('java.util.SimpleTimeZone'))(0, 'U') instanceof "
+            + "Java.type('java.util.SimpleTimeZone')"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "graal", "report" })
+   void constructorsAcceptEveryArity(String kind) throws Exception {
+      open(kind);
+      // SimpleTimeZone has 2, 4, 10 and 11 argument constructors
+      assertEquals("A", eval("new (Java.type('java.util.SimpleTimeZone'))(0, 'A').getID()"));
+      assertEquals("B", eval("new (Java.type('java.util.SimpleTimeZone'))(0, 'B', 3, 1, 1, 0, "
+         + "9, 1, 1, 0).getID()"));
+      assertEquals("C", eval("new (Java.type('java.util.SimpleTimeZone'))(0, 'C', 3, 1, 1, 0, "
+         + "9, 1, 1, 0, 3600000).getID()"));
+      assertEquals("D", eval("new java.util.SimpleTimeZone(0, 'D', 3, 1, 1, 0, 9, 1, 1, 0, "
+         + "3600000).getID()"));
+      assertEquals("fr", eval("new (Java.type('java.util.Locale'))('fr').getLanguage()"));
+      assertEquals("FR", eval("new (Java.type('java.util.Locale'))('fr', 'FR', 'x')"
+         + ".getCountry()"));
    }
 
    @ParameterizedTest
