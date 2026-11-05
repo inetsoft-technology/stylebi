@@ -1295,4 +1295,78 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          revoke.mockRestore();
       });
    });
+
+   // Inlined @keyframes are document-global, and every pie names its sweeps from 0.
+   describe("keyframes of several charts on one page", () => {
+      function pieSvg(radius: number): string {
+         const sweep = (i: number) =>
+            `@keyframes inetsoft-pie-sweep-${i}{0%{d:path('M${radius} ${i}')}` +
+            `100%{d:path('M${radius} ${i + 1}')}}`;
+         const slice = (i: number) =>
+            `<g class="inetsoft-bar" data-row="${i}" data-col="0"><path data-slice="${i}" ` +
+            `style="animation:inetsoft-pie-sweep-${i} 0.2s linear 0s forwards"/></g>`;
+
+         return `<svg><defs>` +
+            `<style>@keyframes inetsoft-pie-fade{from{opacity:0}to{opacity:1}}</style>` +
+            `<style>${sweep(0)}${sweep(1)}${sweep(10)}</style></defs>` +
+            slice(0) + slice(1) + slice(10) +
+            `<path data-border="1" style="opacity:0;animation:inetsoft-pie-sweep-1 0.2s linear ` +
+            `0s forwards,inetsoft-pie-fade 0.001s steps(1,start) 0s both"/></svg>`;
+      }
+
+      function inline(svg: string): HTMLElement {
+         const host = document.createElement("div");
+         const body = new TextEncoder().encode(svg).buffer as ArrayBuffer;
+         const http = {
+            get: () => of(new HttpResponse<ArrayBuffer>({
+               body, headers: new HttpHeaders({ "Content-Type": "image/svg+xml" })
+            }))
+         } as any;
+         new ChartInlineSvgDirective(new ElementRef(host), http).chartInlineSvg = "/plot_area/0";
+         return host;
+      }
+
+      // name -> rule body, for every @keyframes in the host
+      function keyframes(host: HTMLElement): Map<string, string> {
+         const css = Array.from(host.querySelectorAll("style")).map(s => s.textContent).join("");
+         const rules = new Map<string, string>();
+
+         for(const m of css.matchAll(/@keyframes\s+([\w-]+)\{(.*?\}\})/g)) {
+            rules.set(m[1], m[2]);
+         }
+
+         return rules;
+      }
+
+      function animationNames(el: Element): string[] {
+         const value = /animation:([^;]*)/.exec(el.getAttribute("style"))[1];
+         return value.split(",").map(a => a.trim().split(/\s+/)[0]);
+      }
+
+      it("gives each chart its own keyframe names", () => {
+         const a = keyframes(inline(pieSvg(50)));
+         const b = keyframes(inline(pieSvg(90)));
+
+         expect(a.size).toBe(4);
+         expect(b.size).toBe(4);
+         expect([...a.keys()].filter(name => b.has(name))).toEqual([]);
+      });
+
+      it("points every animation at its own chart's rule", () => {
+         inline(pieSvg(50));
+         const host = inline(pieSvg(90));
+         const rules = keyframes(host);
+
+         for(const i of [0, 1, 10]) {
+            const [name] = animationNames(host.querySelector(`[data-slice="${i}"]`));
+            // a whole-name match, so slice 10 is not read as slice 1 followed by "0"
+            expect(rules.get(name)).toBe(`0%{d:path('M90 ${i}')}100%{d:path('M90 ${i + 1}')}}`);
+         }
+
+         const [sweep, fade] = animationNames(host.querySelector("[data-border]"));
+         expect(rules.get(sweep)).toContain("M90 1");
+         expect(rules.get(fade)).toBe("from{opacity:0}to{opacity:1}}");
+         expect(host.querySelectorAll(".inetsoft-bar").length).toBe(3);
+      });
+   });
 });

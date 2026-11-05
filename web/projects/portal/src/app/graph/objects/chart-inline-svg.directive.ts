@@ -1768,10 +1768,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * Rewrites all id="..." attributes and their references (url(#...), href="#...") with a
     * per-instance unique prefix. Prevents ID conflicts when multiple SVGs are inlined in the
     * same HTML document (Batik generates non-unique IDs like clipPath1, clipPath2, etc.).
+    * Keyframe names get the same prefix, see uniquifyKeyframes.
     */
    private uniquifyIds(svg: string): string {
       const uid = `isvg${ChartInlineSvgDirective.idCounter++}`;
-      return svg
+      return ChartInlineSvgDirective.uniquifyKeyframes(svg, uid)
          // Lookbehind for '-' is required: \b would also match data-id="..." (word boundary between
          // '-' and 'i'), rewriting it to data-id="uid-..." while data-source/data-target keep the
          // original IDs, breaking edge lookup in relationNodeIdMap.
@@ -1781,5 +1782,26 @@ export class ChartInlineSvgDirective implements OnDestroy {
          // Batik 1.17 emits xlink:href="#id" for <use> elements (marker/symbol references).
          // The colon prevents \bhref= from matching, so this must be a separate replace.
          .replace(/\bxlink:href="#([^"]+)"/g, `xlink:href="#${uid}-$1"`);
+   }
+
+   /**
+    * Prefixes each @keyframes name, and every use of it, with uid. Inlined keyframes are
+    * document-global and every pie numbers its sweeps from 0, so without the prefix the last
+    * chart's inetsoft-pie-sweep-N would drive the slices of every pie on the page.
+    */
+   private static uniquifyKeyframes(svg: string, uid: string): string {
+      const names = new Set<string>();
+
+      for(const match of svg.matchAll(/@keyframes\s+([A-Za-z_-][\w-]*)/g)) {
+         names.add(match[1]);
+      }
+
+      if(names.size === 0) {
+         return svg;
+      }
+
+      // Whole names only, so sweep-1 is not matched inside sweep-10.
+      const name = new RegExp(`(?<![\\w-])(${[...names].join("|")})(?![\\w-])`, "g");
+      return svg.replace(name, `${uid}-$1`);
    }
 }
