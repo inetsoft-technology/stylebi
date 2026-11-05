@@ -2387,6 +2387,103 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   private static Viewsheet candleLike(int chartType, ChartRef[] x, ChartRef[] y) {
+      Viewsheet vs = withRuntimeFields(withShelves(mixedShelfViewsheet(new ChartRef[0]), x, y));
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      when(info.getChartType()).thenReturn(chartType);
+      return vs;
+   }
+
+   private void assertIncrementAccepted(Harness h, String field) throws Exception {
+      stubAxisModel(h);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", field,
+                    Map.of("increment", "6"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** Bug #80340: a candle chart keeps its measures on OHLC shelves, so its x date is innermost. */
+   @Test
+   void acceptsIncrementOnACandleChartTimeSeriesXAxis() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[] { dateDim() }, new ChartRef[0]));
+
+      assertIncrementAccepted(h, "Year(ORDER_DATE)");
+   }
+
+   @Test
+   void acceptsIncrementOnAStockChartTimeSeriesXAxis() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_STOCK,
+                                     new ChartRef[] { dateDim() }, new ChartRef[0]));
+
+      assertIncrementAccepted(h, "Year(ORDER_DATE)");
+   }
+
+   @Test
+   void stillRefusesIncrementOnADateDimensionOnACandleChartYShelf() {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[0], new ChartRef[] { dateDim() }));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", "Year(ORDER_DATE)",
+                             Map.of("increment", "3"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void acceptsIncrementOnlyOnTheDateOfACandleChartCategoryAndDateXShelf() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[] { categoryDim(), dateDim() }, new ChartRef[0]));
+      assertIncrementAccepted(h, "Year(ORDER_DATE)");
+
+      Harness other = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                         new ChartRef[] { categoryDim(), dateDim() },
+                                         new ChartRef[0]));
+      assertThrows(IllegalArgumentException.class,
+         () -> other.service.set("tok", principal(), "Chart1", "axis", "x", "STATE",
+                                 Map.of("increment", "3"), ""));
+      verifyNoInteractions(other.regions);
+   }
+
+   @Test
+   void stillRefusesIncrementOnALineChartWithAnEmptyYShelfOrADateFollowedByAMeasure() {
+      Harness empty = harness(candleLike(GraphTypes.CHART_LINE,
+                                         new ChartRef[] { dateDim() }, new ChartRef[0]));
+      assertThrows(IllegalArgumentException.class,
+         () -> empty.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                                 Map.of("increment", "3"), ""));
+      verifyNoInteractions(empty.regions);
+
+      Harness followed = harness(candleLike(GraphTypes.CHART_LINE,
+                                            new ChartRef[] { dateDim(), measureRef() },
+                                            new ChartRef[] { measureRef() }));
+      assertThrows(IllegalArgumentException.class,
+         () -> followed.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                                    Map.of("increment", "3"), ""));
+      verifyNoInteractions(followed.regions);
+   }
+
+   @Test
+   void listsIncrementAsApplicableOnACandleChartTimeSeriesXAxis() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[] { dateDim() }, new ChartRef[0]));
+      stubAxisModel(h);
+
+      Map<String, Object> listed =
+         h.service.list("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)");
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> inc = props.stream().filter(p -> "increment".equals(p.get("name")))
+         .findFirst().orElseThrow();
+      assertFalse(Boolean.FALSE.equals(inc.get("applies")), String.valueOf(inc));
+   }
+
    private static VSChartAggregateRef measureRef() {
       VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
       when(measure.isDiscrete()).thenReturn(false);
