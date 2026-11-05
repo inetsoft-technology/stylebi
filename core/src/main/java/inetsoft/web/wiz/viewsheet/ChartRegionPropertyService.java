@@ -170,6 +170,13 @@ public class ChartRegionPropertyService {
             one.put("reason", REVERSE_HIDDEN_REASON +
                " (false is accepted to clear a stale value).");
          }
+         else if("legend".equals(name) && "notShowNull".equals(alias.getKey()) &&
+                 !((LegendFormatDialogModel) model).isDimension())
+         {
+            one.put("applies", false);
+            one.put("reason", "Only applies to a legend bound to a dimension (Ignore Null); " +
+               "refused here when set to true (false is accepted to clear a stale value).");
+         }
 
          if(inapplicable.containsKey(alias.getKey())) {
             one.put("applies", false);
@@ -198,6 +205,13 @@ public class ChartRegionPropertyService {
          out.put("note", "This legend is bound to a dimension/date. logarithmicScale, reverse " +
             "and includeZero (marked applies:false) only apply to a measure legend and are " +
             "refused here when set to true.");
+      }
+
+      if("legend".equals(name) && !((LegendFormatDialogModel) model).isDimension()) {
+         Object existing = out.get("note");
+         String notShowNullNote = "notShowNull (marked applies:false) only applies to a legend " +
+            "bound to a dimension and is refused here when set to true.";
+         out.put("note", existing == null ? notShowNullNote : existing + " " + notShowNullNote);
       }
 
       if("legend".equals(name)) {
@@ -313,6 +327,7 @@ public class ChartRegionPropertyService {
 
       if("legend".equals(name)) {
          requireMeasureLegendForScaleKeys((LegendFormatDialogModel) model, properties);
+         requireDimensionLegendForNotShowNull((LegendFormatDialogModel) model, properties);
       }
 
       // The stored range is needed to judge a partial write (only maximum, only increment), so
@@ -1673,6 +1688,34 @@ public class ChartRegionPropertyService {
 
    private static boolean isCategoricalLegend(LegendFormatDialogModel model) {
       return model != null && (model.isDimension() || model.isTime());
+   }
+
+   /**
+    * Refuses a legend's notShowNull ("Ignore Null") when truthy on a legend not bound to a plain
+    * dimension. The Composer's Legend Format dialog only shows this control when
+    * dimension && field != null (LegendFormatDialogModel), which is narrower than
+    * isCategoricalLegend (also true for a time-scale legend). On a measure legend the resulting
+    * scale option (Scale.NO_NULL) is written to the frame regardless (GraphGenerator
+    * .setLegendProperties), but LinearScale/LogScale/PowerScale never read it, so it is verified
+    * silently ignored there (bug #80343, residual of #80321 item 6). A time-scale legend is
+    * refused for UI parity instead -- the dialog hides the control there too, so a human could
+    * never produce that state -- not because the engine is known to ignore it (TimeScale does
+    * read Scale.NO_NULL, unlike the measure case). Only a truthy value is refused, so a stale
+    * value can still be cleared with false.
+    */
+   private static void requireDimensionLegendForNotShowNull(
+      LegendFormatDialogModel model, Map<String, Object> properties)
+   {
+      if(model != null && model.isDimension()) {
+         return;
+      }
+
+      if(properties.containsKey("notShowNull") && isTruthy(properties.get("notShowNull"))) {
+         throw new IllegalArgumentException(
+            "'notShowNull' only applies to a legend bound to a dimension (Ignore Null); this " +
+            "legend would store it and ignore it. Omit it, send false to clear a stale value, " +
+            "or bind a dimension to this channel.");
+      }
    }
 
    private static boolean isTruthy(Object value) {
