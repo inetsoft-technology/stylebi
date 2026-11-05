@@ -103,6 +103,15 @@ final class ChartChromeSlots {
 
             slots.add(ChromeSlot.plain("chart:legends:layout", copy(legends,
                (to, from) -> to.setLayout(from.getLayout()))));
+            // a size set for the old position does not fit the new one
+            slots.add(ChromeSlot.plain("chart:legends:size", copy(legends,
+               (to, from) -> to.setPreferredSize(from.getPreferredSize()))));
+            placement("chart:legends:color:placement",
+                      legends.then(LegendsDescriptor::getColorLegendDescriptor));
+            placement("chart:legends:shape:placement",
+                      legends.then(LegendsDescriptor::getShapeLegendDescriptor));
+            placement("chart:legends:size:placement",
+                      legends.then(LegendsDescriptor::getSizeLegendDescriptor));
             slots.add(ChromeSlot.plain("chart:legends:roundCorners", copy(legends,
                (to, from) -> to.setRoundCorners(from.isRoundCorners()))));
          }
@@ -161,6 +170,14 @@ final class ChartChromeSlots {
             ((RelationChartInfo) c).getNodeSizeField() } : null);
          refs("chart:geo", c -> c instanceof VSMapInfo ? ((VSMapInfo) c).getGeoFields() : null);
          refs("chart:field", VSChartInfo::getFields);
+
+         // runtime copies a loaded or cloned chart holds apart from the fields above
+         refs("chart:rt:x", VSChartInfo::getRTXFields);
+         refs("chart:rt:y", VSChartInfo::getRTYFields);
+         refs("chart:rt:group", VSChartInfo::getRTGroupFields);
+         refs("chart:rt:aes", c -> c.getAestheticRefs(true));
+         refs("chart:rt:geo", c -> c instanceof VSMapInfo ? ((VSMapInfo) c).getRTGeoFields() : null);
+         refs("chart:rt:field", VSChartInfo::getRTFields);
 
          frames("chart:frame", CHART.then(VSChartInfo::getColorFrameWrapper),
                 (info, frame) -> info.getVSChartInfo().setColorFrame(frame));
@@ -224,6 +241,8 @@ final class ChartChromeSlots {
             text(key + ":textField", aggr.then(ChartAggregateRef::getTextField)
                .then(AestheticRef::getDataRef)
                .then(r -> r instanceof ChartRef ? ((ChartRef) r).getTextFormat() : null), false);
+            text(key + ":title", aggr.then(ChartAggregateRef::getTitleDescriptor)
+               .then(TitleDescriptor::getTextFormat), true);
             frames(key + ":frame", aggr.then(ChartAggregateRef::getColorFrameWrapper), null);
          }
 
@@ -232,6 +251,7 @@ final class ChartChromeSlots {
                loc.then(r -> r instanceof AestheticRef ? (AestheticRef) r : null);
             text(key + ":legend", aes.then(AestheticRef::getLegendDescriptor)
                .then(LegendDescriptor::getContentTextFormat), true);
+            placement(key + ":legend:placement", aes.then(AestheticRef::getLegendDescriptor));
             ref(key + ":data", aes.then(AestheticRef::getDataRef));
             frames(key + ":frame", aes.then(AestheticRef::getVisualFrameWrapper), (info, frame) -> {
                AestheticRef target = aes.apply(info);
@@ -270,6 +290,23 @@ final class ChartChromeSlots {
 
             if(to != null && from != null) {
                to.setLineColor(from.getLineColor());
+            }
+         }));
+      }
+
+      // a new chart's legend has no size or place of its own
+      private void placement(String key, Loc<LegendDescriptor> loc) {
+         if(!first(loc.apply(source))) {
+            return;
+         }
+
+         slots.add(ChromeSlot.plain(key, (info, fresh) -> {
+            LegendDescriptor legend = loc.on(info);
+
+            if(legend != null) {
+               legend.setPreferredSize(null);
+               legend.setPosition(null);
+               legend.setPlotPosition(null);
             }
          }));
       }

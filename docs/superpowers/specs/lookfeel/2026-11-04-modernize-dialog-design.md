@@ -233,7 +233,7 @@ if some seed writes one.
 | Component formats (`VSCompositeFormat`: object, title, every table/crosstab/calc cell data path, selection cells, calendar, input labels, the sheet) | foreground, background (incl. gradient), font (see the font rule below), borders, border colours, transparency, round corner | alignment, wrapping, number/date format and extent, presenter, span, any expression-bound value |
 | Chart text (`CompositeTextFormat`: axis labels and titles, legend title and items, chart title, data labels, target labels) | font (see the font rule below), colour, background, transparency | alignment, rotation |
 | Chart plot (`PlotDescriptor`) | gridline, facet, diagonal, quadrant, trend-line, border and background colours; gridline styles | everything else (trend line type, stacking, values visible, …) |
-| Chart legends (`LegendsDescriptor`, legend descriptors) | border, border colour, round corners, gap/padding, position (back to the default a new chart gets, `RIGHT`) | visibility, preferred size, title text |
+| Chart legends (`LegendsDescriptor`, legend descriptors) | border, border colour, round corners, gap/padding, position (back to the default a new chart gets, `RIGHT`), preferred size and each legend's size and position (none, as on a new chart; §11.3) | visibility, title text |
 | Chart axes | line colour and any axis spacing the modern seed writes | visibility, scale, label text, format |
 | Chart shape defaults the mark seeds | bar corner radius (`userBarCornerRadius`), smooth lines (`userSmoothLines`) | — |
 | Colour frames | categorical author palette (`userColors`) and per-value colours (`dimensionColors`); static author colour (`userColor`); a linear ramp the author picked is replaced by the mark's seeded ramp | which field is bound to colour; shape, texture, line and size frames |
@@ -379,7 +379,7 @@ recommendations wholesale and added residue cleanup). "Design" = settled in writ
 | 25a | The Options switch offers no reset; it shows a hint pointing to Modernize… when the gate is on and the dashboard has unmarked content, and no hint with the gate off | Owner |
 | 26 | Residue cleanup uses the reset's allowlist | Design |
 | 27 | Shapes, images and layouts are left alone by the reset | Design |
-| 28 | Legend position resets to `RIGHT`; bar corner radius and smooth lines are on the allowlist | Design |
+| 28 | Legend position resets to `RIGHT` and legend sizes to a new chart's (§11.3); bar corner radius and smooth lines are on the allowlist | Design, Owner |
 | 29 | Provenance falls back to generic Revert text when the original no longer resolves | Design |
 | 30 | The reset is one undo step on the copy | Design |
 | 31 | Text components and table cells keep the author's font size and style; family resets | Owner (§11.2) |
@@ -417,6 +417,15 @@ recommendations wholesale and added residue cleanup). "Design" = settled in writ
    are not residue; "Keep my formatting" leaves them, the reset replaces them.
 2. **Font size on text components and table cells — keep the author's size and style**, reset
    the family (§5.1, font rule).
+
+Rulings after the scripted manual checks (2026-11-05):
+
+3. **Legend size resets with its position.** The reset moves the legend to `RIGHT` and gives it
+   the size a new chart gets: no legends size, and no size or position on any single legend. A
+   size kept from a bottom legend took half the chart's width once the legend moved right.
+4. **The copy carries no author chart fonts on titles, axes or legends.** The reset also covers
+   the runtime copies of the chart's fields that a loaded sheet keeps (its runtime group fields
+   are stored in the file) and each measure's own title, not only the design fields.
 
 ## 12. Verification
 

@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.aesthetic.SpectralColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
@@ -41,6 +42,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.geom.Point2D;
 import java.util.HashSet;
 import java.util.List;
 
@@ -237,6 +239,73 @@ class ChartChromeSlotsTest {
       assertFalse(legends.chromeValue("borderColor").hasUserValue());
    }
 
+   // a size set for a bottom legend squeezes the plot once the legend moves right
+   @Test
+   void legendSizesResetToANewChartsWithThePosition() {
+      ChartVSAssemblyInfo info = chart();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      legends.setLayout(LegendsDescriptor.BOTTOM);
+      legends.setPreferredSize(new DimensionD(0.47, 0.08));
+      LegendDescriptor color = legends.getColorLegendDescriptor();
+      color.setPreferredSize(new DimensionD(0.12, 0.22));
+      color.setPosition(new Point2D.Double(0.87, 0.01));
+      color.setPlotPosition(new Point2D.Double(0.5, 0.5));
+      LegendDescriptor bound = colorBinding(info, dimension("Region"), new CategoricalColorFrame())
+         .getLegendDescriptor();
+      bound.setPreferredSize(new DimensionD(0.2, 0.3));
+      bound.setPosition(new Point2D.Double(0.4, 0.4));
+      ChartVSAssemblyInfo fresh = fresh(VizMark.MODERN_LIGHT);
+      LegendsDescriptor created = fresh.getChartDescriptor().getLegendsDescriptor();
+      assertNull(created.getPreferredSize(), "fixture: a new chart sets no legend size");
+      assertNull(created.getColorLegendDescriptor().getPreferredSize());
+
+      resetAll(info, fresh);
+
+      assertEquals(LegendsDescriptor.RIGHT, legends.getLayout());
+      assertNull(legends.getPreferredSize());
+
+      for(LegendDescriptor legend : new LegendDescriptor[] { color, bound }) {
+         assertNull(legend.getPreferredSize());
+         assertNull(legend.getPosition());
+         assertNull(legend.getPlotPosition());
+      }
+   }
+
+   @Test
+   void measureTitleFontsResetWhole() {
+      ChartVSAssemblyInfo info = chart();
+      VSChartAggregateRef sales = aggregate("Sales");
+      sales.getTitleDescriptor().getTextFormat().getUserDefinedFormat()
+         .setFont(new StyleFont("SansSerif", Font.BOLD, 12));
+      info.getVSChartInfo().addYField(sales);
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      assertFalse(sales.getTitleDescriptor().getTextFormat().getUserDefinedFormat()
+                     .isFontDefined());
+   }
+
+   // a loaded or cloned chart holds its runtime group fields as separate copies
+   @Test
+   void runtimeGroupFieldsLoseTheirAuthorFonts() {
+      ChartVSAssemblyInfo source = chart();
+      VSChartAggregateRef group = aggregate("Population");
+      group.getAxisDescriptor().getAxisLabelTextFormat().getUserDefinedFormat()
+         .setFont(new StyleFont("Arial", Font.BOLD, 10));
+      source.getVSChartInfo().addGroupField(group);
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) source.clone();
+      VSChartInfo cinfo = info.getVSChartInfo();
+      ChartRef runtime = cinfo.getRTGroupFields()[0];
+      assertNotSame(cinfo.getGroupFields()[0], runtime, "fixture: a separate runtime copy");
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      for(ChartRef ref : new ChartRef[] { cinfo.getGroupFields()[0], runtime }) {
+         assertFalse(ref.getAxisDescriptor().getAxisLabelTextFormat().getUserDefinedFormat()
+                        .isFontDefined(), String.valueOf(ref));
+      }
+   }
+
    @Test
    void authorPaletteEntriesAndValueColorsClear() {
       ChartVSAssemblyInfo info = chart();
@@ -382,7 +451,11 @@ class ChartChromeSlotsTest {
       List<String> keys = info.chromeSlots().stream().map(ChromeSlot::key).toList();
 
       assertEquals(keys.size(), new HashSet<>(keys).size(), "keys are unique");
-      assertEquals(keys, copy.chromeSlots().stream().map(ChromeSlot::key).toList());
+      List<String> copyKeys = copy.chromeSlots().stream().map(ChromeSlot::key).toList();
+      // a clone holds runtime copies of the fields this info shares with its design fields
+      assertEquals(keys, copyKeys.stream().filter(k -> !k.startsWith("chart:rt:")).toList());
+      assertTrue(copyKeys.stream().anyMatch(k -> k.startsWith("chart:rt:")),
+                 "fixture: the clone's runtime copies get their own slots");
 
       slot.clearAuthor(copy);
 
