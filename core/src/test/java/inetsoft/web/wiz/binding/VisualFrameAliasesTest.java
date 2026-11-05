@@ -979,4 +979,46 @@ class VisualFrameAliasesTest {
       assertTrue(thrown.getMessage().contains("notacolor"));
       assertTrue(thrown.getMessage().contains("#RRGGBB"));
    }
+
+   // -- static size "Auto" (bug 80335 gap 3) ----------------------------------
+
+   @Test
+   void staticSizeAutoBuildsAnUnchangedModel() {
+      for(Map<String, Object> s : List.of(spec("type", "static", "size", "auto"),
+                                          spec("type", "static", "size", " AUTO "),
+                                          spec("type", "static", "auto", true),
+                                          spec("type", "static", "auto", "true")))
+      {
+         StaticSizeModel size = assertInstanceOf(
+            StaticSizeModel.class, VisualFrameAliases.create("size", s));
+         assertFalse(size.isChanged(), s.toString());
+         assertEquals(true, VisualFrameAliases.describe(size).get("auto"));
+      }
+   }
+
+   @Test
+   void staticSizeNumericIsChangedAndDescribesAutoFalse() {
+      StaticSizeModel size = assertInstanceOf(
+         StaticSizeModel.class,
+         VisualFrameAliases.create("size", spec("type", "static", "size", 12)));
+      assertTrue(size.isChanged());
+      assertEquals(false, VisualFrameAliases.describe(size).get("auto"));
+      assertEquals(12d, VisualFrameAliases.describe(size).get("size"));
+   }
+
+   @Test
+   void staticSizeAutoWithANumericSizeIsRefused() {
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("size", spec("type", "static", "size", 5, "auto", true)));
+      assertTrue(thrown.getMessage().contains("auto"));
+   }
+
+   @Test
+   void staticSizeWithNeitherSizeNorAutoIsRefusedNamingBoth() {
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("size", spec("type", "static", "auto", false)));
+      assertTrue(thrown.getMessage().contains("size") && thrown.getMessage().contains("auto"));
+   }
 }

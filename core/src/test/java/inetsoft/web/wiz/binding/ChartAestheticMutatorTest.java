@@ -3352,4 +3352,98 @@ class ChartAestheticMutatorTest {
 
       assertSame(before, model.getColorField().getDataInfo());
    }
+
+   // -- static size Auto reaches the aggregate (bug 80335 gap 3) --------------
+
+   @Test
+   void staticSizeAutoPassesTheMeasureGuardAndLandsUnchanged() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "size", spec("type", "static", "size", "auto"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticSizeModel size = assertInstanceOf(StaticSizeModel.class, agg.getSizeFrame());
+      assertFalse(size.isChanged());
+   }
+
+   // -- waterfall Total (summary) bar (bug 80335 gap 4) -----------------------
+
+   private static ChartBindingModel waterfall() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_WATERFALL);
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      return model;
+   }
+
+   @Test
+   void summaryColourIsWrittenToTheSummaryFrameOnly() {
+      ChartBindingModel model = waterfall();
+
+      ChartAestheticMutator.setSummaryFrame(
+         model, "color", spec("type", "static", "color", "#00AA11"), false, null, false);
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticColorModel summary =
+         assertInstanceOf(StaticColorModel.class, agg.getSummaryColorFrame());
+      assertEquals("#00AA11", summary.getColor());
+      assertTrue(summary.isSummary());
+      assertNull(agg.getColorFrame(), "the regular frame must be untouched");
+
+      Map<String, Object> described = ChartAestheticMutator.describe(model);
+      Map<?, ?> first = (Map<?, ?>) ((List<?>) described.get("summaryFrames")).get(0);
+      assertEquals("#00AA11", ((Map<?, ?>) first.get("summaryColor")).get("color"));
+   }
+
+   @Test
+   void summaryTextureRoundTrips() {
+      ChartBindingModel model = waterfall();
+
+      ChartAestheticMutator.setSummaryFrame(
+         model, "texture", spec("type", "static", "texture", 3), false, null, false);
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticTextureModel summary =
+         assertInstanceOf(StaticTextureModel.class, agg.getSummaryTextureFrame());
+      assertEquals(3, summary.getTexture());
+      assertTrue(summary.isSummary());
+
+      Map<?, ?> first = (Map<?, ?>) ((List<?>) ChartAestheticMutator.describe(model)
+         .get("summaryFrames")).get(0);
+      assertEquals(3, ((Map<?, ?>) first.get("summaryTexture")).get("texture"));
+   }
+
+   @Test
+   void summaryIsRefusedOffWaterfallOnWrongChannelNonStaticAndMultiAesthetic() {
+      ChartBindingModel bar = new ChartBindingModel();
+      ChartBindingMutator.setShelf(bar, "y", List.of(measure("Sales", "Sum")));
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setSummaryFrame(
+         bar, "color", spec("type", "static", "color", "#111111"), false, null, false));
+
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setSummaryFrame(
+         waterfall(), "size", spec("type", "static", "size", 4), false, null, false));
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setSummaryFrame(
+         waterfall(), "color", spec("type", "palette", "palette", "Blues"), false, null, false));
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setSummaryFrame(
+         waterfall(), "color", spec("type", "static", "color", "#111111"), false, null, true));
+   }
+
+   @Test
+   void summaryIsRefusedWhileAColourFieldIsBound() {
+      ChartBindingModel model = waterfall();
+      ChartBindingMutator.setShelf(model, "x", List.of(dimension("Region")));
+      ChartAestheticMutator.setField(
+         model, "color", dimension("Region"));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class, () -> ChartAestheticMutator.setSummaryFrame(
+            model, "color", spec("type", "static", "color", "#111111"), false, null, false));
+      assertTrue(thrown.getMessage().contains("Region"));
+   }
+
+   @Test
+   void summaryMeasureMustExist() {
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setSummaryFrame(
+         waterfall(), "color", spec("type", "static", "color", "#111111"), false, "Nope", false));
+   }
 }

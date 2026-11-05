@@ -188,7 +188,7 @@ public final class VisualFrameAliases {
          }
          case "size" -> {
             switch(type) {
-               case "static" -> keys.add("size");
+               case "static" -> keys.addAll(List.of("size", "auto"));
                // Both graduated size frames map their values onto the same smallest..largest
                // range -- the two-handle slider in the Composer's binding-size pane. It lives on
                // SizeFrameModel, so it is the same pair for linear and categorical alike; there
@@ -345,6 +345,7 @@ public final class VisualFrameAliases {
       if(frame instanceof StaticSizeModel model) {
          out.put("type", "static");
          out.put("size", model.getSize());
+         out.put("auto", !model.isChanged());
          return out;
       }
 
@@ -621,12 +622,36 @@ public final class VisualFrameAliases {
       return model;
    }
 
+   /**
+    * The Composer's static size pane has an "Auto" checkbox that sends a model with
+    * {@code changed=false}; {@code SizeFrameModelFactory} then resets the user-tier value so the
+    * chart falls back to its default size. {@code size: "auto"} and {@code auto: true} are the two
+    * natural spellings of that, and both build the same unchanged model.
+    */
    private static VisualFrameModel staticSize(Map<String, Object> spec) {
+      Object rawSize = spec == null ? null : spec.get("size");
+      boolean sizeAuto = rawSize != null && "auto".equalsIgnoreCase(String.valueOf(rawSize).trim());
+      Boolean autoFlag = bool(spec, "auto");
+      boolean auto = sizeAuto || Boolean.TRUE.equals(autoFlag);
+
+      if(auto) {
+         if(rawSize != null && !sizeAuto) {
+            throw new IllegalArgumentException(
+               "A static size frame cannot be both 'auto' and have a numeric 'size' (" + rawSize +
+               "); give one or the other.");
+         }
+
+         StaticSizeModel model = new StaticSizeModel();
+         model.setChanged(false);
+         return model;
+      }
+
       Double size = number(spec, "size");
 
       if(size == null) {
          throw new IllegalArgumentException(
-            "A static size frame needs a numeric 'size', e.g. {type: \"static\", size: 8}.");
+            "A static size frame needs a numeric 'size' or size \"auto\", e.g. " +
+            "{type: \"static\", size: 8} or {type: \"static\", size: \"auto\"}.");
       }
 
       StaticSizeModel model = new StaticSizeModel();
@@ -637,6 +662,7 @@ public final class VisualFrameAliases {
       model.setChanged(true);
       return model;
    }
+
 
    private static VisualFrameModel lineFrame(Map<String, Object> spec, String type) {
       return switch(type) {
