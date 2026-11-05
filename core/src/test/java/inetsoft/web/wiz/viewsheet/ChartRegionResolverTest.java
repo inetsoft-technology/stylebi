@@ -172,7 +172,7 @@ class ChartRegionResolverTest {
    void refusesALegendIndexOutsideTheChartsRange() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(legends(1, true), 7));
+         () -> ChartRegionResolver.requireLegend(legends(1, true), 7, ChartVisibilityState.HiddenLegends.NONE));
 
       assertTrue(thrown.getMessage().contains("1 legend"), "name the range");
       assertTrue(thrown.getMessage().contains("7"), "and what was asked for");
@@ -187,14 +187,14 @@ class ChartRegionResolverTest {
    void refusesANegativeLegendIndex() {
       assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(legends(2, true), -1));
+         () -> ChartRegionResolver.requireLegend(legends(2, true), -1, ChartVisibilityState.HiddenLegends.NONE));
    }
 
    @Test
    void spellsOutARangeWhenThereIsMoreThanOneLegend() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(legends(3, true), 9));
+         () -> ChartRegionResolver.requireLegend(legends(3, true), 9, ChartVisibilityState.HiddenLegends.NONE));
 
       assertTrue(thrown.getMessage().contains("0 to 2"), "a real range, spelled out");
    }
@@ -202,14 +202,14 @@ class ChartRegionResolverTest {
    @Test
    void allowsEveryIndexInRange() {
       assertDoesNotThrow(
-         () -> ChartRegionResolver.requireLegend(legends(2, true), 1));
+         () -> ChartRegionResolver.requireLegend(legends(2, true), 1, ChartVisibilityState.HiddenLegends.NONE));
    }
 
    @Test
    void refusesAnyLegendOnAChartThatRendersNone() {
       assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(legends(0, true), 0));
+         () -> ChartRegionResolver.requireLegend(legends(0, true), 0, ChartVisibilityState.HiddenLegends.NONE));
    }
 
    /**
@@ -220,10 +220,42 @@ class ChartRegionResolverTest {
    void refusesALegendWhenTheCountCouldNotBeMeasured() {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> ChartRegionResolver.requireLegend(legends(0, false), 0));
+         () -> ChartRegionResolver.requireLegend(legends(0, false), 0, ChartVisibilityState.HiddenLegends.NONE));
 
       assertTrue(thrown.getMessage().contains("no laid-out graph"), "say why");
       assertTrue(thrown.getMessage().contains("legend"), "and name the legend");
+   }
+
+   /**
+    * Bug #80331: a legend whose descriptor is off is not built into the laid-out graph, so the
+    * drawn list is empty. The refusal must say hidden, not "no legends", and say how to show it.
+    */
+   @Test
+   void saysTheLegendIsHiddenWhenABoundLegendDescriptorIsOff() {
+      ChartVisibilityState.HiddenLegends hidden = new ChartVisibilityState.HiddenLegends(
+         List.of(new ChartVisibilityState.HiddenLegend("color", "Customer:Region")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegend(legends(0, true), 0, hidden));
+
+      assertTrue(thrown.getMessage().contains("hidden"), "say it is hidden");
+      assertTrue(thrown.getMessage().contains("color [Customer:Region]"), "name the legend");
+      assertTrue(thrown.getMessage().contains("set_chart_element_visibility"), "and the remedy");
+      assertFalse(thrown.getMessage().contains("no legends"), "never claim there are none");
+   }
+
+   /** An empty legend list alone is not evidence of hiding: a single-value legend is not drawn. */
+   @Test
+   void doesNotCallAnEmptyLegendListHiddenWithoutADescriptorSayingSo() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartRegionResolver.requireLegend(
+            legends(0, true), 0, ChartVisibilityState.HiddenLegends.NONE));
+
+      assertTrue(thrown.getMessage().contains("no legends"));
+      assertTrue(thrown.getMessage().contains("single value"));
+      assertFalse(thrown.getMessage().contains("hidden"));
    }
 
    // ── naming a legend ────────────────────────────────────────────────────────────
@@ -425,7 +457,7 @@ class ChartRegionResolverTest {
          true);
 
       assertEquals(2, legends.count(), "both slots counted");
-      assertDoesNotThrow(() -> ChartRegionResolver.requireLegend(legends, 1),
+      assertDoesNotThrow(() -> ChartRegionResolver.requireLegend(legends, 1, ChartVisibilityState.HiddenLegends.NONE),
                          "and the empty slot's index is still addressable");
       assertEquals("Region", ChartRegionResolver.requireLegendField(legends, "color").field(),
                    "but only the described one can be named");
