@@ -21,9 +21,12 @@ import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.security.User;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -44,7 +47,8 @@ import static org.mockito.Mockito.*;
  * Bug #79387: {@link MVRule#cleanup()} must remove the expired MVs of every organization, not
  * only those of the organization of the thread that triggered it. The MV listing, removal and
  * file deletion resolve the organization from the current context, so each organization is
- * cleaned in its own scope.
+ * cleaned in its own scope. Each organization's {@code mv.maxAge} must also be honored from its
+ * own override, not read as the global key for every org but the triggering thread's own.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -77,6 +81,17 @@ class MVRuleCleanupOrgTest {
       securityStatic = mockStatic(SecurityEngine.class);
       securityStatic.when(SecurityEngine::getSecurity).thenReturn(engine);
 
+      // runInOrg() resolves a SYSTEM principal scoped to the target org (Bug #79387), which
+      // requires a SecurityProvider/User pair to resolve through; isVirtual() = true keeps
+      // SUtil.setAdditionalDatasource() a no-op so it doesn't need a real DataSourceRegistry.
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(engine.getSecurityProvider()).thenReturn(provider);
+      when(provider.isVirtual()).thenReturn(true);
+      User user = mock(User.class);
+      when(user.getRoles()).thenReturn(new IdentityID[0]);
+      when(user.getGroups()).thenReturn(new String[0]);
+      when(provider.getUser(any(IdentityID.class))).thenReturn(user);
+
       clusterStatic = mockStatic(ClusterUtil.class);
       clusterStatic.when(() -> ClusterUtil.deleteClusterMV(anyString())).thenAnswer(inv -> {
          clusterDeletes.add(inv.getArgument(0) + "@" +
@@ -97,6 +112,7 @@ class MVRuleCleanupOrgTest {
       securityStatic.close();
       managerStatic.close();
       SreeEnv.remove("mv.maxAge");
+      SreeEnv.remove("inetsoft.org." + OTHER_ORG.toLowerCase() + ".mv.maxAge");
       OrganizationContextHolder.clear();
    }
 
@@ -124,6 +140,38 @@ class MVRuleCleanupOrgTest {
 
       assertDoesNotThrow(MVRule::cleanup);
       assertEquals(List.of("mvA@" + currentOrg), removes);
+   }
+
+   @Test
+   void otherOrgsOwnMaxAgeOverrideExpiresItsMV() {
+      SreeEnv.remove("mv.maxAge");
+      SreeEnv.setProperty("inetsoft.org." + OTHER_ORG.toLowerCase() + ".mv.maxAge", "1000");
+      MVDef expiredB = mv("mvB", true);
+      when(manager.list(false)).thenReturn(new MVDef[0]);
+      when(manager.list(new String[] { OTHER_ORG })).thenReturn(List.of(expiredB));
+
+      MVRule.cleanup();
+
+      assertEquals(List.of("mvB@" + OTHER_ORG.toLowerCase()), removes,
+         "org B's own mv.maxAge override must expire its MV, even though no global override is set");
+   }
+
+   @Test
+   void otherOrgsOwnMaxAgeOverrideProtectsItsStillValidMV() {
+      // global mv.maxAge = 1s (would expire this 2-minutes-old MV); org B's own override is a
+      // day (would not) -- org B's own rule must win.
+      SreeEnv.setProperty("mv.maxAge", "1000");
+      SreeEnv.setProperty("inetsoft.org." + OTHER_ORG.toLowerCase() + ".mv.maxAge", "86400000");
+      MVDef freshByOwnRuleB = mock(MVDef.class);
+      when(freshByOwnRuleB.getName()).thenReturn("mvB");
+      when(freshByOwnRuleB.getLastUpdateTime()).thenReturn(System.currentTimeMillis() - 120_000L);
+      when(manager.list(false)).thenReturn(new MVDef[0]);
+      when(manager.list(new String[] { OTHER_ORG })).thenReturn(List.of(freshByOwnRuleB));
+
+      MVRule.cleanup();
+
+      assertEquals(List.of(), removes,
+         "org B's own mv.maxAge override says this MV is not yet expired; it must not be removed");
    }
 
    private static MVDef mv(String name, boolean expired) {
