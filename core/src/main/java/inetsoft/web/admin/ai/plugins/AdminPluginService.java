@@ -182,6 +182,13 @@ public class AdminPluginService {
          Set<String> expectedIds = new LinkedHashSet<>();
 
          if(spec != null) {
+            try {
+               inetsoft.util.Plugins.validatePluginId(spec.getPluginId());
+            }
+            catch(IllegalArgumentException e) {
+               throw new IllegalArgumentException("pluginId: " + e.getMessage(), e);
+            }
+
             expectedIds.add(spec.getPluginId());
             CreateDriverPluginRequest createRequest = CreateDriverPluginRequest.builder()
                .uploadId(request.getUploadId())
