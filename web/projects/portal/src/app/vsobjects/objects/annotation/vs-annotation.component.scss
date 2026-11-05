@@ -98,7 +98,7 @@ $line-handle-width: 10px;
 :host-context(.viz-modern) {
   // matches the assembly's selection outline
   .vs-annotation__rectangle--selected {
-    border: 2px dashed var(--inet-viz-selected-border);
+    border: 2px dashed var(--inet-viz-assembly-outline);
   }
 
   // A named colour cannot follow a theme — annotation body text was black in dark mode too.

@@ -37,7 +37,7 @@
  */
 
 import { VSUtil } from "../../util/vs-util";
-import { createYearCalendar } from "./year-calendar.component.test-helpers";
+import { createYearCalendar, makeYearCalendarModel } from "./year-calendar.component.test-helpers";
 
 describe("YearCalendar – display", () => {
    afterEach(() => {
@@ -383,5 +383,51 @@ describe("YearCalendar – display", () => {
          comp.currentDate.year = 2100;
          expect(comp.ocurrentDate.year).toBe(2099);
       });
+   });
+});
+
+describe("YearCalendar selection fill over a card", () => {
+   const tint = "rgba(170,170,170,0.15)";
+
+   function withObjectBackground(vizModern: boolean, background: string) {
+      const objectFormat = { ...makeYearCalendarModel().objectFormat, background };
+      return createYearCalendar({ model: { vizModern, objectFormat } as any }).comp;
+   }
+
+   it("ignores a modern card's translucent tint", () => {
+      const tinted = withObjectBackground(true, tint);
+      const plain = withObjectBackground(true, "");
+
+      expect(tinted.selectedBgColor).toBe(plain.selectedBgColor);
+      expect(tinted.selectedBgColor).toBe("#cdf7f6");
+   });
+
+   it("still shades an opaque modern object background", () => {
+      expect(withObjectBackground(true, "#336699").selectedBgColor).not.toBe("#cdf7f6");
+   });
+
+   it("still shades a legacy translucent object background", () => {
+      expect(withObjectBackground(false, tint).selectedBgColor).not.toBe("#cdf7f6");
+   });
+
+   // the light default would put the dark ink on a light fill
+   it("shades the opaque dark card under a dark modern tint", () => {
+      const objectFormat = { ...makeYearCalendarModel().objectFormat, background: tint };
+      const comp = createYearCalendar(
+         { model: { vizModern: true, vizDark: true, objectFormat } as any }).comp;
+
+      expect(comp.selectedBgColor).toBe("rgb(81, 80, 83)");
+   });
+});
+
+describe("YearCalendar dark cell surfaces (compiled CSS)", () => {
+   it("leaves the month cells on the card in dark, with a dark gridline", () => {
+      const { comp } = createYearCalendar();
+      const styleText = ((comp.constructor as any).ɵcmp.styles as string[]).join("\n");
+
+      expect(styleText).toMatch(
+         /\.viz-dark[^{}]*\.month-cell--surface[^{}]*\{[^}]*background:\s*transparent/);
+      expect(styleText).toMatch(
+         /\.viz-dark[^{}]*\.month-cell--surface[^{}]*\{[^}]*border-color:\s*#4A484F/i);
    });
 });

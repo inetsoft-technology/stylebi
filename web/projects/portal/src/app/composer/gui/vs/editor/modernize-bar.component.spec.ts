@@ -35,6 +35,14 @@ describe("ModernizeBarComponent", () => {
       expect(fixture.nativeElement.textContent).toContain("Classic look");
    });
 
+   it("renders a custom action label", () => {
+      fixture.componentInstance.actionLabel = "Switch to dark";
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector(".modernize-bar_action").textContent.trim())
+         .toBe("Switch to dark");
+   });
+
    it("emits when the action is pressed", () => {
       const spy = vi.fn();
       fixture.componentInstance.onModernize.subscribe(spy);

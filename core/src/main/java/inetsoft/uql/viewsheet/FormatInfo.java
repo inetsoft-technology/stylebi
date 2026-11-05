@@ -306,7 +306,14 @@ public class FormatInfo implements AssetObject {
          tfmt.setFont(sfont, false);
       }
 
-      if(!tfmt.isBackgroundValueDefined() ||
+      if(sfmt.isDefaultCardTint()) {
+         // a fill copied before the tint is stale
+         if(!tfmt.isBackgroundValueDefined()) {
+            tfmt.setBackgroundValue(null, false);
+            tfmt.setBackground(null, false);
+         }
+      }
+      else if(!tfmt.isBackgroundValueDefined() ||
          cssfmt.isBackgroundValueDefined() ||
          userfmt.isBackgroundValueDefined() || userfmt.isBackgroundDefined())
       {
@@ -323,7 +330,14 @@ public class FormatInfo implements AssetObject {
          tfmt.setBorderColors(sfmt.getBorderColors(), false);
       }
 
-      if(!tfmt.isAlphaValueDefined() || cssfmt.isAlphaValueDefined() ||
+      if(sfmt.isDefaultCardTintAlpha()) {
+         // drop a stale copied alpha
+         if(!tfmt.isAlphaValueDefined()) {
+            tfmt.setAlphaValue(100, false);
+            tfmt.setAlpha(100, false);
+         }
+      }
+      else if(!tfmt.isAlphaValueDefined() || cssfmt.isAlphaValueDefined() ||
          userfmt.isAlphaValueDefined() || userfmt.isAlphaDefined())
       {
          tfmt.setAlphaValue(sfmt.getAlphaValue(), false);

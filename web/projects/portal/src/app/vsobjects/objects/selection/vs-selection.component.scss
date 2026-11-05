@@ -184,6 +184,15 @@
   z-index: 5;
   visibility: hidden;
   padding-left: 5px;
+  background-color: rgba(255, 255, 255, 0.75);
+}
+
+:host-context(.viz-modern) .selection-list__header-buttons {
+  background-color: var(--inet-shell-surface-default);
+}
+
+:host-context(.viz-dark) .selection-list__header-buttons {
+  background-color: var(--inet-viz-surface-dark);
 }
 
 .resize-label {
@@ -218,6 +227,14 @@
   &.top {
     top: -1px;
   }
+}
+
+:host-context(.viz-modern) .pending-alert.left {
+  background-color: var(--inet-shell-surface-default);
+}
+
+:host-context(.viz-dark) .pending-alert.left {
+  background-color: var(--inet-viz-surface-dark);
 }
 
 // Kebab pill is ~40px (18px glyph + 4px icon padding + 16px btn-sm padding + 2px border), not
@@ -298,4 +315,14 @@
   i {
     flex: none;
   }
+}
+
+:host-context(.viz-modern) .quick-switch-overlay-btn {
+  background: var(--inet-shell-surface-default);
+  border-color: var(--inet-default-border-color);
+}
+
+:host-context(.viz-dark) .quick-switch-overlay-btn {
+  background: var(--inet-viz-surface-dark);
+  border-color: var(--inet-viz-hairline-dark);
 }

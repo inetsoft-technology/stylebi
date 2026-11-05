@@ -73,16 +73,21 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
    }
 
    @Override
+   protected Insets legacyObjectBorders() {
+      return new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
+   }
+
+   @Override
    protected void seedChromeDefaults(VizContext ctx) {
       super.seedChromeDefaults(ctx);
 
       // the title lane: modern is unfilled with a bottom rule, legacy is the filled band and the
       // four-side box the base writes for a bordered titled assembly. Both branches write, because
-      // the legacy one is what Revert relies on. The border colours are left to the base's own
-      // block, whose object-border value is already the rule colour in both modes - that block
-      // runs first, in super.seedChromeDefaults above, and only writes when bordersValue is
-      // already non-null, which setDefaultFormat(border = true) guarantees at creation and every
-      // seed run below leaves true for the next one
+      // the legacy one is what Revert relies on. The legacy border colours are left to the base's
+      // own block, which runs first, in super.seedChromeDefaults above, and only writes when
+      // bordersValue is already non-null, which setDefaultFormat(border = true) guarantees at
+      // creation and every seed run below leaves true for the next one
       VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
 
       if(titleFormat != null) {
@@ -94,6 +99,7 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
             // has to null both or a runtime background survives it
             def.setBackground(null);
             def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
+            def.setBorderColorsValue(VSTitleChromeDefaults.titleRuleColors(ctx));
             def.setForegroundValue(VSTitleChromeDefaults.titleForegroundValue(ctx));
          }
          else {

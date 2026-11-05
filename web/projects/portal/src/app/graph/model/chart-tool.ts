@@ -941,7 +941,7 @@ export namespace ChartTool {
 
          // chrome selections match the assembly's outer selection outline: same token, dashed
          if(strokeOnly) {
-            const outline = canvasCssStyle.getPropertyValue("--inet-viz-selected-border").trim();
+            const outline = canvasCssStyle.getPropertyValue("--inet-viz-assembly-outline").trim();
 
             if(outline) {
                context.strokeStyle = outline;

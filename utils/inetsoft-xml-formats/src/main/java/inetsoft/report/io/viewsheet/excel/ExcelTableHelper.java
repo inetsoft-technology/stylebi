@@ -171,6 +171,7 @@ public class ExcelTableHelper extends VSTableHelper {
                                  VSCompositeFormat parentformat, Rectangle rec,
                                  Insets padding)
    {
+      format = flattenCellFill(format, parentformat);
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
                                     dispText, dispObj, sheet, book,
                                     (PoiExcelVSExporter) getExporter(),
@@ -219,6 +220,7 @@ public class ExcelTableHelper extends VSTableHelper {
 
       boolean dispValue = (dispObj instanceof Number) || fmtPattern != null && !"General".equals(fmtPattern) &&
          !"@".equals(fmtPattern) && !(dispObj instanceof String) && !(dispObj instanceof Character);
+      format = flattenCellFill(format, parentformat);
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
                                     dispText, dispObj, sheet, book,
                                     (PoiExcelVSExporter) getExporter(), parentformat,

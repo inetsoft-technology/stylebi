@@ -1673,15 +1673,20 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    protected void seedChromeDefaults(VizContext ctx) {
       super.seedChromeDefaults(ctx);
 
-      // unlike the chart's unconditional write: tables and crosstabs are created with fill=false
-      // precisely so they have no DEFAULT background (see initDefaultFormat's comment above), so
-      // the legacy branch clears it back to that same absence instead of leaving a stale modern
-      // value in place - Revert must match a table that was never modernized, not almost match it
+      // modern takes the base's tint. Tables and crosstabs are created with fill=false precisely
+      // so they have no DEFAULT background (see initDefaultFormat's comment above), so the legacy
+      // branch clears it back to that same absence instead of leaving a stale modern value in
+      // place - Revert must match a table that was never modernized, not almost match it
       VSCompositeFormat objFormat = getFormat();
 
-      if(objFormat != null) {
-         objFormat.getDefaultFormat().setBackgroundValue(
-            ctx.modern ? VSObjectChromeDefaults.cardBackgroundCss(ctx) : null);
+      if(objFormat != null && !ctx.modern) {
+         VSFormat def = objFormat.getDefaultFormat();
+         def.setBackgroundValue(null);
+
+         // only a stale tint's alpha; an old asset's own alpha stays
+         if(def.getAlphaValue() == VSObjectChromeDefaults.CARD_TINT_ALPHA) {
+            def.setAlphaValue(100);
+         }
       }
 
       // the title lane: modern is unfilled with a bottom rule, legacy is the filled band and the

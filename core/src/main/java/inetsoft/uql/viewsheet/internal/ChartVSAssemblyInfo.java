@@ -89,6 +89,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    @Override
+   protected Insets legacyObjectBorders() {
+      return new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
+   }
+
+   @Override
    protected void setDefaultFormat(boolean border, boolean setFormat, boolean fill) {
       setPadding(new Insets(10, 10, 10, 10));
       super.setDefaultFormat(border, setFormat, fill);
@@ -111,9 +117,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       super.seedChromeDefaults(ctx);
       VSCompositeFormat objFormat = getFormat();
 
-      if(objFormat != null) {
-         objFormat.getDefaultFormat().setBackgroundValue(
-            VSObjectChromeDefaults.cardBackgroundCss(ctx));
+      // modern takes the base's tint; legacy restores the white card on every pass
+      if(objFormat != null && !ctx.modern) {
+         VSFormat def = objFormat.getDefaultFormat();
+         def.setBackgroundValue(VSObjectChromeDefaults.cardBackgroundCss(ctx));
+
+         // only a stale tint's alpha; an old asset's own alpha stays
+         if(def.getAlphaValue() == VSObjectChromeDefaults.CARD_TINT_ALPHA) {
+            def.setAlphaValue(100);
+         }
       }
 
       // the card inset. Seeded rather than resolved at read time so it travels in an exported

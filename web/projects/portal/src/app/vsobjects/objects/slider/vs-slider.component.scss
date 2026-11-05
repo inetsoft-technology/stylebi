@@ -78,9 +78,10 @@
 // --inet-primary-color; a slider's filled track is positional feedback for a
 // continuous value, not a discrete selection state). Shadows and state opacities are not
 // repointed.
+// The track colours match the server slider painter (VSOutputChromeDefaults modern).
 :host-context(.viz-modern) {
-  --slider-inactive-track-color: var(--inet-default-border-color);
-  --slider-active-track-color: #C8C2B7;
+  --slider-inactive-track-color: #D6D2C8;
+  --slider-active-track-color: #B7B2A8;
   --slider-handle-color: var(--inet-text-muted-color);
   --slider-tick-color: var(--inet-text-muted-color);
   --slider-label-bg: var(--inet-text-muted-color);
@@ -98,8 +99,8 @@
 // the server slider painter (VSOutputChromeDefaults dark) so the live and exported sliders agree.
 // --slider-label-bg is intentionally left at the modern value so the value bubble keeps white text.
 :host-context(.viz-dark) {
-  --slider-inactive-track-color: #3A383D;
-  --slider-active-track-color: #49454F;
+  --slider-inactive-track-color: #4A484F;
+  --slider-active-track-color: #544F5A;
   --slider-handle-color: #CAC4D0;
   --slider-tick-color: #CAC4D0;
 }

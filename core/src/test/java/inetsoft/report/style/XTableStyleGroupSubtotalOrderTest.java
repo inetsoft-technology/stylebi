@@ -62,7 +62,7 @@ class XTableStyleGroupSubtotalOrderTest {
          assertTrue(type == XTableStyle.Specification.ROW_GROUP_TOTAL ||
                     type == XTableStyle.Specification.COL_GROUP_TOTAL,
                     "spec " + i + " must be a group-total spec ahead of the zebra");
-         assertEquals(0xEEEAE1, ((Color) spec.get("background")).getRGB() & 0xFFFFFF);
+         assertEquals(0xDBD7CF, ((Color) spec.get("background")).getRGB() & 0xFFFFFF);
       }
 
       // zebra survives, last, still #F5F5F5 (untouched)

@@ -67,14 +67,24 @@ public final class VSChartChromeDefaults {
 
    /**
     * Resolve an axis-line color: when the context is modern and the color is still the legacy
-    * default, substitute the modern gridline neutral so the axis line unifies with the gridlines;
-    * otherwise (a customer/user color, or a legacy context) leave it unchanged. Compared against the
-    * hardcoded fallback so a format.css or user-picker color, which resolves to something else, is
-    * preserved.
+    * default, substitute the modern axis-line neutral; otherwise (a customer/user color, or a
+    * legacy context) leave it unchanged. Compared against the hardcoded fallback so a format.css
+    * or user-picker color, which resolves to something else, is preserved.
     */
    public static Color resolveAxisLineColor(Color current, VizContext ctx) {
       return ctx.modern && GDefaults.DEFAULT_LINE_COLOR.equals(current)
-         ? (ctx.dark ? GRIDLINE_DARK : GRIDLINE) : current;
+         ? axisLineColor(ctx) : current;
+   }
+
+   /** The modern axis-line neutral. */
+   public static Color axisLineColor(VizContext ctx) {
+      return ctx.dark ? AXIS_LINE_DARK : AXIS_LINE;
+   }
+
+   /** Resolve a radar spoke color: modern default becomes the gridline neutral, else unchanged. */
+   public static Color resolveSpokeColor(Color current, VizContext ctx) {
+      return ctx.modern && GDefaults.DEFAULT_LINE_COLOR.equals(current)
+         ? gridlineColor(ctx) : current;
    }
 
    /**
@@ -212,16 +222,18 @@ public final class VSChartChromeDefaults {
 
    // modern warm-neutral chrome. Warmer/subtler than the legacy GDefaults #EEEEEE, and equal to
    // VSTableStructureDefaults.gridlineColor().
-   private static final Color GRIDLINE = new Color(0xE8E5DE);
+   private static final Color AXIS_LINE = new Color(0x85827A);
+   private static final Color AXIS_LINE_DARK = new Color(0x7E7B86);
+   private static final Color GRIDLINE = new Color(0xD6D2C8);
    // label = shell muted text (= table headerForeground); title = shell default text. Quieter than
    // today's GDefaults #4B4B4B label / #2B2B2B title while staying legible.
    private static final Color LABEL = new Color(0x6A685F);
    private static final Color TITLE = new Color(0x35342F);
 
    // dark chrome; gridline matches the table gridline, label/title lift for on-dark legibility
-   private static final Color GRIDLINE_DARK = new Color(0x3A383D);
+   private static final Color GRIDLINE_DARK = new Color(0x4A484F);
    private static final Color LABEL_DARK = new Color(0xCAC4D0);
    private static final Color TITLE_DARK = new Color(0xE6E0E9);
-   // dark legend panel = --dark-surface-default, so it reads as part of the dark chart card
-   private static final Color LEGEND_BG_DARK = new Color(0x252428);
+   // dark legend panel, lifted above the translucent dark card
+   private static final Color LEGEND_BG_DARK = new Color(0x3E3C43);
 }

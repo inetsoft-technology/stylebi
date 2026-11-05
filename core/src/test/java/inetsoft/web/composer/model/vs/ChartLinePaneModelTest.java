@@ -68,11 +68,11 @@ class ChartLinePaneModelTest {
       ChartLinePaneModel model = new ChartLinePaneModel(info.getVSChartInfo(), plot);
 
       // the accessor really is getyGridLineColor - lowercase after "get", matching the field
-      assertEquals("#3a383d", model.getyGridLineColor().toLowerCase(),
+      assertEquals("#4a484f", model.getyGridLineColor().toLowerCase(),
                    "the pane must report the stored value, which is what the canvas draws");
       // X and Y are seeded with the same value, so the Y assertion alone cannot catch an X/Y
       // swap on the read path - getxGridLineColor, lowercase x after "get"
-      assertEquals("#3a383d", model.getxGridLineColor().toLowerCase(),
+      assertEquals("#4a484f", model.getxGridLineColor().toLowerCase(),
                    "the pane must report the stored value, which is what the canvas draws");
    }
 

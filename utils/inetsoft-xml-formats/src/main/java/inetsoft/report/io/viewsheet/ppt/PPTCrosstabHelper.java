@@ -106,6 +106,7 @@ public class PPTCrosstabHelper extends VSCrosstabHelper {
                                  Rectangle rec, Insets padding)
    {
       Rectangle2D rect = (pixelbounds == null) ? null : pixelbounds;
+      format = flattenCellFill(format, parentformat);
       PPTVSUtil.writeTableCell(startX, startY, bounds, rect, format, dispText,
                                dispObj, coordinationHelper, vHelper,
                                (PPTVSExporter) getExporter(),

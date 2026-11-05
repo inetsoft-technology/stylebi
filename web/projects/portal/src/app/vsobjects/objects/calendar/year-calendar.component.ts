@@ -128,7 +128,7 @@ export class YearCalendar implements OnChanges, AfterViewInit {
          // if background is set then use a shade of the background color for the selection
          // otherwise use our default selection color
          this.selectedBgColor = GuiTool.getSelectedColor(this.model.yearFormat.background ?
-            this.model.yearFormat.background : this.model.objectFormat.background, "#cdf7f6");
+            this.model.yearFormat.background : VSCalendar.getSelectionBase(this.model), "#cdf7f6");
       }
    }
 

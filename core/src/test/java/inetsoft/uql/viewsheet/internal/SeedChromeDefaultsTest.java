@@ -48,6 +48,8 @@ import java.io.StringReader;
 import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * The creation seeds, pinned. Written before the seedChromeDefaults extraction as its safety net:
@@ -197,6 +199,56 @@ class SeedChromeDefaultsTest {
       CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
       calendar.getVSAssemblyInfo().initDefaultFormat();
       return (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+   }
+
+   @Test
+   void aModernCalendarIsATintedCard() {
+      gateOn();
+      VSFormat def = objectDefault(newCalendar());
+
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
+      assertNull(def.getBordersValue());
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(), def.getRoundCornerValue());
+   }
+
+   @Test
+   void revertingACalendarRestoresItsLegacyFrame() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(calendar);
+      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+      assertNull(objectDefault(info).getBordersValue(), "precondition: modern card");
+
+      VizModernizeUtil.revert(vs);
+
+      VSFormat def = objectDefault(info);
+      assertEquals(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                              StyleConstants.THIN_LINE, StyleConstants.THIN_LINE),
+                   def.getBordersValue());
+      BorderColors colors = def.getBorderColorsValue();
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.topColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.leftColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.bottomColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.rightColor);
+      assertEquals(10, def.getRoundCornerValue());
+      assertEquals(100, def.getAlphaValue());
+      assertNull(def.getBackgroundValue());
+   }
+
+   @Test
+   void aDropdownCalendarStaysWhite() {
+      gateOn();
+      CalendarVSAssemblyInfo info = newCalendar();
+      CalendarVSAssemblyInfo source = newCalendar();
+      source.setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.copyInfo(source);
+
+      VSFormat def = objectDefault(info);
+      assertEquals("0xffffff", def.getBackgroundValue());
+      assertEquals(100, def.getAlphaValue());
    }
 
    private static VSFormat calendarPath(VSAssemblyInfo info, int type) {
@@ -469,7 +521,7 @@ class SeedChromeDefaultsTest {
       assertNotNull(title, "a table is titled, so a TITLEPATH composite is installed");
       assertNotNull(title.getDefaultFormat().getBordersValue(),
                     "a table creates with border = true, so the title carries border insets");
-      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx),
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
                    title.getDefaultFormat().getBorderColorsValue().topColor);
    }
 
@@ -729,15 +781,17 @@ class SeedChromeDefaultsTest {
    @Test
    void aChartCardTakesTheCardBackground() {
       gateOn();
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(VizContext.ofGate()),
-                   objectDefault(newChart()).getBackgroundValue());
+      VSFormat def = objectDefault(newChart());
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
    }
 
    @Test
    void aTableCardTakesTheCardBackground() {
       gateOn();
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(VizContext.ofGate()),
-                   objectDefault(newTable()).getBackgroundValue());
+      VSFormat def = objectDefault(newTable());
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
    }
 
    @Test
@@ -766,6 +820,177 @@ class SeedChromeDefaultsTest {
 
       assertNull(objectDefault(info).getBackgroundValue(),
                  "an unmarked table must not gain a DEFAULT background from the hook");
+   }
+
+   // ---- the card surface: tint and no border in modern, the legacy frame on Revert ------------
+
+   private static final Insets THIN_FRAME = new Insets(StyleConstants.THIN_LINE,
+      StyleConstants.THIN_LINE, StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
+
+   @Test
+   void aModernCardTakesTheTintAndNoBorder() {
+      gateOn();
+      VSAssemblyInfo[] cards = { newTable(), newChart(), newSelectionList(), newSelectionTree(),
+                                 newTimeSlider(), newCurrentSelection(), newSlider() };
+
+      for(VSAssemblyInfo info : cards) {
+         VSFormat def = objectDefault(info);
+         String type = info.getClass().getSimpleName();
+
+         assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue(), type);
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue(), type);
+         assertNull(def.getBordersValue(), type + " has no card border in modern");
+      }
+   }
+
+   @Test
+   void textImageAndGaugeTakeNoTint() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      VSAssembly[] assemblies = { new TextVSAssembly(vs, "Text1"),
+                                  new ImageVSAssembly(vs, "Image1"),
+                                  new GaugeVSAssembly(vs, "Gauge1") };
+
+      for(VSAssembly assembly : assemblies) {
+         VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+         info.initDefaultFormat();
+
+         assertFalse(info.getFormat().isDefaultCardTint(),
+                     info.getClass().getSimpleName() + " stays transparent");
+      }
+   }
+
+   @Test
+   void aSelectionContainerChildTakesNoTint() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "C");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "L");
+      vs.addAssembly(container);
+      vs.addAssembly(list);
+      container.getVSAssemblyInfo().initDefaultFormat();
+      list.getVSAssemblyInfo().initDefaultFormat();
+      container.setAssemblies(new String[] { "L" });
+      VSFormat def = objectDefault(list.getVSAssemblyInfo());
+      def.setBordersValue(new Insets(1, 0, 1, 0));
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue(),
+                   "precondition: created outside the container, the list is a card");
+
+      list.getVSAssemblyInfo().seedCardSurface(VizContext.ofGate());
+
+      assertNull(def.getBackgroundValue(), "the container is the card");
+      assertEquals(100, def.getAlphaValue());
+      assertEquals(new Insets(1, 0, 1, 0), def.getBordersValue(),
+                   "the container's separators survive");
+
+      list.getVSAssemblyInfo().seedCardSurface(VizContext.ofTransition(vs, null));
+
+      assertNull(def.getBackgroundValue(), "a Revert gives the child no card either");
+      assertEquals(100, def.getAlphaValue());
+      assertEquals(new Insets(1, 0, 1, 0), def.getBordersValue(),
+                   "a Revert writes no legacy frame over the separators");
+   }
+
+   @Test
+   void isInSelectionContainerToleratesASheetWithNoAssemblyList() {
+      Viewsheet mockVs = mock(Viewsheet.class);
+      when(mockVs.getAssemblies()).thenReturn(null);
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      info.setViewsheet(mockVs);
+
+      assertFalse(info.isInSelectionContainer());
+   }
+
+   @Test
+   void anAdhocFilterKeepsItsWhite() {
+      gateOn();
+      SelectionListVSAssemblyInfo info = newSelectionList();
+      String white = Color.WHITE.getRGB() + "";
+      // values a modern card seed would overwrite
+      objectDefault(info).setBackgroundValue(white);
+      objectDefault(info).setAlphaValue(100);
+      objectDefault(info).setBordersValue(new Insets(1, 1, 1, 1));
+      info.setAdhocFilter(true);
+
+      info.seedCardSurface(VizContext.ofGate());
+
+      assertEquals(white, objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+      assertEquals(new Insets(1, 1, 1, 1), objectDefault(info).getBordersValue());
+   }
+
+   @Test
+   void revertWritesTheLegacyFrameOnlyOnATransition() {
+      gateOn();
+      TableVSAssemblyInfo info = newTable();
+      assertNull(objectDefault(info).getBordersValue(), "precondition: no modern frame");
+      info.setVizMark(null);
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      assertNull(objectDefault(info).getBordersValue(), "a restore writes no width");
+
+      info.seedChromeDefaults(VizContext.ofTransition(info.getViewsheet(), null));
+      VSFormat def = objectDefault(info);
+      assertEquals(THIN_FRAME, def.getBordersValue(), "Revert writes the legacy frame");
+      assertNull(def.getBackgroundValue());
+      assertEquals(100, def.getAlphaValue());
+   }
+
+   @Test
+   void aLegacyRestoreLeavesAStoredWidthAlone() {
+      gateOff();
+      TableVSAssemblyInfo info = newTable();
+      objectDefault(info).setBordersValue(new Insets(2, 2, 2, 2));
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals(new Insets(2, 2, 2, 2), objectDefault(info).getBordersValue());
+   }
+
+   @Test
+   void aLegacyChartKeepsItsWhiteCardAndOpaqueAlpha() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals("#ffffff", objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+
+      // a bookmark saved while modern brings the tint back
+      objectDefault(info).setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+      objectDefault(info).setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals("#ffffff", objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+   }
+
+   @Test
+   void aLegacyTableDropsAStaleTint() {
+      gateOff();
+      TableVSAssemblyInfo info = newTable();
+      objectDefault(info).setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+      objectDefault(info).setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertNull(objectDefault(info).getBackgroundValue());
+      assertEquals(100, objectDefault(info).getAlphaValue());
+   }
+
+   @Test
+   void aLegacyTableAndChartKeepTheirOwnAlpha() {
+      gateOff();
+      VSAssemblyInfo[] cards = { newTable(), newChart() };
+
+      for(VSAssemblyInfo info : cards) {
+         String type = info.getClass().getSimpleName();
+         objectDefault(info).setAlphaValue(60);
+
+         VizModernizeUtil.reseedAfterRestore(info);
+         assertEquals(60, objectDefault(info).getAlphaValue(), type + " after a restore");
+
+         info.seedChromeDefaults(VizContext.of((VizMark) null));
+         assertEquals(60, objectDefault(info).getAlphaValue(), type + " after a legacy pass");
+      }
    }
 
    // ---- the chart's plot seeds -----------------------------------------------------------------
@@ -801,7 +1026,7 @@ class SeedChromeDefaultsTest {
    void aModernChartSeedsTheWarmGridlineOnAllFiveLines() {
       gateOn();
       PlotDescriptor plot = plot(newChart());
-      Color expected = new Color(0xE8E5DE);
+      Color expected = new Color(0xD6D2C8);
       assertEquals(expected, plot.getXGridColor(), "x gridline");
       assertEquals(expected, plot.getYGridColor(), "y gridline");
       assertEquals(expected, plot.getFacetGridColor(), "facet lines");
@@ -814,7 +1039,7 @@ class SeedChromeDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       PlotDescriptor plot = plot(newChart());
-      Color expected = new Color(0x3A383D);
+      Color expected = new Color(0x4A484F);
       assertEquals(expected, plot.getXGridColor(), "x gridline");
       assertEquals(expected, plot.getYGridColor(), "y gridline");
       assertEquals(expected, plot.getFacetGridColor(), "facet lines");
@@ -897,7 +1122,7 @@ class SeedChromeDefaultsTest {
    void revertRestoresTheLegacyGridlineAndInk() {
       gateOn();
       ChartVSAssemblyInfo info = newChart();
-      assertEquals(new Color(0xE8E5DE), plot(info).getYGridColor(), "seeded modern first");
+      assertEquals(new Color(0xD6D2C8), plot(info).getYGridColor(), "seeded modern first");
 
       // Revert clears the mark and re-runs the same hook with an unmarked context
       info.setVizMark(null);
@@ -918,7 +1143,7 @@ class SeedChromeDefaultsTest {
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.initDefaultFormat();
 
-      assertEquals(new Color(0xE8E5DE), plot(info).getFacetGridColor());
+      assertEquals(new Color(0xD6D2C8), plot(info).getFacetGridColor());
    }
 
    @Test
@@ -928,12 +1153,12 @@ class SeedChromeDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       ChartVSAssemblyInfo info = newChart();
-      assertEquals(new Color(0x3A383D), plot(info).getXGridColor(), "dark org, dark seed");
+      assertEquals(new Color(0x4A484F), plot(info).getXGridColor(), "dark org, dark seed");
 
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.initDefaultFormat();
 
-      assertEquals(new Color(0xE8E5DE), plot(info).getXGridColor(),
+      assertEquals(new Color(0xD6D2C8), plot(info).getXGridColor(),
                    "the mark decides, not the live org property");
    }
 
@@ -970,7 +1195,7 @@ class SeedChromeDefaultsTest {
 
       assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
                    plot(restored).getYGridColor(),
-                   "the seeded #3A383D is lost on round trip; the field's own legacy default " +
+                   "the seeded #4A484F is lost on round trip; the field's own legacy default " +
                    "comes back instead");
    }
 
@@ -990,7 +1215,7 @@ class SeedChromeDefaultsTest {
                    objectDefault(info).getBorderColorsValue().topColor);
       assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
                    objectDefault(info).getRoundCornerValue());
-      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx),
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
                    titleFormat(info).getDefaultFormat().getBorderColorsValue().topColor,
                    "the title border colour follows too");
    }
@@ -1078,7 +1303,7 @@ class SeedChromeDefaultsTest {
       VizContext ctx = VizContext.ofGate();
       info.seedChromeDefaults(ctx);
 
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(ctx),
+      assertEquals(VSObjectChromeDefaults.cardTintValue(),
                    objectDefault(info).getBackgroundValue());
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
       assertEquals(0.3, plot.getBarCornerRadius(), 0.0001, "the plot seeds are reachable");
@@ -1098,7 +1323,7 @@ class SeedChromeDefaultsTest {
       VizContext ctx = VizContext.ofGate();
       info.seedChromeDefaults(ctx);
 
-      assertEquals(VSObjectChromeDefaults.cardBackgroundCss(ctx),
+      assertEquals(VSObjectChromeDefaults.cardTintValue(),
                    objectDefault(info).getBackgroundValue());
       assertEquals(styleBefore, info.getTableStyleValue(),
                    "the default table style is not a gate-dependent seed");
@@ -1649,7 +1874,31 @@ class SeedChromeDefaultsTest {
 
       assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
                    def.getBorderColorsValue().bottomColor,
-                   "the base's object border colour is already the rule colour");
+                   "the title rule colour");
+   }
+
+   @Test
+   void aModernSelectionContainerTitleTakesTheTitleRuleColour() {
+      gateOn();
+      VizContext light = VizContext.ofGate();
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(light),
+                   titleFormat(newCurrentSelection()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizContext dark = VizContext.ofGate();
+      assertEquals(VSTitleChromeDefaults.titleBorderColor(dark),
+                   titleFormat(newCurrentSelection()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
+   }
+
+   @Test
+   void aModernCheckBoxTitleKeepsTheObjectBorderColour() {
+      gateOn();
+      assertEquals(new Color(0xD9D5CC), titleFormat(newCheckBox()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(new Color(0x49454F), titleFormat(newCheckBox()).getDefaultFormat()
+                      .getBorderColorsValue().bottomColor);
    }
 
    @Test
@@ -1701,7 +1950,7 @@ class SeedChromeDefaultsTest {
       assertEquals(StyleConstants.NONE, borders.right, "no right rule");
       assertEquals(StyleConstants.THIN_LINE, borders.bottom, "a bottom rule only");
 
-      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
+      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx),
                    def.getBorderColorsValue().bottomColor);
       assertEquals(VSTitleChromeDefaults.titleForegroundValue(ctx), def.getForegroundValue());
       assertNull(def.getBackgroundValue(), "the modern input lane carries no fill");
@@ -1913,6 +2162,66 @@ class SeedChromeDefaultsTest {
       assertNull(def.getForegroundValue(),
                  "a gate-off calendar header must not carry the modern header neutral");
       assertNull(def.getBackgroundValue());
+   }
+
+   // the header's bottom rule is a header separator, so it takes the table's in both schemes
+   @Test
+   void aModernCalendarHeaderRuleIsTheTableHeaderSeparator() {
+      gateOn();
+      VSFormat light = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertEquals(StyleConstants.THIN_LINE, light.getBordersValue().bottom);
+      assertEquals(VSTableStructureDefaults.headerSeparator(VizContext.ofGate()),
+                   light.getBorderColorsValue().bottomColor);
+
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VSFormat dark = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertEquals(VSTableStructureDefaults.headerSeparator(VizContext.ofGate()),
+                   dark.getBorderColorsValue().bottomColor);
+      assertNotEquals(light.getBorderColorsValue().bottomColor,
+                      dark.getBorderColorsValue().bottomColor, "each scheme has its own rule");
+   }
+
+   @Test
+   void aLegacyCalendarHeaderRuleKeepsTheLegacyGrey() {
+      gateOff();
+      VSFormat def = calendarPath(newCalendar(), TableDataPath.CALENDAR_TITLE);
+
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, def.getBorderColorsValue().bottomColor);
+   }
+
+   @Test
+   void revertingACalendarRestoresItsHeaderRule() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(calendar);
+      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+
+      VizModernizeUtil.revert(vs);
+
+      BorderColors colors = calendarPath(info, TableDataPath.CALENDAR_TITLE).getBorderColorsValue();
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.topColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.leftColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.bottomColor);
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, colors.rightColor);
+   }
+
+   // a legacy reseed that is not a Revert leaves an old asset's stored rule alone
+   @Test
+   void aLegacyRestoreKeepsAStoredHeaderRule() {
+      gateOff();
+      CalendarVSAssemblyInfo info = newCalendar();
+      Color stored = new Color(0x888888);
+      calendarPath(info, TableDataPath.CALENDAR_TITLE)
+         .setBorderColorsValue(new BorderColors(stored, stored, stored, stored));
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(stored,
+                   calendarPath(info, TableDataPath.CALENDAR_TITLE).getBorderColorsValue().bottomColor);
    }
 
    @Test

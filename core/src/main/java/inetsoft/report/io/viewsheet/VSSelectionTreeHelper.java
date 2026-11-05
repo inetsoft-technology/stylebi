@@ -196,13 +196,19 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
             }
          }
 
+         // the card tint is already painted as the object background
+         boolean cardTint = info.getFormat().isDefaultCardTint();
+
          // if the cell's background is null or the cell is null, use the
          // object's background
          if(format == null) {
             format = new VSCompositeFormat();
-            format.getDefaultFormat().setBackground(info.getFormat().getBackground());
+
+            if(!cardTint) {
+               format.getDefaultFormat().setBackground(info.getFormat().getBackground());
+            }
          }
-         else if(format.getBackground() == null || i == dispList.size()) {
+         else if(!cardTint && (format.getBackground() == null || i == dispList.size())) {
             format.getUserDefinedFormat().setBackground(info.getFormat().getBackground());
          }
 

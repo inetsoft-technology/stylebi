@@ -156,6 +156,11 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          return;
       }
 
+      // the dropdown is a popup surface and keeps its white object fill
+      if(legacySource == normalDefault) {
+         applyCardSurface(fi.getFormat(OBJECTPATH), ctx);
+      }
+
       VSCompositeFormat titleFormat = fi.getFormat(TITLEPATH);
 
       if(titleFormat != null) {
@@ -181,6 +186,11 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
               ctx.modern ? VSTableStructureDefaults.headerForeground(ctx) : null,
               ctx.modern ? VSTableStructureDefaults.headerBackground(ctx) : null);
 
+      // only the normal prototype stores the header's bottom rule; the dropdown keeps the popup's
+      if(legacySource == normalDefault) {
+         applyHeaderRule(fi.getFormat(CALENDAR_TITLE_PATH), ctx);
+      }
+
       // the weekday header and the date cells share one format, so both take body semantics
       applyTo(fi, CALENDAR_MONTH_PATH, legacySource,
               ctx.modern ? VSTableStructureDefaults.bodyForeground(ctx) : null,
@@ -188,6 +198,54 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       applyTo(fi, CALENDAR_YEAR_PATH, legacySource,
               ctx.modern ? VSTableStructureDefaults.bodyForeground(ctx) : null,
               ctx.modern ? VSTableStructureDefaults.bodyBackground(ctx) : null);
+   }
+
+   /** The object surface: a tinted card in modern, the legacy frame only on a Revert. */
+   private static void applyCardSurface(VSCompositeFormat objFormat, VizContext ctx) {
+      if(objFormat == null) {
+         return;
+      }
+
+      VSFormat def = objFormat.getDefaultFormat();
+
+      if(ctx.modern) {
+         def.setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+         def.setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+         def.setBordersValue(null);
+         def.setRoundCornerValue(VSObjectChromeDefaults.cardCornerRadius());
+      }
+      else if(ctx.transition) {
+         // undefined, as the legacy prototype holds them
+         def.setBackgroundValue(null, false);
+         def.setAlphaValue(100, false);
+         def.setBordersValue(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
+         def.setBorderColorsValue(new BorderColors(DEFAULT_BORDER_COLOR, DEFAULT_BORDER_COLOR,
+                                                   DEFAULT_BORDER_COLOR, DEFAULT_BORDER_COLOR));
+         def.setRoundCornerValue(10);
+      }
+   }
+
+   /**
+    * The month/year header's bottom rule: the table header separator in modern, and the prototype's
+    * colours back only on a Revert, so a restored legacy asset keeps its stored ones.
+    */
+   private static void applyHeaderRule(VSCompositeFormat header, VizContext ctx) {
+      if(header == null) {
+         return;
+      }
+
+      VSFormat def = header.getDefaultFormat();
+
+      if(ctx.modern) {
+         Color rule = VSTableStructureDefaults.headerSeparator(ctx);
+         def.setBorderColorsValue(new BorderColors(rule, rule, rule, rule));
+      }
+      else if(ctx.transition) {
+         BorderColors legacy = normalDefault.getFormat(CALENDAR_TITLE_PATH)
+            .getDefaultFormat().getBorderColorsValue();
+         def.setBorderColorsValue(legacy == null ? null : (BorderColors) legacy.clone());
+      }
    }
 
    /**

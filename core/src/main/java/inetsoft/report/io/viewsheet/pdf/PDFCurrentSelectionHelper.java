@@ -66,10 +66,10 @@ public class PDFCurrentSelectionHelper extends VSCurrentSelectionHelper {
          titleSize = new Dimension(titleSize.width, (int) (titleSize.height - borderH));
       }
 
-      // set the default selection list's border.
+      // set the default selection list's border; writeObjectBackground already painted the fill
       Rectangle2D bounds = cHelper.createBounds(position, size);
       VSCompositeFormat format = info.getFormat();
-      drawTextBox(null, bounds, format, null);
+      drawTextBox(null, bounds, format, false, null);
       bounds = cHelper.createBounds(position, titleSize);
       String title = Tool.localize(info.getTitle());
       boolean needBG = PDFVSExporter.isBackgroundNeed(titleFormat, info.getFormat());

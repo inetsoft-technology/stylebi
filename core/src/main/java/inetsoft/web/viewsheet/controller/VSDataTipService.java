@@ -160,6 +160,8 @@ public class VSDataTipService {
          setAlpha(((PopVSAssemblyInfo) parentInfo).getAlpha(), info.getFormatInfo());
       }
 
+      opaqueCardSurface(info);
+
       if(info.getFormat().getBackground() == null && !(info instanceof GaugeVSAssemblyInfo)) {
          info.getFormat().getUserDefinedFormat().setBackground(new Color(245, 245, 249));
       }
@@ -231,6 +233,14 @@ public class VSDataTipService {
       }
 
       return rc || applied > 0;
+   }
+
+   // A tip over the tinted card gets an opaque card surface instead of the translucent tint
+   static void opaqueCardSurface(VSAssemblyInfo info) {
+      if(info.getFormat().isDefaultCardTint()) {
+         info.getFormat().getUserDefinedFormat().setBackground(
+            VSObjectChromeDefaults.cardBackground(VizContext.of(info)));
+      }
    }
 
    // Set alpha to all backgrounds of tipview

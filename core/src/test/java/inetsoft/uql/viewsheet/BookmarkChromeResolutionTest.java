@@ -38,6 +38,7 @@ import org.w3c.dom.*;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.Color;
+import java.awt.Insets;
 import java.io.*;
 import java.util.Map;
 
@@ -568,6 +569,73 @@ class BookmarkChromeResolutionTest {
       }
 
       return chart;
+   }
+
+   @Test
+   void aModernBookmarkOpenedAfterRevertKeepsTheLegacyFrame() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      assertLegacyFrameSurvivesRestore(vs, new TableVSAssembly(vs, "Table1"));
+      vs = new Viewsheet();
+      assertLegacyFrameSurvivesRestore(vs, new CrosstabVSAssembly(vs, "Crosstab1"));
+      vs = new Viewsheet();
+      assertLegacyFrameSurvivesRestore(vs, new CalcTableVSAssembly(vs, "Calc1"));
+      vs = new Viewsheet();
+      assertLegacyFrameSurvivesRestore(vs, new ChartVSAssembly(vs, "Chart1"));
+   }
+
+   private static void assertLegacyFrameSurvivesRestore(Viewsheet vs, VSAssembly a)
+      throws Exception
+   {
+      String type = a.getClass().getSimpleName();
+      a.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(a);
+      modernizeViaGate(vs);
+      String state = writeState(a);
+      VizModernizeUtil.revert(vs);
+      a.parseState(parseXml(state));
+
+      VSCompositeFormat fmt = a.getVSAssemblyInfo().getFormat();
+      Insets borders = fmt.getDefaultFormat().getBordersValue();
+      assertNotNull(borders, type);
+      int thin = StyleConstants.THIN_LINE;
+      assertEquals(new Insets(thin, thin, thin, thin), borders, type);
+      assertFalse(fmt.isDefaultCardTint(), type);
+      assertEquals(100, fmt.getDefaultFormat().getAlphaValue(), type);
+   }
+
+   @Test
+   void aLegacyBookmarkKeepsAStoredNonStandardWidth() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      table.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(table);
+      table.getVSAssemblyInfo().setVizMark(null);
+      table.getVSAssemblyInfo().getFormat().getDefaultFormat()
+         .setBordersValue(new Insets(2, 2, 2, 2));
+
+      table.parseState(parseXml(writeState(table)));
+
+      assertEquals(new Insets(2, 2, 2, 2),
+                   table.getVSAssemblyInfo().getFormat().getDefaultFormat().getBordersValue());
+   }
+
+   @Test
+   void aFreshAssemblyKeepsTheBookmarksOwnBorders() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly source = new TableVSAssembly(vs, "Table1");
+      source.getVSAssemblyInfo().initDefaultFormat();
+      source.getVSAssemblyInfo().setVizMark(null);
+      int thin = StyleConstants.THIN_LINE;
+      source.getVSAssemblyInfo().getFormat().getDefaultFormat()
+         .setBordersValue(new Insets(thin, thin, thin, thin));
+      String state = writeState(source);
+
+      TableVSAssembly fresh = new TableVSAssembly(vs, "Table1");
+      fresh.getVSAssemblyInfo().setVizMark(null);
+      fresh.parseState(parseXml(state));
+
+      assertEquals(new Insets(thin, thin, thin, thin),
+                   fresh.getVSAssemblyInfo().getFormat().getDefaultFormat().getBordersValue());
    }
 
    /**

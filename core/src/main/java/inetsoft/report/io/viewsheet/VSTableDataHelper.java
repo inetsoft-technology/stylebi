@@ -1016,6 +1016,27 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       return Math.min(height + inset.top + inset.bottom, info.getPixelSize().height);
    }
 
+   /**
+    * A modern cell's translucent fill flattened over its opaque card, for a format without alpha.
+    */
+   protected VSCompositeFormat flattenCellFill(VSCompositeFormat format,
+                                               VSCompositeFormat parentformat)
+   {
+      Color fill = format == null ? null : format.getBackground();
+
+      if(fill == null || fill.getAlpha() == 255 || assembly == null ||
+         !VizContext.of(assembly.getVSAssemblyInfo()).modern)
+      {
+         return format;
+      }
+
+      VSCompositeFormat flat = format.clone();
+      flat.getUserDefinedFormat().setBackground(VSObjectChromeDefaults.flattenOver(
+         fill, parentformat == null ? null : parentformat.getBackground()));
+      flat.getUserDefinedFormat().setAlpha(100);
+      return flat;
+   }
+
    private static final Logger LOG =
       LoggerFactory.getLogger(VSTableDataHelper.class);
    public static final int DEFAULT_COLWIDTH = ExcelVSUtil.DEFAULT_COLWIDTH;

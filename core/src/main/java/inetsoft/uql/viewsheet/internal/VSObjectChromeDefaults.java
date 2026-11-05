@@ -64,6 +64,43 @@ public final class VSObjectChromeDefaults {
       return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
+   /** Opaque object-card color: white in light, the lifted surface in dark. */
+   public static Color cardBackground(VizContext ctx) {
+      return ctx.dark ? CARD_BG_DARK : CARD_BG;
+   }
+
+   /**
+    * The fill a spreadsheet writes in place of the card tint: the opaque card for a chart or table,
+    * none for any other card, whose dark-mode ink is put back to near-black on white cells.
+    */
+   public static Color excelCardFill(VSAssemblyInfo info) {
+      return info instanceof ChartVSAssemblyInfo || info instanceof TableDataVSAssemblyInfo ?
+         cardBackground(VizContext.of(info)) : null;
+   }
+
+   /** The card tint as a default-tier background value. */
+   public static String cardTintValue() {
+      return String.format("#%06x", CARD_TINT_RGB);
+   }
+
+   /** The opaque result of the card tint over a backdrop; a null backdrop counts as white. */
+   public static Color cardTintOver(Color backdrop) {
+      return blend(new Color(CARD_TINT_RGB), CARD_TINT_ALPHA / 100f, backdrop);
+   }
+
+   /** The opaque colour a translucent fill shows over a backdrop; a null backdrop is white. */
+   public static Color flattenOver(Color fill, Color backdrop) {
+      return fill == null || fill.getAlpha() == 255 ? fill :
+         blend(fill, fill.getAlpha() / 255f, backdrop);
+   }
+
+   private static Color blend(Color fill, float a, Color backdrop) {
+      Color base = backdrop == null ? Color.WHITE : backdrop;
+      return new Color(Math.round(base.getRed() * (1 - a) + fill.getRed() * a),
+                       Math.round(base.getGreen() * (1 - a) + fill.getGreen() * a),
+                       Math.round(base.getBlue() * (1 - a) + fill.getBlue() * a));
+   }
+
    /** Object-card corner radius default, in pixels; the top step of the DOM radius scale. */
    public static int cardCornerRadius() {
       return CARD_CORNER_RADIUS;
@@ -85,6 +122,11 @@ public final class VSObjectChromeDefaults {
    public static String legacyCellForegroundValue() {
       return String.format("0x%06x", LEGACY_CELL_FG.getRGB() & 0xFFFFFF);
    }
+
+   /** Card tint background RGB, written to the default tier with {@link #CARD_TINT_ALPHA}. */
+   public static final int CARD_TINT_RGB = 0xAAAAAA;
+   /** Card tint alpha value, in percent. */
+   public static final int CARD_TINT_ALPHA = 15;
 
    // modern warm-neutral object chrome (light mode)
    private static final Color OBJECT_BORDER = new Color(0xD9D5CC);

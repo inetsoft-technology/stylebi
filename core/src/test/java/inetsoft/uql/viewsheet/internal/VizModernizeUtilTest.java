@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -42,6 +43,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -451,6 +455,10 @@ class VizModernizeUtilTest {
       assertEquals(bf.getRoundCornerValue(), af.getRoundCornerValue());
       assertEquals(bf.getBorderColorsValue().topColor, af.getBorderColorsValue().topColor);
       assertEquals(bf.getBackgroundValue(), af.getBackgroundValue());
+      assertNotNull(bf.getBordersValue(), "a legacy table has the 1px frame; guards a null pass");
+      assertEquals(bf.getBordersValue(), af.getBordersValue());
+      assertEquals(bf.getAlphaValue(), af.getAlphaValue());
+      assertEquals(b.getPixelSize(), a.getPixelSize());
    }
 
    @Test
@@ -724,18 +732,26 @@ class VizModernizeUtilTest {
    }
 
    @Test
-   void applyMarkReseedsOnALightToDarkFlip() {
+   void aLightToDarkFlipKeepsTheTint() {
       Viewsheet vs = legacySheet();
       gateOn();
       VizModernizeUtil.modernize(vs);
       TableVSAssembly table = (TableVSAssembly) vs.getAssembly("Table1");
-      String light = table.getVSAssemblyInfo().getFormat().getDefaultFormat()
-         .getBackgroundValue();
+      VSFormat def = table.getVSAssemblyInfo().getFormat().getDefaultFormat();
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue());
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
+      Color light = VSObjectChromeDefaults.objectBorderColor(VizContext.of(VizMark.MODERN_LIGHT));
+      Color dark = VSObjectChromeDefaults.objectBorderColor(VizContext.of(VizMark.MODERN_DARK));
+      assertNotEquals(light, dark, "precondition: the border colour differs by mode");
+      assertEquals(light, def.getBorderColorsValue().topColor);
 
       VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK);
 
-      assertNotEquals(light, table.getVSAssemblyInfo().getFormat().getDefaultFormat()
-         .getBackgroundValue(), "the dark card background replaces the light one");
+      def = table.getVSAssemblyInfo().getFormat().getDefaultFormat();
+      assertEquals(dark, def.getBorderColorsValue().topColor, "the flip re-seeded the table");
+      assertEquals(VSObjectChromeDefaults.cardTintValue(), def.getBackgroundValue(),
+                   "one tint serves light and dark");
+      assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA, def.getAlphaValue());
    }
 
    @Test
@@ -858,5 +874,104 @@ class VizModernizeUtilTest {
 
       assertTrue(vs.getSharedFrames().isEmpty(),
                  "a render prefers the sheet's shared frame over an assembly's own");
+   }
+
+   // ---- the chart title lane over the card ----------------------------------------------------
+   // a read of the title path copies the object fill into the stored title composite's default
+   // tier, and that copy is saved with the asset, so every legacy chart carries a white band
+
+   /** A legacy chart whose title composite already holds the copied white card. */
+   private Viewsheet legacyChartWithCopiedTitleFill() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(chart);
+      assertNotNull(chartTitle(vs).getBackground(), "precondition: the read stored the white card");
+      return vs;
+   }
+
+   private static VSCompositeFormat chartTitle(Viewsheet vs) {
+      return vs.getAssembly("Chart1").getVSAssemblyInfo().getFormatInfo()
+         .getFormat(VSAssemblyInfo.TITLEPATH, false);
+   }
+
+   @Test
+   void modernizeClearsTheTitleFillALegacyChartCopied() {
+      Viewsheet vs = legacyChartWithCopiedTitleFill();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      VSCompositeFormat title = chartTitle(vs);
+      assertNull(title.getBackground(), "the title lane is unfilled over the card");
+      assertEquals(100, title.getAlpha());
+   }
+
+   @Test
+   void modernizeToDarkClearsTheTitleFillALegacyChartCopied() {
+      Viewsheet vs = legacyChartWithCopiedTitleFill();
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VizModernizeUtil.modernize(vs);
+
+      assertEquals(VizMark.MODERN_DARK, vs.getAssembly("Chart1").getVSAssemblyInfo().getVizMark());
+      assertNull(chartTitle(vs).getBackground(), "no light band under the dark title ink");
+   }
+
+   @Test
+   void aSavedLegacyChartClearsItsTitleFillOnModernize() throws Exception {
+      Viewsheet saved = legacyChartWithCopiedTitleFill();
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      saved.getAssembly("Chart1").getVSAssemblyInfo().writeXML(writer);
+      writer.flush();
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().parseXML(
+         Tool.parseXML(new StringReader(buf.toString())).getDocumentElement());
+      vs.addAssembly(chart);
+      assertNotNull(chartTitle(vs).getBackground(), "precondition: the copy was saved");
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertNull(chartTitle(vs).getBackground());
+   }
+
+   @Test
+   void anUpgradedDarkChartClearsItsCopiedCardFill() {
+      // a dark chart saved before the tint: an opaque dark card, copied onto its title
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(chart);
+      VSAssemblyInfo info = chart.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_DARK);
+      info.getFormat().getDefaultFormat().setBackgroundValue("#252428");
+      info.getFormat().getDefaultFormat().setAlphaValue(100);
+      assertEquals(0x252428, chartTitle(vs).getBackground().getRGB() & 0xFFFFFF,
+                   "precondition: the read stored the dark card");
+
+      VizModernizeUtil.reseedRestored(chart);
+
+      assertTrue(info.getFormat().isDefaultCardTint(), "precondition: the restore seeded the tint");
+      assertNull(chartTitle(vs).getBackground());
+   }
+
+   @Test
+   void aTitleThatDefinesItsOwnFillKeepsIt() {
+      Viewsheet vs = legacyChartWithCopiedTitleFill();
+      VSFormat titleDefault = vs.getAssembly("Chart1").getVSAssemblyInfo().getFormatInfo()
+         .getFormat(VSAssemblyInfo.TITLEPATH).getDefaultFormat();
+      titleDefault.setBackgroundValue("#123456");
+      titleDefault.setAlphaValue(60);
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      VSCompositeFormat title = chartTitle(vs);
+      assertEquals(0x123456, title.getBackground().getRGB() & 0xFFFFFF);
+      assertEquals(60, title.getAlpha());
    }
 }

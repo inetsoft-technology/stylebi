@@ -2030,12 +2030,21 @@ public abstract class AbstractVSExporter implements VSExporter {
       // titled assemblies at once - and the slider joins them because VSSlider paints its labels
       // from format.getForeground(). The viewsheet is cloned upstream, so nothing persisted moves.
       VSAssemblyInfo vinfo = assembly.getVSAssemblyInfo();
+      VSCompositeFormat objFormat = vinfo == null ? null : vinfo.getFormat();
+      boolean cardTint = substitutesCardTint() && objFormat != null && objFormat.isDefaultCardTint();
+      // the opaque fill written in place of the tint, or null where the cells stay unfilled
+      Color cardFill = cardTint ? cardTintSubstitute(vinfo) : null;
 
       if(!paintsPageBackground() && vinfo != null && vinfo.getFormatInfo() != null
          && VizContext.of(vinfo).dark)
       {
          if(vinfo instanceof TitledVSAssemblyInfo) {
-            applyDarkOptOutInPlace(vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH));
+            VSCompositeFormat title = vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH);
+
+            // a title without its own fill sits on the card fill, so it keeps its modern ink
+            if(cardFill == null || title == null || title.getBackground() != null) {
+               applyDarkOptOutInPlace(title);
+            }
          }
 
          // the painted sliders: both draw their labels from the object foreground rather than a
@@ -2054,6 +2063,29 @@ public abstract class AbstractVSExporter implements VSExporter {
             linfo.setFormats(darkOptOutCopy(linfo.getFormats()));
          }
       }
+
+      // swapped once here, so no format reader sees the tint
+      if(cardTint) {
+         VSFormat def = objFormat.getDefaultFormat();
+         def.setBackgroundValue(
+            cardFill == null ? null : String.format("#%06x", cardFill.getRGB() & 0xFFFFFF));
+         def.setAlphaValue(100);
+      }
+   }
+
+   /**
+    * Whether this format replaces a default-tier card tint before writing, because it cannot show
+    * the tint as the viewer does.
+    */
+   protected boolean substitutesCardTint() {
+      return false;
+   }
+
+   /**
+    * The opaque fill that replaces the card tint of this assembly, or null for no fill.
+    */
+   protected Color cardTintSubstitute(VSAssemblyInfo info) {
+      return null;
    }
 
    /**

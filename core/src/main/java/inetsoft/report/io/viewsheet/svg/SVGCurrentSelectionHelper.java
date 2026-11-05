@@ -60,10 +60,10 @@ public class SVGCurrentSelectionHelper extends VSCurrentSelectionHelper {
          titleSize = new Dimension(titleSize.width, (int) (titleSize.height - borderH));
       }
 
-      // set the default selection list's border.
+      // set the default selection list's border; writeObjectBackground already painted the fill
       Rectangle2D bounds = cHelper.createBounds(position, titleSize);
       VSCompositeFormat format = info.getFormat();
-      drawTextBox(null, bounds, format, null);
+      drawTextBox(null, bounds, format, false, null);
       String title = Tool.localize(info.getTitle());
       boolean needBG = SVGVSExporter.isBackgroundNeed(titleFormat, info.getFormat());
       drawTextBox(title, bounds, titleFormat, needBG, info.getTitlePadding());

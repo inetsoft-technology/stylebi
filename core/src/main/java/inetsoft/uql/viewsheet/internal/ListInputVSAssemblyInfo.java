@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import java.awt.Color;
 import java.awt.Insets;
 import java.io.PrintWriter;
 import java.util.BitSet;
@@ -765,7 +766,9 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
          : (StyleConstants.H_LEFT | StyleConstants.V_TOP));
       def.setBordersValue(ctx.modern
          ? VSTitleChromeDefaults.titleRuleBorders() : new Insets(0, 0, 0, 0));
-      def.setBorderColorsValue(ctx.modern ? VSTitleChromeDefaults.titleRuleColors(ctx) : null);
+      // form-input titles sit on the page, so they keep the object border colour
+      Color rule = VSObjectChromeDefaults.objectBorderColor(ctx);
+      def.setBorderColorsValue(ctx.modern ? new BorderColors(rule, rule, rule, rule) : null);
       def.setForegroundValue(ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
       // getForeground() falls back to the fg field when fgval yields nothing, so the legacy branch
       // has to null both or a runtime foreground survives the clear

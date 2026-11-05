@@ -36,11 +36,15 @@
  *              these assertions are about real template output (the *#if-removed current-value
  *              label, the text-decoration style binding, and the verticalCenter-driven wrapper
  *              top style) that cannot be observed on a directly-instantiated component.
+ *   Group 12 - card background: a modern slider binds it on the wrapper only; legacy keeps both
+ *   Group 13 - track colours: the modern and dark tokens match the server slider painter
  *
  * Model defaults: min=0, max=100, increment=20, value=50, width=200, height=60, currentVisible=true.
  * Key derived values: handlePosition=100, verticalCenter=33.
  */
 
+import { readFileSync } from "fs";
+import { join } from "path";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { Subject } from "rxjs";
@@ -56,6 +60,40 @@ import { TimerService } from "../data-tip/timer.service";
 import { NavigationKeys } from "../navigation-keys";
 import { VSSlider } from "./vs-slider.component";
 import { createVSSlider, makeVSSliderModel } from "./vs-slider.component.test-helpers";
+
+/** A real TestBed render, for assertions about template output. */
+function createSliderFixture(): ComponentFixture<VSSlider> {
+   const viewsheetClient: any = { sendEvent: vi.fn(), runtimeId: "vs-1^128^__^Sheet1" };
+   const dataTipService = { isDataTip: vi.fn().mockReturnValue(false), scrolled: new Subject<void>() };
+   const formDataService = {
+      checkFormData: vi.fn(),
+      removeObject: vi.fn(),
+      addObject: vi.fn(),
+      replaceObject: vi.fn(),
+   };
+   const timerService = { defer: vi.fn((fn: any) => fn()) };
+
+   TestBed.configureTestingModule({
+      imports: [VSSlider],
+      schemas: [NO_ERRORS_SCHEMA],
+      providers: [
+         { provide: ViewsheetClientService, useValue: viewsheetClient },
+         { provide: CheckFormDataService, useValue: formDataService },
+         FormInputService,
+         PopComponentService,
+         DebounceService,
+         { provide: DataTipService, useValue: dataTipService },
+         { provide: ContextProvider, useValue: {} },
+         { provide: TimerService, useValue: timerService },
+      ],
+   });
+   TestBed.compileComponents();
+
+   const fixture = TestBed.createComponent(VSSlider);
+   fixture.componentInstance.model = makeVSSliderModel();
+   fixture.detectChanges();
+   return fixture;
+}
 
 describe("VSSlider", () => {
    beforeEach(() => {
@@ -351,35 +389,7 @@ describe("VSSlider", () => {
       let fixture: ComponentFixture<VSSlider>;
 
       beforeEach(waitForAsync(() => {
-         const viewsheetClient: any = { sendEvent: vi.fn(), runtimeId: "vs-1^128^__^Sheet1" };
-         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false), scrolled: new Subject<void>() };
-         const formDataService = {
-            checkFormData: vi.fn(),
-            removeObject: vi.fn(),
-            addObject: vi.fn(),
-            replaceObject: vi.fn(),
-         };
-         const timerService = { defer: vi.fn((fn: any) => fn()) };
-
-         TestBed.configureTestingModule({
-            imports: [VSSlider],
-            schemas: [NO_ERRORS_SCHEMA],
-            providers: [
-               { provide: ViewsheetClientService, useValue: viewsheetClient },
-               { provide: CheckFormDataService, useValue: formDataService },
-               FormInputService,
-               PopComponentService,
-               DebounceService,
-               { provide: DataTipService, useValue: dataTipService },
-               { provide: ContextProvider, useValue: {} },
-               { provide: TimerService, useValue: timerService },
-            ],
-         });
-         TestBed.compileComponents();
-
-         fixture = TestBed.createComponent(VSSlider);
-         fixture.componentInstance.model = makeVSSliderModel();
-         fixture.detectChanges();
+         fixture = createSliderFixture();
       }));
 
       // Bug #10226
@@ -422,6 +432,73 @@ describe("VSSlider", () => {
          let slider = fixture.nativeElement.querySelector("div.wrapper");
          // currentVisible=true (default): verticalCenter = max(33, min(ceil(89/2)=45, 89-27=62)) = 45
          expect(slider.style["top"]).toBe("45px");
+      });
+   });
+
+   // ─── Group 12: the card background is bound once ─────────────────────────
+   describe("Group 12 – card background binding", () => {
+      let fixture: ComponentFixture<VSSlider>;
+
+      beforeEach(waitForAsync(() => {
+         fixture = createSliderFixture();
+      }));
+
+      function render(vizModern: boolean): HTMLElement {
+         const model = makeVSSliderModel();
+         model.objectFormat.background = "rgba(170,170,170,0.15)";
+         model.vizModern = vizModern;
+         fixture.componentInstance.model = model;
+         fixture.detectChanges();
+         return fixture.nativeElement as HTMLElement;
+      }
+
+      it("paints a modern slider's translucent card on the wrapper only", () => {
+         const host = render(true);
+         const wrapper = host.querySelector("vs-input-label-wrapper") as HTMLElement;
+         const slider = host.querySelector("div.slider") as HTMLElement;
+
+         expect(wrapper.style.backgroundColor).toBe("rgba(170, 170, 170, 0.15)");
+         expect(slider.style.backgroundColor).toBe("");
+      });
+
+      it("keeps the inner background on a legacy slider", () => {
+         const host = render(false);
+         const slider = host.querySelector("div.slider") as HTMLElement;
+
+         expect(slider.style.backgroundColor).toBe("rgba(170, 170, 170, 0.15)");
+      });
+   });
+
+   // ─── Group 13: the live track matches the server slider painter ──────────
+   // Read as source: the values are scoped by :host-context, which the test DOM never carries.
+   describe("Group 13 – track colours match VSOutputChromeDefaults", () => {
+      const source = readFileSync(join(__dirname, "vs-slider.component.scss"), "utf-8");
+
+      function block(selector: string): string {
+         const start = source.indexOf(selector + " {");
+         expect(start).toBeGreaterThanOrEqual(0);
+         return source.substring(start, source.indexOf("}", start));
+      }
+
+      it("uses the modern gridline and active track colours", () => {
+         const modern = block(":host-context(.viz-modern)");
+
+         expect(modern).toContain("--slider-inactive-track-color: #D6D2C8;");
+         expect(modern).toContain("--slider-active-track-color: #B7B2A8;");
+      });
+
+      it("uses the dark gridline and active track colours", () => {
+         const dark = block(":host-context(.viz-dark)");
+
+         expect(dark).toContain("--slider-inactive-track-color: #4A484F;");
+         expect(dark).toContain("--slider-active-track-color: #544F5A;");
+      });
+
+      it("keeps the legacy track colours on :host", () => {
+         const legacy = block(":host");
+
+         expect(legacy).toContain("--slider-inactive-track-color: #e0e0e0;");
+         expect(legacy).toContain("--slider-active-track-color: #9e9e9e;");
       });
    });
 });

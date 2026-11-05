@@ -78,7 +78,7 @@ class VSFormatModelTest {
 
          VSFormatModel model = new VSFormatModel(title, info);
 
-         assertEquals("1px solid #d9d5cc", model.getBorder().getBottom());
+         assertEquals("1px solid #c7c4bb", model.getBorder().getBottom());
          assertTrue(model.getBorder().getTop().startsWith("0px"),
                     "a zero-width side draws nothing");
          // a cleared background is still "value defined" (as null), so VSCSSUtil serialises it as
@@ -103,7 +103,7 @@ class VSFormatModelTest {
 
          VSFormatModel model = new VSFormatModel(title, info);
 
-         assertEquals("1px solid #d9d5cc", model.getBorder().getBottom());
+         assertEquals("1px solid #c7c4bb", model.getBorder().getBottom());
          assertTrue(model.getBorder().getTop().startsWith("0px"),
                     "a zero-width side draws nothing");
          assertEquals("", model.getBackground(), "the modern title lane serialises no fill");
@@ -126,7 +126,7 @@ class VSFormatModelTest {
 
          VSFormatModel model = new VSFormatModel(title, info);
 
-         assertEquals("1px solid #d9d5cc", model.getBorder().getBottom());
+         assertEquals("1px solid #c7c4bb", model.getBorder().getBottom());
          assertTrue(model.getBorder().getTop().startsWith("0px"),
                     "a zero-width side draws nothing");
          assertEquals("", model.getBackground(), "the modern title lane serialises no fill");

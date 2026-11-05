@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
@@ -1262,10 +1263,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
    /**
     * Seed the chrome values whose default depends on the modern-visualization context: the object
-    * border colour and card radius here, the card or page background and the chart plot values in
-    * the overrides. Called once at creation and again by Modernize on an assembly that already
-    * exists, so it must mutate the composites already installed and never install one - installing
-    * a fresh composite leaves the new one's USER tier empty and drops an author's formatting.
+    * border colour, card radius and card surface here, the page background and the chart plot
+    * values in the overrides. Called once at creation and again by Modernize on an assembly that
+    * already exists, so it must mutate the composites already installed and never install one -
+    * installing a fresh composite leaves the new one's USER tier empty and drops an author's
+    * formatting.
     *
     * One narrow exception, in CalendarVSAssemblyInfo.applyTo: a show type whose prototype stores no
     * format at a path has no composite to mutate, and the render sites read that path through
@@ -1321,6 +1323,79 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          objFormat.getDefaultFormat().setBorderColorsValue(bcolors);
          objFormat.getDefaultFormat().setRoundCornerValue(borderRadius);
       }
+
+      seedCardSurface(ctx);
+   }
+
+   /**
+    * Seed the card surface: the tint with no border in modern, the legacy frame on a Revert.
+    * A selection container child takes no tint, and an ad hoc filter keeps its own surface.
+    */
+   public void seedCardSurface(VizContext ctx) {
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat == null || !isCornerSeedTarget() ||
+         this instanceof SelectionVSAssemblyInfo selection && selection.isAdhocFilter())
+      {
+         return;
+      }
+
+      VSFormat def = objFormat.getDefaultFormat();
+
+      // the container is the card; its separators stay
+      if(isInSelectionContainer()) {
+         if(ctx.modern || ctx.transition) {
+            def.setBackgroundValue(null);
+            def.setAlphaValue(100);
+         }
+      }
+      else if(ctx.modern) {
+         def.setBackgroundValue(VSObjectChromeDefaults.cardTintValue());
+         def.setAlphaValue(VSObjectChromeDefaults.CARD_TINT_ALPHA);
+         def.setBordersValue(null);
+      }
+      // only a Revert, so a restored legacy asset keeps its stored widths
+      else if(ctx.transition) {
+         def.setBackgroundValue(null);
+         def.setAlphaValue(100);
+         def.setBordersValue(legacyObjectBorders());
+      }
+   }
+
+   /**
+    * The object border widths a gate-off creation installs, which Revert writes back.
+    */
+   protected Insets legacyObjectBorders() {
+      return null;
+   }
+
+   /**
+    * Whether a selection container holds this assembly.
+    */
+   public boolean isInSelectionContainer() {
+      Viewsheet vs = getViewsheet();
+
+      if(vs == null) {
+         return false;
+      }
+
+      Assembly[] assemblies = vs.getAssemblies();
+
+      if(assemblies == null) {
+         return false;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(assembly instanceof CurrentSelectionVSAssembly container) {
+            String[] children = container.getAssemblies();
+
+            if(children != null && Arrays.asList(children).contains(getName())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1334,7 +1409,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * listed here — they bypass this hook entirely (see bypassesBaseChrome()) and seed their own
     * modern-gated round corner directly in their own setDefaultFormat() override.
     */
-   private boolean isCornerSeedTarget() {
+   boolean isCornerSeedTarget() {
       return this instanceof TableDataVSAssemblyInfo    // table, crosstab, calc table, embedded table
          || this instanceof ChartVSAssemblyInfo
          || this instanceof SelectionListVSAssemblyInfo

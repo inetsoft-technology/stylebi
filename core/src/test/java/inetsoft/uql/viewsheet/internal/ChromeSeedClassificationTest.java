@@ -132,6 +132,9 @@ class ChromeSeedClassificationTest {
 
       return "object.roundCorner=" + (object == null ? null : object.getRoundCornerValue()) +
          " object.borderColors=" + (object == null ? null : object.getBorderColorsValue()) +
+         " object.borders=" + (object == null ? null : object.getBordersValue()) +
+         " object.background=" + (object == null ? null : object.getBackgroundValue()) +
+         " object.alpha=" + (object == null ? null : object.getAlphaValue()) +
          " title.borders=" + (title == null ? null : title.getBordersValue()) +
          " title.borderColors=" + (title == null ? null : title.getBorderColorsValue());
    }
@@ -175,7 +178,7 @@ class ChromeSeedClassificationTest {
          gateOn();
          VSAssemblyInfo reverted = create(type, VizMark.fromGate());
          reverted.setVizMark(null);
-         reverted.seedChromeDefaults(VizContext.of((VizMark) null));
+         reverted.seedChromeDefaults(VizContext.ofTransition(reverted.getViewsheet(), null));
 
          assertEquals(fresh, chrome(reverted),
                       type.getSimpleName() + " is misclassified: reverting it does not produce " +
@@ -195,6 +198,28 @@ class ChromeSeedClassificationTest {
          assertEquals(once, chrome(info),
                       type.getSimpleName() + ": re-seeding must not change what one seed wrote");
       }
+   }
+
+   @Test
+   void legacyObjectBordersMatchCreationForEveryType() throws Exception {
+      gateOff();
+      int checked = 0;
+
+      for(Class<?> type : infoTypes()) {
+         VSAssemblyInfo info = create(type, null);
+
+         if(!info.isCornerSeedTarget()) {
+            continue;
+         }
+
+         VSFormat object = defaultFormat(info, TableDataPathKey.OBJECT);
+         assertEquals(object == null ? null : object.getBordersValue(), info.legacyObjectBorders(),
+                      type.getSimpleName() + ": Revert must write back the frame creation " +
+                      "installs, so legacyObjectBorders() is missing or wrong for this type");
+         checked++;
+      }
+
+      assertTrue(checked >= 10, "the corner targets are reached; checked " + checked);
    }
 
    /**

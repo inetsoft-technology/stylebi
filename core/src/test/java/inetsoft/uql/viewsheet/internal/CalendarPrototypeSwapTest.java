@@ -192,6 +192,62 @@ class CalendarPrototypeSwapTest {
                    cellForegroundValue(info, TableDataPath.CALENDAR_TITLE));
    }
 
+   /**
+    * Revert writes the object surface back as the legacy prototype holds it, so the swap's
+    * equality guard still matches after a Modernize and Revert round trip. The sheet has no page
+    * format, so the calendar carries only its own paths, like newCalendar()'s.
+    */
+   @Test
+   void theSwapStillFiresAfterModernizeThenRevert() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      Viewsheet vs = new Viewsheet();
+      vs.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, null);
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.getVSAssemblyInfo().initDefaultFormat();
+      vs.addAssembly(calendar);
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      VizModernizeUtil.modernize(vs);
+      VizModernizeUtil.revert(vs);
+      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+      assertNull(info.getVizMark(), "precondition: reverted");
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      CalendarVSAssemblyInfo untouched = newCalendar();
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+
+      assertEquals(untouched.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH)
+                      .getDefaultFormat(),
+                   info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH).getDefaultFormat(),
+                   "the reverted surface is the never-modernized one");
+
+      swapShowType(info, CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      assertEquals("0xffffff", info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH)
+                      .getDefaultFormat().getBackgroundValue(), "the swap fired");
+   }
+
+   /** A restore is not a transition, so a legacy calendar keeps the whole template surface. */
+   @Test
+   void aRestoredLegacyCalendarKeepsTheTemplateSurface() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+      CalendarVSAssemblyInfo info = newCalendar();
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      VSFormat def = info.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH).getDefaultFormat();
+      assertEquals(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                              StyleConstants.THIN_LINE, StyleConstants.THIN_LINE),
+                   def.getBordersValue());
+      assertEquals(new BorderColors(VSAssemblyInfo.DEFAULT_BORDER_COLOR,
+                                    VSAssemblyInfo.DEFAULT_BORDER_COLOR,
+                                    VSAssemblyInfo.DEFAULT_BORDER_COLOR,
+                                    VSAssemblyInfo.DEFAULT_BORDER_COLOR),
+                   def.getBorderColorsValue());
+      assertEquals(10, def.getRoundCornerValue());
+      assertNull(def.getBackgroundValue());
+      assertFalse(def.isBackgroundValueDefined());
+      assertEquals(100, def.getAlphaValue());
+      assertFalse(def.isAlphaValueDefined());
+   }
+
    private static String cellForeground(Color c) {
       return c == null ? null : String.format("0x%06x", c.getRGB() & 0xFFFFFF);
    }

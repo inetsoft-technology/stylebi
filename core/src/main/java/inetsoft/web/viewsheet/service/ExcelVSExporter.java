@@ -19,6 +19,10 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
+
+import java.awt.Color;
 
 /**
  * Class used to export Excel files.
@@ -54,6 +58,19 @@ public abstract class ExcelVSExporter extends AbstractVSExporter {
    @Override
    protected boolean insetsTableCard() {
       return false;
+   }
+
+   /**
+    * A cell has no translucency and no page behind it, so the card tint is swapped.
+    */
+   @Override
+   protected boolean substitutesCardTint() {
+      return true;
+   }
+
+   @Override
+   protected Color cardTintSubstitute(VSAssemblyInfo info) {
+      return VSObjectChromeDefaults.excelCardFill(info);
    }
 
    private boolean exportAllTabbedTables;

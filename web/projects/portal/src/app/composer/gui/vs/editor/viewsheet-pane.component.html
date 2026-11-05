@@ -34,7 +34,11 @@
       [guideWidth]="rulerGuideWidth" [guideHeight]="rulerGuideHeight" [scale]="vs.scale">
     </w-rulers>
   }
-  @if (modernizeOffered) {
+  @if (markOffer) {
+    <modernize-bar [message]="markOfferMessage" [actionLabel]="markOfferAction"
+      (onModernize)="switchMark()" (onDismiss)="dismissMarkOffer()">
+    </modernize-bar>
+  } @else if (modernizeOffered) {
     <modernize-bar [message]="modernizeMessage"
       (onModernize)="modernize()" (onDismiss)="dismissModernize()">
     </modernize-bar>

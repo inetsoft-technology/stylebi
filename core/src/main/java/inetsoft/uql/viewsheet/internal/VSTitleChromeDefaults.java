@@ -90,10 +90,10 @@ public final class VSTitleChromeDefaults {
    // chart chrome read as one warm-neutral system.
    private static final Color TITLE_BG = new Color(0xF1EFEA);
    private static final Color TITLE_FG = new Color(0x6A685F);
-   private static final Color TITLE_BORDER = new Color(0xD9D5CC);
+   private static final Color TITLE_BORDER = new Color(0xC7C4BB);
 
    // dark title chrome; coordinated with the table header and chart chrome dark palette
    private static final Color TITLE_BG_DARK = new Color(0x2D2B30);
    private static final Color TITLE_FG_DARK = new Color(0xCAC4D0);
-   private static final Color TITLE_BORDER_DARK = new Color(0x49454F);
+   private static final Color TITLE_BORDER_DARK = new Color(0x544F5A);
 }

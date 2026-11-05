@@ -1785,6 +1785,15 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   not the wrap, and the re-tune design had already recorded this. Note also that it changes what a
   modern chart with nine or more categories looks like, with no migration: `applyModernPalette`
   re-resolves all forty slots from live CSS on every render
+- [2026-10-23-translucent-card-default-design.md](./2026-10-23-translucent-card-default-design.md) —
+  **decided, not implemented.** The modern card's border and opaque background are replaced with a
+  `#AAAAAA` tint at 15% and no border. This applies to the card-corner types and the calendar. To
+  keep the chrome readable on the tint, the spec retunes the neutrals inside the card (gridlines,
+  header and total bands, title rule, zebra, slider track) and the dark legend fill. It also moves
+  every selection outline to one token, keeps Excel on the opaque card, and adds rule R4 so that a
+  bookmark restore can't un-revert a border. **Read its D12 before changing the dashboard background
+  or the ink defaults:** the mark must match the page, and the composer offers to switch the mark
+  once each time the page crosses the threshold
 - [chart-card-slice1-design.md](./chart-card-slice1-design.md) ·
   [chart-card-slice2-tables-design.md](./chart-card-slice2-tables-design.md) ·
   [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice

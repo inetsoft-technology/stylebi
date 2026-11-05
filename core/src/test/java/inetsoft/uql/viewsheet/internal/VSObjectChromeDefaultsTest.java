@@ -140,18 +140,35 @@ class VSObjectChromeDefaultsTest {
          ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
          info.setVizMark(VizMark.fromGate());
          info.initDefaultFormat();
-         assertEquals(0x252428, rgb(info.getFormat().getDefaultFormat().getBackground()),
-                      "new chart under dark seeds the dark card background");
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_RGB,
+                      rgb(info.getFormat().getDefaultFormat().getBackground()),
+                      "new chart under dark seeds the same card tint as light");
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA,
+                      info.getFormat().getDefaultFormat().getAlphaValue());
       });
    }
 
    @Test
-   void chartCardSeedWhiteLightModern() {
+   void chartCardSeedTintLightModern() {
+      withGate("true", () -> {
+         ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+         info.setVizMark(VizMark.fromGate());
+         info.initDefaultFormat();
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_RGB,
+                      rgb(info.getFormat().getDefaultFormat().getBackground()),
+                      "light modern seeds the card tint");
+         assertEquals(VSObjectChromeDefaults.CARD_TINT_ALPHA,
+                      info.getFormat().getDefaultFormat().getAlphaValue());
+      });
+   }
+
+   @Test
+   void chartCardSeedWhiteUnmarked() {
       withGate("true", () -> {
          ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
          info.initDefaultFormat();
          assertEquals(0xFFFFFF, rgb(info.getFormat().getDefaultFormat().getBackground()),
-                      "light modern keeps the white chart card");
+                      "an unmarked chart keeps the white card under an open gate");
       });
    }
 
@@ -194,9 +211,9 @@ class VSObjectChromeDefaultsTest {
 
    @Test
    void calendarKeepsItsOwnRadiusInBothGateStates() {
-      // CalendarVSAssemblyInfo:88 overrides initDefaultFormat and clones a static template whose
-      // object format hardcodes roundCorner=10 (:1420), so the seed never reaches it.
-      withGate("true", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
+      // the calendar writes its own card surface: the card radius under the gate, 10 without
+      withGate("true", () -> assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                                          seededRadius(new CalendarVSAssemblyInfo())));
       withGate("false", () -> assertEquals(10, seededRadius(new CalendarVSAssemblyInfo())));
    }
 
@@ -246,5 +263,44 @@ class VSObjectChromeDefaultsTest {
       info.getFormat().getUserDefinedFormat().setRoundCornerValue(6);
       withGate("false", () -> assertEquals(6, info.getFormat().getRoundCorner(),
                                            "a user radius beats the seeded default"));
+   }
+
+   @Test
+   void cardTintOverTheModernPages() {
+      assertEquals(0xECEBE9, rgb(VSObjectChromeDefaults.cardTintOver(new Color(0xF8F7F4))));
+      assertEquals(0x313034, rgb(VSObjectChromeDefaults.cardTintOver(new Color(0x1C1B1F))));
+      assertEquals(0xF2F2F2, rgb(VSObjectChromeDefaults.cardTintOver(null)));
+   }
+
+   private static <T extends VSAssemblyInfo> T marked(T info, VizMark mark) {
+      info.setVizMark(mark);
+      return info;
+   }
+
+   @Test
+   void excelCardFillIsTodaysOutput() {
+      VizMark light = VizMark.MODERN_LIGHT;
+      VizMark dark = VizMark.MODERN_DARK;
+
+      assertEquals(0xFFFFFF, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new ChartVSAssemblyInfo(), light))), "light chart");
+      assertEquals(0xFFFFFF, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new TableVSAssemblyInfo(), light))), "light table");
+      assertEquals(0x252428, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new ChartVSAssemblyInfo(), dark))), "dark chart");
+      assertEquals(0x252428, rgb(VSObjectChromeDefaults.excelCardFill(
+         marked(new TableVSAssemblyInfo(), dark))), "dark table");
+
+      // white cells under the dark opt-out's near-black ink
+      for(VizMark mark : new VizMark[] { light, dark }) {
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new SelectionListVSAssemblyInfo(), mark)), "selection list " + mark);
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new TimeSliderVSAssemblyInfo(), mark)), "time slider " + mark);
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new CalendarVSAssemblyInfo(), mark)), "calendar " + mark);
+         assertNull(VSObjectChromeDefaults.excelCardFill(
+            marked(new CurrentSelectionVSAssemblyInfo(), mark)), "selection container " + mark);
+      }
    }
 }

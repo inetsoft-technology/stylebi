@@ -25,6 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -34,7 +35,8 @@ import java.security.Principal;
 
 /**
  * Modernize the focused dashboard: stamp its unmarked assemblies and give them the chrome a newly
- * created dashboard would have. Composer only, gate-on only, write permission required.
+ * created dashboard would have. Composer only, gate-on only, write permission required. Also
+ * switches a dashboard between the light and the dark mark.
  */
 @Service
 @ClusterProxy
@@ -79,6 +81,42 @@ public class ModernizeViewsheetService {
          // the client cleared the modernizable flag optimistically when it sent the event; on
          // failure (e.g. permission denial) dispatch the recomputed flag so the affordance comes
          // back for the rest of the session, then rethrow so the failure still propagates
+         coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
+         throw ex;
+      }
+   }
+
+   /**
+    * Switch the focused dashboard to the light or the dark mark, as Viewsheet Options does. Write
+    * permission required.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
+   public Void switchMark(@ClusterProxyKey String runtimeId, boolean dark, Principal principal,
+                          CommandDispatcher dispatcher, String linkUri)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      try {
+         assetRepository.checkAssetPermission(principal, rvs.getEntry(), ResourceAction.WRITE);
+         Viewsheet vs = rvs.getViewsheet();
+         VizMark mark = dark ? VizMark.MODERN_DARK : VizMark.MODERN_LIGHT;
+
+         if(vs == null || VizModernizeUtil.applyMark(vs, mark) == 0) {
+            coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
+            return null;
+         }
+
+         ChangedAssemblyList clist =
+            coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
+         coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
+         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher, false, false,
+                                              true, clist);
+         return null;
+      }
+      catch(Exception ex) {
+         // keep the client's flags current before the failure propagates
          coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
          throw ex;
       }

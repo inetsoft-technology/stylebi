@@ -201,7 +201,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
          format = xdesc.getAxisLabelTextFormat();
       }
 
-      spec.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor(), ctx));
+      spec.setLineColor(VSChartChromeDefaults.resolveSpokeColor(xdesc.getLineColor(), ctx));
       spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeLineVisible());
       spec.setTickVisible(xdesc.isTicksVisible());
       spec.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));

@@ -276,16 +276,16 @@ public abstract class DataVSAQuery extends VSAQuery {
          style.put("body.background", bodyBackground);
       }
 
-      applyDarkZebra(style, VSTableStructureDefaults.zebraBackground(ctx));
+      applyZebra(style, VSTableStructureDefaults.zebraBackground(ctx));
       applyModernGroupSubtotals(style, bandForeground, ctx, hasCrosstab(table));
    }
 
    /**
-    * Darken the shipped Default Style zebra stripe in dark mode. The alternating-row background is a
-    * REGULAR Specification (not a region), so it wins over body.background and must be recolored on the
-    * spec itself. No-op (null) in light/legacy, so the shipped #F5F5F5 stripe is unchanged.
+    * Recolor the shipped Default Style zebra stripe. The alternating-row background is a REGULAR
+    * Specification (not a region), so it wins over body.background and must be recolored on the
+    * spec itself. No-op when the color is null.
     */
-   static void applyDarkZebra(XTableStyle style, Color zebra) {
+   static void applyZebra(XTableStyle style, Color zebra) {
       if(zebra == null) {
          return;
       }

@@ -24,6 +24,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 })
 export class ModernizeBarComponent {
    @Input() message: string = "";
+   @Input() actionLabel: string = "_#(js:composer.vs.modernize.action)";
    @Output() onModernize = new EventEmitter<void>();
    @Output() onDismiss = new EventEmitter<void>();
 }

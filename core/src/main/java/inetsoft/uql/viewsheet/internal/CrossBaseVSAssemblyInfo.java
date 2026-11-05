@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.Hyperlink;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.uql.*;
@@ -30,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
+import java.awt.Insets;
 import java.io.PrintWriter;
 import java.util.*;
 
@@ -55,6 +57,12 @@ public class CrossBaseVSAssemblyInfo extends TableDataVSAssemblyInfo implements
    @Override
    public void initDefaultFormat() {
       setDefaultFormat(true);
+   }
+
+   @Override
+   protected Insets legacyObjectBorders() {
+      return new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                        StyleConstants.THIN_LINE, StyleConstants.THIN_LINE);
    }
 
    /**

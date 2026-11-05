@@ -458,3 +458,15 @@ describe("ComposerSelectionContainerChildren — delegation methods", () => {
       expect(EditableObjectContainer.calculateZIndex).toHaveBeenCalledWith(comp.vsObject, viewsheetMock);
    });
 });
+
+describe("ComposerSelectionContainerChildren card layer", () => {
+   it("paints no background of its own, even when the container format has one", async () => {
+      const vsObject = makeVsObject();
+      vsObject.objectFormat.background = "rgba(170,170,170,0.15)";
+      const { fixture } = await renderComponent({ vsObject });
+      const layer = fixture.nativeElement.querySelector("div[style*='absolute']") as HTMLElement;
+
+      expect(layer).not.toBeNull();
+      expect(layer.style.backgroundColor).toBe("");
+   });
+});
