@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,6 +19,7 @@ import { NO_ERRORS_SCHEMA, Input, Component } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { fireEvent, render, screen, waitFor } from "@testing-library/angular";
 import { delay, http, HttpResponse } from "msw";
+import { tap } from "rxjs";
 import { server } from "@test-mocks/server";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { ModelService } from "../../../widget/services/model.service";
@@ -156,16 +157,19 @@ describe("ModernizeDialogComponent", () => {
    });
 
    it("ignores a slow response for an older name", async () => {
-      await renderDialog(baseModel({ keepAvailable: false }));
+      const { fixture } = await renderDialog(baseModel({ keepAvailable: false }));
       await settled();
-      let aResponded = false;
+      const modelService = fixture.debugElement.injector.get(ModelService);
+      const send = modelService.sendModel.bind(modelService);
+      let aLanded = false;
+      vi.spyOn(modelService, "sendModel").mockImplementation((uri: string, body: any) =>
+         send(uri, body).pipe(tap(() => aLanded = aLanded || body.name === "a")));
       server.use(http.post("*/api/composer/vs/modernize-dialog-model/check-name/*", async ({ request }) => {
          const body: any = await request.json();
          checks.push(body);
 
          if(body.name === "a") {
-            await delay(150);
-            aResponded = true;
+            await delay(50);
          }
 
          return HttpResponse.json({ exists: false, permissionDenied: "", invalidName: "" });
@@ -174,8 +178,8 @@ describe("ModernizeDialogComponent", () => {
       type("a");
       await waitFor(() => expect(checks).toEqual([{ name: "a" }]));
       type("ab");
-      await waitFor(() => expect(aResponded).toBe(true));
-      await new Promise(r => setTimeout(r, 60));
+      await waitFor(() => expect(aLanded).toBe(true));
+      fixture.detectChanges();
       expect(checks).toEqual([{ name: "a" }]);
       expect(primary().disabled).toBe(true);
       await waitFor(() => expect(checks).toEqual([{ name: "a" }, { name: "ab" }]));

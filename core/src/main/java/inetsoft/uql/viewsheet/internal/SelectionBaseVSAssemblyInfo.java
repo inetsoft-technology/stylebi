@@ -234,7 +234,6 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       cellPadding.resetUserValue();
    }
 
-
    /**
     * Adds the cell padding.
     */
@@ -251,6 +250,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
                                   null));
       return slots;
    }
+
    @Override
    public double getListHeightScale() {
       return listHeightScale;

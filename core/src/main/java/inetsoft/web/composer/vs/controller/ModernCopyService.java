@@ -264,8 +264,11 @@ public class ModernCopyService {
       MessageCommand command = new MessageCommand();
 
       if(!report.components().isEmpty()) {
-         command.setMessage(catalog.getString("composer.vs.modernize.copyCreated.scripts",
-                                              copyName, String.join(", ", report.components())));
+         String key = report.dashboardScript() ?
+            "composer.vs.modernize.copyCreated.scriptsWithDashboard" :
+            "composer.vs.modernize.copyCreated.scripts";
+         command.setMessage(catalog.getString(key, copyName,
+                                              String.join(", ", report.components())));
          command.setType(MessageCommand.Type.INFO);
       }
       else if(report.dashboardScript()) {

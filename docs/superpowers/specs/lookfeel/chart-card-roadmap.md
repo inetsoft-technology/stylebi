@@ -1755,6 +1755,7 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
 - [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) — the seed mark,
   the four seeded values and the mechanism inventory. **Supersedes the roadmap's seed-mark analysis
   below**, which still lists version-blindness as the open question
+- [2026-11-04-modernize-dialog-design.md](./2026-11-04-modernize-dialog-design.md) — the Modernize dialog: keep my formatting with residue cleanup, or a reset modern copy (implemented on `feature-80398`, not merged)
 - [2026-09-11-chart-palette-retune-design.md](./2026-09-11-chart-palette-retune-design.md) —
   **implemented, in review.** The chart's categorical *series* palette, which nothing in this file
   covers: re-tunes the eight head colours of `Modern` and `Modern Dark`, adds `Contrast`, and gates the

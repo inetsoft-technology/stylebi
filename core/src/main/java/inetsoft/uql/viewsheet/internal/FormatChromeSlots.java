@@ -26,6 +26,8 @@ import java.awt.Color;
 import java.awt.Font;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -90,14 +92,14 @@ public final class FormatChromeSlots {
          VSCompositeFormat fmt = info.getFormatInfo().getFormat(path, false);
          return fmt == null ? null : resolvedValue(fmt, prop);
       };
-      java.util.function.Consumer<VSAssemblyInfo> clear = info -> {
+      Consumer<VSAssemblyInfo> clear = info -> {
          VSFormat user = user(info, path);
 
          if(user != null) {
             clear(user, prop);
          }
       };
-      java.util.function.BiConsumer<VSAssemblyInfo, VSAssemblyInfo> reset =
+      BiConsumer<VSAssemblyInfo, VSAssemblyInfo> reset =
          prop == Property.FONT && !wholeFont ? (info, fresh) -> resetFont(path, info, fresh) : null;
 
       return ChromeSlot.tiered(key(path, prop), objectLevel, residueEligible, set, expression,

@@ -47,7 +47,8 @@ public final class ChromeReset {
          return fresh;
       }
       catch(Exception ex) {
-         LOG.debug("Failed to build the defaults of {}", info.getClass().getName(), ex);
+         // the reset then skips the DEFAULT refresh and every plain slot
+         LOG.warn("Failed to build the defaults of {}", info.getClass().getName(), ex);
          return null;
       }
    }

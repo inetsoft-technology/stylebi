@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-04
 **Feature:** #80398
-**Status:** designed, not built
+**Status:** implemented on feature-80398 (not merged)
 **Base:** `epic-74519` (cited lines are at `c81751a3cb`)
 **Scope:** the composer, dashboards only. The viewer, worksheets and the deploy/shell paths are out.
 
@@ -80,7 +80,7 @@ drops residue, and a destructive option that resets look and feel on a saved cop
   settings land on.
   - When the author turns the switch on, the dashboard has unmarked content and the org gate is
     on, one line appears under the switch: "This keeps your formatting. To reset it, use
-    Modernize… to create a modern copy."
+    Modernize Dashboard… to create a modern copy."
   - With the org gate off the switch still works, as today, but the line is not shown, because
     Modernize… is not offered there. A gate-off org therefore has no reset copy; it has chosen
     the classic look.

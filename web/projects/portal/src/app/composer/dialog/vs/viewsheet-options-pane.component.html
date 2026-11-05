@@ -101,13 +101,14 @@
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" [(ngModel)]="model.vizModern"
                   [ngModelOptions]="{standalone: true}" id="vizModern"
+                  [attr.aria-describedby]="modernizeHint && model.vizModern ? 'vizModernHint' : null"
                   (ngModelChange)="vizModernChanged()"/>
                 <label class="form-check-label" for="vizModern">
                   _#(Modern Visualization)
                 </label>
               </div>
               @if (modernizeHint && model.vizModern) {
-                <div class="form-text">_#(composer.vs.modernize.optionsHint)</div>
+                <div class="form-text" id="vizModernHint">_#(composer.vs.modernize.optionsHint)</div>
               }
             </div>
             <div class="col">

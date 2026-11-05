@@ -34,7 +34,6 @@ import inetsoft.util.DataSpace;
 import inetsoft.util.css.CSSDictionary;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -52,7 +51,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class VizModernizeResetTest {
@@ -340,6 +338,30 @@ class VizModernizeResetTest {
       assertNull(inner.getVSAssemblyInfo().getVizMark());
       assertTrue(innerUser.isForegroundValueDefined(), "the embedded asset's content is kept");
       assertEquals("0xff0000", innerUser.getForegroundValue());
+   }
+
+   @Test
+   void resetKeepsTheLookTheHostGivesAnEmbeddedDashboard() {
+      Viewsheet vs = legacySheet();
+      addText(vs, "Text1");
+      Viewsheet embedded = new Viewsheet();
+      embedded.getVSAssemblyInfo().setVizMark(null);
+      embedded.getVSAssemblyInfo().setName("EmbeddedVS");
+      vs.addAssembly(embedded);
+      VSAssemblyInfo container = embedded.getVSAssemblyInfo();
+      authorLook(container);
+      VSFormat containerUser = user(container, VSAssemblyInfo.OBJECTPATH);
+
+      gateOn();
+      VizModernizeUtil.resetToModern(vs);
+
+      assertEquals(VizMark.MODERN_LIGHT, container.getVizMark(), "stamped as Modernize does");
+      assertTrue(containerUser.isBackgroundValueDefined(), "the host's background is kept");
+      assertEquals("0x00ff00", containerUser.getBackgroundValue());
+      assertTrue(containerUser.isBordersValueDefined(), "the host's border is kept");
+      assertEquals(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
+                              StyleConstants.THIN_LINE, StyleConstants.THIN_LINE),
+                   containerUser.getBordersValue());
    }
 
    @Test

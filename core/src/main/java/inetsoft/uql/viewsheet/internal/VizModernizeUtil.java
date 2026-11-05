@@ -112,8 +112,8 @@ public final class VizModernizeUtil {
     * Reset the sheet itself and every assembly of its own, marked or not, to what a new assembly
     * of its type gets under the sheet's mark, or the gate's when the sheet has none: author look
     * values go, the DEFAULT look is today's, and every target is stamped and seeded. Embedded
-    * assets' content, shapes and images keep their look. Returns how many were touched; 0, with
-    * nothing changed, when there is no mark to give.
+    * dashboards (their content and their container here), shapes and images keep their look.
+    * Returns how many were touched; 0, with nothing changed, when there is no mark to give.
     */
    public static int resetToModern(Viewsheet vs) {
       VizMark mark = vs.getVSAssemblyInfo() == null ? null : vs.getVSAssemblyInfo().getVizMark();
@@ -126,13 +126,20 @@ public final class VizModernizeUtil {
       List<VSAssemblyInfo> targets = collect(vs, info -> true);
 
       for(VSAssemblyInfo info : targets) {
-         resetChrome(info, mark);
+         // an embedded dashboard's container keeps the look the host shows it with
+         if(!isEmbeddedContainer(vs, info)) {
+            resetChrome(info, mark);
+         }
       }
 
       seedAll(vs, mark, targets, true, true);
       restoreContainedSliders(targets);
       keepOnBottomTabs(vs);
       return targets.size();
+   }
+
+   private static boolean isEmbeddedContainer(Viewsheet vs, VSAssemblyInfo info) {
+      return info instanceof ViewsheetVSAssemblyInfo && info != vs.getVSAssemblyInfo();
    }
 
    /**

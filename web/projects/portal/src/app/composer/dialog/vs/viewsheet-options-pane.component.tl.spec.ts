@@ -605,12 +605,17 @@ describe("ViewsheetOptionsPane — visualization controls", () => {
    it("shows the hint when the switch is turned on and a hint is allowed", async () => {
       await renderComponent({ vizModern: true }, { modernizeHint: true });
 
-      expect(screen.getByText("_#(composer.vs.modernize.optionsHint)")).toBeTruthy();
+      const hint = screen.getByText("_#(composer.vs.modernize.optionsHint)");
+      const toggle = screen.getByLabelText("_#(Modern Visualization)");
+      expect(hint.id).toBeTruthy();
+      expect(toggle.getAttribute("aria-describedby")).toBe(hint.id);
    });
 
    it("hides the hint when the switch is off or no hint is allowed", async () => {
       await renderComponent({ vizModern: false }, { modernizeHint: true });
       expect(screen.queryByText("_#(composer.vs.modernize.optionsHint)")).toBeNull();
+      expect(screen.getByLabelText("_#(Modern Visualization)").hasAttribute("aria-describedby"))
+         .toBe(false);
    });
 
    it("hides the hint when no hint is allowed", async () => {

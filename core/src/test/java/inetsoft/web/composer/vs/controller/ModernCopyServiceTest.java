@@ -42,7 +42,6 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -57,7 +56,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -285,6 +283,22 @@ class ModernCopyServiceTest {
       assertEquals(MessageCommand.Type.INFO, message.getType());
       assertEquals("Created Sales (modern). The dashboard script sets formatting. The reset " +
                       "does not change scripts, so a script that sets formatting can still " +
+                      "override the new defaults.", message.getMessage());
+   }
+
+   @Test
+   void componentsAndADashboardScriptBothShowInTheMessage() throws Exception {
+      VSAssemblyInfo text2 = info("Text2");
+      text2.setScript("Text1.foreground = [255,0,0];");
+      text2.setScriptEnabled(true);
+      viewsheet.getViewsheetInfo().setOnInit("Missing1.foreground = [255,0,0];");
+
+      service.createModernCopy("rid", "Sales (modern)", principal, dispatcher, "uri");
+
+      MessageCommand message = lastMessage();
+      assertEquals(MessageCommand.Type.INFO, message.getType());
+      assertEquals("Created Sales (modern). Scripts set formatting on: Text1, and in the " +
+                      "dashboard script. The reset does not change scripts, so they can still " +
                       "override the new defaults.", message.getMessage());
    }
 

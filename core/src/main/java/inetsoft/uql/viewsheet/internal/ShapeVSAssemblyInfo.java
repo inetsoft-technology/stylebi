@@ -45,7 +45,6 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
       super();
    }
 
-
    /**
     * Shapes and images keep their look through Modernize.
     */
@@ -53,6 +52,7 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
    protected List<ChromeSlot> chromeSlots() {
       return List.of();
    }
+
    /**
     * Get the runtime shape's line style.
     */

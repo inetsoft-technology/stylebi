@@ -33,7 +33,9 @@ import java.util.function.*;
 /**
  * Builds the look slots of a chart's design descriptors: text formats, plot and legend values,
  * axis lines, the shape flags the mark seeds, and the author's colours. Keys name the descriptor,
- * or a ref's list, index and name, so a clone yields the same keys.
+ * or a ref's list, index and name, so a clone yields the same keys - except after a separate or
+ * multi-style toggle, where shared descriptors can give the clone extra keys. Callers that
+ * compare a clone iterate the original's slots and apply each to the clone.
  */
 final class ChartChromeSlots {
    enum TextProperty {
