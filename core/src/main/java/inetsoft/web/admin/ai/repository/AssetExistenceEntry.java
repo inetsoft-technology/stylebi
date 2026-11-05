@@ -20,6 +20,10 @@ package inetsoft.web.admin.ai.repository;
 /**
  * One entry in {@link RepositoryImportPlan#willOverwrite()}/{@link RepositoryImportPlan#willCreate()}.
  *
+ * <p>{@code path} is the destination path the import writes to (the retargeted path when a
+ * target folder was applied, else the recorded path); {@code user} is that destination's owner
+ * identity key ({@code name^orgId}), or null for the global scope.
+ *
  * <p>{@code currentLastModifiedTime} is left {@code null}: {@code AssetRepository} exposes no
  * direct timestamp lookup by {@code AssetEntry} (verified: no such method on the interface), and
  * computing it precisely would require replicating {@code DeployService}'s own private,
@@ -27,5 +31,5 @@ package inetsoft.web.admin.ai.repository;
  * existence/non-existence distinction itself (which drives {@code acknowledgeOverwrite} gating
  * and is pinned into {@code planHash}) is unaffected by this field being absent.
  */
-public record AssetExistenceEntry(String path, String label, Long currentLastModifiedTime) {
+public record AssetExistenceEntry(String path, String user, String label, Long currentLastModifiedTime) {
 }
