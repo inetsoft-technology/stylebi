@@ -869,11 +869,11 @@ public final class PropertyAliases {
       // Phase 3 batch a — the input assemblies, all on VSInputService, plus range slider,
       // calendar and tab.
       register(registry, "checkbox", CheckboxPropertyDialogModel.class,
-               listInput("checkboxGeneralPaneModel", true, false));
+               listInput("checkboxGeneralPaneModel", true, false, true));
       register(registry, "combobox", ComboboxPropertyDialogModel.class,
-               listInput("comboboxGeneralPaneModel", false, true));
+               listInput("comboboxGeneralPaneModel", false, true, false));
       register(registry, "radiobutton", RadioButtonPropertyDialogModel.class,
-               listInput("radioButtonGeneralPaneModel", true, false));
+               listInput("radioButtonGeneralPaneModel", true, false, false));
       register(registry, "slider", SliderPropertyDialogModel.class, slider());
       register(registry, "spinner", SpinnerPropertyDialogModel.class, spinner());
       register(registry, "textinput", TextInputPropertyDialogModel.class, textInput());
@@ -1031,11 +1031,34 @@ public final class PropertyAliases {
     * ImagePropertyDialogService} set it from and read it into {@code AggregateFormula} the same
     * way {@code GaugePropertyDialogService} does), so it is safe to alias for all three rather
     * than risking the shadow/projectForwardEnabled "exposes but does nothing" trap.
+    *
+    * <p>{@code with} (the second column of a two-column formula), {@code nthOperand} (the N/P
+    * of an Nth/Pth formula; the pane field is called {@code num}) and {@code magnitude} (the
+    * As Is / Thousands / Millions / Billions scale) are read back by all three services as well
+    * (Redmine #80464); they were writable only through the raw {@code dataOutputPaneModel.*}
+    * path.
     */
    private static void dataOutput(Map<String, String> aliases) {
       aliases.put("table", "dataOutputPaneModel.table");
       aliases.put("column", "dataOutputPaneModel.column");
       aliases.put("aggregate", "dataOutputPaneModel.aggregate");
+      aliases.put("with", "dataOutputPaneModel.with");
+      aliases.put("nthOperand", "dataOutputPaneModel.num");
+      aliases.put("magnitude", "dataOutputPaneModel.magnitude");
+   }
+
+   /**
+    * The input label pane shared by the four input assemblies that host one -- combobox, slider,
+    * spinner and text input (checkbox and radio button show a title bar instead and have no
+    * {@code inputLabelPaneModel}). {@code labelPosition} and {@code labelGap} are applied by
+    * {@code VSInputService} for all four (Redmine #80464); the position alias must be exactly
+    * {@code labelPosition} because the plugin pre-validates that key.
+    */
+   private static void inputLabel(Map<String, String> aliases) {
+      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
+      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      aliases.put("labelPosition", "inputLabelPaneModel.labelPosition");
+      aliases.put("labelGap", "inputLabelPaneModel.labelGap");
    }
 
    /**
@@ -1052,6 +1075,9 @@ public final class PropertyAliases {
       aliases.put("table", "dataInputPaneModel.table");
       aliases.put("columnValue", "dataInputPaneModel.columnValue");
       aliases.put("rowValue", "dataInputPaneModel.rowValue");
+      // "Write Back to Storage": applied by the slider, spinner and text input setters in
+      // VSInputService (Redmine #80464).
+      aliases.put("writeBackDirectly", "dataInputPaneModel.writeBackDirectly");
    }
 
    private static Map<String, String> gauge() {
@@ -1141,11 +1167,17 @@ public final class PropertyAliases {
       // visibility flag plus optional custom text, no Data Tip View/tipView radio option (that
       // would be a different pane entirely: image's own separate "Pop Component" feature,
       // ImageAdvancedPaneModel.popComponent/popOption/popLocation, applied unconditionally by
-      // setImagePropertyDialogModel with no gating relation to tipOption at all -- deliberately
-      // NOT aliased here, out of scope for this ticket).
+      // setImagePropertyDialogModel with no gating relation to tipOption at all -- aliased
+      // separately below, see "Pop pane").
       aliases.put("tooltipVisible", "imageGeneralPaneModel.tipPaneModel.tipOption");
       aliases.put("tooltip", "imageGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customTip");
       aliases.put("tooltipMode", "imageGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customRB");
+
+      // Pop pane (Redmine #80464). The same three controls the Composer shows for Text, applied
+      // unconditionally by ImagePropertyDialogService.setImagePropertyDialogModel.
+      aliases.put("popComponent", "imageAdvancedPaneModel.popComponent");
+      aliases.put("popLocation", "imageAdvancedPaneModel.popLocation");
+      aliases.put("alpha", "imageAdvancedPaneModel.alpha");
       dataOutput(aliases);
       return aliases;
    }
@@ -1358,16 +1390,22 @@ public final class PropertyAliases {
     * Check box, combo box and radio button share a list-values general pane. This is the
     * dropdown/list's own choices query — {@code selectionListEditorModel.table}/{@code .column}
     * — distinct from combobox's separate top-level {@code dataInputPaneModel} (row/column
-    * write-back target), which is deliberately not aliased here or via {@link #dataInput}; see
-    * that method's doc for why the two must not collide under the same alias name.
+    * write-back target), which is not routed via {@link #dataInput} and is aliased below under
+    * the distinct {@code writeBack*} names; see that method's doc for why the two must not
+    * collide under the same alias name.
     *
     * <p>{@code hasInputLabel} covers combobox's own top-level {@code inputLabelPaneModel}
     * (the optional label shown next to the dropdown). Checkbox and radiobutton have no such
     * field on their dialog model at all -- they show their own title bar instead -- so this is
     * declared per caller rather than assumed from the shape the other two parameters share.
+    *
+    * <p>{@code checkBox} marks the one list type whose Composer dialog differs on the Data pane
+    * and the list-values pane (Redmine #80464): it shows only the write-back Target (no Column,
+    * Row or Write Back to Storage -- the {@code dataInputPaneModel} column/row/writeBackDirectly
+    * fields are refused for it, bug #78579) and is the only one with Select First Item.
     */
    private static Map<String, String> listInput(String prefix, boolean hasTitle,
-                                                 boolean hasInputLabel)
+                                                 boolean hasInputLabel, boolean checkBox)
    {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, prefix);
@@ -1376,11 +1414,35 @@ public final class PropertyAliases {
 
       if(hasTitle) {
          title(aliases, prefix);
+         // The Title Height / Cell Height controls the size pane shows for exactly the two
+         // titled list inputs; VSInputService reads both back for checkbox and radio button.
+         titleHeight(aliases, prefix);
+         aliases.put("cellHeight", prefix + ".sizePositionPaneModel.cellHeight");
       }
 
       if(hasInputLabel) {
-         aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-         aliases.put("labelText", "inputLabelPaneModel.labelText");
+         inputLabel(aliases);
+      }
+
+      // Sort / List Embedded Items Last, shown and applied for all three list types.
+      String listValues = prefix + ".listValuesPaneModel";
+      aliases.put("sortType", listValues + ".sortType");
+      aliases.put("embeddedDataDown", listValues + ".embeddedDataDown");
+
+      if(checkBox) {
+         // list-values-pane shows Select First Item only for the check box, and only the check
+         // box setter calls setSelectFirstItemValue.
+         aliases.put("selectFirstItem", listValues + ".selectFirstItem");
+      }
+
+      // Write-back target. Named writeBack* because the plain "table"/"column" aliases below
+      // are the list's own query. Check box: Target only (see the javadoc).
+      aliases.put("writeBackTable", "dataInputPaneModel.table");
+
+      if(!checkBox) {
+         aliases.put("writeBackColumn", "dataInputPaneModel.columnValue");
+         aliases.put("writeBackRow", "dataInputPaneModel.rowValue");
+         aliases.put("writeBackDirectly", "dataInputPaneModel.writeBackDirectly");
       }
 
       // "embedded"/"query" gate whether the static labels/values below (still raw-path-only --
@@ -1392,6 +1454,8 @@ public final class PropertyAliases {
       String comboBoxEditor = prefix + ".listValuesPaneModel.comboBoxEditorModel";
       aliases.put("embedded", comboBoxEditor + ".embedded");
       aliases.put("query", comboBoxEditor + ".query");
+      // Data type select: shown for all three list types, applied by all three setters.
+      aliases.put("dataType", comboBoxEditor + ".dataType");
 
       String editor = comboBoxEditor + ".selectionListDialogModel.selectionListEditorModel";
       aliases.put("table", editor + ".table");
@@ -1420,8 +1484,7 @@ public final class PropertyAliases {
       aliases.put("label", sliderLabel + ".label");
       aliases.put("showMin", sliderLabel + ".minimum");
       aliases.put("showMax", sliderLabel + ".maximum");
-      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      inputLabel(aliases);
       dataInput(aliases);
       return aliases;
    }
@@ -1432,8 +1495,7 @@ public final class PropertyAliases {
       submitOnChange(aliases, "spinnerGeneralPaneModel");
       sizePosition(aliases, "spinnerGeneralPaneModel");
       numericRange(aliases, "spinnerGeneralPaneModel");
-      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      inputLabel(aliases);
       dataInput(aliases);
       return aliases;
    }
@@ -1443,8 +1505,15 @@ public final class PropertyAliases {
       dataGeneral(aliases, "textInputGeneralPaneModel");
       submitOnChange(aliases, "textInputGeneralPaneModel");
       sizePosition(aliases, "textInputGeneralPaneModel");
-      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      inputLabel(aliases);
+      // General pane (Redmine #80464). "Placeholder Text" is bound to the model's toolTip and
+      // "Default Text" to defaultText (textinput-general-pane); multiLine is left raw because it
+      // is only live for the Text input control type.
+      aliases.put("placeholderText", "textInputGeneralPaneModel.toolTip");
+      aliases.put("defaultText", "textInputGeneralPaneModel.defaultText");
+      aliases.put("insetStyle", "textInputGeneralPaneModel.insetStyle");
+      // The Input Control select; applied unconditionally by setTextInputPropertyDialogModel.
+      aliases.put("inputControl", "textInputColumnOptionPaneModel.type");
       dataInput(aliases);
       return aliases;
    }
