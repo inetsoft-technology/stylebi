@@ -239,7 +239,63 @@ class ChartRegionPropertyServiceHiddenAxisTest {
       }
    }
 
-   private enum Mode { PLAIN, Y2, X2 }
+   // ── bug #80354: labels moved to the opposite side are not a hidden axis ────
+
+   /** Sets the descriptor the way the write does, then drops the layout so it is recomputed. */
+   private static void moveLabelsToTheOppositeSide(Chart c, boolean on) {
+      c.agg.getAxisDescriptor().setLabelOnSecondaryAxis(on);
+      c.info.clearRuntime();
+      c.box.resetDataMap(CHART);
+      c.box.clearGraph(CHART);
+   }
+
+   private Object listed(Chart c, String key) throws Exception {
+      @SuppressWarnings("unchecked")
+      java.util.List<Map<String, Object>> props = (java.util.List<Map<String, Object>>)
+         c.service.list("tok", principal(), CHART, "axis", "y", null).get("properties");
+      return props.stream().filter(p -> key.equals(p.get("name"))).findFirst()
+         .orElseThrow().get("value");
+   }
+
+   @Test
+   void facetYWithLabelsOnTheOppositeSideStillReadsAndReverses() throws Exception {
+      Chart c = chart(Mode.FACET);
+      moveLabelsToTheOppositeSide(c, true);
+
+      assertEquals(true, listed(c, "labelOnSecondaryAxis"));
+
+      c.service.set("tok", principal(), CHART, "axis", "y", null,
+                    Map.of("labelOnSecondaryAxis", false), "");
+      assertFalse(c.agg.getAxisDescriptor().isLabelOnSecondaryAxis());
+      c.info.clearRuntime();
+      c.box.resetDataMap(CHART);
+      c.box.clearGraph(CHART);
+      assertEquals(false, listed(c, "labelOnSecondaryAxis"));
+   }
+
+   /** The relaxation must not open a truly hidden axis (label and line both off, bug #79111). */
+   @Test
+   void facetYWithLabelsOnTheOppositeSideButBothLabelAndLineOffIsStillRefused() throws Exception {
+      Chart c = chart(Mode.FACET);
+      c.agg.getAxisDescriptor().setLabelOnSecondaryAxis(true);
+      hideY(c);
+
+      assertRefusal(assertThrows(IllegalArgumentException.class,
+         () -> c.service.list("tok", principal(), CHART, "axis", "y", null)), "y");
+   }
+
+   @Test
+   void plainYWithLabelsOnTheOppositeSideStillReadsAndReverses() throws Exception {
+      Chart c = chart(Mode.PLAIN);
+      moveLabelsToTheOppositeSide(c, true);
+      assertEquals(true, listed(c, "labelOnSecondaryAxis"));
+      c.service.set("tok", principal(), CHART, "axis", "y", null,
+                    Map.of("labelOnSecondaryAxis", false), "");
+      assertFalse(c.agg.getAxisDescriptor().isLabelOnSecondaryAxis());
+   }
+
+
+   private enum Mode { PLAIN, Y2, X2, FACET }
 
    // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -312,6 +368,13 @@ class ChartRegionPropertyServiceHiddenAxisTest {
          info.addXField(agg2);
       }
       else {
+         if(mode == Mode.FACET) {
+            VSChartDimensionRef outer =
+               new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, "year")));
+            outer.setGroupColumnValue("year");
+            info.addXField(outer);
+         }
+
          info.addXField(dim);
          info.addYField(agg);
 
