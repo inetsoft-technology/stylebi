@@ -2318,8 +2318,9 @@ public final class WorksheetMutationSupport {
    }
 
    private static final java.util.regex.Pattern MISSING_TABLE_ERROR = java.util.regex.Pattern.compile(
-      "(?is)\\b(table|view|relation|object)\\b[^\\n]{0,120}?(does not exist|doesn't exist|" +
-      "not found|not exist)|no such table|invalid object name|unknown table|object not found");
+      "(?is)\\b(table|view|relation|object|schema|column)\\b[^\\n]{0,120}?(does not exist|doesn't exist|" +
+      "not found|not exist)|no such table|invalid object name|unknown table|object not found|" +
+      "not in any table in the from list");
 
    /**
     * Bug #80178 (wsq-032): the refusal for a query whose tables do not resolve. With explicit

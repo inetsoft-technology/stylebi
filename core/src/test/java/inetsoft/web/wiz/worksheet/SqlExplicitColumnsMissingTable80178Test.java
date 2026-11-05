@@ -65,7 +65,12 @@ class SqlExplicitColumnsMissingTable80178Test {
          "ORA-00942: table or view does not exist",
          "Table 'db.t' doesn't exist",
          "relation \"t\" does not exist",
-         "Invalid object name 't'"))
+         "Invalid object name 't'",
+         "Schema 'NOSCHEMA_ZZ' does not exist",
+         "column \"NO_SUCH_COL_ZZ\" does not exist",
+         "Column 'NO_SUCH_COL_ZZ' is either not in any table in the FROM list or appears " +
+         "within a join specification and is outside the scope of the join specification " +
+         "or appears in a HAVING clause and is not in the GROUP BY list."))
       {
          String r = WorksheetMutationSupport.missingTableRefusal(
             new Exception(msg), "SELECT a FROM t");
@@ -181,7 +186,7 @@ class SqlExplicitColumnsMissingTable80178Test {
          if(expectRefusal) {
             PairingException ex = assertThrows(PairingException.class,
                () -> ctrl.addSqlQuery("TOK", body, agent));
-            assertTrue(ex.getMessage().contains("NO_SUCH_TABLE_ZZ"), ex.getMessage());
+            assertTrue(ex.getMessage().contains(metadataError.getMessage()), ex.getMessage());
             assertTrue(ex.getMessage().contains("could not be resolved against the datasource"),
                        ex.getMessage());
             assertEquals(0, ws.getAssemblies().length, "nothing may be created");
@@ -206,6 +211,21 @@ class SqlExplicitColumnsMissingTable80178Test {
    void explicitColumnsOverAMissingTableAreRefusedAndNothingIsCreated() throws Exception {
       run("SELECT x FROM SA.NO_SUCH_TABLE_ZZ",
           new Exception("Table/View 'SA.NO_SUCH_TABLE_ZZ' does not exist"), true);
+   }
+
+   @Test
+   void explicitColumnsOverAMissingSchemaAreRefusedAndNothingIsCreated() throws Exception {
+      run("SELECT CATEGORY_ID FROM NOSCHEMA_ZZ.CATEGORIES",
+          new Exception("Schema 'NOSCHEMA_ZZ' does not exist"), true);
+   }
+
+   @Test
+   void explicitColumnsOverAMissingColumnAreRefusedAndNothingIsCreated() throws Exception {
+      run("SELECT NO_SUCH_COL_ZZ FROM SA.CATEGORIES",
+          new Exception("Column 'NO_SUCH_COL_ZZ' is either not in any table in the FROM list " +
+             "or appears within a join specification and is outside the scope of the join " +
+             "specification or appears in a HAVING clause and is not in the GROUP BY list."),
+          true);
    }
 
    @Test
