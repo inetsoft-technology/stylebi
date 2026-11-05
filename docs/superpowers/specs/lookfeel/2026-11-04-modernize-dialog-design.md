@@ -426,6 +426,12 @@ Rulings after the scripted manual checks (2026-11-05):
 4. **The copy carries no author chart fonts on titles, axes or legends.** The reset also covers
    the runtime copies of the chart's fields that a loaded sheet keeps (its runtime group fields
    are stored in the file) and each measure's own title, not only the design fields.
+5. **A group container used as a panel resets like a component.** The copy clears its author
+   fill and border; its members keep their own look. Accepted: the author can restyle the panel.
+6. **"Keep my formatting" adopts the current modern card.** Classic components without an author
+   background end with the card a new assembly gets (after PR #7750, the translucent tint).
+7. **Modernize Dashboard... is reachable in device and print layouts.** The layout pane's menu
+   offers the same entry, with the same visibility; the bar stays hidden there.
 
 ## 12. Verification
 
