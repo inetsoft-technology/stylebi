@@ -58,13 +58,18 @@ public class ImportTaskController {
       this.identityChecker = new ScheduleTaskIdentityChecker(securityEngine);
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/content/schedule/set-task-file")
    public ImportTaskDialogModel setTaskFile(@RequestBody FileData file, HttpServletRequest request,
                                             Principal principal)
@@ -125,13 +130,18 @@ public class ImportTaskController {
          .build();
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/tasks",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/content/schedule/import/{overwriting}")
    public ImportTaskResponse importScheduleTask(@RequestBody List<String> selectedTasks, HttpServletRequest request,
                                                 @PathVariable("overwriting") boolean overwriting,

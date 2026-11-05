@@ -43,7 +43,8 @@ class EMScheduleSchedulerPermissionTest {
    private static final List<Class<?>> CONTROLLERS = List.of(
       EMScheduleController.class, EMScheduleTaskFolderController.class,
       EMScheduleBatchActionController.class, ScheduleCycleController.class,
-      EMScheduleTaskActionController.class, EMScheduleTaskController.class);
+      EMScheduleTaskActionController.class, EMScheduleTaskController.class,
+      ExportTaskController.class, ImportTaskController.class);
 
    // getUsersModel: not a task operation, the user/group list also backs the General and
    // Security settings pages, so it is deliberately OR-gated and must not require SCHEDULER.
