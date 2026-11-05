@@ -18,12 +18,13 @@
 package inetsoft.util;
 
 /*
- * Bug #79856 (row S4 / part A): an organization id change copies the old org's indexed
+ * Bug #79856 (row S4 / part A, part C): an organization id change copies the old org's indexed
  * storage from a key snapshot (migrateStorageData -> getKeys) and then drops the old store. A key
  * written to the old org after the snapshot was acknowledged but is neither copied nor kept.
  */
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrgIdChangeGuard;
 import inetsoft.sree.security.Organization;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
@@ -38,6 +39,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -47,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
-class BlobIndexedStorageLateKeyMigrationTest {
+class BlobIndexedStorageOrgRenameLateWriteTest {
    @Autowired
    private BlobStorageManager blobStorageManager;
 
@@ -111,5 +113,47 @@ class BlobIndexedStorageLateKeyMigrationTest {
 
       assertTrue(storage.contains(folderKey(newOrg, "late"), newOrg),
                  "the acknowledged late write is absent from the new org's store");
+   }
+
+   /**
+    * Part C: after the old org's store was removed by an id change, a late write from another
+    * thread is refused and does not recreate anything.
+    */
+   @Test
+   void writeAfterRemoveStorageDuringIdChangeIsRefused() throws Exception {
+      String org = "bug79856c";
+      BlobIndexedStorage storage = new BlobIndexedStorage(blobStorageManager);
+      storage.putXMLSerializable(folderKey(org, "a"), new AssetFolder());
+      String lateKey = folderKey(org, "late");
+      AtomicReference<Throwable> error = new AtomicReference<>();
+
+      OrgIdChangeGuard.begin(org);
+
+      try {
+         storage.removeStorage(org);
+         Thread t = new Thread(() -> {
+            try {
+               storage.putXMLSerializable(lateKey, new AssetFolder());
+            }
+            catch(Throwable e) {
+               error.set(e);
+            }
+         });
+         t.start();
+         t.join();
+      }
+      finally {
+         OrgIdChangeGuard.end(org, true);
+      }
+
+      try {
+         assertInstanceOf(OrgIdChangeGuard.OrganizationChangingException.class, error.get(),
+                          "the late write returned normally");
+         assertFalse(storage.contains(lateKey, org), "the refused write landed: " +
+                     storage.getKeys(null, org));
+      }
+      finally {
+         OrgIdChangeGuard.clear(org);
+      }
    }
 }
