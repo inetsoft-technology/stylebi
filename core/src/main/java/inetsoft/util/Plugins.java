@@ -495,7 +495,12 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
             fileName);
       }
 
-      validatePluginId(pluginId);
+      try {
+         validatePluginId(pluginId);
+      }
+      catch(IllegalArgumentException e) {
+         throw new IllegalArgumentException("pluginId: " + e.getMessage(), e);
+      }
 
       if(pluginVersion == null) {
          throw new IllegalStateException(
@@ -649,6 +654,12 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
 
    private File getDirectoryPlugin(FileSystemService fileSystemService, String pluginName) {
       validatePluginId(pluginName);
+      return resolveInsidePluginDirectory(fileSystemService, pluginDirectory, pluginName);
+   }
+
+   static File resolveInsidePluginDirectory(FileSystemService fileSystemService,
+                                            File pluginDirectory, String pluginName)
+   {
       File folder = fileSystemService.getFile(pluginDirectory, pluginName);
       Path root = pluginDirectory.toPath().toAbsolutePath().normalize();
       Path path = folder.toPath().toAbsolutePath().normalize();

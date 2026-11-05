@@ -27,7 +27,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,8 +51,8 @@ class PluginIdValidationTest {
    @Test
    void rejectsUnsafeIds() {
       String[] bad = {
-         "../x", "a/b", "a\b", "/abs", "C:/x", "C:x", "..", ".", "", " ", "a\nb", "a\rb",
-         "a\0b", "x/../y", "a..b", null
+         "../x", "a/b", "a\\b", "\\\\server\\share", "a\tb", "/abs", "C:/x", "C:x", "..", ".",
+         "", " ", "a\nb", "a\rb", "a\0b", "x/../y", "a..b", null
       };
 
       for(String id : bad) {
@@ -107,18 +106,22 @@ class PluginIdValidationTest {
 
    @Test
    void containmentCheckThrowsForEscapingFolder() throws Exception {
-      Plugins plugins = Plugins.getInstance();
-      Method method = Plugins.class.getDeclaredMethod(
-         "getDirectoryPlugin", FileSystemService.class, String.class);
-      method.setAccessible(true);
       FileSystemService fs = FileSystemService.getInstance();
+      File dir = tempDir.resolve("plugins").toFile();
+      File relative = new File("target/test80422-plugins");
 
-      Object ok = method.invoke(plugins, fs, "test80422-ok");
-      assertNotNull(ok);
+      for(File root : new File[] { dir, relative }) {
+         assertEquals("ok", Plugins.resolveInsidePluginDirectory(fs, root, "ok").getName());
+         assertNotNull(Plugins.resolveInsidePluginDirectory(fs, root, "a/b"));
 
-      var ex = assertThrows(java.lang.reflect.InvocationTargetException.class,
-                            () -> method.invoke(plugins, fs, "../test80422-escape"));
-      assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+         for(String name : new String[] {
+            "../x", "a/../../x", "/abs/x", tempDir.resolve("other").toString(), ".", "a/..", ".." })
+         {
+            assertThrows(IllegalArgumentException.class,
+                         () -> Plugins.resolveInsidePluginDirectory(fs, root, name),
+                         "expected containment failure for " + name);
+         }
+      }
    }
 
    @Test
