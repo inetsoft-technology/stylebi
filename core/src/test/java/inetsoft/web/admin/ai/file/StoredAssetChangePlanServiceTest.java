@@ -170,6 +170,40 @@ class StoredAssetChangePlanServiceTest {
       assertNotNull(plan.taskToken());
    }
 
+   /** Bug #80419: the EM-forbidden-character/dot rule applies to the leaf name a create/write/
+    * rename newly establishes, validated before any DataSpace call. */
+   @Test
+   void resolveCreateRejectsALeafNameWithAForbiddenCharacter() {
+      StoredAssetChangePlanRequest req = request(
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE,
+                "scripts/lib:v1"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(req, principal));
+      assertTrue(ex.getMessage().contains("changes[0].path"), ex.getMessage());
+      verifyNoInteractions(dataSpace);
+   }
+
+   @Test
+   void resolveWriteRejectsALeafNameWithATrailingDot() {
+      StoredAssetChangeRequest c = write("scripts/report.", "console.log(1);");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(c), principal));
+      assertTrue(ex.getMessage().contains("changes[0].path"), ex.getMessage());
+      verifyNoInteractions(dataSpace);
+   }
+
+   /** Only the new leaf segment is validated -- an earlier, pre-existing folder segment (here
+    * "a:b") is out of scope, per the charter's nested-missing-parent carve-out. */
+   @Test
+   void resolveWriteOnlyValidatesTheLeafSegmentNotEarlierPathSegments() {
+      when(dataSpace.exists(null, "a:b/ok.txt")).thenReturn(false);
+      StoredAssetChangeRequest c = write("a:b/ok.txt", "x");
+
+      assertDoesNotThrow(() -> service.resolve(request(c), principal));
+   }
+
    @Test
    void resolveWriteRequiresContent() {
       StoredAssetChangeRequest c =
@@ -320,6 +354,19 @@ class StoredAssetChangePlanServiceTest {
       c.setNewName("sub/b.js");
 
       assertThrows(IllegalArgumentException.class, () -> service.resolve(request(c), principal));
+   }
+
+   @Test
+   void resolveRenameRejectsANewNameWithAForbiddenCharacter() {
+      // newName is validated before any DataSpace call, so no stub is exercised here.
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_RENAME, "a.js");
+      c.setNewName("b#1.js");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(c), principal));
+      assertTrue(ex.getMessage().contains("changes[0].newName"), ex.getMessage());
+      verifyNoInteractions(dataSpace);
    }
 
    @Test

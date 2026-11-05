@@ -146,6 +146,8 @@ public class StoredAssetChangePlanService {
          throw new IllegalArgumentException(label + ": content/newName not used for verb=create");
       }
 
+      StoredAssetPathValidator.requireValidNameChars(leafOf(path), label + ".path");
+
       if(dataSpace.exists(null, path)) {
          throw new IllegalArgumentException(
             label + ": \"" + path + "\" already exists -- refusing to create over an existing " +
@@ -163,6 +165,8 @@ public class StoredAssetChangePlanService {
       if(raw.getNewName() != null) {
          throw new IllegalArgumentException(label + ".newName: not used for verb=write");
       }
+
+      StoredAssetPathValidator.requireValidNameChars(leafOf(path), label + ".path");
 
       String content = raw.getContent();
 
@@ -218,6 +222,7 @@ public class StoredAssetChangePlanService {
       }
 
       String newName = StoredAssetPathValidator.requireSiblingName(raw.getNewName(), label + ".newName");
+      StoredAssetPathValidator.requireValidNameChars(newName, label + ".newName");
 
       if(!dataSpace.exists(null, path)) {
          throw new StoredAssetNotFoundException(path, label);
@@ -377,6 +382,11 @@ public class StoredAssetChangePlanService {
    static String parentOf(String path) {
       int idx = path.lastIndexOf('/');
       return idx < 0 ? "" : path.substring(0, idx);
+   }
+
+   static String leafOf(String path) {
+      int idx = path.lastIndexOf('/');
+      return idx < 0 ? path : path.substring(idx + 1);
    }
 
    static String join(String parent, String name) {
