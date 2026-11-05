@@ -88,8 +88,13 @@ export class ModernizeDialogComponent implements OnInit {
          this.nameCheck = result.check;
       });
 
+      // the trim directive re-sets an unchanged value on blur
       this.saveAs.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-         .subscribe(() => this.requestCheck());
+         .subscribe(() => {
+            if(!this.nameChecked) {
+               this.requestCheck();
+            }
+         });
 
       if(this.choice === "reset") {
          this.requestCheck();

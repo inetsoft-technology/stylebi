@@ -95,6 +95,20 @@ describe("ModernizeDialogComponent", () => {
       expect(saveAs().value).toBe("Sales (modern)");
    });
 
+   // clicking the button blurs the field first, and the trim directive re-sets the value on blur
+   it("keeps the button enabled when the checked name loses focus unchanged", async () => {
+      const { commits } = await renderDialog(baseModel({ keepAvailable: false }));
+      await settled();
+      expect(primary().disabled).toBe(false);
+
+      fireEvent.blur(saveAs());
+
+      expect(primary().disabled).toBe(false);
+      fireEvent.click(primary());
+      expect(commits).toEqual([{ choice: "copy", name: "Sales (modern)" }]);
+      expect(checks).toEqual([{ name: "Sales (modern)" }]);
+   });
+
    it("disables reset with the save-first line for a never-saved sheet", async () => {
       await renderDialog(baseModel({ neverSaved: true }));
       expect(resetRadio().disabled).toBe(true);
