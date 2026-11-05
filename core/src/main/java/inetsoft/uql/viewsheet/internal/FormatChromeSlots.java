@@ -47,28 +47,25 @@ public final class FormatChromeSlots {
          path.isRow() + ":" + path.isCol() + ":" + String.join("/", path.getPath()) + ":" + prop;
    }
 
-   public static List<ChromeSlot> forPath(TableDataPath path, boolean residueEligible) {
-      return forPath(path, prop -> residueEligible);
-   }
-
    /**
-    * The slots of one path, each residue-eligible where the predicate says.
+    * The slots of one path, each residue-eligible where the predicate says; with wholeFont the
+    * reset clears the author's font rather than keeping its size and style.
     */
    public static List<ChromeSlot> forPath(TableDataPath path,
-                                          Predicate<Property> residueEligible)
+                                          Predicate<Property> residueEligible, boolean wholeFont)
    {
       boolean objectLevel = VSAssemblyInfo.OBJECTPATH.equals(path);
       List<ChromeSlot> slots = new ArrayList<>();
 
       for(Property prop : Property.values()) {
-         slots.add(slot(path, prop, objectLevel, residueEligible.test(prop)));
+         slots.add(slot(path, prop, objectLevel, residueEligible.test(prop), wholeFont));
       }
 
       return slots;
    }
 
    private static ChromeSlot slot(TableDataPath path, Property prop, boolean objectLevel,
-                                  boolean residueEligible)
+                                  boolean residueEligible, boolean wholeFont)
    {
       Predicate<VSAssemblyInfo> set = info -> {
          VSFormat user = user(info, path);
@@ -101,8 +98,7 @@ public final class FormatChromeSlots {
          }
       };
       java.util.function.BiConsumer<VSAssemblyInfo, VSAssemblyInfo> reset =
-         prop == Property.FONT && !VSAssemblyInfo.TITLEPATH.equals(path)
-            ? (info, fresh) -> resetFont(path, info, fresh) : null;
+         prop == Property.FONT && !wholeFont ? (info, fresh) -> resetFont(path, info, fresh) : null;
 
       return ChromeSlot.tiered(key(path, prop), objectLevel, residueEligible, set, expression,
                                author, resolved, clear, reset);
@@ -214,18 +210,18 @@ public final class FormatChromeSlots {
       }
    }
 
-   // keeps the author's size and style bits, takes the fresh default family
+   // keeps the author's size and style bits, takes the fresh default family; writes both tiers
    private static void resetFont(TableDataPath path, VSAssemblyInfo info, VSAssemblyInfo fresh) {
       VSFormat user = user(info, path);
 
-      if(user == null || !user.isFontValueDefined()) {
+      if(user == null) {
          return;
       }
 
-      Font author = user.getFontValue();
+      Font author = user.isFontValueDefined() ? user.getFontValue() : null;
 
       if(author == null) {
-         user.setFontValue(null);
+         clear(user, Property.FONT);
          return;
       }
 
@@ -247,7 +243,9 @@ public final class FormatChromeSlots {
          return;
       }
 
-      user.setFontValue(withFamily(author, family));
+      StyleFont font = withFamily(author, family);
+      user.setFontValue(font);
+      user.setFont(font, true);
    }
 
    /**

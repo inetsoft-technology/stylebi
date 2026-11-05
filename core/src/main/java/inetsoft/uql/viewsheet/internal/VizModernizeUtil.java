@@ -35,9 +35,10 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
- * Four public entry points onto a dashboard's chrome: modernize, revert, applyMark and reseed.
- * All four funnel into seedAll, which is what keeps them from drifting apart - each just picks
- * the targets and the mark, and seedAll does the stamping, seeding and shared-frame invalidation.
+ * Five public entry points onto a dashboard's chrome: modernize, revert, applyMark, reseed and
+ * resetToModern. All five funnel into seedAll, which is what keeps them from drifting apart - each
+ * just picks the targets and the mark, and seedAll does the stamping, seeding and shared-frame
+ * invalidation.
  * They live in this package because seedChromeDefaults is protected.
  *
  * Nothing here is automatic - none of it runs unless somebody asks. modernize and revert are the
@@ -105,6 +106,67 @@ public final class VizModernizeUtil {
     */
    public static int applyMark(Viewsheet vs, VizMark mark) {
       return moveMark(vs, mark, collect(vs, info -> info.getVizMark() != mark));
+   }
+
+   /**
+    * Reset the sheet itself and every assembly of its own, marked or not, to what a new assembly
+    * of its type gets under the sheet's mark, or the gate's when the sheet has none: author look
+    * values go, the DEFAULT look is today's, and every target is stamped and seeded. Embedded
+    * assets' content, shapes and images keep their look. Returns how many were touched; 0, with
+    * nothing changed, when there is no mark to give.
+    */
+   public static int resetToModern(Viewsheet vs) {
+      VizMark mark = vs.getVSAssemblyInfo() == null ? null : vs.getVSAssemblyInfo().getVizMark();
+      mark = mark != null ? mark : VizMark.fromGate();
+
+      if(mark == null) {
+         return 0;
+      }
+
+      List<VSAssemblyInfo> targets = collect(vs, info -> true);
+
+      for(VSAssemblyInfo info : targets) {
+         resetChrome(info, mark);
+      }
+
+      seedAll(vs, mark, targets, true, true);
+      restoreContainedSliders(targets);
+      keepOnBottomTabs(vs);
+      return targets.size();
+   }
+
+   /**
+    * Clears the author's look on one assembly over DEFAULT tiers refreshed from a new instance.
+    */
+   private static void resetChrome(VSAssemblyInfo info, VizMark mark) {
+      // shapes and images keep their look
+      if(info.chromeSlots().isEmpty()) {
+         return;
+      }
+
+      VSAssemblyInfo fresh = ChromeReset.freshDefaults(info, mark);
+      ChromeReset.refreshDefaults(info, fresh);
+
+      if(info instanceof ChartVSAssemblyInfo chart) {
+         resetSlots(chart.formatSlots(), info, fresh);
+         // after the object font, which the label defaults copy
+         ChartFormatDefaults.fix(chart);
+         resetSlots(ChartChromeSlots.of(chart), info, fresh);
+      }
+      else {
+         resetSlots(info.chromeSlots(), info, fresh);
+         ChromeReset.pinTitleFont(info, fresh);
+      }
+   }
+
+   private static void resetSlots(List<ChromeSlot> slots, VSAssemblyInfo info,
+                                  VSAssemblyInfo fresh)
+   {
+      for(ChromeSlot slot : slots) {
+         if(!slot.isExpression(info)) {
+            slot.reset(info, fresh);
+         }
+      }
    }
 
    /**

@@ -72,6 +72,14 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
       setDefaultFormat(true, true, false);
    }
 
+   /**
+    * Give an assembly grouped into a selection container the border it takes there.
+    */
+   public static void setChildBorder(VSAssemblyInfo child) {
+      child.getFormatInfo().getFormat(OBJECTPATH).getDefaultFormat()
+         .setBordersValue(new Insets(1, 0, 1, 0));
+   }
+
    @Override
    protected Insets legacyObjectBorders() {
       return new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,

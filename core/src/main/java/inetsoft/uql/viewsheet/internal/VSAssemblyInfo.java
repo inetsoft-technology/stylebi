@@ -1489,11 +1489,19 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       List<ChromeSlot> slots = new ArrayList<>();
 
       for(TableDataPath path : getFormatInfo().getPaths()) {
-         slots.addAll(FormatChromeSlots.forPath(path, true));
+         slots.addAll(FormatChromeSlots.forPath(path, prop -> true, resetsWholeFont(path)));
       }
 
       slots.add(paddingSlot());
       return slots;
+   }
+
+   /**
+    * Whether the reset clears an author font at this path whole, rather than keeping its size and
+    * style. Titles do.
+    */
+   protected boolean resetsWholeFont(TableDataPath path) {
+      return TITLEPATH.equals(path);
    }
 
    static ChromeSlot paddingSlot() {
@@ -1504,7 +1512,22 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       return ChromeSlot.tiered("padding", false, residueEligible, VSAssemblyInfo::isUserPadding,
                                info -> false, VSAssemblyInfo::getPadding,
                                VSAssemblyInfo::getPadding,
-                               info -> info.setUserPadding(false), null);
+                               info -> info.setUserPadding(false),
+                               VSAssemblyInfo::resetPaddingSlot);
+   }
+
+   // the fresh padding, as some seeds write none
+   private static void resetPaddingSlot(VSAssemblyInfo info, VSAssemblyInfo fresh) {
+      info.setUserPadding(false);
+
+      if(fresh != null && fresh.getPadding() != null) {
+         info.setPadding((Insets) fresh.getPadding().clone());
+      }
+
+      // a format.css class or ID the fresh instance lacks still wins
+      if(info.isCssPaddingDefined()) {
+         info.resetPadding(VizContext.of(info));
+      }
    }
 
    /**

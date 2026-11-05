@@ -94,8 +94,7 @@ public class GroupingService {
          }
          else {
             if(target instanceof CurrentSelectionVSAssembly && object != null) {
-               object.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH).getDefaultFormat()
-                  .setBordersValue(new Insets(1, 0, 1, 0));
+               CurrentSelectionVSAssemblyInfo.setChildBorder(object.getVSAssemblyInfo());
             }
 
             RemoveVSObjectCommand command = new RemoveVSObjectCommand();

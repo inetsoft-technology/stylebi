@@ -1834,7 +1834,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       List<ChromeSlot> slots = new ArrayList<>();
 
       for(TableDataPath path : getFormatInfo().getPaths()) {
-         slots.addAll(FormatChromeSlots.forPath(path, prop -> isResidueEligible(path, prop)));
+         slots.addAll(FormatChromeSlots.forPath(path, prop -> isResidueEligible(path, prop),
+                                                resetsWholeFont(path)));
       }
 
       slots.add(paddingSlot());
