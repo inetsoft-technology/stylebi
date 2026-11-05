@@ -23,6 +23,7 @@ import inetsoft.util.script.FormulaContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -188,6 +189,69 @@ class ScriptJvmDefaultSetterTest {
       attempt("java.util.Locale.setDefault(java.util.Locale.FRANCE);");
       assertDefaultsUnchanged();
       assertEquals("UTC", eval("java.util.TimeZone.getTimeZone('UTC').getID()"));
+   }
+
+   private static final String[] TAMPER_TARGETS = {
+      "Reflect.apply", "Reflect.construct", "Object.defineProperty", "Object.create",
+      "Function.prototype.apply", "Function.prototype.call", "Function.prototype.bind",
+      "Array.prototype.push", "Array.prototype.slice", "String.prototype.charAt",
+      "String.prototype.substring", "Array.from", "Object.keys",
+   };
+
+   /**
+    * A script that replaces a built-in the stand-in code might use must not get the host class
+    * out of it: every receiver and argument the replacement sees is recorded and then tried for
+    * the setters. One built-in per script, since a replacement that breaks the stand-in's
+    * construction would end the attack early.
+    */
+   @ParameterizedTest
+   @CsvSource({ "graal,true", "graal,false", "report,true", "report,false" })
+   void patchedBuiltinsDoNotLeakTheHostClass(String kind, boolean restricted) throws Exception {
+      for(String target : TAMPER_TARGETS) {
+         if(engine != null) {
+            engine.close();
+         }
+
+         open(kind);
+         FormulaContext.setRestricted(restricted);
+         attempt(
+            "var seen = [], n = 0, orig = " + target + ";"
+            + "var spy = function() { seen[n++] = this;"
+            + "   for(var i = 0; i < arguments.length; i++) { seen[n++] = arguments[i]; }"
+            + "   return orig.apply(this, arguments); };"
+            + target + " = spy;"
+            + "try { var T = Java.type('java.util.TimeZone'), L = Java.type('java.util.Locale');"
+            + "   T.getTimeZone('UTC'); L.forLanguageTag('de'); L.US; new T('x');"
+            + "   Java.type('java.util.SimpleTimeZone').getAvailableIDs();"
+            + "   java.util.TimeZone.getTimeZone('UTC'); java.util.Locale.getDefault();"
+            + "   var q = {} instanceof T; } catch(e) {}"
+            + target + " = orig;"
+            + "this.__seen = n;"
+            + "for(var i = 0; i < n; i++) { var o = seen[i];"
+            + "   try { o.setDefault(java.util.TimeZone.getTimeZone('Pacific/Kiritimati')); }"
+            + "   catch(e) {}"
+            + "   try { o['setDefault'](java.util.Locale.FRANCE); } catch(e) {}"
+            + "   try { o.class.static.setDefault(java.util.Locale.FRANCE); } catch(e) {}"
+            + "   try { o.getTimeZone('UTC'); o.constructor.setDefault(o); } catch(e) {} }"
+         );
+         assertDefaultsUnchanged();
+      }
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "graal", "report" })
+   void standInIsSharedAndCheap(String kind) throws Exception {
+      open(kind);
+      assertEquals(Boolean.TRUE, eval(
+         "Java.type('java.util.TimeZone') === Java.type('java.util.TimeZone') && "
+            + "Java.type('java.util.Locale') === Java.type('java.util.Locale')"));
+      String loop = "var t0 = Date.now(); for(var i = 0; i < 2000; i++) { Java.type('%s'); }"
+         + " Date.now() - t0";
+      eval(String.format(loop, "java.util.Locale"));
+      eval(String.format(loop, "java.util.Date"));
+      double guarded = ((Number) eval(String.format(loop, "java.util.Locale"))).doubleValue();
+      double plain = ((Number) eval(String.format(loop, "java.util.Date"))).doubleValue();
+      assertTrue(guarded <= plain * 5 + 100, "guarded " + guarded + " ms vs plain " + plain);
    }
 
    @ParameterizedTest

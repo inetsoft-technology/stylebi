@@ -249,28 +249,30 @@ public final class ScriptHostAccess {
    // be a type Java.type returned. The wrappers use only what they captured when
    // installed, so a script that changes a built-in prototype cannot change them.
    private static final String TYPE_LOOKUP_CHECK_JS =
-      "(function(allowed, guarded) {" +
+      "(function(allowed, guarded, ops) {" +
       "  var J = Java, javaType = J.type, javaTo = J.to, isType = J.isType, TE = TypeError;" +
-      "  var hasInst = Symbol.hasInstance, O = Object, R = Reflect;" +
       // Bug #79860: a class that declares JVM-global mutators is handed to the script
-      // as a stand-in for its host class that omits them, for every lookup route.
-      "  var guard = function(host, members) {" +
-      "     var F = function() { return new host(...arguments); };" +
-      "     var def = function(k, d) {" +
-      "        try { O.defineProperty(F, k, d); } catch(e) {}" +
-      "     };" +
+      // as a stand-in that omits them. Everything the stand-in code uses is captured here
+      // as a value, and the host class is held only by the Java function inv, never passed
+      // to a function a script can replace, so no script-visible built-in is a way to it.
+      "  var hasInst = Symbol.hasInstance, defProp = Object.defineProperty;" +
+      "  var cache = Object.create(null);" +
+      "  var guard = function(members, inv) {" +
+      "     var F = function(a, b, c, d, e, f, g, h) {" +
+      "        return inv(2, '', arguments.length, a, b, c, d, e, f, g, h); };" +
       "     var method = function(k) {" +
-      "        def(k, {value: function() { return R.apply(host[k], host, arguments); }," +
+      "        defProp(F, k, {value: function(a, b, c, d, e, f, g, h) {" +
+      "           return inv(0, k, arguments.length, a, b, c, d, e, f, g, h); }," +
       "           enumerable: true});" +
       "     };" +
       "     var member = function(k) {" +
-      "        def(k, {get: function() { return host[k]; }, enumerable: true});" +
+      "        defProp(F, k, {get: function() { return inv(1, k, 0); }, enumerable: true});" +
       "     };" +
       "     for(var i = 0; i < members.length; i++) {" +
       "        var m = members[i];" +
       "        if(m.charAt(0) === 'm') { method(m.substring(2)); } else { member(m.substring(2)); }" +
       "     }" +
-      "     def(hasInst, {value: function(x) { return x instanceof host; }});" +
+      "     defProp(F, hasInst, {value: function(x) { return inv(3, '', 1, x); }});" +
       "     return F;" +
       "  };" +
       "  var check = function(name) {" +
@@ -282,9 +284,12 @@ public final class ScriptHostAccess {
       "     }" +
       "  };" +
       "  Object.defineProperty(J, 'type', {value: function type(name) {" +
-      "     check(name); var t = javaType(name);" +
-      "     var m = guarded(name); return m === null ? t : guard(t, m); }," +
-      "     writable: false, configurable: false, enumerable: false});" +
+      "     check(name); var c = cache[name];" +
+      "     if(c !== undefined) { return c; }" +
+      "     var m = guarded(name);" +
+      "     if(m === null) { return javaType(name); }" +
+      "     return (cache[name] = guard(m, ops(name, javaType))); }," +
+      "writable: false, configurable: false, enumerable: false});" +
       "  Object.defineProperty(J, 'to', {value: function to(value, name) {" +
       "     if(arguments.length < 2) { return javaTo(value); }" +
       "     if(!isType(name)) { check(name); }" +
@@ -1020,7 +1025,66 @@ public final class ScriptHostAccess {
       install.execute((ProxyExecutable) args -> args.length > 0 && args[0].isString() &&
                          isTypeNameAllowed(args[0].asString(), filter),
                       (ProxyExecutable) args -> args.length > 0 && args[0].isString()
-                         ? guardedStaticMembers(args[0].asString()) : null);
+                         ? guardedStaticMembers(args[0].asString()) : null,
+                      (ProxyExecutable) args -> guardedHostOps(args[0].asString(), args[1]));
+   }
+
+   /**
+    * The operations of a guarded class's stand-in, as a function the stand-in code calls:
+    * inv(op, member, argCount, args...) with op 0 = invoke a static method, 1 = read a
+    * static field or nested type, 2 = construct, 3 = instanceof. Only the members
+    * {@link #guardedStaticMembers} lists are served. The host class is looked up here
+    * and held only by the returned function. (Bug #79860)
+    */
+   private static ProxyExecutable guardedHostOps(String name, Value javaType) {
+      Value host = javaType.execute(name);
+      Set<String> allowed = new HashSet<>(Arrays.asList(guardedStaticMembers(name)));
+
+      return args -> {
+         int op = args[0].asInt();
+         int count = args[2].asInt();
+         String member = args[1].isString() ? args[1].asString() : "";
+
+         if(count < 0 || count > 8) {
+            throw new IllegalArgumentException("Too many arguments");
+         }
+
+         Object[] params = new Object[count];
+
+         for(int i = 0; i < count; i++) {
+            params[i] = args[3 + i];
+         }
+
+         switch(op) {
+         case 0:
+            if(allowed.contains("m:" + member)) {
+               return host.invokeMember(member, params);
+            }
+
+            break;
+         case 1:
+            if(allowed.contains("f:" + member)) {
+               return host.getMember(member);
+            }
+
+            break;
+         case 2:
+            try {
+               return host.newInstance(params);
+            }
+            catch(UnsupportedOperationException ex) {
+               // an abstract class or a type deny: a proxy function must not leave with a
+               // UOE (Truffle's -ea interop assertions turn it into an AssertionError), #77919
+               throw new IllegalStateException(
+                  "instantiate on " + name + " failed due to: Message not supported.");
+            }
+         case 3:
+            return count > 0 && host.isMetaInstance(params[0]);
+         default:
+         }
+
+         throw new IllegalArgumentException("Unsupported member: " + member);
+      };
    }
 
    /**
