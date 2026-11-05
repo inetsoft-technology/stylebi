@@ -16,8 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .modernize-dialog {
+   // the hint sits under its label, aligned with the label text
    .form-check {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      column-gap: 0.5rem;
+      align-items: center;
       margin-bottom: 0.75rem;
+
+      .form-check-input {
+         margin: 0;
+      }
+
+      .form-text {
+         grid-column: 2;
+         margin-top: 0.25rem;
+      }
    }
 
    .modernize-reset-details {
