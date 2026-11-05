@@ -204,6 +204,15 @@ class ModernCopyServiceTest {
    }
 
    @Test
+   void theCopySaveCommandIsQuietSoTheCreatedMessageIsTheOnlyNotification() throws Exception {
+      service.createModernCopy("rid", "Sales (modern)", principal, dispatcher, "uri");
+
+      List<SaveSheetCommand> saves = commands(SaveSheetCommand.class);
+      assertEquals(1, saves.size());
+      assertTrue(saves.getFirst().quiet(), "the client must not also toast the save");
+   }
+
+   @Test
    void theCopyListsUnderItsTypedName() throws Exception {
       service.createModernCopy("rid", "Sales (modern)", principal, dispatcher, "uri");
 
@@ -229,6 +238,7 @@ class ModernCopyServiceTest {
       List<SaveSheetCommand> saves = commands(SaveSheetCommand.class);
       assertEquals(1, saves.size());
       assertEquals(currentEntry.toIdentifier(), saves.getFirst().id());
+      assertFalse(saves.getFirst().quiet(), "no created message follows, so the client reports the save");
       assertTrue(commands(MessageCommand.class).isEmpty());
       assertOriginalNeverWritten();
    }

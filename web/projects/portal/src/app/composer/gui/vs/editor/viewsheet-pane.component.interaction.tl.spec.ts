@@ -830,6 +830,18 @@ describe("VSPane — processSaveSheetCommand", () => {
       );
    });
 
+   // the modern copy reports its own save with a "Created" message
+   it("should update the sheet without the success notification for a quiet save", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+
+      mocks.dispatchCommand("SaveSheetCommand", { savePoint: 4, id: "copy-vs", quiet: true });
+
+      expect(comp.vs.id).toBe("copy-vs");
+      expect(comp.vs.savePoint).toBe(4);
+      expect(mocks.notifications.success).not.toHaveBeenCalled();
+   });
+
    it("should NOT emit onOpenVSOnPortal when vs.gettingStarted=false", async () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);

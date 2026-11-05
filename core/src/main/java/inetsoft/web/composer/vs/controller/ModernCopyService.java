@@ -153,6 +153,8 @@ public class ModernCopyService {
          throw ex;
       }
 
+      boolean reported = false;
+
       try {
          // the unsaved changes went into the copy
          AutoSaveUtils.deleteAutoSaveFile(original, principal);
@@ -163,12 +165,15 @@ public class ModernCopyService {
          coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
          coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher, false,
                                                false, true, clist);
+         // the created message below reports the save
+         reported = true;
       }
       finally {
          // the runtime is on the copy even if the refresh failed
          dispatcher.sendCommand(SaveSheetCommand.builder()
                                    .savePoint(rvs.getSavePoint())
                                    .id(copy.toIdentifier())
+                                   .quiet(reported)
                                    .build());
       }
 

@@ -27,6 +27,14 @@ public abstract class SaveSheetCommand implements ViewsheetCommand {
 
    public abstract String id();
 
+   /**
+    * Whether the client skips its saved notification, for a save the server reports itself.
+    */
+   @Value.Default
+   public boolean quiet() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }
