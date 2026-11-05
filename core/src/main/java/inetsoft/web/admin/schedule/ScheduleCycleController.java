@@ -69,13 +69,18 @@ public class ScheduleCycleController {
       });
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/cycles",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/api/em/schedule/cycle-dialog-model/{cycleName}")
    public ScheduleCycleDialogModel getDataCycleDialogModel(@PathVariable("cycleName") String cycleName,
                                                            Principal principal)
@@ -84,25 +89,35 @@ public class ScheduleCycleController {
       return this.scheduleCycleService.getDialogModel(cycleName, principal);
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/cycles",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/api/em/schedule/add-cycle/{timeZoneId}")
    public DataCycleInfo addDataCycle(@DecodePathVariable("timeZoneId") String timeZoneId, Principal principal) {
       return this.scheduleCycleService.addDataCycle(principal, timeZoneId);
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/cycles",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/edit-cycle")
    public ScheduleCycleDialogModel editDataCycle(@RequestBody ScheduleCycleDialogModel model,
                                                  Principal principal)
@@ -112,13 +127,18 @@ public class ScheduleCycleController {
       return getDataCycleDialogModel(model.label(), principal);
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SCHEDULER,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
          resource = "settings/schedule/cycles",
          actions = ResourceAction.ACCESS
       )
-   )
+   })
    @PostMapping("/api/em/schedule/cycles/remove-cycles")
    public void removeDataCycles(@RequestBody DataCycleListModel model,
                                 Principal principal)
