@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.filter.ConditionGroup;
 import inetsoft.test.*;
+import inetsoft.test.dc.DcShape;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
@@ -36,7 +37,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -190,7 +193,241 @@ class DateComparisonInfoRangeFixTest {
       return result;
    }
 
+   // -- Bug #79149: the year guard dropping the week a month spills into the next year -------
+
+   /**
+    * Period Quarter, Same Week, granularity Week, context Month, Change, two periods back, the
+    * End Date in week 5 of its month (the reporter's shape). Week 5 of December 2020 is the
+    * week that starts 2021-01-03 (Sunday weeks) or 2021-01-04 (Monday weeks): December has only
+    * four weeks that start in it, and a week number a month lacks rolls into the next month, as
+    * for February 2021 -> 2021-03-07 and every other month. That week is the hidden prior
+    * quarter's counterpart of the shown Q1 week 3-5, so it must be kept.
+    */
+   @ParameterizedTest
+   @CsvSource({ "sunday,2021-08-29", "monday,2021-08-30", "monday,2021-08-31", "monday,2021-09-05" })
+   void quarterSameWeekChangeKeepsWeekFiveOfDecemberThatStartsInTheNextYear(String weekStart,
+                                                                           String endDate)
+   {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart(weekStart, () -> keptDays(
+         "Q-sameW-gW-cM", endDate, false, 2, DateComparisonInfo.CHANGE));
+      DayOfWeek first = firstDayOfWeek(weekStart);
+      String msg = weekStart + " end=" + endDate + " kept " + kept;
+
+      // the week the reporter lost
+      assertKeeps(kept, weekFrom(weekStart.equals("sunday") ?
+         LocalDate.of(2021, 1, 3) : LocalDate.of(2021, 1, 4)), "week 5 of Dec 2020 " + msg);
+
+      // every month of the three compared quarters keeps its week 5, Dec 2020 included
+      for(YearMonth month = YearMonth.of(2020, 10); !month.isAfter(YearMonth.of(2021, 5));
+          month = month.plusMonths(1))
+      {
+         assertKeeps(kept, weekOfMonth(month, first, 5), "week 5 of " + month + " " + msg);
+      }
+
+      assertNoneAfter(kept, endDate, msg);
+   }
+
+   /** The hidden prior quarter also has Dec week 5 when more than two quarters are compared. */
+   @Test
+   void quarterSameWeekChangeWithThreePeriodsBackKeepsWeekFiveOfDecember() {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> keptDays(
+         "Q-sameW-gW-cM", "2021-08-29", false, 3, DateComparisonInfo.CHANGE));
+
+      assertKeeps(kept, weekOfMonth(YearMonth.of(2020, 12), DayOfWeek.SUNDAY, 5),
+                  "week 5 of Dec 2020");
+      assertNoneAfter(kept, "2021-08-29", "kept " + kept);
+   }
+
+   /** Inclusive periods keep the same week (and the End Date's own quarter up to the End Date). */
+   @Test
+   void quarterSameWeekInclusiveKeepsWeekFiveOfDecember() {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> keptDays(
+         "Q-sameW-gW-cM", "2021-08-29", true, 2, DateComparisonInfo.CHANGE));
+
+      assertKeeps(kept, weekFrom(LocalDate.of(2021, 1, 3)), "week 5 of Dec 2020");
+      assertNoneAfter(kept, "2021-08-29", "kept " + kept);
+   }
+
+   /**
+    * Week to Date by Week in the same context: the End Date's weekday (a Sunday) of week 5 of
+    * December 2020 is Sunday 2021-01-03.
+    */
+   @Test
+   void quarterWeekToDateChangeKeepsTheWeekdayOfWeekFiveOfDecember() {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> keptDays(
+         "Q-wtd-gW-cM", "2021-08-29", false, 2, DateComparisonInfo.CHANGE));
+
+      assertKeeps(kept, List.of(LocalDate.of(2021, 1, 3)), "the Sunday of week 5 of Dec 2020");
+      assertNoneAfter(kept, "2021-08-29", "kept " + kept);
+   }
+
+   /**
+    * The Value option has no hidden prior period: the week is a shown period's own data. The
+    * End Date in the quarter after, one period back and inclusive (2021-02-01: Q4 2020 is shown
+    * with Q1 2021), and two periods back (2021-06-01: Q4 2020 and Q1 2021 are shown).
+    */
+   @ParameterizedTest
+   @CsvSource({ "2021-02-01,true,1", "2021-06-01,false,2", "2021-06-01,true,2" })
+   void quarterSameWeekValueKeepsWeekFiveOfDecemberOfAShownQuarter(String endDate,
+                                                                  boolean inclusive, int preCount)
+   {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> keptDays(
+         "Q-sameW-gW-cM", endDate, inclusive, preCount, DateComparisonInfo.VALUE));
+      String msg = "end=" + endDate + " incl=" + inclusive + " pre=" + preCount + " kept " + kept;
+
+      assertKeeps(kept, weekFrom(LocalDate.of(2021, 1, 3)), "week 5 of Dec 2020 " + msg);
+      assertNoneAfter(kept, endDate, msg);
+   }
+
+   // -- Bug #79149 guard rails: these pass before and after the fix --------------------------
+
+   /**
+    * End Date in week 2 of its month (Monday weeks) or week 1 (Sunday weeks): no month spills
+    * (December 2020's week 2 is 2020-12-13), so the kept days are exactly that week of Jan to
+    * Sep 2021 (Q1 to Q3: two periods back plus the hidden prior), whatever the year guard does.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "sunday", "monday" })
+   void earlyWeekEndDateKeepsExactlyThatWeekOfEveryMonth(String weekStart) {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart(weekStart, () -> keptDays(
+         "Q-sameW-gW-cM", "2021-11-10", false, 2, DateComparisonInfo.CHANGE));
+      DayOfWeek first = firstDayOfWeek(weekStart);
+      // 2021-11-10 is a Wednesday: week 2 under Monday weeks, week 1 under Sunday weeks
+      int week = weekStart.equals("monday") ? 2 : 1;
+      List<LocalDate> expected = new ArrayList<>();
+
+      for(YearMonth month = YearMonth.of(2021, 1); !month.isAfter(YearMonth.of(2021, 9));
+          month = month.plusMonths(1))
+      {
+         expected.addAll(weekOfMonth(month, first, week));
+      }
+
+      assertEquals(expected, kept, weekStart);
+   }
+
+   /** The same roll-over in a month that ends in the same calendar year has always been kept. */
+   @Test
+   void weekFiveRollOverWithinTheSameYearIsKept() {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> keptDays(
+         "Q-sameW-gW-cM", "2021-08-29", false, 2, DateComparisonInfo.CHANGE));
+
+      // February 2021 has four weeks that start in it: its week 5 is 2021-03-07..13
+      assertEquals(LocalDate.of(2021, 3, 7),
+                   weekOfMonth(YearMonth.of(2021, 2), DayOfWeek.SUNDAY, 5).get(0));
+      assertTrue(kept.containsAll(weekOfMonth(YearMonth.of(2021, 2), DayOfWeek.SUNDAY, 5)));
+      assertTrue(kept.containsAll(weekOfMonth(YearMonth.of(2021, 3), DayOfWeek.SUNDAY, 5)));
+      assertTrue(kept.containsAll(weekOfMonth(YearMonth.of(2021, 4), DayOfWeek.SUNDAY, 5)));
+   }
+
+   /**
+    * Characterization, measured on main 4ef41268d6 (not derived from a rule): context Quarter
+    * never skipped a unit, and its days are the same with and without the year comparison.
+    */
+   @Test
+   void contextQuarterIsUnchanged() {
+      assertEquals(List.of(LocalDate.of(2020, 11, 29), LocalDate.of(2020, 12, 5),
+                           LocalDate.of(2021, 2, 28), LocalDate.of(2021, 3, 6),
+                           LocalDate.of(2021, 5, 30), LocalDate.of(2021, 6, 5)),
+                   firstAndLastOfEachRun(WeekStartUtil.withWeekStart("sunday", () -> keptDays(
+                      "Q-sameW-gW-cQ", "2021-08-29", false, 2, DateComparisonInfo.CHANGE))));
+   }
+
+   /**
+    * Characterization, measured on main 4ef41268d6: context Week keeps one day per week of the
+    * three compared quarters, including the weeks of 2020-12-27 and 2021-01-03.
+    */
+   @Test
+   void contextWeekIsUnchanged() {
+      List<LocalDate> kept = WeekStartUtil.withWeekStart("sunday", () -> keptDays(
+         "Q-wtd-gW-cW", "2021-08-29", false, 2, DateComparisonInfo.CHANGE));
+
+      assertEquals(39, kept.size(), "kept " + kept);
+      assertEquals(LocalDate.of(2020, 10, 4), kept.get(0));
+      assertEquals(LocalDate.of(2021, 6, 27), kept.get(38));
+      assertTrue(kept.contains(LocalDate.of(2020, 12, 27)));
+      assertTrue(kept.contains(LocalDate.of(2021, 1, 3)));
+   }
+
+   /** No End Date around the year boundary makes the comparison keep a day after it. */
+   @ParameterizedTest
+   @ValueSource(strings = { "sunday", "monday" })
+   void neverKeepsADayAfterTheEndDate(String weekStart) {
+      for(String id : new String[] { "Q-sameW-gW-cM", "Q-wtd-gW-cM", "Y-sameW-gW-cM",
+                                     "Y-wtd-gW-cY", "Y-wtd-gD-cM" })
+      {
+         for(int option : new int[] { DateComparisonInfo.VALUE, DateComparisonInfo.CHANGE }) {
+            for(LocalDate end = LocalDate.of(2018, 12, 24);
+                end.isBefore(LocalDate.of(2019, 1, 12)); end = end.plusDays(1))
+            {
+               String endDate = end.toString();
+               List<LocalDate> kept = WeekStartUtil.withWeekStart(weekStart, () -> keptDays(
+                  id, endDate, false, 2, option));
+               assertNoneAfter(kept, endDate, id + " " + weekStart + " opt=" + option +
+                               " end=" + endDate + " kept " + kept);
+            }
+         }
+      }
+   }
+
    // -- helpers ------------------------------------------------------------------------------
+
+   /** The days of 2015 to 2026 the comparison of a {@link DcShape} keeps, Standard Periods. */
+   private static List<LocalDate> keptDays(String shapeId, String endDate, boolean inclusive,
+                                           int preCount, int option)
+   {
+      return keptDays(DcShape.byId(shapeId).toInfo(endDate, false, inclusive, option, preCount,
+                                                   true));
+   }
+
+   private static DayOfWeek firstDayOfWeek(String weekStart) {
+      return weekStart.equals("monday") ? DayOfWeek.MONDAY : DayOfWeek.SUNDAY;
+   }
+
+   /**
+    * The days of week {@code n} of a month, as the chart labels them: the weeks are the ones that
+    * start in the month, and a week number the month lacks rolls into the next month.
+    */
+   private static List<LocalDate> weekOfMonth(YearMonth month, DayOfWeek first, int n) {
+      return weekFrom(month.atDay(1).with(TemporalAdjusters.nextOrSame(first)).plusWeeks(n - 1));
+   }
+
+   private static List<LocalDate> weekFrom(LocalDate start) {
+      List<LocalDate> days = new ArrayList<>();
+
+      for(int i = 0; i < 7; i++) {
+         days.add(start.plusDays(i));
+      }
+
+      return days;
+   }
+
+   private static void assertKeeps(List<LocalDate> kept, List<LocalDate> expected, String what) {
+      List<LocalDate> missing = new ArrayList<>(expected);
+      missing.removeAll(kept);
+      assertTrue(missing.isEmpty(), what + ": missing " + missing + " of kept " + kept);
+   }
+
+   private static void assertNoneAfter(List<LocalDate> kept, String endDate, String msg) {
+      LocalDate end = LocalDate.parse(endDate);
+      assertTrue(kept.stream().noneMatch(d -> d.isAfter(end)), msg);
+   }
+
+   /** The first and the last day of each run of consecutive days, in order. */
+   private static List<LocalDate> firstAndLastOfEachRun(List<LocalDate> days) {
+      List<LocalDate> ends = new ArrayList<>();
+
+      for(int i = 0; i < days.size(); i++) {
+         if(i == 0 || !days.get(i - 1).plusDays(1).equals(days.get(i))) {
+            ends.add(days.get(i));
+         }
+
+         if(i == days.size() - 1 || !days.get(i + 1).equals(days.get(i).plusDays(1))) {
+            ends.add(days.get(i));
+         }
+      }
+
+      return ends;
+   }
 
    private static DateComparisonInfo standard(int periodLevel, int intervalLevel, int granularity,
                                               int contextLevel, String endDay, boolean inclusive,
