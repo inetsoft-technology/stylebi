@@ -30,6 +30,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartLineColor;
+import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
@@ -1082,6 +1083,65 @@ class SeedChromeDefaultsTest {
                    "a USER value outranks the seeded DEFAULT by construction");
    }
 
+   private static LegendsDescriptor legends(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getLegendsDescriptor();
+   }
+
+   @Test
+   void aModernChartSeedsTheLegendBorderColour() {
+      gateOn();
+      assertEquals(new Color(0xD6D2C8), legends(newChart()).getBorderColor());
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(new Color(0x4A484F), legends(newChart()).getBorderColor());
+   }
+
+   @Test
+   void anUnmarkedChartKeepsTheLegacyLegendBorderColour() {
+      gateOff();
+      assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(newChart()).getBorderColor());
+   }
+
+   @Test
+   void revertRestoresTheLegacyLegendBorderColour() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(null);
+      info.initDefaultFormat();
+      assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(info).getBorderColor());
+   }
+
+   @Test
+   void anAuthorLegendBorderColourOutranksTheSeed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      legends(info).setBorderColor(Color.RED, CompositeValue.Type.USER);
+      info.initDefaultFormat();
+      assertEquals(Color.RED, legends(info).getBorderColor());
+   }
+
+   @Test
+   void theSeededLegendBorderColourTravelsInTheAsset() throws Exception {
+      gateOn();
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(new Color(0x4A484F), legends(roundTrip(newChart())).getBorderColor());
+   }
+
+   @Test
+   void theSeedTurnsTheSaveOnForAMarkedChart() {
+      gateOn();
+      assertTrue(descriptorXml(newChart()).contains("^^DEF^^"));
+      gateOff();
+      assertFalse(descriptorXml(newChart()).contains("^^DEF^^"));
+   }
+
+   private static String descriptorXml(ChartVSAssemblyInfo info) {
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      info.getChartDescriptor().writeXML(writer);
+      writer.flush();
+      return buf.toString();
+   }
+
    // ---- the plot's data-label ink --------------------------------------------------------------
 
    private static Color labelInk(ChartVSAssemblyInfo info) {
@@ -1299,6 +1359,7 @@ class SeedChromeDefaultsTest {
                    plot.getQuadrantColor(), "quadrant lines");
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, plot.getFacetGridColor(), "facet lines");
       assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info), "data-label ink");
+      assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(info).getBorderColor(), "legend border");
       assertFalse(chartDescriptorXml(writeXml(info)).contains("^^DEF^^"),
                   "a reverted chart saves no default tier");
    }

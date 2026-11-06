@@ -289,7 +289,17 @@ public class ChartDescriptor implements AssetObject, ContentObject {
    }
 
    List<CompositeValue<?>> savedDefaults() {
-      return plotDesc == null ? List.of() : plotDesc.savedDefaults();
+      List<CompositeValue<?>> list = new ArrayList<>();
+
+      if(plotDesc != null) {
+         list.addAll(plotDesc.savedDefaults());
+      }
+
+      if(legendsDesc != null) {
+         list.addAll(legendsDesc.savedDefaults());
+      }
+
+      return list;
    }
 
    /**

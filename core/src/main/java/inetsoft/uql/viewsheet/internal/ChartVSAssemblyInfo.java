@@ -178,6 +178,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // colour at all - it ran on every render and overwrote this
          plotDesc.getTextFormat().getDefaultFormat()
             .setColor(VSChartChromeDefaults.titleColor(ctx));
+
+         getChartDescriptor().getLegendsDescriptor().setBorderColor(
+            VSChartChromeDefaults.legendBorderColor(ctx), CompositeValue.Type.DEFAULT);
       }
       else {
          // Revert calls this with an unmarked context and needs the legacy values written, not
@@ -209,6 +212,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             CompositeValue.Type.DEFAULT);
 
          plotDesc.getTextFormat().getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
+
+         getChartDescriptor().getLegendsDescriptor().setBorderColor(
+            GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
       }
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here

@@ -133,6 +133,9 @@ class ChartDescriptorSavedDefaultsTest {
       List<CompositeValue<?>> classic = newChart().getChartDescriptor().savedDefaults();
       List<CompositeValue<?>> after = info.getChartDescriptor().savedDefaults();
 
+      assertFalse(classic.isEmpty());
+      assertEquals(classic.size(), after.size());
+
       for(int i = 0; i < classic.size(); i++) {
          assertEquals(classic.get(i).get(CompositeValue.Type.DEFAULT),
                       after.get(i).get(CompositeValue.Type.DEFAULT), "field " + i);
