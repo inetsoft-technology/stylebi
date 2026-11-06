@@ -145,6 +145,15 @@ final class ListInputEditorGuard {
          return;
       }
 
+      // vs-combo-box.component reads minDate/maxDate only `if(value.calendar)`, and the editor
+      // shows them only with Calendar ticked, so a bound written without it is never applied.
+      if(!editor.isCalendar() && (minChanged || maxChanged || dataTypeChanged ||
+                                  calendarChanged))
+      {
+         requireNoBoundWithoutCalendar(editorPath, "minDate", editor.getMinDate(), minChanged);
+         requireNoBoundWithoutCalendar(editorPath, "maxDate", editor.getMaxDate(), maxChanged);
+      }
+
       boolean boundsInPlay = minChanged || maxChanged || dataTypeChanged || calendarChanged ||
          writes(resolvedPaths, editorPath + ".minDate") ||
          writes(resolvedPaths, editorPath + ".maxDate") ||
@@ -153,6 +162,18 @@ final class ListInputEditorGuard {
 
       if(boundsInPlay) {
          requireValidBounds(editor, editorPath, dataType);
+      }
+   }
+
+   private static void requireNoBoundWithoutCalendar(String editorPath, String name, String value,
+                                                     boolean changed)
+   {
+      if(changed && !isBlank(value)) {
+         throw new IllegalArgumentException(
+            "set_assembly_properties: '" + editorPath + "." + name + "' ('" + value + "') is " +
+            "applied only in calendar mode (the ComboBox viewer ignores the date range for a " +
+            "plain list, and the Composer shows it only with Calendar ticked). Set " +
+            "calendar:true in the same call, or clear it. Nothing was changed.");
       }
    }
 

@@ -28,7 +28,10 @@ import java.util.*;
  * <ul>
  *   <li>Text: "Pop Component" is disabled while "Embed content from URL" is on.</li>
  *   <li>Image: "Scale Image" and "Tile" disable each other, and the 9-cell insets are enabled
- *       only with Scale Image on and Maintain Aspect Ratio off.</li>
+ *       only with Scale Image on and Maintain Aspect Ratio off. An SVG has no "Scale Cell Grid"
+ *       (it is forced to keep its ratio) and an animated GIF has no insets (Redmine #80464).</li>
+ *   <li>TextInput: "Multiple Lines" is enabled only for the Text input control type (Redmine
+ *       #80464).</li>
  * </ul>
  *
  * <p>Every rule is judged on the post-patch model and fires only when the patch changes one of
@@ -48,6 +51,16 @@ final class PatchGuards {
    private static final String TILE = "tile";
    private static final String ASPECT = "maintainAspectRatio";
    private static final String[] INSETS = { "top", "left", "bottom", "right" };
+   private static final String IMAGE_SELECTED =
+      "imageGeneralPaneModel.staticImagePaneModel.imagePreviewPaneModel.selectedImage";
+   private static final String IMAGE_GIF =
+      "imageGeneralPaneModel.staticImagePaneModel.imagePreviewPaneModel.animateGifImage";
+   private static final String IMAGE_DYNAMIC_SELECTED =
+      "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageSelected";
+   private static final String IMAGE_DYNAMIC_VALUE =
+      "imageAdvancedPaneModel.dynamicImagePaneModel.dynamicImageValue";
+   private static final String TEXT_INPUT_MULTI_LINE = "textInputGeneralPaneModel.multiLine";
+   private static final String TEXT_INPUT_TYPE = "textInputColumnOptionPaneModel.type";
 
    /**
     * The values of the guarded paths before the patch is applied, read as values because
@@ -84,11 +97,18 @@ final class PatchGuards {
       if("text".equals(type)) {
          requireEmbedOrPop(before, model);
       }
+      else if("textinput".equals(type)) {
+         requireMultiLineForText(before, model);
+      }
       else {
          String prefix = scalePrefix(type);
 
          if(prefix != null) {
             requireScalePane(prefix, before, model);
+
+            if("image".equals(type)) {
+               requireSvgAndGif(prefix, before, model);
+            }
          }
       }
    }
@@ -96,6 +116,10 @@ final class PatchGuards {
    private static List<String> paths(String type) {
       if("text".equals(type)) {
          return List.of(TEXT_EMBED, TEXT_POP);
+      }
+
+      if("textinput".equals(type)) {
+         return List.of(TEXT_INPUT_MULTI_LINE, TEXT_INPUT_TYPE);
       }
 
       String prefix = scalePrefix(type);
@@ -108,6 +132,11 @@ final class PatchGuards {
 
       for(String leaf : INSETS) {
          paths.add(prefix + leaf);
+      }
+
+      if("image".equals(type)) {
+         paths.addAll(List.of(IMAGE_SELECTED, IMAGE_GIF, IMAGE_DYNAMIC_SELECTED,
+                              IMAGE_DYNAMIC_VALUE));
       }
 
       return paths;
@@ -199,6 +228,71 @@ final class PatchGuards {
                "and read back unchanged. With this patch " + SCALE + " would be " + scale +
                " and " + ASPECT + " would be " + aspect + ". Set " + SCALE + ":true and " +
                ASPECT + ":false in the same call. Nothing was changed.");
+         }
+      }
+   }
+
+   /**
+    * {@code textinput-general-pane} disables "Multiple Lines" unless the Input Control type is
+    * Text (a blank type is the dialog's default, Text), but the setter stores the flag for any
+    * type, so a write for a Date/Integer/Float/Password input reported success and changed
+    * nothing the viewer shows. Fires only when the patch turns it on or changes the type with it
+    * on, judged on the post-patch model.
+    */
+   private static void requireMultiLineForText(Map<String, Object> before, Object model) {
+      boolean multi = Boolean.TRUE.equals(PropertyPath.get(model, TEXT_INPUT_MULTI_LINE));
+      Object type = PropertyPath.get(model, TEXT_INPUT_TYPE);
+      String typeName = type == null ? "" : type.toString().trim();
+
+      if(multi && !typeName.isEmpty() && !"Text".equalsIgnoreCase(typeName) &&
+         (changed(before, model, TEXT_INPUT_MULTI_LINE) ||
+          changed(before, model, TEXT_INPUT_TYPE)))
+      {
+         throw new IllegalArgumentException(
+            TEXT_INPUT_MULTI_LINE + ": Multiple Lines is available only while the input control " +
+            "type (" + TEXT_INPUT_TYPE + ") is Text; the Composer disables it for " + typeName +
+            ", so the write would report success and have no effect. Set multiLine:false, or " +
+            "inputControl:\"Text\" in the same call. Nothing was changed.");
+      }
+   }
+
+   /**
+    * {@code image-scale-pane} forces Maintain Aspect Ratio on and disables "Scale Cell Grid" for
+    * an SVG (the picked image, or a plain dynamic image path, ends in {@code .svg}), and disables
+    * the four insets for an animated GIF. Fires only when the patch changes one of the fields
+    * involved.
+    */
+   private static void requireSvgAndGif(String prefix, Map<String, Object> before, Object model) {
+      boolean scale = Boolean.TRUE.equals(PropertyPath.get(model, prefix + SCALE));
+      boolean aspect = Boolean.TRUE.equals(PropertyPath.get(model, prefix + ASPECT));
+      Object dynamicValue = PropertyPath.get(model, IMAGE_DYNAMIC_VALUE);
+      String dynamic = dynamicValue == null ? "" : dynamicValue.toString().trim();
+      Object picked = PropertyPath.get(model, IMAGE_SELECTED);
+      String image = Boolean.TRUE.equals(PropertyPath.get(model, IMAGE_DYNAMIC_SELECTED)) &&
+         !dynamic.isEmpty() && !dynamic.startsWith("$(") && !dynamic.startsWith("=") ?
+         dynamic : (picked == null ? "" : picked.toString());
+
+      if(scale && !aspect && image.endsWith(".svg") &&
+         (changed(before, model, prefix + SCALE) || changed(before, model, prefix + ASPECT) ||
+          changed(before, model, IMAGE_SELECTED) || changed(before, model, IMAGE_DYNAMIC_SELECTED) ||
+          changed(before, model, IMAGE_DYNAMIC_VALUE)))
+      {
+         throw new IllegalArgumentException(
+            prefix + ASPECT + ": the image '" + image + "' is an SVG, which the Composer forces " +
+            "to keep its aspect ratio (\"Scale Cell Grid\" is disabled for it), so scaling it " +
+            "with " + ASPECT + ":false would not give a cell grid. Set " + ASPECT +
+            ":true, or pick a raster image. Nothing was changed.");
+      }
+
+      if(Boolean.TRUE.equals(PropertyPath.get(model, IMAGE_GIF))) {
+         for(String leaf : INSETS) {
+            if(changed(before, model, prefix + leaf)) {
+               throw new IllegalArgumentException(
+                  prefix + leaf + ": the image is an animated GIF (" + IMAGE_GIF + " is true); " +
+                  "the Composer disables the 9-cell insets for it. Turn the animation off in " +
+                  "the same call (" + IMAGE_GIF + ":false) or leave the insets alone. Nothing " +
+                  "was changed.");
+            }
          }
       }
    }

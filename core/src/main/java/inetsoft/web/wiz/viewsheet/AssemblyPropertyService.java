@@ -320,6 +320,10 @@ public class AssemblyPropertyService {
          String outputTableBefore = outputBinding(type, model, OUTPUT_TABLE_PATH);
          String outputColumnBefore = outputBinding(type, model, OUTPUT_COLUMN_PATH);
          SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
+         OutputFormulaGuard.Snapshot formulaGuardBefore = OutputFormulaGuard.snapshot(type, model);
+         String checkboxTargetBefore = "checkbox".equals(type) ?
+            (String) PropertyPath.get(model, CHECKBOX_TARGET_PATH) : null;
+         ComboDateFormatBefore dateFormatBefore = ComboDateFormatBefore.of(type, model);
          ShapeFillGradientGuard.Snapshot fillBefore = ShapeFillGradientGuard.snapshot(type, model);
 
          // Resolved whole before anything is written: a typo in the fourth key must not
@@ -355,6 +359,11 @@ public class AssemblyPropertyService {
             requirePositiveSize(entry.getKey(), entry.getValue(), value);
             requireNonNegativePosition(type, entry.getKey(), entry.getValue(), value);
             requireLabelGapInRange(entry.getKey(), entry.getValue(), value);
+            OutputFormulaGuard.requireValidOperand(entry.getKey(), entry.getValue(), value);
+
+            if("textinput".equals(type) && entry.getValue().equalsIgnoreCase(INPUT_CONTROL_PATH)) {
+               value = requireKnownInputControlType(entry.getKey(), value);
+            }
 
             if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
                value = requireKnownTableStyle(model, entry.getValue(), value);
@@ -391,6 +400,12 @@ public class AssemblyPropertyService {
          model = requireKnownOutputBinding(rvs, user, type, model, outputTableBefore,
                                            outputColumnBefore);
 
+         if(PropertyAliases.isDataOutputType(type)) {
+            OutputFormulaGuard.requireArity(formulaGuardBefore, model);
+            requireOutputAggregateFitsColumn(rvs, user, model, formulaGuardBefore,
+                                             outputTableBefore, outputColumnBefore);
+         }
+
          if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
             path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
          {
@@ -409,6 +424,8 @@ public class AssemblyPropertyService {
 
          if("checkbox".equals(type)) {
             requireNoDeadCheckboxDataInputWrites(model, resolved, patch, rvs.getViewsheet());
+            requireCheckboxTargetIsVariable(rvs.getViewsheet(), model, resolved.values(),
+                                            checkboxTargetBefore);
          }
 
          if(PropertyAliases.derivesVariableFlagFromTable(type)) {
@@ -457,6 +474,14 @@ public class AssemblyPropertyService {
                               path.equals(QUERY_DATE_FORMAT_PATH)))
          {
             requireValidComboboxDateFormat(model, resolved.values());
+         }
+
+         if("combobox".equals(type) && resolved.values().stream()
+            .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
+                              path.equals(QUERY_DATE_FORMAT_PATH) ||
+                              path.equalsIgnoreCase(COMBO_DATA_TYPE_PATH)))
+         {
+            requireDateFormatApplicable(dateFormatBefore, model);
          }
 
          // An unchanged tipView is a no-op, so it must not turn view tips on either.
@@ -1402,6 +1427,8 @@ public class AssemblyPropertyService {
 
    private static final String DATE_FORMAT_PATTERN_PATH = "dataInputPaneModel.dateFormatPattern";
    private static final String QUERY_DATE_FORMAT_PATH = "dataInputPaneModel.queryDateFormat";
+   private static final String COMBO_DATA_TYPE_PATH =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.dataType";
 
    /**
     * {@code VSInputService.setComboboxPropertyDialogModel} validates the date format pattern with
@@ -1465,6 +1492,65 @@ public class AssemblyPropertyService {
             "a date, so time-of-day and zone fields are not supported; use a java.time " +
             "pattern such as yyyy-MM-dd or dd.MM.yyyy. StyleBI would otherwise silently " +
             "store yyyy-MM-dd instead.", ex);
+      }
+   }
+
+   private static final String INPUT_CONTROL_PATH = "textInputColumnOptionPaneModel.type";
+   private static final String CHECKBOX_TARGET_PATH = "dataInputPaneModel.table";
+
+   /**
+    * The TextInput Input Control select offers Text, Date, Integer, Float and Password;
+    * {@code setTextInputPropertyDialogModel} picks the column option with an if/else-if chain
+    * over exactly those names, so any other value (including a different case) stored a type
+    * that built no option and left the previous one in place. Returns the canonical spelling.
+    */
+   static Object requireKnownInputControlType(String key, Object value) {
+      String text = value == null ? "" : value.toString().trim();
+
+      for(String known : List.of(ColumnOption.TEXT, ColumnOption.DATE, ColumnOption.INTEGER,
+                                 ColumnOption.FLOAT, ColumnOption.PASSWORD))
+      {
+         if(known.equalsIgnoreCase(text)) {
+            return known;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + key + "' (" + INPUT_CONTROL_PATH + "): '" + value + "' is not an input control " +
+         "type. Use one of Text, Date, Integer, Float or Password (case-insensitive); StyleBI " +
+         "would otherwise keep the previous editor and report success. Nothing was changed.");
+   }
+
+   /**
+    * The CheckBox Target tree is variables-only ({@code VSInputService} passes
+    * {@code onlyVars=true}), but the setter also accepts a worksheet table name there and stores
+    * it as a non-variable binding no dialog can produce. Refused when the patch changes the
+    * target to anything that is not a variable; clearing it is fine. A variable may be given as
+    * {@code "$(name)"} or as the bare name (normalized by {@code resolveInputTableBinding}).
+    */
+   static void requireCheckboxTargetIsVariable(Viewsheet vs, Object model,
+                                               Collection<String> resolvedPaths, String before)
+   {
+      if(resolvedPaths.stream().noneMatch(CHECKBOX_TARGET_PATH::equalsIgnoreCase)) {
+         return;
+      }
+
+      String table = (String) PropertyPath.get(model, CHECKBOX_TARGET_PATH);
+
+      if(table == null || table.isEmpty() || table.equals(before)) {
+         return;
+      }
+
+      String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+
+      if(!resolvesToVariableBindingOrRefuse(ws, vs, table, columnValue)) {
+         throw new IllegalArgumentException(
+            "'" + CHECKBOX_TARGET_PATH + "' ('" + table + "'): a CheckBox's write-back Target " +
+            "can only be a worksheet variable (the Composer's Target tree for a CheckBox lists " +
+            "variables only), so a table name would be stored as a binding no dialog produces. " +
+            "Use \"$(variableName)\" for a variable created with add_variable, or clear it. " +
+            "Nothing was changed.");
       }
    }
 
@@ -1656,6 +1742,110 @@ public class AssemblyPropertyService {
       }
 
       return model;
+   }
+
+   /**
+    * Checks the aggregate against the real type of the bound column (see
+    * {@link OutputFormulaGuard}) when the patch changed the aggregate, table or column. The
+    * column's type is looked up the way {@link #deriveColumnTypeFromRealColumn} does, because
+    * the stored {@code columnType} is overwritten by a formula with a fixed result type
+    * (Count turns it into an integer). Not judged when the column cannot be found.
+    */
+   private void requireOutputAggregateFitsColumn(RuntimeViewsheet rvs, Principal user,
+                                                 Object model, OutputFormulaGuard.Snapshot before,
+                                                 String tableBefore, String columnBefore)
+      throws Exception
+   {
+      String aggregate = (String) PropertyPath.get(model, OutputFormulaGuard.AGGREGATE);
+      String table = (String) PropertyPath.get(model, OUTPUT_TABLE_PATH);
+      String column = (String) PropertyPath.get(model, OUTPUT_COLUMN_PATH);
+
+      if(before == null || aggregate == null || aggregate.isBlank() || table == null ||
+         table.isBlank() || column == null || column.isBlank() ||
+         VSUtil.isDynamicValue(table) || VSUtil.isDynamicValue(column) ||
+         Objects.equals(before.aggregate(), aggregate) && Objects.equals(tableBefore, table) &&
+            Objects.equals(columnBefore, column))
+      {
+         return;
+      }
+
+      ColumnSelection columns = outputService.getOutputTableColumns(rvs, table, true, user);
+
+      if(columns == null) {
+         return;
+      }
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+
+         if(column.equals(ref.getName())) {
+            OutputFormulaGuard.requireAggregateFitsColumn(aggregate, ref.getDataType(), column);
+            return;
+         }
+      }
+   }
+
+   /** The combo box date-format fields before the patch, copied as values. */
+   record ComboDateFormatBefore(boolean queryDateFormat, String pattern, String dataType) {
+      static ComboDateFormatBefore of(String type, Object model) {
+         if(!"combobox".equals(type) ||
+            !(PropertyPath.get(model, "dataInputPaneModel") instanceof DataInputPaneModel input))
+         {
+            return null;
+         }
+
+         return new ComboDateFormatBefore(input.isQueryDateFormat(), input.getDateFormatPattern(),
+                                          editorDataType(model));
+      }
+   }
+
+   private static String editorDataType(Object model) {
+      Object editor = PropertyPath.get(
+         model, "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel");
+      return editor instanceof ComboBoxEditorModel e ? e.getDataType() : null;
+   }
+
+   /**
+    * The Composer shows "Format Date Values Sent to Query" only for a date or timeInstant
+    * ComboBox (clearing it when the type changes) and the pattern only while it is ticked
+    * ({@code data-input-pane}); {@code applyComboBoxDateFormat} likewise applies the format only
+    * for those two types. A raw or alias write outside that stored a flag or pattern that never
+    * formats anything. Judged on the post-patch model, and only when the patch turns the format
+    * on, changes the data type with it on, or changes a non-blank pattern. Runs after
+    * {@link #requireValidComboboxDateFormat}, which keeps the invalid-pattern messages.
+    */
+   static void requireDateFormatApplicable(ComboDateFormatBefore before, Object model) {
+      if(before == null ||
+         !(PropertyPath.get(model, "dataInputPaneModel") instanceof DataInputPaneModel input))
+      {
+         return;
+      }
+
+      String dataType = editorDataType(model);
+      boolean dateType = XSchema.DATE.equals(dataType) || XSchema.TIME_INSTANT.equals(dataType);
+
+      if(input.isQueryDateFormat() && !dateType &&
+         (!before.queryDateFormat() || !Objects.equals(before.dataType(), dataType)))
+      {
+         throw new IllegalArgumentException(
+            QUERY_DATE_FORMAT_PATH + ": Format Date Values Sent to Query applies only to a " +
+            "ComboBox whose data type is date or timeInstant, but its dataType is '" +
+            (dataType == null ? "" : dataType) + "', so the format would never be applied. " +
+            "Set the editor dataType to date or timeInstant in the same call, or " +
+            "queryDateFormat:false. Nothing was changed.");
+      }
+
+      String pattern = input.getDateFormatPattern();
+
+      if(!input.isQueryDateFormat() && pattern != null && !pattern.isBlank() &&
+         !pattern.equals(before.pattern()))
+      {
+         throw new IllegalArgumentException(
+            DATE_FORMAT_PATTERN_PATH + ": the date format pattern is applied only while " +
+            QUERY_DATE_FORMAT_PATH + " is true (the Composer hides the pattern field otherwise), " +
+            "so '" + pattern + "' would be stored and never used. Set queryDateFormat:true in " +
+            "the same call, or leave the pattern out. Nothing was changed.");
+      }
    }
 
    /**
@@ -2728,7 +2918,18 @@ public class AssemblyPropertyService {
       Map<String, Integer> trendLineStyle = new LinkedHashMap<>(lineStyle);
       trendLineStyle.put("default", -1);
 
+      // The Data pane of a Gauge/Text/Image offers exactly these four scales (data-output-pane
+      // radios); any other int was stored and applied as an arbitrary divisor (Redmine #80464).
+      Map<String, Integer> magnitude = new LinkedHashMap<>();
+      magnitude.put("as is", 1);
+      magnitude.put("asis", 1);
+      magnitude.put("as_is", 1);
+      magnitude.put("thousands", 1000);
+      magnitude.put("millions", 1000000);
+      magnitude.put("billions", 1000000000);
+
       Map<String, IntEnumDomain> domains = new LinkedHashMap<>();
+      domains.put("dataOutputPaneModel.magnitude", new IntEnumDomain("magnitude", magnitude));
       domains.put("selectionGeneralPaneModel.showType",
                   new IntEnumDomain("showType", selectionShowType));
       domains.put("calendarAdvancedPaneModel.showType",

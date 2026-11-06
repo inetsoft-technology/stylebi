@@ -177,6 +177,8 @@ class AssemblyPropertyServiceListInputRealStackTest {
       RealStack stack = realStack();
       String pattern = "dataInputPaneModel.dateFormatPattern";
       String query = "dataInputPaneModel.queryDateFormat";
+      // Format Date Values Sent to Query exists only for a date combo (#80464 PR3)
+      stack.info().setDataType("date");
       stack.info().setDateFormatPattern("dd.MM.yyyy");
 
       Exception e = assertThrows(IllegalArgumentException.class,

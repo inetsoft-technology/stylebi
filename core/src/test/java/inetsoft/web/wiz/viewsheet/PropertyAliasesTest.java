@@ -2045,10 +2045,31 @@ class PropertyAliasesTest {
          "slider", "dataInputPaneModel.writeBackDirectly",
          "radiobutton", "dataInputPaneModel.writeBackDirectly",
          "combobox", "dataInputPaneModel.writeBackDirectly")),
-      // the check box is excluded: its Target tree is variables-only (VSInputService onlyVars),
-      // so the alias waits for a variables-only guard
+      // the check box's Target tree is variables-only (VSInputService onlyVars); the alias is
+      // registered and AssemblyPropertyService refuses a non-variable value for it (PR3)
       new AliasCase("writeBackTable", "T1", paths(
+         "checkbox", "dataInputPaneModel.table",
          "radiobutton", "dataInputPaneModel.table", "combobox", "dataInputPaneModel.table")),
+      // image scale pane (PR3); PatchGuards enforces the exclusion rules on the raw paths
+      new AliasCase("scaleImage", true, paths(
+         "image", "imageAdvancedPaneModel.imageScalePaneModel.scaleImageChecked")),
+      new AliasCase("maintainAspectRatio", true, paths(
+         "image", "imageAdvancedPaneModel.imageScalePaneModel.maintainAspectRatio")),
+      new AliasCase("tile", true, paths(
+         "image", "imageAdvancedPaneModel.imageScalePaneModel.tile")),
+      new AliasCase("cellGridTop", 3, paths(
+         "image", "imageAdvancedPaneModel.imageScalePaneModel.top")),
+      new AliasCase("cellGridLeft", 4, paths(
+         "image", "imageAdvancedPaneModel.imageScalePaneModel.left")),
+      new AliasCase("cellGridBottom", 5, paths(
+         "image", "imageAdvancedPaneModel.imageScalePaneModel.bottom")),
+      new AliasCase("cellGridRight", 6, paths(
+         "image", "imageAdvancedPaneModel.imageScalePaneModel.right")),
+      // text input: Multiple Lines (Text control only) and the Input Control type (PR3)
+      new AliasCase("multiLine", true, paths(
+         "textinput", "textInputGeneralPaneModel.multiLine")),
+      new AliasCase("inputControl", "Date", paths(
+         "textinput", "textInputColumnOptionPaneModel.type")),
       new AliasCase("writeBackColumn", "c1", paths(
          "radiobutton", "dataInputPaneModel.columnValue",
          "combobox", "dataInputPaneModel.columnValue")),
@@ -2118,7 +2139,7 @@ class PropertyAliasesTest {
          }
       }
 
-      assertEquals(59, checked);
+      assertEquals(69, checked);
    }
 
    /**
@@ -2180,20 +2201,21 @@ class PropertyAliasesTest {
 
    /**
     * The check box has no write-back Column, Row or Write Back to Storage (hidden by the dialog,
-    * refused by bug #78579's guard), and its Target tree is variables-only
-    * (VSInputService.java:592), so a plain table name written through {@code writeBackTable}
-    * would be a dead write. None of the four is advertised on it until the variables-only guard
-    * lands (bug #80464 PR3).
+    * refused by bug #78579's guard) and so advertises none of them; it keeps the Target, whose
+    * tree is variables-only (VSInputService.java:592), through {@code writeBackTable}, which
+    * AssemblyPropertyService refuses unless it names a variable (bug #80464 PR3).
     */
    @Test
-   void checkboxAdvertisesNoWriteBackAlias() {
+   void checkboxAdvertisesOnlyTheWriteBackTarget() {
       Map<String, String> aliases = PropertyAliases.forType("checkbox").aliases();
 
-      for(String dead : List.of("writeBackTable", "writeBackColumn", "writeBackRow",
-                                "writeBackDirectly", "columnValue", "rowValue"))
+      for(String dead : List.of("writeBackColumn", "writeBackRow", "writeBackDirectly",
+                                "columnValue", "rowValue"))
       {
          assertFalse(aliases.containsKey(dead), dead);
       }
+
+      assertEquals("dataInputPaneModel.table", aliases.get("writeBackTable"));
    }
 
    /**
@@ -2206,8 +2228,7 @@ class PropertyAliasesTest {
    @Test
    void deferredOrDeadNamesAreNotRegisteredOnAnyInputOrOutputType() {
       for(String type : FORM_OUTPUT_TYPES) {
-         for(String name : List.of("noDefault", "multiLine", "inputControl", "staticLabels",
-                                   "staticValues"))
+         for(String name : List.of("noDefault", "staticLabels", "staticValues"))
          {
             assertFalse(PropertyAliases.forType(type).aliases().containsKey(name),
                         name + " on " + type);

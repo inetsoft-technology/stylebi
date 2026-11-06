@@ -1268,6 +1268,17 @@ public final class PropertyAliases {
       aliases.put("popComponent", "imageAdvancedPaneModel.popComponent");
       aliases.put("popLocation", "imageAdvancedPaneModel.popLocation");
       aliases.put("alpha", "imageAdvancedPaneModel.alpha");
+
+      // Scale pane (Redmine #80464 PR3). Each control is applied by setImagePropertyDialogModel
+      // (:360-370); PatchGuards refuses the combinations the Composer disables.
+      String scale = "imageAdvancedPaneModel.imageScalePaneModel";
+      aliases.put("scaleImage", scale + ".scaleImageChecked");
+      aliases.put("maintainAspectRatio", scale + ".maintainAspectRatio");
+      aliases.put("tile", scale + ".tile");
+      aliases.put("cellGridTop", scale + ".top");
+      aliases.put("cellGridLeft", scale + ".left");
+      aliases.put("cellGridBottom", scale + ".bottom");
+      aliases.put("cellGridRight", scale + ".right");
       dataOutput(aliases);
       return aliases;
    }
@@ -1492,8 +1503,8 @@ public final class PropertyAliases {
     * <p>{@code checkBox} marks the one list type whose Composer dialog differs on the Data pane
     * and the list-values pane (Redmine #80464): it has no write-back Column, Row or Write Back to
     * Storage (the {@code dataInputPaneModel} column/row/writeBackDirectly fields are refused for
-    * it, bug #78579), its Target is variables-only so no write-back alias is registered for it,
-    * and it is the only one with Select First Item.
+    * it, bug #78579), its Target is variables-only (so {@code writeBackTable} is registered but
+    * refused unless it names a variable), and it is the only one with Select First Item.
     */
    private static Map<String, String> listInput(String prefix, boolean hasTitle,
                                                  boolean hasInputLabel, boolean checkBox)
@@ -1527,11 +1538,12 @@ public final class PropertyAliases {
       }
 
       // Write-back target. Named writeBack* because the plain "table"/"column" aliases below
-      // are the list's own query. The check box is excluded entirely: its Target tree offers
-      // variables only (VSInputService passes onlyVars=true), so a plain table name would be a
-      // dead write; writeBackTable on a check box needs a variables-only guard (bug #80464 PR3).
+      // are the list's own query. The check box offers only the Target (its tree is
+      // variables-only, VSInputService passes onlyVars=true; AssemblyPropertyService refuses a
+      // non-variable table for it), never Column, Row or Write Back (bug #78579).
+      aliases.put("writeBackTable", "dataInputPaneModel.table");
+
       if(!checkBox) {
-         aliases.put("writeBackTable", "dataInputPaneModel.table");
          aliases.put("writeBackColumn", "dataInputPaneModel.columnValue");
          aliases.put("writeBackRow", "dataInputPaneModel.rowValue");
          aliases.put("writeBackDirectly", "dataInputPaneModel.writeBackDirectly");
@@ -1626,11 +1638,14 @@ public final class PropertyAliases {
       sizePosition(aliases, "textInputGeneralPaneModel");
       inputLabel(aliases);
       // General pane (Redmine #80464). "Placeholder Text" is bound to the model's toolTip and
-      // "Default Text" to defaultText (textinput-general-pane); multiLine is left raw because it
-      // is only live for the Text input control type.
+      // "Default Text" to defaultText (textinput-general-pane). multiLine is live only for the
+      // Text input control type (the Composer disables it otherwise; PatchGuards refuses it),
+      // inputControl is the Input Control type select, normalized by AssemblyPropertyService.
       aliases.put("placeholderText", "textInputGeneralPaneModel.toolTip");
       aliases.put("defaultText", "textInputGeneralPaneModel.defaultText");
       aliases.put("insetStyle", "textInputGeneralPaneModel.insetStyle");
+      aliases.put("multiLine", "textInputGeneralPaneModel.multiLine");
+      aliases.put("inputControl", "textInputColumnOptionPaneModel.type");
       dataInput(aliases);
       return aliases;
    }
