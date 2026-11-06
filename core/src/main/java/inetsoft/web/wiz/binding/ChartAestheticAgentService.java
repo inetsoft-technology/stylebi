@@ -726,7 +726,24 @@ public class ChartAestheticAgentService {
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
-         mutation.accept(chart, model);
+
+         // Building a shape frame looks the name up in the calling organization's shape list,
+         // which is read from the thread context principal (Bug #80341).
+         Principal previous = ThreadContext.getContextPrincipal();
+         boolean switched = user != null && user != previous;
+
+         try {
+            if(switched) {
+               ThreadContext.setContextPrincipal(user);
+            }
+
+            mutation.accept(chart, model);
+         }
+         finally {
+            if(switched) {
+               ThreadContext.setContextPrincipal(previous);
+            }
+         }
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
