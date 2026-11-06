@@ -256,6 +256,7 @@ public final class ScriptHostAccess {
       // as a value, and the host class is held only by the Java function inv, never passed
       // to a function a script can replace, so no script-visible built-in is a way to it.
       "  var hasInst = Symbol.hasInstance, defProp = Object.defineProperty;" +
+      "  var freeze = Object.freeze;" +
       "  var cache = Object.create(null);" +
       "  var guard = function(members, inv) {" +
       "     var F = function() { return inv(2, '', ...arguments); };" +
@@ -271,6 +272,8 @@ public final class ScriptHostAccess {
       "        if(m.charAt(0) === 'm') { method(m.substring(2)); } else { member(m.substring(2)); }" +
       "     }" +
       "     defProp(F, hasInst, {value: function(x) { return inv(3, '', x); }});" +
+      // the stand-in is cached per context, so keep scripts from adding state to it
+      "     freeze(F.prototype); freeze(F);" +
       "     return F;" +
       "  };" +
       "  var check = function(name) {" +

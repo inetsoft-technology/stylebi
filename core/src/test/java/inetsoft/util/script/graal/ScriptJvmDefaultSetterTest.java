@@ -247,6 +247,44 @@ class ScriptJvmDefaultSetterTest {
             + "Java.type('java.util.Locale') === Java.type('java.util.Locale')"));
    }
 
+   /** The stand-in is cached per context, so a script must not be able to leave state on it. */
+   @ParameterizedTest
+   @ValueSource(strings = { "graal", "report" })
+   void standInCannotCarryScriptState(String kind) throws Exception {
+      for(boolean restricted : new boolean[] { true, false }) {
+         FormulaContext.setRestricted(restricted);
+         open(kind);
+
+         try {
+            for(String type : new String[] { "java.util.TimeZone", "java.util.Locale",
+                                             "java.util.SimpleTimeZone" })
+            {
+               String t = "Java.type('" + type + "')";
+               // separate attempts, so one that throws cannot skip the others
+               attempt(t + ".mine = 5;");
+               attempt(t + ".prototype.x = 1;");
+               attempt("Object.defineProperty(" + t + ", 'late', {value: 1});");
+               // a later exec in the same context must see nothing the first one tried to add
+               assertEquals(Boolean.TRUE, eval(
+                  "(function(){ var t = " + t + "; return t.mine === undefined && "
+                     + "t.late === undefined && t.prototype.x === undefined && "
+                     + "Object.isFrozen(t) && Object.isFrozen(t.prototype); })()"),
+                  type + " restricted=" + restricted);
+            }
+
+            // the guarded view still works after freezing
+            assertEquals(Boolean.TRUE, eval(
+               "Java.type('java.util.TimeZone') === Java.type('java.util.TimeZone') && "
+                  + "Java.type('java.util.TimeZone').getTimeZone('UTC').getID() === 'UTC'"));
+            assertDefaultsUnchanged();
+         }
+         finally {
+            engine.close();
+            engine = null;
+         }
+      }
+   }
+
    @ParameterizedTest
    @ValueSource(strings = { "graal", "report" })
    void instanceofIsFalseForNonInstances(String kind) throws Exception {
