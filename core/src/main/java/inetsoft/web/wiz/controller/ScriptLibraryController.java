@@ -19,9 +19,11 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.AssetRepository;
@@ -251,6 +253,7 @@ public class ScriptLibraryController {
          // the rewritten declaration must still compile, or the renamed function would be stored
          // but never installed
          requireCompiles(newText);
+         Permission permission = securityEngine.getPermission(ResourceType.SCRIPT, name);
          lib.renameScript(name, newName);
          lib.save();
 
@@ -260,6 +263,17 @@ public class ScriptLibraryController {
             throw new IllegalStateException(
                "Renaming script library function '" + name + "' to '" + newName +
                "' did not take effect; the library was reloaded concurrently. Retry the rename.");
+         }
+
+         // Bug #80189: grants are keyed by name and outlive the script; move the grant with the
+         // rename, or clear one stored at the target so the renamed function does not inherit it
+         if(permission != null) {
+            AbstractAssetEngine.movePermissionBestEffort(
+               securityEngine, ResourceType.SCRIPT, name, newName, permission);
+         }
+         else {
+            AbstractAssetEngine.removePermissionBestEffort(
+               securityEngine, ResourceType.SCRIPT, newName);
          }
 
          return new ScriptLibraryFunctionDetail(
@@ -312,6 +326,9 @@ public class ScriptLibraryController {
                "Deleting script library function '" + name + "' did not take effect; the " +
                "library was reloaded concurrently. Retry the delete.");
          }
+
+         // Bug #80189: drop the SCRIPT grant with the script, as RemoveAssetController does
+         AbstractAssetEngine.removePermissionBestEffort(securityEngine, ResourceType.SCRIPT, name);
       }
 
       return new DeleteScriptLibraryFunctionResult(RESYNC_WARNING);

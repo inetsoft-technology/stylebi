@@ -307,6 +307,56 @@ class ScriptLibraryChangesetApplyServiceTest {
       verify(securityEngine).setPermission(ResourceType.SCRIPT, "newName", grant);
    }
 
+   /** Bug #80189: a grant-less source renamed onto a stale grant must not inherit it. */
+   @Test void appliesARenameOfAGrantlessSourceClearingAStaleGrantAtTheTarget() throws Exception {
+      scripts.put("old", "function old() { return 1; }");
+      inetsoft.sree.security.Permission stale = new inetsoft.sree.security.Permission();
+      when(securityEngine.getPermission(ResourceType.SCRIPT, "newName")).thenReturn(stale);
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
+      c.setNewName("newName");
+
+      ScriptLibraryApplyResult result = service.apply(applyRequest(hashOf(c), null, null, c), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityEngine).removePermission(ResourceType.SCRIPT, "newName");
+      verify(securityEngine, never()).setPermission(any(), anyString(), any());
+   }
+
+   @Test void appliesARenameWithNoGrantAnywhereDoesNotTouchPermissions() throws Exception {
+      scripts.put("old", "function old() { return 1; }");
+      ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
+      c.setNewName("newName");
+
+      service.apply(applyRequest(hashOf(c), null, null, c), user);
+
+      verify(securityEngine, never()).removePermission(any(), anyString());
+      verify(securityEngine, never()).setPermission(any(), anyString(), any());
+   }
+
+   /** Bug #80189: rolling back restores the target grant the rename cleared. */
+   @Test void rollbackOfARenameRestoresTheClearedTargetGrant() throws Exception {
+      scripts.put("old", "function old() { return 1; }");
+      scripts.put("keep", "return 1;");
+      inetsoft.sree.security.Permission stale = new inetsoft.sree.security.Permission();
+      when(securityEngine.getPermission(ResourceType.SCRIPT, "newName")).thenReturn(stale);
+      ScriptLibraryChangeRequest rename = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
+      rename.setNewName("newName");
+      ScriptLibraryChangeRequest delete = change(ScriptLibraryChangeRequest.VERB_DELETE, "keep");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+         ScriptLibraryApplyRequest req =
+            applyRequest(hashOf(rename, delete), "looks good", true, rename, delete);
+         doAnswer(inv -> null).when(lib).removeScript("keep");
+
+         ScriptLibraryApplyResult result = service.apply(req, user);
+
+         assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+         verify(securityEngine).removePermission(ResourceType.SCRIPT, "newName");
+         verify(securityEngine).setPermission(ResourceType.SCRIPT, "newName", stale);
+      }
+   }
+
    @Test void appliesAnUpdateChangingOnlyTheDescription() throws Exception {
       scripts.put("a", "return 1;");
       comments.put("a", "old desc");
