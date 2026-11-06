@@ -2893,6 +2893,109 @@ class TableBindingMutatorTest {
       assertTrue(TableBindingMutator.drainNotes().isEmpty());
    }
 
+   private static CrosstabBindingModel withPercentSum() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(percentMeasure("Total")));
+      TableBindingMutator.drainNotes();
+      return model;
+   }
+
+   private static List<String> resetNotes() {
+      return TableBindingMutator.drainNotes().stream()
+         .filter(n -> n.startsWith(TableBindingMutator.NOTE_PREFIX)).toList();
+   }
+
+   @Test
+   void aFormulaChangeThatDropsACalculatorSaysSo() {
+      CrosstabBindingModel model = withPercentSum();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", "Average")));
+
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+      List<String> notes = resetNotes();
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).contains("'Total'") && notes.get(0).contains("PERCENT") &&
+                 notes.get(0).contains("Sum to Average") &&
+                 notes.get(0).contains("calculateInfo"), notes.get(0));
+   }
+
+   @Test
+   void aFormulaChangeToNthLargestOrFirstStillSaysSo() {
+      for(String formula : List.of("First", "NthLargest")) {
+         CrosstabBindingModel model = withPercentSum();
+         TableBindingMutator.setShelf(model, "aggregates",
+            List.of(formula.equals("First") ? measure("Total", formula) : nth("Total", formula, "3")));
+
+         List<String> notes = resetNotes();
+         assertEquals(1, notes.size(), formula + ": " + notes);
+         assertTrue(notes.get(0).contains("Sum to " + formula), notes.get(0));
+      }
+   }
+
+   @Test
+   void dropAnotherMeasureWhileKeepingAnExistingOneRaisesNoFormulaChangeNote() {
+      CrosstabBindingModel model = withPercentSum();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(percentMeasure("Total"), measure("Total", "Average")));
+      TableBindingMutator.drainNotes();
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", "Average")));
+
+      assertTrue(resetNotes().isEmpty());
+   }
+
+   @Test
+   void aKeptCalculatorWithANewSiblingFormulaGetsTheKeptNoteOnly() {
+      CrosstabBindingModel model = withPercentSum();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Total", "Sum"), measure("Total", "Average")));
+
+      List<String> notes = TableBindingMutator.drainNotes();
+      assertTrue(notes.stream().anyMatch(
+         n -> n.startsWith(TableBindingMutator.KEPT_NOTE_PREFIX)), notes.toString());
+      assertTrue(notes.stream().noneMatch(
+         n -> n.startsWith(TableBindingMutator.NOTE_PREFIX)), notes.toString());
+   }
+
+   @Test
+   void anExplicitNullOrSuppliedCalculateInfoOnAFormulaChangeRaisesNoNote() {
+      CrosstabBindingModel model = withPercentSum();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(clearingCalc("Total", "Average")));
+      assertTrue(resetNotes().isEmpty());
+
+      model = withPercentSum();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Total", "Average", runningTotal("Average"))));
+      assertTrue(resetNotes().isEmpty());
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo());
+   }
+
+   @Test
+   void anOmittedAggregateOnAPreviousAverageCalculatorIsWordedAsTheDefaultFormula() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(new FieldRef("Total", "measure", "Average", null, null, null, null, null,
+                              new PercentCalcInfo(), null, null, null, null, null, null)));
+      TableBindingMutator.drainNotes();
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", null)));
+
+      List<String> notes = resetNotes();
+      String effective = model.getAggregates().get(0).getFormula();
+
+      if(!"Average".equalsIgnoreCase(effective)) {
+         assertEquals(1, notes.size(), notes.toString());
+         assertTrue(notes.get(0).contains("default formula"), notes.get(0));
+         assertFalse(notes.get(0).contains("to " + effective), notes.get(0));
+      }
+   }
+
+   @Test
+   void addNeverRaisesAFormulaChangeNote() {
+      CrosstabBindingModel model = withPercentSum();
+      TableBindingMutator.addField(model, "aggregates", measure("Total", "Average"), null);
+      assertTrue(resetNotes().isEmpty());
+   }
+
    @Test
    void anExplicitNullCalculateInfoIsHarmlessOnADimensionAndOnAMeasureWithNone() {
       CrosstabBindingModel model = new CrosstabBindingModel();
