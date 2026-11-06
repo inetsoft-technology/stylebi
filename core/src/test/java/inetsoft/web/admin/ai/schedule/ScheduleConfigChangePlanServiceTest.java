@@ -934,6 +934,51 @@ class ScheduleConfigChangePlanServiceTest {
                       service.resolve(request("t", List.of(granted)), user).planHash());
    }
 
+   // Bug #80355: apply writes the grant only through a non-null permission model, so
+   // modified=true with no permissions writes nothing (and leaves an orphaned grant) while the
+   // plan claimed "ALSO WRITES". Refused at plan time for create and update.
+
+   @Test void createTimeRangeWithModifiedTrueAndNoPermissionsIsRefused() throws Exception {
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                                                () -> previewRange(true, null));
+      assertTrue(e.getMessage().contains("spec.permissions"), e.getMessage());
+   }
+
+   @Test void updateTimeRangeWithModifiedTrueAndNoPermissionsIsRefused() throws Exception {
+      stubConfig(List.of(), List.of(range("Morning", "06:00", "12:00", false)));
+      ScheduleConfigChangeRequest update =
+         updateRange("Morning", "Morning", "06:00", "12:00", false);
+      update.getSpec().put("modified", true);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> service.resolve(request("t", List.of(update)), user));
+      assertTrue(e.getMessage().contains("spec.permissions"), e.getMessage());
+   }
+
+   @Test void createTimeRangeWithModifiedTrueAndEmptyEntriesPlansTruthfully() throws Exception {
+      ResolvedPlan plan = previewRange(true, permissions());
+      assertTrue(plan.changes().get(0).description().contains("0 grant entries"));
+   }
+
+   @Test void createTimeRangeWithModifiedTrueAndPermissionsPlans() throws Exception {
+      ResolvedPlan plan = previewRange(true, permissions(grant("alice", "READ")));
+      assertTrue(plan.changes().get(0).description().contains("1 grant entries"));
+   }
+
+   @Test void createTimeRangeWithModifiedNullAndNoPermissionsPlansWithoutWriteNote()
+      throws Exception
+   {
+      assertFalse(previewRange(null, null).changes().get(0).description()
+                     .contains("ALSO WRITES"));
+   }
+
+   @Test void createTimeRangeWithModifiedFalseAndNoPermissionsDoesNotClaimAWrite()
+      throws Exception
+   {
+      assertFalse(previewRange(false, null).changes().get(0).description()
+                     .contains("ALSO WRITES"));
+   }
+
    // a rename with modified == null carries permissions (Bug #79545), so the carried grant is a
    // write that must be bound into the hash
 

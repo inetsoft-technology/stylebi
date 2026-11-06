@@ -489,8 +489,8 @@ public class ScheduleConfigChangePlanService {
     * rename that resupplies a read-back record ({@code modified == null}) would therefore write
     * the new name with no grant. When the name changes and the caller did not say whether the
     * permissions were modified, mark them modified and carry the caller's permissions, falling
-    * back to the stored ones. Never produces a non-null model with null permissions (that would
-    * clear the new name's grants).
+    * back to the stored ones. Never marks modified without permissions: a null permissions model
+    * is not a clear, it is a silent no-op in {@code ResourcePermissionService} (Bug #80355).
     */
    static TimeRangeModel carryPermissionsOnRename(TimeRangeModel existing, TimeRangeModel spec) {
       if(existing.name().equals(spec.name()) || spec.modified() != null) {
@@ -715,6 +715,16 @@ public class ScheduleConfigChangePlanService {
          throw new IllegalArgumentException(label + ".spec.name: required non-blank string");
       }
 
+      // Bug #80355: apply writes the grant only through a non-null permission model
+      // (ResourcePermissionService#setResourcePermissions0 returns on null), so modified=true
+      // without permissions writes nothing -- it neither sets nor clears the grant.
+      if(Boolean.TRUE.equals(range.modified()) && range.permissions() == null) {
+         throw new IllegalArgumentException(
+            label + ".spec.permissions: required when spec.modified is true (modified makes apply " +
+            "write the time range's grant, and without a permissions model nothing is written; " +
+            "send permissions -- an empty permissions list clears the grant -- or omit modified)");
+      }
+
       return TimeRangeModel.builder()
          .from(range)
          .startTime(requireLocalTime(label + ".spec.startTime", range.startTime()))
@@ -913,7 +923,13 @@ public class ScheduleConfigChangePlanService {
       }
 
       ResourcePermissionModel perm = range.permissions();
-      int entries = perm == null || perm.permissions() == null ? 0 : perm.permissions().size();
+
+      if(perm == null) {
+         // modified=false without permissions: apply's writer returns on a null model
+         return "";
+      }
+
+      int entries = perm.permissions() == null ? 0 : perm.permissions().size();
       return " -- ALSO WRITES this time range's permissions (modified=" + range.modified() + ", " +
          entries + " grant entries; bound into the plan hash, not shown in the projection)";
    }
