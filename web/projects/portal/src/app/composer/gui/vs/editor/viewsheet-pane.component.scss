@@ -153,7 +153,9 @@ div.vs-pane .bl-selected {
 .console-count-badge {
   color: var(--inet-text-muted-color);
   background-color: var(--inet-shell-surface-hover);
-  vertical-align: middle;
+  // match the "Console" label's size and baseline instead of the global 10px badge
+  font-size: inherit;
+  vertical-align: baseline;
   top: 0;
 }
 
