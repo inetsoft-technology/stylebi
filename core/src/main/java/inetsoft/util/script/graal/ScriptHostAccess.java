@@ -249,8 +249,33 @@ public final class ScriptHostAccess {
    // be a type Java.type returned. The wrappers use only what they captured when
    // installed, so a script that changes a built-in prototype cannot change them.
    private static final String TYPE_LOOKUP_CHECK_JS =
-      "(function(allowed) {" +
+      "(function(allowed, guarded, ops) {" +
       "  var J = Java, javaType = J.type, javaTo = J.to, isType = J.isType, TE = TypeError;" +
+      // Bug #79860: a class that declares JVM-global mutators is handed to the script
+      // as a stand-in that omits them. Everything the stand-in code uses is captured here
+      // as a value, and the host class is held only by the Java function inv, never passed
+      // to a function a script can replace, so no script-visible built-in is a way to it.
+      "  var hasInst = Symbol.hasInstance, defProp = Object.defineProperty;" +
+      "  var freeze = Object.freeze;" +
+      "  var cache = Object.create(null);" +
+      "  var guard = function(members, inv) {" +
+      "     var F = function() { return inv(2, '', ...arguments); };" +
+      "     var method = function(k) {" +
+      "        defProp(F, k, {value: function() { return inv(0, k, ...arguments); }," +
+      "           enumerable: true});" +
+      "     };" +
+      "     var member = function(k) {" +
+      "        defProp(F, k, {get: function() { return inv(1, k); }, enumerable: true});" +
+      "     };" +
+      "     for(var i = 0; i < members.length; i++) {" +
+      "        var m = members[i];" +
+      "        if(m.charAt(0) === 'm') { method(m.substring(2)); } else { member(m.substring(2)); }" +
+      "     }" +
+      "     defProp(F, hasInst, {value: function(x) { return inv(3, '', x); }});" +
+      // the stand-in is cached per context, so keep scripts from adding state to it
+      "     freeze(F.prototype); freeze(F);" +
+      "     return F;" +
+      "  };" +
       "  var check = function(name) {" +
       "     if(typeof name !== 'string') {" +
       "        throw new TE('Java.type expects one string argument');" +
@@ -260,8 +285,12 @@ public final class ScriptHostAccess {
       "     }" +
       "  };" +
       "  Object.defineProperty(J, 'type', {value: function type(name) {" +
-      "     check(name); return javaType(name); }," +
-      "     writable: false, configurable: false, enumerable: false});" +
+      "     check(name); var c = cache[name];" +
+      "     if(c !== undefined) { return c; }" +
+      "     var m = guarded(name);" +
+      "     if(m === null) { return javaType(name); }" +
+      "     return (cache[name] = guard(m, ops(name, javaType))); }," +
+      "writable: false, configurable: false, enumerable: false});" +
       "  Object.defineProperty(J, 'to', {value: function to(value, name) {" +
       "     if(arguments.length < 2) { return javaTo(value); }" +
       "     if(!isType(name)) { check(name); }" +
@@ -995,7 +1024,110 @@ public final class ScriptHostAccess {
    public static void installTypeLookupCheck(Context context, Predicate<String> filter) {
       Value install = context.eval(Source.create("js", TYPE_LOOKUP_CHECK_JS));
       install.execute((ProxyExecutable) args -> args.length > 0 && args[0].isString() &&
-         isTypeNameAllowed(args[0].asString(), filter));
+                         isTypeNameAllowed(args[0].asString(), filter),
+                      (ProxyExecutable) args -> args.length > 0 && args[0].isString()
+                         ? guardedStaticMembers(args[0].asString()) : null,
+                      (ProxyExecutable) args -> guardedHostOps(args[0].asString(), args[1]));
+   }
+
+   /**
+    * The operations of a guarded class's stand-in, as a function the stand-in code calls:
+    * inv(op, member, args...) with op 0 = invoke a static method, 1 = read a
+    * static field or nested type, 2 = construct, 3 = instanceof. Only the members
+    * {@link #guardedStaticMembers} lists are served. The host class is looked up here
+    * and held only by the returned function. (Bug #79860)
+    */
+   private static ProxyExecutable guardedHostOps(String name, Value javaType) {
+      Value host = javaType.execute(name);
+      Set<String> allowed = new HashSet<>(Arrays.asList(guardedStaticMembers(name)));
+
+      return args -> {
+         int op = args[0].asInt();
+         int count = args.length - 2;
+         String member = args[1].isString() ? args[1].asString() : "";
+
+         Object[] params = new Object[count];
+
+         for(int i = 0; i < count; i++) {
+            params[i] = args[2 + i];
+         }
+
+         switch(op) {
+         case 0:
+            if(allowed.contains("m:" + member)) {
+               return host.invokeMember(member, params);
+            }
+
+            break;
+         case 1:
+            if(allowed.contains("f:" + member)) {
+               return host.getMember(member);
+            }
+
+            break;
+         case 2:
+            try {
+               return host.newInstance(params);
+            }
+            catch(UnsupportedOperationException ex) {
+               // an abstract class or a type deny: a proxy function must not leave with a
+               // UOE (Truffle's -ea interop assertions turn it into an AssertionError), #77919
+               throw new IllegalStateException(
+                  "instantiate on " + name + " failed due to: Message not supported.");
+            }
+         case 3:
+            // only a host object can be an instance: null, undefined, primitives and
+            // script objects are not, whatever the meta-object test says for them
+            return count > 0 && args[2].isHostObject() && host.isMetaInstance(args[2]);
+         default:
+         }
+
+         throw new IllegalArgumentException("Unsupported member: " + member);
+      };
+   }
+
+   /**
+    * For a class that declares or inherits a JVM-wide default setter
+    * ({@code TimeZone.setDefault}, {@code Locale.setDefault}), a mutator that changes
+    * the default for every user, the static members a script may use, as "m:name" for
+    * a method and "f:name" for a field or nested type; null for any other class.
+    * Graal 24.1.2 cannot deny a single member, and these classes are needed for their
+    * instances, so {@code Java.type} hands out a stand-in with these members only.
+    * The host class is reachable from a script only through that stand-in, so every
+    * route (detached reference, bracket access, {@code with}, the legacy shim,
+    * {@code importClass}, a subclass's inherited static) sees the same members.
+    * (Bug #79860)
+    */
+   private static String[] guardedStaticMembers(String name) {
+      Class<?> cls = LegacyJavaShim.tryLoad(name);
+
+      if(cls == null || !java.util.TimeZone.class.isAssignableFrom(cls) &&
+         !java.util.Locale.class.isAssignableFrom(cls))
+      {
+         return null;
+      }
+
+      Set<String> members = new TreeSet<>();
+
+      for(java.lang.reflect.Method method : cls.getMethods()) {
+         if(java.lang.reflect.Modifier.isStatic(method.getModifiers()) &&
+            !"setDefault".equals(method.getName()))
+         {
+            members.add("m:" + method.getName());
+         }
+      }
+
+      for(java.lang.reflect.Field field : cls.getFields()) {
+         if(java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+            members.add("f:" + field.getName());
+         }
+      }
+
+      for(Class<?> nested : cls.getClasses()) {
+         members.add("f:" + nested.getSimpleName());
+      }
+
+      return members.toArray(new String[0]);
    }
 
    /**
