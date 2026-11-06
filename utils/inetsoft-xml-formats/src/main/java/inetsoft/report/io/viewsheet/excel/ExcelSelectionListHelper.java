@@ -20,6 +20,9 @@ package inetsoft.report.io.viewsheet.excel;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.io.viewsheet.ExporterHelper;
 import inetsoft.report.io.viewsheet.VSSelectionListHelper;
+import inetsoft.uql.asset.AbstractSheet;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -203,23 +206,9 @@ public class ExcelSelectionListHelper extends ExporterHelper {
       PoiExcelVSExporter exporter = (PoiExcelVSExporter) getExporter();
       VSCompositeFormat parentformat = info.getFormat();
       Dimension size = info.getPixelSize();
-      int rawHeight = size.height;
-
-      if(size.height > 0) {
-         size.height = PoiExcelVSUtil.floorY(size.height);
-         size.height = size.height == 0 ? AssetUtil.defh : size.height;
-      }
-
       Point position = info.getViewsheet().getPixelPosition(info);
       int rawY = position.y;
       position.y = PoiExcelVSUtil.floorY(position.y);
-
-      if(size.height > 0) {
-         // the box occupies the grid from floorY(y) to floorY(y + height), which can be up to
-         // 19px more than floorY(height) alone; rows may use that space without overlapping
-         // the next assembly (which starts at or below floorY(y + height))
-         size.height = Math.max(size.height, PoiExcelVSUtil.floorY(rawY + rawHeight) - position.y);
-      }
 
       Row row;
       Cell cell;
@@ -237,24 +226,22 @@ public class ExcelSelectionListHelper extends ExporterHelper {
       //Now using default row height in excel, so calculate real row height in excel.
       int titleHeight = isInContainer(assembly) ? PoiExcelVSUtil.getSelectionTitleHeight(info) :
          PoiExcelVSUtil.getExcelTitleHeight(info);
-      int infoRows = 0;
       int infoColsWidth = spancols.length;
       CompositeSelectionValue root = new CompositeSelectionValue();
       root.setSelectionList(info.getSelectionList());
       boolean hasSelected =
          root.getSelectionValues(-1, SelectionValue.STATE_SELECTED, 0).size() > 0;
       parentformat = prepareParentBorders(parentformat, assembly);
-      int rowHeightSum = 0;
 
-      for(Double rowHeight : rowHeights) {
-         rowHeightSum += PoiExcelVSUtil.getSelectionCellHeight(rowHeight.intValue());
-
-         if(rowHeightSum > (size.height - titleHeight)) {
-            break;
-         }
-
-         infoRows++;
-      }
+      // grid rows [bounds[k], bounds[k + 1]) hold data row k; the fit and the drawing below
+      // both use this one mapping so they cannot disagree
+      int[] bounds = getRowBounds(assembly, info, exporter, rowHeights, rawY, size.height,
+                                  position.x, titleHeight, incs);
+      int infoRows = bounds.length - 1;
+      int slots = (int) Arrays.stream(spancols).filter(n -> n > 0).count();
+      // "More..." only when values really cannot fit; a single slot is never given to it
+      // because that would replace the one value that does fit
+      boolean showMore = infoRows * slots >= 2 && values.size() > infoRows * slots;
 
       for(ri = 0; ri < infoRows;) {
          valueLabel = "";
@@ -270,7 +257,7 @@ public class ExcelSelectionListHelper extends ExporterHelper {
          xinc = Math.min(infoColsWidth - columnStart, xinc);
          short columnEnd = (short) (columnStart + xinc - 1);
 
-         if(ri == infoRows - 1 && (ci + xinc >= infoColsWidth) &&
+         if(showMore && ri == infoRows - 1 && (ci + xinc >= infoColsWidth) &&
             values.size() - 1 > i)
          {
             // last cell but still got more elements
@@ -287,11 +274,10 @@ public class ExcelSelectionListHelper extends ExporterHelper {
          //Fixed bug #25366
          //titleRow * AssetUtil.defh != titleHeight
          //we shoude use really writeTitle's height to calculate point.
-         Point p1 = exporter.getRowCol(position.x,
-            position.y + titleHeight + getRowHeightSum(rowHeights, ri), new Point());
-
-         Point p2 = exporter.getRowCol(position.x,
-            position.y + titleHeight + getRowHeightSum(rowHeights, ri + 1), new Point());
+         Point p1 = exporter.getRowCol(position.x, position.y, new Point());
+         Point p2 = new Point(p1);
+         p1.y = bounds[ri];
+         p2.y = bounds[ri + 1];
          p1.x += columnStart;
          p2 = new Point(p2.x + columnEnd, p2.y - 1);
 
@@ -359,14 +345,93 @@ public class ExcelSelectionListHelper extends ExporterHelper {
       sheet.validateMergedRegions();
    }
 
-   private int getRowHeightSum(List<Double> rowHeights, int r) {
-      int rowHeightSum = 0;
+   /**
+    * Map the raw pixel layout of the list onto the 20px excel grid cumulatively. A data row
+    * spans the grid rows from the row its raw top falls in to the row the next raw top falls in
+    * (at least one row), so rounding error does not accumulate per row. Rows stop at the
+    * bottom of the box's own grid extent and at the first row owned by another assembly below
+    * the list that overlaps it horizontally.
+    * @return the grid row boundaries, bounds[k] is the first grid row of data row k and
+    * bounds[n] the row after the last data row that fits (n rows fit).
+    */
+   private int[] getRowBounds(SelectionListVSAssembly assembly, SelectionListVSAssemblyInfo info,
+                              PoiExcelVSExporter exporter, List<Double> rowHeights, int rawY,
+                              int rawHeight, int x, int excelTitleHeight, boolean incs)
+   {
+      int top = PoiExcelVSUtil.floorY(rawY);
+      int firstRow = exporter.getRowCol(x, top, new Point()).y;
+      int dataRow = exporter.getRowCol(x, top + excelTitleHeight, new Point()).y;
+      int endRow = firstRow;
 
-      for(int i = 0; i < r; i++) {
-         rowHeightSum += PoiExcelVSUtil.getSelectionCellHeight((int)(double)(rowHeights.get(i)));
+      if(rawHeight > 0) {
+         int bottom = Math.max(PoiExcelVSUtil.floorY(rawY + rawHeight), top + AssetUtil.defh);
+         endRow = exporter.getRowCol(x, bottom, new Point()).y;
       }
 
-      return rowHeightSum;
+      endRow = Math.min(endRow, getNeighborRow(assembly, info, exporter, x, firstRow));
+      // the dashboard title takes its full height (even hidden in a container)
+      int rawTitle = info.isTitleVisible() || incs ? info.getTitleHeight() : 0;
+      double rawTop = rawY + rawTitle;
+      List<Integer> bounds = new ArrayList<>();
+      int prev = dataRow;
+      bounds.add(prev);
+
+      for(Double rowHeight : rowHeights) {
+         rawTop += rowHeight;
+         int next = Math.max(prev + 1, exporter.getRowCol(x, Math.max(0, (int) rawTop),
+                                                           new Point()).y);
+
+         if(next > endRow) {
+            break;
+         }
+
+         bounds.add(next);
+         prev = next;
+      }
+
+      return bounds.stream().mapToInt(Integer::intValue).toArray();
+   }
+
+   /**
+    * Get the first grid row (below the list's first row) owned by another exported assembly
+    * that overlaps the list horizontally.
+    */
+   private int getNeighborRow(SelectionListVSAssembly assembly, SelectionListVSAssemblyInfo info,
+                              PoiExcelVSExporter exporter, int x, int firstRow)
+   {
+      int row = Integer.MAX_VALUE;
+      Viewsheet vs = info.getViewsheet();
+      Dimension size = info.getPixelSize();
+
+      for(Assembly other : vs.getAssemblies()) {
+         // children of a container are stacked by the container writer, the container itself
+         // encloses the list
+         if(other == assembly || !(other instanceof VSAssembly) ||
+            ((VSAssembly) other).getContainer() != null ||
+            !vs.isVisible(other, AbstractSheet.SHEET_RUNTIME_MODE))
+         {
+            continue;
+         }
+
+         AssemblyInfo oinfo = other.getInfo();
+         Point opos = vs.getPixelPosition(oinfo);
+         Dimension osize = oinfo.getPixelSize();
+
+         if(osize == null || osize.width <= 0 || osize.height <= 0 ||
+            opos.x >= x + size.width || opos.x + osize.width <= x)
+         {
+            continue;
+         }
+
+         int orow = exporter.getRowCol(opos.x, Math.max(0, PoiExcelVSUtil.floorY(opos.y)),
+                                       new Point()).y;
+
+         if(orow > firstRow) {
+            row = Math.min(row, orow);
+         }
+      }
+
+      return row;
    }
 
    /**
