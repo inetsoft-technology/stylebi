@@ -2302,8 +2302,13 @@ class PropertyAliasesTest {
       }
 
       for(String type : List.of("gauge", "text", "image")) {
-         map.put(type, List.of(
-            type + "GeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.editable"));
+         // derived from the registry (the output family nests outputGeneralPaneModel), not typed
+         String enabled = PropertyAliases.resolve(type, "enabled");
+         String editable = enabled.substring(0, enabled.length() - "enabled".length()) +
+            "basicGeneralPaneModel.editable";
+         assertDoesNotThrow(() -> PropertyPath.typeOf(
+            PropertyAliases.forType(type).modelClass(), editable), editable);
+         map.put(type, List.of(editable));
       }
 
       return map;
