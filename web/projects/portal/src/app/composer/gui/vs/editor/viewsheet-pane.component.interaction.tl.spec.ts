@@ -512,6 +512,49 @@ describe("VSPane — processSetViewsheetInfoCommand", () => {
       // immediately; reusing the per-session dismissal is what stops it offering to undo this
       expect(comp.vs.modernizeBarDismissed).toBe(true);
    });
+
+   const canvasEntries = (comp: any) => comp.menuActions
+      .reduce((all: any[], group: any) => all.concat(group.actions), [])
+      .filter((action: any) =>
+         ["composer vspane modernize", "composer vspane revert"].includes(action.id()));
+
+   it("gives a layout the canvas's own Modernize and Revert entries", async () => {
+      const mocks = makeMocks();
+      const { comp, fixture } = await renderComponent(mocks);
+      comp.vs.currentLayout = new VSLayoutModel();
+      fixture.detectChanges();
+
+      const pane = fixture.debugElement.query(By.css("layout-pane"));
+      const given = pane.properties["dashboardActions"];
+      const canvas = canvasEntries(comp);
+
+      expect(canvas.length).toBe(2);
+      expect(given.length).toBe(2);
+      expect(given[0]).toBe(canvas[0]);
+      expect(given[1]).toBe(canvas[1]);
+   });
+
+   it("opens the dialog from a layout's Modernize entry", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      const spy = vi.spyOn(comp, "openModernizeDialog").mockImplementation(() => {});
+
+      comp.dashboardActions
+         .find(action => action.id() === "composer vspane modernize").action(null);
+
+      expect(spy).toHaveBeenCalled();
+   });
+
+   it("reverts from a layout's Revert entry", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+      const spy = vi.spyOn(comp, "revert").mockResolvedValue(undefined);
+
+      comp.dashboardActions
+         .find(action => action.id() === "composer vspane revert").action(null);
+
+      expect(spy).toHaveBeenCalled();
+   });
 });
 
 // ---------------------------------------------------------------------------

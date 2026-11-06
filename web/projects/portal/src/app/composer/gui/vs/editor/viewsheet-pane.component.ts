@@ -49,6 +49,7 @@ import { SourceInfoType } from "../../../../binding/data/source-info-type";
 import { RefreshBindingTreeEvent } from "../../../../binding/event/refresh-binding-tree-event";
 import { VSBindingTreeService } from "../../../../binding/widget/binding-tree/vs-binding-tree.service";
 import { AssemblyActionEvent } from "../../../../common/action/assembly-action-event";
+import { AssemblyAction } from "../../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { ChatService } from "../../../../common/chat/chat.service";
 import { AssetEntryHelper } from "../../../../common/data/asset-entry-helper";
@@ -406,6 +407,31 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    private _searchResultLabel: string;
 
    public menuPosition: Point = new Point();
+
+   private readonly modernizeAction: AssemblyAction = {
+      id: () => "composer vspane modernize",
+      label: () => "_#(js:composer.vs.modernize.menu)...",
+      icon: () => "star-icon",
+      enabled: () => true,
+      visible: () => this.vs.modernizeAvailable && !this.deployed &&
+         (this.vs.modernizable || !this.vs.newSheet),
+      action: () => this.openModernizeDialog()
+   };
+
+   private readonly revertAction: AssemblyAction = {
+      id: () => "composer vspane revert",
+      label: () => "_#(js:composer.vs.revert.menu)",
+      icon: () => "reset-icon",
+      enabled: () => true,
+      visible: () => this.vs.revertable && !this.deployed,
+      action: () => this.revert()
+   };
+
+   /**
+    * The canvas entries that act on the whole dashboard, which a layout's menu also offers.
+    */
+   public readonly dashboardActions: AssemblyAction[] = [this.modernizeAction, this.revertAction];
+
    public menuActions: AssemblyActionGroup[] = [
       new AssemblyActionGroup([
          {
@@ -424,23 +450,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             visible: () => !this.deployed,
             action: () => this.onOpenViewsheetOptions.emit(this.vs)
          },
-         {
-            id: () => "composer vspane modernize",
-            label: () => "_#(js:composer.vs.modernize.menu)...",
-            icon: () => "star-icon",
-            enabled: () => true,
-            visible: () => this.vs.modernizeAvailable && !this.deployed &&
-               (this.vs.modernizable || !this.vs.newSheet),
-            action: () => this.openModernizeDialog()
-         },
-         {
-            id: () => "composer vspane revert",
-            label: () => "_#(js:composer.vs.revert.menu)",
-            icon: () => "reset-icon",
-            enabled: () => true,
-            visible: () => this.vs.revertable && !this.deployed,
-            action: () => this.revert()
-         },
+         this.modernizeAction,
+         this.revertAction,
          {
             id: () => "composer vspane preview",
             label: () => "_#(js:Preview)",

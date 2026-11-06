@@ -145,6 +145,7 @@
             [linkUri]="vs.linkUri"
             [vs]="vs" [snapOffset]="snapOffset"
             [guideLineColor]="guideLineColor"
+            [dashboardActions]="dashboardActions"
             (onLayoutObjectChange)="onLayoutObjectChange.emit($event)"
             (onLayoutObjectMove)="updateRulerGuides()"
             (onUpdateLayoutUndoState)="processUpdateLayoutUndoStateCommand($event)">

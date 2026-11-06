@@ -33,6 +33,7 @@ import {
 } from "@angular/core";
 import { Observable, Subscription } from "rxjs";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { AssemblyAction } from "../../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { Dimension } from "../../../../common/data/dimension";
 import { Rectangle } from "../../../../common/data/rectangle";
@@ -158,18 +159,23 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
       return draggableRestrictionRect;
    };
 
-   public menuActions: AssemblyActionGroup[] = [
-      new AssemblyActionGroup([
-         {
-            id: () => "composer viewsheet layout print",
-            label: () => "_#(js:Print)...",
-            icon: () => "print-icon",
-            enabled: () => true,
-            visible: () => this.vsLayout.printLayout,
-            action: () => this.print()
-         }
-      ])
-   ];
+   private readonly printAction: AssemblyAction = {
+      id: () => "composer viewsheet layout print",
+      label: () => "_#(js:Print)...",
+      icon: () => "print-icon",
+      enabled: () => true,
+      visible: () => this.vsLayout.printLayout,
+      action: () => this.print()
+   };
+
+   public menuActions: AssemblyActionGroup[] = [new AssemblyActionGroup([this.printAction])];
+
+   /**
+    * The dashboard-wide entries of the canvas menu, which a layout shows in place of the canvas.
+    */
+   @Input() set dashboardActions(actions: AssemblyAction[]) {
+      this.menuActions = [new AssemblyActionGroup([this.printAction, ...(actions ?? [])])];
+   }
 
    @Input() set model(value: VSLayoutModel) {
       if(this.inited) {
