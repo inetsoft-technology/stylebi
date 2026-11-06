@@ -2667,6 +2667,13 @@ public abstract class GraphGenerator {
       axis.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(axisD.getLineColor(), ctx));
       axis.setLineVisible(!maxMode && axisD.isLineVisible() ||
                           maxMode && axisD.isMaxModeLineVisible(ctx));
+
+      if(ctx.modern && !axisD.isUserLineVisible() && !axisD.isLineVisible() &&
+         (!maxMode || axisD.isMaxModeLineVisible()))
+      {
+         seededOffLines.add(axis);
+      }
+
       axis.setTickVisible(axisD.isTicksVisible());
       axis.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));
       axis.setLabelVisible(!maxMode && axisD.isLabelVisible() || maxMode && axisD.isMaxModeLabelVisible());
@@ -4325,14 +4332,14 @@ public abstract class GraphGenerator {
    // Get the first visible axis line color. The scales are ordered from the inner-most
    // to outer-most in the facet.
    private Color getLineColor(List<Scale> scales) {
-      return scales.stream().filter(s -> s.getAxisSpec().isLineVisible())
+      return scales.stream().filter(s -> isLineShown(s.getAxisSpec()))
          .map(s -> s.getAxisSpec().getLineColor()).findFirst().orElse(null);
    }
 
    /**
     * Check if the inner axis line is visible.
     */
-   private static boolean isAxisLineVisible(Coordinate outer, Coordinate[] coords, String type) {
+   private boolean isAxisLineVisible(Coordinate outer, Coordinate[] coords, String type) {
       for(Coordinate coord : coords) {
          if(coord instanceof RectCoord) {
             if(isAxisLineVisible((RectCoord) coord, type)) {
@@ -4349,17 +4356,22 @@ public abstract class GraphGenerator {
       return true;
    }
 
-   private static boolean isAxisLineVisible(RectCoord rect, String type) {
+   private boolean isAxisLineVisible(RectCoord rect, String type) {
       return type.equals("x") && isAxisLineVisible(rect.getScaleAt(Coordinate.BOTTOM_AXIS)) ||
          type.equals("y") && isAxisLineVisible(rect.getScaleAt(Coordinate.LEFT_AXIS));
    }
 
-   private static boolean isAxisLineVisible(Scale scale) {
+   private boolean isAxisLineVisible(Scale scale) {
       if(scale == null || scale.getFields().length == 0) {
          return false;
       }
 
-      return scale.getAxisSpec().isLineVisible();
+      return isLineShown(scale.getAxisSpec());
+   }
+
+   // a line off only because of the modern seed still counts for the facet separators
+   private boolean isLineShown(AxisSpec spec) {
+      return spec.isLineVisible() || seededOffLines.contains(spec);
    }
 
    /**
@@ -7655,6 +7667,7 @@ public abstract class GraphGenerator {
     * assembly; the report constructor knows there is none.
     */
    protected final VizContext vizContext;
+   private final Set<AxisSpec> seededOffLines = Collections.newSetFromMap(new IdentityHashMap<>());
    protected EGraph graph; // element graph
    protected DataSet adata; // all data if brushing exists, null otherwise
    protected DataSet odata; // normal data
