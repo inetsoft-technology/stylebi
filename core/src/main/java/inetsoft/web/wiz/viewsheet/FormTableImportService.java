@@ -25,6 +25,11 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -152,6 +157,7 @@ public class FormTableImportService {
       Catalog catalog = Catalog.getCatalog();
       ImportXLSInspection inspection = xls.inspect(file, type, rvs, catalog);
       List<TableCheck> matched = refuseUnlessImportable(inspection, rvs);
+      refuseHiddenWorksheetColumns(rvs, matched);
       List<String> pending = pendingTables(rvs, matched);
 
       if(!pending.isEmpty() && !discardPending) {
@@ -309,6 +315,65 @@ public class FormTableImportService {
       }
 
       return matched;
+   }
+
+   /**
+    * Applying an import nulls every worksheet column the Form table does not show, in every
+    * existing row. `ViewsheetSandbox.writeBackFormData` carries such a column (a hidden ID, say)
+    * along with a row by the row's base index, and the importer gives every row it reads base index
+    * -1 (`PoiExcelVSUtil.getRowIndex` looks for a '.' in a name that holds '_'), which the
+    * write-back takes for a fresh row. The number in a row name is the export-time display row, not
+    * the embedded row, so it cannot just be parsed: after a sort or a filter it would point at the
+    * wrong row, which is worse than -1. Nothing here can prove the mapping, so a table that has
+    * such columns is refused instead.
+    */
+   private static void refuseHiddenWorksheetColumns(RuntimeViewsheet rvs, List<TableCheck> matched)
+      throws Exception
+   {
+      List<String> refused = new ArrayList<>();
+
+      for(TableCheck check : matched) {
+         int hidden = hiddenWorksheetColumns(rvs, check.name(), lens(rvs, check.name()));
+
+         if(hidden > 0) {
+            refused.add(check.name() + " (" + hidden + " worksheet column(s) not shown)");
+         }
+      }
+
+      if(!refused.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Importing into " + String.join(", ", refused) + " would lose data: the worksheet " +
+            "table behind it has columns the Form table does not show (for example a hidden ID), " +
+            "and applying an import cannot tell which worksheet row each imported row came from, " +
+            "so it would overwrite those columns with empty values in EVERY existing row. " +
+            "Nothing was changed. Edit such a table with form_table_insert_row / " +
+            "form_table_delete_row / form_table_set_cell (they keep those columns with their " +
+            "rows), or show every worksheet column in the Form table first. The Viewer's own " +
+            "Import Excel has the same problem.");
+      }
+   }
+
+   /** How many columns of the worksheet embedded table behind the Form table the form lacks. */
+   static int hiddenWorksheetColumns(RuntimeViewsheet rvs, String assemblyName, FormTableLens lens) {
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableVSAssembly)) {
+         return 0;
+      }
+
+      Viewsheet owner = assembly.getViewsheet();
+      Worksheet ws = owner == null ? null : owner.getOriginalWorksheet();
+      SourceInfo source = ((TableVSAssemblyInfo) assembly.getVSAssemblyInfo()).getSourceInfo();
+      Assembly table = ws == null || source == null || source.getSource() == null ?
+         null : ws.getAssembly(source.getSource());
+
+      // anything else is refused by form_table_apply itself (write-back needs an embedded table)
+      if(!(table instanceof EmbeddedTableAssembly)) {
+         return 0;
+      }
+
+      XEmbeddedTable data = ((EmbeddedTableAssembly) table).getEmbeddedData();
+      return data == null ? 0 : Math.max(0, data.getColCount() - lens.getColCount());
    }
 
    private static List<String> pendingTables(RuntimeViewsheet rvs, List<TableCheck> matched)

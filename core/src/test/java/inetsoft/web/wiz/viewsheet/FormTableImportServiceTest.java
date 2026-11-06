@@ -26,7 +26,13 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.*;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.FormUtil;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.viewsheet.service.ImportXLSInspection.TableCheck;
@@ -76,6 +82,7 @@ class FormTableImportServiceTest {
    private final List<Path> seenFiles = new ArrayList<>();
    private FormTableImportService service;
    private boolean runtime = true;
+   private Viewsheet vs;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -120,7 +127,8 @@ class FormTableImportServiceTest {
          when(box.getFormTableLens(e.getKey())).thenReturn(e.getValue());
       }
 
-      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.isRuntime()).thenAnswer(inv -> runtime);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
    }
@@ -356,6 +364,61 @@ class FormTableImportServiceTest {
       verify(importer, never()).importWorkbook(any(), any(), any(), any(), any(), any(), any());
       assertEquals(1, lenses.get(pendingTable).rows(FormTableRow.DELETED).length,
                    "the pending edits are exactly as they were");
+   }
+
+   /**
+    * Reviewer r1 of bug 80481: the importer gives every row base index -1, which
+    * writeBackFormData reads as a fresh row and so nulls every worksheet column the form does not
+    * show (a hidden ID) in every existing row. The import is refused instead.
+    */
+   private void embeddedBehind(String table, int embeddedColumns, boolean embedded) {
+      TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Prices");
+      when(info.getSourceInfo()).thenReturn(source);
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      Viewsheet owner = mock(Viewsheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(assembly.getViewsheet()).thenReturn(owner);
+      when(owner.getOriginalWorksheet()).thenReturn(ws);
+
+      if(embedded) {
+         XEmbeddedTable data = mock(XEmbeddedTable.class);
+         when(data.getColCount()).thenReturn(embeddedColumns);
+         EmbeddedTableAssembly wsTable = mock(EmbeddedTableAssembly.class);
+         when(wsTable.getEmbeddedData()).thenReturn(data);
+         when(ws.getAssembly("Prices")).thenReturn(wsTable);
+      }
+
+      when(vs.getAssembly(table)).thenReturn(assembly);
+   }
+
+   @Test
+   void refusesATableWhoseWorksheetTableHasColumnsTheFormDoesNotShow() throws Exception {
+      embeddedBehind("Orders", 3, true);
+
+      String message = refused(false).getMessage();
+
+      assertTrue(message.contains("Orders (1 worksheet column(s) not shown)"), message);
+      assertTrue(message.contains("EVERY existing row"), message);
+      assertTrue(message.contains("form_table_set_cell"), message);
+      assertNothingMutated();
+   }
+
+   @Test
+   void aTableWhoseFormShowsEveryWorksheetColumnIsImported() throws Exception {
+      embeddedBehind("Orders", 2, true);
+      stubImport(imported("Orders"));
+
+      assertEquals(Boolean.TRUE, run(false).get("ok"));
+   }
+
+   @Test
+   void aTableNotBackedByAnEmbeddedTableIsLeftToApplyToRefuse() throws Exception {
+      embeddedBehind("Orders", 5, false);
+      stubImport(imported("Orders"));
+
+      assertEquals(Boolean.TRUE, run(false).get("ok"));
    }
 
    // --- the import itself --------------------------------------------------------------------

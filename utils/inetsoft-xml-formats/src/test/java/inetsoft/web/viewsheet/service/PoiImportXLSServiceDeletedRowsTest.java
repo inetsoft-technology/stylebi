@@ -131,6 +131,36 @@ class PoiImportXLSServiceDeletedRowsTest {
       assertPrefixPairKeepsDeletesApart(true);
    }
 
+   /**
+    * Orders_1's row names (Orders_1_row_state_TR_1) and Orders' (Orders_row_state_TR_1) can be
+    * told apart only by counting the numbers after the table name. Orders_1 is read first, while
+    * Orders' backup names are still in the shared map.
+    */
+   @Test
+   void aTableNamedLikeAnotherPlusASuffixDoesNotTakeItsDeletedRow() throws Exception {
+      Object[][] orders = rows("East", "West");
+      Object[][] suffixed = rows("Alpha", "Beta");
+
+      ExcelOfflineFixture fx = new ExcelOfflineFixture().withBackupSheet();
+      fx.writeTable("Orders_1", 2, 1, HEADER, suffixed, suffixed);
+      // West is deleted from Orders only
+      fx.writeTable("Orders", 2, 6, HEADER, orders, new Object[][] {orders[0], null});
+      Path file = fx.save(dir, "suffix.xlsx");
+
+      FormTableLens suffixedLens = ExcelOfflineFixture.lens(HEADER, suffixed);
+      FormTableLens ordersLens = ExcelOfflineFixture.lens(HEADER, orders);
+      importInto(file, ExcelOfflineFixture.runtime(
+         Map.of("Orders_1", suffixedLens, "Orders", ordersLens),
+         ExcelOfflineFixture.table("Orders_1", null),
+         ExcelOfflineFixture.table("Orders", null)));
+
+      assertEquals(0, suffixedLens.rows(FormTableRow.DELETED).length,
+                   "Orders_1 lost no row; it must not inherit Orders'");
+      FormTableRow[] deleted = ordersLens.rows(FormTableRow.DELETED);
+      assertEquals(1, deleted.length);
+      assertEquals("West", deleted[0].get(0));
+   }
+
    private void assertPrefixPairKeepsDeletesApart(boolean legacyNames) throws Exception {
       Object[][] orders = rows("East", "West");
       Object[][] byRegion = rows("Alpha", "Beta", "Gamma");

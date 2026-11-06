@@ -711,13 +711,13 @@ public class PoiImportXLSService implements ImportXLSService {
 
    /**
     * The names the export gives the rows of one table in the backup sheet: the table name, the row
-    * number, optionally the row state, and {@code _TR}, followed by the {@code _<n>} suffix
+    * number, the row state (always present, 1-4: OLD is 1, never 0), and {@code _TR}, followed by the {@code _<n>} suffix
     * {@code OfflineExcelVSExporter.getNextCellName} adds when the main sheet already used the name.
-    * Matched in full so that a table whose name is a prefix of another's ({@code Table1} and
-    * {@code Table10}) does not take the other table's rows.
+    * Matched in full, state included, so that a table whose name is a prefix of another's ({@code Table1}/
+    * {@code Table10}) or the other table's name plus {@code _<n>} ({@code Orders}/{@code Orders_1}) does not take its rows.
     */
    private static Pattern backupRowName(String tableName) {
-      return Pattern.compile(Pattern.quote(tableName) + "[._]\\d+(?:[._]\\d+)?_TR(?:_\\d+)?");
+      return Pattern.compile(Pattern.quote(tableName) + "[._]\\d+[._][1-4]_TR(?:_\\d+)?");
    }
 
    /**
