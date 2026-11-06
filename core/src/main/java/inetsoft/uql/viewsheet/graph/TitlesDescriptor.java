@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.util.ContentObject;
@@ -291,6 +292,19 @@ public class TitlesDescriptor implements AssetObject, ContentObject {
       list.addAll(x2Des.getDynamicValues());
       list.addAll(yDes.getDynamicValues());
       list.addAll(y2Des.getDynamicValues());
+      return list;
+   }
+
+   // the values whose default tier a marked chart saves
+   List<CompositeValue<?>> savedDefaults() {
+      List<CompositeValue<?>> list = new ArrayList<>();
+
+      for(TitleDescriptor des : new TitleDescriptor[] { xDes, x2Des, yDes, y2Des }) {
+         if(des != null) {
+            list.addAll(des.savedDefaults());
+         }
+      }
+
       return list;
    }
 

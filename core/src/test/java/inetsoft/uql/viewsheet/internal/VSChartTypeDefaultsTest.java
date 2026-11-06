@@ -69,6 +69,55 @@ class VSChartTypeDefaultsTest {
       }
    }
 
+   @Test
+   void axisTitlesFollowTheType() {
+      String[] axes = { "x", "x2", "y", "y2" };
+      int[] everyAxis = {
+         GraphTypes.CHART_POINT, GraphTypes.CHART_POINT_STACK, GraphTypes.CHART_SCATTER_CONTOUR,
+         GraphTypes.CHART_PARETO, GraphTypes.CHART_MEKKO
+      };
+
+      for(int t : everyAxis) {
+         for(String axis : axes) {
+            assertTrue(VSChartTypeDefaults.axisTitleVisible(rt(t, false, true), axis),
+                       "vertical " + axis + " of " + t);
+            assertTrue(VSChartTypeDefaults.axisTitleVisible(rt(t, true, false), axis),
+                       "horizontal " + axis + " of " + t);
+         }
+      }
+
+      // a box plot names its value axis only
+      ResolvedChartType vertical = rt(GraphTypes.CHART_BOXPLOT, false, true);
+      assertFalse(VSChartTypeDefaults.axisTitleVisible(vertical, "x"), "vertical box x");
+      assertFalse(VSChartTypeDefaults.axisTitleVisible(vertical, "x2"), "vertical box x2");
+      assertTrue(VSChartTypeDefaults.axisTitleVisible(vertical, "y"), "vertical box y");
+      assertTrue(VSChartTypeDefaults.axisTitleVisible(vertical, "y2"), "vertical box y2");
+
+      ResolvedChartType horizontal = rt(GraphTypes.CHART_BOXPLOT, true, false);
+      assertTrue(VSChartTypeDefaults.axisTitleVisible(horizontal, "x"), "horizontal box x");
+      assertTrue(VSChartTypeDefaults.axisTitleVisible(horizontal, "x2"), "horizontal box x2");
+      assertFalse(VSChartTypeDefaults.axisTitleVisible(horizontal, "y"), "horizontal box y");
+      assertFalse(VSChartTypeDefaults.axisTitleVisible(horizontal, "y2"), "horizontal box y2");
+
+      int[] noAxis = {
+         GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, GraphTypes.CHART_AREA,
+         GraphTypes.CHART_INTERVAL, GraphTypes.CHART_WATERFALL, GraphTypes.CHART_CANDLE,
+         GraphTypes.CHART_STOCK, GraphTypes.CHART_PIE, GraphTypes.CHART_DONUT,
+         GraphTypes.CHART_RADAR, GraphTypes.CHART_FUNNEL, GraphTypes.CHART_GANTT,
+         GraphTypes.CHART_TREEMAP, GraphTypes.CHART_TREE, GraphTypes.CHART_MAP,
+         GraphTypes.CHART_AUTO
+      };
+
+      for(int t : noAxis) {
+         for(String axis : axes) {
+            assertFalse(VSChartTypeDefaults.axisTitleVisible(rt(t, false, true), axis),
+                        "vertical " + axis + " of " + t);
+            assertFalse(VSChartTypeDefaults.axisTitleVisible(rt(t, true, false), axis),
+                        "horizontal " + axis + " of " + t);
+         }
+      }
+   }
+
    private static ResolvedChartType rt(int type, boolean x, boolean y) {
       return new ResolvedChartType(type, x, y, List.of(), List.of());
    }

@@ -155,6 +155,40 @@ public class TitleDescriptor implements AssetObject, ContentObject{
    }
 
    /**
+    * Check if the title area is displayed in max mode; under modern it also follows the normal
+    * visibility.
+    */
+   public boolean isMaxModeVisible(VizContext ctx) {
+      return ctx.modern ? maxModeVisible && isVisible() : maxModeVisible;
+   }
+
+   /**
+    * Whether the author set the visibility.
+    */
+   public boolean hasVisibleUserValue() {
+      return visible.hasUserValue();
+   }
+
+   /**
+    * Whether the custom title text is the author's rather than a system write.
+    */
+   public boolean isUserTitle() {
+      return userTitle;
+   }
+
+   /**
+    * Set whether the custom title text is the author's.
+    */
+   public void setUserTitle(boolean userTitle) {
+      this.userTitle = userTitle;
+   }
+
+   // a file without the flag counts any text as the author's
+   private boolean hasTitleText() {
+      return !Tool.isEmptyString(getTitleValue());
+   }
+
+   /**
     * Get the gap between the title label and the axis label.
     */
    public int getLabelGap() {
@@ -252,7 +286,7 @@ public class TitleDescriptor implements AssetObject, ContentObject{
          return false;
       }
 
-      if(maxModeVisible != des.maxModeVisible) {
+      if(maxModeVisible != des.maxModeVisible || userTitle != des.userTitle) {
          return false;
       }
 
@@ -301,6 +335,7 @@ public class TitleDescriptor implements AssetObject, ContentObject{
       writer.print(" maxModeVisible=\"" + maxModeVisible + "\"");
       writer.print(" labelGap=\"" + labelGap + "\"");
       GapZeroMarker.write(writer, "labelGapZero", labelGap);
+      DerivedUserFlag.write(writer, "userTitle", userTitle, hasTitleText());
    }
 
    /**
@@ -331,6 +366,8 @@ public class TitleDescriptor implements AssetObject, ContentObject{
    public void parseXML(Element tag) throws Exception {
       parseAttributes(tag);
       parseContents(tag);
+      // after the contents, as the derivation reads the text
+      userTitle = DerivedUserFlag.parse(Tool.getAttribute(tag, "userTitle"), hasTitleText());
    }
 
    /**
@@ -394,9 +431,15 @@ public class TitleDescriptor implements AssetObject, ContentObject{
       labelGap.resetValue(type);
    }
 
+   // the values whose default tier a marked chart saves
+   List<CompositeValue<?>> savedDefaults() {
+      return List.of(visible);
+   }
+
    private CompositeTextFormat fmt;
    private CompositeValue<Boolean> visible = new CompositeValue<>(Boolean.class, true);
    private boolean maxModeVisible = true;
+   private boolean userTitle = false;
    private DynamicValue title = new DynamicValue();
    private CompositeValue<Integer> labelGap = new CompositeValue<>(Integer.class, 0);
 

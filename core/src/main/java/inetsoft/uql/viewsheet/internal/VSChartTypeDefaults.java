@@ -33,4 +33,25 @@ final class VSChartTypeDefaults {
       return !GraphTypes.isRect(t.type()) || GraphTypes.isGantt(t.type()) ||
          t.measureOnX() && t.measureOnY();
    }
+
+   /**
+    * Whether a modern chart shows the axis title; axis is one of x, x2, y and y2.
+    */
+   static boolean axisTitleVisible(ResolvedChartType t, String axis) {
+      int type = t.type();
+
+      if(GraphTypes.isPoint(type) || GraphTypes.isScatteredContour(type) ||
+         GraphTypes.isPareto(type) || GraphTypes.isMekko(type))
+      {
+         return true;
+      }
+
+      if(!GraphTypes.isBoxplot(type)) {
+         return false;
+      }
+
+      // a box plot names its value axis only, on X when it lies horizontally
+      boolean xAxis = "x".equals(axis) || "x2".equals(axis);
+      return xAxis == (t.measureOnX() && !t.measureOnY());
+   }
 }

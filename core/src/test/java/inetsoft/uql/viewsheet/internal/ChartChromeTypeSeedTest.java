@@ -24,6 +24,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SourceInfo;
@@ -285,6 +286,188 @@ class ChartChromeTypeSeedTest {
       assertTrue(rt.isLineVisible());
    }
 
+   // ---- the axis titles ---------------------------------------------------------------------
+
+   @Test
+   void modernTitlesFollowTheResolvedType() {
+      gateOn();
+
+      for(int type : TITLE_TYPES) {
+         ChartVSAssemblyInfo info = newChart();
+         bindForTitles(info, type);
+         seed(info);
+
+         for(String axis : AXES) {
+            TitleDescriptor title = title(info.getChartDescriptor(), axis);
+            assertEquals(VSChartTypeDefaults.axisTitleVisible(
+                            ResolvedChartType.of(info.getVSChartInfo()), axis),
+                         defaultVisible(title), axis + " of " + type);
+            assertFalse(title.hasVisibleUserValue(), axis + " of " + type);
+         }
+      }
+
+      // a box plot names its value axis, whichever way it lies
+      ChartVSAssemblyInfo vertical = newChart();
+      bind(vertical, GraphTypes.CHART_BOXPLOT, refs(dim("state")), refs(agg("v")));
+      seed(vertical);
+      assertFalse(defaultVisible(title(vertical.getChartDescriptor(), "x")), "vertical box x");
+      assertTrue(defaultVisible(title(vertical.getChartDescriptor(), "y")), "vertical box y");
+
+      ChartVSAssemblyInfo horizontal = newChart();
+      bind(horizontal, GraphTypes.CHART_BOXPLOT, refs(agg("v")), refs(dim("state")));
+      seed(horizontal);
+      assertTrue(defaultVisible(title(horizontal.getChartDescriptor(), "x")), "horizontal box x");
+      assertFalse(defaultVisible(title(horizontal.getChartDescriptor(), "y")), "horizontal box y");
+      assertFalse(title(horizontal.getChartDescriptor(), "x").hasVisibleUserValue(),
+                  "horizontal box x");
+   }
+
+   @Test
+   void aClassicChartShowsEveryTitle() {
+      gateOff();
+
+      for(int type : TITLE_TYPES) {
+         ChartVSAssemblyInfo info = newChart();
+         bindForTitles(info, type);
+         seed(info);
+
+         for(String axis : AXES) {
+            TitleDescriptor title = title(info.getChartDescriptor(), axis);
+            assertTrue(title.isVisible(), axis + " of " + type);
+            assertFalse(title.hasVisibleUserValue(), axis + " of " + type);
+         }
+      }
+   }
+
+   @Test
+   void aTypedTitleFromAnOldFileStaysVisibleThroughModernizeAndRevert() throws Exception {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      title(info.getChartDescriptor(), "x").setTitleValue("Revenue");
+      String xml = writeXml(info);
+      String old = xml.replaceAll("\\s+userTitle=\"[a-z]*\"", "");
+      assertNotEquals(xml, old, "premise: the text wrote its flag");
+
+      ChartVSAssemblyInfo loaded = parseInfo(old);
+      TitlesDescriptor titles = loaded.getChartDescriptor().getTitlesDescriptor();
+
+      modernize(loaded);
+      assertTrue(titles.getXTitleDescriptor().isVisible(), "Modernize keeps the typed title");
+      assertFalse(titles.getYTitleDescriptor().isVisible(), "Modernize hides the generated one");
+      revert(loaded);
+      assertTrue(titles.getXTitleDescriptor().isVisible(), "Revert, the typed title");
+      assertTrue(titles.getYTitleDescriptor().isVisible(), "Revert, the generated one");
+   }
+
+   @Test
+   void wizardTextDoesNotKeepATitle() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      TitleDescriptor y = title(info.getChartDescriptor(), "y");
+      // as the wizard writes it
+      y.setTitleValue("Frequency");
+
+      seed(info);
+
+      assertFalse(y.isVisible());
+   }
+
+   @Test
+   void aTitleTheAuthorShowedSurvivesAReseed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      TitleDescriptor x = title(info.getChartDescriptor(), "x");
+      assertFalse(defaultVisible(x), "premise: the seed hid it");
+      x.setVisible(true);
+
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_LINE);
+      info.reseedIfResolvedTypeChanged();
+
+      assertEquals(GraphTypes.CHART_LINE, info.getSeededType().type(), "premise: the re-seed ran");
+      assertTrue(x.isVisible());
+   }
+
+   @Test
+   void modernizeThenRevertRestoresEveryTitle() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      seed(info);
+
+      modernize(info);
+      assertFalse(title(info.getChartDescriptor(), "x").isVisible(),
+                  "premise: Modernize hid the title");
+      revert(info);
+
+      for(String axis : AXES) {
+         TitleDescriptor title = title(info.getChartDescriptor(), axis);
+         assertTrue(defaultVisible(title), axis);
+         assertFalse(title.hasVisibleUserValue(), axis);
+      }
+   }
+
+   @Test
+   void aScriptsRuntimeTitleKeepsItsValueWhileItsDefaultFollowsTheType() {
+      gateOn();
+      ChartVSAssemblyInfo marked = newChart();
+      bind(marked, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      seed(marked);
+      // a runtime copy a script has written to
+      ChartDescriptor rdesc = (ChartDescriptor) marked.getChartDescriptor().clone();
+      TitleDescriptor rx = rdesc.getTitlesDescriptor().getXTitleDescriptor();
+      TitleDescriptor ry = rdesc.getTitlesDescriptor().getYTitleDescriptor();
+      rx.setVisible(false);
+      marked.setRTChartDescriptor(rdesc);
+      assertFalse(defaultVisible(rx), "premise: copied while the bar's titles were off");
+
+      // both axes become measures, so the type resolves to point
+      VSChartInfo cinfo = marked.getVSChartInfo();
+      cinfo.removeXField(0);
+      cinfo.addXField(agg("w"));
+      cinfo.setChartType(GraphTypes.CHART_POINT);
+      marked.reseedIfResolvedTypeChanged();
+
+      assertSame(rdesc, marked.getRTChartDescriptor());
+      assertTrue(defaultVisible(rx), "the runtime x title's default follows the type");
+      assertTrue(defaultVisible(ry), "the runtime y title's default follows the type");
+      assertTrue(rx.hasVisibleUserValue(), "the script's value stays");
+      assertFalse(rx.isVisible(), "the script's value still wins");
+      assertTrue(ry.isVisible());
+      assertTrue(title(marked.getChartDescriptor(), "x").isVisible(), "the design descriptor");
+   }
+
+   @Test
+   void anAutoChartThatBecomesAPointChartGainsItsTitles() throws Exception {
+      gateOn();
+      ChartVSAssembly chart = chartOn(new Viewsheet());
+      ChartVSAssemblyInfo info = chart.getChartInfo();
+      assertNotNull(info.getVizMark(), "premise: the chart is marked");
+      bind(info, GraphTypes.CHART_AUTO, refs(dim("state")), refs(agg("v")));
+      TitlesDescriptor titles = info.getChartDescriptor().getTitlesDescriptor();
+
+      try(MockedStatic<GraphTypeUtil> types = permitChartTypes()) {
+         render(chart);
+         assertEquals(GraphTypes.CHART_BAR, info.getSeededType().type(), "premise: auto drew bars");
+         assertFalse(defaultVisible(titles.getXTitleDescriptor()), "premise: bar, x");
+         assertFalse(defaultVisible(titles.getYTitleDescriptor()), "premise: bar, y");
+
+         VSChartInfo cinfo = info.getVSChartInfo();
+         cinfo.removeXField(0);
+         cinfo.addXField(agg("w"));
+         render(chart);
+      }
+
+      assertEquals(GraphTypes.CHART_POINT, info.getSeededType().type(),
+                   "premise: auto drew points");
+      assertTrue(defaultVisible(titles.getXTitleDescriptor()), "x");
+      assertTrue(defaultVisible(titles.getYTitleDescriptor()), "y");
+   }
+
    // ---- harness -----------------------------------------------------------------------------
 
    private void gateOn() {
@@ -373,6 +556,43 @@ class ChartChromeTypeSeedTest {
 
    private static AxisDescriptor stateAxis(ChartVSAssemblyInfo info) {
       return info.getVSChartInfo().getXField(0).getAxisDescriptor();
+   }
+
+   private static final String[] AXES = { "x", "x2", "y", "y2" };
+
+   // one type per family
+   private static final int[] TITLE_TYPES = {
+      GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, GraphTypes.CHART_AREA,
+      GraphTypes.CHART_INTERVAL, GraphTypes.CHART_WATERFALL, GraphTypes.CHART_PARETO,
+      GraphTypes.CHART_POINT, GraphTypes.CHART_SCATTER_CONTOUR, GraphTypes.CHART_BOXPLOT,
+      GraphTypes.CHART_CANDLE, GraphTypes.CHART_STOCK, GraphTypes.CHART_MEKKO,
+      GraphTypes.CHART_PIE, GraphTypes.CHART_RADAR, GraphTypes.CHART_FUNNEL,
+      GraphTypes.CHART_GANTT, GraphTypes.CHART_TREEMAP
+   };
+
+   // a measure on both axes where the type plots two, else a dimension by a measure
+   private static void bindForTitles(ChartVSAssemblyInfo info, int type) {
+      boolean twoMeasures = GraphTypes.isPoint(type) || GraphTypes.isScatteredContour(type);
+      bind(info, type, refs(twoMeasures ? agg("w") : dim("state")), refs(agg("v")));
+   }
+
+   private static TitleDescriptor title(ChartDescriptor desc, String axis) {
+      TitlesDescriptor titles = desc.getTitlesDescriptor();
+
+      return switch(axis) {
+         case "x" -> titles.getXTitleDescriptor();
+         case "x2" -> titles.getX2TitleDescriptor();
+         case "y" -> titles.getYTitleDescriptor();
+         default -> titles.getY2TitleDescriptor();
+      };
+   }
+
+   // the DEFAULT tier, read off a copy with the higher tiers cleared
+   private static boolean defaultVisible(TitleDescriptor title) {
+      TitleDescriptor copy = (TitleDescriptor) title.clone();
+      copy.resetCompositeValues(CompositeValue.Type.USER);
+      copy.resetCompositeValues(CompositeValue.Type.CSS);
+      return copy.isVisible();
    }
 
    // the chart's descriptors and every design and runtime ref's own, script copies included

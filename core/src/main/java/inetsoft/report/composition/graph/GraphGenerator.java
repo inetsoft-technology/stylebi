@@ -6316,7 +6316,8 @@ public abstract class GraphGenerator {
       boolean titleOK = labels.size() > 0;
 
       if((title != null && title.length() > 0) &&
-         ((!maxMode && titleDesc.isVisible()) || (maxMode && titleDesc.isMaxModeVisible())))
+         ((!maxMode && titleDesc.isVisible()) ||
+          (maxMode && titleDesc.isMaxModeVisible(vizContext))))
       {
          boolean isfmt  = Pattern.matches(".*\\{[0-9]+\\}.*", title);
 
@@ -6338,7 +6339,8 @@ public abstract class GraphGenerator {
       }
 
       if(titleOK &&
-         ((!maxMode && titleDesc.isVisible()) || (maxMode && titleDesc.isMaxModeVisible())))
+         ((!maxMode && titleDesc.isVisible()) ||
+          (maxMode && titleDesc.isMaxModeVisible(vizContext))))
       {
          StringBuilder buffer = new StringBuilder();
 

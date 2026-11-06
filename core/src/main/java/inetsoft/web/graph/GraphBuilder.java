@@ -1709,29 +1709,33 @@ public class GraphBuilder {
     * Check if is have hidden title or not.
     */
    private boolean isTitleHidden() {
-      return isTitleHidden(chartDesc, cinfo, model.isMaxMode());
+      VizContext ctx = assembly == null ?
+         VizContext.LEGACY : VizContext.of(assembly.getVSAssemblyInfo());
+      return isTitleHidden(chartDesc, cinfo, model.isMaxMode(), ctx);
    }
 
-   public static boolean isTitleHidden(ChartDescriptor chartDesc, ChartInfo cinfo, boolean maxMode) {
+   public static boolean isTitleHidden(ChartDescriptor chartDesc, ChartInfo cinfo, boolean maxMode,
+                                       VizContext ctx)
+   {
       TitlesDescriptor titlesDesc = chartDesc.getTitlesDescriptor();
       TitleDescriptor xtitle = titlesDesc.getXTitleDescriptor();
       TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();
       TitleDescriptor ytitle = titlesDesc.getYTitleDescriptor();
       TitleDescriptor y2title = titlesDesc.getY2TitleDescriptor();
 
-      if(isTitleHidden(xtitle, maxMode, cinfo.getXFieldCount() > 0)) {
+      if(isTitleHidden(xtitle, maxMode, cinfo.getXFieldCount() > 0, ctx)) {
          return true;
       }
 
-      if(isTitleHidden(x2title, maxMode, cinfo.getXFieldCount() > 0)) {
+      if(isTitleHidden(x2title, maxMode, cinfo.getXFieldCount() > 0, ctx)) {
          return true;
       }
 
-      if(isTitleHidden(ytitle, maxMode, cinfo.getYFieldCount() > 0)) {
+      if(isTitleHidden(ytitle, maxMode, cinfo.getYFieldCount() > 0, ctx)) {
          return true;
       }
 
-      if(isTitleHidden(y2title, maxMode, cinfo.getYFieldCount() > 0)) {
+      if(isTitleHidden(y2title, maxMode, cinfo.getYFieldCount() > 0, ctx)) {
          return true;
       }
 
@@ -1743,7 +1747,7 @@ public class GraphBuilder {
                if(fields[i] instanceof ChartAggregateRef) {
                   TitleDescriptor title = ((ChartAggregateRef) fields[i]).getTitleDescriptor();
 
-                  if(isTitleHidden(title, maxMode, true)) {
+                  if(isTitleHidden(title, maxMode, true, ctx)) {
                      return true;
                   }
                }
@@ -1754,13 +1758,15 @@ public class GraphBuilder {
       return false;
    }
 
-   private static boolean isTitleHidden(TitleDescriptor title, boolean maxMode, boolean hasBinding) {
+   private static boolean isTitleHidden(TitleDescriptor title, boolean maxMode, boolean hasBinding,
+                                        VizContext ctx)
+   {
       // map titles (latitude/longitude) are always hidden. only show title if map facet.
       if(!hasBinding) {
          return false;
       }
 
-      return maxMode ? !title.isMaxModeVisible() : !title.isVisible();
+      return maxMode ? !title.isMaxModeVisible(ctx) : !title.isVisible();
    }
 
    /**

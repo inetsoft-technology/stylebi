@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
+import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.util.Tool;
@@ -1131,6 +1132,23 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
+   void theSeededAxisTitleVisibilityTravelsInTheAsset() throws Exception {
+      gateOn();
+      TitleDescriptor x = xTitle(roundTrip(newChart()));
+
+      assertFalse(x.hasVisibleUserValue(), "a seeded value must not come back as the author's");
+      assertFalse(x.isVisible(), "the asset carries the seeded hidden title");
+   }
+
+   private static TitleDescriptor xTitle(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getTitlesDescriptor().getXTitleDescriptor();
+   }
+
+   private static TitleDescriptor yTitle(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getTitlesDescriptor().getYTitleDescriptor();
+   }
+
+   @Test
    void theSeedTurnsTheSaveOnForAMarkedChart() {
       gateOn();
       assertTrue(descriptorXml(newChart()).contains("^^DEF^^"));
@@ -1348,6 +1366,7 @@ class SeedChromeDefaultsTest {
       String state = writeState(chart);
       assertTrue(chartDescriptorXml(state).contains("^^DEF^^"),
                  "premise: the bookmark carries the modern tiers");
+      assertFalse(xTitle(chart.getChartInfo()).isVisible(), "premise: the modern titles are off");
 
       VizModernizeUtil.revert(vs);
       restoreState(chart, state);
@@ -1366,6 +1385,8 @@ class SeedChromeDefaultsTest {
       assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info), "data-label ink");
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(info).getBorderColor(), "legend border");
       assertTrue(chart.getVSChartInfo().getAxisDescriptor().isLineVisible(), "value-axis line");
+      assertTrue(xTitle(info).isVisible(), "x axis title");
+      assertTrue(yTitle(info).isVisible(), "y axis title");
       assertFalse(chartDescriptorXml(writeXml(info)).contains("^^DEF^^"),
                   "a reverted chart saves no default tier");
    }

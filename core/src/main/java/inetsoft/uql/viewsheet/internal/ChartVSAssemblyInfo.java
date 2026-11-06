@@ -411,6 +411,38 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
    }
 
+   private void seedAxisTitles(VizContext ctx, ResolvedChartType type) {
+      seedAxisTitles(getChartDescriptor(), ctx, type);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedAxisTitles(getRTChartDescriptor(), ctx, type);
+   }
+
+   private static void seedAxisTitles(ChartDescriptor desc, VizContext ctx,
+                                      ResolvedChartType type)
+   {
+      TitlesDescriptor titles = desc == null ? null : desc.getTitlesDescriptor();
+
+      if(titles == null) {
+         return;
+      }
+
+      seedAxisTitle(titles.getXTitleDescriptor(), "x", ctx, type);
+      seedAxisTitle(titles.getX2TitleDescriptor(), "x2", ctx, type);
+      seedAxisTitle(titles.getYTitleDescriptor(), "y", ctx, type);
+      seedAxisTitle(titles.getY2TitleDescriptor(), "y2", ctx, type);
+   }
+
+   private static void seedAxisTitle(TitleDescriptor title, String axis, VizContext ctx,
+                                     ResolvedChartType type)
+   {
+      if(title != null) {
+         // an author's text keeps its title
+         boolean visible = !ctx.modern || VSChartTypeDefaults.axisTitleVisible(type, axis)
+            || title.isUserTitle();
+         title.setVisible(visible, CompositeValue.Type.DEFAULT);
+      }
+   }
+
    @Override
    public void clearBinding() {
       super.clearBinding();
@@ -3070,6 +3102,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
       // values that depend on the resolved type; written on both branches
       seedAxisLines(ctx, type);
+      seedAxisTitles(ctx, type);
    }
 
    /**
