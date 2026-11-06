@@ -41,6 +41,12 @@ public interface ExpressionDialogModel {
 
    @Nullable String newName();
 
+   /**
+    * An unused column name for the Create Expression dialog to pre-assign (so an agent can be
+    * paired to the not-yet-created column). Set only when creating, null when editing.
+    */
+   @Nullable String suggestedName();
+
    String dataType();
 
    @Value.Default

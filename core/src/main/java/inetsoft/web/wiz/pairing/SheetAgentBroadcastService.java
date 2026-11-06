@@ -287,10 +287,25 @@ public class SheetAgentBroadcastService {
    public void broadcastScriptRefresh(RuntimeSheet rs, String runtimeId, Principal owner,
                                       String kind, String assembly, String name, String text)
    {
+      pushScriptRefresh(rs, runtimeId, owner, kind, assembly, name, text);
+   }
+
+   /**
+    * Same push as {@link #broadcastScriptRefresh}, but reports whether it was sent. For a caller
+    * whose ONLY effect is the push (a pending Create Expression draft), a silently dropped push
+    * would be a silent no-op, so it must be able to fail loud.
+    *
+    * @return {@code true} when the command was handed to the messaging layer; {@code false} when
+    *         the runtime has no paired browser socket or the send failed. There is no browser
+    *         acknowledgement, so {@code true} means "sent", not "applied"
+    */
+   public boolean pushScriptRefresh(RuntimeSheet rs, String runtimeId, Principal owner,
+                                    String kind, String assembly, String name, String text)
+   {
       String sessionId = rs.getSocketSessionId();
 
       if(sessionId == null) {
-         return;
+         return false;
       }
 
       String user = rs.getSocketUserName();
@@ -306,10 +321,12 @@ public class SheetAgentBroadcastService {
          command.setName(name);
          command.setText(text);
          sendCommand(user, sessionId, runtimeId, command);
+         return true;
       }
       catch(Exception e) {
          LOG.warn("Failed to build/send agent script refresh (runtimeId={}, kind={})",
                   runtimeId, kind, e);
+         return false;
       }
    }
 

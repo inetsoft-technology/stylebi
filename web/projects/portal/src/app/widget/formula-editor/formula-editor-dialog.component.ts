@@ -182,6 +182,13 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     * this dialog opens with, which intentionally does not exist on the runtime yet.
     */
    @Input() isNewCalcField: boolean = false;
+   /**
+    * True only when the worksheet Create Expression dialog is authoring a brand-new expression
+    * column rather than editing one. Threaded into `deriveEditorContext()`'s `worksheetExpression`
+    * case as `pending`, so mint validation accepts the pre-assigned name (e.g. "Expression1"),
+    * which intentionally does not exist on the worksheet until the user clicks OK.
+    */
+   @Input() isNewExpression: boolean = false;
    @Input() calcType: string;
    @Input() calcFieldsGroup: string[] = [];
 
@@ -336,6 +343,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
          return FormulaEditorDialog.SINGLE_VALUE_OPERATIONS.indexOf(this.conditionOperation) >= 0
             ? { kind: "worksheetConditionValue", assembly, name: this.formulaName }
             : { kind: "worksheetConditionValue", assembly };
+      }
+
+      if(!this.isVSContext && this.isNewExpression) {
+         return { kind: "worksheetExpression", assembly, name: this.formulaName, pending: true };
       }
 
       return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",

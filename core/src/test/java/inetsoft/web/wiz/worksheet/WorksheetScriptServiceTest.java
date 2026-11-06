@@ -52,8 +52,9 @@ class WorksheetScriptServiceTest {
    private final WorksheetEditService editService = mock(WorksheetEditService.class);
    private final WorksheetAgentController worksheetController =
       mock(WorksheetAgentController.class);
+   private final SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
    private final WorksheetScriptService service =
-      new WorksheetScriptService(editService, worksheetController);
+      new WorksheetScriptService(editService, worksheetController, broadcast);
 
    // ---------------------------------------------------------------------------
    // Fixtures
@@ -124,6 +125,168 @@ class WorksheetScriptServiceTest {
       ArgumentCaptor<EditRequest> captor = ArgumentCaptor.forClass(EditRequest.class);
       verify(worksheetController).editOp(eq("TOK"), captor.capture(), eq(agent));
       assertTrue(captor.getValue().sql(), "a SQL expression column must stay SQL through a text-only edit");
+   }
+
+   /**
+    * Bug #80462 (C5): editOp only repaints the canvas, so an open Edit Expression dialog kept the
+    * old text and its OK silently sent it back over the agent's write. The write must push the
+    * new text to the dialog.
+    */
+   @Test
+   void writeToAnExistingExpressionPushesTheTextToTheOpenDialog() throws Exception {
+      seedExpressionColumn("Query1", "Margin", "field['price']", false);
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetExpression", "Query1", "Margin", null));
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+
+      assertNull(service.write(session, agent, target, "field['cost']"));
+
+      verify(broadcast).broadcastScriptRefresh(any(RuntimeWorksheet.class), eq("Worksheet/ws-1"),
+         eq(agent), eq("worksheetExpression"), eq("Query1"), eq("Margin"), eq("field['cost']"));
+   }
+
+   @Test
+   void aConditionWriteDoesNotPushAnExpressionRefresh() throws Exception {
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetCondition", "Query1", "price", null));
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION, "Query1", "price");
+
+      service.write(session, agent, target, "> 0");
+
+      verify(worksheetController).editOp(eq("TOK"), any(EditRequest.class), eq(agent));
+      verifyNoInteractions(broadcast);
+   }
+
+   // ---------------------------------------------------------------------------
+   // Pending (Create Expression) session -- Bug #80462
+   // ---------------------------------------------------------------------------
+
+   private static EditorContext pendingExpression() {
+      return new EditorContext("worksheetExpression", "Query1", "Expression1", null, true);
+   }
+
+   private void seedTableWithoutExpressions(String table) throws PairingException {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, table, "price", "cost"));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editService.resolve("TOK", agent)).thenReturn(rws);
+      when(broadcast.pushScriptRefresh(eq(rws), any(), any(), any(), any(), any(), any()))
+         .thenReturn(true);
+   }
+
+   private static ScriptTarget pendingTarget() throws PairingException {
+      return ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Expression1");
+   }
+
+   @Test
+   void aPendingWritePushesADraftAndNeverEditsTheWorksheet() throws Exception {
+      seedTableWithoutExpressions("Query1");
+
+      var result = service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(),
+                                 "field['price'] * 2");
+
+      assertTrue(result.ok());
+      assertEquals(Boolean.TRUE, result.pending());
+      assertTrue(result.note().contains("clicks OK"), result.note());
+      verify(broadcast).pushScriptRefresh(any(RuntimeWorksheet.class), eq("Worksheet/ws-1"),
+         eq(agent), eq("worksheetExpression"), eq("Query1"), eq("Expression1"),
+         eq("field['price'] * 2"));
+      verifyNoInteractions(worksheetController);
+   }
+
+   /** The push is the only effect, so an undeliverable push must fail loud (C1). */
+   @Test
+   void aPendingWriteFailsLoudWhenTheDialogCannotBeReached() throws Exception {
+      seedTableWithoutExpressions("Query1");
+      RuntimeWorksheet rws = editService.resolve("TOK", agent);
+      when(broadcast.pushScriptRefresh(eq(rws), any(), any(), any(), any(), any(), any()))
+         .thenReturn(false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(), "1+1"));
+
+      assertTrue(ex.getMessage().contains("not reachable"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("nothing was written"), ex.getMessage());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void aPendingWriteWarnsOnTextThatIsNotJavaScriptButStillPushesIt() throws Exception {
+      seedTableWithoutExpressions("Query1");
+
+      var result = service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(),
+                                 "CASE WHEN price > 1 THEN 1 END");
+
+      assertEquals(Boolean.TRUE, result.pending());
+      assertNotNull(result.warning(), "an unparseable draft is a warning, since it may be SQL");
+      assertTrue(result.warning().contains("SQL"), result.warning());
+   }
+
+   @Test
+   void aPendingWriteRequiresText() throws Exception {
+      seedTableWithoutExpressions("Query1");
+
+      assertThrows(PairingException.class,
+         () -> service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(), null));
+      verifyNoInteractions(worksheetController);
+   }
+
+   /**
+    * Draft-only is unconditional: another session adding a column of the same name mid-dialog
+    * must not turn the pending write into an edit of that unrelated column.
+    */
+   @Test
+   void aPendingWriteStaysDraftOnlyEvenIfAColumnOfThatNameAppearedLater() throws Exception {
+      seedExpressionColumn("Query1", "Expression1", "field['price']", false);
+      RuntimeWorksheet rws = editService.resolve("TOK", agent);
+      when(broadcast.pushScriptRefresh(eq(rws), any(), any(), any(), any(), any(), any()))
+         .thenReturn(true);
+
+      var result = service.write(sessionScopedTo(pendingExpression()), agent, pendingTarget(), "9");
+
+      assertEquals(Boolean.TRUE, result.pending());
+      verifyNoInteractions(worksheetController);
+   }
+
+   @Test
+   void aPendingReadIsMarkedPendingWithEmptyTextAndAnExplanation() throws Exception {
+      seedTableWithoutExpressions("Query1");
+
+      ScriptInfo info = service.read(sessionScopedTo(pendingExpression()), agent, pendingTarget());
+
+      assertEquals("", info.text());
+      assertEquals(Boolean.TRUE, info.pending());
+      assertTrue(info.note().contains("NOT an empty expression"), info.note());
+   }
+
+   @Test
+   void aPendingSessionListsOneSyntheticNewTarget() throws Exception {
+      seedTableWithoutExpressions("Query1");
+      RuntimeWorksheet rws = editService.resolve("TOK", agent);
+
+      List<ScriptTargetInfo> targets = service.list(rws, sessionScopedTo(pendingExpression()));
+
+      assertEquals(1, targets.size());
+      ScriptTargetInfo t = targets.get(0);
+      assertEquals("worksheetExpression", t.kind());
+      assertEquals("Query1", t.assembly());
+      assertEquals("Expression1", t.name());
+      assertEquals(Boolean.TRUE, t.pending());
+      assertTrue(t.label().startsWith("NEW"), t.label());
+      assertEquals(pendingTarget().id(), t.id());
+   }
+
+   @Test
+   void aNonPendingSessionOnTheSameNameStillReadsTheRealColumn() throws Exception {
+      seedExpressionColumn("Query1", "Expression1", "field['price']", false);
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetExpression", "Query1", "Expression1", null));
+
+      ScriptInfo info = service.read(session, agent, pendingTarget());
+
+      assertEquals("field['price']", info.text());
+      assertNull(info.pending());
    }
 
    @Test
