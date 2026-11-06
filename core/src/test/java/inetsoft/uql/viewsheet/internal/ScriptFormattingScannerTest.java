@@ -106,6 +106,23 @@ class ScriptFormattingScannerTest {
    }
 
    @Test
+   void aChartsOwnAxisWritesCount() {
+      Viewsheet vs = sheet("Chart1", "Text1");
+      script(vs, "Chart1", "xAxis.labelColor = [255,0,0];");
+      assertEquals(Set.of("Chart1"), ScriptFormattingScanner.scan(vs).components());
+
+      script(vs, "Chart1", "axis['State'].font = 'Arial-BOLD-12';");
+      assertEquals(Set.of("Chart1"), ScriptFormattingScanner.scan(vs).components());
+   }
+
+   @Test
+   void aChartsOwnAxisReadDoesNotCount() {
+      Viewsheet vs = sheet("Chart1");
+      script(vs, "Chart1", "var c = xAxis.labelColor; if(axis['State'].font == null) {}");
+      assertTrue(ScriptFormattingScanner.scan(vs).isEmpty());
+   }
+
+   @Test
    void aDisabledScriptDoesNotCount() {
       Viewsheet vs = sheet("Text1");
       script(vs, "Text1", "foreground = 0xff0000;");

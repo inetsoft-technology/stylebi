@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-04
 **Feature:** #80398
-**Status:** implemented on feature-80398 (not merged)
+**Status:** implemented
 **Base:** `epic-74519` (cited lines are at `c81751a3cb`)
 **Scope:** the composer, dashboards only. The viewer, worksheets and the deploy/shell paths are out.
 
@@ -318,12 +318,23 @@ not change:
   it targets; or
 - an expression- or variable-bound value on an allowlisted property (§5.1), which the reset keeps.
 
-Detection uses the existing script tokenizer (`uql/asset/internal/ScriptIterator.java`, which
-`VSUtil` already uses for script dependencies) to find assignments and setter calls whose
-property is on a fixed list of look-property names (foreground, background, font, borders,
-borderColors, alpha, colours, legend and axis formatting, corner radius). A script that only
-reads properties does not count. A full parse is not required; a missed case is acceptable, a
-warning on every script is not.
+Detection (`ScriptFormattingScanner`) uses a small lexer of its own, not `ScriptIterator`. The
+lexer drops comments and strings, so text inside them never counts, and it reads `['name']` as
+`.name`. On the resulting tokens, the scanner finds plain assignments (`=`, not `==` or `+=`) and
+setter calls whose property is on a fixed list of look-property names: foreground, background,
+font, borders, borderColors, alpha, roundCorner, titleFont, titleColor, any name ending in
+`Color`, `Colors` or `Font`, and the setters `setForeground`, `setBackground`, `setFont`,
+`setColor` and `setColors`. A script that only reads properties does not count. A full parse is
+not required; a missed case is acceptable, a warning on every script is not.
+
+Attribution:
+
+- **In a component's own script**, a write counts for the component itself when it names no
+  target, names `this`, or starts with a name that is not an assembly. The last case covers the
+  script's own scope, such as a chart's `xAxis.labelColor` or `axis['State'].font`. A write that
+  starts with an assembly's name counts for that assembly when it is the dashboard's own.
+- **In `onInit` or `onLoad`**, a write that starts with an own assembly's name counts for that
+  assembly. Any other write sets the dashboard-script flag.
 
 **Wording:**
 

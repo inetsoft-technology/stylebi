@@ -49,7 +49,8 @@ public final class ScriptFormattingScanner {
             String self = info.getAbsoluteName();
 
             for(String target : writes(info.getScript())) {
-               if(target == null || "this".equals(target)) {
+               // the script's own scope, e.g. a chart's xAxis or axis
+               if(target == null || "this".equals(target) || vs.getAssembly(target) == null) {
                   components.add(self);
                }
                else if(isOwn(vs, target)) {

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Color;
 import java.awt.Font;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,6 +82,34 @@ class ChartFormatDefaultsTest {
       CompositeTextFormat fmt = addColumnFormat(info);
       fmt.getDefaultFormat().setColor(
          VSChartChromeDefaults.labelColor(VizContext.of(VizMark.MODERN_LIGHT)));
+
+      ChartFormatDefaults.fix(info);
+
+      assertEquals(GDefaults.DEFAULT_TEXT_COLOR, fmt.getDefaultFormat().getColor());
+   }
+
+   @Test
+   void revertRestoresTheLegacyPerColumnLabelColor() {
+      ChartVSAssemblyInfo info = chartInfo();
+      CompositeTextFormat fmt = addColumnFormat(info);
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      ChartFormatDefaults.fix(info);
+      assertEquals(VSChartChromeDefaults.labelColor(VizContext.of(info)),
+                   fmt.getDefaultFormat().getColor());
+
+      info.setVizMark(null);
+      ChartFormatDefaults.fix(info);
+
+      assertEquals(GDefaults.DEFAULT_TEXT_COLOR, fmt.getDefaultFormat().getColor());
+   }
+
+   @Test
+   void anUnmarkedChartOverwritesAnyPresetPerColumnLabelColor() {
+      ChartVSAssemblyInfo info = chartInfo();
+      CompositeTextFormat fmt = addColumnFormat(info);
+      Color preset = new Color(0x123456);
+      fmt.getDefaultFormat().setColor(preset);
+      assertEquals(preset, fmt.getDefaultFormat().getColor());
 
       ChartFormatDefaults.fix(info);
 
