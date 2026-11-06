@@ -188,7 +188,7 @@ class ScriptFailureRelayRealStackTest {
       addCalendar(rvs);
 
       Map<String, Object> result = calendarService(rvs)
-         .setDisplay("tok", principal(), CALENDAR, null, true, null, "");
+         .setDisplay("tok", principal(), CALENDAR, null, true, null, null, null, "");
 
       assertFailureRelayed(warningsOf(result));
    }
@@ -199,7 +199,7 @@ class ScriptFailureRelayRealStackTest {
       addCalendar(rvs);
 
       Map<String, Object> result = calendarService(rvs)
-         .setDisplay("tok", principal(), CALENDAR, null, true, null, "");
+         .setDisplay("tok", principal(), CALENDAR, null, true, null, null, null, "");
 
       assertFalse(result.containsKey("warnings"), result.toString());
    }

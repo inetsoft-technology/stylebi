@@ -193,7 +193,7 @@ class CalendarInputServiceTest {
       CalendarHarness h = calendarWith(null);
 
       assertThrows(IllegalArgumentException.class,
-         () -> h.service.setDisplay("tok", principal(), "Cal1", null, null, null, ""));
+         () -> h.service.setDisplay("tok", principal(), "Cal1", null, null, null, null, null, ""));
    }
 
    @Test
@@ -201,7 +201,7 @@ class CalendarInputServiceTest {
       CalendarHarness h = calendarWith(mock(ChartVSAssembly.class));
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> h.service.setDisplay("tok", principal(), "Chart1", true, null, null, ""));
+         () -> h.service.setDisplay("tok", principal(), "Chart1", true, null, null, null, null, ""));
 
       assertTrue(e.getMessage().contains("not a calendar"), e.getMessage());
       verifyNoInteractions(h.calendars);
@@ -212,7 +212,7 @@ class CalendarInputServiceTest {
       CalendarHarness h = calendarWith(null);
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> h.service.setDisplay("tok", principal(), "Nope", true, null, null, ""));
+         () -> h.service.setDisplay("tok", principal(), "Nope", true, null, null, null, null, ""));
 
       assertTrue(e.getMessage().contains("Nope"), e.getMessage());
       verifyNoInteractions(h.calendars);

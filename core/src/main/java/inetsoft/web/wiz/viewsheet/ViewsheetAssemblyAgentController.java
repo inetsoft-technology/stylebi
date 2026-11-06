@@ -1783,7 +1783,8 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return calendarService.setDisplay(sessionToken, user, request.assembly(), request.yearView(),
-                                       request.doubleCalendar(), request.rangeComparison(), linkUri);
+                                       request.doubleCalendar(), request.rangeComparison(),
+                                       request.month(), request.secondMonth(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/clear")
@@ -2023,7 +2024,8 @@ public class ViewsheetAssemblyAgentController {
    }
 
    public record CalendarDisplayRequest(String assembly, Boolean yearView, Boolean doubleCalendar,
-                                        Boolean rangeComparison) {}
+                                        Boolean rangeComparison, String month,
+                                        String secondMonth) {}
    public record CalendarDatesRequest(String assembly, java.util.List<String> dates) {}
    public record InputValueRequest(String assembly, java.util.List<Object> value,
                                    Boolean submit) {}
