@@ -1825,6 +1825,25 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * {@code click_submit}. Clicks a Submit button the way the Viewer does: applies the optional
+    * pending input {@code values}, then runs the button's onClick script and its
+    * Refresh-after-submit option (or, with {@code confirmed}, the Yes branch of the script's
+    * {@code confirm()}).
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/submit/click")
+   public Map<String, Object> clickSubmit(@PathVariable String sessionToken,
+                                          @RequestBody ClickSubmitRequest request,
+                                          @RequestParam(required = false, defaultValue = "")
+                                          String linkUri,
+                                          Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return inputService.clickSubmit(sessionToken, user, request.assembly(), request.values(),
+                                      Boolean.TRUE.equals(request.confirmed()), linkUri);
+   }
+
+   /**
     * {@code get_input_value}. Read-only: the value(s) the runtime currently holds for the named
     * input assemblies (every input assembly when none is named). No checkpoint, no script run.
     */
@@ -2025,6 +2044,9 @@ public class ViewsheetAssemblyAgentController {
    public record CalendarDisplayRequest(String assembly, Boolean yearView, Boolean doubleCalendar,
                                         Boolean rangeComparison) {}
    public record CalendarDatesRequest(String assembly, java.util.List<String> dates) {}
+   public record ClickSubmitRequest(String assembly,
+                                    java.util.List<InputValueService.SubmitValue> values,
+                                    Boolean confirmed) {}
    public record InputValueRequest(String assembly, java.util.List<Object> value,
                                    Boolean submit) {}
    public record SelectionLayoutRequest(String assembly, Number columnCount,

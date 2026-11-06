@@ -28,7 +28,10 @@ import inetsoft.util.CancelledException;
 import inetsoft.util.InvalidUserException;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptException;
+import inetsoft.web.binding.event.VSOnClickEvent;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.OnClickService;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
@@ -283,6 +286,344 @@ public class InputValueService {
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /** One pending input value of a {@link #clickSubmit} call. */
+   public record SubmitValue(String assembly, List<Object> value) {}
+
+   /**
+    * Clicks a Submit button the way the Viewer does, after optionally applying pending input
+    * values the way its {@code VSSubmitEvent} carries them.
+    *
+    * <p>The Viewer's pending values live only in the browser, so a server-side click has nothing
+    * to submit unless the caller carries them: {@code values} are applied exactly as the Viewer's
+    * submit does ({@code multiApplySelection}, then the commit into bound tables for inputs that
+    * do not submit on change, Bug #78878). Filters are never accepted here: they are applied
+    * immediately by their own tools. The write phase runs first and its errors are checked
+    * <i>before</i> the click, so "an error response means the script did not run" holds; the click
+    * is then {@code VSInputService.onClick} with no values (only the script and refresh half), or
+    * {@code onConfirm} with a confirmed event when {@code confirmed} is true (the Yes branch of the
+    * script's {@code confirm()}).
+    *
+    * <p>Unlike {@code fireOnClick}, a Submit is a {@code ClickableOutput} and an empty onClick still
+    * runs the Refresh-after-submit branch, so {@code scriptFired} and {@code refreshed} are
+    * reported separately; a disabled script skips both.
+    */
+   public Map<String, Object> clickSubmit(String sessionToken, Principal user, String assemblyName,
+                                          List<SubmitValue> values, boolean confirmed,
+                                          String linkUri)
+      throws Exception
+   {
+      if(assemblyName == null || assemblyName.isBlank()) {
+         throw new IllegalArgumentException("'assembly' is required — name the submit button.");
+      }
+
+      final List<SubmitValue> pending = values == null ? List.of() : values;
+
+      if(confirmed && !pending.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'confirmed' answers a confirm() the previous click raised and cannot be combined " +
+            "with 'values'. Click first (with the values), then click again with confirmed:true.");
+      }
+
+      final Map<String, Object> result = new LinkedHashMap<>();
+      final List<String> extraWarnings = new ArrayList<>();
+      final Set<String> secrets = new LinkedHashSet<>();
+
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+         VSAssembly button = vs == null ? null : vs.getAssembly(assemblyName);
+
+         if(button == null) {
+            throw new IllegalArgumentException(
+               "Unknown assembly '" + assemblyName + "'. Nothing was changed.");
+         }
+
+         if(!(button instanceof SubmitVSAssembly) ||
+            !(button.getVSAssemblyInfo() instanceof SubmitVSAssemblyInfo info))
+         {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is not a submit button (it is a " +
+               button.getClass().getSimpleName() + "). click_submit clicks Submit buttons only. " +
+               "Nothing was changed.");
+         }
+
+         if(!info.isEnabled()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is disabled (enabled is false, perhaps from a script or " +
+               "expression), and the Viewer renders a disabled Submit unclickable. Nothing was " +
+               "changed.");
+         }
+
+         if(rvs.getViewsheetSandbox().isEmpty()) {
+            throw new PairingException("Viewsheet sandbox not available for this runtime");
+         }
+
+         // everything is validated before the first write, so a refusal leaves nothing changed
+         List<String> names = new ArrayList<>();
+         List<Object> selected = new ArrayList<>();
+         List<InputVSAssembly> assemblies = new ArrayList<>();
+
+         for(SubmitValue entry : pending) {
+            if(entry == null || entry.assembly() == null || entry.assembly().isBlank()) {
+               throw new IllegalArgumentException(
+                  "Each 'values' entry needs an 'assembly' naming an input assembly.");
+            }
+
+            String name = entry.assembly();
+
+            if(entry.value() == null) {
+               throw new IllegalArgumentException(
+                  "'values' entry '" + name + "' needs 'value' (an array; pass [] to clear the " +
+                  "input rather than omitting it).");
+            }
+
+            if(names.contains(name)) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' appears more than once in 'values'. Give each input once.");
+            }
+
+            if(vs.getAssembly(name) instanceof AbstractSelectionVSAssembly) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is a filter (selection list, tree, range slider or calendar). " +
+                  "Filters apply immediately through their own tools, so 'values' does not take " +
+                  "them: use set_selection or set_calendar_dates, then click.");
+            }
+
+            InputVSAssembly assembly = requireInput(rvs, name, false);
+            boolean multi = assembly instanceof CheckBoxVSAssembly;
+
+            if(!multi && entry.value().size() > 1) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is " + describe(assembly) + ", which holds one value, but " +
+                  entry.value().size() + " were given. Only a check box accepts several.");
+            }
+
+            VSAssemblyInfo info0 = assembly.getVSAssemblyInfo();
+            boolean dynamicMax = info0 instanceof NumericRangeVSAssemblyInfo range &&
+               VSUtil.isDynamicValue(range.getMaxValue());
+            checkValue(info0, assembly.getDataType(), entry.value(), dynamicMax, name,
+                       describe(assembly));
+            checkWriteBack(rvs, name, info0);
+
+            names.add(name);
+            assemblies.add(assembly);
+            selected.add(multi ? entry.value().toArray()
+                         : (entry.value().isEmpty() ? null : entry.value().get(0)));
+
+            if(isSecret(info0)) {
+               entry.value().stream().filter(Objects::nonNull).map(String::valueOf)
+                  .forEach(secrets::add);
+            }
+         }
+
+         if(!info.isVisible()) {
+            extraWarnings.add("'" + assemblyName + "' is hidden (visible is false). The Viewer " +
+                              "cannot click a hidden button; it was clicked anyway.");
+         }
+
+         // the write phase, then its error check, then the click
+         if(!names.isEmpty()) {
+            inputs.multiApplySelection(runtimeId, names.toArray(new String[0]), selected.toArray(),
+                                       user, dispatcher, linkUri);
+            commitSubmitted(rvs, names, assemblies, dispatcher, linkUri);
+
+            for(int i = 0; i < names.size(); i++) {
+               if(assemblies.get(i).getVSAssemblyInfo() instanceof InputVSAssemblyInfo input &&
+                  input.isSubmitOnChange())
+               {
+                  extraWarnings.add("'" + names.get(i) + "' submits on change, so the Viewer " +
+                                    "would already have applied it; it was applied again, which " +
+                                    "changes nothing.");
+               }
+            }
+         }
+
+         if(!dispatcher.getErrors().isEmpty()) {
+            // the capturing dispatcher's post-check fails the call; the script never ran
+            return;
+         }
+
+         List<Map<String, Object>> applied = new ArrayList<>();
+
+         for(int i = 0; i < names.size(); i++) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("assembly", names.get(i));
+            entry.put("type", describe(assemblies.get(i)));
+            VSAssembly stored = vs.getAssembly(names.get(i));
+
+            if(stored != null && stored.getVSAssemblyInfo() instanceof InputVSAssemblyInfo held) {
+               List<Object> heldValues = heldValues(held);
+
+               if(isSecret(held)) {
+                  heldValues.stream().filter(Objects::nonNull).map(String::valueOf)
+                     .forEach(secrets::add);
+                  entry.put("values", heldValues.stream().map(v -> (Object) SECRET_MASK).toList());
+                  entry.put("masked", true);
+               }
+               else {
+                  entry.put("values", heldValues);
+               }
+            }
+
+            applied.add(entry);
+         }
+
+         result.put("assembly", assemblyName);
+         result.put("applied", applied);
+
+         boolean scriptEnabled = info.isScriptEnabled();
+         boolean hasScript = info.getOnClick() != null && !info.getOnClick().isBlank();
+         result.put("scriptFired", scriptEnabled && hasScript);
+         result.put("refreshed", scriptEnabled && info.isRefresh());
+
+         if(!scriptEnabled) {
+            result.put("scriptSkippedReason", "the button's script is disabled, so neither its " +
+               "onClick nor its Refresh-after-submit ran");
+         }
+         else if(!hasScript) {
+            result.put("scriptSkippedReason", "the button has no onClick script (the " +
+               "Refresh-after-submit option still ran)");
+         }
+
+         int mark = dispatcher.capturedCount();
+         List<String> failures = new ArrayList<>();
+
+         try {
+            extraWarnings.addAll(AssetScriptFailureWarnings.collect(() -> {
+               if(confirmed) {
+                  VSOnClickEvent yes = new VSOnClickEvent();
+                  yes.setConfirmed(true);
+                  inputs.onConfirm(runtimeId, assemblyName, "0", "0", true, yes, linkUri, user,
+                                   dispatcher);
+               }
+               else {
+                  inputs.onClick(runtimeId, assemblyName, "0", "0", null, linkUri, user,
+                                 dispatcher);
+               }
+
+               return List.of();
+            }));
+         }
+         catch(Exception ex) {
+            if(isControlFlow(ex)) {
+               throw ex;
+            }
+
+            LOG.warn("click of '{}' failed after its values were applied", assemblyName, ex);
+            ScriptException script = scriptCause(ex);
+            failures.add(script != null && script.getMessage() != null ? script.getMessage()
+               : ex.getMessage() != null ? ex.getMessage() : ex.toString());
+         }
+
+         failures.addAll(dispatcher.consumeErrorsSince(mark));
+
+         if(!failures.isEmpty()) {
+            String message = String.join("\n", failures);
+            result.put("scriptFailed", true);
+            result.put("scriptError", message);
+            extraWarnings.add("The onClick script of '" + assemblyName + "' failed: " + message +
+                              "\nAny values were applied. Anything the script did before it " +
+                              "failed was not undone.");
+         }
+
+         List<String> confirms = dispatcher.getConfirmMessages();
+
+         if(!confirms.isEmpty()) {
+            result.put("confirmPending", confirms.size() == 1 ? confirms.get(0) : confirms);
+            extraWarnings.add("The onClick script of '" + assemblyName + "' asked for " +
+                              "confirmation (" + confirms.get(0) + "). It was not answered; " +
+                              "click again with confirmed:true to run its Yes branch.");
+         }
+
+         List<String> messages = new ArrayList<>();
+         var captured = dispatcher.getCapturedCommands();
+
+         for(var command : captured.subList(Math.min(mark, captured.size()), captured.size())) {
+            if(command.getCommand() instanceof MessageCommand msg &&
+               msg.getType() == MessageCommand.Type.INFO && msg.getMessage() != null &&
+               !msg.getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX))
+            {
+               messages.add(msg.getMessage());
+            }
+         }
+
+         result.put("messages", messages);
+      });
+
+      if(!extraWarnings.isEmpty()) {
+         List<String> all = new ArrayList<>(warnings == null ? List.of() : warnings);
+         extraWarnings.stream().filter(w -> !all.contains(w)).forEach(all::add);
+         warnings = all;
+      }
+
+      if(!secrets.isEmpty()) {
+         if(result.get("scriptError") instanceof String text) {
+            result.put("scriptError", scrub(text, secrets));
+         }
+
+         if(result.get("confirmPending") instanceof String text) {
+            result.put("confirmPending", scrub(text, secrets));
+         }
+         else if(result.get("confirmPending") instanceof List<?> list) {
+            result.put("confirmPending",
+                       list.stream().map(o -> (Object) scrub(String.valueOf(o), secrets)).toList());
+         }
+
+         if(result.get("messages") instanceof List<?> list) {
+            result.put("messages",
+                       list.stream().map(o -> (Object) scrub(String.valueOf(o), secrets)).toList());
+         }
+
+         if(warnings != null) {
+            warnings = warnings.stream().map(w -> scrub(w, secrets)).toList();
+         }
+      }
+
+      ViewsheetSessionService.relayWarnings(result, warnings);
+      result.put("persistsOnSave", true);
+      return result;
+   }
+
+   /**
+    * Commits the applied values of inputs that do not submit on change into the sandbox variable
+    * table in one pass, as {@code VSInputService.commitInputTableWrites} does, and executes the
+    * resulting list (Bug #78878).
+    */
+   private void commitSubmitted(RuntimeViewsheet rvs, List<String> names,
+                                List<InputVSAssembly> assemblies, CommandDispatcher dispatcher,
+                                String linkUri)
+      throws Exception
+   {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box == null) {
+         return;
+      }
+
+      ChangedAssemblyList clist = null;
+      box.lockWrite();
+
+      try {
+         for(int i = 0; i < names.size(); i++) {
+            if(assemblies.get(i).getVSAssemblyInfo() instanceof InputVSAssemblyInfo input &&
+               !input.isSubmitOnChange())
+            {
+               if(clist == null) {
+                  clist = lifecycle.createList(true, dispatcher, rvs, linkUri);
+               }
+
+               box.processChange(names.get(i), VSAssembly.OUTPUT_DATA_CHANGED, clist);
+            }
+         }
+      }
+      finally {
+         box.unlockWrite();
+      }
+
+      if(clist != null) {
+         lifecycle.execute(rvs, names.get(0), linkUri, clist, dispatcher, true);
+      }
    }
 
    /**
