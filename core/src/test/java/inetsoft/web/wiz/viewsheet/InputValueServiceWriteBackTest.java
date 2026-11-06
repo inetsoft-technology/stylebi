@@ -315,7 +315,7 @@ class InputValueServiceWriteBackTest {
                return d.getWarnings();
             });
          });
-         service = new InputValueService(sessions, inputs, lifecycle);
+         service = new InputValueService(sessions, inputs, lifecycle, null);
       }
 
       SliderVSAssemblyInfo info() {

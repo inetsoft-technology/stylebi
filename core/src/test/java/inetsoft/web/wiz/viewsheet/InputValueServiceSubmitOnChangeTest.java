@@ -190,7 +190,7 @@ class InputValueServiceSubmitOnChangeTest {
                return d.getWarnings();
             });
          });
-         service = new InputValueService(sessions, inputs, lifecycle);
+         service = new InputValueService(sessions, inputs, lifecycle, null);
       }
 
       void setValue(int value) throws Exception {

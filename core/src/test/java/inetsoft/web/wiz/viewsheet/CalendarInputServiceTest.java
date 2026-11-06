@@ -22,6 +22,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.event.calendar.CalendarSelectionEvent;
+import inetsoft.web.viewsheet.controller.OnClickService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.junit.jupiter.api.Tag;
@@ -830,7 +831,7 @@ class CalendarInputServiceTest {
    private static InputHarness input(VSAssembly assembly) {
       VSInputService inputs = mock(VSInputService.class);
       return new InputHarness(new InputValueService(sessions(assembly), inputs,
-                                                          mock(CoreLifecycleService.class)), inputs);
+                                                          mock(CoreLifecycleService.class), null), inputs);
    }
 
    private static ViewsheetSessionService sessions(VSAssembly assembly) {

@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
+import inetsoft.web.viewsheet.controller.OnClickService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.junit.jupiter.api.Tag;
@@ -66,7 +67,7 @@ class InputValueServiceSecretTest {
       });
 
       return new InputValueService(sessions, mock(VSInputService.class),
-                                   mock(CoreLifecycleService.class))
+                                   mock(CoreLifecycleService.class), null)
          .setValue("tok", null, "Pw", requested, "");
    }
 

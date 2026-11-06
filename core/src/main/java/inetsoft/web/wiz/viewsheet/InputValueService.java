@@ -37,6 +37,7 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.wiz.dispatch.AssetScriptFailureWarnings;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import org.slf4j.Logger;
@@ -96,13 +97,6 @@ public class InputValueService {
       this.onClickService = onClickService;
    }
 
-   /** For callers that never submit; {@code submit:true} then fails loud instead of firing. */
-   public InputValueService(ViewsheetSessionService sessions, VSInputService inputs,
-                            CoreLifecycleService lifecycle)
-   {
-      this(sessions, inputs, lifecycle, null);
-   }
-
    /**
     * Sets an input assembly's value.
     *
@@ -149,6 +143,15 @@ public class InputValueService {
             "that clearing is something you asked for rather than a default.");
       }
 
+      if(submit && onClickService == null) {
+         // refused before the mutation, so nothing is written and no undo step is added
+         throw new CommandErrorException(List.of(
+            "'submit' is unavailable: the server's onClick service is not wired into this " +
+            "input service (typically a stale build whose generated Spring bean definition " +
+            "predates it). Nothing was changed. Rebuild and restart the server, or omit " +
+            "'submit' to just set the value."));
+      }
+
       final Map<String, Object> result = new LinkedHashMap<>();
       final List<String> scriptWarnings = new ArrayList<>();
       final Set<String> secrets = new LinkedHashSet<>();
@@ -165,10 +168,6 @@ public class InputValueService {
                   "'submit' applies only to a text input, which is the one input the Viewer fires " +
                   "an onClick script for on Enter; '" + assemblyName + "' is " +
                   describe(assembly) + ". Nothing was changed. Omit 'submit' to just set the value.");
-            }
-
-            if(onClickService == null) {
-               throw new IllegalStateException("'submit' is not available: no onClick service.");
             }
 
             if(rvs.getViewsheetSandbox().isEmpty()) {

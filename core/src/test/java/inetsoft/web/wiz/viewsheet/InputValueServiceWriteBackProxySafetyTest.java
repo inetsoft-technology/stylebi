@@ -28,6 +28,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.SliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.InputVSAssemblyInfo;
+import inetsoft.web.viewsheet.controller.OnClickService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
@@ -202,7 +203,7 @@ class InputValueServiceWriteBackProxySafetyTest {
                return d.getWarnings();
             });
          });
-         service = new InputValueService(sessions, inputs, mock(CoreLifecycleService.class));
+         service = new InputValueService(sessions, inputs, mock(CoreLifecycleService.class), null);
       }
 
       /** Binds the slider to TABLE.qty with writeBackDirectly and a static row. */

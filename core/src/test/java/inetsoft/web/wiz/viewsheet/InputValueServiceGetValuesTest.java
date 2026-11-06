@@ -22,6 +22,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
+import inetsoft.web.viewsheet.controller.OnClickService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.junit.jupiter.api.Tag;
@@ -77,7 +78,7 @@ class InputValueServiceGetValuesTest {
          return r.run(rvs, "rt", null);
       });
       return new InputValueService(sessions, mock(VSInputService.class),
-                                   mock(CoreLifecycleService.class));
+                                   mock(CoreLifecycleService.class), null);
    }
 
    @SuppressWarnings("unchecked")
