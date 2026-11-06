@@ -214,6 +214,56 @@ class ScriptEditServiceTest {
       assertEquals("field['PRICE'] * 2", inner.getExpression());
    }
 
+   /**
+    * Bug #80447, review round 1: write()'s new broadcastScriptRefresh call had no test assertion
+    * at all -- only verifies the wiring (kind/assembly/name/text reach the broadcast as written),
+    * not CalcFieldService's own behavior (covered above).
+    */
+   @Test
+   void writeBroadcastsScriptRefreshWithTheWrittenLocationAndText() throws Exception {
+      ExpressionRef inner = new ExpressionRef();
+      inner.setName("Margin");
+      inner.setExpression("field['PRICE'] - field['COST']");
+      CalculateRef calc = new CalculateRef(true);
+      calc.setDataRef(inner);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getCalcFields("Query1")).thenReturn(new CalculateRef[]{ calc });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getID()).thenReturn("rt-99");
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), broadcast);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      svc.write(rvs, agent, target, "field['PRICE'] * 2");
+
+      verify(broadcast).broadcastScriptRefresh(eq(rvs), eq("rt-99"), eq(agent),
+         eq("calcField"), eq("Query1"), eq("Margin"), eq("field['PRICE'] * 2"));
+   }
+
+   /** Same wiring check as above, for a viewsheet-level target with no assembly/name component. */
+   @Test
+   void writeBroadcastsScriptRefreshForAViewsheetLevelTargetWithNullAssemblyAndName()
+      throws Exception
+   {
+      RuntimeViewsheet rvs = realAssemblies();
+      when(rvs.getID()).thenReturn("rt-100");
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ScriptEditService svc = new ScriptEditService(mock(SheetSessionService.class),
+         mock(SheetRuntimeAccess.class), broadcast);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      svc.write(rvs, agent, ScriptTarget.of(ScriptTarget.Kind.VIEWSHEET_ON_INIT, null),
+                "alert('hi')");
+
+      verify(broadcast).broadcastScriptRefresh(eq(rvs), eq("rt-100"), eq(agent),
+         eq("viewsheetOnInit"), isNull(), isNull(), eq("alert('hi')"));
+   }
+
    private static RuntimeViewsheet realAssemblies() {
       Viewsheet vs = new Viewsheet();
       vs.addAssembly(new ChartVSAssembly(vs, "Chart1"));

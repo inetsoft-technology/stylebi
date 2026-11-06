@@ -66,6 +66,7 @@ import inetsoft.web.binding.model.ExpressionRefModel;
 import inetsoft.web.wiz.binding.CalcFieldAgentService.CalcFieldRequest;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.script.ScriptTarget;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -454,6 +455,90 @@ class CalcFieldAgentServiceTest {
       // ...and the new CalculateRef carries the NEW name, so the rename is actually requested.
       ExpressionRefModel expr = (ExpressionRefModel) event.calculateRef().getDataRefModel();
       assertEquals("NetAfterDiscount", expr.getName());
+   }
+
+   /**
+    * Bug #80447, review round 1: the new {@code broadcastScriptRefresh} wiring had zero test
+    * assertions -- a dropped call, or the rename-skip condition below inverted, would still pass
+    * the whole suite. Asserts a successful create fires the push with the written table/name/
+    * expression.
+    */
+   @Test
+   void createFiresBroadcastScriptRefreshWithTheWrittenExpression() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+      Principal agent = principal();
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Fresh", null,
+         "field['Total']*(1-field['Discount'])", "double", false, true, false, true);
+
+      service.modify("tok", agent, req, "");
+
+      verify(sessions).broadcastScriptRefresh(any(), eq("rt1"), eq(agent),
+         eq(ScriptTarget.Kind.CALC_FIELD.wireName()), eq("ORDERS"), eq("Fresh"),
+         eq("field['Total']*(1-field['Discount'])"));
+   }
+
+   /** Same as the create case above, for a successful edit whose name is unchanged. */
+   @Test
+   void editWithUnchangedNameFiresBroadcastScriptRefresh() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+      Principal agent = principal();
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTotal", null,
+         "field['Total']*0.9", "double", false, true, false, false);
+
+      service.modify("tok", agent, req, "");
+
+      verify(sessions).broadcastScriptRefresh(any(), eq("rt1"), eq(agent),
+         eq(ScriptTarget.Kind.CALC_FIELD.wireName()), eq("ORDERS"), eq("NetTotal"),
+         eq("field['Total']*0.9"));
+   }
+
+   /**
+    * The one piece of real business logic this fix adds on the calc-field side: a rename must
+    * NOT fire the push, since an open dialog's editorContext still names the OLD field and a
+    * push addressed under the new name could never match it (see the call site's own comment in
+    * {@code CalcFieldAgentService.modify}). This is the condition the review flagged as easiest
+    * to accidentally invert or drop in a future refactor.
+    */
+   @Test
+   void editWithNewNameRenameDoesNotFireBroadcastScriptRefresh() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+      Principal agent = principal();
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTotal", "NetAfterDiscount",
+         "field['Total']*0.9", "double", false, true, false, false);
+
+      service.modify("tok", agent, req, "");
+
+      verify(sessions, never()).broadcastScriptRefresh(
+         any(), any(), any(), any(), any(), any(), any());
+   }
+
+   /** A remove has no expression to push, and must not fire the broadcast either. */
+   @Test
+   void removeDoesNotFireBroadcastScriptRefresh() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "NetTotal", null, null, null, null, null, true, false);
+
+      service.modify("tok", principal(), req, "");
+
+      verify(sessions, never()).broadcastScriptRefresh(
+         any(), any(), any(), any(), any(), any(), any());
    }
 
    @Test
