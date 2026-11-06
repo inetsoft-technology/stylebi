@@ -150,10 +150,7 @@ final class OutputFormulaGuard {
       boolean numChanged = !Objects.equals(before.num(), num);
       boolean hasWith = with != null && !with.isBlank();
 
-      // The Data pane offers no second column for a cube table (data-output-pane selectAgg)
-      boolean cube = "cube".equals(PropertyPath.get(model, "dataOutputPaneModel.tableType"));
-
-      if(formula.isTwoColumns() && !hasWith && !cube && (aggregateChanged || withChanged)) {
+      if(formula.isTwoColumns() && !hasWith && (aggregateChanged || withChanged)) {
          throw new IllegalArgumentException(
             "'" + AGGREGATE + "' (" + aggregate + ") is a two-column formula and needs a second " +
             "column in '" + WITH + "' (alias 'with', the Data pane's \"With\" field); the " +
