@@ -100,9 +100,10 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       // font follows "is a viewsheet chart", not the modern gate
       deffmt.setFont(ctx != VizContext.LEGACY ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
-      deffmt.setBackground(ctx.modern ?
-                              VSChartChromeDefaults.legendBackground(ctx) : Color.WHITE);
+      deffmt.setBackground(VSChartChromeDefaults.legendFill(ctx, option));
       deffmt.setAlpha(50);
+      // the frame follows the layout, which changes without a re-seed
+      border.setValue(VSChartChromeDefaults.legendBorder(ctx, option), CompositeValue.Type.DEFAULT);
    }
 
    public boolean isRoundCorners() {
@@ -660,7 +661,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
 
    // the values whose default tier a marked chart saves
    List<CompositeValue<?>> savedDefaults() {
-      return List.of(borderColor);
+      return List.of(borderColor, border);
    }
 
    private CompositeValue<Color> borderColor = new CompositeValue<>(Color.class,

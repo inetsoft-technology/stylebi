@@ -17,10 +17,12 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.LegendSpec;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -35,6 +37,7 @@ import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
+import inetsoft.uql.viewsheet.graph.TextFormat;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
@@ -1132,6 +1135,142 @@ class SeedChromeDefaultsTest {
       assertEquals(new Color(0x4A484F), legends(roundTrip(newChart())).getBorderColor());
    }
 
+   // ---- the legend frame ----------------------------------------------------------------------
+
+   // the render's legend format pass, as VGraphPair runs it
+   private static void renderLegendFormats(ChartVSAssemblyInfo info) {
+      VizContext ctx = VizContext.of(info);
+      LegendsDescriptor legends = legends(info);
+      legends.initDefaultFormat(ctx);
+      legends.getColorLegendDescriptor().initDefaultFormat(ctx, legends.getLayout());
+   }
+
+   private static void assertLegendFrame(ChartVSAssemblyInfo info, int border, Color fill) {
+      LegendsDescriptor legends = legends(info);
+      TextFormat title = legends.getTitleTextFormat().getDefaultFormat();
+      TextFormat content =
+         legends.getColorLegendDescriptor().getContentTextFormat().getDefaultFormat();
+
+      assertEquals(border, legends.getBorder(), "border");
+      assertEquals(fill, title.getBackground(), "title fill");
+      assertEquals(fill, content.getBackground(), "content fill");
+      assertEquals(50, title.getAlpha(), "title alpha");
+      assertEquals(50, content.getAlpha(), "content alpha");
+   }
+
+   @Test
+   void aModernLegendHasNoBorderAndNoFill() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals(StyleConstants.NONE, legends(info).getBorder(), "the seeded border");
+
+      renderLegendFormats(info);
+
+      assertLegendFrame(info, StyleConstants.NONE, null);
+      LegendSpec spec = new LegendSpec();
+      GraphUtil.setLegendSpec(spec, legends(info));
+      assertEquals(StyleConstants.NONE, spec.getBorder(), "the drawn border");
+   }
+
+   @Test
+   void aModernInPlaceLegendKeepsBoth() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      legends(info).setLayout(LegendsDescriptor.IN_PLACE);
+
+      renderLegendFormats(info);
+
+      assertLegendFrame(info, StyleConstants.THIN_LINE,
+                        VSChartChromeDefaults.legendBackground(VizContext.of(info)));
+
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      ChartVSAssemblyInfo dark = newChart();
+      legends(dark).setLayout(LegendsDescriptor.IN_PLACE);
+
+      renderLegendFormats(dark);
+
+      assertLegendFrame(dark, StyleConstants.THIN_LINE, new Color(0x3E3C43));
+   }
+
+   @Test
+   void aClassicLegendIsUnchanged() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals(StyleConstants.THIN_LINE, legends(info).getBorder(), "the seeded border");
+
+      for(int layout = LegendsDescriptor.TOP; layout <= LegendsDescriptor.IN_PLACE; layout++) {
+         legends(info).setLayout(layout);
+         renderLegendFormats(info);
+         assertLegendFrame(info, StyleConstants.THIN_LINE, Color.WHITE);
+      }
+   }
+
+   @Test
+   void revertRestoresTheLegendFrame() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      assertEquals(StyleConstants.NONE, legends(info).getBorder(), "premise: modern");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(StyleConstants.THIN_LINE, legends(info).getBorder(), "before any render");
+
+      renderLegendFormats(info);
+
+      assertLegendFrame(info, StyleConstants.THIN_LINE, Color.WHITE);
+   }
+
+   @Test
+   void anAuthorLegendBorderOutranksTheSeed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      legends(info).setBorder(StyleConstants.DOUBLE_LINE, CompositeValue.Type.USER);
+
+      info.seedChromeDefaults(VizContext.of(info));
+      renderLegendFormats(info);
+      assertEquals(StyleConstants.DOUBLE_LINE, legends(info).getBorder(), "modern re-seed");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(StyleConstants.DOUBLE_LINE, legends(info).getBorder(), "revert");
+   }
+
+   @Test
+   void theSeededLegendBorderTravelsInTheAsset() throws Exception {
+      gateOn();
+      LegendsDescriptor loaded = legends(roundTrip(newChart()));
+      assertEquals(StyleConstants.NONE, loaded.getBorder());
+
+      // a default tier gives way to the next default write; an author's would not
+      loaded.setBorder(StyleConstants.THIN_LINE, CompositeValue.Type.DEFAULT);
+      assertEquals(StyleConstants.THIN_LINE, loaded.getBorder(),
+                   "a seeded border must not come back as the author's");
+   }
+
+   @Test
+   void theSeedWritesTheRuntimeLegendBorderAndKeepsAScriptsValue() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      ChartDescriptor rdesc = new ChartDescriptor();
+      info.setRTChartDescriptor(rdesc);
+      LegendsDescriptor rlegends = rdesc.getLegendsDescriptor();
+      assertEquals(StyleConstants.THIN_LINE, rlegends.getBorder(), "premise: a classic copy");
+
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(StyleConstants.NONE, rlegends.getBorder(), "modern");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(StyleConstants.THIN_LINE, rlegends.getBorder(), "revert");
+
+      // a script writes the runtime copy's user tier
+      rlegends.setBorder(StyleConstants.DOUBLE_LINE);
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(StyleConstants.DOUBLE_LINE, rlegends.getBorder(), "a script's value");
+      assertEquals(StyleConstants.NONE, legends(info).getBorder(), "the design copy");
+   }
+
    @Test
    void theSeededAxisTitleVisibilityTravelsInTheAsset() throws Exception {
       gateOn();
@@ -1426,6 +1565,8 @@ class SeedChromeDefaultsTest {
       assertTrue(chartDescriptorXml(state).contains("^^DEF^^"),
                  "premise: the bookmark carries the modern tiers");
       assertFalse(xTitle(chart.getChartInfo()).isVisible(), "premise: the modern titles are off");
+      assertEquals(StyleConstants.NONE, legends(chart.getChartInfo()).getBorder(),
+                   "premise: the modern legend is unframed");
 
       VizModernizeUtil.revert(vs);
       restoreState(chart, state);
@@ -1443,6 +1584,7 @@ class SeedChromeDefaultsTest {
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, plot.getFacetGridColor(), "facet lines");
       assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info), "data-label ink");
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(info).getBorderColor(), "legend border");
+      assertEquals(StyleConstants.THIN_LINE, legends(info).getBorder(), "legend border style");
       assertTrue(chart.getVSChartInfo().getAxisDescriptor().isLineVisible(), "value-axis line");
       assertTrue(xTitle(info).isVisible(), "x axis title");
       assertTrue(yTitle(info).isVisible(), "y axis title");

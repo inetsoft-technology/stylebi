@@ -68,7 +68,7 @@ public final class ChartFormatDefaults {
             LegendDescriptor colorDesc = legendsDesc.getColorLegendDescriptor();
 
             if(colorDesc != null) {
-               colorDesc.initDefaultFormat(ctx);
+               colorDesc.initDefaultFormat(ctx, legendsDesc.getLayout());
                copyDefaultFormat(colorDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                colorDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -76,7 +76,7 @@ public final class ChartFormatDefaults {
             LegendDescriptor shapeDesc = legendsDesc.getShapeLegendDescriptor();
 
             if(shapeDesc != null) {
-               shapeDesc.initDefaultFormat(ctx);
+               shapeDesc.initDefaultFormat(ctx, legendsDesc.getLayout());
                copyDefaultFormat(shapeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                shapeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -84,7 +84,7 @@ public final class ChartFormatDefaults {
             LegendDescriptor sizeDesc = legendsDesc.getSizeLegendDescriptor();
 
             if(sizeDesc != null) {
-               sizeDesc.initDefaultFormat(ctx);
+               sizeDesc.initDefaultFormat(ctx, legendsDesc.getLayout());
                copyDefaultFormat(sizeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                sizeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -156,7 +156,7 @@ public final class ChartFormatDefaults {
             LegendDescriptor colorDesc = legendsDesc.getColorLegendDescriptor();
 
             if(colorDesc != null) {
-               colorDesc.initDefaultFormat(ctx);
+               colorDesc.initDefaultFormat(ctx, legendsDesc.getLayout());
                copyDefaultFormat(colorDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                colorDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -164,7 +164,7 @@ public final class ChartFormatDefaults {
             LegendDescriptor shapeDesc = legendsDesc.getShapeLegendDescriptor();
 
             if(shapeDesc != null) {
-               shapeDesc.initDefaultFormat(ctx);
+               shapeDesc.initDefaultFormat(ctx, legendsDesc.getLayout());
                copyDefaultFormat(shapeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                shapeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -172,7 +172,7 @@ public final class ChartFormatDefaults {
             LegendDescriptor sizeDesc = legendsDesc.getSizeLegendDescriptor();
 
             if(sizeDesc != null) {
-               sizeDesc.initDefaultFormat(ctx);
+               sizeDesc.initDefaultFormat(ctx, legendsDesc.getLayout());
                copyDefaultFormat(sizeDesc.getContentTextFormat().getDefaultFormat(), objFmt);
                sizeDesc.getContentTextFormat().getCSSFormat().setParentCSSParams(parentParams);
             }
@@ -325,9 +325,15 @@ public final class ChartFormatDefaults {
             }
          }
 
+         // the descriptor that renders decides, so a script's legend position counts
+         ChartDescriptor shown = rdesc != null ? rdesc : desc;
+         LegendsDescriptor shownLegends = shown == null ? null : shown.getLegendsDescriptor();
+         int legendLayout = shownLegends == null ?
+            LegendsDescriptor.RIGHT : shownLegends.getLayout();
+
          for(boolean runtime: new boolean[] { false, true }) {
             for(AestheticRef ref : chartInfo.getAestheticRefs(runtime)) {
-               ref.getLegendDescriptor().initDefaultFormat(ctx);
+               ref.getLegendDescriptor().initDefaultFormat(ctx, legendLayout);
                copyDefaultFormat(ref.getLegendDescriptor().getContentTextFormat()
                                  .getDefaultFormat(), objFmt);
                applyColorFrameCSS(ref, parentParams, ctx);

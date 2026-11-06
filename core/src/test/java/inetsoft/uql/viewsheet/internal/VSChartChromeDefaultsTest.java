@@ -1,10 +1,12 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.internal.GDefaults;
+import inetsoft.report.StyleConstants;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -84,6 +86,40 @@ class VSChartChromeDefaultsTest {
    void legendBackgroundDark() {
       darkOn();
       assertEquals(0x3E3C43, rgb(VSChartChromeDefaults.legendBackground(VizContext.ofGate())));
+   }
+
+   @Test
+   void theLegendIsFramedOnlyWhenClassicOrInPlace() {
+      VizContext light = VizContext.of(VizMark.MODERN_LIGHT);
+      VizContext dark = VizContext.of(VizMark.MODERN_DARK);
+      int[] outside = { LegendsDescriptor.RIGHT, LegendsDescriptor.TOP,
+                        LegendsDescriptor.BOTTOM, LegendsDescriptor.LEFT };
+
+      for(int layout : outside) {
+         for(VizContext ctx : new VizContext[] { light, dark }) {
+            assertFalse(VSChartChromeDefaults.legendFramed(ctx, layout), "framed " + layout);
+            assertEquals(StyleConstants.NONE, VSChartChromeDefaults.legendBorder(ctx, layout),
+                         "border " + layout);
+            assertNull(VSChartChromeDefaults.legendFill(ctx, layout), "fill " + layout);
+         }
+      }
+
+      int inPlace = LegendsDescriptor.IN_PLACE;
+      assertTrue(VSChartChromeDefaults.legendFramed(light, inPlace));
+      assertEquals(StyleConstants.THIN_LINE, VSChartChromeDefaults.legendBorder(light, inPlace));
+      assertEquals(StyleConstants.THIN_LINE, VSChartChromeDefaults.legendBorder(dark, inPlace));
+      assertEquals(0xFFFFFF, rgb(VSChartChromeDefaults.legendFill(light, inPlace)));
+      assertEquals(0x3E3C43, rgb(VSChartChromeDefaults.legendFill(dark, inPlace)));
+
+      for(int layout = LegendsDescriptor.NO_LEGEND; layout <= inPlace; layout++) {
+         assertTrue(VSChartChromeDefaults.legendFramed(VizContext.LEGACY, layout),
+                    "classic framed " + layout);
+         assertEquals(StyleConstants.THIN_LINE,
+                      VSChartChromeDefaults.legendBorder(VizContext.LEGACY, layout),
+                      "classic border " + layout);
+         assertEquals(Color.WHITE, VSChartChromeDefaults.legendFill(VizContext.LEGACY, layout),
+                      "classic fill " + layout);
+      }
    }
 
    @Test

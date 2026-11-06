@@ -213,6 +213,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
       }
 
+      // the legend frame, on both branches, so a re-seed without a render holds the right tier
+      seedLegendBorder(getChartDescriptor(), ctx);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedLegendBorder(getRTChartDescriptor(), ctx);
+
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
       // only a marked chart saves its seeded tiers
@@ -360,6 +365,16 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       return false;
+   }
+
+   // the legends' layout decides; the render re-resolves it after a layout change
+   private static void seedLegendBorder(ChartDescriptor desc, VizContext ctx) {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+
+      if(legends != null) {
+         legends.setBorder(VSChartChromeDefaults.legendBorder(ctx, legends.getLayout()),
+                           CompositeValue.Type.DEFAULT);
+      }
    }
 
    /**
