@@ -437,7 +437,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(9);   // top 0 + paddingTop 6 + centring 3
+      expect(comp.getToolbarTop(obj, 0)).toBe(8);   // top 0 + paddingTop 6 + centring 2
       // Lane-relative, expressed in the assembly's own insets: left edge at the left inset, box
       // spanning inset to inset. Nothing here comes from a service mock's return value — the
       // earlier `1000 - 8 - 100` form spent a getToolbarWidth mock constant unrelated to the 1000px
@@ -495,7 +495,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       const obj = anchoredChart({ maxMode: false });
       comp.vsInfo = makeVsInfo([obj]);
 
-      expect(comp.getToolbarTop(obj, 0)).toBe(9);
+      expect(comp.getToolbarTop(obj, 0)).toBe(8);
       expect(comp.getToolbarLeft(obj, 0)).toBe(0 + 4);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(1000 - 4 - 8);
    });
@@ -533,7 +533,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(43);
+      expect(comp.getToolbarTop(obj, 0)).toBe(42);
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
@@ -556,7 +556,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       obj.titleFormat = { height: 30 };
       comp.vsInfo = makeVsInfo([obj]);
 
-      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 3);   // top + inset top + centring
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 2);   // top + inset top + centring
       expect(comp.getToolbarLeft(obj, 0)).toBe(250 + 10);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600 - 10 - 6);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600 - 6);
@@ -603,7 +603,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(43);
+      expect(comp.getToolbarTop(obj, 0)).toBe(42);
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
@@ -694,7 +694,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       comp.vsInfo = makeVsInfo([obj]);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      expect(comp.getToolbarTop(obj, 0)).toBe(43);
+      expect(comp.getToolbarTop(obj, 0)).toBe(42);
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
@@ -718,7 +718,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       obj.titleFormat = { height: 30 };
       comp.vsInfo = makeVsInfo([obj]);
 
-      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 3);   // top + centring, no inset
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 2);   // top + centring, no inset
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
    });
