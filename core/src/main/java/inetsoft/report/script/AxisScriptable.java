@@ -161,7 +161,7 @@ public class AxisScriptable extends PropertyScriptable {
 
             addProperty("ticksVisible", "isTicksVisible", "setTicksVisible",
                         boolean.class, AxisDescriptor.class);
-            addProperty("lineVisible", "isLineVisible", "setLineVisible",
+            addProperty("lineVisible", "isLineVisible", "setAuthorLineVisible",
                         boolean.class, AxisDescriptor.class);
             addProperty("labelVisible", "isLabelVisible",
                         "setLabelVisible", boolean.class,
@@ -332,6 +332,12 @@ public class AxisScriptable extends PropertyScriptable {
          }
          else {
             desc.set(aDesc.getAxisLabelTextFormat(), value);
+         }
+      }
+      else if("lineVisible".equals(name)) {
+         // assigning the current line stamps nothing
+         if(!Boolean.valueOf(aDesc.isLineVisible()).equals(desc.convert(value))) {
+            desc.set(aDesc, value);
          }
       }
       else {

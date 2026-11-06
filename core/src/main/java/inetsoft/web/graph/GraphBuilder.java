@@ -1612,12 +1612,16 @@ public class GraphBuilder {
     * Check if is have hidden axis or not.
     */
    private boolean isAxisHidden() {
+      boolean modern = assembly != null && VizContext.of(assembly.getVSAssemblyInfo()).modern;
+      return isAxisHidden(cinfo, model.isMaxMode(), modern);
+   }
+
+   static boolean isAxisHidden(ChartInfo cinfo, boolean maxMode, boolean modern) {
       if(cinfo == null) {
          return false;
       }
 
       AxisDescriptor axis;
-      boolean maxMode = model.isMaxMode();
 
       if(cinfo instanceof VSChartInfo || GraphTypeUtil.isScatterMatrix(cinfo)) {
          axis = cinfo.getAxisDescriptor();
@@ -1644,7 +1648,7 @@ public class GraphBuilder {
             if(fields[i] != null) {
                axis = fields[i].getAxisDescriptor();
 
-               if(isAxisHidden(axis, maxMode)) {
+               if(isAxisHidden(axis, maxMode, modern)) {
                   return true;
                }
             }
@@ -1653,13 +1657,13 @@ public class GraphBuilder {
          if(GraphTypes.isMekko(cinfo.getRTChartType())) {
             axis = cinfo.getAxisDescriptor();
 
-            if(isAxisHidden(axis, maxMode)) {
+            if(isAxisHidden(axis, maxMode, modern)) {
                return true;
             }
 
             axis = cinfo.getAxisDescriptor2();
 
-            if(isAxisHidden(axis, maxMode)) {
+            if(isAxisHidden(axis, maxMode, modern)) {
                return true;
             }
          }
@@ -1671,7 +1675,7 @@ public class GraphBuilder {
             if(fields[i] != null && isRealDimension(fields[i], realMeasures)) {
                axis = fields[i].getAxisDescriptor();
 
-               if(isAxisHidden(axis, maxMode)) {
+               if(isAxisHidden(axis, maxMode, modern)) {
                   return true;
                }
             }
@@ -1679,13 +1683,13 @@ public class GraphBuilder {
 
          axis = cinfo.getAxisDescriptor();
 
-         if(isAxisHidden(axis, maxMode)) {
+         if(isAxisHidden(axis, maxMode, modern)) {
             return true;
          }
 
          axis = cinfo.getAxisDescriptor2();
 
-         if(isAxisHidden(axis, maxMode)) {
+         if(isAxisHidden(axis, maxMode, modern)) {
             return true;
          }
       }
@@ -1693,8 +1697,11 @@ public class GraphBuilder {
       return false;
    }
 
-   private boolean isAxisHidden(AxisDescriptor axis, boolean maxMode) {
-      return (!maxMode && (!axis.isLineVisible() || !axis.isLabelVisible())) ||
+   private static boolean isAxisHidden(AxisDescriptor axis, boolean maxMode, boolean modern) {
+      // under modern a line the seed turned off is not hidden
+      boolean lineOff = !axis.isLineVisible() && (!modern || axis.isUserLineVisible());
+
+      return (!maxMode && (lineOff || !axis.isLabelVisible())) ||
          (maxMode && (!axis.isMaxModeLineVisible() || !axis.isMaxModeLabelVisible()));
    }
 
@@ -1759,7 +1766,7 @@ public class GraphBuilder {
    /**
     * Check if is a real dimension.
     */
-   private boolean isRealDimension(ChartRef ref, ChartRef[] realMeasures) {
+   private static boolean isRealDimension(ChartRef ref, ChartRef[] realMeasures) {
       if(GraphUtil.isDimension(ref)) {
          return true;
       }

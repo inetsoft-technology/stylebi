@@ -265,11 +265,23 @@ public class AxisPropertyDialogModel implements Serializable {
          cfmt = axisDesc.getAxisLabelTextFormat();
       }
 
-      if(maxMode) {
-         axisDesc.setMaxModeLineVisible(axisLinePaneModel.isShowAxisLine());
+      boolean line = axisLinePaneModel.isShowAxisLine();
+
+      if(maxMode && !ctx.modern) {
+         axisDesc.setMaxModeLineVisible(line);
       }
-      else {
-         axisDesc.setLineVisible(axisLinePaneModel.isShowAxisLine());
+      else if(maxMode) {
+         // max mode follows the normal line under modern
+         if(line != axisDesc.isMaxModeLineVisible(ctx)) {
+            axisDesc.setMaxModeLineVisible(line);
+
+            if(line && !axisDesc.isLineVisible()) {
+               axisDesc.setAuthorLineVisible(true);
+            }
+         }
+      }
+      else if(line != axisDesc.isLineVisible()) {
+         axisDesc.setAuthorLineVisible(line);
       }
 
       Color color = Tool.getColorFromHexString(axisLinePaneModel.getLineColor());

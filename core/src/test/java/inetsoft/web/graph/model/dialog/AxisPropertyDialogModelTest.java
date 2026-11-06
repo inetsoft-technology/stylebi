@@ -192,6 +192,96 @@ class AxisPropertyDialogModelTest {
       assertEquals(8, axis.getLabelGap());
    }
 
+   @Test
+   void anUnchangedLineDoesNotStampTheFlag() throws Exception {
+      AxisDescriptor shownOn = new AxisDescriptor();
+      applyLine(shownOn, true, false, VizContext.LEGACY);
+
+      assertTrue(shownOn.isLineVisible());
+      assertFalse(shownOn.isUserLineVisible(), "a line shown on");
+
+      // a modern value axis the seed turned off
+      AxisDescriptor seededOff = new AxisDescriptor();
+      seededOff.setLineVisible(false);
+      applyLine(seededOff, false, false, modernAt("compact"));
+
+      assertFalse(seededOff.isLineVisible());
+      assertFalse(seededOff.isUserLineVisible(), "a seeded line shown off");
+   }
+
+   @Test
+   void turningTheLineOffStampsTheFlag() throws Exception {
+      AxisDescriptor axis = new AxisDescriptor();
+      applyLine(axis, false, false, VizContext.LEGACY);
+
+      assertFalse(axis.isLineVisible());
+      assertTrue(axis.isUserLineVisible());
+   }
+
+   @Test
+   void aModernMaxModeApplyThatChangesNothingWritesNothing() throws Exception {
+      VizContext ctx = modernAt("compact");
+      AxisDescriptor axis = seededOffValueAxis();
+      assertFalse(axis.isMaxModeLineVisible(ctx), "premise: shown off in max mode");
+
+      applyLine(axis, false, true, ctx);
+
+      assertTrue(axis.isMaxModeLineVisible(), "the stored max-mode line");
+      assertFalse(axis.isLineVisible());
+      assertFalse(axis.isUserLineVisible());
+   }
+
+   @Test
+   void turningTheLineOnInModernMaxModeTurnsItOnEverywhere() throws Exception {
+      VizContext ctx = modernAt("compact");
+      AxisDescriptor axis = seededOffValueAxis();
+
+      applyLine(axis, true, true, ctx);
+
+      assertTrue(axis.isLineVisible());
+      assertTrue(axis.isMaxModeLineVisible());
+      assertTrue(axis.isUserLineVisible());
+      assertTrue(axis.isMaxModeLineVisible(ctx), "shown on in max mode");
+   }
+
+   @Test
+   void turningTheLineOffInModernMaxModeLeavesNormalModeAlone() throws Exception {
+      VizContext ctx = modernAt("compact");
+      AxisDescriptor axis = new AxisDescriptor();
+
+      applyLine(axis, false, true, ctx);
+
+      assertFalse(axis.isMaxModeLineVisible());
+      assertTrue(axis.isLineVisible());
+      assertFalse(axis.isUserLineVisible());
+   }
+
+   @Test
+   void aClassicMaxModeApplyIsUnchanged() throws Exception {
+      AxisDescriptor axis = new AxisDescriptor();
+
+      applyLine(axis, false, true, VizContext.LEGACY);
+
+      assertFalse(axis.isMaxModeLineVisible());
+      assertTrue(axis.isLineVisible());
+      assertFalse(axis.isUserLineVisible());
+   }
+
+   // line off by the seed, max-mode line stored on
+   private static AxisDescriptor seededOffValueAxis() {
+      AxisDescriptor axis = new AxisDescriptor();
+      axis.setLineVisible(false);
+      axis.setMaxModeLineVisible(true);
+      return axis;
+   }
+
+   private void applyLine(AxisDescriptor axis, boolean line, boolean maxMode, VizContext ctx)
+      throws Exception
+   {
+      axisPropertyDialogModel.getAxisLinePaneModel().setShowAxisLine(line);
+      axisPropertyDialogModel.updateAxisPropertyDialogModel(axis, "", "", maxMode, ctx);
+   }
+
    /** A marked chart's context on a dashboard of the given density. */
    private static VizContext modernAt(String density) {
       Viewsheet vs = new Viewsheet();
