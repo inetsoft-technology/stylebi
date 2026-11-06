@@ -612,6 +612,82 @@ class AssemblyPropertyServiceListInputTest {
       }
    }
 
+   // ── embedded list items by short name (bug #80464 PR4) ───────────────────
+
+   /**
+    * staticLabels/staticValues take a JSON array (a List here, as the plugin sends it), write the
+    * variable list the Embedded List Values dialog edits, and imply embedded:true exactly as the
+    * raw paths do -- on all three list types.
+    */
+   @Test
+   void staticItemsByShortNameWriteTheEmbeddedListAndImplyEmbedded() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("staticLabels", java.util.List.of("North", "South"));
+      patch.put("staticValues", java.util.List.of("n", "s"));
+
+      ComboboxPropertyDialogModel combo = combobox("string", false, "", "");
+      assertFalse(editor(combo).isEmbedded());
+      set(combo, patch);
+      assertArrayEquals(new String[] { "North", "South" },
+                        editor(combo).getVariableListDialogModel().getLabels());
+      assertArrayEquals(new String[] { "n", "s" },
+                        editor(combo).getVariableListDialogModel().getValues());
+      assertTrue(editor(combo).isEmbedded());
+
+      CheckboxPropertyDialogModel check = checkbox();
+      check.getCheckboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .setEmbedded(false);
+      setCheckbox(check, patch);
+      ComboBoxEditorModel checkEditor = check.getCheckboxGeneralPaneModel()
+         .getListValuesPaneModel().getComboBoxEditorModel();
+      assertArrayEquals(new String[] { "n", "s" },
+                        checkEditor.getVariableListDialogModel().getValues());
+      assertTrue(checkEditor.isEmbedded());
+
+      RadioButtonPropertyDialogModel radio = radio();
+      radio.getRadioButtonGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .setEmbedded(false);
+      setRadio(radio, patch);
+      ComboBoxEditorModel radioEditor = radio.getRadioButtonGeneralPaneModel()
+         .getListValuesPaneModel().getComboBoxEditorModel();
+      assertArrayEquals(new String[] { "North", "South" },
+                        radioEditor.getVariableListDialogModel().getLabels());
+      assertTrue(radioEditor.isEmbedded());
+   }
+
+   /** The alias and the raw path run the same list checks and refuse a bare string. */
+   @Test
+   void staticItemsByShortNameAreJudgedLikeTheRawPaths() throws Exception {
+      String values = E + ".variableListDialogModel.values";
+      String labels = E + ".variableListDialogModel.labels";
+
+      for(String[] keys : new String[][] { { "staticLabels", "staticValues" },
+                                           { labels, values } })
+      {
+         ComboboxPropertyDialogModel mismatch = combobox("string", false, "", "");
+         Map<String, Object> patch = new LinkedHashMap<>();
+         patch.put(keys[0], java.util.List.of("A", "B", "C"));
+         patch.put(keys[1], java.util.List.of("a", "b"));
+         Exception e = assertThrows(IllegalArgumentException.class, () -> set(mismatch, patch),
+                                    keys[0]);
+         assertTrue(e.getMessage().contains("must match"), e.getMessage());
+         verifyNothingWritten();
+
+         ComboboxPropertyDialogModel bare = combobox("string", false, "", "");
+         e = assertThrows(IllegalArgumentException.class,
+                          () -> set(bare, Map.of(keys[1], "a")), keys[1]);
+         assertTrue(e.getMessage().contains("JSON array"), e.getMessage());
+      }
+
+      // an unparseable value for the list's data type is refused naming the item
+      ComboboxPropertyDialogModel typed = combobox("integer", false, "", "");
+      Map<String, Object> bad = new LinkedHashMap<>();
+      bad.put("staticLabels", java.util.List.of("One", "Two"));
+      bad.put("staticValues", java.util.List.of("1", "abc"));
+      Exception e = assertThrows(IllegalArgumentException.class, () -> set(typed, bad));
+      assertTrue(e.getMessage().contains("values[1]"), e.getMessage());
+   }
+
    // ── harness ─────────────────────────────────────────────────────────────
 
    static final String E =

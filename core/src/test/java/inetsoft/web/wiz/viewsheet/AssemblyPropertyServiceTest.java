@@ -4024,14 +4024,12 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
-   void allowsValidAndEqualTextInputBoundsAndIgnoresTheUnselectedEditor() {
+   void allowsValidAndEqualTextInputBounds() {
       TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
       Map<String, Object> patch = new LinkedHashMap<>();
       patch.put("textInputColumnOptionPaneModel.type", "Integer");
       patch.put("textInputColumnOptionPaneModel.integerEditorModel.minimum", 5);
       patch.put("textInputColumnOptionPaneModel.integerEditorModel.maximum", 5);
-      // A bad value on an editor the pane's type does not select is never stored, so not checked.
-      patch.put("textInputColumnOptionPaneModel.dateEditorModel.minimum", "garbage-not-a-date");
 
       assertDoesNotThrow(() -> setTextInputColumnOption(model, patch));
       assertEquals(5, model.getTextInputColumnOptionPaneModel().getIntegerEditorModel()
@@ -4112,15 +4110,90 @@ class AssemblyPropertyServiceTest {
       }
    }
 
+   /**
+    * A pattern for an editor the selected type does not use is never stored, and since bug #80464
+    * PR4 it is refused outright (PatchGuards) instead of being accepted and dropped; the regex
+    * check itself still judges only the active editor.
+    */
    @Test
-   void bug79095TextInputPatternOfTheInactiveEditorIsNotChecked() {
-      TextInputPropertyDialogModel model = textInputWithType("Integer");
-
-      assertDoesNotThrow(() -> setTextInputColumnOption(
-         model, patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
-      assertDoesNotThrow(() -> setTextInputColumnOption(
+   void bug79095TextInputPatternOfTheInactiveEditorIsRefusedNotChecked() {
+      Exception e = assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
+         textInputWithType("Integer"),
+         patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
+      assertTrue(e.getMessage().contains("inputControl") &&
+                 !e.getMessage().contains("regular expression"), e.getMessage());
+      assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
          textInputWithType("Password"),
          patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", "[")));
+      // the type and its editor in one call is the active editor again, and is regex-checked
+      assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
+         textInputWithType("Integer"),
+         patchOf("textInputColumnOptionPaneModel.type", "Password",
+                 "textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
+   }
+
+   // ── bug #80464 PR4: Input Control editor names, one editor per type ──
+
+   private static final String OPTION = "textInputColumnOptionPaneModel.";
+
+   /** alias, raw leaf, the type that owns the editor, a value. */
+   private static final Object[][] TEXT_INPUT_EDITOR_FIELDS = {
+      { "textPattern", "textEditorModel.pattern", "Text", "[0-9]+" },
+      { "textErrorMessage", "textEditorModel.errorMessage", "Text", "digits" },
+      { "passwordPattern", "passwordEditorModel.pattern", "Password", ".{8,}" },
+      { "passwordErrorMessage", "passwordEditorModel.errorMessage", "Password", "short" },
+      { "dateMinimum", "dateEditorModel.minimum", "Date", "2020-01-01" },
+      { "dateMaximum", "dateEditorModel.maximum", "Date", "2021-01-01" },
+      { "dateErrorMessage", "dateEditorModel.errorMessage", "Date", "bad date" },
+      { "integerMinimum", "integerEditorModel.minimum", "Integer", 1 },
+      { "integerMaximum", "integerEditorModel.maximum", "Integer", 9 },
+      { "integerErrorMessage", "integerEditorModel.errorMessage", "Integer", "bad int" },
+      { "floatMinimum", "floatEditorModel.minimum", "Float", 1.5f },
+      { "floatMaximum", "floatEditorModel.maximum", "Float", 9.5f },
+      { "floatErrorMessage", "floatEditorModel.errorMessage", "Float", "bad float" },
+   };
+
+   @Test
+   void textInputEditorFieldsAreWrittenWhileTheirInputControlIsSelected() {
+      for(Object[] field : TEXT_INPUT_EDITOR_FIELDS) {
+         for(String key : new String[] { (String) field[0], OPTION + field[1] }) {
+            TextInputPropertyDialogModel model = textInputWithType((String) field[2]);
+            setTextInputColumnOption(model, patchOf(key, field[3]));
+            assertEquals(field[3], PropertyPath.get(model, OPTION + field[1]), key);
+         }
+
+         // switching the type and writing its editor in one call is the active editor again
+         TextInputPropertyDialogModel other = textInputWithType("Text".equals(field[2]) ?
+                                                                   "Date" : "Text");
+         setTextInputColumnOption(other, patchOf("inputControl", field[2], field[0], field[3]));
+         assertEquals(field[2], other.getTextInputColumnOptionPaneModel().getType());
+         assertEquals(field[3], PropertyPath.get(other, OPTION + field[1]), (String) field[0]);
+      }
+   }
+
+   @Test
+   void textInputEditorFieldsOfAnotherInputControlAreRefusedOnTheAliasAndTheRawPath() {
+      for(Object[] field : TEXT_INPUT_EDITOR_FIELDS) {
+         String active = "Text".equals(field[2]) ? "Date" : "Text";
+
+         for(String key : new String[] { (String) field[0], OPTION + field[1] }) {
+            TextInputPropertyDialogModel model = textInputWithType(active);
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> setTextInputColumnOption(model, patchOf(key, field[3])), key);
+
+            assertTrue(e.getMessage().contains(OPTION + field[1]) &&
+                       e.getMessage().contains("inputControl") &&
+                       e.getMessage().contains(active) && e.getMessage().contains(
+                          "\"" + field[2] + "\""), e.getMessage());
+            assertNothingWrittenBy(lastDialogServices);
+         }
+      }
+
+      // an unchanged echo of a stored value is not a write
+      TextInputPropertyDialogModel stored = textInputWithType("Date");
+      stored.getTextInputColumnOptionPaneModel().getIntegerEditorModel().setMinimum(3);
+      assertDoesNotThrow(() -> setTextInputColumnOption(
+         stored, patchOf("integerMinimum", 3)));
    }
 
    @Test

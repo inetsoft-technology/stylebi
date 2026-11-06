@@ -385,7 +385,11 @@ public final class PropertyAliases {
       "nthOperand", "N/P",
       // dataInputPaneModel.table: the write-back "Target" tree of data-input-pane, as opposed to
       // the list's own "table" query (bug #80464).
-      "writeBackTable", "Target");
+      "writeBackTable", "Target",
+      // textinput-column-option-pane's text-editor caption, shared by Text and Password
+      // (bug #80464).
+      "textPattern", "Pattern Check",
+      "passwordPattern", "Pattern Check");
 
    /**
     * Where a property's caption is itself model state rather than a fixed string, keyed by the
@@ -1549,17 +1553,22 @@ public final class PropertyAliases {
          aliases.put("writeBackDirectly", "dataInputPaneModel.writeBackDirectly");
       }
 
-      // "embedded"/"query" gate whether the static labels/values below (still raw-path-only --
-      // VariableListDialogModel.labels/.values are not aliased here) are ever read at
-      // render/bind time: VSInputService's setListValues derives sourceType from these two
-      // flags alone, defaulting to NONE_SOURCE (labels/values stored but never used) when
-      // neither is set. Without a short name, the only way to discover/set "embedded" was
-      // get_assembly_properties(raw: true) (Redmine #76699/VFO-016).
+      // "embedded"/"query" gate whether the static labels/values (staticLabels/staticValues
+      // below) are ever read at render/bind time: VSInputService's setListValues derives
+      // sourceType from these two flags alone, defaulting to NONE_SOURCE (labels/values stored
+      // but never used) when neither is set. Without a short name, the only way to discover/set
+      // "embedded" was get_assembly_properties(raw: true) (Redmine #76699/VFO-016).
       String comboBoxEditor = prefix + ".listValuesPaneModel.comboBoxEditorModel";
       aliases.put("embedded", comboBoxEditor + ".embedded");
       aliases.put("query", comboBoxEditor + ".query");
       // Data type select: shown for all three list types, applied by all three setters.
       aliases.put("dataType", comboBoxEditor + ".dataType");
+      // The "Embedded List Values" items (Redmine #80464): parallel String arrays, one entry per
+      // item. Not named labels/values, which differ by one letter from the plugin's "value" key
+      // (and from the combo box's list-source "column"). Judged by the list guards on the
+      // resolved path, and a write implies embedded:true (deriveEmbeddedFromStaticList).
+      aliases.put("staticLabels", comboBoxEditor + ".variableListDialogModel.labels");
+      aliases.put("staticValues", comboBoxEditor + ".variableListDialogModel.values");
 
       String editor = comboBoxEditor + ".selectionListDialogModel.selectionListEditorModel";
       aliases.put("table", editor + ".table");
@@ -1646,6 +1655,24 @@ public final class PropertyAliases {
       aliases.put("insetStyle", "textInputGeneralPaneModel.insetStyle");
       aliases.put("multiLine", "textInputGeneralPaneModel.multiLine");
       aliases.put("inputControl", "textInputColumnOptionPaneModel.type");
+      // Input Control editor. Each type has its own sub-editor, shown, applied and read back
+      // only while that type is selected, so the names carry the type; PatchGuards refuses a
+      // write to the editor of a type that is not selected (it would be dropped).
+      String option = "textInputColumnOptionPaneModel.";
+      for(String[] editor : new String[][] {
+         { "text", "textEditorModel" }, { "password", "passwordEditorModel" } })
+      {
+         aliases.put(editor[0] + "Pattern", option + editor[1] + ".pattern");
+         aliases.put(editor[0] + "ErrorMessage", option + editor[1] + ".errorMessage");
+      }
+      for(String[] editor : new String[][] {
+         { "date", "dateEditorModel" }, { "integer", "integerEditorModel" },
+         { "float", "floatEditorModel" } })
+      {
+         aliases.put(editor[0] + "Minimum", option + editor[1] + ".minimum");
+         aliases.put(editor[0] + "Maximum", option + editor[1] + ".maximum");
+         aliases.put(editor[0] + "ErrorMessage", option + editor[1] + ".errorMessage");
+      }
       dataInput(aliases);
       return aliases;
    }
