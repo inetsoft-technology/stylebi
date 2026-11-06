@@ -26,6 +26,9 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.web.wiz.binding.CalcTableService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -62,7 +65,8 @@ public class SheetPairingService {
     */
    static final List<String> RECOGNIZED_KINDS = List.of(
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
-      "worksheetExpression", "worksheetCondition", "worksheetConditionValue");
+      "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
+      EditorContext.CALC_TABLE_CELL);
 
    /**
     * The two assembly-scoped script kinds (as opposed to viewsheetOnInit/viewsheetOnLoad, which
@@ -206,6 +210,11 @@ public class SheetPairingService {
          }
       }
 
+      if(EditorContext.CALC_TABLE_CELL.equals(ctx.kind())) {
+         validateCalcTableCellContext(rs, ctx);
+         return;
+      }
+
       if("calcField".equals(ctx.kind())) {
          // Addressed by (table, name), not by assembly -- Viewsheet.getCalcField is keyed by
          // table. The current browser wiring sends the table name in `assembly` (mirroring
@@ -276,6 +285,42 @@ public class SheetPairingService {
       if(!found) {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "Assembly not found: " + assembly);
+      }
+   }
+
+   /**
+    * Verifies a {@code calcTableCell} context: a calc table of this viewsheet, a strict
+    * {@code "row,col"} name, a coordinate inside the cell grid, and not a cell a merge has
+    * swallowed (a write there never reaches the anchor; the dialog edits the anchor).
+    */
+   private static void validateCalcTableCellContext(RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      int[] cell = EditorContext.parseCellName(ctx.name());
+
+      if(isBlank(ctx.assembly()) || cell == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'calcTableCell' requires 'assembly' (the calc table) and 'name' " +
+            "as \"row,col\" (e.g. \"2,1\"), got name '" + ctx.name() + "'");
+      }
+
+      Assembly a = rs instanceof RuntimeViewsheet rvs && rvs.getViewsheet() != null
+         ? rvs.getViewsheet().getAssembly(ctx.assembly()) : null;
+
+      if(!(a instanceof CalcTableVSAssembly calc) ||
+         !(calc.getInfo() instanceof CalcTableVSAssemblyInfo info) ||
+         info.getTableLayout() == null)
+      {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Calc table not found: " + ctx.assembly());
+      }
+
+      try {
+         CalcTableService.requireInGrid(info.getTableLayout(), cell[0], cell[1]);
+         CalcTableService.requireNotMerged(info.getTableLayout(), cell[0], cell[1]);
+      }
+      catch(IllegalArgumentException e) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT, e.getMessage());
       }
    }
 

@@ -85,7 +85,7 @@ describe("VSCalcTableEditorService cell binding state (Bug #78560)", () => {
                                              modelService);
       service.setTableLayout(<any> { selectedCells: [], tableRows: [] });
       pane = new CalcDataPane(service, <any> {}, bindingService,
-                              <any> { detectChanges: () => {} });
+                              <any> { detectChanges: () => {} }, clientService);
       optionPane = new CalcOptionPane(service);
    });
 

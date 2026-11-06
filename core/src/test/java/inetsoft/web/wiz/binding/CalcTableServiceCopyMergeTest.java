@@ -104,6 +104,14 @@ class CalcTableServiceCopyMergeTest {
             principal(), dispatcher -> { mutation.run(rvs, "rt1", dispatcher); return null; });
       }).when(sessions).mutate(anyString(), any(Principal.class), any());
       when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+      when(sessions.resolveForCell(anyString(), any(Principal.class), anyString(), anyInt(),
+                                   anyInt())).thenReturn(rvs);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.CellMutation mutation = invocation.getArgument(5);
+         return CapturingCommandDispatcher.withCapturingDispatcher(
+            principal(), dispatcher -> { mutation.run(rvs, "rt1", dispatcher, false); return null; });
+      }).when(sessions).mutateForCell(anyString(), any(Principal.class), anyString(), anyInt(),
+                                      anyInt(), any());
 
       layoutService = mock(VSTableLayoutService.class);
       doAnswer(invocation -> {

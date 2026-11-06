@@ -120,6 +120,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() isVSContext: boolean = true;
    @Input() isHighlight: boolean = false;
    @Input() isCalcTable: boolean = false;
+   /** The single selected cell a calc-table (Freehand) dialog is editing, as row/col. Mints
+    *  a pairing code scoped to that one cell. Unset when more than one cell is selected, which
+    *  hides the Connect button: a cell grant cannot honestly cover a multi-cell edit. */
+   @Input() contextCell: {row: number, col: number} = null;
 
    /** Runtime identifier of the sheet hosting the expression this dialog is
     *  editing. Scopes an agent pairing session to this expression's sheet
@@ -206,6 +210,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Output() onCommit: EventEmitter<FormulaEditorDialogModel> =
       new EventEmitter<FormulaEditorDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
+   /** Fires when an agent write to this dialog's location was received while the dialog is
+    *  open, so the host can refresh any cached state of the edited location. */
+   @Output() agentScriptPushed: EventEmitter<string> = new EventEmitter<string>();
    @Output() aggregateModify: EventEmitter<any> = new EventEmitter<any>();
    @Output() aggregateDelete: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild("newAggrDialog") newAggrDialog: TemplateRef<any>;
@@ -298,6 +305,14 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       // doc comment for why they're not the same field.
       const assembly = this.contextTable ?? this.assemblyName;
 
+      // A freehand cell formula is addressed by (calc table, row/col), not by the table
+      // assembly script it would otherwise be mistaken for.
+      if(this.isCalcTable) {
+         return { kind: "calcTableCell", assembly,
+                  name: this.contextCell ? `${this.contextCell.row},${this.contextCell.col}`
+                     : undefined };
+      }
+
       if(this.isCalc) {
          return { kind: "calcField", assembly, name: this.formulaName,
                   pending: this.isNewCalcField };
@@ -336,7 +351,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     * opens with an empty `formulaName`, because the user has not named the thing yet.
     */
    private static readonly COLUMN_ADDRESSED_KINDS =
-      ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue"];
+      ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
+       "calcTableCell"];
 
    /**
     * The operations with exactly one value slot -- the only shape `worksheetConditionValue` may
@@ -617,6 +633,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       if(!matchesAgentScriptRefresh(command, this.editorContext)) {
          return;
       }
+
+      this.agentScriptPushed.emit(command.text);
 
       if(!shouldApplyAgentScriptPush(this.expression, this.lastKnownExpression)) {
          this.staleExpression = command.text;
