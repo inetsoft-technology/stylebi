@@ -576,6 +576,22 @@ class PresentationChangesetApplyServiceTest {
    }
 
    @Test
+   void applyVerifiesAnOrganizationExportMenuNoOpResendOfLiveValues() throws Exception {
+      // the reported symptom: vsOptions [{name,value,description}] at organization scope, re-sending
+      // the values that are already live
+      seed(PresentationSubModel.EXPORT_MENU, false, exportMenu());
+      ObjectNode spec = obj();
+      spec.set("vsOptions", MAPPER.createArrayNode()
+         .add(exportOption("CSV", true, "CSV desc")).add(exportOption("PDF", true, "PDF desc")));
+
+      assertAppliedAndVerified(applyRequest("t", "ok", null,
+         change("exportMenu", "organization", spec)));
+      PresentationExportMenuSettingsModel after = (PresentationExportMenuSettingsModel)
+         state.get(stateKey(PresentationSubModel.EXPORT_MENU, false));
+      assertEquals(exportMenu(), after);
+   }
+
+   @Test
    void sameTreeIgnoresObjectKeyOrderButNotArrayOrder() {
       assertTrue(PresentationJson.sameTree("{\"a\":1,\"b\":{\"c\":2,\"d\":3}}",
                                            "{\"b\":{\"d\":3,\"c\":2},\"a\":1}"));
