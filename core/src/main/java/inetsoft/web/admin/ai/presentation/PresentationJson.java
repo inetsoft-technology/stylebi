@@ -151,6 +151,23 @@ final class PresentationJson {
       return copy;
    }
 
+   /** Whether two JSON texts denote the same value. Object key order is ignored (it follows
+    * whoever built the object: a caller's spec for a wholesale-replaced list entry, the model's
+    * declaration order for a read-back), array order stays significant. Text that does not parse is
+    * compared as text. */
+   static boolean sameTree(String expected, String actual) {
+      if(expected == null || actual == null) {
+         return expected == actual;
+      }
+
+      try {
+         return MAPPER.readTree(expected).equals(MAPPER.readTree(actual));
+      }
+      catch(JsonProcessingException e) {
+         return expected.equals(actual);
+      }
+   }
+
    static String writeString(JsonNode node) {
       try {
          return MAPPER.writeValueAsString(node);

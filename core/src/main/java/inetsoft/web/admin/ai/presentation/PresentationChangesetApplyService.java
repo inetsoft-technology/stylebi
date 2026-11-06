@@ -169,7 +169,7 @@ public class PresentationChangesetApplyService {
                   actualAfter = PresentationChangePlanService.projectedValue(
                      entry.subModel(), PresentationJson.toNode(
                         access.read(entry.subModel(), user, entry.global())));
-                  verified = expectedAfter.equals(actualAfter);
+                  verified = PresentationJson.sameTree(expectedAfter, actualAfter);
                   problem = verified ? null : "value did not read back as written";
                }
 
@@ -353,7 +353,7 @@ public class PresentationChangesetApplyService {
                      access.read(entry.subModel(), user, entry.global())));
             }
 
-            boolean verified = keyProblem == null && expectedBefore.equals(restoredValue);
+            boolean verified = keyProblem == null && PresentationJson.sameTree(expectedBefore, restoredValue);
             writeAudit(txId, task, key, entry, AdminChangeRecord.ACTION_ROLLBACK, null, restoredValue,
                       verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
                       backupRef, reviewOutcome, user);
