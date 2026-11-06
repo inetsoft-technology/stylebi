@@ -84,7 +84,7 @@ class ViewsheetFormatServiceChartRegionTest {
       ViewsheetFormatService.ChartRegionFormatRequest request, int targets) throws Exception
    {
       FormatPainterService painter = mock(FormatPainterService.class);
-      new ViewsheetFormatService(sessionsFor(rvs(targets)), painter,
+      new ViewsheetFormatService(sessionsFor(rvs(targets)), FormatPainterProxies.local(painter),
                                  mock(CalcTableService.class), null)
          .setChartRegionFormat("tok", principal(), request, "");
       ArgumentCaptor<FormatVSObjectEvent> captor =

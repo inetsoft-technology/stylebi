@@ -72,7 +72,7 @@ class ViewsheetFormatServiceViewsheetTargetTest {
    private static FormatVSObjectEvent write(ViewsheetFormatService.FormatRequest request,
                                             FormatPainterService painter) throws Exception
    {
-      new ViewsheetFormatService(sessionsFor(rvs()), painter, mock(CalcTableService.class), null)
+      new ViewsheetFormatService(sessionsFor(rvs()), FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
          .setFormat("tok", principal(), request, "");
       ArgumentCaptor<FormatVSObjectEvent> captor =
          ArgumentCaptor.forClass(FormatVSObjectEvent.class);

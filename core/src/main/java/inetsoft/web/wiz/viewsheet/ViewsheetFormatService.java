@@ -74,6 +74,7 @@ import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
+import inetsoft.web.composer.vs.controller.FormatPainterServiceProxy;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -112,7 +113,8 @@ import java.util.stream.Collectors;
 @Service
 public class ViewsheetFormatService {
    @Autowired
-   public ViewsheetFormatService(ViewsheetSessionService sessions, FormatPainterService painter,
+   public ViewsheetFormatService(ViewsheetSessionService sessions,
+                                 FormatPainterServiceProxy painter,
                                  CalcTableService calcService,
                                  VSWizardBindingHandler bindingHandler)
    {
@@ -3184,7 +3186,7 @@ public class ViewsheetFormatService {
    }
 
    private final ViewsheetSessionService sessions;
-   private final FormatPainterService painter;
+   private final FormatPainterServiceProxy painter;
    private final CalcTableService calcService;
    private final VSWizardBindingHandler bindingHandler;
 }

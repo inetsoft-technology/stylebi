@@ -82,7 +82,7 @@ class ViewsheetFormatServiceCalendarTargetTest {
    private static FormatVSObjectEvent write(RuntimeViewsheet rvs, FormatPainterService painter,
                                             String target) throws Exception
    {
-      new ViewsheetFormatService(sessionsFor(rvs), painter, mock(CalcTableService.class), null)
+      new ViewsheetFormatService(sessionsFor(rvs), FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
          .setFormat("tok", principal(),
                     new ViewsheetFormatService.FormatRequest(List.of("Cal1"), red(), false,
                                                              target, null, null), "");
@@ -140,7 +140,7 @@ class ViewsheetFormatServiceCalendarTargetTest {
 
          IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,
-            () -> new ViewsheetFormatService(sessions, painter, mock(CalcTableService.class),
+            () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), mock(CalcTableService.class),
                                              null)
                .setFormat("tok", principal(),
                           new ViewsheetFormatService.FormatRequest(List.of("Cal1"), red(), false,
@@ -159,7 +159,7 @@ class ViewsheetFormatServiceCalendarTargetTest {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
          () -> new ViewsheetFormatService(sessionsFor(rvsWith("Cal1", null)),
-                                          mock(FormatPainterService.class),
+                                          FormatPainterProxies.local(mock(FormatPainterService.class)),
                                           mock(CalcTableService.class), null)
             .setFormat("tok", principal(),
                        new ViewsheetFormatService.FormatRequest(
@@ -171,7 +171,7 @@ class ViewsheetFormatServiceCalendarTargetTest {
    void unknownTargetErrorListsTheCalendarTargets() {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
-         () -> new ViewsheetFormatService(sessionsFor(null), mock(FormatPainterService.class),
+         () -> new ViewsheetFormatService(sessionsFor(null), FormatPainterProxies.local(mock(FormatPainterService.class)),
                                           mock(CalcTableService.class), null)
             .setFormat("tok", principal(),
                        new ViewsheetFormatService.FormatRequest(

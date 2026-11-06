@@ -265,7 +265,7 @@ class ViewsheetFormatServiceFieldTargetTest {
    }
 
    private ViewsheetFormatService service(ViewsheetSessionService sessions) {
-      return new ViewsheetFormatService(sessions, mock(FormatPainterService.class),
+      return new ViewsheetFormatService(sessions, FormatPainterProxies.local(mock(FormatPainterService.class)),
                                         mock(CalcTableService.class), handler);
    }
 
