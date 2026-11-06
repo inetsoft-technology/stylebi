@@ -789,6 +789,42 @@ git -C "$WT" commit -m "Chart defaults S1, let the reset copy clear axis title a
 
 ---
 
+### Task 13: Per-type values follow a shared or swapped descriptor
+
+Controller amendment after the S0 review. Run it after Task 11 and before Task 12.
+
+**Why.** The per-type key (`seededType`) lives on `ChartVSAssemblyInfo`, while the per-type values (title visibility, x grid, smoothing) live on its `ChartDescriptor`, and that descriptor is shared or swapped without its key:
+- the wizard's temp chart shares the original's descriptor object (`VSWizardBindingService:261`, `VSWizardBindingHandler:1744`, `:1235`); on Cancel (`VSCloseObjectWizardService:113-114`) the original keeps the temp chart's per-type values while its own key is unchanged;
+- on wizard Save, `SyncChartHandler:181-184` replaces the final chart's `PlotDescriptor` with a clone of the original's after the seeds ran;
+- `copyViewInfo` copies `desc` but not the key (`ChartVSAssemblyInfo:1900-1903`).
+After Task 8, a wizard Cancel can leave a bar chart with the temp point chart's titles or x grid, and nothing corrects it until the bar's own key changes.
+
+Also, `SyncChartHandler` copies legend chrome with `set…(value, false)` calls (e.g. `:206` `setBorderColor(olegends.getBorderColor(), false)`), which compare against the target's resolved value and stamp USER when they differ. A marked wizard target now resolves to the modern seed, so syncing from a classic original stamps the classic value as if the author set it. Task 9 seeds the legend border width through the same pattern. Rule: when the target is marked, copy only the source's USER tier (an author value) and leave the target's DEFAULT tier to its seed; when unmarked, behave as today.
+
+**Files:**
+- Modify: `uql/viewsheet/internal/ChartVSAssemblyInfo.java` (beside `reseedIfResolvedTypeChanged`; `copyViewInfo`)
+- Modify: the wizard close path (`web/vswizard/service/VSCloseObjectWizardService.java`, Cancel and Save) and `web/vswizard/handler/SyncChartHandler.java` where it swaps the plot descriptor
+- Test: `core/src/test/java/inetsoft/uql/viewsheet/internal/ChartChromeTypeSeedTest.java` (or a new `PerTypeSeedSharedDescriptorTest` in the same package)
+
+**Interfaces:**
+- Consumes: `seedTypeDefaults`, `ResolvedChartType`, `getSeededType()` (S0).
+- Produces: `public void reseedTypeDefaults()` on `ChartVSAssemblyInfo`. On a marked chart it runs `seedTypeDefaults(VizContext.of(this), ResolvedChartType.of(getVSChartInfo()))` for the current key and records it. On an unmarked chart it only records the key. It writes only DEFAULT tiers and unflagged plain fields, so calling it again is harmless.
+- Called after every place a chart's descriptor is shared back or swapped in: wizard Cancel (on the original), wizard Save (on the final chart, after `SyncChartHandler` swaps the plot descriptor), and `copyViewInfo` (on the receiving info). **Never from a parse or load path** (M8: no seed on load). If `copyViewInfo` turns out to run on load or undo restore, call it from the callers that are edits instead, and say so in the report.
+
+- [ ] **Step 1: Write the failing tests**
+- `aCancelledWizardLeavesTheOriginalsPerTypeValues`: a marked bar chart (X `state`, Y `Sum(v)`) seeded; a second chart info that shares the bar's `ChartDescriptor` object is bound as a point chart with measures on X and Y and its per-type seed runs (as the wizard's temp chart does); then the cancel path runs on the bar. The bar's x title DEFAULT is false and its x grid DEFAULT is `NONE`, as for a bar.
+- `aWizardSaveReseedsTheFinalChartForItsOwnType`: the final chart is a marked point chart whose plot descriptor is replaced with a clone of a bar's (as `SyncChartHandler` does); after the save path, its x grid DEFAULT is `THIN_LINE`.
+- `copyViewInfoReseedsForTheReceivingChartsType`.
+- `anUnmarkedChartIsNotWritten`: the same cancel path on an unmarked bar leaves every per-type value as it was.
+- `authorValuesSurvive`: a USER title visibility and `userSmoothLines` on the bar survive the cancel path.
+- `aClassicOriginalSyncedIntoAMarkedTargetStampsNothing`: a classic original's legend border colour and border width (DEFAULT only) synced by `SyncChartHandler` into a marked target leave the target with no USER value; an author (USER) colour on the original does reach the target as USER. An unmarked target behaves as today.
+
+- [ ] **Step 2: Run to verify they fail**, **Step 3: Implement**, **Step 4: Run to verify they pass** (the Step 1 class plus `ChartChromeTypeSeedTest,ResolvedTypeReseedTest,ChartDescriptorSavedDefaultsTest`, and the existing wizard tests under `core/src/test/java/inetsoft/web/vswizard`).
+
+- [ ] **Step 5: Commit** — subject `Chart defaults S1, re-seed per-type values when a chart's descriptor is shared back or swapped`.
+
+---
+
 ## Interfaces for later slices
 
 - **M4 flags.** `DerivedUserFlag.parse(attribute, derived)` and `write(writer, name, flag, derived)`, with `derived` = "differs from every classic creation default". Writing only when the flag differs from the derivation keeps unedited classic XML byte-identical, and makes a seeded value that would derive as the author's write its flag explicitly. Precedents: `AxisDescriptor.userLineVisible` (derived `!lineVisible`) and `TitleDescriptor.userTitle` (derived "has text").
