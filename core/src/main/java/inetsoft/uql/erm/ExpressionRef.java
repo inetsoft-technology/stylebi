@@ -499,6 +499,15 @@ public class ExpressionRef extends AbstractDataRef {
    }
 
    /**
+    * Markers that open/close a field[...] reference, in matching pairs. Single quotes,
+    * double quotes and backticks are all recognized so a JS-legal quote choice doesn't
+    * make the field reference invisible to attribute discovery (Bug #80599).
+    */
+   private static final String[] FIELD_OPEN_MARKERS = { "field['", "field[\"", "field[`" };
+   private static final String[] FIELD_CLOSE_MARKERS = { "']", "\"]", "`]" };
+   private static final char[] FIELD_QUOTE_CHARS = { '\'', '"', '`' };
+
+   /**
     * Enumeration of AttributeRef objects built from the field names in the
     * expression string. The list of field names is build as the enumeration
     * is iterated, so it avoids multiple loops to create the enumeration.
@@ -509,10 +518,30 @@ public class ExpressionRef extends AbstractDataRef {
          e2c = new HashMap<>();
       }
 
+      /**
+       * Find the earliest field[...] open marker at or after the given index.
+       * @return {position, markerIndex}, or {-1, -1} if no marker is found.
+       */
+      private int[] findFieldOpen(int from) {
+         int bestPos = -1;
+         int bestMarker = -1;
+
+         for(int i = 0; i < FIELD_OPEN_MARKERS.length; i++) {
+            int pos = getExpression().indexOf(FIELD_OPEN_MARKERS[i], from);
+
+            if(pos >= 0 && (bestPos < 0 || pos < bestPos)) {
+               bestPos = pos;
+               bestMarker = i;
+            }
+         }
+
+         return new int[] { bestPos, bestMarker };
+      }
+
       @Override
       public boolean hasMoreElements() {
          return second != null || (getExpression() != null && idx >= 0 &&
-            getExpression().indexOf("field['", idx) >= 0);
+            findFieldOpen(idx)[0] >= 0);
       }
 
       @Override
@@ -528,10 +557,12 @@ public class ExpressionRef extends AbstractDataRef {
          if(hasMoreElements()) {
             // @by jasons 2003-09-23
             // parse the next field name as it is requested
-            idx = getExpression().indexOf("field['", idx) + 7;
+            int[] open = findFieldOpen(idx);
+            int marker = open[1];
+            idx = open[0] + FIELD_OPEN_MARKERS[marker].length();
 
             if(idx < getExpression().length() - 2) {
-               int end = getExpression().indexOf("']", idx);
+               int end = getExpression().indexOf(FIELD_CLOSE_MARKERS[marker], idx);
 
                if(end > idx) {
                   String fname = getExpression().substring(idx, end).trim();
@@ -561,7 +592,8 @@ public class ExpressionRef extends AbstractDataRef {
                      }
 
                      existsFormula = !oname.equals(fname);
-                     String key = "field['" + oname + "']";
+                     char quote = FIELD_QUOTE_CHARS[marker];
+                     String key = "field[" + quote + oname + quote + "]";
                      e2c.put(key, oname);
                   }
 
