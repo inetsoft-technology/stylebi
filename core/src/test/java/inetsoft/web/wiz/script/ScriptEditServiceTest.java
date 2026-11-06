@@ -209,7 +209,7 @@ class ScriptEditServiceTest {
          mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class));
       ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.CALC_FIELD, "Query1", "Margin");
 
-      svc.write(rvs, target, "field['PRICE'] * 2");
+      svc.write(rvs, null, target, "field['PRICE'] * 2");
 
       assertEquals("field['PRICE'] * 2", inner.getExpression());
    }
@@ -314,7 +314,7 @@ class ScriptEditServiceTest {
    @Test
    void writeOnClickIsRefusedForAnAssemblyThatCannotReceiveOne() {
       PairingException ex = assertThrows(PairingException.class, () -> editService().write(
-         realAssemblies(), ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Table1"), "x()"));
+         realAssemblies(), null, ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_ON_CLICK, "Table1"), "x()"));
       assertEquals("Assembly does not support onClick: Table1", ex.getMessage());
    }
 

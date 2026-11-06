@@ -61,10 +61,12 @@ import { InputTrimDirective } from "../directive/input-trim.directive";
 
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
-import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { ViewsheetClientService, ViewsheetCommandMessage } from "../../common/viewsheet-client";
 import { EditorContext } from "../../composer/gui/wiz/editor-context";
 import { ConnectToClaudeComponent } from "../../composer/gui/wiz/connect-to-claude.component";
 import { FollowFocusService } from "../../composer/gui/wiz/services/follow-focus.service";
+import { matchesAgentScriptRefresh, shouldApplyAgentScriptPush } from "../../composer/gui/wiz/agent-script-refresh";
+import { RefreshAgentScriptCommand } from "../../vsobjects/command/refresh-agent-script-command";
 
 const DATE_PARTS: any[] = [
    { label: "_#(js:Year)", data: "year" },
@@ -235,6 +237,17 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     */
    private pushedEditorContext: EditorContext | null = null;
 
+   /** The text last known to match the server -- set at open and whenever an agent's push is
+    *  actually applied. Compared against `expression` to detect a local, unsaved edit; never
+    *  updated by the human simply typing. */
+   private lastKnownExpression: string;
+
+   /** Set when a `RefreshAgentScriptCommand` arrives for this exact `editorContext` while
+    *  `expression` already diverges from `lastKnownExpression` -- applying it would silently
+    *  overwrite unsaved local text. Holds the pushed text; `reloadStaleExpression()` is the
+    *  explicit, human-driven way to accept it anyway. See `shouldApplyAgentScriptPush`. */
+   staleExpression: string | null = null;
+
    get title(): string {
       return this.isCube ? "_#(js:Create Measure)" : this.isCalc ? "_#(js:Edit Calculated Field)" :
          "_#(js:Formula Editor)";
@@ -382,6 +395,16 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       this.oname = this.formulaName;
       this.returnTypes = FormulaEditorService.returnTypes;
       this.init = true;
+      this.lastKnownExpression = this.expression;
+
+      if(this.hasPairingTransport && this.socketConnection.commands) {
+         this.subscriptions.add(this.socketConnection.commands.subscribe(
+            (message: ViewsheetCommandMessage) => {
+               if(message.type === "RefreshAgentScriptCommand") {
+                  this.onAgentScriptRefresh(message.command as RefreshAgentScriptCommand);
+               }
+            }));
+      }
 
       // Follow Focus (separate from, and in addition to, the ConnectToClaudeComponent#detach()
       // call in ngOnDestroy below): if the human has opted in, this dialog opening pushes an
@@ -583,6 +606,37 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
    cancel(): void {
       this.onCancel.emit("cancel");
+   }
+
+   /**
+    * Applies (or, if the human has an unsaved local edit, defers) an agent's just-written
+    * expression text for the exact location this dialog is editing. Pushes for any other
+    * location (a different calc field, a different assembly's condition, ...) are ignored.
+    */
+   private onAgentScriptRefresh(command: RefreshAgentScriptCommand): void {
+      if(!matchesAgentScriptRefresh(command, this.editorContext)) {
+         return;
+      }
+
+      if(!shouldApplyAgentScriptPush(this.expression, this.lastKnownExpression)) {
+         this.staleExpression = command.text;
+         return;
+      }
+
+      this.expression = command.text;
+      this.lastKnownExpression = command.text;
+      this.staleExpression = null;
+   }
+
+   /** The human's explicit choice to accept a deferred push, discarding their own local edit. */
+   reloadStaleExpression(): void {
+      if(this.staleExpression == null) {
+         return;
+      }
+
+      this.expression = this.staleExpression;
+      this.lastKnownExpression = this.staleExpression;
+      this.staleExpression = null;
    }
 
    populateTrees(): void {

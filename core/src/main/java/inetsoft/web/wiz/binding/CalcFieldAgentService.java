@@ -45,6 +45,7 @@ import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
 import inetsoft.web.binding.model.ExpressionRefModel;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.script.ScriptTarget;
 import inetsoft.web.wiz.viewsheet.ChartRenderCheck;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -341,6 +342,22 @@ public class CalcFieldAgentService {
 
          modifyCalculateFieldService.modifyCalculateField(
             runtimeId, event, agent, dispatcher, linkUri);
+
+         if(!req.remove() && newName.equals(req.name())) {
+            // Bug #80447 symptom 1: broadcastRefresh (sent by ViewsheetSessionService.mutate's
+            // own finally block, below) only repaints visible assembly canvases -- it never
+            // reaches an already-open FormulaEditorDialog editing THIS calc field, which binds
+            // its text as a plain one-shot @Input with no live-refresh subscription. Push the new
+            // expression so that dialog, if open, can refresh itself -- see
+            // ScriptEditService.write's identical call for the full rationale and the client-side
+            // clobber guard this depends on. Skipped on a rename: the open dialog's own
+            // editorContext still names the OLD field name, so a push naming the new one could
+            // never match it, and addressing it under the old name would misdescribe what changed
+            // (the field itself, not just its expression).
+            sessions.broadcastScriptRefresh(rvs, runtimeId, agent,
+                                            ScriptTarget.Kind.CALC_FIELD.wireName(), tableName,
+                                            newName, req.expression());
+         }
 
          if(removal != null) {
             aggregateWarnings.addAll(removal.finish());

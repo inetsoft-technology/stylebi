@@ -116,6 +116,15 @@
         }
       }
     </div>
+    @if (staleExpression != null) {
+      <div class="row">
+        <div class="col alert alert-warning d-flex justify-content-between align-items-center">
+          <span>_#(An agent changed this expression; your unsaved edits were kept.)</span>
+          <button type="button" class="btn btn-sm btn-outline-warning"
+            (click)="reloadStaleExpression()">_#(Reload)</button>
+        </div>
+      </div>
+    }
     <div class="row" [class.stretch-empty]="canResize">
       <script-pane class="col" [expression]="expression" [sql]="isSqlType()" [columnTreeShowMenu]="true" [columnTreeHasMenuFun]="hasMenu()"
         [columnTreeRoot]="columnTreeRoot" [showTooltip]="true"
