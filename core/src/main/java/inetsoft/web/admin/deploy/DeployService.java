@@ -888,9 +888,11 @@ public class DeployService {
       }
 
       List<XAsset> assets = new ArrayList<>();
+      // Bug #79435, list each parent folder once for this export, not once per selected entry
+      Map<String, Map<String, AssetEntry>> listings = new HashMap<>();
 
       for(SelectedAssetModel model : selectedEntities) {
-         XAsset asset = getEntryAsset(model, principal);
+         XAsset asset = getEntryAsset(model, principal, listings);
 
          if(asset == null) {
             continue;
@@ -995,7 +997,9 @@ public class DeployService {
       return entityUser == null || XAsset.NULL.equals(entityUser.name) ? null : entityUser;
    }
 
-   private XAsset getEntryAsset(SelectedAssetModel model, Principal principal) {
+   private XAsset getEntryAsset(SelectedAssetModel model, Principal principal,
+                                Map<String, Map<String, AssetEntry>> listings)
+   {
       String type = repositoryEntryTypeToAssetType(model.type());
 
       if(type == null) {
@@ -1020,14 +1024,14 @@ public class DeployService {
 
       if(asset != null && Objects.equals(asset.getType(), ViewsheetAsset.VIEWSHEET)) {
          final String identifier = ((ViewsheetAsset) asset).getAssetEntry().toIdentifier();
-         AssetEntry entry = getRegistryEntry(identifier, principal);
+         AssetEntry entry = getRegistryEntry(identifier, principal, listings);
 
          if(entry == null) {
             // account for vs snapshots
             VSSnapshotAsset snapshotAsset =
                (VSSnapshotAsset) SUtil.getXAsset(VSSnapshotAsset.VSSNAPSHOT, entityName, user);
             final String vsSnapshotIdentifier = snapshotAsset.getAssetEntry().toIdentifier();
-            entry = getRegistryEntry(vsSnapshotIdentifier, principal);
+            entry = getRegistryEntry(vsSnapshotIdentifier, principal, listings);
 
             if(entry != null) {
                asset = snapshotAsset;
@@ -1038,9 +1042,11 @@ public class DeployService {
       return asset;
    }
 
-   private AssetEntry getRegistryEntry(String identifier, Principal principal) {
+   private AssetEntry getRegistryEntry(String identifier, Principal principal,
+                                       Map<String, Map<String, AssetEntry>> listings)
+   {
       try {
-         return registryManager.getAssetEntry(identifier, principal);
+         return registryManager.getAssetEntry(identifier, principal, listings);
       }
       catch(Exception e) {
          throw new RuntimeException(
