@@ -368,6 +368,51 @@ class ScheduleTaskImportChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bug #80355 (P6), sibling of #80085: a read-back that fails after setScheduleTask returned must
+   // not be reported as rolled back when the state differs from before the write.
+   // -------------------------------------------------------------------------
+
+   @Test void overwriteWhoseReadBackFindsTheTaskGoneReportsRollbackFailed() throws Exception {
+      ScheduleTask sourceTask = taskWithViewsheetAction("t7", "http://x/");
+      String taskId = sourceTask.getTaskId();
+      String stagingToken = stage(sourceTask);
+      AtomicBoolean written = new AtomicBoolean();
+      when(scheduleManager.getScheduleTask(taskId)).thenAnswer(
+         inv -> written.get() ? null : sreeTask("t7", "admin"));
+      doAnswer(inv -> {
+         written.set(true);
+         return null;
+      }).when(scheduleManager).setScheduleTask(eq(taskId), any(), any(), any());
+      ScheduleTaskImportPlanRequest planReq =
+         planRequest(stagingToken, "overwrite", importChange(taskId, true));
+      ResolvedPlan plan = planService.resolve(planReq, user, "http://x/");
+
+      ScheduleTaskImportApplyResult result =
+         applyService.apply(applyRequest(planReq, plan), user, "http://x/");
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals("schedule task not found after import", result.results().get(0).error());
+      assertNotNull(result.rollbackFailures());
+      assertEquals("schedule-import:" + taskId, result.rollbackFailures().get(0).property());
+   }
+
+   @Test void createWhoseReadBackFindsNothingStaysRolledBack() throws Exception {
+      ScheduleTask sourceTask = taskWithViewsheetAction("t8", "http://x/");
+      String taskId = sourceTask.getTaskId();
+      String stagingToken = stage(sourceTask);
+      when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
+      ScheduleTaskImportPlanRequest planReq =
+         planRequest(stagingToken, "create", importChange(taskId, false));
+      ResolvedPlan plan = planService.resolve(planReq, user, "http://x/");
+
+      ScheduleTaskImportApplyResult result =
+         applyService.apply(applyRequest(planReq, plan), user, "http://x/");
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
 

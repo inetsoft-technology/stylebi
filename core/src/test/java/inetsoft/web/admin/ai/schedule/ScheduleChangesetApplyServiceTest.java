@@ -531,6 +531,44 @@ class ScheduleChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // bug #80355 (P6, sibling of #80085): a delete whose post-write read-back fails must only be a
+   // clean "rolled back" when the task still looks exactly as before; otherwise the removal took
+   // (at least partly) effect and no undo was queued for it.
+   // -------------------------------------------------------------------------
+
+   @Test void deleteWhoseReadBackFindsAModifiedTaskReportsRollbackFailed() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask modified = sreeTask("t1", "admin");
+      modified.setEnabled(false);
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)   // preview
+         .thenReturn(existing)   // re-resolve inside apply()
+         .thenReturn(existing)   // apply: capture before-state
+         .thenReturn(modified);  // apply: verify -- still there, but not as it was
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("delete a task", deleteChange("t1")), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals("t1", result.rollbackFailures().get(0).property());
+   }
+
+   @Test void deleteWhoseReadBackFindsTheTaskUntouchedStaysRolledBack() throws Exception {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(existing);
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ApplyResult result = service.apply(applyRequest("delete a task", deleteChange("t1")), user, null);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
 

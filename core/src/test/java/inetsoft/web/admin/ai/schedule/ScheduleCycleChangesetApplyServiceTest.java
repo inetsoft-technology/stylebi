@@ -307,6 +307,93 @@ class ScheduleCycleChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // bug #80355 (P6, sibling of #80085): a post-write read-back that fails while the observed state
+   // differs from the pre-state must not be reported as rolled back; no undo was queued for it.
+   // -------------------------------------------------------------------------
+
+   private static void assertStillChanged(ApplyResult result, String property) {
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(inetsoft.util.audit.AdminChangeRecord.STATUS_FAILED,
+                   result.results().get(0).status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals(property, result.rollbackFailures().get(0).property());
+   }
+
+   @Test void updateWhoseReadBackFailsBecauseTheCycleVanishedReportsRollbackFailed()
+      throws Exception
+   {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      DataCycleManager.DataCycleAsset[] state = { asset("Cycle1") };
+      when(cycleGateway.currentAsset(eq("Cycle1"), eq("host-org"))).thenAnswer(inv -> state[0]);
+      doAnswer(inv -> { state[0] = null; return null; })
+         .when(cycleGateway).updateCycle(eq("Cycle1"), any(), eq(user));
+
+      assertStillChanged(apply(updateChange("Cycle1")), "Cycle1");
+   }
+
+   @Test void renameWhoseReadBackFailsButTheOldNameIsGoneReportsRollbackFailed() throws Exception {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.cycleExists("Renamed", user)).thenReturn(false);
+      DataCycleManager.DataCycleAsset[] state = { asset("Cycle1") };
+      when(cycleGateway.currentAsset(eq("Cycle1"), eq("host-org"))).thenAnswer(inv -> state[0]);
+      when(cycleGateway.currentAsset(eq("Renamed"), eq("host-org"))).thenReturn(null);
+      doAnswer(inv -> { state[0] = null; return null; })
+         .when(cycleGateway).updateCycle(eq("Cycle1"), any(), eq(user));
+
+      assertStillChanged(apply(renameChange("Cycle1", "Renamed")), "Cycle1");
+   }
+
+   @Test void renameWhoseReadBackFailsWithTheCycleUntouchedStaysRolledBack() throws Exception {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.cycleExists("Renamed", user)).thenReturn(false);
+      when(cycleGateway.currentAsset(eq("Cycle1"), eq("host-org"))).thenReturn(asset("Cycle1"));
+      when(cycleGateway.currentAsset(eq("Renamed"), eq("host-org"))).thenReturn(null);
+
+      ApplyResult result = apply(renameChange("Cycle1", "Renamed"));
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+   }
+
+   @Test void deleteWhoseReadBackFailsAfterTheCycleWasModifiedReportsRollbackFailed()
+      throws Exception
+   {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.dependentMvNames("Cycle1")).thenReturn(List.of());
+      DataCycleManager.DataCycleAsset[] state = { asset("Cycle1") };
+      when(cycleGateway.currentAsset(eq("Cycle1"), eq("host-org"))).thenAnswer(inv -> state[0]);
+      doAnswer(inv -> {
+         DataCycleManager.DataCycleAsset changed = asset("Cycle1");
+         changed.setConditions(List.of(inetsoft.sree.schedule.TimeCondition.at(10, 30, 0)));
+         state[0] = changed;
+         return null;
+      }).when(cycleGateway).deleteCycles(eq(List.of("Cycle1")), eq(user));
+
+      assertStillChanged(apply(deleteChange("Cycle1")), "Cycle1");
+   }
+
+   @Test void deleteWhoseReadBackFailsWithTheCycleUntouchedStaysRolledBack() throws Exception {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.dependentMvNames("Cycle1")).thenReturn(List.of());
+      when(cycleGateway.currentAsset(eq("Cycle1"), eq("host-org"))).thenReturn(asset("Cycle1"));
+
+      ApplyResult result = apply(deleteChange("Cycle1"));
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+   }
+
+   private static ScheduleCycleChangeRequest renameChange(String currentName, String newName) {
+      return new ScheduleCycleChangeRequest("update", currentName,
+         new ScheduleCycleChangeRequest.ScheduleCycleSpec(newName, List.of(everyDay())));
+   }
+
+   // -------------------------------------------------------------------------
    // fixtures
    // -------------------------------------------------------------------------
 
