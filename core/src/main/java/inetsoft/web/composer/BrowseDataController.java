@@ -434,11 +434,13 @@ public class BrowseDataController {
             }
 
             Set added = new HashSet();
+            boolean nullExcluded = false;
 
             for(int row = 1; data.moreRows(row) && labels.size() < MAX_ROW_COUNT; row++) {
                Object val = data.getObject(row, 0);
 
                if(val == null) {
+                  nullExcluded = true;
                   continue;
                }
 
@@ -452,6 +454,7 @@ public class BrowseDataController {
             }
 
             builder.dataTruncated(data.moreRows(MAX_ROW_COUNT));
+            builder.nullExcluded(nullExcluded);
          }
       }
 
