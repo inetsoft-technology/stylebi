@@ -35,6 +35,10 @@ import org.mockito.MockedStatic;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import inetsoft.sree.security.Permission;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -102,6 +106,39 @@ class RenameAssetControllerTest {
       assertEquals(MessageCommand.Type.ERROR, result.getType());
       verify(manager, never()).renameScript(anyString(), anyString());
       verify(manager, never()).save();
+   }
+
+   /** Bug #80189: the SCRIPT grant moves with the rename. */
+   @Test
+   void renameMovesTheScriptsPermissionGrant() throws Exception {
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.getSecurityProvider()).thenReturn(mock(inetsoft.sree.security.SecurityProvider.class));
+      Permission grant = new Permission();
+      when(security.getPermission(eq(ResourceType.SCRIPT), anyString())).thenReturn(grant);
+
+      try(MockedStatic<SecurityEngine> engine = mockStatic(SecurityEngine.class)) {
+         engine.when(SecurityEngine::getSecurity).thenReturn(security);
+         renameScript("oldName", "newName");
+      }
+
+      verify(manager).renameScript(anyString(), anyString());
+      verify(security).setPermission(eq(ResourceType.SCRIPT), anyString(), eq(grant));
+      verify(security).removePermission(eq(ResourceType.SCRIPT), anyString());
+   }
+
+   /** Bug #80189: a grant-less source must not inherit a stale grant at the new name. */
+   @Test
+   void renameOfAGrantlessScriptClearsAStaleGrantAtTheNewName() throws Exception {
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.getSecurityProvider()).thenReturn(mock(inetsoft.sree.security.SecurityProvider.class));
+
+      try(MockedStatic<SecurityEngine> engine = mockStatic(SecurityEngine.class)) {
+         engine.when(SecurityEngine::getSecurity).thenReturn(security);
+         renameScript("oldName", "newName");
+      }
+
+      verify(security).removePermission(eq(ResourceType.SCRIPT), anyString());
+      verify(security, never()).setPermission(any(), anyString(), any());
    }
 
    private MessageCommand renameScript(String oldName, String newName) throws Exception {

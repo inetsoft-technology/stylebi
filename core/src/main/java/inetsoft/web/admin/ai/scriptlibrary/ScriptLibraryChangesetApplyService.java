@@ -261,6 +261,10 @@ public class ScriptLibraryChangesetApplyService {
 
       String before = ScriptLibraryChangePlanService.project(entry);
       Permission permission = scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, name);
+      // Bug #80189: grants are keyed by name and outlive the script, so a grant left at the target
+      // would be inherited by the renamed function; kept so a rollback can restore it
+      Permission displaced = permission == null ?
+         scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, newName) : null;
       String oldText = lib.getScript(name);
       String newText = ScriptLibraryChangePlanService.renamedText(name, newName, oldText);
       boolean rewritten = !Objects.equals(oldText, newText);
@@ -271,6 +275,10 @@ public class ScriptLibraryChangesetApplyService {
       if(permission != null) {
          scriptLibraryService.securityEngine.removePermission(ResourceType.SCRIPT, name);
          scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, newName, permission);
+      }
+      else if(displaced != null) {
+         AbstractAssetEngine.removePermissionBestEffort(
+            scriptLibraryService.securityEngine, ResourceType.SCRIPT, newName);
       }
 
       boolean verified = !scriptLibraryService.exists(name, user) &&
@@ -284,7 +292,7 @@ public class ScriptLibraryChangesetApplyService {
                 before, after, status, backupRef, reviewOutcome, user);
 
       if(verified) {
-         undoable.add(Undo.rename(key, newName, name, permission, rewritten ? oldText : null));
+         undoable.add(Undo.rename(key, newName, name, permission, rewritten ? oldText : null, displaced));
       }
    }
 
@@ -421,6 +429,10 @@ public class ScriptLibraryChangesetApplyService {
                scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.name,
                   undo.permission);
             }
+            else if(undo.displacedPermission != null) {
+               scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.newName,
+                  undo.displacedPermission);
+            }
 
             verified = lib.getScript(undo.name) != null && lib.getScript(undo.newName) == null;
          }
@@ -514,9 +526,11 @@ public class ScriptLibraryChangesetApplyService {
 
       /** {@code priorText} is the text to restore, or null when the rename did not rewrite it. */
       static Undo rename(String key, String newName, String name, Permission permission,
-                         String priorText)
+                         String priorText, Permission displacedPermission)
       {
-         return new Undo(UndoKind.RENAME, key, name, newName, null, priorText, permission);
+         Undo undo = new Undo(UndoKind.RENAME, key, name, newName, null, priorText, permission);
+         undo.displacedPermission = displacedPermission;
+         return undo;
       }
 
       static Undo update(String key, String name, String priorDescription) {
@@ -547,6 +561,8 @@ public class ScriptLibraryChangesetApplyService {
       final String description;
       final String text;
       final Permission permission;
+      /** A grant at the rename target that the rename cleared, restored on rollback. */
+      Permission displacedPermission;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ScriptLibraryChangesetApplyService.class);

@@ -181,12 +181,23 @@ public class ScriptLibraryChangePlanService {
       String renamed = renamedText(name, newName, entry.text());
       requireCompiles(label + ".newName", renamed);
       String after = project(newName, entry.description(), renamed);
+      String description = "rename script library entry \"" + name + "\" to \"" + newName +
+         "\" -- the function's own declaration is renamed too, and the asset " +
+         "scripts that call it by name are rewritten in the background " +
+         "after the apply";
+
+      // Bug #80189: a grant already stored at the target (and none on the source to move there) is
+      // cleared by apply, as the Enterprise Manager rename does
+      if(scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, name) == null &&
+         scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, newName) != null)
+      {
+         description += "; the stale permission grants stored under \"" + newName +
+            "\" will also be removed (restored if rolled back)";
+      }
+
       return new PlanChange("scriptlibrary:" + name, null, before, after,
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
-                            "rename script library entry \"" + name + "\" to \"" + newName +
-                            "\" -- the function's own declaration is renamed too, and the asset " +
-                            "scripts that call it by name are rewritten in the background " +
-                            "after the apply");
+                            description);
    }
 
    private PlanChange resolveUpdate(String label, ScriptLibraryChangeRequest change,
