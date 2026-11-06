@@ -311,6 +311,7 @@ class ScriptLibraryChangesetApplyServiceTest {
    @Test void appliesARenameOfAGrantlessSourceClearingAStaleGrantAtTheTarget() throws Exception {
       scripts.put("old", "function old() { return 1; }");
       inetsoft.sree.security.Permission stale = new inetsoft.sree.security.Permission();
+      lenient().when(securityEngine.getPermission(ResourceType.SCRIPT, "old")).thenReturn(null);
       when(securityEngine.getPermission(ResourceType.SCRIPT, "newName")).thenReturn(stale);
       ScriptLibraryChangeRequest c = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
       c.setNewName("newName");
@@ -338,6 +339,7 @@ class ScriptLibraryChangesetApplyServiceTest {
       scripts.put("old", "function old() { return 1; }");
       scripts.put("keep", "return 1;");
       inetsoft.sree.security.Permission stale = new inetsoft.sree.security.Permission();
+      lenient().when(securityEngine.getPermission(ResourceType.SCRIPT, "old")).thenReturn(null);
       when(securityEngine.getPermission(ResourceType.SCRIPT, "newName")).thenReturn(stale);
       ScriptLibraryChangeRequest rename = change(ScriptLibraryChangeRequest.VERB_RENAME, "old");
       rename.setNewName("newName");
