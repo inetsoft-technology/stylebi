@@ -17,10 +17,12 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
+import inetsoft.util.CancelledException;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.OnClickService;
@@ -250,6 +252,54 @@ class InputValueServiceSubmitTest {
       CommandErrorException ex = assertThrows(CommandErrorException.class, () -> submit("v"));
 
       assertTrue(ex.getErrors().contains("write refused"), ex.getErrors().toString());
+      // so "an error response means the script did not run" is true
+      verify(onClick, never()).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void securityAndSessionExceptionsKeepTheirStatusAndPropagate() throws Exception {
+      Throwable[] control = {
+         new SecurityException("denied"),
+         new RuntimeException("wrapped", new SecurityException("denied deep")),
+         new CancelledException("cancelled"),
+         new ExpiredSheetException("rt", principal()),
+      };
+
+      for(Throwable t : control) {
+         setUp(SCRIPT, true);
+         doThrow(t).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+         Exception ex = assertThrows(Exception.class, () -> submit("v"), t.toString());
+
+         assertTrue(InputValueService.isControlFlow(ex), ex.toString());
+      }
+   }
+
+   @Test
+   void unexpectedRuntimeExceptionIsReportedAndLogged() throws Exception {
+      setUp(SCRIPT, true);
+      IllegalStateException boom = new IllegalStateException("refresh blew up");
+      doThrow(boom).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+      ch.qos.logback.classic.Logger logger =
+         (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(InputValueService.class);
+      ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+         new ch.qos.logback.core.read.ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         Map<String, Object> r = submit("kept");
+
+         assertEquals(true, r.get("scriptFailed"));
+         assertTrue(String.valueOf(r.get("scriptError")).contains("refresh blew up"), r.toString());
+         assertEquals(1, appender.list.size(), appender.list.toString());
+         assertSame(boom, appender.list.get(0).getThrowableProxy() == null ? null :
+            ((ch.qos.logback.classic.spi.ThrowableProxy) appender.list.get(0).getThrowableProxy())
+               .getThrowable());
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
    }
 
    @Test

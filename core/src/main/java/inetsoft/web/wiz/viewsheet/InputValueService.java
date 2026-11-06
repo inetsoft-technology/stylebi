@@ -22,6 +22,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.uql.asset.ConfirmException;
+import inetsoft.util.CancelledException;
+import inetsoft.util.InvalidUserException;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.controller.OnClickService;
@@ -31,6 +35,9 @@ import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.wiz.dispatch.AssetScriptFailureWarnings;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.service.RenderNotReadyException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -288,6 +295,13 @@ public class InputValueService {
                             Map<String, Object> result, List<String> scriptWarnings)
       throws Exception
    {
+      if(!dispatcher.getErrors().isEmpty()) {
+         // the write itself reported an error: the script is not fired, so the call fails (the
+         // capturing dispatcher's post-check throws) and "an error response means the script did
+         // not run" holds
+         return;
+      }
+
       result.put("valueStored", true);
       VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
       String skipped = null;
@@ -327,8 +341,14 @@ public class InputValueService {
          }));
       }
       catch(Exception ex) {
+         if(isControlFlow(ex)) {
+            // security, session and cancellation keep their own handling and status
+            throw ex;
+         }
+
          // the value was stored before the script ran and stays stored, as in the browser; any
-         // failure from here on is reported, not thrown, so the caller does not retry
+         // other failure from here on is reported, not thrown, so the caller does not retry
+         LOG.warn("onClick of '{}' failed after its value was stored", assemblyName, ex);
          ScriptException script = scriptCause(ex);
          String message = script != null && script.getMessage() != null ? script.getMessage()
             : ex.getMessage() != null ? ex.getMessage() : ex.toString();
@@ -366,6 +386,28 @@ public class InputValueService {
       }
 
       return out;
+   }
+
+   /**
+    * Exceptions with their own handler or status, which {@code
+    * CapturingCommandDispatcher.toCommandError} also leaves alone: security, permission, an
+    * expired session or sheet, a cancelled or confirm-pending request, a stale pairing, a render
+    * not ready. Looked for through the cause chain.
+    */
+   static boolean isControlFlow(Throwable e) {
+      for(int depth = 0; e != null && depth < 10; depth++, e = e.getCause()) {
+         if(e instanceof java.lang.SecurityException ||
+            e instanceof inetsoft.sree.security.SecurityException ||
+            e instanceof InvalidUserException || e instanceof ExpiredSheetException ||
+            e instanceof CancelledException || e instanceof ConfirmException ||
+            e instanceof PairingException || e instanceof RenderNotReadyException ||
+            e instanceof InterruptedException)
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static ScriptException scriptCause(Throwable e) {
@@ -873,6 +915,8 @@ public class InputValueService {
    }
 
    private static final int MAX_LISTED = 20;
+
+   private static final Logger LOG = LoggerFactory.getLogger(InputValueService.class);
 
    private final ViewsheetSessionService sessions;
    private final VSInputService inputs;
