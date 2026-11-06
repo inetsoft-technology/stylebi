@@ -20,7 +20,10 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -38,6 +41,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,7 +85,8 @@ class AssemblyHyperlinkServiceBookmarkValidationTest {
       return () -> "admin";
    }
 
-   private record Harness(AssemblyHyperlinkService service, HyperlinkDialogService links) {}
+   private record Harness(AssemblyHyperlinkService service, HyperlinkDialogService links,
+                          AssetRepository repository) {}
 
    private static Harness harness() throws Exception {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -105,7 +110,7 @@ class AssemblyHyperlinkServiceBookmarkValidationTest {
                                          anyBoolean(), any(Principal.class)))
          .thenReturn(new HyperlinkDialogModel());
 
-      return new Harness(new AssemblyHyperlinkService(sessions, links), links);
+      return new Harness(new AssemblyHyperlinkService(sessions, links), links, repository);
    }
 
    private static HyperlinkDialogModel capture(HyperlinkDialogService links) throws Exception {
@@ -157,6 +162,78 @@ class AssemblyHyperlinkServiceBookmarkValidationTest {
                         "");
 
          assertEquals("Q3", capture(h.links()).getBookmark());
+      }
+   }
+
+   // ── bug #80474: describeTarget ───────────────────────────────────────────────
+
+   private static void wireVariablesAndSheet(Harness h, UserVariable... variables)
+      throws Exception
+   {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAllVariables()).thenReturn(variables);
+      when(h.repository().getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                                   any())).thenReturn(vs);
+   }
+
+   @Test
+   void describeTargetReturnsRealBookmarksAndParametersForAReadableTarget() throws Exception {
+      Harness h = harness();
+      UserVariable customer = new UserVariable("customer");
+      customer.setTypeNode(XSchema.createPrimitiveType(XSchema.STRING));
+      wireVariablesAndSheet(h, customer);
+
+      try(MockedStatic<VSUtil> vsutil = Mockito.mockStatic(VSUtil.class)) {
+         vsutil.when(() -> VSUtil.getBookmarks(anyString(), any(IdentityID.class)))
+            .thenReturn(new VSBookmarkInfo[]{
+               new VSBookmarkInfo("Q1", VSBookmarkInfo.PRIVATE, OWNER, false, 0L) });
+         vsutil.when(() -> VSUtil.getUserAlias(any(IdentityID.class))).thenReturn("admin");
+
+         Map<String, Object> result =
+            h.service().describeTarget("tok", principal(), "Reports/Detail", null);
+
+         @SuppressWarnings("unchecked")
+         List<Map<String, Object>> parameters = (List<Map<String, Object>>) result.get("parameters");
+         @SuppressWarnings("unchecked")
+         List<Map<String, Object>> bookmarks = (List<Map<String, Object>>) result.get("bookmarks");
+
+         assertEquals(1, parameters.size());
+         assertEquals("customer", parameters.get(0).get("name"));
+         assertEquals(XSchema.STRING, parameters.get(0).get("type"));
+         assertEquals(1, bookmarks.size());
+         assertEquals("Q1", bookmarks.get(0).get("name"));
+         assertEquals("admin", bookmarks.get(0).get("owner"));
+      }
+   }
+
+   /**
+    * Deliberate policy choice (bug #80474): unlike {@code set}, which refuses a recycled target
+    * outright, {@code describeTarget} answers with the target's real data -- a recycled-but-
+    * readable asset's bookmarks/parameters are still real, and this read-only method has none of
+    * {@code set}'s "don't create a link that goes nowhere" concern.
+    */
+   @Test
+   void describeTargetAnswersForARecycledButReadableTarget() throws Exception {
+      Harness h = harness();
+      UserVariable customer = new UserVariable("customer");
+      customer.setTypeNode(XSchema.createPrimitiveType(XSchema.STRING));
+      wireVariablesAndSheet(h, customer);
+
+      try(MockedStatic<VSUtil> vsutil = Mockito.mockStatic(VSUtil.class)) {
+         vsutil.when(() -> VSUtil.getBookmarks(anyString(), any(IdentityID.class)))
+            .thenReturn(new VSBookmarkInfo[]{
+               new VSBookmarkInfo("Q1", VSBookmarkInfo.PRIVATE, OWNER, false, 0L) });
+
+         Map<String, Object> result = h.service().describeTarget(
+            "tok", principal(), "Recycle Bin/Reports-Detail-20261101", null);
+
+         @SuppressWarnings("unchecked")
+         List<Map<String, Object>> parameters = (List<Map<String, Object>>) result.get("parameters");
+         @SuppressWarnings("unchecked")
+         List<Map<String, Object>> bookmarks = (List<Map<String, Object>>) result.get("bookmarks");
+
+         assertEquals(1, parameters.size());
+         assertEquals(1, bookmarks.size());
       }
    }
 }

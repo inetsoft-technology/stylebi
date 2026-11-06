@@ -54,6 +54,7 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
 import inetsoft.web.composer.vs.dialog.HyperlinkDialogService;
+import inetsoft.util.MessageException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -1280,6 +1281,57 @@ class AssemblyHyperlinkServiceTest {
    // AssemblyHyperlinkServiceBookmarkValidationTest, bootstrapped the same way
    // ComposerBindingControllerTest bootstraps it, rather than dragging that setup into this
    // file's fast, plain-Mockito harness for every other test in it.
+
+   // ── bug #80474: describeTarget ───────────────────────────────────────────────
+   // The happy-path (real bookmarks/parameters) and recycled-target cases call the real
+   // VSUtil.getBookmarks, so they live in AssemblyHyperlinkServiceBookmarkValidationTest for the
+   // same reason the sibling bookmark-matching tests above do. The two cases here never reach
+   // VSUtil at all (missing args short-circuit before resolution; a failed READ check short-
+   // circuits right after it), so they stay in this fast harness.
+
+   @Test
+   void describeTargetReturnsEmptyListsWhenNeitherPathNorIdIsGiven() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      Map<String, Object> result = h.service.describeTarget("tok", principal(), null, null);
+
+      assertEquals(List.of(), result.get("parameters"));
+      assertEquals(List.of(), result.get("bookmarks"));
+      verifyNoInteractions(h.repository);
+   }
+
+   @Test
+   void describeTargetReturnsEmptyListsWhenTheTargetDoesNotExist() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any())).thenReturn(false);
+
+      Map<String, Object> result =
+         h.service.describeTarget("tok", principal(), "Reports/Nope", null);
+
+      assertEquals(List.of(), result.get("parameters"));
+      assertEquals(List.of(), result.get("bookmarks"));
+   }
+
+   /**
+    * The explicit {@code checkAssetPermission(READ)} gate (necessary because {@code containsEntry}
+    * itself does no permission checking) refuses a target the caller cannot read -- and the
+    * response must not distinguish this from "does not exist", so it answers with the same empty
+    * shape rather than throwing.
+    */
+   @Test
+   void describeTargetReturnsEmptyListsWhenTheCallerCannotReadTheTarget() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      doThrow(new MessageException("no read access"))
+         .when(h.repository).checkAssetPermission(any(Principal.class), any(AssetEntry.class),
+                                                   eq(ResourceAction.READ), eq(true));
+
+      Map<String, Object> result =
+         h.service.describeTarget("tok", principal(), "Reports/Detail", null);
+
+      assertEquals(List.of(), result.get("parameters"));
+      assertEquals(List.of(), result.get("bookmarks"));
+      verify(h.repository, never()).getSheet(any(), any(), anyBoolean(), any());
+   }
 
    // ── harness ───────────────────────────────────────────────────────────────
 
