@@ -136,18 +136,39 @@
 }
 
 .status-bar-component {
+  height: 100%;
   justify-content: flex-end;
 }
 
 .console-count-badge {
-  color: var(--inet-button-light-text-color);
-  background-color: var(--inet-button-light-bg-color);
+  color: var(--inet-text-muted-color);
+  background-color: var(--inet-shell-surface-hover);
+  // match the "Console" label's size and baseline, same as the composer main editor
+  font-size: inherit;
+  vertical-align: baseline;
+  top: 0;
 }
 
+// dedicated bottom lane for the status bar / Console pill, so it doesn't sit over the object view
 .status-bar {
   position: absolute;
-  right: 75px;
-  bottom: 20px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+
+  // the shared status bar fills the lane, same as the composer main editor
+  ::ng-deep .status-bar {
+    height: 100%;
+  }
+}
+
+.right-binding-container.has-status-bar {
+  box-sizing: border-box;
+  padding-bottom: 44px;
+  // extend over the parent's left padding so the bar spans the full width, content stays put
+  margin-left: calc(-1 * var(--bs-spacer, 0.5rem));
+  padding-left: var(--bs-spacer, 0.5rem);
 }
 
 .right-container-wrapper {
