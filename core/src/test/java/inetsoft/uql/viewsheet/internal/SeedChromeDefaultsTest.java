@@ -28,6 +28,7 @@ import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartLineColor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
@@ -37,6 +38,7 @@ import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -48,7 +50,11 @@ import java.io.StringReader;
 import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 /**
@@ -1166,8 +1172,6 @@ class SeedChromeDefaultsTest {
    void theSeededDataLabelInkTravelsInTheAsset() throws Exception {
       // the ink survives a round trip because CompositeTextFormat.writeContents (see
       // CompositeTextFormat:296-301) always serializes deffmt inside <defaultFormat>, unconditionally
-      // - unlike the plot's line colours, which are CompositeValue fields (see
-      // theSeededLineColoursDoNotTravelInTheAssetYet below)
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       ChartVSAssemblyInfo restored = roundTrip(newChart());
@@ -1176,27 +1180,144 @@ class SeedChromeDefaultsTest {
                    "the asset itself carries the seeded data-label ink");
    }
 
-   /**
-    * A known, accepted limitation, not a bug to fix in this task: CompositeValue.toString() only
-    * writes the DEFAULT tier when saveDefault is true, and PlotDescriptor's five line-colour fields
-    * (xGridColor, yGridColor, diagonalColor, quadrantColor, facetColor) are all built with the
-    * two-arg constructor, so saveDefault is false for every one of them. The seed writes at the
-    * DEFAULT tier, so it serializes as an empty attribute and a round trip comes back with the
-    * field initializer's own legacy default rather than the seeded modern colour. This test pins
-    * that as the current, deliberate state of the design, not as a target: if someone later flips
-    * saveDefault to true on these fields, this test is expected to fail, and the design doc must be
-    * updated alongside it.
-    */
    @Test
-   void theSeededLineColoursDoNotTravelInTheAssetYet() throws Exception {
+   void theSeededLineColoursTravelInTheAsset() throws Exception {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
-      ChartVSAssemblyInfo restored = roundTrip(newChart());
+      PlotDescriptor restored = plot(roundTrip(newChart()));
+      Color dark = new Color(0x4A484F);
 
+      assertEquals(dark, restored.getXGridColor(), "x gridline");
+      assertEquals(dark, restored.getYGridColor(), "y gridline");
+      assertEquals(dark, restored.getFacetGridColor(), "facet lines");
+      assertEquals(dark, restored.getDiagonalColor(), "diagonal, which no render-time CSS write rescues");
+      assertEquals(dark, restored.getQuadrantColor(), "quadrant, likewise");
+   }
+
+   @Test
+   void aReloadedMarkedChartKeepsSavingItsDefaults() throws Exception {
+      // no seed runs on load, so only the save can keep the tier
+      gateOn();
+
+      assertEquals(new Color(0xD6D2C8),
+                   plot(roundTrip(roundTrip(newChart()))).getDiagonalColor(),
+                   "the second save still carries the seeded diagonal");
+   }
+
+   @Test
+   void aClassicChartsDescriptorWritesNoDefaultTier() {
+      gateOff();
+
+      assertFalse(chartDescriptorXml(writeXml(newChart())).contains("^^DEF^^"));
+   }
+
+   @Test
+   void aRevertedChartsDescriptorWritesNoDefaultTier() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(null);
+      info.initDefaultFormat();
+
+      assertFalse(chartDescriptorXml(writeXml(info)).contains("^^DEF^^"));
+   }
+
+   @Test
+   void theSaveFollowsTheOwningChartsMark() {
+      // a descriptor swapped in without a re-seed saves what the owner's mark says
+      // a fresh swap before each write, since a write leaves the switch synced
+      gateOn();
+      ChartVSAssembly marked = chartOn(new Viewsheet());
+      ChartVSAssemblyInfo markedInfo = (ChartVSAssemblyInfo) marked.getVSAssemblyInfo();
+
+      markedInfo.setChartDescriptor(new ChartDescriptor());
+      assertTrue(chartDescriptorXml(writeXml(markedInfo)).contains("^^DEF^^"), "marked asset");
+      markedInfo.setChartDescriptor(new ChartDescriptor());
+      assertTrue(chartDescriptorXml(writeState(marked)).contains("^^DEF^^"), "marked bookmark");
+
+      gateOff();
+      ChartVSAssembly classic = chartOn(new Viewsheet());
+      ChartVSAssemblyInfo classicInfo = (ChartVSAssemblyInfo) classic.getVSAssemblyInfo();
+
+      classicInfo.setChartDescriptor(switchedOnDescriptor());
+      assertFalse(chartDescriptorXml(writeXml(classicInfo)).contains("^^DEF^^"), "classic asset");
+      classicInfo.setChartDescriptor(switchedOnDescriptor());
+      assertFalse(chartDescriptorXml(writeState(classic)).contains("^^DEF^^"), "classic bookmark");
+   }
+
+   private static ChartDescriptor switchedOnDescriptor() {
+      ChartDescriptor d = new ChartDescriptor();
+      d.setSaveDefaults(true);
+      return d;
+   }
+
+   @Test
+   void aCopyOfAMarkedChartSavesItsDefaults() {
+      gateOn();
+      ChartVSAssemblyInfo copy = (ChartVSAssemblyInfo) newChart().clone();
+
+      assertTrue(chartDescriptorXml(writeXml(copy)).contains("^^DEF^^"));
+   }
+
+   @Test
+   void aClassicChartsGridlineFollowsTheStylesheetInForceWhenItLoads() throws Exception {
+      gateOff();
+      String classic = writeXml(newChart());
+      gateOn();
+      String marked = writeXml(newChart());
+
+      try(MockedStatic<ChartLineColor> css = mockStatic(ChartLineColor.class, CALLS_REAL_METHODS)) {
+         css.when(() -> ChartLineColor.getPlotLineColor(any(), eq("x"))).thenReturn(Color.RED);
+
+         assertEquals(Color.RED, plot(parseInfo(classic)).getXGridColor(),
+                      "nothing was frozen, so the lookup at load decides");
+         assertEquals(new Color(0xD6D2C8), plot(parseInfo(marked)).getXGridColor(),
+                      "the saved tier is the modern constant");
+      }
+   }
+
+   @Test
+   void aBookmarkTakenWhileModernAndRestoredAfterRevertDrawsClassic() throws Exception {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = chartOn(vs);
+      String state = writeState(chart);
+      assertTrue(chartDescriptorXml(state).contains("^^DEF^^"),
+                 "premise: the bookmark carries the modern tiers");
+
+      VizModernizeUtil.revert(vs);
+      restoreState(chart, state);
+
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      PlotDescriptor plot = plot(info);
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "x"),
+                   plot.getXGridColor(), "x gridline");
       assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "y"),
-                   plot(restored).getYGridColor(),
-                   "the seeded #4A484F is lost on round trip; the field's own legacy default " +
-                   "comes back instead");
+                   plot.getYGridColor(), "y gridline");
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "diagonal"),
+                   plot.getDiagonalColor(), "scatter-matrix diagonal");
+      assertEquals(ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
+                   plot.getQuadrantColor(), "quadrant lines");
+      assertEquals(GDefaults.DEFAULT_LINE_COLOR, plot.getFacetGridColor(), "facet lines");
+      assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info), "data-label ink");
+      assertFalse(chartDescriptorXml(writeXml(info)).contains("^^DEF^^"),
+                  "a reverted chart saves no default tier");
+   }
+
+   @Test
+   void aClassicBookmarkRestoredAfterModernizeDrawsModernAndSavesItsDefaults() throws Exception {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = chartOn(vs);
+      String state = writeState(chart);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      restoreState(chart, state);
+
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      assertEquals(new Color(0xD6D2C8), plot(info).getYGridColor(), "draws modern");
+      assertTrue(chartDescriptorXml(writeXml(info)).contains("^^DEF^^"),
+                 "the next save carries the tiers");
    }
 
    // ---- the hook, called a second time on an assembly that already exists ---------------------
@@ -1715,9 +1836,38 @@ class SeedChromeDefaultsTest {
    }
 
    private static ChartVSAssemblyInfo roundTrip(ChartVSAssemblyInfo info) throws Exception {
+      return parseInfo(writeXml(info));
+   }
+
+   private static ChartVSAssemblyInfo parseInfo(String xml) throws Exception {
       ChartVSAssemblyInfo restored = new ChartVSAssemblyInfo();
-      restored.parseXML(Tool.parseXML(new StringReader(writeXml(info))).getDocumentElement());
+      restored.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
       return restored;
+   }
+
+   // the chart info's size frame writes its own default tier, so only this part is searched
+   private static String chartDescriptorXml(String xml) {
+      int start = xml.indexOf("<chartDescriptor");
+      int end = xml.indexOf("</chartDescriptor>", start);
+      assertTrue(start >= 0 && end > start, "a chart descriptor was written");
+      return xml.substring(start, end + "</chartDescriptor>".length());
+   }
+
+   private static String writeState(VSAssembly assembly) {
+      StringWriter sw = new StringWriter();
+      assembly.writeState(new PrintWriter(sw), true);
+      return sw.toString();
+   }
+
+   private static void restoreState(VSAssembly assembly, String state) throws Exception {
+      assembly.parseState(Tool.parseXML(new StringReader(state)).getDocumentElement());
+   }
+
+   private static ChartVSAssembly chartOn(Viewsheet vs) {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      vs.addAssembly(chart);
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      return chart;
    }
 
    // ---- creation seeds from the assembly's own mark, not the org gate -------------------------

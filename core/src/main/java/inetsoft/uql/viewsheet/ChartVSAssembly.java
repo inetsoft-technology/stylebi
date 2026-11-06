@@ -455,6 +455,11 @@ public class ChartVSAssembly extends DataVSAssembly
       }
 
       if(runtime) {
+         // the bookmark's descriptor saves what this chart's mark says
+         if(chartInfo != null) {
+            chartInfo.syncSavedDefaults();
+         }
+
          // write chart info
          VSChartInfo cinfo = getVSChartInfo();
 

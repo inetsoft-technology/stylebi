@@ -213,6 +213,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
+      // only a marked chart saves its seeded tiers
+      getChartDescriptor().setSaveDefaults(ctx.modern);
    }
 
    @Override
@@ -1292,6 +1294,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Let the chart descriptor save its default tiers only while this chart is marked.
+    */
+   public void syncSavedDefaults() {
+      if(desc != null) {
+         desc.setSaveDefaults(getVizMark() != null);
+      }
+   }
+
+   /**
     * Set the runtime chart descriptor.
     * @param rdesc the specified chart descriptor.
     */
@@ -1687,6 +1698,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       if(desc != null) {
+         // a descriptor swapped in without a re-seed follows this chart's mark
+         syncSavedDefaults();
          desc.writeXML(writer);
       }
 

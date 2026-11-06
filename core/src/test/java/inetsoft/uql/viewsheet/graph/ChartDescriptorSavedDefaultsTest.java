@@ -17,12 +17,19 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,15 +40,23 @@ import java.awt.Color;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = BaseTestConfiguration.class,
+@ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
 class ChartDescriptorSavedDefaultsTest {
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      SreeEnv.setProperty("viewsheet.darkMode", null);
+      SreeEnv.setProperty("viewsheet.density", null);
+   }
+
    @Test
    void aSwitchedOnDescriptorWritesItsRegisteredDefaultTiers() throws Exception {
       ChartDescriptor desc = new ChartDescriptor();
@@ -105,6 +120,38 @@ class ChartDescriptorSavedDefaultsTest {
       copy.setSaveDefaults(false);
       assertTrue(xml(original).contains("^^DEF^^"));
       assertFalse(xml(copy).contains("^^DEF^^"));
+   }
+
+   @Test
+   void aLegacyPassRestoresEveryRegisteredDefault() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(null);
+      // not a transition, as a restore and the residue simulation run it
+      VizModernizeUtil.reseedAfterRestore(info);
+      gateOff();
+      List<CompositeValue<?>> classic = newChart().getChartDescriptor().savedDefaults();
+      List<CompositeValue<?>> after = info.getChartDescriptor().savedDefaults();
+
+      for(int i = 0; i < classic.size(); i++) {
+         assertEquals(classic.get(i).get(CompositeValue.Type.DEFAULT),
+                      after.get(i).get(CompositeValue.Type.DEFAULT), "field " + i);
+      }
+   }
+
+   private void gateOn() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+   }
+
+   private void gateOff() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+   }
+
+   private ChartVSAssemblyInfo newChart() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      return (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
    }
 
    private static <T> void promoteDefaultToUser(CompositeValue<T> value) {
