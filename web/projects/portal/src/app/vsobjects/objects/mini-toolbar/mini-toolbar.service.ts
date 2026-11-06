@@ -73,8 +73,8 @@ export function isAnchoredAssemblyType(objectType: string): boolean {
    return !!objectType && ANCHORED_ASSEMBLY_TYPES.has(objectType.toLowerCase());
 }
 
-/** The shortest lane that can hold the 24px strip; the 18px glyph inside the 24px control provides breathing room. */
-export const ANCHORED_LANE_MIN = 24;
+/** The shortest lane that can hold the 26px strip; the 18px glyph inside the 26px control provides breathing room. */
+export const ANCHORED_LANE_MIN = 26;
 
 /**
  * The lane available to the strip: the title's height when it has one, zero otherwise. A hidden
@@ -104,7 +104,7 @@ export function isAnchoredDesign(objectType: string, vizModern: boolean): boolea
 
 /**
  * Whether the strip can anchor into this assembly's lane: the modern design plus a lane that can
- * hold the 24px strip, measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN. Asked
+ * hold the 26px strip, measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN. Asked
  * by VSObjectContainerComponent.isKebabResident.
  */
 export function isAnchoredResident(objectType: string, vizModern: boolean,
@@ -113,8 +113,8 @@ export function isAnchoredResident(objectType: string, vizModern: boolean,
    return isAnchoredDesign(objectType, vizModern) && laneHeight >= ANCHORED_LANE_MIN;
 }
 
-/** The shortest assembly height that fits a 24px control with 4px of clearance above and below. */
-export const ACTION_FLOOR = 32;
+/** The shortest assembly height that fits a 26px control with 4px of clearance above and below. */
+export const ACTION_FLOOR = 34;
 
 /** Distance from the card's top and right edges to the corner kebab. */
 export const CORNER_KEBAB_INSET = 4;

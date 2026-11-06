@@ -25,9 +25,9 @@ describe("GuiTool.getMiniToolbarHeight", () => {
       expect(GuiTool.getMiniToolbarHeight(false)).toBe(28);
    });
 
-   it("returns the compact height (24) when vizModern is true", () => {
+   it("returns the compact height (26) when vizModern is true", () => {
       expect(GuiTool.getMiniToolbarHeight(true)).toBe(GuiTool.MINI_TOOLBAR_HEIGHT_MODERN);
-      expect(GuiTool.getMiniToolbarHeight(true)).toBe(24);
+      expect(GuiTool.getMiniToolbarHeight(true)).toBe(26);
    });
 });
 

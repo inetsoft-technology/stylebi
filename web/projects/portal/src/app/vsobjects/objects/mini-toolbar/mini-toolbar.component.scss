@@ -79,7 +79,7 @@
 }
 
 :host-context(.viz-modern) .mini-toolbar .mini-toolbar-container {
-  height: var(--inet-control-height-sm);
+  height: 26px; // coupled to GuiTool.MINI_TOOLBAR_HEIGHT_MODERN
 
   button {
     height: 100%;
@@ -87,6 +87,14 @@
     padding-bottom: 0;
     display: inline-flex;
     align-items: center;
+
+    // The <i> box is centred in the 26px button, but the InetSoft-Icons glyphs are drawn about
+    // 0.75px above the centre of their em-box, so the ink sat ~1.5px closer to the top edge of the
+    // hover box than the bottom. A 1px relative offset evens it out without moving the layout box.
+    i {
+      position: relative;
+      top: 1px;
+    }
   }
 }
 
@@ -182,10 +190,10 @@
 // buttons still render beside it unless the device is mobile (they sit inside
 // @if (!mobileDevice)).
 @media (pointer: coarse) {
-  // :host-context(.viz-modern) .mini-toolbar-container above pins height: 24px — written when the
+  // :host-context(.viz-modern) .mini-toolbar-container above pins height: 26px — written when the
   // kebab lived outside the container, it now clips the 44px touch target below right back down
-  // to 24px. Height is overridden alone, with no fixed value, just a floor, so the mouse-pointer
-  // 24px row — coupled to GuiTool.MINI_TOOLBAR_HEIGHT_MODERN, see gui-tool.ts — is untouched; this
+  // to 26px. Height is overridden alone, with no fixed value, just a floor, so the mouse-pointer
+  // 26px row — coupled to GuiTool.MINI_TOOLBAR_HEIGHT_MODERN, see gui-tool.ts — is untouched; this
   // rule only ever matches under a coarse pointer, is more specific than the :host-context rule it
   // must beat (0,4,0 vs 0,3,0, so it does not depend on source order either), and does not apply
   // once the strip is dismissed.

@@ -170,7 +170,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    /**
     * The resident kebab action. Rendered as its own button group inside .mini-toolbar-container,
     * alongside the action-button groups but outside their @if (!mobileDevice) guard, so it
-    * inherits the container's flex layout, right-alignment, pinned 24px height and button chrome
+    * inherits the container's flex layout, right-alignment, pinned 26px height and button chrome
     * (border/background overrides) instead of Bootstrap's bare btn-sm metrics, and so touch
     * (which never renders the action-button groups) still gets a route to the toolbar. Null when
     * not anchored, or when displayActions doesn't end in the "more actions" action (e.g. below
