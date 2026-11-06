@@ -4012,7 +4012,7 @@ class ViewsheetAssemblyAgentControllerTest {
             "Q1 Report", "shared", "admin", true, true, false),
          new ViewsheetAssemblyAgentController.BookmarkInfo(
             "My View", "private", "admin", false, false, true)
-      ), result);
+      ), legacyFields(result));
    }
 
    /**
@@ -4050,7 +4050,7 @@ class ViewsheetAssemblyAgentControllerTest {
             "Q1 Report", "shared", "admin", true, true, true),
          new ViewsheetAssemblyAgentController.BookmarkInfo(
             "Q1 Report", "private", "caller", false, false, false)
-      ), result);
+      ), legacyFields(result));
    }
 
    @Test
@@ -5834,7 +5834,550 @@ class ViewsheetAssemblyAgentControllerTest {
             VSBookmark.HOME_BOOKMARK, "shared", "admin", true, false, true),
          new ViewsheetAssemblyAgentController.BookmarkInfo(
             "My View", "private", "admin", false, false, false)
-      ), controller.listBookmarks("tok", principal()));
+      ), legacyFields(controller.listBookmarks("tok", principal())));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #80466 -- bookmark details in list_bookmarks, Override / Re-add on update_bookmark
+   // ---------------------------------------------------------------------------
+
+   private static final long T_CREATED = 1_700_000_000_000L;   // 2023-11-14T22:13:20Z
+   private static final long T_MODIFIED = 1_700_100_000_000L;
+   private static final long T_ACCESSED = 1_700_200_000_000L;
+
+   @Test
+   void listBookmarks_reportsAliasLabelAndIsoTimes_whenSecurityEnabled() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      IdentityID alice = IdentityID.getIdentityIDFromKey("alice");
+      VSBookmarkInfo home = new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.PRIVATE,
+                                               caller, true, System.currentTimeMillis());
+      VSBookmarkInfo mine = new VSBookmarkInfo("Team View", VSBookmarkInfo.PRIVATE, caller, false,
+                                               T_MODIFIED, T_ACCESSED, T_CREATED);
+      VSBookmarkInfo hers = new VSBookmarkInfo("Team View", VSBookmarkInfo.ALLSHARE, alice, false,
+                                               T_MODIFIED, -1, T_CREATED);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any()))
+         .thenReturn(List.of(home, mine, hers));
+      SecurityEngine securityEngine = permissionDenied();
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      ViewsheetAssemblyAgentController controller =
+         spy(controllerForBookmarks(sessions, vsBookmarkService, securityEngine));
+      doReturn("Alice Liddell").when(controller).userAlias(alice);
+      doReturn("Administrator").when(controller).userAlias(caller);
+
+      List<ViewsheetAssemblyAgentController.BookmarkInfo> result =
+         controller.listBookmarks("tok", principal());
+
+      ViewsheetAssemblyAgentController.BookmarkInfo homeInfo = result.get(0);
+      ViewsheetAssemblyAgentController.BookmarkInfo own = result.get(1);
+      ViewsheetAssemblyAgentController.BookmarkInfo other = result.get(2);
+
+      assertEquals(VSBookmark.HOME_BOOKMARK, homeInfo.name());
+      assertNull(homeInfo.createdTime());
+      assertNull(homeInfo.lastModified());
+      assertNull(homeInfo.lastAccessed());
+
+      // the caller's own bookmark reads as its bare name even with security on
+      assertEquals("Team View", own.label());
+      assertEquals("Administrator", own.ownerAlias());
+      assertEquals("2023-11-14T22:13:20Z", own.createdTime());
+      assertEquals("2023-11-16T02:00:00Z", own.lastModified());
+      assertEquals("2023-11-17T05:46:40Z", own.lastAccessed());
+
+      // another user's bookmark reads "name(ownerAlias)", exactly the Viewer's label; the bare
+      // owner (what goto_bookmark/update_bookmark 'owner' takes) is unchanged
+      assertEquals("Team View(Alice Liddell)", other.label());
+      assertEquals("Alice Liddell", other.ownerAlias());
+      assertEquals("alice", other.owner());
+      assertEquals("shared", other.type());
+      assertEquals("2023-11-16T02:00:00Z", other.lastModified());
+      assertNull(other.lastAccessed());
+   }
+
+   @Test
+   void listBookmarks_labelIsNameAndNoAlias_whenSecurityDisabled() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      IdentityID alice = IdentityID.getIdentityIDFromKey("alice");
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Team View", VSBookmarkInfo.ALLSHARE, alice, false,
+                            T_MODIFIED, T_ACCESSED, T_CREATED)));
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      ViewsheetAssemblyAgentController.BookmarkInfo info =
+         controller.listBookmarks("tok", principal()).get(0);
+
+      assertEquals("Team View", info.label());
+      assertNull(info.ownerAlias());
+      assertEquals("alice", info.owner());
+      assertEquals("2023-11-14T22:13:20Z", info.createdTime());
+   }
+
+   @Test
+   void bookmarkRecords_jsonShapes() throws Exception {
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new com.fasterxml.jackson.databind.ObjectMapper();
+
+      ViewsheetAssemblyAgentController.SaveBookmarkRequest plain = mapper.readValue(
+         "{\"name\":\"x\"}", ViewsheetAssemblyAgentController.SaveBookmarkRequest.class);
+      assertEquals("x", plain.name());
+      assertNull(plain.onConflict());
+      assertNull(plain.owner());
+
+      ViewsheetAssemblyAgentController.SaveBookmarkRequest full = mapper.readValue(
+         "{\"name\":\"x\",\"type\":\"shared\",\"readOnly\":false," +
+            "\"onConflict\":\"override\",\"owner\":\"alice\"}",
+         ViewsheetAssemblyAgentController.SaveBookmarkRequest.class);
+      assertEquals("override", full.onConflict());
+      assertEquals("alice", full.owner());
+      assertEquals("shared", full.type());
+
+      com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(mapper.writeValueAsString(
+         new ViewsheetAssemblyAgentController.UpdateBookmarkResult("modified", "override", "alice")));
+      assertEquals("modified", json.get("conflict").asText());
+      assertEquals("override", json.get("resolution").asText());
+      assertEquals("alice", json.get("owner").asText());
+
+      com.fasterxml.jackson.databind.JsonNode info = mapper.readTree(mapper.writeValueAsString(
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "n", "shared", "alice", false, false, false, "Alice", "n(Alice)", "c", "m", "a")));
+      for(String key : List.of("name", "type", "owner", "readOnly", "isDefault", "isCurrent",
+                               "ownerAlias", "label", "createdTime", "lastModified",
+                               "lastAccessed"))
+      {
+         assertTrue(info.has(key), key);
+      }
+   }
+
+   /** Builds a controller + runtime for the update tests; the service answers OK to every write. */
+   private record UpdateFixture(RuntimeViewsheet rvs, VSBookmarkService service,
+                                ViewsheetAssemblyAgentController controller) {}
+
+   private static UpdateFixture updateFixture(List<VSBookmarkInfo> visible,
+                                              SecurityEngine securityEngine) throws Exception
+   {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      wireMutate(sessions, rvs);
+      VSBookmarkService service = mock(VSBookmarkService.class);
+      when(service.getVisibleBookmarks(any(), any())).thenReturn(visible);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(service.addBookmarkToViewSheet(eq(rvs), anyString(), anyInt(), anyBoolean(), eq(true),
+                                          any(Principal.class), any(Principal.class)))
+         .thenReturn(ok);
+      return new UpdateFixture(rvs, service,
+                               controllerForBookmarks(sessions, service, securityEngine));
+   }
+
+   private static UpdateFixture updateFixture(List<VSBookmarkInfo> visible) throws Exception {
+      return updateFixture(visible, permissionDenied());
+   }
+
+   private static ViewsheetAssemblyAgentController.SaveBookmarkRequest updateRequest(
+      String name, String onConflict, String owner)
+   {
+      return new ViewsheetAssemblyAgentController.SaveBookmarkRequest(
+         name, null, null, onConflict, owner);
+   }
+
+   private static VSBookmarkInfo bookmark(String name, int type, String owner, boolean readOnly) {
+      return new VSBookmarkInfo(name, type, IdentityID.getIdentityIDFromKey(owner), readOnly,
+                                T_MODIFIED, T_ACCESSED, T_CREATED);
+   }
+
+   private static void verifyNothingWritten(UpdateFixture f) throws Exception {
+      verify(f.service(), never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
+   }
+
+   private static String principalName(UpdateFixture f, int type, boolean readOnly, String name)
+      throws Exception
+   {
+      org.mockito.ArgumentCaptor<Principal> owner = org.mockito.ArgumentCaptor.forClass(Principal.class);
+      verify(f.service()).addBookmarkToViewSheet(eq(f.rvs()), eq(name), eq(type), eq(readOnly),
+                                                 eq(true), owner.capture(), any(Principal.class));
+      // the owner principal carries the identity key ("name~;~org"), as the existing path does
+      return IdentityID.getIdentityIDFromKey(owner.getValue().getName()).getName();
+   }
+
+   @Test
+   void updateBookmark_override_overwritesAModifiedBookmark_andReportsIt() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of(
+         bookmark("Q1 Report", VSBookmarkInfo.ALLSHARE, "admin", false)));
+      when(f.rvs().bookmarkUpdated("Q1 Report", caller)).thenReturn(true);
+      when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(true);
+      when(f.rvs().containsBookmark("Q1 Report", caller)).thenReturn(true);
+
+      ViewsheetAssemblyAgentController.UpdateBookmarkResult result =
+         f.controller().updateBookmark("tok", updateRequest("Q1 Report", "override", null),
+                                       principal());
+
+      assertEquals("modified", result.conflict());
+      assertEquals("override", result.resolution());
+      assertEquals("admin", result.owner());
+      assertEquals("admin", principalName(f, VSBookmarkInfo.ALLSHARE, false, "Q1 Report"));
+   }
+
+   @Test
+   void updateBookmark_withoutOnConflict_modifiedRefusalNamesTheChoice() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of(
+         bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false)));
+      when(f.rvs().bookmarkUpdated("Q1 Report", caller)).thenReturn(true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> f.controller().updateBookmark("tok", updateRequest("Q1 Report", null, null),
+                                             principal()));
+
+      assertTrue(thrown.getMessage().contains("was modified by someone else"));
+      assertTrue(thrown.getMessage().contains("onConflict:'override'"));
+      assertTrue(thrown.getMessage().contains("goto_bookmark"));
+      verifyNothingWritten(f);
+   }
+
+   @Test
+   void updateBookmark_onConflictWithNoConflict_savesAndReportsNone() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+
+      for(String choice : List.of("override", "readd")) {
+         UpdateFixture f = updateFixture(List.of(
+            bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false)));
+         when(f.rvs().bookmarkUpdated("Q1 Report", caller)).thenReturn(false);
+         when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(true);
+         when(f.rvs().containsBookmark("Q1 Report", caller)).thenReturn(true);
+
+         ViewsheetAssemblyAgentController.UpdateBookmarkResult result =
+            f.controller().updateBookmark("tok", updateRequest("Q1 Report", choice, null),
+                                          principal());
+
+         assertEquals("none", result.conflict(), choice);
+         assertEquals("none", result.resolution(), choice);
+         principalName(f, VSBookmarkInfo.PRIVATE, false, "Q1 Report");
+      }
+   }
+
+   @Test
+   void updateBookmark_withoutOnConflict_resultIsNoneNone() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of(
+         bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false)));
+      when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(true);
+      when(f.rvs().containsBookmark("Q1 Report", caller)).thenReturn(true);
+
+      ViewsheetAssemblyAgentController.UpdateBookmarkResult result =
+         f.controller().updateBookmark("tok", updateRequest("Q1 Report", null, null), principal());
+
+      assertEquals(new ViewsheetAssemblyAgentController.UpdateBookmarkResult(
+         "none", "none", "admin"), result);
+   }
+
+   @Test
+   void updateBookmark_override_onOtherOwnersSharedBookmark_stillNeedsWritable() throws Exception {
+      IdentityID alice = IdentityID.getIdentityIDFromKey("alice");
+
+      // writable shared bookmark of another owner: the override lands in HER bookmark
+      UpdateFixture writable = updateFixture(List.of(
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "alice", false)));
+      when(writable.rvs().bookmarkUpdated("Team View", alice)).thenReturn(true);
+      when(writable.rvs().checkBookmark("Team View", alice)).thenReturn(true);
+      when(writable.rvs().bookmarkWritable("Team View", alice)).thenReturn(true);
+
+      ViewsheetAssemblyAgentController.UpdateBookmarkResult result =
+         writable.controller().updateBookmark(
+            "tok", updateRequest("Team View", "override", null), principal());
+
+      assertEquals("modified", result.conflict());
+      assertEquals("alice", result.owner());
+      assertEquals("alice", principalName(writable, VSBookmarkInfo.ALLSHARE, false, "Team View"));
+
+      // the owner flipped it to read-only meanwhile: override does NOT bypass bookmarkWritable
+      UpdateFixture readOnly = updateFixture(List.of(
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "alice", true)));
+      when(readOnly.rvs().bookmarkUpdated("Team View", alice)).thenReturn(true);
+      when(readOnly.rvs().checkBookmark("Team View", alice)).thenReturn(true);
+      when(readOnly.rvs().bookmarkWritable("Team View", alice)).thenReturn(false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> readOnly.controller().updateBookmark(
+            "tok", updateRequest("Team View", "override", null), principal()));
+      assertTrue(thrown.getMessage().contains("shared read-only"));
+      verifyNothingWritten(readOnly);
+   }
+
+   @Test
+   void updateBookmark_readd_recreatesOwnDeletedBookmark_withBaselineTypeAndReadOnly()
+      throws Exception
+   {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      // deleted: gone from the visible list, the session baseline still knows it
+      UpdateFixture f = updateFixture(List.of());
+      when(f.rvs().getBookmarkInfo("Q1 Report", caller)).thenReturn(
+         bookmark("Q1 Report", VSBookmarkInfo.ALLSHARE, "admin", false));
+      when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(false);
+
+      ViewsheetAssemblyAgentController.UpdateBookmarkResult result =
+         f.controller().updateBookmark("tok", updateRequest("Q1 Report", "readd", null),
+                                       principal());
+
+      assertEquals(new ViewsheetAssemblyAgentController.UpdateBookmarkResult(
+         "deleted", "readd", "admin"), result);
+      // shared + writable survives: never the private/read-only defaults
+      assertEquals("admin", principalName(f, VSBookmarkInfo.ALLSHARE, false, "Q1 Report"));
+      // RC2: updateVSBookmark would drop every other-owner baseline in the session
+      verify(f.rvs(), never()).updateVSBookmark();
+      verify(f.rvs(), never()).updateVSBookmark(anyBoolean());
+      verify(f.rvs(), never()).containsBookmark(anyString(), any(IdentityID.class));
+      verify(f.rvs(), never()).bookmarkWritable(anyString(), any(IdentityID.class));
+   }
+
+   @Test
+   void updateBookmark_readd_keepsAPrivateReadOnlyBaselinePrivateReadOnly() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of());
+      when(f.rvs().getBookmarkInfo("Mine", caller)).thenReturn(
+         bookmark("Mine", VSBookmarkInfo.PRIVATE, "admin", true));
+      when(f.rvs().checkBookmark("Mine", caller)).thenReturn(false);
+
+      f.controller().updateBookmark("tok", updateRequest("Mine", "readd", null), principal());
+
+      principalName(f, VSBookmarkInfo.PRIVATE, true, "Mine");
+   }
+
+   @Test
+   void updateBookmark_readd_acceptsTheCallersOwnNameAsOwner() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of());
+      when(f.rvs().getBookmarkInfo("Q1 Report", caller)).thenReturn(
+         bookmark("Q1 Report", VSBookmarkInfo.GROUPSHARE, "admin", false));
+      when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(false);
+
+      ViewsheetAssemblyAgentController.UpdateBookmarkResult result =
+         f.controller().updateBookmark("tok", updateRequest("Q1 Report", "readd", "admin"),
+                                       principal());
+
+      assertEquals("readd", result.resolution());
+      principalName(f, VSBookmarkInfo.GROUPSHARE, false, "Q1 Report");
+   }
+
+   @Test
+   void updateBookmark_readd_ofSharedNeedsShareBookmarkPermission() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of(), permissionDenied("ShareBookmark"));
+      when(f.rvs().getBookmarkInfo("Q1 Report", caller)).thenReturn(
+         bookmark("Q1 Report", VSBookmarkInfo.ALLSHARE, "admin", false));
+      when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> f.controller().updateBookmark("tok", updateRequest("Q1 Report", "readd", null),
+                                             principal()));
+      assertTrue(thrown.getMessage().contains("Share Bookmark"));
+      verifyNothingWritten(f);
+
+      // the escape the message names: re-add it private
+      f.controller().updateBookmark("tok", new ViewsheetAssemblyAgentController.SaveBookmarkRequest(
+         "Q1 Report", "private", true, "readd", null), principal());
+      principalName(f, VSBookmarkInfo.PRIVATE, true, "Q1 Report");
+   }
+
+   @Test
+   void updateBookmark_mismatchedChoicesAreRefused() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+
+      // override on a deleted bookmark: names readd, nothing written
+      UpdateFixture deleted = updateFixture(List.of());
+      when(deleted.rvs().getBookmarkInfo("Q1 Report", caller)).thenReturn(
+         bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false));
+      when(deleted.rvs().checkBookmark("Q1 Report", caller)).thenReturn(false);
+
+      IllegalArgumentException e1 = assertThrows(IllegalArgumentException.class,
+         () -> deleted.controller().updateBookmark(
+            "tok", updateRequest("Q1 Report", "override", null), principal()));
+      assertTrue(e1.getMessage().contains("was deleted by someone else"));
+      assertTrue(e1.getMessage().contains("onConflict:'readd'"));
+      verifyNothingWritten(deleted);
+
+      // readd on a modified (not deleted) bookmark: names override, nothing written
+      UpdateFixture modified = updateFixture(List.of(
+         bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false)));
+      when(modified.rvs().bookmarkUpdated("Q1 Report", caller)).thenReturn(true);
+      when(modified.rvs().checkBookmark("Q1 Report", caller)).thenReturn(true);
+
+      IllegalArgumentException e2 = assertThrows(IllegalArgumentException.class,
+         () -> modified.controller().updateBookmark(
+            "tok", updateRequest("Q1 Report", "readd", null), principal()));
+      assertTrue(e2.getMessage().contains("was modified by someone else"));
+      assertTrue(e2.getMessage().contains("onConflict:'override'"));
+      verifyNothingWritten(modified);
+   }
+
+   @Test
+   void updateBookmark_withoutOnConflict_deletedRefusalOffersReadd() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of(
+         bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false)));
+      when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(false);
+      when(f.rvs().getBookmarkInfo("Q1 Report", caller)).thenReturn(
+         bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> f.controller().updateBookmark("tok", updateRequest("Q1 Report", null, null),
+                                             principal()));
+      assertTrue(thrown.getMessage().contains("was deleted by someone else"));
+      assertTrue(thrown.getMessage().contains("onConflict:'readd'"));
+   }
+
+   @Test
+   void updateBookmark_readd_ofAnotherOwnersDeletedBookmark_isRefusedWithNamedMessage()
+      throws Exception
+   {
+      IdentityID alice = IdentityID.getIdentityIDFromKey("alice");
+
+      // route (i): the opened bookmark (goto) is alice's and is gone from the store
+      UpdateFixture opened = updateFixture(List.of());
+      when(opened.rvs().getOpenedBookmark()).thenReturn(
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "alice", false));
+      when(opened.rvs().checkBookmark("Team View", alice)).thenReturn(false);
+
+      IllegalArgumentException e1 = assertThrows(IllegalArgumentException.class,
+         () -> opened.controller().updateBookmark(
+            "tok", updateRequest("Team View", "readd", null), principal()));
+      assertTrue(e1.getMessage().contains("was deleted by someone else"));
+      assertTrue(e1.getMessage().contains("alice"));
+      assertTrue(e1.getMessage().contains("create_bookmark"));
+      verifyNothingWritten(opened);
+      verify(opened.rvs(), never()).updateVSBookmark();
+
+      // route (ii): an explicit owner that is no longer visible but whose baseline is held
+      UpdateFixture explicit = updateFixture(List.of());
+      when(explicit.rvs().getBookmarkInfo("Team View", alice)).thenReturn(
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "alice", false));
+      when(explicit.rvs().checkBookmark("Team View", alice)).thenReturn(false);
+
+      IllegalArgumentException e2 = assertThrows(IllegalArgumentException.class,
+         () -> explicit.controller().updateBookmark(
+            "tok", updateRequest("Team View", "readd", "alice"), principal()));
+      assertTrue(e2.getMessage().contains("alice"));
+      verifyNothingWritten(explicit);
+   }
+
+   @Test
+   void updateBookmark_readd_ofAnUnknownNameStaysAGenericNotFound() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of());
+      when(f.rvs().checkBookmark("Typo", caller)).thenReturn(false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> f.controller().updateBookmark("tok", updateRequest("Typo", "readd", null),
+                                             principal()));
+      assertTrue(thrown.getMessage().contains("no bookmark named"));
+      verifyNothingWritten(f);
+   }
+
+   @Test
+   void updateBookmark_onConflict_isNormalizedAndValidated() throws Exception {
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of(
+         bookmark("Q1 Report", VSBookmarkInfo.PRIVATE, "admin", false)));
+      when(f.rvs().checkBookmark("Q1 Report", caller)).thenReturn(true);
+      when(f.rvs().containsBookmark("Q1 Report", caller)).thenReturn(true);
+
+      for(String spelled : List.of("Override", " OVERRIDE ", "re-add", "Re_Add")) {
+         f.controller().updateBookmark("tok", updateRequest("Q1 Report", spelled, null),
+                                       principal());
+      }
+
+      for(String bad : List.of("refresh", "cancel", "overwrite!", "yes")) {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> f.controller().updateBookmark("tok", updateRequest("Q1 Report", bad, null),
+                                                principal()), bad);
+         assertTrue(thrown.getMessage().contains("'onConflict' must be 'override' or 'readd'"),
+                    thrown.getMessage());
+      }
+   }
+
+   @Test
+   void updateBookmark_owner_disambiguatesTwoOtherOwnersSameName() throws Exception {
+      IdentityID bob = IdentityID.getIdentityIDFromKey("bob");
+      List<VSBookmarkInfo> visible = List.of(
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "alice", false),
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "bob", false));
+
+      // no owner: fail loud, naming the candidates, instead of taking whichever the store lists first
+      UpdateFixture ambiguous = updateFixture(visible);
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> ambiguous.controller().updateBookmark(
+            "tok", updateRequest("Team View", null, null), principal()));
+      assertTrue(thrown.getMessage().contains("more than one visible bookmark"));
+      assertTrue(thrown.getMessage().contains("alice, bob"));
+      assertTrue(thrown.getMessage().contains("'owner'"));
+      verifyNothingWritten(ambiguous);
+
+      // bob named: the checks and the write both target bob
+      UpdateFixture chosen = updateFixture(visible);
+      when(chosen.rvs().checkBookmark("Team View", bob)).thenReturn(true);
+      when(chosen.rvs().bookmarkWritable("Team View", bob)).thenReturn(true);
+      ViewsheetAssemblyAgentController.UpdateBookmarkResult result =
+         chosen.controller().updateBookmark(
+            "tok", updateRequest("Team View", null, "bob"), principal());
+      assertEquals("bob", result.owner());
+      assertEquals("bob", principalName(chosen, VSBookmarkInfo.ALLSHARE, false, "Team View"));
+      verify(chosen.rvs()).bookmarkUpdated("Team View", bob);
+      verify(chosen.rvs(), never()).bookmarkUpdated("Team View",
+         IdentityID.getIdentityIDFromKey("alice"));
+   }
+
+   @Test
+   void updateBookmark_owner_validation() throws Exception {
+      UpdateFixture f = updateFixture(List.of(
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "alice", false)));
+
+      IllegalArgumentException label = assertThrows(IllegalArgumentException.class,
+         () -> f.controller().updateBookmark(
+            "tok", updateRequest("Team View", null, "Team View(Alice Liddell)"), principal()));
+      assertTrue(label.getMessage().contains("looks like a label"));
+      assertTrue(label.getMessage().contains("list_bookmarks"));
+
+      IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class,
+         () -> f.controller().updateBookmark(
+            "tok", updateRequest("Team View", null, "carol"), principal()));
+      assertTrue(unknown.getMessage().contains("owned by 'carol'"));
+      assertTrue(unknown.getMessage().contains("alice"));
+      verifyNothingWritten(f);
+   }
+
+   @Test
+   void updateBookmark_explicitOtherOwner_winsOverTheCallersOwnSameNamed() throws Exception {
+      IdentityID alice = IdentityID.getIdentityIDFromKey("alice");
+      IdentityID caller = IdentityID.getIdentityIDFromKey("admin");
+      UpdateFixture f = updateFixture(List.of(
+         bookmark("Team View", VSBookmarkInfo.PRIVATE, "admin", false),
+         bookmark("Team View", VSBookmarkInfo.ALLSHARE, "alice", false)));
+      when(f.rvs().checkBookmark("Team View", alice)).thenReturn(true);
+      when(f.rvs().containsBookmark("Team View", caller)).thenReturn(true);
+      when(f.rvs().bookmarkWritable("Team View", alice)).thenReturn(true);
+
+      f.controller().updateBookmark("tok", updateRequest("Team View", null, "alice"), principal());
+
+      assertEquals("alice", principalName(f, VSBookmarkInfo.ALLSHARE, false, "Team View"));
+   }
+
+   /** Only the six pre-#80466 fields: the detail fields (label/alias/times) have their own tests. */
+   private static List<ViewsheetAssemblyAgentController.BookmarkInfo> legacyFields(
+      List<ViewsheetAssemblyAgentController.BookmarkInfo> infos)
+   {
+      return infos.stream()
+         .map(i -> new ViewsheetAssemblyAgentController.BookmarkInfo(
+            i.name(), i.type(), i.owner(), i.readOnly(), i.isDefault(), i.isCurrent()))
+         .collect(java.util.stream.Collectors.toList());
    }
 
    /** Sessions wired to a runtime where "Q1 Report" is admin's ALLSHARE readOnly:false

@@ -91,6 +91,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -422,10 +423,37 @@ public class ViewsheetAssemblyAgentController {
                                image.width(), image.height(), image.note());
    }
 
+   /**
+    * One {@code list_bookmarks} entry. {@code ownerAlias} and {@code label} mirror what the
+    * Viewer's bookmark pane shows ({@code VSBookmarkService.getBookmarks}); the three times are
+    * ISO-8601 UTC instants, null when the store holds no value (Home has none).
+    */
    public record BookmarkInfo(String name, String type, String owner, boolean readOnly,
-                              boolean isDefault, boolean isCurrent) {}
+                              boolean isDefault, boolean isCurrent, String ownerAlias,
+                              String label, String createdTime, String lastModified,
+                              String lastAccessed)
+   {
+      public BookmarkInfo(String name, String type, String owner, boolean readOnly,
+                          boolean isDefault, boolean isCurrent)
+      {
+         this(name, type, owner, readOnly, isDefault, isCurrent, null, name, null, null, null);
+      }
+   }
 
-   public record SaveBookmarkRequest(String name, String type, Boolean readOnly) {}
+   public record SaveBookmarkRequest(String name, String type, Boolean readOnly,
+                                     String onConflict, String owner)
+   {
+      public SaveBookmarkRequest(String name, String type, Boolean readOnly) {
+         this(name, type, readOnly, null, null);
+      }
+   }
+
+   /**
+    * What {@code update_bookmark} detected and did: {@code conflict} is {@code none|modified|
+    * deleted} (what the server found before writing), {@code resolution} is {@code none|override|
+    * readd} (what {@code onConflict} caused), {@code owner} the bare owner name written under.
+    */
+   public record UpdateBookmarkResult(String conflict, String resolution, String owner) {}
 
    public record BookmarkNameRequest(String name) {}
 
@@ -455,6 +483,8 @@ public class ViewsheetAssemblyAgentController {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       VSBookmark.DefaultBookmark defaultBookmark = rvs.getDefaultBookmark();
       VSBookmarkInfo opened = rvs.getOpenedBookmark();
+      boolean security = securityEngine.isSecurityEnabled();
+      IdentityID self = ownerOf(user);
 
       // "(Home)" is reported the way VSBookmarkService.getBookmarks reports it to the native
       // bookmark panel: always shared, and current whenever no other bookmark is opened (a
@@ -465,12 +495,23 @@ public class ViewsheetAssemblyAgentController {
             boolean openedMatch = opened != null && info.getName().equals(opened.getName()) &&
                java.util.Objects.equals(info.getOwner(), opened.getOwner());
 
+            // same label rule as VSBookmarkService.getBookmarks: another user's bookmark reads
+            // "name(ownerAlias)" when security is enabled, the caller's own and Home read "name"
+            String alias = !home && security ? userAlias(info.getOwner()) : null;
+            boolean foreign = info.getOwner() != null && !info.getOwner().equals(self);
+            String label = home ? Catalog.getCatalog().getString(info.getName()) :
+               alias == null || alias.isEmpty() || !foreign ? info.getName() :
+               info.getName() + "(" + alias + ")";
+
             return new BookmarkInfo(
                info.getName(), home ? "shared" : toTypeString(info.getType()),
                info.getOwner() == null ? null : info.getOwner().getName(), info.isReadOnly(),
                defaultBookmark != null && info.getName().equals(defaultBookmark.getName()) &&
                   java.util.Objects.equals(info.getOwner(), defaultBookmark.getOwner()),
-               home ? opened == null || openedMatch : openedMatch);
+               home ? opened == null || openedMatch : openedMatch,
+               alias, label, isoTime(home ? -1 : info.getCreateTime()),
+               isoTime(home ? -1 : info.getLastModified()),
+               isoTime(home ? -1 : info.getLastAccessed()));
          })
          .collect(Collectors.toList());
    }
@@ -519,91 +560,290 @@ public class ViewsheetAssemblyAgentController {
     * itself and never detect anything.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/update")
-   public void updateBookmark(@PathVariable String sessionToken,
-                              @RequestBody SaveBookmarkRequest request, Principal user)
+   public UpdateBookmarkResult updateBookmark(@PathVariable String sessionToken,
+                                              @RequestBody SaveBookmarkRequest request,
+                                              Principal user)
       throws Exception
    {
       requireEnabled();
       String name = requireBookmarkName(request.name(), "update_bookmark");
+      String onConflict = normalizeOnConflict(request.onConflict());
+      String ownerArg = requireBareOwner(request.owner(), "update_bookmark");
+      AtomicReference<UpdateBookmarkResult> result = new AtomicReference<>();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         IdentityID caller = ownerOf(user);
-         requireFirstOpenerForHome(rvs, name, caller, "update_bookmark");
-         // The in-memory baseline is keyed by the bookmark's real owner (goto_bookmark stamps it
-         // there), so the checks must use that owner, resolved from a side-effect-free store read.
-         // Prefers the caller's own same-named bookmark, as requireOwnBookmark does.
-         List<VSBookmarkInfo> visible = visibleBookmarks(rvs, user);
-         IdentityID owner = visible.stream()
-            .filter(b -> b.getName().equals(name) && caller.equals(b.getOwner()))
-            .findFirst()
-            .or(() -> visible.stream().filter(b -> b.getName().equals(name)).findFirst())
-            .map(VSBookmarkInfo::getOwner)
-            .orElse(caller);
+         result.set(updateBookmarkIn(rvs, name, request, onConflict, ownerArg, user));
+      });
 
-         if(rvs.bookmarkUpdated(name, owner)) {
-            throw new IllegalArgumentException(
-               "update_bookmark: bookmark '" + name + "' was modified by someone else since it " +
-               "was last read. Call goto_bookmark to load its current state before overwriting it.");
-         }
+      return result.get();
+   }
 
-         if(!rvs.checkBookmark(name, owner)) {
-            // checkBookmark alone can't distinguish "deleted since this session last saw it" from
-            // "never existed" -- it's a stateless, always-fresh existence check with no reference
-            // to this session's own cached baseline. getBookmarkInfo is a side-effect-free read of
-            // that cached baseline: non-null means this session did know the name, so a fresh
-            // "not found" here means someone else deleted it; null means it falls through to
-            // requireOwnBookmark's own generic not-found message below (an ordinary typo, or a
-            // name that never existed, must not be misreported as a deletion).
-            if(rvs.getBookmarkInfo(name, owner) != null) {
+   private UpdateBookmarkResult updateBookmarkIn(RuntimeViewsheet rvs, String name,
+                                                 SaveBookmarkRequest request, String onConflict,
+                                                 String ownerArg, Principal user)
+      throws Exception
+   {
+      IdentityID caller = ownerOf(user);
+      requireFirstOpenerForHome(rvs, name, caller, "update_bookmark");
+      boolean override = "override".equals(onConflict);
+      boolean readd = "readd".equals(onConflict);
+
+      // Deleted / Re-add detection runs BEFORE the owner-visibility rule below: a deleted
+      // bookmark is no longer in the visible list, so that rule would reject exactly the
+      // caller's own name here. The cached baseline is read first, before anything (e.g.
+      // bookmarkWritable) refreshes it.
+      if(onConflict != null && !VSBookmark.HOME_BOOKMARK.equals(name)) {
+         if(ownerArg == null || ownerArg.equals(caller.getName())) {
+            VSBookmarkInfo baseline = rvs.getBookmarkInfo(name, caller);
+
+            if(baseline != null && !rvs.checkBookmark(name, caller)) {
+               if(readd) {
+                  return readdOwnBookmark(rvs, name, baseline, request, caller, user);
+               }
+
                throw new IllegalArgumentException(
-                  "update_bookmark: bookmark '" + name + "' was deleted by someone else. Use " +
-                  "create_bookmark if you want to recreate it.");
+                  "update_bookmark: bookmark '" + name + "' was deleted by someone else, so " +
+                  "onConflict 'override' does not apply. Pass onConflict:'readd' to restore " +
+                  "it with its previous type/readOnly, or use create_bookmark.");
             }
          }
 
-         IdentityID targetOwner = requireOwnBookmark(rvs, name, user, "update_bookmark",
-            "no bookmark named '" + name + "' exists yet. Use create_bookmark for a new one.");
+         requireNotDeletedByOtherOwner(rvs, name, ownerArg, caller, user);
+      }
 
-         // 'type'/'readOnly' omitted means "leave the existing visibility alone" -- refresh the
-         // captured state only. Only defaulted (private/read-only) when there is, unexpectedly,
-         // no existing bookmark to read a current value from. Scoped to the RESOLVED TARGET
-         // owner (which may be someone else's bookmark being overridden) rather than the
-         // caller, so an override without 'type'/'readOnly' inherits the existing shared
-         // bookmark's own values, not a nonexistent caller-owned one.
-         VSBookmarkInfo existing = visibleBookmarks(rvs, user).stream()
-            .filter(b -> b.getName().equals(name) && java.util.Objects.equals(b.getOwner(), targetOwner))
-            .findFirst().orElse(null);
-         int existingType = existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
-         boolean existingReadOnly = existing == null || existing.isReadOnly();
-         int type = request.type() != null ? toTypeInt(request.type()) : existingType;
-         boolean readOnly = request.readOnly() != null ? request.readOnly() : existingReadOnly;
+      // The in-memory baseline is keyed by the bookmark's real owner (goto_bookmark stamps it
+      // there), so the checks must use that owner, resolved from a side-effect-free store read.
+      // Prefers the caller's own same-named bookmark, as requireOwnBookmark does.
+      List<VSBookmarkInfo> visible = visibleBookmarks(rvs, user);
+      IdentityID owner = resolveUpdateOwner(visible, name, ownerArg, caller);
+      String conflict = "none";
 
-         // Overriding someone else's writable bookmark only refreshes its captured state -- the
-         // native Viewer's own "Save Current" resends the bookmark's own type/readOnly, and its
-         // Edit dialog (the only place visibility changes) is disabled for non-owners.
-         if(!targetOwner.equals(caller) && (type != existingType || readOnly != existingReadOnly)) {
+      if(rvs.bookmarkUpdated(name, owner)) {
+         if(!override) {
             throw new IllegalArgumentException(
-               "update_bookmark: bookmark '" + name + "' is owned by someone else -- only its " +
-               "owner can change its type/readOnly. Omit 'type'/'readOnly' to just refresh its " +
-               "saved state.");
+               "update_bookmark: bookmark '" + name + "' was modified by someone else since it " +
+               "was last read. Call goto_bookmark to load its current state before " +
+               "overwriting it, or pass onConflict:'override' to overwrite their change" +
+               (readd ? " ('readd' only applies to a deleted bookmark)." : "."));
          }
 
-         requireSharePermission(rvs, type, existingType, readOnly != existingReadOnly, user,
-                                "update_bookmark");
+         conflict = "modified";
+      }
 
-         // Write under the resolved target owner (mirroring VSBookmarkService.saveBookmark's own
-         // "Override" branch, minus the heavier SRPrincipal construction that branch uses --
-         // addBookmarkToViewSheet only ever calls getName() on this owner-principal argument, so
-         // a minimal Principal suffices), not unconditionally the caller -- otherwise this would
-         // silently create a new, distinct bookmark under the caller's own identity instead of
-         // overriding the shared one the guard just approved.
-         requireOk(vsBookmarkService.addBookmarkToViewSheet(
-                      rvs, name, type, readOnly, true, principalOf(targetOwner), user),
-                   "update_bookmark");
-         // same audit trail as the native saveBookmark handler (bug #76950)
-         AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
-            rvs.getBookmarkInfo(name, targetOwner), BookmarkRecord.ACTION_TYPE_MODIFY, null);
-      });
+      if(!rvs.checkBookmark(name, owner)) {
+         // checkBookmark alone can't distinguish "deleted since this session last saw it" from
+         // "never existed" -- it's a stateless, always-fresh existence check with no reference
+         // to this session's own cached baseline. getBookmarkInfo is a side-effect-free read of
+         // that cached baseline: non-null means this session did know the name, so a fresh
+         // "not found" here means someone else deleted it; null means it falls through to
+         // requireOwnBookmark's own generic not-found message below (an ordinary typo, or a
+         // name that never existed, must not be misreported as a deletion).
+         if(rvs.getBookmarkInfo(name, owner) != null) {
+            throw new IllegalArgumentException(
+               "update_bookmark: bookmark '" + name + "' was deleted by someone else. Use " +
+               "create_bookmark if you want to recreate it" +
+               (owner.equals(caller) ? ", or pass onConflict:'readd' to restore it with its " +
+                  "previous type/readOnly." : "."));
+         }
+      }
+
+      IdentityID targetOwner = requireOwnBookmark(rvs, name, user, "update_bookmark",
+         "no bookmark named '" + name + "' exists yet. Use create_bookmark for a new one.",
+         owner);
+
+      // 'type'/'readOnly' omitted means "leave the existing visibility alone" -- refresh the
+      // captured state only. Only defaulted (private/read-only) when there is, unexpectedly,
+      // no existing bookmark to read a current value from. Scoped to the RESOLVED TARGET
+      // owner (which may be someone else's bookmark being overridden) rather than the
+      // caller, so an override without 'type'/'readOnly' inherits the existing shared
+      // bookmark's own values, not a nonexistent caller-owned one.
+      VSBookmarkInfo existing = visibleBookmarks(rvs, user).stream()
+         .filter(b -> b.getName().equals(name) && java.util.Objects.equals(b.getOwner(), targetOwner))
+         .findFirst().orElse(null);
+      int existingType = existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
+      boolean existingReadOnly = existing == null || existing.isReadOnly();
+      int type = request.type() != null ? toTypeInt(request.type()) : existingType;
+      boolean readOnly = request.readOnly() != null ? request.readOnly() : existingReadOnly;
+
+      // Overriding someone else's writable bookmark only refreshes its captured state -- the
+      // native Viewer's own "Save Current" resends the bookmark's own type/readOnly, and its
+      // Edit dialog (the only place visibility changes) is disabled for non-owners.
+      if(!targetOwner.equals(caller) && (type != existingType || readOnly != existingReadOnly)) {
+         throw new IllegalArgumentException(
+            "update_bookmark: bookmark '" + name + "' is owned by someone else -- only its " +
+            "owner can change its type/readOnly. Omit 'type'/'readOnly' to just refresh its " +
+            "saved state.");
+      }
+
+      requireSharePermission(rvs, type, existingType, readOnly != existingReadOnly, user,
+                             "update_bookmark");
+
+      // Write under the resolved target owner (mirroring VSBookmarkService.saveBookmark's own
+      // "Override" branch, minus the heavier SRPrincipal construction that branch uses --
+      // addBookmarkToViewSheet only ever calls getName() on this owner-principal argument, so
+      // a minimal Principal suffices), not unconditionally the caller -- otherwise this would
+      // silently create a new, distinct bookmark under the caller's own identity instead of
+      // overriding the shared one the guard just approved.
+      requireOk(vsBookmarkService.addBookmarkToViewSheet(
+                   rvs, name, type, readOnly, true, principalOf(targetOwner), user),
+                "update_bookmark");
+      // same audit trail as the native saveBookmark handler (bug #76950)
+      AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
+         rvs.getBookmarkInfo(name, targetOwner), BookmarkRecord.ACTION_TYPE_MODIFY, null);
+
+      return new UpdateBookmarkResult(conflict, "modified".equals(conflict) ? "override" : "none",
+                                      targetOwner.getName());
+   }
+
+   /**
+    * Re-add of the caller's OWN deleted bookmark. Deliberately not a flag on the normal flow:
+    * {@link #requireOwnBookmark} would refuse a deleted bookmark as not found, and the missing
+    * "existing" bookmark would default the type/readOnly to private/read-only, silently changing
+    * a shared bookmark's visibility. Type/readOnly come from the cached baseline instead, and the
+    * share permission is checked as for a creation. Unlike the Viewer's Readd, this does NOT call
+    * {@code rvs.updateVSBookmark()}: it clears every other-owner baseline in the session, so a
+    * later update of someone else's shared bookmark would compare fresh against fresh and never
+    * detect their change. {@code addBookmark} already re-reads the caller's own store.
+    */
+   private UpdateBookmarkResult readdOwnBookmark(RuntimeViewsheet rvs, String name,
+                                                 VSBookmarkInfo baseline, SaveBookmarkRequest request,
+                                                 IdentityID caller, Principal user)
+      throws Exception
+   {
+      int type = request.type() != null ? toTypeInt(request.type()) : baseline.getType();
+      boolean readOnly = request.readOnly() != null ? request.readOnly() : baseline.isReadOnly();
+
+      requireSharePermission(rvs, type, VSBookmarkInfo.PRIVATE, false, user, "update_bookmark");
+      requireOk(vsBookmarkService.addBookmarkToViewSheet(
+                   rvs, name, type, readOnly, true, principalOf(caller), user),
+                "update_bookmark");
+      AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
+         rvs.getBookmarkInfo(name, caller), BookmarkRecord.ACTION_TYPE_MODIFY, null);
+
+      return new UpdateBookmarkResult("deleted", "readd", caller.getName());
+   }
+
+   /**
+    * Another owner's deleted bookmark is not re-added (the write would land in that user's store
+    * and its writability can no longer be checked), so detect it only to refuse with a named
+    * message. Found via the opened bookmark (set by goto) or an explicit {@code owner} that is no
+    * longer visible but whose baseline this session still holds.
+    */
+   private void requireNotDeletedByOtherOwner(RuntimeViewsheet rvs, String name, String ownerArg,
+                                              IdentityID caller, Principal user)
+      throws Exception
+   {
+      IdentityID gone = null;
+      VSBookmarkInfo opened = rvs.getOpenedBookmark();
+
+      if(opened != null && name.equals(opened.getName()) && opened.getOwner() != null &&
+         !opened.getOwner().equals(caller) &&
+         (ownerArg == null || ownerArg.equals(opened.getOwner().getName())) &&
+         !rvs.checkBookmark(name, opened.getOwner()))
+      {
+         gone = opened.getOwner();
+      }
+      else if(ownerArg != null && !ownerArg.equals(caller.getName()) &&
+              visibleBookmarks(rvs, user).stream().noneMatch(
+                 b -> b.getName().equals(name) && b.getOwner() != null &&
+                      b.getOwner().getName().equals(ownerArg)))
+      {
+         IdentityID id = new IdentityID(ownerArg, caller.getOrgID());
+
+         if(rvs.getBookmarkInfo(name, id) != null && !rvs.checkBookmark(name, id)) {
+            gone = id;
+         }
+      }
+
+      if(gone != null) {
+         throw new IllegalArgumentException(
+            "update_bookmark: bookmark '" + name + "' was deleted by someone else (its owner " +
+            gone.getName() + "); re-adding another user's deleted bookmark is not supported. " +
+            "Use create_bookmark to save your own copy.");
+      }
+   }
+
+   /**
+    * Which visible bookmark named {@code name} update_bookmark targets: an explicit bare
+    * {@code ownerArg} must match a visible one (or be the caller); omitted, the caller's own wins,
+    * a single match is used, and two or more other-owner matches fail loud instead of silently
+    * taking whichever the store lists first. No match at all falls back to the caller, so the
+    * ordinary not-found message follows.
+    */
+   private static IdentityID resolveUpdateOwner(List<VSBookmarkInfo> visible, String name,
+                                                String ownerArg, IdentityID caller)
+   {
+      List<VSBookmarkInfo> matches = visible.stream()
+         .filter(b -> b.getName().equals(name)).collect(Collectors.toList());
+
+      if(ownerArg != null) {
+         return matches.stream()
+            .filter(b -> b.getOwner() != null && b.getOwner().getName().equals(ownerArg))
+            .findFirst()
+            .map(VSBookmarkInfo::getOwner)
+            .orElseGet(() -> {
+               if(ownerArg.equals(caller.getName())) {
+                  return caller;
+               }
+
+               throw new IllegalArgumentException(
+                  "update_bookmark: no bookmark named '" + name + "' owned by '" + ownerArg +
+                  "' is visible to you" + visibleOwners(matches) +
+                  ". list_bookmarks reports what exists.");
+            });
+      }
+
+      if(matches.stream().anyMatch(b -> caller.equals(b.getOwner()))) {
+         return caller;
+      }
+
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "update_bookmark: more than one visible bookmark is named '" + name + "'" +
+            visibleOwners(matches) + ". Pass 'owner' to disambiguate.");
+      }
+
+      return matches.isEmpty() || matches.get(0).getOwner() == null ? caller :
+         matches.get(0).getOwner();
+   }
+
+   private static String visibleOwners(List<VSBookmarkInfo> matches) {
+      return matches.isEmpty() ? "" : " (owned by: " + matches.stream()
+         .map(b -> b.getOwner() == null ? "(unknown)" : b.getOwner().getName())
+         .collect(Collectors.joining(", ")) + ")";
+   }
+
+   /** null/blank means omitted; otherwise only override|readd, case and -/_/space insensitive. */
+   private static String normalizeOnConflict(String raw) {
+      if(raw == null || raw.isBlank()) {
+         return null;
+      }
+
+      String key = raw.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_-]", "");
+
+      if("override".equals(key) || "readd".equals(key)) {
+         return key;
+      }
+
+      throw new IllegalArgumentException(
+         "update_bookmark: 'onConflict' must be 'override' or 'readd', got '" + raw + "'.");
+   }
+
+   /** A bare owner name as list_bookmarks reports it, not a "name(alias)" label. */
+   private static String requireBareOwner(String raw, String tool) {
+      if(raw == null || raw.isBlank()) {
+         return null;
+      }
+
+      String owner = raw.trim();
+
+      if(owner.matches(".*\\(.*\\)\\s*$")) {
+         throw new IllegalArgumentException(
+            tool + ": 'owner' looks like a label ('" + raw + "'). Pass the bare owner name from " +
+            "list_bookmarks 'owner', not the label or ownerAlias.");
+      }
+
+      return owner;
    }
 
    /**
@@ -972,12 +1212,24 @@ public class ViewsheetAssemblyAgentController {
                                                 String tool, String notFoundMessage)
       throws Exception
    {
-      if(rvs.containsBookmark(name, ownerOf(user))) {
+      return requireOwnBookmark(rvs, name, user, tool, notFoundMessage, null);
+   }
+
+   /** @param preferredOwner the owner already resolved by the caller (update_bookmark), or null. */
+   private IdentityID requireOwnBookmark(RuntimeViewsheet rvs, String name, Principal user,
+                                         String tool, String notFoundMessage,
+                                         IdentityID preferredOwner)
+      throws Exception
+   {
+      if((preferredOwner == null || preferredOwner.equals(ownerOf(user))) &&
+         rvs.containsBookmark(name, ownerOf(user)))
+      {
          return ownerOf(user);
       }
 
       VSBookmarkInfo matched = visibleBookmarks(rvs, user).stream()
-         .filter(b -> b.getName().equals(name))
+         .filter(b -> b.getName().equals(name) &&
+                      (preferredOwner == null || preferredOwner.equals(b.getOwner())))
          .findFirst().orElse(null);
 
       if(matched == null) {
@@ -1086,6 +1338,15 @@ public class ViewsheetAssemblyAgentController {
       if(command.getType() != MessageCommand.Type.OK) {
          throw new IllegalArgumentException(tool + ": " + command.getMessage());
       }
+   }
+
+   /** The owner's display alias as the Viewer shows it; a seam so tests need no security provider. */
+   String userAlias(IdentityID owner) {
+      return VSUtil.getUserAlias(owner);
+   }
+
+   private static String isoTime(long millis) {
+      return millis > 0 ? java.time.Instant.ofEpochMilli(millis).toString() : null;
    }
 
    private static String toTypeString(int type) {
