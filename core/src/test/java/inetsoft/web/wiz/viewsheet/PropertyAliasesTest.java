@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo.PopLocation;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.GeneralPropPaneModel;
 import inetsoft.web.composer.model.vs.SizePositionPaneModel;
@@ -1571,9 +1572,9 @@ class PropertyAliasesTest {
          // variable is derived from the table binding on write (VSInputService), and checked by
          // AssemblyPropertyService.requireVariableFlagAchievable -- see PropertyAliases'
          // dataInputPaneModel.variable note
-         "dataInputPaneModel.variable",
-         "dataInputPaneModel.writeBackDirectly", "inputLabelPaneModel.labelGap",
-         "inputLabelPaneModel.labelPosition"));
+         "dataInputPaneModel.variable"));
+   // writeBackDirectly, labelGap and labelPosition were listed live-without-alias here until bug
+   // #80464 gave them short names; the classification test accepts an aliased leaf directly.
 
    private static boolean isOrUnder(String path, String entry) {
       return path.equals(entry) || path.endsWith("." + entry) || path.contains("." + entry + ".") ||
@@ -1963,6 +1964,307 @@ class PropertyAliasesTest {
    void titleHeightIsNotAliasedOnTypesThatDoNotApplyIt() {
       for(String type : List.of("gauge", "text", "image", "slider", "spinner", "textinput")) {
          assertFalse(PropertyAliases.forType(type).aliases().containsKey("titleHeight"), type);
+      }
+   }
+
+   // ── bug #80464: aliases for Form (input) and Output (data output) pane fields ─────────────
+   //
+   // The cause axis is the assembly TYPE each alias is registered on. Each alias below is
+   // registered exactly on the types where the Composer dialog shows the control AND the type's
+   // apply method (VSInputService / Text|Gauge|ImagePropertyDialogService) reads the field back,
+   // so no DEAD_FIELDS entry is needed. The table is the specification: the test fails both when
+   // an alias is missing from a listed type and when it leaks onto a type that is not listed.
+
+   /** The nine input/output types the bug is about -- the coverage assertion's universe. */
+   private static final List<String> FORM_OUTPUT_TYPES = List.of(
+      "gauge", "text", "image", "checkbox", "combobox", "radiobutton", "slider", "spinner",
+      "textinput");
+
+   private record AliasCase(String alias, Object value, Map<String, String> pathByType) {
+   }
+
+   private static Map<String, String> paths(String... typeAndPath) {
+      Map<String, String> map = new java.util.LinkedHashMap<>();
+
+      for(int i = 0; i < typeAndPath.length; i += 2) {
+         map.put(typeAndPath[i], typeAndPath[i + 1]);
+      }
+
+      return map;
+   }
+
+   private static final String CHECKBOX = "checkboxGeneralPaneModel";
+   private static final String COMBOBOX = "comboboxGeneralPaneModel";
+   private static final String RADIO = "radioButtonGeneralPaneModel";
+   private static final String LIST_EDITOR = ".listValuesPaneModel.comboBoxEditorModel.dataType";
+
+   private static final List<AliasCase> FORM_OUTPUT_ALIASES = List.of(
+      // size pane: Title Height / Cell Height render only for the two titled list inputs
+      new AliasCase("titleHeight", 37, paths(
+         "checkbox", CHECKBOX + ".sizePositionPaneModel.titleHeight",
+         "radiobutton", RADIO + ".sizePositionPaneModel.titleHeight")),
+      new AliasCase("cellHeight", 31, paths(
+         "checkbox", CHECKBOX + ".sizePositionPaneModel.cellHeight",
+         "radiobutton", RADIO + ".sizePositionPaneModel.cellHeight")),
+      // data output pane: gauge, text, image
+      new AliasCase("with", "Col2", paths(
+         "gauge", "dataOutputPaneModel.with", "text", "dataOutputPaneModel.with",
+         "image", "dataOutputPaneModel.with")),
+      new AliasCase("nthOperand", "3", paths(
+         "gauge", "dataOutputPaneModel.num", "text", "dataOutputPaneModel.num",
+         "image", "dataOutputPaneModel.num")),
+      new AliasCase("magnitude", 1000, paths(
+         "gauge", "dataOutputPaneModel.magnitude", "text", "dataOutputPaneModel.magnitude",
+         "image", "dataOutputPaneModel.magnitude")),
+      // pop pane: text already had all three (bug #76929); image gains them
+      new AliasCase("popComponent", "Pop1", paths(
+         "text", "textGeneralPaneModel.popComponent",
+         "image", "imageAdvancedPaneModel.popComponent")),
+      new AliasCase("popLocation", PopLocation.CENTER, paths(
+         "text", "textGeneralPaneModel.popLocation",
+         "image", "imageAdvancedPaneModel.popLocation")),
+      new AliasCase("alpha", "40", paths(
+         "text", "textGeneralPaneModel.alpha", "image", "imageAdvancedPaneModel.alpha")),
+      // input label pane: hosted by combobox, slider, spinner and text input only
+      new AliasCase("labelPosition", "top", paths(
+         "combobox", "inputLabelPaneModel.labelPosition",
+         "slider", "inputLabelPaneModel.labelPosition",
+         "spinner", "inputLabelPaneModel.labelPosition",
+         "textinput", "inputLabelPaneModel.labelPosition")),
+      new AliasCase("labelGap", 12, paths(
+         "combobox", "inputLabelPaneModel.labelGap", "slider", "inputLabelPaneModel.labelGap",
+         "spinner", "inputLabelPaneModel.labelGap",
+         "textinput", "inputLabelPaneModel.labelGap")),
+      // data input pane: Write Back to Storage is hidden (and refused, #78579) for the check box
+      new AliasCase("writeBackDirectly", true, paths(
+         "textinput", "dataInputPaneModel.writeBackDirectly",
+         "spinner", "dataInputPaneModel.writeBackDirectly",
+         "slider", "dataInputPaneModel.writeBackDirectly",
+         "radiobutton", "dataInputPaneModel.writeBackDirectly",
+         "combobox", "dataInputPaneModel.writeBackDirectly")),
+      // the check box is excluded: its Target tree is variables-only (VSInputService onlyVars),
+      // so the alias waits for a variables-only guard
+      new AliasCase("writeBackTable", "T1", paths(
+         "radiobutton", "dataInputPaneModel.table", "combobox", "dataInputPaneModel.table")),
+      new AliasCase("writeBackColumn", "c1", paths(
+         "radiobutton", "dataInputPaneModel.columnValue",
+         "combobox", "dataInputPaneModel.columnValue")),
+      new AliasCase("writeBackRow", "r1", paths(
+         "radiobutton", "dataInputPaneModel.rowValue",
+         "combobox", "dataInputPaneModel.rowValue")),
+      // text input general pane; "Placeholder Text" is bound to the model's toolTip
+      new AliasCase("placeholderText", "hint", paths(
+         "textinput", "textInputGeneralPaneModel.toolTip")),
+      new AliasCase("defaultText", "dflt", paths(
+         "textinput", "textInputGeneralPaneModel.defaultText")),
+      new AliasCase("insetStyle", true, paths(
+         "textinput", "textInputGeneralPaneModel.insetStyle")),
+      // list values pane
+      new AliasCase("dataType", "integer", paths(
+         "checkbox", CHECKBOX + LIST_EDITOR, "combobox", COMBOBOX + LIST_EDITOR,
+         "radiobutton", RADIO + LIST_EDITOR)),
+      new AliasCase("sortType", 1, paths(
+         "checkbox", CHECKBOX + ".listValuesPaneModel.sortType",
+         "combobox", COMBOBOX + ".listValuesPaneModel.sortType",
+         "radiobutton", RADIO + ".listValuesPaneModel.sortType")),
+      new AliasCase("embeddedDataDown", true, paths(
+         "checkbox", CHECKBOX + ".listValuesPaneModel.embeddedDataDown",
+         "combobox", COMBOBOX + ".listValuesPaneModel.embeddedDataDown",
+         "radiobutton", RADIO + ".listValuesPaneModel.embeddedDataDown")),
+      // Select First Item: shown by list-values-pane only for the check box, applied only by
+      // the check box setter -- never in the shared listInput() set
+      new AliasCase("selectFirstItem", true, paths(
+         "checkbox", CHECKBOX + ".listValuesPaneModel.selectFirstItem")));
+
+   /** Alias -> raw-path equality, on every registered type, through both resolvers. */
+   @Test
+   void formAndOutputAliasesResolveToTheirRawPath() {
+      int checked = 0;
+
+      for(AliasCase aliasCase : FORM_OUTPUT_ALIASES) {
+         for(Map.Entry<String, String> entry : aliasCase.pathByType().entrySet()) {
+            String type = entry.getKey();
+            assertEquals(entry.getValue(), PropertyAliases.resolve(type, aliasCase.alias()),
+                         type + " " + aliasCase.alias());
+            assertEquals(entry.getValue(),
+                         PropertyAliases.resolveForWrite(type, aliasCase.alias()),
+                         type + " " + aliasCase.alias() + " (write)");
+            assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(type, entry.getValue()),
+                               type + " raw " + entry.getValue() + " must stay writable");
+            assertDoesNotThrow(() -> PropertyPath.typeOf(
+               PropertyAliases.forType(type).modelClass(), entry.getValue()), entry.getValue());
+            checked++;
+         }
+      }
+
+      assertEquals(51, checked);
+   }
+
+   /**
+    * Registered-type coverage: an alias is on exactly the listed types among the nine input and
+    * output types -- present where the UI shows the option and Java applies it, absent
+    * everywhere else (where a short name would advertise a no-op).
+    */
+   @Test
+   void formAndOutputAliasesAreRegisteredOnExactlyTheListedTypes() {
+      for(AliasCase aliasCase : FORM_OUTPUT_ALIASES) {
+         for(String type : FORM_OUTPUT_TYPES) {
+            assertEquals(aliasCase.pathByType().containsKey(type),
+                         PropertyAliases.forType(type).aliases().containsKey(aliasCase.alias()),
+                         "'" + aliasCase.alias() + "' registered on " + type);
+         }
+      }
+   }
+
+   /**
+    * Each alias path is writable on the real dialog-model shape and reads back what was
+    * written, the way {@code set_assembly_properties} followed by {@code
+    * get_assembly_properties(raw: true)} sees it. Intermediate panes the composer service
+    * populates on every read are populated here the same way.
+    */
+   @Test
+   void formAndOutputAliasesRoundTripOnTheRealModelShapes() throws Exception {
+      for(AliasCase aliasCase : FORM_OUTPUT_ALIASES) {
+         for(Map.Entry<String, String> entry : aliasCase.pathByType().entrySet()) {
+            Class<?> modelClass = PropertyAliases.forType(entry.getKey()).modelClass();
+            Object model = modelClass == ImagePropertyDialogModel.class
+               ? ImagePropertyDialogModel.builder().build()
+               : modelClass.getDeclaredConstructor().newInstance();
+            String path = PropertyAliases.resolveForWrite(entry.getKey(), aliasCase.alias());
+            populateIntermediatePanes(model, path);
+            Object written = PropertyPath.set(model, path, aliasCase.value());
+
+            assertEquals(aliasCase.value(), PropertyPath.get(written, path),
+                         entry.getKey() + " " + aliasCase.alias());
+         }
+      }
+   }
+
+   private static void populateIntermediatePanes(Object root, String path) throws Exception {
+      String[] segments = path.split("\\.");
+      Object current = root;
+
+      for(int i = 0; i < segments.length - 1; i++) {
+         Object child = PropertyPath.get(current, segments[i]);
+
+         if(child == null) {
+            Class<?> type = PropertyPath.typeOf(current.getClass(), segments[i]);
+            child = type.getDeclaredConstructor().newInstance();
+            PropertyPath.set(current, segments[i], child);
+         }
+
+         current = child;
+      }
+   }
+
+   /**
+    * The check box has no write-back Column, Row or Write Back to Storage (hidden by the dialog,
+    * refused by bug #78579's guard), and its Target tree is variables-only
+    * (VSInputService.java:592), so a plain table name written through {@code writeBackTable}
+    * would be a dead write. None of the four is advertised on it until the variables-only guard
+    * lands (bug #80464 PR3).
+    */
+   @Test
+   void checkboxAdvertisesNoWriteBackAlias() {
+      Map<String, String> aliases = PropertyAliases.forType("checkbox").aliases();
+
+      for(String dead : List.of("writeBackTable", "writeBackColumn", "writeBackRow",
+                                "writeBackDirectly", "columnValue", "rowValue"))
+      {
+         assertFalse(aliases.containsKey(dead), dead);
+      }
+   }
+
+   /**
+    * Names deliberately NOT registered: {@code noDefault} is never read by VSInputService (the
+    * Composer just clears the default value), and the rest belong to later parts of bug #80464
+    * (combobox-only fields need DEAD_FIELDS entries; multiLine, inputControl (an unrecognised
+    * type is silently dropped) and the static items need new validation). Registering one here would be the "exposes but does nothing" trap or would
+    * ship before its guard.
+    */
+   @Test
+   void deferredOrDeadNamesAreNotRegisteredOnAnyInputOrOutputType() {
+      for(String type : FORM_OUTPUT_TYPES) {
+         for(String name : List.of("noDefault", "multiLine", "inputControl", "editable", "queryDateFormat",
+                                   "dateFormatPattern", "calendar", "serverTZ", "minDate",
+                                   "maxDate", "defaultValue", "staticLabels", "staticValues"))
+         {
+            assertFalse(PropertyAliases.forType(type).aliases().containsKey(name),
+                        name + " on " + type);
+         }
+      }
+   }
+
+   /** The raw paths the new aliases name are still live where they are registered. */
+   @Test
+   void theNewAliasPathsAreNotRefusedAsDeadOnTheirRegisteredTypes() {
+      for(AliasCase aliasCase : FORM_OUTPUT_ALIASES) {
+         for(Map.Entry<String, String> entry : aliasCase.pathByType().entrySet()) {
+            assertFalse(refused(entry.getKey(), entry.getValue()),
+                        entry.getKey() + " " + entry.getValue());
+         }
+      }
+   }
+
+   /**
+    * The new aliases land on paths that existing guards key on, so those guards fire for the
+    * short name too (they are judged on the resolved path, not the caller's key). The labelGap
+    * range check and the list sortType domain are driven here directly; the Image popComponent
+    * reference check is pinned by its registered suffix, because it needs a live viewsheet to
+    * run end to end.
+    */
+   @Test
+   void existingGuardsFireThroughTheNewAliases() throws Exception {
+      for(String type : List.of("combobox", "slider", "spinner", "textinput")) {
+         String path = PropertyAliases.resolveForWrite(type, "labelGap");
+         assertThrows(IllegalArgumentException.class,
+                      () -> AssemblyPropertyService.requireLabelGapInRange("labelGap", path, 5000),
+                      type);
+         assertDoesNotThrow(
+            () -> AssemblyPropertyService.requireLabelGapInRange("labelGap", path, 12), type);
+      }
+
+      Method canonical = AssemblyPropertyService.class.getDeclaredMethod(
+         "canonicalIntEnum", String.class, String.class, Object.class);
+      canonical.setAccessible(true);
+
+      for(String type : List.of("checkbox", "combobox", "radiobutton")) {
+         String path = PropertyAliases.resolveForWrite(type, "sortType");
+         assertEquals(2, canonical.invoke(null, type, path, "descending"), type);
+         java.lang.reflect.InvocationTargetException thrown = assertThrows(
+            java.lang.reflect.InvocationTargetException.class,
+            () -> canonical.invoke(null, type, path, "bogus"), type);
+         assertInstanceOf(IllegalArgumentException.class, thrown.getCause(), type);
+      }
+
+      java.lang.reflect.Field fields =
+         AssemblyPropertyService.class.getDeclaredField("REFERENCE_FIELDS");
+      fields.setAccessible(true);
+      String imagePop = PropertyAliases.resolveForWrite("image", "popComponent");
+      boolean covered = false;
+
+      for(Object field : (List<?>) fields.get(null)) {
+         Method suffix = field.getClass().getDeclaredMethod("suffix");
+         suffix.setAccessible(true);
+         covered |= imagePop.endsWith((String) suffix.invoke(field));
+      }
+
+      assertTrue(covered, imagePop);
+   }
+
+   /**
+    * The plugin pre-validates the bare key {@code labelPosition} (propertyTools.ts), so the
+    * server alias must carry exactly that name and the Composer's four positions.
+    */
+   @Test
+   void labelPositionAliasNameMatchesTheKeyThePluginPrevalidates() {
+      for(String type : List.of("combobox", "slider", "spinner", "textinput")) {
+         assertEquals("inputLabelPaneModel.labelPosition",
+                      PropertyAliases.resolve(type, "labelPosition"), type);
+      }
+
+      for(String type : List.of("checkbox", "radiobutton", "gauge", "text", "image")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("labelPosition"), type);
       }
    }
 }
