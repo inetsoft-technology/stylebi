@@ -75,6 +75,28 @@ export class ComposerVsSearchService {
     return str.trim().toLowerCase().indexOf(this.searchString.toLowerCase()) >= 0;
   }
 
+  /**
+   * Whether the object matches the search by its assembly name or, for objects that have
+   * one, its visible title or text content.
+   */
+  matchObject(obj: VSObjectModel): boolean {
+    if(!obj) {
+      return false;
+    }
+
+    if(this.matchName(obj.absoluteName)) {
+      return true;
+    }
+
+    // matchName() accepts everything outside search mode, so only an active search gets here
+    const anyObj = <any> obj;
+    const title = anyObj.titleVisible === false ? null : anyObj.title;
+    const text = obj.objectType == "VSText" ? anyObj.text : null;
+
+    return this.matchName(typeof title == "string" ? title : null) ||
+      this.matchName(typeof text == "string" ? text : null);
+  }
+
   assemblyVisible(obj: VSObjectModel): boolean {
     if(!this.isSearchMode()) {
       return true;
@@ -88,7 +110,7 @@ export class ComposerVsSearchService {
       return false;
     }
 
-    if(this.matchName(obj.absoluteName)) {
+    if(this.matchObject(obj)) {
       return true;
     }
 
