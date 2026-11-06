@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.composition.graph.GraphTypeUtil;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.internal.graph.SwapXYBindingProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -443,7 +444,7 @@ class ChartChromeTypeSeedTest {
    }
 
    @Test
-   void anAutoChartThatBecomesAPointChartGainsItsTitles() throws Exception {
+   void anAutoChartThatBecomesAPointChartGainsItsTitlesAndXGrid() throws Exception {
       gateOn();
       ChartVSAssembly chart = chartOn(new Viewsheet());
       ChartVSAssemblyInfo info = chart.getChartInfo();
@@ -456,6 +457,8 @@ class ChartChromeTypeSeedTest {
          assertEquals(GraphTypes.CHART_BAR, info.getSeededType().type(), "premise: auto drew bars");
          assertFalse(defaultVisible(titles.getXTitleDescriptor()), "premise: bar, x");
          assertFalse(defaultVisible(titles.getYTitleDescriptor()), "premise: bar, y");
+         assertEquals(StyleConstants.NONE, defaultXGrid(info.getChartDescriptor()),
+                      "premise: bar, grid");
 
          VSChartInfo cinfo = info.getVSChartInfo();
          cinfo.removeXField(0);
@@ -467,6 +470,7 @@ class ChartChromeTypeSeedTest {
                    "premise: auto drew points");
       assertTrue(defaultVisible(titles.getXTitleDescriptor()), "x");
       assertTrue(defaultVisible(titles.getYTitleDescriptor()), "y");
+      assertEquals(StyleConstants.THIN_LINE, defaultXGrid(info.getChartDescriptor()), "x grid");
    }
 
    @Test
@@ -514,6 +518,97 @@ class ChartChromeTypeSeedTest {
       assertTrue(y.isVisible(), "y as before");
       assertFalse(y.hasVisibleUserValue(), "y as before");
       assertFalse(x.isVisible(), "x as before");
+   }
+
+   // ---- the vertical grid ------------------------------------------------------------------
+
+   @Test
+   void aModernScatterGetsAVerticalGrid() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_POINT, refs(agg("w")), refs(agg("v")));
+      seed(info);
+
+      assertEquals(StyleConstants.THIN_LINE, xGrid(info));
+   }
+
+   @Test
+   void aPointChartWithADimensionOnXGetsNone() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_POINT, refs(dim("state")), refs(agg("v")));
+      seed(info);
+
+      assertEquals(StyleConstants.NONE, xGrid(info));
+   }
+
+   @Test
+   void aHorizontalPointChartGetsNoCategoryLines() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_POINT, refs(agg("v")), refs(dim("state")));
+      seed(info);
+
+      assertEquals(StyleConstants.NONE, xGrid(info));
+   }
+
+   @Test
+   void aClassicScatterKeepsNone() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_POINT, refs(agg("w")), refs(agg("v")));
+      seed(info);
+
+      assertEquals(StyleConstants.NONE, xGrid(info));
+   }
+
+   @Test
+   void anAuthorsGridSurvivesAReseed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      info.getChartDescriptor().getPlotDescriptor().setXGridStyle(StyleConstants.THIN_LINE);
+
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_LINE);
+      info.reseedIfResolvedTypeChanged();
+
+      assertEquals(GraphTypes.CHART_LINE, info.getSeededType().type(), "premise: the re-seed ran");
+      assertEquals(StyleConstants.THIN_LINE, xGrid(info));
+   }
+
+   @Test
+   void modernizeThenRevertRestoresTheXGrid() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_POINT, refs(agg("w")), refs(agg("v")));
+      seed(info);
+      assertEquals(StyleConstants.NONE, xGrid(info), "premise: classic");
+
+      modernize(info);
+      assertEquals(StyleConstants.THIN_LINE, xGrid(info), "Modernize");
+      revert(info);
+      assertEquals(StyleConstants.NONE, xGrid(info), "Revert");
+   }
+
+   @Test
+   void aScriptsRuntimeXGridKeepsItsValueWhileItsDefaultFollowsTheType() {
+      gateOn();
+      ChartVSAssemblyInfo marked = scatter();
+      ChartDescriptor rdesc = (ChartDescriptor) marked.getChartDescriptor().clone();
+      PlotDescriptor rplot = rdesc.getPlotDescriptor();
+      rplot.setXGridStyle(StyleConstants.DASH_LINE);
+      marked.setRTChartDescriptor(rdesc);
+      assertEquals(StyleConstants.THIN_LINE, defaultXGrid(rdesc), "premise: copied from a scatter");
+
+      toBar(marked);
+      marked.reseedIfResolvedTypeChanged();
+
+      assertSame(rdesc, marked.getRTChartDescriptor());
+      assertEquals(StyleConstants.NONE, defaultXGrid(rdesc), "the default follows the type");
+      assertEquals(StyleConstants.DASH_LINE, rplot.getXGridStyle(), "the script's value stays");
+      assertEquals(StyleConstants.NONE, defaultXGrid(marked.getChartDescriptor()),
+                   "the design descriptor");
    }
 
    // ---- harness -----------------------------------------------------------------------------
@@ -633,6 +728,17 @@ class ChartChromeTypeSeedTest {
          case "y" -> titles.getYTitleDescriptor();
          default -> titles.getY2TitleDescriptor();
       };
+   }
+
+   private static int xGrid(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getPlotDescriptor().getXGridStyle();
+   }
+
+   private static int defaultXGrid(ChartDescriptor desc) {
+      PlotDescriptor copy = (PlotDescriptor) desc.getPlotDescriptor().clone();
+      copy.resetCompositeValues(CompositeValue.Type.USER);
+      copy.resetCompositeValues(CompositeValue.Type.CSS);
+      return copy.getXGridStyle();
    }
 
    // the DEFAULT tier, read off a copy with the higher tiers cleared

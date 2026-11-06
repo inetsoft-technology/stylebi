@@ -30,6 +30,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartLineColor;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
@@ -1138,6 +1139,47 @@ class SeedChromeDefaultsTest {
 
       assertFalse(x.hasVisibleUserValue(), "a seeded value must not come back as the author's");
       assertFalse(x.isVisible(), "the asset carries the seeded hidden title");
+   }
+
+   @Test
+   void theSeededXGridTravelsInTheAsset() throws Exception {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bindScatter(info);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(StyleConstants.THIN_LINE, plot(info).getXGridStyle(), "premise: seeded");
+
+      ChartVSAssemblyInfo loaded = roundTrip(info);
+
+      assertEquals(StyleConstants.THIN_LINE, plot(loaded).getXGridStyle());
+   }
+
+   @Test
+   void aScatterBookmarkTakenWhileModernAndRestoredAfterRevertHasNoXGrid() throws Exception {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = chartOn(vs);
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      bindScatter(info);
+      info.seedChromeDefaults(VizContext.of(info));
+      String state = writeState(chart);
+      assertEquals(StyleConstants.THIN_LINE, plot(info).getXGridStyle(), "premise: modern grid");
+
+      VizModernizeUtil.revert(vs);
+      restoreState(chart, state);
+
+      assertEquals(StyleConstants.NONE,
+                   plot((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).getXGridStyle());
+   }
+
+   private static void bindScatter(ChartVSAssemblyInfo info) {
+      VSChartAggregateRef w = new VSChartAggregateRef();
+      w.setColumnValue("w");
+      VSChartAggregateRef v = new VSChartAggregateRef();
+      v.setColumnValue("v");
+      info.getVSChartInfo().addXField(w);
+      info.getVSChartInfo().addYField(v);
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_POINT);
    }
 
    private static TitleDescriptor xTitle(ChartVSAssemblyInfo info) {

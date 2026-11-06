@@ -3103,6 +3103,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // values that depend on the resolved type; written on both branches
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
+      seedXGrid(ctx, type);
+   }
+
+   private void seedXGrid(VizContext ctx, ResolvedChartType type) {
+      int style = ctx.modern ? VSChartTypeDefaults.xGridStyle(type) : StyleConstants.NONE;
+      seedXGrid(getChartDescriptor(), style);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedXGrid(getRTChartDescriptor(), style);
+   }
+
+   private static void seedXGrid(ChartDescriptor desc, int style) {
+      PlotDescriptor plot = desc == null ? null : desc.getPlotDescriptor();
+
+      if(plot != null) {
+         plot.setXGridStyle(style, CompositeValue.Type.DEFAULT);
+      }
    }
 
    /**

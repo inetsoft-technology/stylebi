@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -66,6 +67,26 @@ class VSChartTypeDefaultsTest {
          assertTrue(VSChartTypeDefaults.valueAxisLineVisible(rt(t, false, true)), "vertical " + t);
          assertTrue(VSChartTypeDefaults.valueAxisLineVisible(rt(t, true, false)), "horizontal " + t);
          assertTrue(VSChartTypeDefaults.valueAxisLineVisible(rt(t, false, false)), "no measure " + t);
+      }
+   }
+
+   @Test
+   void theXGridFollowsTwoContinuousAxes() {
+      for(int t : new int[] { GraphTypes.CHART_POINT, GraphTypes.CHART_POINT_STACK,
+                              GraphTypes.CHART_SCATTER_CONTOUR }) {
+         assertEquals(StyleConstants.THIN_LINE, VSChartTypeDefaults.xGridStyle(rt(t, true, true)),
+                      "type " + t);
+      }
+
+      assertEquals(StyleConstants.NONE,
+                   VSChartTypeDefaults.xGridStyle(rt(GraphTypes.CHART_POINT, false, true)));
+      assertEquals(StyleConstants.NONE,
+                   VSChartTypeDefaults.xGridStyle(rt(GraphTypes.CHART_POINT, true, false)));
+
+      for(int t : new int[] { GraphTypes.CHART_BAR, GraphTypes.CHART_LINE,
+                              GraphTypes.CHART_FUNNEL, GraphTypes.CHART_MAP }) {
+         assertEquals(StyleConstants.NONE, VSChartTypeDefaults.xGridStyle(rt(t, true, true)),
+                      "type " + t);
       }
    }
 

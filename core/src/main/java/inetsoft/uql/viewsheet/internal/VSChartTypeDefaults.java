@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 
 /**
@@ -53,5 +54,14 @@ final class VSChartTypeDefaults {
       // a box plot names its value axis only, on X when it lies horizontally
       boolean xAxis = "x".equals(axis) || "x2".equals(axis);
       return xAxis == (t.measureOnX() && !t.measureOnY());
+   }
+
+   /**
+    * The modern vertical grid style; a scatter with a measure on each axis gets a thin one.
+    */
+   static int xGridStyle(ResolvedChartType t) {
+      boolean scatter = GraphTypes.isPoint(t.type()) || GraphTypes.isScatteredContour(t.type());
+      return scatter && t.measureOnX() && t.measureOnY() ? StyleConstants.THIN_LINE :
+         StyleConstants.NONE;
    }
 }
