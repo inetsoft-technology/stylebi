@@ -352,6 +352,7 @@ public class CSSDictionary {
     * Invalidate the in-memory map and force dictionaries to rebuild on next run.
     */
    public static void resetDictionaryCache() {
+      final List<CSSDictionary> dropped = new ArrayList<>();
       DICTIONARIES_LOCK.writeLock().lock();
       styleSheets.clear();
 
@@ -360,16 +361,24 @@ public class CSSDictionary {
             ConfigurationContext.getContext().get(DICTIONARIES_KEY);
 
          if(map != null) {
-            for(CSSDictionary dictionary : map.values()) {
-               dictionary.dmgr.clear();
-            }
-
+            dropped.addAll(map.values());
             map.clear();
          }
       }
       finally {
          DICTIONARIES_LOCK.writeLock().unlock();
       }
+
+      // outside the lock, as dispose() waits for a reload in progress
+      for(CSSDictionary dictionary : dropped) {
+         dictionary.dispose();
+      }
+   }
+
+   // stops reloading; synchronized so a reload in progress cannot re-register the listener
+   private synchronized void dispose() {
+      disposed = true;
+      dmgr.clear();
    }
 
    /**
@@ -392,6 +401,11 @@ public class CSSDictionary {
     */
    @SuppressWarnings("UnusedParameters")
    protected synchronized void init() {
+      // a dropped dictionary must not reload or rewrite the file
+      if(disposed) {
+         return;
+      }
+
       // clear data change listeners
       dmgr.clear();
 
@@ -2284,6 +2298,8 @@ public class CSSDictionary {
 
    // data change listener manager
    private DataChangeListenerManager dmgr = new DataChangeListenerManager();
+   // set by resetDictionaryCache, guarded by this
+   private boolean disposed;
 
    private static final String DICTIONARIES_KEY =
       CSSDictionary.class.getName() + ".dictionaries";

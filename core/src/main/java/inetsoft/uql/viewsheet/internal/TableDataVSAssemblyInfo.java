@@ -1825,6 +1825,55 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    private CompositeValue<Insets> cellPadding =
       new CompositeValue<>(Insets.class, null, true);
 
+   /**
+    * Adds the table style and the cell padding; cell paths, and the object values whose being set
+    * cells read, are never residue.
+    */
+   @Override
+   protected List<ChromeSlot> chromeSlots() {
+      List<ChromeSlot> slots = new ArrayList<>();
+
+      for(TableDataPath path : getFormatInfo().getPaths()) {
+         slots.addAll(FormatChromeSlots.forPath(path, prop -> isResidueEligible(path, prop),
+                                                resetsWholeFont(path)));
+      }
+
+      slots.add(paddingSlot());
+      slots.add(ChromeSlot.plain("table:style", (info, fresh) ->
+         ((TableDataVSAssemblyInfo) info).setTableStyleValue(
+            ((TableDataVSAssemblyInfo) fresh).getTableStyleValue())));
+      slots.add(ChromeSlot.tiered("cellPadding", false, true,
+                                  info -> ((TableDataVSAssemblyInfo) info).isUserCellPadding(),
+                                  info -> false,
+                                  info -> ((TableDataVSAssemblyInfo) info).getCellPadding(),
+                                  info -> ((TableDataVSAssemblyInfo) info).getCellPadding(),
+                                  info -> ((TableDataVSAssemblyInfo) info).resetUserCellPadding(),
+                                  null));
+      return slots;
+   }
+
+   // cells defer to the table style unless these object values are set
+   private static boolean isResidueEligible(TableDataPath path, FormatChromeSlots.Property prop) {
+      return !isCellPath(path) && !(OBJECTPATH.equals(path) &&
+         (prop == FormatChromeSlots.Property.FONT || prop == FormatChromeSlots.Property.ALPHA ||
+          prop == FormatChromeSlots.Property.BORDER_COLORS));
+   }
+
+   private static boolean isCellPath(TableDataPath path) {
+      switch(path.getType()) {
+      case TableDataPath.HEADER:
+      case TableDataPath.DETAIL:
+      case TableDataPath.TRAILER:
+      case TableDataPath.GROUP_HEADER:
+      case TableDataPath.SUMMARY:
+      case TableDataPath.SUMMARY_HEADER:
+      case TableDataPath.HIDDEN_SUMMARY:
+         return true;
+      default:
+         return false;
+      }
+   }
+
    private static final Logger LOG =
       LoggerFactory.getLogger(TableDataVSAssemblyInfo.class);
 }

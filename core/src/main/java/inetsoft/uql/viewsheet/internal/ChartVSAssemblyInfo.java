@@ -27,6 +27,7 @@ import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
@@ -217,6 +218,31 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    @Override
    protected Insets defaultPadding(VizContext ctx) {
       return VSDensityDefaults.chartPadding(ctx);
+   }
+
+   /**
+    * Adds the chart's text, plot, legend, axis, shape and colour slots.
+    */
+   @Override
+   protected List<ChromeSlot> chromeSlots() {
+      List<ChromeSlot> slots = new ArrayList<>(formatSlots());
+      slots.addAll(ChartChromeSlots.of(this));
+      return slots;
+   }
+
+   /**
+    * The format and padding slots, without the chart's own.
+    */
+   List<ChromeSlot> formatSlots() {
+      return super.chromeSlots();
+   }
+
+   /**
+    * The object font also resets whole: chart text takes it as its default.
+    */
+   @Override
+   protected boolean resetsWholeFont(TableDataPath path) {
+      return OBJECTPATH.equals(path) || super.resetsWholeFont(path);
    }
 
    /**

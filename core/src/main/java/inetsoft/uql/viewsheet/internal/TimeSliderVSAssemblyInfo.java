@@ -852,6 +852,16 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
    }
 
    /**
+    * The padding is never residue: an unmarked slider draws only one its author set.
+    */
+   @Override
+   protected List<ChromeSlot> chromeSlots() {
+      List<ChromeSlot> slots = super.chromeSlots();
+      slots.replaceAll(slot -> "padding".equals(slot.key()) ? paddingSlot(false) : slot);
+      return slots;
+   }
+
+   /**
     * Get the height of the slider body, track and labels plus the padding when marked.
     */
    public int getSliderBodyHeight() {

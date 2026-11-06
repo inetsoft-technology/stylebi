@@ -572,6 +572,17 @@ public class ViewsheetInfo implements AssetObject {
    }
 
    /**
+    * The identifier of the dashboard this one was created from by a modern copy, or null.
+    */
+   public String getModernCopyOf() {
+      return modernCopyOf;
+   }
+
+   public void setModernCopyOf(String modernCopyOf) {
+      this.modernCopyOf = modernCopyOf;
+   }
+
+   /**
     * Check whether to use template.
     */
    public boolean isTemplateEnabled() {
@@ -780,6 +791,10 @@ public class ViewsheetInfo implements AssetObject {
          writer.print(" vizDensity=\"" + Tool.escape(vizDensity) + "\"");
       }
 
+      if(modernCopyOf != null) {
+         writer.print(" modernCopyOf=\"" + Tool.escape(modernCopyOf) + "\"");
+      }
+
       writer.print(" balancePadding=\"" + balancePadding + "\"");
 
       if(desc != null) {
@@ -851,6 +866,7 @@ public class ViewsheetInfo implements AssetObject {
       }
 
       setVizDensity(Tool.getAttribute(elem, "vizDensity"));
+      setModernCopyOf(Tool.getAttribute(elem, "modernCopyOf"));
 
       this.desc = Tool.decodeNL(Tool.getAttribute(elem, "description"));
 
@@ -1204,6 +1220,7 @@ public class ViewsheetInfo implements AssetObject {
    private int maxrows = 0;
    private int snapGrid = 20;
    private String vizDensity; // null = inherit the org
+   private String modernCopyOf; // original's identifier, null = not a modern copy
    private boolean template = false;
    private boolean scaleToScreen = false;
    private boolean fitToWidth = false;

@@ -18,4 +18,6 @@
 export interface SaveSheetCommand {
    savePoint: number;
    id: string;
+   // the server reports this save itself
+   quiet?: boolean;
 }
