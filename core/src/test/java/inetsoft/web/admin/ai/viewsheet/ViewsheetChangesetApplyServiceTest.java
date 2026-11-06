@@ -310,30 +310,57 @@ class ViewsheetChangesetApplyServiceTest {
       assertTrue(viewsheetStore.containsKey(VS_ASSET_ID));
    }
 
-   // Bug #79898: preview sees a free destination for both renames; only the apply-time check can
-   // catch the second one, after the first has taken the path.
-   @Test void applyRefusesSecondRenameToTheSameNewPathInOnePlan() throws Exception {
+   // Bug #79898 / #80355: preview used to see a free destination for both renames and only the
+   // apply-time check caught the second one, after the first had taken the path. The plan now
+   // claims each rename's landing path, so the plan is refused up front and nothing is renamed.
+   @Test void secondRenameToTheSameNewPathInOnePlanIsRefusedAtPlanTime() throws Exception {
+      String otherId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                      "Examples/Other", null, "host-org").toIdentifier();
+      viewsheetStore.put(otherId,
+         new Sheet(otherId, "Examples/Other", "Examples/Other", true, null, null));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> applyRequest("rename two", false,
+            renameViewsheetChange(VS_ASSET_ID, "Examples/Dest", true, null),
+            renameViewsheetChange(otherId, "Examples/Dest", true, null)));
+      assertTrue(ex.getMessage().contains("a path may appear once per submission"), ex.getMessage());
+      verify(viewsheetApiService, never()).renameViewsheet(any(), any(), anyBoolean(), any(), any());
+      assertEquals("Examples/Census", viewsheetStore.get(VS_ASSET_ID).getPath());
+      assertEquals("Examples/Other", viewsheetStore.get(otherId).getPath());
+   }
+
+   // Bug #79898: the plan claims cannot see a collision created between preview and apply (here a
+   // concurrent actor takes the second rename's destination); the apply-time target-free check is
+   // the safety net, and the first rename must be undone.
+   @Test void applyRollsBackFirstRenameWhenSecondDestinationBecomesTakenAfterPreview()
+      throws Exception
+   {
       String otherId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
                                       "Examples/Other", null, "host-org").toIdentifier();
       viewsheetStore.put(otherId,
          new Sheet(otherId, "Examples/Other", "Examples/Other", true, null, null));
       lenient().when(viewsheetApiService.isRenameTargetTaken(
-         anyString(), anyString(), anyBoolean(), any(), eq(user))).thenAnswer(inv -> {
-            String path = inv.getArgument(1);
-            return viewsheetStore.values().stream().anyMatch(s -> path.equals(s.getPath()));
-         });
+         anyString(), eq("Examples/Dest"), anyBoolean(), any(), eq(user))).thenReturn(false);
+      lenient().when(viewsheetApiService.isRenameTargetTaken(
+         anyString(), eq("Examples/Dest2"), anyBoolean(), any(), eq(user))).thenReturn(false);
 
       ViewsheetApplyRequest req = applyRequest("rename two", false,
          renameViewsheetChange(VS_ASSET_ID, "Examples/Dest", true, null),
-         renameViewsheetChange(otherId, "Examples/Dest", true, null));
+         renameViewsheetChange(otherId, "Examples/Dest2", true, null));
+
+      // Dest2 was free at preview and at apply's re-resolve (call 1); it is taken when the
+      // apply-time guard runs right before the second rename (call 2 on).
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      lenient().when(viewsheetApiService.isRenameTargetTaken(
+         anyString(), eq("Examples/Dest2"), anyBoolean(), any(), eq(user)))
+         .thenAnswer(inv -> calls.incrementAndGet() >= 2);
 
       var result = service.apply(req, user);
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertEquals("Examples/Census", viewsheetStore.get(VS_ASSET_ID).getPath());
-      verify(viewsheetApiService, never()).renameViewsheet(
-         eq(otherId), eq("Examples/Dest"), anyBoolean(), any(), any());
-      assertTrue(viewsheetStore.containsKey(otherId));
       assertEquals("Examples/Other", viewsheetStore.get(otherId).getPath());
+      verify(viewsheetApiService, never()).renameViewsheet(
+         eq(otherId), eq("Examples/Dest2"), anyBoolean(), any(), any());
    }
 
    @Test void applyRefusesWorksheetRenameWhenDestinationIsOccupied() throws Exception {

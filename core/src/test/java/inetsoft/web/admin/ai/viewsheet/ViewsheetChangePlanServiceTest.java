@@ -782,6 +782,7 @@ class ViewsheetChangePlanServiceTest {
 
    @Test void resolveFolderRenameSucceeds() throws Exception {
       stubFolder("Examples/Old Folder", null, true);
+      stubFolder("Examples/New Folder", null, false);
       ViewsheetChangeRequest change =
          renameFolderChange("Examples/Old Folder", "Examples/New Folder", null);
 
@@ -792,6 +793,7 @@ class ViewsheetChangePlanServiceTest {
    // list schedule tasks among the references that go stale.
    @Test void resolveFolderRenameDescriptionSaysScheduleTasksFollow() throws Exception {
       stubFolder("Examples/Old Folder", null, true);
+      stubFolder("Examples/New Folder", null, false);
       ViewsheetChangeRequest change =
          renameFolderChange("Examples/Old Folder", "Examples/New Folder", null);
 
@@ -946,6 +948,135 @@ class ViewsheetChangePlanServiceTest {
             VS_ASSET_ID, "My Dashboards/Census2", false, "bob:nope-org"))), user));
       assertTrue(ex.getMessage().contains("organization \"nope-org\" does not exist"),
                  ex.getMessage());
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #80355: a rename's landing path is claimed within one submission
+   // -------------------------------------------------------------------------
+
+   private static final String VS_ASSET_ID_2 =
+      new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                     "Examples/Other", null, "host-org").toIdentifier();
+   private static final String VS_ASSET_ID_OTHER_ORG =
+      new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                     "Examples/Other", null, "other-org").toIdentifier();
+
+   private void stubTwoViewsheets(String id2) throws Exception {
+      SheetList list = new SheetList();
+      list.getSheets().add(new Sheet(VS_ASSET_ID, "Examples/Census", "Examples/Census", true, null, null));
+      list.getSheets().add(new Sheet(id2, "Examples/Other", "Examples/Other", true, null, null));
+      lenient().when(viewsheetApiService.getViewsheets(eq(user))).thenReturn(list);
+   }
+
+   private void assertLandingRefused(ViewsheetChangeRequest... changes) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(changes)), user));
+      assertTrue(ex.getMessage().contains("a path may appear once per submission"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(".newPath"), ex.getMessage());
+   }
+
+   @Test void twoViewsheetRenamesToOnePathAreRefused() throws Exception {
+      stubTwoViewsheets(VS_ASSET_ID_2);
+      assertLandingRefused(
+         renameViewsheetChange(VS_ASSET_ID, "Examples/Target", true, null),
+         renameViewsheetChange(VS_ASSET_ID_2, "Examples/Target", true, null));
+   }
+
+   @Test void viewsheetRenamesToDifferentPathsStillResolve() throws Exception {
+      stubTwoViewsheets(VS_ASSET_ID_2);
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         renameViewsheetChange(VS_ASSET_ID, "Examples/Target", true, null),
+         renameViewsheetChange(VS_ASSET_ID_2, "Examples/Target2", true, null))), user));
+   }
+
+   @Test void viewsheetRenamesToOnePathUnderDifferentScopeOrOrgStillResolve() throws Exception {
+      // global vs the caller's own user tree
+      stubTwoViewsheets(VS_ASSET_ID_2);
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         renameViewsheetChange(VS_ASSET_ID, "Examples/Target", true, null),
+         renameViewsheetChange(VS_ASSET_ID_2, "Examples/Target", false, "bob:host-org"))), user));
+
+      // same global path in another organization
+      stubTwoViewsheets(VS_ASSET_ID_OTHER_ORG);
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         renameViewsheetChange(VS_ASSET_ID, "Examples/Target", true, null),
+         renameViewsheetChange(VS_ASSET_ID_OTHER_ORG, "Examples/Target", true, null))), user));
+   }
+
+   @Test void twoWorksheetRenamesToOnePathAreRefusedButAViewsheetAtThatPathIsNot() throws Exception {
+      String wsId = stubWorksheetList();
+      String wsId2 = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                    "Examples/Sales2", null, "host-org").toIdentifier();
+      SheetList list = new SheetList();
+      list.getSheets().add(new Sheet(wsId, "Examples/Sales", "Examples/Sales", true, null, null));
+      list.getSheets().add(new Sheet(wsId2, "Examples/Sales2", "Examples/Sales2", true, null, null));
+      lenient().when(worksheetApiService.getWorksheets(any())).thenReturn(list);
+      ViewsheetChangeRequest ws1 = renameViewsheetChange(wsId, "Examples/Target", true, null);
+      ws1.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      ViewsheetChangeRequest ws2 = renameViewsheetChange(wsId2, "Examples/Target", true, null);
+      ws2.setUnitType(ViewsheetChangeRequest.UNIT_WORKSHEET);
+      assertLandingRefused(ws1, ws2);
+
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+      ViewsheetChangeRequest vs = renameViewsheetChange(VS_ASSET_ID, "Examples/Target", true, null);
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(ws1, vs)), user));
+   }
+
+   @Test void folderRenameThenCreateAtTheRenameTargetIsRefusedInBothOrders() throws Exception {
+      stubFolder("Examples/Old Folder", null, true);
+      stubFolder("Examples/New Folder", null, false);
+      ViewsheetChangeRequest rename =
+         renameFolderChange("Examples/Old Folder", "Examples/New Folder", null);
+      ViewsheetChangeRequest create = createFolderChange("Examples", "New Folder", null);
+
+      for(List<ViewsheetChangeRequest> order : List.of(List.of(rename, create), List.of(create, rename))) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", order), user));
+         assertTrue(ex.getMessage().contains("duplicate entry for folder"), ex.getMessage());
+      }
+   }
+
+   @Test void twoFolderRenamesToOnePathAreRefused() throws Exception {
+      stubFolder("Examples/A", null, true);
+      stubFolder("Examples/B", null, true);
+      stubFolder("Examples/G", null, false);
+      assertLandingRefused(renameFolderChange("Examples/A", "Examples/G", null),
+                           renameFolderChange("Examples/B", "Examples/G", null));
+   }
+
+   @Test void folderRenameOntoAnExistingFolderIsRefused() throws Exception {
+      stubFolder("Examples/A", null, true);
+      stubFolder("Examples/G", null, true);
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            renameFolderChange("Examples/A", "Examples/G", null))), user));
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(".newPath"), ex.getMessage());
+   }
+
+   @Test void folderRenameControlsStillResolve() throws Exception {
+      stubFolder("Examples/A", null, true);
+      stubFolder("Examples/B", null, true);
+      stubFolder("Examples/G", null, false);
+      stubFolder("Examples/H", null, false);
+      stubFolder("Examples/Z", null, false);
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         renameFolderChange("Examples/A", "Examples/G", null),
+         renameFolderChange("Examples/B", "Examples/H", null),
+         createFolderChange("Examples", "Z", null))), user));
+      // a rename to the same path is a no-op, not a collision with itself
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(
+         renameFolderChange("Examples/A", "Examples/A", null))), user));
+   }
+
+   @Test void folderDeleteThenRenameOntoTheDeletedPathIsRefused() throws Exception {
+      stubFolder("Examples/A", null, true);
+      stubFolder("Examples/G", null, true);
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(
+            deleteFolderChange("Examples/G", null),
+            renameFolderChange("Examples/A", "Examples/G", null))), user));
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
    }
 
    // -------------------------------------------------------------------------
