@@ -366,6 +366,51 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       return false;
    }
 
+   /**
+    * Re-seed a marked chart's axis lines for its current type.
+    */
+   public void reseedAxisLines() {
+      if(getVizMark() != null) {
+         seedAxisLines(VizContext.of(this), ResolvedChartType.of(getVSChartInfo()));
+      }
+   }
+
+   private void seedAxisLines(VizContext ctx, ResolvedChartType type) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      boolean v = ctx.modern ? VSChartTypeDefaults.valueAxisLineVisible(type) : true;
+      seedAxisLine(info.getAxisDescriptor(), v);
+      seedAxisLine(info.getAxisDescriptor2(), v);
+      // script-made runtime copies, which the render prefers
+      seedAxisLine(info.getRTAxisDescriptor(), v);
+      seedAxisLine(info.getRTAxisDescriptor2(), v);
+
+      // the runtime refs too, as an update clones them before the type re-seed runs
+      for(ChartRef[] refs : new ChartRef[][] { info.getXFields(), info.getYFields(),
+                                               info.getRTXFields(), info.getRTYFields() }) {
+         for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
+            if(ref != null) {
+               boolean line = ref.isMeasure() ? v : true;
+               seedAxisLine(ref.getAxisDescriptor(), line);
+
+               if(ref instanceof VSChartRef vref) {
+                  seedAxisLine(vref.getRTAxisDescriptor(), line);
+               }
+            }
+         }
+      }
+   }
+
+   private static void seedAxisLine(AxisDescriptor desc, boolean visible) {
+      if(desc != null && !desc.isUserLineVisible()) {
+         desc.setLineVisible(visible);
+      }
+   }
+
    @Override
    public void clearBinding() {
       super.clearBinding();
@@ -3024,6 +3069,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
       // values that depend on the resolved type; written on both branches
+      seedAxisLines(ctx, type);
    }
 
    /**

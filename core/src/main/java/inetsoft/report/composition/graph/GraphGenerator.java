@@ -2665,7 +2665,8 @@ public abstract class GraphGenerator {
       fmt = fmt == null && fld != null ? getDefaultFormat(ChartAggregateRef.getBaseName(fld)) : fmt;
       // modern chrome: unify the axis line with the gridlines when it is still the legacy default
       axis.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(axisD.getLineColor(), ctx));
-      axis.setLineVisible(!maxMode && axisD.isLineVisible() || maxMode && axisD.isMaxModeLineVisible());
+      axis.setLineVisible(!maxMode && axisD.isLineVisible() ||
+                          maxMode && axisD.isMaxModeLineVisible(ctx));
       axis.setTickVisible(axisD.isTicksVisible());
       axis.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));
       axis.setLabelVisible(!maxMode && axisD.isLabelVisible() || maxMode && axisD.isMaxModeLabelVisible());

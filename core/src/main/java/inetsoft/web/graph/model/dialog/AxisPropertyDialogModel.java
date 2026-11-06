@@ -67,7 +67,8 @@ public class AxisPropertyDialogModel implements Serializable {
       axisLinePaneModel = new AxisLinePaneModel();
       axisLinePaneModel.setAxisType(axisType);
 
-      boolean isShowAxisLine = maxMode ? axisDesc.isMaxModeLineVisible() : axisDesc.isLineVisible();
+      boolean isShowAxisLine =
+         maxMode ? axisDesc.isMaxModeLineVisible(ctx) : axisDesc.isLineVisible();
       boolean isShowAxisLineEnabled =
          GraphUtil.isShowAxisLineEnabled(cInfo, isFacetGrid, columnName, outer, axisType, area);
       axisLinePaneModel.setShowAxisLine(isShowAxisLine);

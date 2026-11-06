@@ -433,6 +433,35 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
    }
 
    /**
+    * Check if the axis line is displayed in max mode; under modern it also follows the line.
+    */
+   public boolean isMaxModeLineVisible(VizContext ctx) {
+      return ctx.modern ? maxModeLineVisible && lineVisible : maxModeLineVisible;
+   }
+
+   /**
+    * Check if the author set the axis line, so no seed writes it.
+    */
+   public boolean isUserLineVisible() {
+      return userLineVisible;
+   }
+
+   /**
+    * Set if the author set the axis line.
+    */
+   public void setUserLineVisible(boolean userLineVisible) {
+      this.userLineVisible = userLineVisible;
+   }
+
+   /**
+    * Set the visibility of the line as an author edit.
+    */
+   public void setAuthorLineVisible(boolean lineVisible) {
+      setLineVisible(lineVisible);
+      this.userLineVisible = true;
+   }
+
+   /**
     * Get the gap between the label and the axis line.
     */
    public int getLabelGap() {
@@ -551,6 +580,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
          fixedHeight == desc.fixedHeight &&
          maxModeLabelVisible == desc.maxModeLabelVisible &&
          maxModeLineVisible == desc.maxModeLineVisible &&
+         userLineVisible == desc.userLineVisible &&
          Tool.equals(labelGap, desc.labelGap);
    }
 
@@ -691,6 +721,10 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
          maxModeLineVisible = isLineVisible();
       }
 
+      // a line off predates the flag only as an author's choice
+      userLineVisible = DerivedUserFlag.parse(
+         Tool.getAttribute(node, "userLineVisible"), !lineVisible);
+
       val = Tool.getAttribute(node, "labelGap");
 
       if(val != null) {
@@ -804,6 +838,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
       writer.print(" fixedHeight=\"" + fixedHeight + "\" ");
       writer.print(" maxModeLabelVisible=\"" + maxModeLabelVisible + "\" ");
       writer.print(" maxModeLineVisible=\"" + maxModeLineVisible + "\" ");
+      DerivedUserFlag.write(writer, "userLineVisible", userLineVisible, !lineVisible);
       writer.print(" labelGap=\"" + labelGap + "\" ");
       GapZeroMarker.write(writer, "labelGapZero", labelGap);
       writer.print(" strictNull=\"true\" ");
@@ -928,6 +963,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
    private boolean labelVisible = true;
    private boolean maxModeLabelVisible = true;
    private boolean maxModeLineVisible = true;
+   private boolean userLineVisible = false;
    private boolean nonull = false;
    private boolean truncate = true;
    private boolean labelOnSecondaryAxis = false;

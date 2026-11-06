@@ -1365,6 +1365,7 @@ class SeedChromeDefaultsTest {
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, plot.getFacetGridColor(), "facet lines");
       assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info), "data-label ink");
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(info).getBorderColor(), "legend border");
+      assertTrue(chart.getVSChartInfo().getAxisDescriptor().isLineVisible(), "value-axis line");
       assertFalse(chartDescriptorXml(writeXml(info)).contains("^^DEF^^"),
                   "a reverted chart saves no default tier");
    }
