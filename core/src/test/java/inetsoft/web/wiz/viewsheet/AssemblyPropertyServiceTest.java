@@ -4222,14 +4222,12 @@ class AssemblyPropertyServiceTest {
    void bug79094PatternsTheRuntimeHonoursAreAcceptedVerbatim() throws Exception {
       // with the format off a changed pattern is refused instead (#80464 PR3, see
       // aDateFormatPatternNeedsQueryDateFormatOn)
-      for(boolean qdf : new boolean[] { true }) {
-         for(String pattern : new String[] { "yyyy-MM", "yyyy_MM_dd", "dd.MM.yyyy", "'abc'",
-                                             "MMM d, yyyy", "yyyy-MM-dd 'HH:mm'" })
-         {
-            ComboboxPropertyDialogModel model = seededComboboxModel(qdf, "yyyy-MM-dd");
-            setCombobox(model, patchOf(DFP, pattern));
-            assertEquals(pattern, model.getDataInputPaneModel().getDateFormatPattern());
-         }
+      for(String pattern : new String[] { "yyyy-MM", "yyyy_MM_dd", "dd.MM.yyyy", "'abc'",
+                                          "MMM d, yyyy", "yyyy-MM-dd 'HH:mm'" })
+      {
+         ComboboxPropertyDialogModel model = seededComboboxModel(true, "yyyy-MM-dd");
+         setCombobox(model, patchOf(DFP, pattern));
+         assertEquals(pattern, model.getDataInputPaneModel().getDateFormatPattern());
       }
    }
 
@@ -6544,13 +6542,36 @@ class AssemblyPropertyServiceTest {
          .set("tok", principal(), "T1", Map.of("multiLine", true), "");
       assertTrue(text.getTextInputGeneralPaneModel().isMultiLine());
 
-      // the same patch that moves the type off Text with multiLine on is refused too
+      // the same patch that turns it on while moving the type off Text is refused too
       TextInputPropertyDialogModel both = new TextInputPropertyDialogModel();
       both.getTextInputColumnOptionPaneModel().setType("Text");
       AssemblyPropertyService service =
          serviceWithTextInput(mock(TextInputVSAssembly.class), both, new Worksheet());
       assertThrows(IllegalArgumentException.class, () -> service.set(
          "tok", principal(), "T1", patchOf("inputControl", "Integer", "multiLine", true), ""));
+
+      // moving the type off Text while a stored multiLine:true stays is what the Composer does
+      for(String key : new String[] { "inputControl", "textInputColumnOptionPaneModel.type" }) {
+         TextInputPropertyDialogModel typeOnly = new TextInputPropertyDialogModel();
+         typeOnly.getTextInputColumnOptionPaneModel().setType("Text");
+         typeOnly.getTextInputGeneralPaneModel().setMultiLine(true);
+         serviceWithTextInput(mock(TextInputVSAssembly.class), typeOnly, new Worksheet())
+            .set("tok", principal(), "T1", Map.of(key, "Date"), "");
+         assertEquals("Date", typeOnly.getTextInputColumnOptionPaneModel().getType());
+         assertTrue(typeOnly.getTextInputGeneralPaneModel().isMultiLine());
+      }
+
+      // multiLine:true together with inputControl:Text is fine, on the alias and the raw path
+      for(String[] keys : new String[][] { { "multiLine", "inputControl" },
+         { "textInputGeneralPaneModel.multiLine", "textInputColumnOptionPaneModel.type" } })
+      {
+         TextInputPropertyDialogModel date = new TextInputPropertyDialogModel();
+         date.getTextInputColumnOptionPaneModel().setType("Date");
+         serviceWithTextInput(mock(TextInputVSAssembly.class), date, new Worksheet())
+            .set("tok", principal(), "T1", patchOf(keys[0], true, keys[1], "Text"), "");
+         assertTrue(date.getTextInputGeneralPaneModel().isMultiLine());
+         assertEquals("Text", date.getTextInputColumnOptionPaneModel().getType());
+      }
 
       // turning it off, or any other write, is never blocked by a stale true
       TextInputPropertyDialogModel stale = new TextInputPropertyDialogModel();
@@ -6830,12 +6851,24 @@ class AssemblyPropertyServiceTest {
          assertTrue(both.getDataInputPaneModel().isQueryDateFormat());
       }
 
-      // moving a date combo with the format on to another type is refused until it is off
+      // moving a date combo with the format on to another type switches the format off, as the
+      // Composer does (data-input-pane ngOnChanges); the pattern is kept
+      for(String key : new String[] { EDITOR + "dataType", "dataType" }) {
+         ComboboxPropertyDialogModel moved = pr3Combo("date", true, "dd.MM.yyyy");
+         setCombobox(moved, Map.of(key, "string"));
+         assertFalse(moved.getDataInputPaneModel().isQueryDateFormat());
+         assertEquals("dd.MM.yyyy", moved.getDataInputPaneModel().getDateFormatPattern());
+      }
+
+      // turning it on for a non-date type in the same call as the type change is still refused
       String msg = refusedCombo(pr3Combo("date", true, "yyyy-MM-dd"),
-                                Map.of(EDITOR + "dataType", "string"));
-      assertTrue(msg.contains("date or timeInstant"), msg);
-      setCombobox(pr3Combo("date", true, "yyyy-MM-dd"),
-                  patchOf(EDITOR + "dataType", "string", QDF, false));
+                                patchOf(EDITOR + "dataType", "string", QDF, true));
+      assertTrue(msg.contains("date or timeInstant") && msg.contains("dataType"), msg);
+
+      // date -> timeInstant keeps the format on
+      ComboboxPropertyDialogModel instant = pr3Combo("date", true, "yyyy-MM-dd");
+      setCombobox(instant, Map.of(EDITOR + "dataType", "timeInstant"));
+      assertTrue(instant.getDataInputPaneModel().isQueryDateFormat());
 
       // an unrelated write on a combo already in that state is never blocked
       setCombobox(pr3Combo("string", true, "yyyy-MM-dd"),

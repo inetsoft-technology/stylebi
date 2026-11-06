@@ -104,7 +104,7 @@ final class ListInputEditorGuard {
       boolean dataTypeChanged = !Objects.equals(before.dataType(), editor.getDataType());
 
       if(dataTypeChanged) {
-         syncDataType(editor, editorPath, combobox, resolvedPaths);
+         syncDataType(editor, editorPath, combobox, resolvedPaths, model);
       }
 
       if(!combobox) {
@@ -266,7 +266,8 @@ final class ListInputEditorGuard {
 
    /** The dialog's {@code updateType}, minus every field the patch writes itself. */
    private static void syncDataType(ComboBoxEditorModel editor, String editorPath,
-                                    boolean combobox, Collection<String> resolvedPaths)
+                                    boolean combobox, Collection<String> resolvedPaths,
+                                    Object model)
    {
       String dataType = editor.getDataType();
 
@@ -294,6 +295,16 @@ final class ListInputEditorGuard {
          !writes(resolvedPaths, editorPath + ".serverTZ"))
       {
          editor.setServerTZ(true);
+      }
+
+      // data-input-pane.component.ts ngOnChanges turns "Format Date Values Sent to Query" off
+      // when the data type leaves date/timeInstant (Redmine #80464).
+      if(!XSchema.DATE.equals(dataType) && !XSchema.TIME_INSTANT.equals(dataType) &&
+         !writes(resolvedPaths, "dataInputPaneModel.queryDateFormat") &&
+         PropertyPath.get(model, "dataInputPaneModel") instanceof
+            inetsoft.web.composer.model.vs.DataInputPaneModel input)
+      {
+         input.setQueryDateFormat(false);
       }
    }
 

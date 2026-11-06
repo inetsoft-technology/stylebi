@@ -236,17 +236,18 @@ final class PatchGuards {
     * {@code textinput-general-pane} disables "Multiple Lines" unless the Input Control type is
     * Text (a blank type is the dialog's default, Text), but the setter stores the flag for any
     * type, so a write for a Date/Integer/Float/Password input reported success and changed
-    * nothing the viewer shows. Fires only when the patch turns it on or changes the type with it
-    * on, judged on the post-patch model.
+    * nothing the viewer shows. Fires only when the patch turns multiLine itself on, judged on
+    * the post-patch type (so inputControl:"Text" in the same call is fine).
     */
    private static void requireMultiLineForText(Map<String, Object> before, Object model) {
       boolean multi = Boolean.TRUE.equals(PropertyPath.get(model, TEXT_INPUT_MULTI_LINE));
       Object type = PropertyPath.get(model, TEXT_INPUT_TYPE);
       String typeName = type == null ? "" : type.toString().trim();
 
+      // Only the write of multiLine itself: moving the type off Text while a stored true stays
+      // is what the Composer does too, and the viewer honors the flag for Text only.
       if(multi && !typeName.isEmpty() && !"Text".equalsIgnoreCase(typeName) &&
-         (changed(before, model, TEXT_INPUT_MULTI_LINE) ||
-          changed(before, model, TEXT_INPUT_TYPE)))
+         changed(before, model, TEXT_INPUT_MULTI_LINE))
       {
          throw new IllegalArgumentException(
             TEXT_INPUT_MULTI_LINE + ": Multiple Lines is available only while the input control " +

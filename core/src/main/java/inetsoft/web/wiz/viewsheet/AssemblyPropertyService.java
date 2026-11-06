@@ -476,14 +476,6 @@ public class AssemblyPropertyService {
             requireValidComboboxDateFormat(model, resolved.values());
          }
 
-         if("combobox".equals(type) && resolved.values().stream()
-            .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
-                              path.equals(QUERY_DATE_FORMAT_PATH) ||
-                              path.equalsIgnoreCase(COMBO_DATA_TYPE_PATH)))
-         {
-            requireDateFormatApplicable(dateFormatBefore, model);
-         }
-
          // An unchanged tipView is a no-op, so it must not turn view tips on either.
          List<String> changedPaths = new ArrayList<>(resolved.values());
          changedPaths.removeAll(unchangedReferences);
@@ -497,6 +489,16 @@ public class AssemblyPropertyService {
             // Before requireValidListInput, so a dataType change strict-checks the embedded
             // values against the list type they will be stored with.
             ListInputEditorGuard.apply(type, listEditorBefore, model, resolved.values());
+
+            // After apply(): a data type that leaves date has already switched the format off
+            if("combobox".equals(type) && resolved.values().stream()
+               .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
+                                 path.equals(QUERY_DATE_FORMAT_PATH) ||
+                                 path.equalsIgnoreCase(COMBO_DATA_TYPE_PATH)))
+            {
+               requireDateFormatApplicable(dateFormatBefore, model);
+            }
+
             requireValidListInput(type, model, resolved.values(), rvs, user,
                                   listEditorBefore != null && listEditorBefore.query());
             model = deriveEmbeddedFromStaticList(model, resolved.values());
@@ -1824,6 +1826,8 @@ public class AssemblyPropertyService {
       String dataType = editorDataType(model);
       boolean dateType = XSchema.DATE.equals(dataType) || XSchema.TIME_INSTANT.equals(dataType);
 
+      // ListInputEditorGuard.apply already switched the flag off for a type change that does not
+      // write it, so a true here with a changed type was written explicitly
       if(input.isQueryDateFormat() && !dateType &&
          (!before.queryDateFormat() || !Objects.equals(before.dataType(), dataType)))
       {
@@ -1831,8 +1835,8 @@ public class AssemblyPropertyService {
             QUERY_DATE_FORMAT_PATH + ": Format Date Values Sent to Query applies only to a " +
             "ComboBox whose data type is date or timeInstant, but its dataType is '" +
             (dataType == null ? "" : dataType) + "', so the format would never be applied. " +
-            "Set the editor dataType to date or timeInstant in the same call, or " +
-            "queryDateFormat:false. Nothing was changed.");
+            "Set " + COMBO_DATA_TYPE_PATH + " to \"date\" or \"timeInstant\" in the same call, " +
+            "or queryDateFormat:false. Nothing was changed.");
       }
 
       String pattern = input.getDateFormatPattern();
