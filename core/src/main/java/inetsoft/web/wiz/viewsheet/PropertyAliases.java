@@ -122,6 +122,15 @@ public final class PropertyAliases {
       return Collections.unmodifiableSet(set);
    }
 
+   private static final String EDITABLE = "basicGeneralPaneModel.editable";
+   private static final List<String> DATE_FORMAT_DEAD = List.of(
+      "dataInputPaneModel.queryDateFormat", "dataInputPaneModel.dateFormatPattern");
+   private static final List<String> CALENDAR_EDITOR_DEAD = List.of(
+      "comboBoxEditorModel.calendar", "comboBoxEditorModel.serverTZ",
+      "comboBoxEditorModel.minDate", "comboBoxEditorModel.maxDate",
+      "comboBoxEditorModel.defaultValue");
+   private static final String SELECT_FIRST_ITEM = "listValuesPaneModel.selectFirstItem";
+
    /**
     * Table and crosstab fields with a getter/setter pair, populated on every GET, that the
     * matching set*PropertyModel apply method never reads back. Confirmed by reading
@@ -143,7 +152,7 @@ public final class PropertyAliases {
     * {@link #calcTable}: {@code CalcTableVSAssemblyInfo} has no such concept to land on either,
     * and {@code CalcTablePropertyDialogService}'s apply method never reads either field back.
     */
-   private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
+   private static final Map<String, Set<String>> DEAD_FIELDS = withFormOutputDeadFields(Map.of(
       "table", Set.of("shadow", "editable", "shrinkEnabled", "formVisible"),
       "crosstab", Set.of("shadow", "editable", "crosstabInfoNull",
                          "sortOthersLastEnabled", "dateComparisonSupport"),
@@ -200,7 +209,71 @@ public final class PropertyAliases {
          "sizePositionPaneModel.width",
          "sizePositionPaneModel.height",
          "sizePositionPaneModel.locked",
-         "sizePositionPaneModel.titleHeight"));
+         "sizePositionPaneModel.titleHeight")));
+
+   /**
+    * Which of the {@link #DEAD_FIELDS} entries carry the "the Composer shows it for X only"
+    * sentence in the refusal, keyed by entry. Only entries whose only live type is known and
+    * unambiguous are listed, so the hint is always true of every type that refuses the entry.
+    */
+   private static final Map<String, String> DEAD_FIELD_HINTS;
+
+   static {
+      Map<String, String> hints = new LinkedHashMap<>();
+
+      for(String entry : DATE_FORMAT_DEAD) {
+         hints.put(entry, "Format Date Values Sent to Query is applied for a ComboBox only.");
+      }
+
+      for(String entry : CALENDAR_EDITOR_DEAD) {
+         hints.put(entry, "The calendar, time zone, date bound and default value settings are " +
+                   "applied for a ComboBox only.");
+      }
+
+      hints.put(EDITABLE, "Editable is applied for a ComboBox only.");
+      hints.put(SELECT_FIRST_ITEM, "Select First Item on Dashboard Load is applied for a " +
+                "CheckBox only.");
+      DEAD_FIELD_HINTS = Collections.unmodifiableMap(hints);
+   }
+
+   /**
+    * Adds the fields the Form/Output dialogs show for one input type but whose apply methods
+    * ignore on the others (bug #80464). Each was read off {@code VSInputService}: Editable,
+    * Format Date Values Sent to Query and its pattern are ComboBox-only reads; the
+    * calendar/server time zone/min/max date/default value editor fields are ComboBox-only
+    * writes (the CheckBox and RadioButton {@code setListValues} never call them); Select First
+    * Item is a CheckBox-only write. Slider already has its set above.
+    */
+   private static Map<String, Set<String>> withFormOutputDeadFields(
+      Map<String, Set<String>> base)
+   {
+      Map<String, Set<String>> map = new LinkedHashMap<>(base);
+
+      for(String type : List.of("gauge", "text", "image")) {
+         map.put(type, Set.of(EDITABLE));
+      }
+
+      for(String type : List.of("spinner", "textinput")) {
+         Set<String> dead = new LinkedHashSet<>(List.of(EDITABLE));
+         dead.addAll(DATE_FORMAT_DEAD);
+         map.put(type, Collections.unmodifiableSet(dead));
+      }
+
+      for(String type : List.of("checkbox", "radiobutton")) {
+         Set<String> dead = new LinkedHashSet<>(List.of(EDITABLE));
+         dead.addAll(DATE_FORMAT_DEAD);
+         dead.addAll(CALENDAR_EDITOR_DEAD);
+
+         if("radiobutton".equals(type)) {
+            dead.add(SELECT_FIRST_ITEM);
+         }
+
+         map.put(type, Collections.unmodifiableSet(dead));
+      }
+
+      map.put("combobox", Set.of(SELECT_FIRST_ITEM));
+      return Collections.unmodifiableMap(map);
+   }
 
    /**
     * Per-field liveness of the shared {@code SizePositionPaneModel} (bugs #76871, #76883, #76895,
@@ -212,6 +285,13 @@ public final class PropertyAliases {
     */
    private static final Map<String, Set<String>> SIZE_POSITION_LIVE_TYPES = Map.of(
       "scaleVertical", Set.of("text"),
+      // Read back by the apply methods of exactly these types (bug #80464): CalcTable, Calendar,
+      // Chart (outside the viewer), Crosstab, SelectionContainer/List/Tree, Table,
+      // CheckBox/RadioButton (VSInputService) and RangeSlider (only when > 0). Gauge, text,
+      // image, combobox, spinner, textinput, tab, group container, shapes and submit ignore it.
+      "titleHeight", Set.of("calctable", "calendar", "chart", "crosstab", "selectioncontainer",
+                            "selectionlist", "selectiontree", "table", "timeslider", "checkbox",
+                            "radiobutton"),
       "cellHeight", Set.of("selectionlist", "selectiontree", "checkbox", "radiobutton"),
       "container", Set.of());
 
@@ -516,10 +596,12 @@ public final class PropertyAliases {
          }
 
          String named = deadEntry.contains(".") ? pathOrKey : leaf;
+         String hint = DEAD_FIELD_HINTS.get(deadEntry);
 
          return "'" + named + "' is read-only on " + normalizedType + ". It has a getter/setter " +
             "pair on the dialog model, populated on every read, but this type's apply method " +
             "never reads it back -- a write would report success and change nothing." +
+            (hint == null ? "" : " " + hint) +
             ("groupcontainer".equals(normalizedType) && !"enabled".equals(deadEntry)
                ? " A group's size is always the bounding box of its members: resize the " +
                  "members instead (the group re-fits to them), or set left/top to move the group."
@@ -878,7 +960,8 @@ public final class PropertyAliases {
       register(registry, "checkbox", CheckboxPropertyDialogModel.class,
                listInput("checkboxGeneralPaneModel", true, false, true));
       register(registry, "combobox", ComboboxPropertyDialogModel.class,
-               listInput("comboboxGeneralPaneModel", false, true, false));
+               comboBoxOnly(listInput("comboboxGeneralPaneModel", false, true, false),
+                            "comboboxGeneralPaneModel"));
       register(registry, "radiobutton", RadioButtonPropertyDialogModel.class,
                listInput("radioButtonGeneralPaneModel", true, false, false));
       register(registry, "slider", SliderPropertyDialogModel.class, slider());
@@ -1470,6 +1553,33 @@ public final class PropertyAliases {
       aliases.put("table", editor + ".table");
       aliases.put("column", editor + ".column");
 
+      return aliases;
+   }
+
+   /**
+    * The ComboBox-only controls (Redmine #80464). The Composer shows each of them for a combo box
+    * alone -- Editable on {@code basic-general-pane} (the model flag {@code showEditableCheckbox}
+    * is set by the ComboBox read only), Calendar / Server Time Zone / Minimum and Maximum Date /
+    * Default Value under {@code combo-box-editor}'s {@code showCalendar}, and Format Date Values
+    * Sent to Query under {@code comboBox && isDateType} -- and {@code VSInputService} reads them
+    * back in the ComboBox setters only. The CheckBox and RadioButton setters never do, so the
+    * same raw paths are refused there through {@link #DEAD_FIELDS}.
+    *
+    * <p>{@code editable} resolves to {@code basicGeneralPaneModel.editable}, <b>not</b> the
+    * neighbouring {@code basicGeneralPaneModel.enabled} (see {@link #basicGeneral}): the latter
+    * is the misnamed leftover nothing reads. {@code noDefault} is deliberately not aliased: the
+    * server never reads it (the Composer just clears the default value).
+    */
+   private static Map<String, String> comboBoxOnly(Map<String, String> aliases, String prefix) {
+      aliases.put("editable", prefix + ".generalPropPaneModel.basicGeneralPaneModel.editable");
+      aliases.put("queryDateFormat", "dataInputPaneModel.queryDateFormat");
+      aliases.put("dateFormatPattern", "dataInputPaneModel.dateFormatPattern");
+      String editor = prefix + ".listValuesPaneModel.comboBoxEditorModel";
+      aliases.put("calendar", editor + ".calendar");
+      aliases.put("serverTZ", editor + ".serverTZ");
+      aliases.put("minDate", editor + ".minDate");
+      aliases.put("maxDate", editor + ".maxDate");
+      aliases.put("defaultValue", editor + ".defaultValue");
       return aliases;
    }
 
