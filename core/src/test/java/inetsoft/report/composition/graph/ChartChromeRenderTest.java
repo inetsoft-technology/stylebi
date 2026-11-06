@@ -19,6 +19,7 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
+import inetsoft.graph.AxisSpec;
 import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DefaultDataSet;
@@ -147,6 +148,30 @@ class ChartChromeRenderTest {
    @Test
    void aModernTreeKeepsAnAuthorColourOnTheSource() {
       assertFalse(treeAutoColor(VizMark.MODERN_LIGHT, Color.RED, true));
+   }
+
+   @Test
+   void aModernParetoPercentAxisHasNoTicks() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false);
+      AxisSpec primary = ((RectCoord) g.getCoordinate()).getYScale().getAxisSpec();
+      AxisSpec percent = ((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec();
+      assertFalse(percent.isTickVisible());
+      assertEquals(primary.isLineVisible(), percent.isLineVisible());
+      assertEquals(primary.isLabelVisible(), percent.isLabelVisible());
+   }
+
+   @Test
+   void aModernParetoPercentAxisTakesTheAuthorsTicks() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, true);
+      assertTrue(((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec().isTickVisible());
+   }
+
+   @Test
+   void aClassicParetoKeepsItsTicks() {
+      EGraph g = paretoGraph(null, false);
+      AxisSpec percent = ((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec();
+      assertTrue(percent.isTickVisible());
+      assertTrue(percent.isLineVisible());
    }
 
    @AfterEach
@@ -294,6 +319,41 @@ class ChartChromeRenderTest {
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
          XSourceInfo.NONE, null).createEGraph();
       return graph.getXTitleSpec().getLabel();
+   }
+
+   private static EGraph paretoGraph(VizMark mark, boolean ticks) {
+      Object[][] rows = new Object[7][];
+      rows[0] = new Object[]{ "State", "Sum(Total)" };
+
+      for(int i = 1; i < rows.length; i++) {
+         rows[i] = new Object[]{ i % 3 == 0 ? "CA" : (i % 3 == 1 ? "NY" : "TX"),
+                                 (double) (i * 100) };
+      }
+
+      VSChartAggregateRef total = new VSChartAggregateRef();
+      total.setDataRef(new BaseField("Total"));
+      total.setFormulaValue("Sum");
+
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_PARETO);
+      cinfo.setRTChartType(GraphTypes.CHART_PARETO);
+      cinfo.addXField(new VSChartDimensionRef(new BaseField("State")));
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+
+      if(ticks) {
+         cinfo.getAxisDescriptor().setTicksVisible(true);
+         total.getAxisDescriptor().setTicksVisible(true);
+      }
+
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(new ChartDescriptor());
+      assemblyInfo.setVizMark(mark);
+
+      return GraphGenerator.getGenerator(
+         assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
+         XSourceInfo.NONE, null).createEGraph();
    }
 
    private static int outerXGridStyle(VizMark mark, boolean lineVisible, boolean author) {

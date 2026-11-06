@@ -90,6 +90,12 @@ public class GraphDefault {
          percentScale.getAxisSpec().setGridColor(yaxis.getGridColor());
          percentScale.getAxisSpec().setLineColor(yaxis.getLineColor());
 
+         if(gen.vizContext.modern) {
+            percentScale.getAxisSpec().setTickVisible(yaxis.isTickVisible());
+            percentScale.getAxisSpec().setLineVisible(yaxis.isLineVisible());
+            percentScale.getAxisSpec().setLabelVisible(yaxis.isLabelVisible());
+         }
+
          if(yscale instanceof LinearScale) {
             percentScale.setReversed(((LinearScale) yscale).isReversed());
          }
