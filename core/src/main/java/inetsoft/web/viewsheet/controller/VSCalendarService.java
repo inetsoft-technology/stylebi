@@ -99,6 +99,38 @@ public class VSCalendarService {
       return null;
    }
 
+   /**
+    * Moves the displayed month (or year) only: the selection is left as it is.
+    *
+    * @param currentDate1 the first calendar's position ("year-month", 0-based month; "year" in year view).
+    * @param currentDate2 the second calendar's position, or null to leave it.
+    */
+   @ClusterWriteMethod
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void navigate(@ClusterProxyKey String vsId, String assemblyName,
+                        String currentDate1, String currentDate2, String linkUri,
+                        Principal principal, CommandDispatcher dispatcher) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+      CalendarVSAssembly calendarAssembly = (CalendarVSAssembly) viewsheet.getAssembly(assemblyName);
+      CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo)
+         Tool.clone(calendarAssembly.getVSAssemblyInfo());
+
+      if(currentDate1 != null) {
+         calendarInfo.setCurrentDate1(currentDate1);
+      }
+
+      if(currentDate2 != null) {
+         calendarInfo.setCurrentDate2(currentDate2);
+      }
+
+      this.vsObjectPropertyService.editObjectProperty(
+         rvs, calendarInfo, assemblyName, assemblyName, linkUri, principal, dispatcher);
+
+      return null;
+   }
+
    @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void clearCalendar(@ClusterProxyKey String vsId, String assemblyName,
