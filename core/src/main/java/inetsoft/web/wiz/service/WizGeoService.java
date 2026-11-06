@@ -25,6 +25,8 @@ import inetsoft.graph.geo.solver.NameTable;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.graph.VGraphPair;
+import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.internal.graph.MapHelper;
@@ -38,7 +40,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.FeatureMapping;
 import inetsoft.uql.viewsheet.graph.GeoRef;
 import inetsoft.uql.viewsheet.graph.GeographicOption;
@@ -54,11 +58,15 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSChartHandler;
+import inetsoft.web.viewsheet.controller.chart.VSChartMapService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.GeoApplyRequest;
+import inetsoft.web.wiz.model.GeoClearRequest;
 import inetsoft.web.wiz.model.GeoApplyResponse;
 import inetsoft.web.wiz.model.GeoDetectRequest;
 import inetsoft.web.wiz.model.GeoDetectResponse;
+import inetsoft.web.wiz.model.MapViewRequest;
+import inetsoft.web.wiz.model.MapViewResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -307,6 +315,194 @@ public class WizGeoService {
       // Persist the resolved feature mappings to the session asset so a saved map keeps them.
       persistViewsheet(vs, request.getViewsheetIdentifier(), user);
       return response;
+   }
+
+   /**
+    * Removes the geographic mark from {@code column} (the Composer's "Clear Geographic"), the
+    * inverse of {@link #detect}. Mirrors {@code ChangeGeographicService}: refresh the runtime geo
+    * columns first (the clear branch of {@code changeGeographic} walks them by index), clear the
+    * design column, strip the same-name lat/lon refs and geo field, then fix the map frame. Fails
+    * loud when the column is not geographic or the clear changed nothing.
+    *
+    * <p>The response has the {@code detect} shape with empty detection results.
+    */
+   public GeoDetectResponse clear(GeoClearRequest request, Principal user) throws Exception {
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
+      RuntimeViewsheet rvs =
+         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
+      Viewsheet vs = rvs.getViewsheet();
+      ChartVSAssembly chart = getChart(vs, request.getAssemblyName());
+      ViewsheetSandbox box = getSandbox(rvs);
+
+      ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      VSChartInfo cinfo = ainfo.getVSChartInfo();
+      String refName = request.getColumn();
+
+      if(Tool.isEmptyString(refName)) {
+         throw new IllegalArgumentException("column is required");
+      }
+
+      chartHandler.updateGeoColumns(box, vs, chart, cinfo);
+
+      if(cinfo.getRTGeoColumns().getAttribute(refName) == null ||
+         cinfo.getGeoColumns().getAttribute(refName) == null)
+      {
+         throw new IllegalArgumentException(
+            "Column '" + refName + "' is not geographic on chart '" + request.getAssemblyName() +
+            "'; there is nothing to clear. Use geo/detect to mark a column geographic.");
+      }
+
+      VSChartInfo before = (VSChartInfo) cinfo.clone();
+      DataRef removed = chartHandler.changeGeographic(
+         cinfo, refName, VSChartHandler.CLEAR_GEOGRAPHIC, true);
+
+      if(removed == null || cinfo.getGeoColumns().getAttribute(refName) != null) {
+         throw new IllegalStateException(
+            "Failed to clear geographic column '" + refName + "': it is still geographic");
+      }
+
+      chartHandler.fixMapInfo(cinfo, refName, VSChartHandler.CLEAR_GEOGRAPHIC);
+      new ChangeChartProcessor().fixMapFrame(before, cinfo);
+      chart.setVSAssemblyInfo(ainfo);
+      box.updateAssembly(chart.getAbsoluteName());
+      chartHandler.updateGeoColumns(box, vs, chart, cinfo);
+
+      GeoDetectResponse response = new GeoDetectResponse();
+      String mapType = cinfo.getMeasureMapType();
+      response.setGeoType(mapType != null ? mapType : "");
+      response.setLayer(0);
+      response.setLayerName("");
+      response.setMatchedCount(0);
+      response.setUnmatched(new ArrayList<>());
+      response.setCandidateFeatures(new ArrayList<>());
+
+      if(!request.getRuntimeId().equals(rvs.getID())) {
+         response.setRuntimeId(rvs.getID());
+      }
+
+      persistViewsheet(vs, request.getViewsheetIdentifier(), user);
+      return response;
+   }
+
+   /** Reads the saved zoom/pan of a map chart. */
+   public MapViewResponse getMapView(MapViewRequest request, Principal user) throws Exception {
+      requireComposerAccess(user);
+      RuntimeViewsheet rvs =
+         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
+      ChartVSAssembly chart = getMapChart(rvs.getViewsheet(), request.getAssemblyName());
+      return mapView(chart, request, rvs);
+   }
+
+   /**
+    * Applies a relative zoom/pan, or resets the view, on a map chart's design descriptor via the
+    * same {@link VSChartMapService#applyZoomPan} the interactive map uses. Unlike the interactive
+    * path a failure (e.g. zoom out of range) is raised, not swallowed. The data-bbox anchor
+    * ({@code lonLat}) is not persisted by StyleBI, so a saved viewport is replayed against the
+    * current data's extent.
+    */
+   public MapViewResponse setMapView(MapViewRequest request, Principal user) throws Exception {
+      requireComposerAccess(user);
+      boolean reset = Boolean.TRUE.equals(request.getReset());
+      Integer zoomBy = request.getZoomBy();
+      Double panX = request.getPanX();
+      Double panY = request.getPanY();
+
+      if(reset && (zoomBy != null || panX != null || panY != null)) {
+         throw new IllegalArgumentException(
+            "reset cannot be combined with zoomBy, panX or panY");
+      }
+
+      if(!reset && zoomBy == null && panX == null && panY == null) {
+         throw new IllegalArgumentException(
+            "Nothing to set: pass zoomBy, panX/panY, or reset:true");
+      }
+
+      for(Double d : new Double[] { panX, panY }) {
+         if(d != null && (d.isNaN() || d.isInfinite())) {
+            throw new IllegalArgumentException("panX and panY must be finite numbers");
+         }
+      }
+
+      RuntimeViewsheet rvs =
+         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
+      Viewsheet vs = rvs.getViewsheet();
+      String name = request.getAssemblyName();
+      ChartVSAssembly chart = getMapChart(vs, name);
+      ViewsheetSandbox box = getSandbox(rvs);
+      ChartDescriptor desc = chart.getChartDescriptor();
+      PlotDescriptor plot = desc.getPlotDescriptor();
+
+      if(reset) {
+         VSChartMapService.clearPanZoom(plot);
+      }
+      else {
+         ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+         java.awt.geom.Rectangle2D lonLat = plot.getLonLat();
+
+         try {
+            VGraphPair vpair = box.getVGraphPair(name, true, info.getMaxSize());
+
+            if(vpair == null) {
+               throw new IllegalStateException(
+                  "Chart '" + name + "' has not rendered, so its map view cannot be changed");
+            }
+
+            VSChartMapService.applyZoomPan(
+               zoomBy == null ? 0 : zoomBy, panX == null ? 0 : panX, panY == null ? 0 : panY,
+               desc, vpair.getRealSizeVGraph(), vpair.getEGraph(), vpair.getData());
+         }
+         catch(Exception ex) {
+            plot.setLonLat(lonLat);
+            throw new IllegalArgumentException(
+               "Could not apply the map view to '" + name + "': " + ex.getMessage(), ex);
+         }
+      }
+
+      chart.getChartInfo().setRTChartDescriptor(null);
+      box.clearGraph(name);
+      persistViewsheet(vs, request.getViewsheetIdentifier(), user);
+      return mapView(chart, request, rvs);
+   }
+
+   private MapViewResponse mapView(ChartVSAssembly chart, MapViewRequest request,
+                                   RuntimeViewsheet rvs)
+   {
+      PlotDescriptor plot = chart.getChartDescriptor().getPlotDescriptor();
+      MapViewResponse response = new MapViewResponse();
+      response.setZoom(plot.getZoom());
+      response.setZoomLevel(plot.getZoomLevel());
+      response.setPanX(plot.getPanX());
+      response.setPanY(plot.getPanY());
+      response.setWebMap(plot.isWebMap());
+
+      if(!request.getRuntimeId().equals(rvs.getID())) {
+         response.setRuntimeId(rvs.getID());
+      }
+
+      return response;
+   }
+
+   private ChartVSAssembly getMapChart(Viewsheet vs, String assemblyName) {
+      ChartVSAssembly chart = getChart(vs, assemblyName);
+      VSChartInfo info = chart.getVSChartInfo();
+
+      if(info == null || !GraphTypes.isGeo(info.getChartType())) {
+         throw new IllegalArgumentException(
+            "Chart '" + assemblyName + "' is not a map or map_contour chart, so it has no map view");
+      }
+
+      return chart;
+   }
+
+   private void requireComposerAccess(Principal user) throws SecurityException {
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
    }
 
    // ── helpers ──────────────────────────────────────────────────────────────────
