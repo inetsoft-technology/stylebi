@@ -69,3 +69,41 @@ describe("RepositoryScriptSettingsPageComponent apply() error surfacing", () => 
       expect(showSnackBarSpy).toHaveBeenCalled();
    });
 });
+
+/**
+ * Bug #80576: the Name field's inline validators must agree with the server's
+ * ScriptLibraryValidator.requireValidName rule (a valid, non-reserved JS identifier) instead of
+ * the generic repository-asset-naming rule.
+ */
+describe("RepositoryScriptSettingsPageComponent name field validator", () => {
+   async function createComponent(name: string): Promise<RepositoryScriptSettingsPageComponent> {
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+         imports: [RepositoryScriptSettingsPageComponent, HttpClientTestingModule],
+         schemas: [NO_ERRORS_SCHEMA]
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(RepositoryScriptSettingsPageComponent);
+      const comp = fixture.componentInstance;
+      comp.model = <RepositoryScriptEditorModel>{
+         path: "/Script",
+         type: RepositoryEntryType.SCRIPT,
+         scriptSettings: { name, oname: "oldName", description: "" }
+      };
+      fixture.detectChanges();
+      return comp;
+   }
+
+   it("accepts valid JS identifiers the server allows", async () => {
+      expect((await createComponent("_x")).form.get("name").errors).toBeNull();
+      expect((await createComponent("$y")).form.get("name").errors).toBeNull();
+      expect((await createComponent("let")).form.get("name").errors).toBeNull();
+   });
+
+   it("refuses names the server rejects", async () => {
+      expect((await createComponent("a-b")).form.get("name").errors).toEqual({ invalidJSFunctionName: true });
+      expect((await createComponent("1x")).form.get("name").errors).toEqual({ invalidJSFunctionName: true });
+      expect((await createComponent("a b")).form.get("name").errors).toEqual({ invalidJSFunctionName: true });
+      expect((await createComponent("class")).form.get("name").errors).toEqual({ invalidJSFunctionName: true });
+   });
+});
