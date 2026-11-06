@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.composition.graph.GraphTypeUtil;
+import inetsoft.report.internal.graph.SwapXYBindingProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -466,6 +467,53 @@ class ChartChromeTypeSeedTest {
                    "premise: auto drew points");
       assertTrue(defaultVisible(titles.getXTitleDescriptor()), "x");
       assertTrue(defaultVisible(titles.getYTitleDescriptor()), "y");
+   }
+
+   @Test
+   void aSwapCarriesATypedTitleToItsNewAxis() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      TitleDescriptor x = title(info.getChartDescriptor(), "x");
+      TitleDescriptor y = title(info.getChartDescriptor(), "y");
+      x.setAuthorTitleValue("Revenue");
+      assertTrue(x.isVisible(), "premise: typing showed the title");
+
+      new SwapXYBindingProcessor(info.getVSChartInfo(), info.getChartDescriptor(),
+                                 VizContext.of(info)).process();
+      info.reseedIfResolvedTypeChanged();
+
+      assertTrue(info.getSeededType().measureOnX(), "premise: the re-seed ran");
+      assertEquals("Revenue", y.getTitleValue());
+      assertTrue(y.isUserTitle());
+      assertTrue(y.isVisible());
+      assertTrue(Tool.isEmptyString(x.getTitleValue()), "x text");
+      assertFalse(x.isUserTitle(), "x flag");
+      assertFalse(x.hasVisibleUserValue(), "x visibility");
+      assertFalse(x.isVisible(), "x follows its seed");
+   }
+
+   @Test
+   void aClassicSwapMovesTheFlagButNotTheVisibility() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_BAR, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      TitleDescriptor x = title(info.getChartDescriptor(), "x");
+      TitleDescriptor y = title(info.getChartDescriptor(), "y");
+      x.setAuthorTitleValue("Revenue");
+      x.setVisible(false);
+
+      new SwapXYBindingProcessor(info.getVSChartInfo(), info.getChartDescriptor(),
+                                 VizContext.of(info)).process();
+
+      assertEquals("Revenue", y.getTitleValue());
+      assertTrue(y.isUserTitle());
+      assertFalse(x.isUserTitle());
+      assertTrue(y.isVisible(), "y as before");
+      assertFalse(y.hasVisibleUserValue(), "y as before");
+      assertFalse(x.isVisible(), "x as before");
    }
 
    // ---- harness -----------------------------------------------------------------------------

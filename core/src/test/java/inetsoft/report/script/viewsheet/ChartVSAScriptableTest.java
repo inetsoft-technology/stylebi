@@ -27,12 +27,16 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.script.*;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.graph.ChartInfo;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.TitleDescriptor;
+import inetsoft.uql.viewsheet.graph.TitlesDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.SwapLostTestSupport;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
@@ -153,6 +157,29 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.putMember("smoothLines", false);
       assertFalse(plot.isSmoothLines());
       assertFalse((boolean) chartVSAScriptable.getMember("smoothLines"));
+   }
+
+   @Test
+   void testTitleTextScriptPropertyShowsASeedHiddenTitle() {
+      chartVSAssemblyInfo.setVizMark(VizMark.MODERN_LIGHT);
+      chartVSAScriptable.addProperties();
+      TitlesDescriptor titles = chartVSAScriptable.getRTChartDescriptor().getTitlesDescriptor();
+      TitleDescriptor x = titles.getXTitleDescriptor();
+      TitleDescriptor y = titles.getYTitleDescriptor();
+      // as the modern seed hides a bar's titles
+      x.setVisible(false, CompositeValue.Type.DEFAULT);
+      y.setVisible(false, CompositeValue.Type.DEFAULT);
+
+      ((TitleScriptable) chartVSAScriptable.getMember("xTitle")).putMember("text", "Revenue");
+      // the older flat property
+      chartVSAScriptable.putMember("yTitle.text", "Units");
+
+      assertEquals("Revenue", x.getTitle());
+      assertTrue(x.isVisible());
+      assertEquals("Units", y.getTitle());
+      assertTrue(y.isVisible());
+      assertFalse(chartVSAssemblyInfo.getChartDescriptor().getTitlesDescriptor()
+                     .getXTitleDescriptor().hasVisibleUserValue(), "the design descriptor");
    }
 
    @Test

@@ -114,6 +114,92 @@ class TitleDescriptorUserTitleTest {
    }
 
    @Test
+   void typingATitleMarksItTheAuthors() throws Exception {
+      TitleDescriptor d = new TitleDescriptor();
+      d.setAuthorTitleValue("Revenue");
+
+      assertTrue(d.isUserTitle());
+      String written = xml(d);
+      assertFalse(written.contains("userTitle"), "the flag is derived: " + written);
+      assertTrue(parse(written).isUserTitle());
+   }
+
+   @Test
+   void typingOverASeededHiddenTitleShowsIt() {
+      TitleDescriptor d = seededHidden();
+
+      d.setAuthorTitleValue("Revenue");
+
+      assertTrue(d.isVisible());
+      assertTrue(d.hasVisibleUserValue());
+   }
+
+   @Test
+   void typingNeverShowsATitleTheAuthorHid() {
+      TitleDescriptor d = seededHidden();
+      d.setVisible(false);
+
+      d.setAuthorTitleValue("Revenue");
+
+      assertFalse(d.isVisible());
+   }
+
+   @Test
+   void typingOnAClassicTitleWritesNoVisibility() {
+      TitleDescriptor d = new TitleDescriptor();
+      d.setVisible(true, CompositeValue.Type.DEFAULT);
+
+      d.setAuthorTitleValue("Revenue");
+
+      assertTrue(d.isVisible());
+      assertFalse(d.hasVisibleUserValue());
+   }
+
+   @Test
+   void aStylesheetHiddenTitleStaysHidden() {
+      TitleDescriptor d = seededHidden();
+      d.setVisible(false, CompositeValue.Type.CSS);
+
+      d.setAuthorTitleValue("Revenue");
+
+      assertFalse(d.isVisible());
+      assertFalse(d.hasVisibleUserValue());
+   }
+
+   @Test
+   void clearingTheTextClearsTheFlag() {
+      TitleDescriptor d = seededHidden();
+      d.setAuthorTitleValue("Revenue");
+      assertTrue(d.isUserTitle(), "premise");
+
+      d.setAuthorTitleValue("");
+
+      assertFalse(d.isUserTitle());
+   }
+
+   @Test
+   void emptyTextShowsNothing() {
+      TitleDescriptor d = seededHidden();
+
+      d.setAuthorTitleValue("");
+      d.setAuthorTitle(null);
+
+      assertFalse(d.isVisible());
+      assertFalse(d.hasVisibleUserValue());
+   }
+
+   @Test
+   void scriptTextShowsASeededHiddenTitle() {
+      TitleDescriptor d = seededHidden();
+
+      d.setAuthorTitle("abc");
+
+      assertEquals("abc", d.getTitle());
+      assertNull(d.getTitleValue(), "a script writes the runtime text only");
+      assertTrue(d.isVisible());
+   }
+
+   @Test
    void maxModeFollowsVisibilityUnderModern() {
       VizContext modern = VizContext.of(VizMark.MODERN_LIGHT);
       TitleDescriptor d = new TitleDescriptor();
@@ -128,6 +214,13 @@ class TitleDescriptorUserTitleTest {
       d.setMaxModeVisible(false);
       assertFalse(d.isMaxModeVisible(modern), "a stored false is the author's, modern");
       assertFalse(d.isMaxModeVisible(VizContext.LEGACY), "a stored false is the author's, classic");
+   }
+
+   // as the modern seed leaves a title its type does not show
+   private static TitleDescriptor seededHidden() {
+      TitleDescriptor d = new TitleDescriptor();
+      d.setVisible(false, CompositeValue.Type.DEFAULT);
+      return d;
    }
 
    // the bytes an older build wrote: no flag attribute

@@ -307,13 +307,13 @@ public class ChartProcessor {
       // **************************************************************************
       scriptable.addProperty("applyEffect", "isApplyEffect", "setApplyEffect",
          boolean.class, ChartDescriptor.class, desc);
-      scriptable.addProperty("xTitle.text", "getTitle", "setTitle",
+      scriptable.addProperty("xTitle.text", "getTitle", "setAuthorTitle",
          String.class, TitleDescriptor.class, xtitle);
-      scriptable.addProperty("x2Title.text", "getTitle", "setTitle",
+      scriptable.addProperty("x2Title.text", "getTitle", "setAuthorTitle",
          String.class, TitleDescriptor.class, x2title);
-      scriptable.addProperty("yTitle.text", "getTitle", "setTitle",
+      scriptable.addProperty("yTitle.text", "getTitle", "setAuthorTitle",
          String.class, TitleDescriptor.class, ytitle);
-      scriptable.addProperty("y2Title.text", "getTitle", "setTitle",
+      scriptable.addProperty("y2Title.text", "getTitle", "setAuthorTitle",
          String.class, TitleDescriptor.class, y2title);
       scriptable.addProperty("xTitle.visible", "isVisible", "setVisible",
          boolean.class, TitleDescriptor.class, xtitle);

@@ -27,6 +27,7 @@ import inetsoft.report.internal.graph.SwapXYBindingProcessor;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -160,7 +161,7 @@ public class SwapXYBindingService {
       VSChartInfo cinfo = info.getVSChartInfo();
       fixFields(cinfo);
       ChartDescriptor desc = info.getChartDescriptor();
-      new SwapXYBindingProcessor(cinfo, desc).process();
+      new SwapXYBindingProcessor(cinfo, desc, VizContext.of(info)).process();
    }
 
    private void fixFields(VSChartInfo cinfo) {

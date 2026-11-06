@@ -84,10 +84,10 @@ public class TitleFormatDialogModel implements Serializable {
          if(titleDesc.getTitleValue() != null &&
             "=".equals(titleDesc.getTitleValue()) || title == null)
          {
-            titleDesc.setTitleValue("");
+            titleDesc.setAuthorTitleValue("");
          }
          else {
-            titleDesc.setTitleValue(title);
+            titleDesc.setAuthorTitleValue(title);
          }
       }
 

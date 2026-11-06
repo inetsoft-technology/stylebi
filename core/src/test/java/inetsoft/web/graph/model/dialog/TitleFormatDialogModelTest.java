@@ -118,6 +118,37 @@ public class TitleFormatDialogModelTest {
       assertFalse(title.hasLabelGapUserValue());
    }
 
+   @Test
+   void typingATitleInTheDialogMarksItTheAuthors() {
+      TitleDescriptor title = new TitleDescriptor();
+      // as the modern seed hides a bar's axis title
+      title.setVisible(false, CompositeValue.Type.DEFAULT);
+      VizContext ctx = modernAt("compact");
+      TitleFormatDialogModel dialog = new TitleFormatDialogModel(title, "State", ctx);
+      dialog.getTitleFormatPaneModel().setTitle("Region of Sale");
+
+      dialog.updateTitleProperties(title, ctx);
+
+      assertEquals("Region of Sale", title.getTitleValue());
+      assertTrue(title.isUserTitle());
+      assertTrue(title.isVisible());
+   }
+
+   @Test
+   void clearingTheTitleInTheDialogClearsTheFlag() {
+      TitleDescriptor title = new TitleDescriptor();
+      title.setTitleValue("Region of Sale");
+      title.setUserTitle(true);
+      VizContext ctx = modernAt("compact");
+      TitleFormatDialogModel dialog = new TitleFormatDialogModel(title, "State", ctx);
+      dialog.getTitleFormatPaneModel().setTitle(null);
+
+      dialog.updateTitleProperties(title, ctx);
+
+      assertEquals("", title.getTitleValue());
+      assertFalse(title.isUserTitle());
+   }
+
    /** A marked chart's context on a dashboard of the given density. */
    private static VizContext modernAt(String density) {
       Viewsheet vs = new Viewsheet();

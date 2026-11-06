@@ -56,7 +56,7 @@ public class TitleScriptable extends PropertyScriptable {
     */
    private void init() {
       try {
-         addProperty("text", "getTitle", "setTitle", String.class,
+         addProperty("text", "getTitle", "setAuthorTitle", String.class,
                      TitleDescriptor.class);
          addProperty("visible", "isVisible", "setVisible", boolean.class,
                      TitleDescriptor.class);
@@ -98,7 +98,7 @@ public class TitleScriptable extends PropertyScriptable {
    }
 
    public void setTitle(String title) {
-      getter.getTitle().setTitle(title);
+      getter.getTitle().setAuthorTitle(title);
    }
 
    public String getTitle() {

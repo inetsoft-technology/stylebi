@@ -103,6 +103,33 @@ public class TitleDescriptor implements AssetObject, ContentObject{
    }
 
    /**
+    * Set the title content as the author's.
+    */
+   public void setAuthorTitleValue(String title) {
+      setTitleValue(title);
+      userTitle = hasTitleText();
+      showAuthorText(title);
+   }
+
+   /**
+    * Set the runtime title content as the author's.
+    */
+   public void setAuthorTitle(String title) {
+      setTitle(title);
+      showAuthorText(title);
+   }
+
+   // shows a title only its seed hid; a classic default is always true
+   private void showAuthorText(String text) {
+      if(!Tool.isEmptyString(text) && !visible.hasUserValue() &&
+         visible.get(CompositeValue.Type.CSS) == null &&
+         Boolean.FALSE.equals(visible.get(CompositeValue.Type.DEFAULT)))
+      {
+         setVisible(true);
+      }
+   }
+
+   /**
     * Get the text format for the title area.
     */
    public CompositeTextFormat getTextFormat() {
@@ -167,6 +194,14 @@ public class TitleDescriptor implements AssetObject, ContentObject{
     */
    public boolean hasVisibleUserValue() {
       return visible.hasUserValue();
+   }
+
+   /**
+    * Clear the visibility of the given tier, leaving other values untouched.
+    * @param type the type of value to clear: CSS or USER
+    */
+   public void resetVisible(CompositeValue.Type type) {
+      visible.resetValue(type);
    }
 
    /**
