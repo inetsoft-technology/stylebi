@@ -37,8 +37,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import inetsoft.analytic.composition.ViewsheetService;
@@ -140,6 +142,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyMaxModeService maxModeService,
                                    SelectionLayoutService selectionLayoutService,
                                    FormTableRowService formTableRowService,
+                                   FormTableImportService formTableImportService,
                                    ColumnOptionService columnOptionService,
                                    ParameterCollectionService parameterCollectionService,
                                    ParameterValueService parameterValueService,
@@ -183,6 +186,7 @@ public class ViewsheetAssemblyAgentController {
       this.maxModeService = maxModeService;
       this.selectionLayoutService = selectionLayoutService;
       this.formTableRowService = formTableRowService;
+      this.formTableImportService = formTableImportService;
       this.columnOptionService = columnOptionService;
       this.parameterCollectionService = parameterCollectionService;
       this.parameterValueService = parameterValueService;
@@ -2253,6 +2257,35 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * {@code form_table_import_excel}: the Viewer's Import Excel for an offline-edited export of
+    * the paired dashboard. Replaces the pending rows of the Form tables the file has named ranges
+    * for; nothing is committed until {@code form_table_apply}. See {@link FormTableImportService}
+    * for what is refused and why.
+    */
+   @PostMapping(value = "/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/import-excel",
+                consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+   public Map<String, Object> formTableImportExcel(@PathVariable String sessionToken,
+                                                   @RequestPart(value = "file", required = false)
+                                                   MultipartFile file,
+                                                   @RequestParam(required = false) String fileType,
+                                                   @RequestParam(required = false)
+                                                   Boolean discardPending,
+                                                   @RequestParam(required = false, defaultValue = "")
+                                                   String linkUri,
+                                                   Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(file == null || file.isEmpty()) {
+         throw new IllegalArgumentException("'file' is required and must not be empty.");
+      }
+
+      return formTableImportService.importExcel(sessionToken, user, file.getBytes(), fileType,
+                                                Boolean.TRUE.equals(discardPending), linkUri);
+   }
+
+   /**
     * {@code get_column_options}. {@code col} is either a 0-based visible-column index or a
     * column name -- see {@link ColumnOptionService} for why that resolution happens there rather
     * than in the wiz plugin.
@@ -4047,6 +4080,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyMaxModeService maxModeService;
    private final SelectionLayoutService selectionLayoutService;
    private final FormTableRowService formTableRowService;
+   private final FormTableImportService formTableImportService;
    private final ColumnOptionService columnOptionService;
    private final ParameterCollectionService parameterCollectionService;
    private final ParameterValueService parameterValueService;
