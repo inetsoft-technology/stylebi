@@ -26,7 +26,7 @@
     <legend>{{cssType}}</legend>
 
     <div class="mt-2">
-      <div ngbDropdown #cssIDDropdown="ngbDropdown">
+      <div class="css-picker__dropdown" ngbDropdown #cssIDDropdown="ngbDropdown">
         <div class="form-floating">
           <input class="form-control css-picker__input" type='text' [(ngModel)]="cssID"
             (focusout)="cssIDChange.emit(cssID)" ngbDropdownToggle>
@@ -36,7 +36,7 @@
           <span class="values-caret"
             (click)="$event.stopPropagation(); cssIDDropdown.toggle()"
             >
-            <i class="caret-down-icon"></i>
+            <i class="dropdown-caret icon-color-default chevron-down-icon" aria-hidden="true"></i>
           </span>
         }
         @if (cssIDs) {
@@ -59,7 +59,7 @@
     </div>
 
     <div class="mt-2">
-      <div ngbDropdown #cssClassDropdown="ngbDropdown" autoClose="outside">
+      <div class="css-picker__dropdown" ngbDropdown #cssClassDropdown="ngbDropdown" autoClose="outside">
         <div class="form-floating">
           <input class="form-control css-picker__input" type="text" [(ngModel)]="cssClass"
             (focusout)="cssClassChange.emit(cssClass)" ngbDropdownToggle>
@@ -69,7 +69,7 @@
           <span class="values-caret"
             (click)="$event.stopPropagation(); cssClassDropdown.toggle()"
             >
-            <i class="caret-down-icon"></i>
+            <i class="dropdown-caret icon-color-default chevron-down-icon" aria-hidden="true"></i>
           </span>
         }
         @if (cssClasses) {
