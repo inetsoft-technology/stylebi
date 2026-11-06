@@ -95,8 +95,9 @@ final class VariableOperandCheck {
 
    /**
     * The names of the variables declared (variable assemblies) on the viewsheet's base
-    * worksheet, whether or not they hold a value. Empty when there is no base worksheet or it
-    * cannot be read.
+    * worksheet, whether or not they hold a value, plus those a base-worksheet table references
+    * only from a condition (bug #80347); the latter are what collect_parameters also lists.
+    * Empty when there is no base worksheet or it cannot be read.
     */
    static Set<String> declaredNames(ViewsheetSandbox box) {
       Set<String> names = new HashSet<>();
@@ -107,6 +108,19 @@ final class VariableOperandCheck {
          if(ws != null) {
             for(UserVariable variable : AssetEventUtil.getWSAllVariables(ws)) {
                names.add(variable.getName());
+            }
+
+            try {
+               UserVariable[] used = ws.getAllVariables();
+
+               if(used != null) {
+                  for(UserVariable variable : used) {
+                     names.add(variable.getName());
+                  }
+               }
+            }
+            catch(Exception e) {
+               // e.g. WorksheetWrapper.getAllVariables is unsupported; keep the assembly names
             }
          }
       }
@@ -129,7 +143,7 @@ final class VariableOperandCheck {
       if(!resolves(vars, name)) {
          if(declared.contains(name)) {
             warnings.add("Variable '" + name + "' used by " + use + " is declared on the base " +
-                         "worksheet but has no value yet, so the condition has nothing to " +
+                         "worksheet or used by one of its conditions but has no value yet, so the condition has nothing to " +
                          "compare against until a value is passed (set_parameters).");
             return;
          }
