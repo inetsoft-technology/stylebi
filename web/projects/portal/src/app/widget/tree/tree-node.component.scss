@@ -105,7 +105,7 @@
 }
 
 .repository-tree, .portal-data-source-tree, .checkbox-enabled:not(.inherit-background) {
-  :not(.bg-node-selected) {
+  :not(.bg-node-selected):not(.form-check-input) {
     background-color: inherit;
   }
 
