@@ -62,8 +62,7 @@ export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges 
       this.form = new UntypedFormGroup({
          name: new UntypedFormControl(this.model?.scriptSettings?.name, [
             Validators.required,
-            FormValidators.assetEntryBannedCharacters,
-            FormValidators.assetNameStartWithCharDigit]),
+            FormValidators.invalidJSFunctionName]),
          description: new UntypedFormControl(this.model?.scriptSettings?.description)
       });
 

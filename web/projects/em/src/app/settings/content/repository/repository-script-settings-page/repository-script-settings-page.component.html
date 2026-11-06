@@ -36,11 +36,8 @@
                     <mat-error *ngIf="form?.controls['name']?.errors && form?.controls['name']?.errors['required']">
                       _#(viewer.nameValid)
                     </mat-error>
-                    <mat-error *ngIf="form?.controls['name']?.errors && form?.controls['name']?.errors['assetEntryBannedCharacters']">
-                      _#(composer.sheet.checkSpeChar)
-                    </mat-error>
-                    <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['assetNameStartWithCharDigit']">
-                      _#(asset.tree.checkStart)
+                    <mat-error *ngIf="form?.controls['name']?.errors && !form?.controls['name']?.errors['required'] && form?.controls['name']?.errors['invalidJSFunctionName']">
+                      _#(common.sree.internal.invalidCharInName)
                     </mat-error>
                   </mat-form-field>
                   <mat-form-field appearance="outline" color="accent">
