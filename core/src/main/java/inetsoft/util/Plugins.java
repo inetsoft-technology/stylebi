@@ -495,6 +495,13 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
             fileName);
       }
 
+      try {
+         validatePluginId(pluginId);
+      }
+      catch(IllegalArgumentException e) {
+         throw new IllegalArgumentException("pluginId: " + e.getMessage(), e);
+      }
+
       if(pluginVersion == null) {
          throw new IllegalStateException(
             "The Plugin-Version attribute is missing from the plugin manifest: " +
@@ -604,8 +611,66 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
       }
    }
 
+   /**
+    * Verifies that a plugin identifier is safe to use as a storage key and as a directory name
+    * under the plugin directory.
+    *
+    * @param pluginId the plugin identifier.
+    *
+    * @throws IllegalArgumentException if the identifier is null, blank, or could escape the
+    *                                  plugin directory.
+    */
+   public static void validatePluginId(String pluginId) {
+      if(pluginId == null || pluginId.trim().isEmpty()) {
+         throw new IllegalArgumentException("Plugin id must not be blank");
+      }
+
+      if(".".equals(pluginId) || pluginId.contains("..")) {
+         throw new IllegalArgumentException(
+            "Plugin id must not be '.' or contain '..': " + sanitizeForMessage(pluginId));
+      }
+
+      for(int i = 0; i < pluginId.length(); i++) {
+         char c = pluginId.charAt(i);
+
+         if(c == '/' || c == '\\' || c == ':' || Character.isISOControl(c)) {
+            throw new IllegalArgumentException(
+               "Plugin id must not contain path separators, ':' or control characters: " +
+               sanitizeForMessage(pluginId));
+         }
+      }
+   }
+
+   private static String sanitizeForMessage(String value) {
+      StringBuilder buffer = new StringBuilder();
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+         buffer.append(Character.isISOControl(c) ? '?' : c);
+      }
+
+      return buffer.toString();
+   }
+
    private File getDirectoryPlugin(FileSystemService fileSystemService, String pluginName) {
-      return fileSystemService.getFile(pluginDirectory, pluginName);
+      validatePluginId(pluginName);
+      return resolveInsidePluginDirectory(fileSystemService, pluginDirectory, pluginName);
+   }
+
+   static File resolveInsidePluginDirectory(FileSystemService fileSystemService,
+                                            File pluginDirectory, String pluginName)
+   {
+      File folder = fileSystemService.getFile(pluginDirectory, pluginName);
+      Path root = pluginDirectory.toPath().toAbsolutePath().normalize();
+      Path path = folder.toPath().toAbsolutePath().normalize();
+
+      if(!path.startsWith(root) || path.equals(root)) {
+         throw new IllegalArgumentException(
+            "Plugin id resolves outside of the plugin directory: " +
+            sanitizeForMessage(pluginName));
+      }
+
+      return folder;
    }
 
    // load plugin from plugin folder
