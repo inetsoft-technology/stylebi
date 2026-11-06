@@ -3132,6 +3132,9 @@ public class ViewsheetFormatService {
       out.put("borderRightColor", model.getBorderRightColor());
       out.put("roundCorner", model.getRoundCorner());
       out.put("wrapText", model.isWrapText());
+      out.put("presenter", model.getPresenter());
+      out.put("cssClass", model.getCssClass());
+      out.put("cssID", model.getCssID());
       return out;
    }
 
