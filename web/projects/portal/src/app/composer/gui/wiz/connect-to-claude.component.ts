@@ -172,6 +172,11 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       return !this.editorContext;
    }
 
+   /** True for a session scoped to one freehand-table cell (the Freehand formula dialog). */
+   get isCellSession(): boolean {
+      return this.editorContext?.kind === "calcTableCell";
+   }
+
    get followFocusEnabled(): boolean {
       return this.followFocusService.isEnabled(this.runtimeId);
    }
@@ -188,6 +193,12 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    get currentTargetLabel(): string {
       if(!this.currentTarget) {
          return "Whole sheet";
+      }
+
+      // A cell grant carries its coordinate in `name`; show it as row/col, never as a name.
+      if(this.currentTarget.kind === "calcTableCell") {
+         const cell = (this.currentTarget.name || "").split(",");
+         return `${this.currentTarget.assembly} → row ${cell[0]}, col ${cell[1]}`;
       }
 
       return this.currentTarget.assembly

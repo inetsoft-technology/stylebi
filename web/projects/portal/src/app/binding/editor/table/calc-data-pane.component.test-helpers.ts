@@ -25,6 +25,7 @@ import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-edi
 import { TestUtils } from "../../../common/test/test-utils";
 import { CalcTableBindingModel } from "../../data/table/calc-table-binding-model";
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 
 export const editorServiceMock = {
    getAggregates: vi.fn(() => []),
@@ -37,7 +38,11 @@ export const editorServiceMock = {
    getCellNamesWithDefaults: vi.fn(() => [{ label: "(none)", value: null }]),
    changeColumnValue: vi.fn(),
    isCellBindingReady: vi.fn(() => true),
+   invalidateCellBinding: vi.fn(),
+   loadCellBinding: vi.fn(),
 };
+
+export const clientServiceMock = { commands: { subscribe: vi.fn() } };
 
 export const bindingServiceMock = {
    isGrayedOutField: vi.fn().mockReturnValue(false),
@@ -76,6 +81,8 @@ export function resetCalcDataPaneMocks(cellBinding?: CellBindingInfo): CellBindi
    editorServiceMock.setCellBinding.mockClear();
    editorServiceMock.changeColumnValue.mockClear();
    editorServiceMock.loadCellScript.mockClear();
+   editorServiceMock.invalidateCellBinding.mockClear();
+   editorServiceMock.loadCellBinding.mockClear();
    return binding;
 }
 
@@ -98,6 +105,7 @@ export async function renderCalcDataPane(props: Record<string, any> = {}) {
          { provide: BindingService, useValue: bindingServiceMock },
          { provide: NgbModal, useValue: modalMock },
          { provide: ChangeDetectorRef, useValue: changeDetectorRefMock },
+         { provide: ViewsheetClientService, useValue: clientServiceMock },
       ],
       componentProperties: renderProps,
    });

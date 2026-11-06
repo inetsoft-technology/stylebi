@@ -52,6 +52,37 @@ package inetsoft.web.wiz.pairing;
 public record EditorContext(String kind, String assembly, String name, String table,
                              boolean pending)
 {
+   /**
+    * The wire kind of a pane session scoped to ONE cell of a freehand (calc) table -- the
+    * Freehand formula dialog's own pairing. {@code assembly} is the calc table; {@code name} is
+    * the cell's coordinate as {@code "row,col"} (never a cell NAME -- those are optional and set
+    * only when the author names a cell). Encoded in the existing components so the refresh
+    * command, its browser matcher and Follow Focus, which compare exactly kind/assembly/name,
+    * need no change. Deliberately NOT a {@code ScriptTarget.Kind}: the cell is served on the
+    * binding surface (the three {@code calc/cell} endpoints), and {@code
+    * PaneScopeService.matchesGrant} fails closed for it on every script endpoint.
+    */
+   public static final String CALC_TABLE_CELL = "calcTableCell";
+
+   private static final java.util.regex.Pattern CELL_NAME =
+      java.util.regex.Pattern.compile("^([0-9]{1,6}),([0-9]{1,6})$");
+
+   /** {@code [row, col]} for a strict {@code "row,col"} cell name, or null when it is not one. */
+   public static int[] parseCellName(String name) {
+      if(name == null) {
+         return null;
+      }
+
+      java.util.regex.Matcher m = CELL_NAME.matcher(name);
+
+      return m.matches()
+         ? new int[] { Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)) } : null;
+   }
+
+   public static String cellName(int row, int col) {
+      return row + "," + col;
+   }
+
    public EditorContext(String kind, String assembly, String name, String table) {
       this(kind, assembly, name, table, false);
    }

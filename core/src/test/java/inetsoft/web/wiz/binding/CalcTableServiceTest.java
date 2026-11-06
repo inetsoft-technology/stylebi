@@ -114,7 +114,8 @@ class CalcTableServiceTest {
       @SuppressWarnings("unchecked")
       List<Object> cells = (List<Object>) layout.get("cells");
       assertEquals(6, cells.size());
-      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verify(h.sessions, never()).mutateForCell(anyString(), any(Principal.class), anyString(),
+                                                  anyInt(), anyInt(), any());
    }
 
    @Test
@@ -516,7 +517,8 @@ class CalcTableServiceTest {
 
       h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, columnCell("Region"));
 
-      verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
+      verify(h.sessions, times(1)).mutateForCell(anyString(), any(Principal.class), anyString(),
+                                                 anyInt(), anyInt(), any());
    }
 
    /**
@@ -1409,6 +1411,132 @@ class CalcTableServiceTest {
       verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
    }
 
+   // ── calcTableCell pane grant (Bug #80459) ──────────────────────────────────
+
+   /** Re-stubs the harness so mutateForCell runs the write as a cell-scoped session. */
+   private static void asCellSession(Harness h) throws Exception {
+      RuntimeViewsheet rvs = h.sessions.resolveForCell("tok", principal(), "Calc1", 0, 0);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.CellMutation mutation = invocation.getArgument(5);
+         return CapturingCommandDispatcher.withCapturingDispatcher(
+            principal(), dispatcher -> { mutation.run(rvs, "rt1", dispatcher, true); return null; });
+      }).when(h.sessions).mutateForCell(anyString(), any(Principal.class), anyString(), anyInt(),
+                                        anyInt(), any());
+   }
+
+   private static CellBindingInfo currentCell(int type, int btype, String value) {
+      CellBindingInfo info = new CellBindingInfo();
+      info.setType(type);
+      info.setBtype(btype);
+      info.setValue(value);
+      return info;
+   }
+
+   @Test
+   void aCellSessionWritesOnlyTheFormulaTextKeepingEveryOtherField() throws Exception {
+      Harness h = harness(2, 2);
+      asCellSession(h);
+      CellBindingInfo current = currentCell(CellBinding.BIND_FORMULA, CellBinding.DETAIL, "old");
+      current.setName("Net");
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(1))).thenReturn(current);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+                               spec("content", "formula", "value", "$A + $B", "name", "Net",
+                                    "grouping", "detail"));
+
+      ArgumentCaptor<SetCellBindingEvent> event = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), event.capture(), any(Principal.class),
+                                             any());
+      assertEquals("$A + $B", event.getValue().getBinding().getValue());
+      assertEquals("Net", event.getValue().getBinding().getName());
+      assertEquals(CellBinding.BIND_FORMULA, event.getValue().getBinding().getType());
+   }
+
+   @Test
+   void aCellSessionRefusesAWriteThatChangesAStructuralField() throws Exception {
+      Harness h = harness(2, 2);
+      asCellSession(h);
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(1)))
+         .thenReturn(currentCell(CellBinding.BIND_FORMULA, CellBinding.DETAIL, "old"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+                                        spec("content", "formula", "value", "x",
+                                             "name", "Renamed")));
+
+      assertTrue(e.getMessage().contains("'name'"), e.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                      any());
+   }
+
+   @Test
+   void aCellSessionRefusesAnyNonFormulaContent() throws Exception {
+      Harness h = harness(2, 2);
+      asCellSession(h);
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(1)))
+         .thenReturn(currentCell(CellBinding.BIND_FORMULA, CellBinding.DETAIL, "old"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1, columnCell("Region")));
+
+      assertTrue(e.getMessage().contains("content 'formula'"), e.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                      any());
+   }
+
+   @Test
+   void aCellSessionRefusesToTurnANonFormulaCellIntoAFormula() throws Exception {
+      Harness h = harness(2, 2);
+      asCellSession(h);
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(1)))
+         .thenReturn(currentCell(CellBinding.BIND_COLUMN, CellBinding.DETAIL, "Region"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+                                        spec("content", "formula", "value", "x")));
+
+      assertTrue(e.getMessage().contains("does not hold a formula"), e.getMessage());
+   }
+
+   @Test
+   void aCellSessionRefusesAFormulaGroupCellWithAKindSpecificMessage() throws Exception {
+      Harness h = harness(2, 2);
+      asCellSession(h);
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(1)))
+         .thenReturn(currentCell(CellBinding.BIND_FORMULA, CellBinding.GROUP, "toList(x)"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+                                        spec("content", "formula", "value", "toList(y)")));
+
+      assertTrue(e.getMessage().contains("formula group cell"), e.getMessage());
+      assertFalse(e.getMessage().contains("toolbar"), e.getMessage());
+   }
+
+   @Test
+   void aFormulaWriteBroadcastsTheTextToTheOpenFormulaDialogForAnySessionType() throws Exception {
+      Harness h = harness(2, 2);
+      RuntimeViewsheet rvs = h.sessions.resolveForCell("tok", principal(), "Calc1", 0, 0);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 1, 0,
+                               spec("content", "formula", "value", "$A * 2"));
+
+      verify(h.sessions).broadcastScriptRefresh(eq(rvs), eq("rt1"), any(Principal.class),
+                                                eq("calcTableCell"), eq("Calc1"), eq("1,0"),
+                                                eq("$A * 2"));
+   }
+
+   @Test
+   void aNonFormulaWriteDoesNotBroadcastAFormulaRefresh() throws Exception {
+      Harness h = harness(2, 2);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 1, 0, columnCell("Region"));
+
+      verify(h.sessions, never()).broadcastScriptRefresh(any(), anyString(),
+                                                         any(Principal.class), anyString(),
+                                                         anyString(), anyString(), anyString());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,
@@ -1457,6 +1585,20 @@ class CalcTableServiceTest {
                principal(), dispatcher -> { mutation.run(rvs, "rt1", dispatcher); return null; });
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
          when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+         when(sessions.resolveForCell(anyString(), any(Principal.class), anyString(), anyInt(),
+                                      anyInt())).thenReturn(rvs);
+         doAnswer(invocation -> {
+            ViewsheetSessionService.CellMutation mutation = invocation.getArgument(5);
+            return CapturingCommandDispatcher.withCapturingDispatcher(
+               principal(), dispatcher -> { mutation.run(rvs, "rt1", dispatcher, false); return null; });
+         }).when(sessions).mutateForCell(anyString(), any(Principal.class), anyString(), anyInt(),
+                                         anyInt(), any());
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Read<?> read = invocation.getArgument(5);
+            return CapturingCommandDispatcher.withCapturingDispatcher(
+               principal(), dispatcher -> read.run(rvs, "rt1", dispatcher));
+         }).when(sessions).readForCell(anyString(), any(Principal.class), anyString(), anyInt(),
+                                       anyInt(), any());
 
          // The read entry point supplies a capturing dispatcher without a checkpoint. Composer
          // services that answer by dispatching a command need it; the test double runs the read
@@ -2101,7 +2243,8 @@ class CalcTableServiceTest {
                  "formula", "First")));
 
       assertTrue(e.getMessage().contains("needs a second column"));
-      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verify(h.sessions, never()).mutateForCell(anyString(), any(Principal.class), anyString(),
+                                                  anyInt(), anyInt(), any());
    }
 
    @Test
@@ -2114,7 +2257,8 @@ class CalcTableServiceTest {
                  "field", spec("column", "Order:Discount", "type", "measure"),
                  "formula", "SumWTFormula(Order:Discount)")));
 
-      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verify(h.sessions, never()).mutateForCell(anyString(), any(Principal.class), anyString(),
+                                                  anyInt(), anyInt(), any());
    }
 
    /** Bug #78404 D1: a two-column formula's second column is checked like the primary one. */
