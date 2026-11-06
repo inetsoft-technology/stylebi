@@ -1620,6 +1620,17 @@ public class ViewsheetAssemblyAgentController {
       return hyperlinkService.listLinkTargets(sessionToken, user, folder, query, limit);
    }
 
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hyperlink/target-details")
+   public Map<String, Object> hyperlinkTargetDetails(
+      @PathVariable String sessionToken,
+      @RequestParam(required = false) String assetLinkPath,
+      @RequestParam(required = false) String assetLinkId,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return hyperlinkService.describeTarget(sessionToken, user, assetLinkPath, assetLinkId);
+   }
+
    public record ElementVisibilityRequest(String assembly, String element, String target,
                                           Boolean visible, Boolean secondary) {}
    public record PlotResizeRequest(String assembly, Double ratio, Boolean vertical,
