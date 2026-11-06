@@ -97,7 +97,7 @@ class InputValueServiceClickSubmitTest {
             return d.getWarnings();
          });
       });
-      service = new InputValueService(sessions, inputs, mock(CoreLifecycleService.class));
+      service = new InputValueService(sessions, inputs, mock(CoreLifecycleService.class), null);
    }
 
    private static Principal principal() {
