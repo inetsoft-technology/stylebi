@@ -193,6 +193,15 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
    }
 
    /**
+    * Messages from captured {@code MessageCommand}s of {@code Type.CONFIRM}, in dispatch order. A
+    * script's {@code confirm()} dispatches one and waits for an answer nobody gives here, so the
+    * script's confirmed branch has not run; callers report these rather than answer them.
+    */
+   public List<String> getConfirmMessages() {
+      return messagesOfType(MessageCommand.Type.CONFIRM);
+   }
+
+   /**
     * Messages from captured {@code MessageCommand}s of {@code Type.WARNING}, in dispatch order,
     * followed by any script-execution failure (see {@link #getScriptFailures}). Warnings do not
     * fail the call -- the caller decides whether to relay them.

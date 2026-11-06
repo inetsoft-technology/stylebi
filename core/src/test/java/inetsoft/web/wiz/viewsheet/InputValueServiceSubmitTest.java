@@ -1,0 +1,285 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.wiz.viewsheet;
+
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
+import inetsoft.util.script.ScriptException;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.controller.OnClickService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import inetsoft.web.viewsheet.service.VSInputService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.pairing.PairingException;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.security.Principal;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
+/**
+ * Bug 80465 PR-B: {@code set_input_value submit:true} fires a text input's onClick script the way
+ * the Viewer's Enter does. Uses the real capturing dispatcher and real {@code MessageCommand}s;
+ * the viewsheet, assembly info, runtime, sandbox and {@link OnClickService} are stubbed (a real
+ * assembly info cannot be built without a Sree context).
+ */
+@Tag("core")
+class InputValueServiceSubmitTest {
+   private static final String SCRIPT = "Text1.text = TextInput1.value";
+
+   private Viewsheet vs;
+   private TextInputVSAssembly text;
+   private TextInputVSAssemblyInfo info;
+   private final AtomicReference<Object> stored = new AtomicReference<>();
+   private OnClickService onClick;
+   private VSInputService inputs;
+   private InputValueService service;
+   private boolean sandbox = true;
+
+   /**
+    * Info state is held in the stubs: a real VSAssemblyInfo (or Viewsheet) cannot be constructed
+    * outside a Sree/Spring context in this environment, which is why the sibling tests mock too.
+    */
+   private void setUp(String onClickScript, boolean scriptEnabled) throws Exception {
+      stored.set(null);
+      sandbox = true;
+      vs = mock(Viewsheet.class);
+      info = mock(TextInputVSAssemblyInfo.class);
+      when(info.getOnClick()).thenReturn(onClickScript);
+      when(info.isScriptEnabled()).thenReturn(scriptEnabled);
+      when(info.isSubmitOnChange()).thenReturn(true);
+      when(info.isPassword()).thenCallRealMethod();
+      when(info.getSelectedObjects()).thenAnswer(inv -> new Object[] { stored.get() });
+      text = mock(TextInputVSAssembly.class);
+      when(text.getVSAssemblyInfo()).thenReturn(info);
+      when(text.getAbsoluteName()).thenReturn("TextInput1");
+      when(vs.getAssembly("TextInput1")).thenReturn(text);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenAnswer(
+         inv -> sandbox ? Optional.of(mock(ViewsheetSandbox.class)) : Optional.empty());
+
+      inputs = mock(VSInputService.class);
+      doAnswer(inv -> {
+         stored.set(inv.getArgument(2));
+         return null;
+      }).when(inputs).singleApplySelection(any(), any(), any(), any(), any(), any());
+
+      onClick = mock(OnClickService.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.mutate(any(), any(), any())).thenAnswer(inv -> {
+         ViewsheetSessionService.Mutation m = inv.getArgument(2);
+         return CapturingCommandDispatcher.withCapturingDispatcher(principal(), d -> {
+            m.run(rvs, "rt", d);
+            return d.getWarnings();
+         });
+      });
+      service = new InputValueService(sessions, inputs, mock(CoreLifecycleService.class), onClick);
+   }
+
+   private static Principal principal() {
+      return () -> "u";
+   }
+
+   private Map<String, Object> submit(String value) throws Exception {
+      return service.setValue("tok", principal(), "TextInput1", List.of(value), "", true);
+   }
+
+   private static MessageCommand message(MessageCommand.Type type, String text) {
+      MessageCommand cmd = new MessageCommand();
+      cmd.setType(type);
+      cmd.setMessage(text);
+      return cmd;
+   }
+
+   @Test
+   void firesOnClickAfterStoringAndReportsIt() throws Exception {
+      setUp(SCRIPT, true);
+
+      Map<String, Object> r = submit("hello");
+
+      verify(onClick).onClick(eq("rt"), eq("TextInput1"), eq("0"), eq("0"), isNull(), eq(""), any(),
+                              any(CapturingCommandDispatcher.class));
+      assertEquals(true, r.get("scriptFired"));
+      assertEquals(true, r.get("valueStored"));
+      assertEquals(List.of("hello"), r.get("values"));
+      assertNull(r.get("scriptFailed"));
+      assertNull(r.get("adjustedByScript"));
+   }
+
+   @Test
+   void withoutSubmitTheScriptIsNeverCalled() throws Exception {
+      setUp(SCRIPT, true);
+
+      Map<String, Object> r = service.setValue("tok", principal(), "TextInput1", List.of("x"), "");
+
+      verifyNoInteractions(onClick);
+      assertNull(r.get("scriptFired"));
+   }
+
+   @Test
+   void disabledScriptIsNotFiredAndSaysWhy() throws Exception {
+      setUp(SCRIPT, false);
+
+      Map<String, Object> r = submit("hello");
+
+      verifyNoInteractions(onClick);
+      assertEquals(false, r.get("scriptFired"));
+      assertTrue(String.valueOf(r.get("scriptSkippedReason")).contains("disabled"), r.toString());
+      assertEquals(List.of("hello"), r.get("values"));
+   }
+
+   @Test
+   void emptyOnClickIsNotFiredAndSaysWhy() throws Exception {
+      for(String empty : new String[] { null, "" }) {
+         setUp(empty, true);
+
+         Map<String, Object> r = submit("hello");
+
+         verifyNoInteractions(onClick);
+         assertEquals(false, r.get("scriptFired"), String.valueOf(empty));
+         assertTrue(String.valueOf(r.get("scriptSkippedReason")).contains("no onClick"),
+                    r.toString());
+      }
+   }
+
+   @Test
+   void throwingScriptKeepsTheValueAndIsReported() throws Exception {
+      setUp("throw 'x'", true);
+      doThrow(new ScriptException("boom")).when(onClick)
+         .onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit("kept");
+
+      assertEquals(true, r.get("ok") == null ? true : r.get("ok"));
+      assertEquals(true, r.get("scriptFired"));
+      assertEquals(true, r.get("scriptFailed"));
+      assertTrue(String.valueOf(r.get("scriptError")).contains("boom"), r.toString());
+      assertEquals(List.of("kept"), r.get("values"));
+      assertTrue(r.get("warnings").toString().contains("boom"), r.toString());
+   }
+
+   @Test
+   void throwingScriptWrappedInAnotherExceptionIsStillRecognised() throws Exception {
+      setUp("throw 'x'", true);
+      doThrow(new RuntimeException("wrapped", new ScriptException("inner"))).when(onClick)
+         .onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit("kept");
+
+      assertEquals(true, r.get("scriptFailed"));
+      assertTrue(String.valueOf(r.get("scriptError")).contains("inner"), r.toString());
+   }
+
+   @Test
+   void nonScriptFailureIsNotSwallowed() throws Exception {
+      setUp(SCRIPT, true);
+      doThrow(new IllegalStateException("db down")).when(onClick)
+         .onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      assertThrows(IllegalStateException.class, () -> submit("v"));
+   }
+
+   @Test
+   void confirmIsReportedNotAnswered() throws Exception {
+      setUp("confirm('ok?')", true);
+      doAnswer(inv -> {
+         CapturingCommandDispatcher d = inv.getArgument(7);
+         d.sendCommand(message(MessageCommand.Type.CONFIRM, "ok?"));
+         return null;
+      }).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit("v");
+
+      assertEquals(true, r.get("scriptFired"));
+      assertEquals("ok?", r.get("confirmPending"));
+      assertTrue(r.get("warnings").toString().contains("not answered"), r.toString());
+   }
+
+   @Test
+   void scriptThatChangesTheValueIsReported() throws Exception {
+      setUp(SCRIPT, true);
+      doAnswer(inv -> {
+         stored.set("");
+         return null;
+      }).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit("typed");
+
+      assertEquals(List.of("typed"), r.get("valuesBeforeScript"));
+      assertEquals(true, r.get("adjustedByScript"));
+      assertNotEquals(List.of("typed"), r.get("values"));
+   }
+
+   @Test
+   void passwordEditorStaysMaskedIncludingBeforeScript() throws Exception {
+      setUp(SCRIPT, true);
+      when(info.getColumnOption()).thenReturn(new PasswordColumnOption());
+      doAnswer(inv -> {
+         stored.set("changed");
+         return null;
+      }).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit("s3cr3t-Hunter2");
+
+      assertFalse(r.toString().contains("s3cr3t-Hunter2"), r.toString());
+      assertFalse(r.toString().contains("changed"), r.toString());
+      assertEquals(true, r.get("masked"));
+      assertEquals(true, r.get("adjustedByScript"));
+   }
+
+   @Test
+   void everyOtherInputTypeIsRefusedBeforeAnyWrite() throws Exception {
+      setUp(SCRIPT, true);
+      when(vs.getAssembly("Pick")).thenReturn(mock(CheckBoxVSAssembly.class));
+      when(vs.getAssembly("Spin")).thenReturn(mock(SpinnerVSAssembly.class));
+
+      for(String name : new String[] { "Pick", "Spin" }) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.setValue("tok", principal(), name, List.of("1"), "", true));
+         assertTrue(ex.getMessage().contains("'submit'") && ex.getMessage().contains("'" + name + "'"),
+                    ex.getMessage());
+      }
+
+      verifyNoInteractions(inputs);
+      verifyNoInteractions(onClick);
+   }
+
+   @Test
+   void missingSandboxIsANamedErrorBeforeAnyWrite() throws Exception {
+      setUp(SCRIPT, true);
+      sandbox = false;
+
+      PairingException ex = assertThrows(PairingException.class, () -> submit("v"));
+
+      assertTrue(ex.getMessage().contains("sandbox"), ex.getMessage());
+      verifyNoInteractions(inputs);
+      verifyNoInteractions(onClick);
+   }
+}
