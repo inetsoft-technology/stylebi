@@ -339,7 +339,7 @@ class ChartAestheticAgentServiceTest {
          mock(ChangeChartAestheticService.class));
       assertThrows(Exception.class,
                    () -> contour.setFrame("tok", principal(), "Chart1", "shape",
-                                          spec("type", "static", "shape", "star"), ""));
+                                          spec("type", "static", "shape", "904"), ""));
       contour.setFrame("tok", principal(), "Chart1", "color",
                        spec("type", "static", "color", "#4e79a7"), "");
 
@@ -347,7 +347,7 @@ class ChartAestheticAgentServiceTest {
          sessionsFor(chartOfType(GraphTypes.CHART_STOCK)), new ChartBindingModel(),
          mock(ChangeChartAestheticService.class));
       stock.setFrame("tok", principal(), "Chart1", "shape",
-                     spec("type", "static", "shape", "star"), "");
+                     spec("type", "static", "shape", "904"), "");
    }
 
    @Test

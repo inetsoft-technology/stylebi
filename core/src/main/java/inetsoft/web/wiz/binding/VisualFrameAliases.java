@@ -571,7 +571,13 @@ public final class VisualFrameAliases {
     * organization's, so the caller's principal must be the thread context principal.
     */
    private static void requireKnownShape(String name) {
-      if(name != null && ShapeFrameWrapper.getGShape(name) != null) {
+      // built-ins are answered from static tables; only other names need the uploaded-shape
+      // lookup, which reads the organization's shapes folder
+      if(name != null &&
+         (ShapeFrameWrapper.getGeometricShape(name) != null ||
+          ImageShapes.getBuiltins().contains(name) ||
+          ShapeFrameWrapper.getGShape(name) != null))
+      {
          return;
       }
 
