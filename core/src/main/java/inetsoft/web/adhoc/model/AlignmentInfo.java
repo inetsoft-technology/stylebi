@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.report.StyleConstants;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class AlignmentInfo {
+public class AlignmentInfo implements java.io.Serializable {
    public AlignmentInfo() {
    }
 

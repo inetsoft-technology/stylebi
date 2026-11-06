@@ -1783,6 +1783,17 @@ public class FormatPainterService {
          format.getCSSFormat().addCSSAttribute("axis", "y2");
       }
       else if(box.isPresent() && region.equals(ChartFormatConstants.LEGEND_CONTENT)) {
+         // Only an out-of-range index is refused: with no rendered legends area the descriptor
+         // lookup below keeps its historical behaviour for the Composer's own format pane.
+         int legendCount = area == null || area.getLegendsArea() == null ? -1 :
+            area.getLegendsArea().getLegendAreas().length;
+
+         if(legendCount >= 0 && (index < 0 || index >= legendCount)) {
+            throw new IllegalArgumentException(
+               "Chart '" + name + "' has " + legendCount + " rendered legend(s); legend index " +
+               index + " does not exist.");
+         }
+
          LegendDescriptor descriptor = getLegendDescriptor(chartDescriptor, chartInfo, area, index);
 
          if(descriptor != null) {
@@ -1827,7 +1838,9 @@ public class FormatPainterService {
     * @return the region's format, or null when the region has no format yet (for example an axis
     *         label region that is not rendered)
     */
-   public VSObjectFormatInfoModel getChartRegionFormatModel(String runtimeId, Principal principal,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VSObjectFormatInfoModel getChartRegionFormatModel(@ClusterProxyKey String runtimeId,
+                                                            Principal principal,
                                                             String name, String region, int index,
                                                             String columnName)
       throws Exception
