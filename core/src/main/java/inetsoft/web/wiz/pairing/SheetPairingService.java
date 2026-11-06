@@ -28,6 +28,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.web.composer.ws.dialog.ExpressionNameSupport;
 import inetsoft.web.wiz.binding.CalcTableService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -84,6 +85,12 @@ public class SheetPairingService {
    private final SheetDirectAccessor viewsheetAccessor;
 
    /**
+    * Used only to read a bound table's source columns for the pending-expression name check;
+    * null in the test constructors that have no engine.
+    */
+   private final WorksheetService worksheetEngine;
+
+   /**
     * Production constructor — Spring injects WorksheetService (WorksheetEngine) and
     * ViewsheetService (ViewsheetEngine), both of which implement SheetDirectAccessor. Used to
     * validate an {@link EditorContext} against the real runtime at mint time.
@@ -92,7 +99,7 @@ public class SheetPairingService {
    public SheetPairingService(WorksheetService worksheetService, ViewsheetService viewsheetService)
    {
       this(System::currentTimeMillis, asAccessor(worksheetService, "WorksheetService"),
-           asAccessor(viewsheetService, "ViewsheetService"));
+           asAccessor(viewsheetService, "ViewsheetService"), worksheetService);
    }
 
    /** Back-compat convenience constructor: no editorContext validation is possible. */
@@ -108,6 +115,7 @@ public class SheetPairingService {
       this.grants = source.grants;
       this.worksheetAccessor = source.worksheetAccessor;
       this.viewsheetAccessor = source.viewsheetAccessor;
+      this.worksheetEngine = source.worksheetEngine;
    }
 
    /**
@@ -117,10 +125,18 @@ public class SheetPairingService {
    SheetPairingService(LongSupplier clock, SheetDirectAccessor worksheetAccessor,
                        SheetDirectAccessor viewsheetAccessor)
    {
+      this(clock, worksheetAccessor, viewsheetAccessor, null);
+   }
+
+   private SheetPairingService(LongSupplier clock, SheetDirectAccessor worksheetAccessor,
+                               SheetDirectAccessor viewsheetAccessor,
+                               WorksheetService worksheetEngine)
+   {
       this.clock = clock;
       this.grants = new ConcurrentHashMap<>();
       this.worksheetAccessor = worksheetAccessor;
       this.viewsheetAccessor = viewsheetAccessor;
+      this.worksheetEngine = worksheetEngine;
    }
 
    private static SheetDirectAccessor asAccessor(Object service, String name) {
@@ -256,7 +272,7 @@ public class SheetPairingService {
       }
 
       if(WORKSHEET_COLUMN_KINDS.contains(ctx.kind())) {
-         validateWorksheetColumnContext(rs, ctx);
+         validateWorksheetColumnContext(rs, ctx, worksheetEngine);
          return;
       }
 
@@ -351,7 +367,8 @@ public class SheetPairingService {
     * refuse. {@code worksheetCondition} and {@code worksheetConditionValue} are checked against
     * any column, since adding a condition to a field that has none yet is legitimate.
     */
-   private static void validateWorksheetColumnContext(RuntimeSheet rs, EditorContext ctx)
+   private static void validateWorksheetColumnContext(RuntimeSheet rs, EditorContext ctx,
+                                                      WorksheetService worksheetEngine)
       throws PairingException
    {
       // Same `table`-or-`assembly` alias the calcField branch accepts, and for the same reason:
@@ -372,6 +389,23 @@ public class SheetPairingService {
       if(!(a instanceof TableAssembly t)) {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "Table not found: " + table);
+      }
+
+      if(ctx.pending() && "worksheetExpression".equals(ctx.kind())) {
+         // Create flow (Create Expression, not yet OK'd): the name was pre-assigned precisely
+         // because the column does not exist yet, so validate the table (above) and that the name
+         // is still unused, with the same rules the OK path applies -- a stale name must not
+         // later alias an unrelated column.
+         ColumnSelection source = rs instanceof RuntimeWorksheet rws
+            ? ExpressionNameSupport.sourceColumns(worksheetEngine, rws, t) : null;
+
+         if(ExpressionNameSupport.isTaken(name, t.getColumnSelection(), source)) {
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "Column '" + name + "' already exists on '" + table + "'; a pending (new) " +
+               "expression needs an unused name.");
+         }
+
+         return;
       }
 
       boolean found = "worksheetExpression".equals(ctx.kind())

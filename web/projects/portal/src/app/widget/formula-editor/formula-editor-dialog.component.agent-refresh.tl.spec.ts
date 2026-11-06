@@ -112,3 +112,55 @@ describe("FormulaEditorDialog — agent script live-refresh (bug #80447)", () =>
       expect(comp.expression).toBe("old();");
    });
 });
+
+function worksheetExpressionDialog(isNew: boolean) {
+   const { comp, ...rest } = createDialog();
+   const { commands, connection } = socket();
+   comp.isCalc = false;
+   comp.isVSContext = false;
+   comp.isNewExpression = isNew;
+   comp.contextTable = "Query1";
+   comp.formulaName = isNew ? "Expression1" : "Margin";
+   comp.runtimeId = "Worksheet1";
+   comp.socketConnection = connection;
+   comp.expression = "";
+   comp.ngOnInit();
+   return { comp, commands, ...rest };
+}
+
+function worksheetExpressionCommand(name: string, text: string) {
+   return new ViewsheetCommandMessage(null, "RefreshAgentScriptCommand", {
+      kind: "worksheetExpression", assembly: "Query1", name, text,
+   } as any);
+}
+
+describe("FormulaEditorDialog — worksheet expression agent push (bug #80462)", () => {
+   it("applies an agent draft pushed into the Create Expression dialog", () => {
+      const { comp, commands } = worksheetExpressionDialog(true);
+
+      commands.next(worksheetExpressionCommand("Expression1", "field['price'] * 2"));
+
+      expect(comp.expression).toBe("field['price'] * 2");
+      expect(comp.staleExpression).toBeNull();
+   });
+
+   it("parks the draft behind the reload prompt when the user already typed", () => {
+      const { comp, commands } = worksheetExpressionDialog(true);
+      comp.expression = "typed by hand";
+
+      commands.next(worksheetExpressionCommand("Expression1", "field['price'] * 2"));
+
+      expect(comp.expression).toBe("typed by hand");
+      expect(comp.staleExpression).toBe("field['price'] * 2");
+   });
+
+   it("refreshes an Edit Expression dialog when the agent writes that column", () => {
+      const { comp, commands } = worksheetExpressionDialog(false);
+      comp.expression = "field['price']";
+      comp.ngOnInit();
+
+      commands.next(worksheetExpressionCommand("Margin", "field['cost']"));
+
+      expect(comp.expression).toBe("field['cost']");
+   });
+});

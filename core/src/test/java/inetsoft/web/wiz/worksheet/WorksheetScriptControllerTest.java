@@ -141,7 +141,8 @@ class WorksheetScriptControllerTest {
          mock(inetsoft.web.wiz.service.RawDataService.class));
 
       WorksheetScriptService scriptService =
-         new WorksheetScriptService(editService, worksheetController);
+         new WorksheetScriptService(editService, worksheetController,
+                                    mock(SheetAgentBroadcastService.class));
 
       WorksheetScriptController controller =
          new WorksheetScriptController(featureOn(), sessionService, editService, scriptService);
@@ -359,7 +360,8 @@ class WorksheetScriptControllerTest {
          sessionService, mock(SheetRuntimeAccess.class),
          mock(SheetAgentBroadcastService.class), securityEngine, mock(InnerJoinService.class));
       WorksheetScriptService scriptService = new WorksheetScriptService(
-         editService, mock(WorksheetAgentController.class));
+         editService, mock(WorksheetAgentController.class),
+         mock(SheetAgentBroadcastService.class));
       WorksheetScriptController controller =
          new WorksheetScriptController(featureOff, sessionService, editService, scriptService);
 

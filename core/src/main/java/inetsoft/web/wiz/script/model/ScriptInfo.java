@@ -17,5 +17,20 @@
  */
 package inetsoft.web.wiz.script.model;
 
-/** The result of {@code read_script}. */
-public record ScriptInfo(String target, String text, boolean enabled) {}
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * The result of {@code read_script}.
+ *
+ * @param pending {@code true} only for a pending (Create Expression) session: the column does not
+ *                exist yet, so {@code text} is not an expression. Omitted from the JSON otherwise
+ * @param note    explains a pending read; omitted from the JSON otherwise
+ */
+public record ScriptInfo(String target, String text, boolean enabled,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean pending,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) String note)
+{
+   public ScriptInfo(String target, String text, boolean enabled) {
+      this(target, text, enabled, null, null);
+   }
+}

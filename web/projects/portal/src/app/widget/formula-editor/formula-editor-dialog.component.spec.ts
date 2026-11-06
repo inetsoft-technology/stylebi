@@ -137,6 +137,32 @@ describe("FormulaEditorDialog — editorContext", () => {
          { kind: "worksheetExpression", assembly: "Table1", name: "Field1" });
    });
 
+   /*
+    * Bug #80462: Create Expression pre-assigns a server-suggested name and marks the dialog new,
+    * so the minted grant carries pending:true (the column does not exist until OK).
+    */
+   it("derives a pending worksheetExpression context for a new expression column", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isNewExpression = true;
+      comp.contextTable = "Table1";
+      comp.formulaName = "Expression1";
+
+      expect(comp.editorContext).toEqual(
+         { kind: "worksheetExpression", assembly: "Table1", name: "Expression1", pending: true });
+      expect(comp.canPair).toBe(true);
+   });
+
+   it("still offers no connect button for a new expression with no name", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = false;
+      comp.isNewExpression = true;
+      comp.contextTable = "Table1";
+      comp.formulaName = "";
+
+      expect(comp.canPair).toBe(false);
+   });
+
    it("derives an assemblyMain context for a plain viewsheet expression", () => {
       const comp = pairedDialog();
       comp.isVSContext = true;

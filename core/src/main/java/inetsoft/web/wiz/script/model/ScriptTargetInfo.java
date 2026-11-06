@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.script.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * One scriptable location, as {@code list_script_targets} reports it.
  *
@@ -46,8 +48,24 @@ package inetsoft.web.wiz.script.model;
  * @param expression the current expression text of a {@code calcField}; {@code null} for every
  *                   other kind. It lets an ordinary (non-pane) session read a calc field before
  *                   rewriting it, since {@code edit_calc_field} always replaces the whole formula
+ * @param pending    {@code true} only for the synthetic target of a pending (Create Expression)
+ *                   session: the column it names does not exist until the user clicks OK, so a
+ *                   write to it is a draft pushed into the open dialog. Omitted from the JSON
+ *                   (null) for every real target
  */
 public record ScriptTargetInfo(String id, String kind, String assembly, String name, Boolean sql,
                                Boolean baseOnDetail, String label, String runsWhen,
                                boolean hasScript, boolean enabled, String enableScope,
-                               String hostSheet, String target, String expression) {}
+                               String hostSheet, String target, String expression,
+                               @JsonInclude(JsonInclude.Include.NON_NULL) Boolean pending)
+{
+   /** A real (not pending) target. */
+   public ScriptTargetInfo(String id, String kind, String assembly, String name, Boolean sql,
+                           Boolean baseOnDetail, String label, String runsWhen,
+                           boolean hasScript, boolean enabled, String enableScope,
+                           String hostSheet, String target, String expression)
+   {
+      this(id, kind, assembly, name, sql, baseOnDetail, label, runsWhen, hasScript, enabled,
+           enableScope, hostSheet, target, expression, null);
+   }
+}

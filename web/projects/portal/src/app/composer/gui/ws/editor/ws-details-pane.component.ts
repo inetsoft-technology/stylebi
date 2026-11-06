@@ -500,7 +500,11 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
                windowClass: "formula-dialog",
                limitResize: false
             } as SlideOutOptions, onCancel);
-            dialog.formulaName = model.oldName;
+            // Create flow: the server names an unused column up front so Connect Agent can be
+            // paired to the not-yet-created column. oldName stays empty, so OK still creates.
+            const isNewExpression = columnIndex == null && !!model.suggestedName;
+            dialog.formulaName = isNewExpression ? model.suggestedName : model.oldName;
+            dialog.isNewExpression = isNewExpression;
             dialog.dataType = model.dataType;
             dialog.formulaType = model.formulaType;
             dialog.expression = model.expression;

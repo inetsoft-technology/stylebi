@@ -349,7 +349,8 @@ public class PaneScopeService {
          case CALC_FIELD -> "a calculated field has no name at sheet level — open its formula " +
             "editor and click Connect Agent.";
          case WORKSHEET_EXPRESSION -> "a worksheet expression column has no name at sheet " +
-            "level — open its expression editor and click Connect Agent.";
+            "level — open its expression editor and click Connect Agent. For a NEW column, open " +
+            "Create Expression and click Connect Agent there.";
          case WORKSHEET_CONDITION -> "a worksheet condition has no name at sheet level — open " +
             "its condition editor and click Connect Agent.";
          case WORKSHEET_CONDITION_VALUE -> "a worksheet condition's value has no name at sheet " +
