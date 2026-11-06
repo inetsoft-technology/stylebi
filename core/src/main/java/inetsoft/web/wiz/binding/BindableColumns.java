@@ -142,6 +142,54 @@ public final class BindableColumns {
    }
 
    /**
+    * The geo-shelf counterpart of {@link #require}: the same scope and fail-open rules, but the
+    * refusal says the column was not found in the chart's source, which is what a geo write
+    * needs to report instead of the layer error an unresolved column used to end in (#80345).
+    *
+    * @throws IllegalArgumentException naming the column and the chart's source
+    */
+   public static void requireGeoColumns(List<BindableTable> tables, String assembly,
+                                        Collection<String> columns)
+   {
+      if(columns == null || columns.isEmpty()) {
+         return;
+      }
+
+      List<BindableTable> listed = tables == null ? List.of() : tables;
+      String source = currentSourceOf(listed);
+      Set<String> available = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+
+      for(BindableTable table : listed) {
+         if(source != null && !Boolean.TRUE.equals(table.current())) {
+            continue;
+         }
+
+         if(table.hasWarnings()) {
+            return;
+         }
+
+         for(var field : table.fields()) {
+            if(field.column() != null) {
+               available.add(field.column());
+            }
+         }
+      }
+
+      for(String column : columns) {
+         if(column == null || column.isBlank() || isDynamicColumn(column)) {
+            continue;
+         }
+
+         if(!available.contains(column)) {
+            throw new IllegalArgumentException(
+               "Column '" + column + "' was not found in the source of " + assembly +
+               (source == null ? "" : " ('" + source + "')") + ". Available: " +
+               String.join(", ", available) + ". Pick a column of that source for the geo shelf.");
+         }
+      }
+   }
+
+   /**
     * Replaces each field's column with the source's real spelling, so a name that only differs by
     * case is stored as the column it unambiguously identifies (#78436).
     *

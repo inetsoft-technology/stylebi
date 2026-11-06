@@ -230,6 +230,7 @@ public class BindingAgentController {
       List<ChartGeoShelf.Field> fields = request.fields() == null ? null
          : request.fields().stream()
             .map(f -> new ChartGeoShelf.Field(f.column(), f.layer())).toList();
+      fields = requireGeoColumnsInSource(sessionToken, user, request.assembly(), fields);
       List<ChartGeoShelf.Detected> detected = ChartGeoShelf.write(
          sessions, sessionToken, user, request.assembly(),
          ConfigurationContext.getContext().getSpringBean(VSChartHandler.class), fields,
@@ -1019,6 +1020,47 @@ public class BindingAgentController {
       catch(Exception e) {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
          return new Resolved(null, fields);
+      }
+   }
+
+   /**
+    * Refuses a geo column that is not in the chart's source before anything is registered, and
+    * stores the source's real spelling of the others (#80345). A listing failure is skipped, as in
+    * {@link #resolveSourceTable}.
+    */
+   private List<ChartGeoShelf.Field> requireGeoColumnsInSource(String sessionToken, Principal user,
+                                                               String assembly,
+                                                               List<ChartGeoShelf.Field> fields)
+   {
+      if(fields == null || fields.isEmpty()) {
+         return fields;
+      }
+
+      try {
+         List<BindableTable> tables =
+            fieldsService.list(sessions.runtimeId(sessionToken, user), assembly, user);
+         List<FieldRef> refs = fields.stream()
+            .map(f -> new FieldRef(f.column(), "dimension", null, null, null, null, null, null,
+                                   null, null, null, null, null, null))
+            .toList();
+         List<FieldRef> canonical = BindableColumns.canonicalize(tables, assembly, null, refs);
+         BindableColumns.requireGeoColumns(
+            tables, assembly, canonical.stream().map(FieldRef::column).toList());
+         List<ChartGeoShelf.Field> result = new java.util.ArrayList<>();
+
+         for(int i = 0; i < fields.size(); i++) {
+            result.add(new ChartGeoShelf.Field(canonical.get(i).column(), fields.get(i).layer()));
+         }
+
+         return result;
+      }
+      catch(IllegalArgumentException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         LOG.debug("Could not list bindable columns for {}; skipping the geo column check",
+                   assembly, e);
+         return fields;
       }
    }
 
