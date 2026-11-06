@@ -205,7 +205,9 @@ public class RecycleBinChangesetApplyService {
       RecycleBin.Entry entry = recycleBinService.requireEntry(path, user);
       String type = RecycleBinService.typeOf(entry);
       boolean overwrite = Boolean.TRUE.equals(original.getOverwrite());
-      boolean collides = recycleBinService.wouldCollide(entry);
+      RecycleBinService.Occupant occupant = recycleBinService.occupantOf(entry);
+      RecycleBinChangePlanService.requireOverwritable("path", entry.getOriginalPath(), occupant, type);
+      boolean collides = occupant.occupied();
 
       if(collides && !overwrite) {
          throw new IllegalArgumentException(
