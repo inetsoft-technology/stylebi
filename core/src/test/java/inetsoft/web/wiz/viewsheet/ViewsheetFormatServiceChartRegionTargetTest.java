@@ -25,6 +25,9 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
@@ -71,10 +74,38 @@ class ViewsheetFormatServiceChartRegionTargetTest {
          Arguments.of("plotLabel", ChartFormatConstants.PLOT_AREA));
    }
 
+   /**
+    * A chart with a secondary (right) Y-axis configured, so every {@code targetsAndRegions} case
+    * -- including {@code axisLabel2} -- can exercise the write path without tripping the bug
+    * #80443 follow-up refusal ({@code refuseAxisLabel2WithoutSecondaryAxis}).
+    */
    private static ChartVSAssembly chart() {
       ChartVSAssembly assembly = mock(ChartVSAssembly.class);
-      when(assembly.getVSAssemblyInfo()).thenReturn(mock(ChartVSAssemblyInfo.class));
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      VSChartInfo chartInfo = chartInfo(true);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(assembly.getVSChartInfo()).thenReturn(chartInfo);
       return assembly;
+   }
+
+   /** A chart with no secondary axis at all -- the ordinary, common case. */
+   private static ChartVSAssembly chartWithoutSecondaryAxis() {
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      VSChartInfo chartInfo = chartInfo(false);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(assembly.getVSChartInfo()).thenReturn(chartInfo);
+      return assembly;
+   }
+
+   private static VSChartInfo chartInfo(boolean secondaryY) {
+      VSChartInfo info = mock(VSChartInfo.class);
+      ChartAggregateRef measure = mock(ChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(secondaryY);
+      when(info.getXFields()).thenReturn(new ChartRef[0]);
+      when(info.getYFields()).thenReturn(new ChartRef[]{ measure });
+      when(info.isInvertedGraph()).thenReturn(false);
+      return info;
    }
 
    private static RuntimeViewsheet rvsWith(String name, VSAssembly assembly) {
@@ -142,6 +173,23 @@ class ViewsheetFormatServiceChartRegionTargetTest {
                  e.getMessage().contains("'Chart1'") &&
                  e.getMessage().contains("TableVSAssembly") &&
                  e.getMessage().contains("not applied"), e.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void refusesAxisLabel2WithoutSecondaryAxis() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(rvsWith("Chart1", chartWithoutSecondaryAxis()));
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> new ViewsheetFormatService(sessions, painter, mock(CalcTableService.class), null)
+            .setFormat("tok", principal(), request("axisLabel2"), ""));
+
+      assertTrue(e.getMessage().contains("'axisLabel2'") &&
+                 e.getMessage().contains("secondary") &&
+                 e.getMessage().contains("'Chart1'"), e.getMessage());
       verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
       verifyNoInteractions(painter);
    }

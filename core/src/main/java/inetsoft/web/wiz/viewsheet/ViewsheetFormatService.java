@@ -823,6 +823,53 @@ public class ViewsheetFormatService {
    }
 
    /**
+    * Refuses {@code axisLabel2} for a chart with no secondary (right) Y-axis configured -- most
+    * charts never set a measure's {@code secondaryY}, so this is the common case, not an edge one.
+    * Without this, {@code FormatPainterService.getChartRegionFormat}'s {@code RIGHT_Y_AXIS} branch
+    * reaches {@code ChartRegionHandler.getAxisColumnName}, which has no null guard for an absent
+    * axis area and throws an unhandled NullPointerException (bug #80443 follow-up).
+    *
+    * <p>Reuses {@link ChartRegionResolver}, the same binding+graph answer
+    * {@code set_chart_region_properties}'s own {@code y2} target already refuses against, rather
+    * than a second, parallel notion of "does this chart have a secondary axis".
+    */
+   private static void refuseAxisLabel2WithoutSecondaryAxis(RuntimeViewsheet rvs,
+                                                             List<String> names)
+   {
+      if(rvs == null) {
+         return;
+      }
+
+      Viewsheet viewsheet = rvs.getViewsheet();
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+         if(!(assembly instanceof ChartVSAssembly chart)) {
+            // Not a chart at all -- already refused by refuseChartRegionTargetOnNonChart.
+            continue;
+         }
+
+         ChartRegionResolver.Axes axes = ChartRegionResolver.resolve(rvs, chart);
+
+         if(!axes.has("y2")) {
+            offenders.add("'" + name + "' has " + (axes.ordered().isEmpty()
+               ? "no axes at all"
+               : "only: " + String.join(", ", axes.ordered())));
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'axisLabel2' requires a secondary (right) Y-axis; " +
+            String.join("; ", offenders) + ". A secondary axis exists only when a measure uses " +
+            "the secondary axis, or the engine created one (date comparison, percent scale). " +
+            "Use 'axisLabel' for the primary axis, or configure a secondary axis first.");
+      }
+   }
+
+   /**
     * {@code optionText} writes the one detail-row format path a CheckBox/RadioButton's option
     * labels all share today; any other assembly has no such path.
     */
@@ -999,6 +1046,10 @@ public class ViewsheetFormatService {
          RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
          refuseChartRegionTargetOnNonChart(resolved == null ? null : resolved.getViewsheet(),
                                            request.assemblies(), target);
+
+         if(AXIS_LABEL2.equals(target)) {
+            refuseAxisLabel2WithoutSecondaryAxis(resolved, request.assemblies());
+         }
       }
 
       if(OPTION_TEXT.equals(target)) {
