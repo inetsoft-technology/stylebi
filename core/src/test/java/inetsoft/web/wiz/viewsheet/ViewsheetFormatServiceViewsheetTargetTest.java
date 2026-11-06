@@ -66,7 +66,7 @@ class ViewsheetFormatServiceViewsheetTargetTest {
    {
       ObjectMapper mapper = new ObjectMapper();
       return ViewsheetFormatService.FormatRequest.fromJson(
-         assemblies, mapper.readTree(json), false, target, null, null);
+         assemblies, mapper.readTree(json), false, target, null, null, null);
    }
 
    private static FormatVSObjectEvent write(ViewsheetFormatService.FormatRequest request,

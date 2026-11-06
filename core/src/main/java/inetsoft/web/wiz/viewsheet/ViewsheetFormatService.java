@@ -160,6 +160,17 @@ public class ViewsheetFormatService {
     *                   with a non-null value, captured before parsing so a key the target cannot
     *                   apply is refused by name rather than mistaken for a model default; null
     *                   for a request built in Java, which skips that check
+    * @param cellPath   optional, {@code "data"} target only, Crosstab only: the row-dimension
+    *                   members (in bound order) followed by the column-dimension members (in
+    *                   bound order) of one summary/grand-total cell -- the same tuple
+    *                   {@link inetsoft.report.filter.CrossFilterDataDescriptor} appends the
+    *                   measure to as the last element of its own {@code TableDataPath.getPath()}
+    *                   -- scoping the write to that single cell instead of every cell {@code
+    *                   field} matches. Requires {@code field} (it names the measure; {@code
+    *                   cellPath} does not repeat it). Refused outright against a plain Table: a
+    *                   Table's body {@code TableDataPath} is always just the one-element column
+    *                   header, with no row/dimension-member information to match a tuple against.
+    *                   Null/empty keeps today's whole-measure behavior.
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
@@ -167,32 +178,40 @@ public class ViewsheetFormatService {
                                String target,
                                String field,
                                Set<String> formatKeys,
-                               Integer level)
+                               Integer level,
+                               List<String> cellPath)
    {
       /** Kept for existing callers that predate {@code target}/{@code field} — defaults both. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset) {
-         this(assemblies, format, reset, null, null, null, null);
+         this(assemblies, format, reset, null, null, null, null, null);
       }
 
       /** Kept for existing callers that predate {@code field} — defaults it to null. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
                            String target)
       {
-         this(assemblies, format, reset, target, null, null, null);
+         this(assemblies, format, reset, target, null, null, null, null);
       }
 
       /** Kept for existing callers that predate {@code formatKeys} — no raw keys. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
                            String target, String field)
       {
-         this(assemblies, format, reset, target, field, null, null);
+         this(assemblies, format, reset, target, field, null, null, null);
       }
 
       /** Kept for existing callers that predate {@code level} — writes every level. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
                            String target, String field, Set<String> formatKeys)
       {
-         this(assemblies, format, reset, target, field, formatKeys, null);
+         this(assemblies, format, reset, target, field, formatKeys, null, null);
+      }
+
+      /** Kept for existing callers that predate {@code cellPath} — no cell-level scoping. */
+      public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
+                           String target, String field, Set<String> formatKeys, Integer level)
+      {
+         this(assemblies, format, reset, target, field, formatKeys, level, null);
       }
 
       /**
@@ -216,10 +235,11 @@ public class ViewsheetFormatService {
                                            @JsonProperty("reset") boolean reset,
                                            @JsonProperty("target") String target,
                                            @JsonProperty("field") String field,
-                                           @JsonProperty("level") Integer level)
+                                           @JsonProperty("level") Integer level,
+                                           @JsonProperty("cellPath") List<String> cellPath)
       {
          return new FormatRequest(assemblies, parseFormat(format, "set_format"), reset, target,
-                                  field, formatKeys(format), level);
+                                  field, formatKeys(format), level, cellPath);
       }
 
       /** The keys of a JSON {@code format} object whose value is not JSON null. */
@@ -1184,7 +1204,8 @@ public class ViewsheetFormatService {
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
-                  data.add(requirePaths(computeDataRegionPaths(rvs, name, request.field()),
+                  data.add(requirePaths(computeDataRegionPaths(rvs, name, request.field(),
+                                                                request.cellPath()),
                                         name, "body"));
                }
 
@@ -2490,12 +2511,23 @@ public class ViewsheetFormatService {
     * paths ending in that header are kept -- the other measures' cells and the dimension
     * {@code GROUP_HEADER} cells are left alone.
     *
+    * <p>When {@code cellPath} is also non-empty, the Crosstab's already measure-scoped result is
+    * narrowed further to the one path whose own {@code getPath()} -- with the trailing measure
+    * element stripped ({@link #dimensionTuple}) -- equals {@code cellPath} exactly: the row-
+    * dimension members (bound order) followed by the column-dimension members (bound order),
+    * deterministic per {@link inetsoft.report.filter.CrossFilterDataDescriptor#createList}, not
+    * an accident of rendering. Refused outright for a plain Table (its body path never carries
+    * row/dimension information to match a tuple against) and when {@code field} is blank (a bare
+    * tuple is ambiguous across measures that would otherwise share it).
+    *
     * @throws IllegalArgumentException if {@code name} does not resolve to a Crosstab or Table,
-    *                                  or if {@code field} matches zero or more than one rendered
-    *                                  column (Table) or aggregate (Crosstab)
+    *                                  if {@code field} matches zero or more than one rendered
+    *                                  column (Table) or aggregate (Crosstab), if {@code cellPath}
+    *                                  is non-empty against a plain Table or without {@code field},
+    *                                  or if {@code cellPath} matches no currently rendered cell
     */
    private static TableDataPath[] computeDataRegionPaths(RuntimeViewsheet rvs, String name,
-                                                          String field)
+                                                          String field, List<String> cellPath)
       throws Exception
    {
       Viewsheet viewsheet = rvs.getViewsheet();
@@ -2508,7 +2540,27 @@ public class ViewsheetFormatService {
                        assembly.getClass().getSimpleName()) + "." + selectionTargetsHint(assembly));
       }
 
+      boolean isCrosstab = assembly instanceof CrosstabVSAssembly;
+      boolean hasCellPath = cellPath != null && !cellPath.isEmpty();
+
+      if(hasCellPath && !isCrosstab) {
+         throw new IllegalArgumentException(
+            "set_format: 'cellPath' only applies to a Crosstab; '" + name + "' is a plain " +
+            "Table, whose body TableDataPath is always just the one-element column header -- " +
+            "a Table has no row/dimension-member information for 'cellPath' to match against. " +
+            "Omit 'cellPath' and use 'field' alone to scope a Table's 'data' write to one " +
+            "column.");
+      }
+
       boolean hasField = field != null && !field.isBlank();
+
+      if(hasCellPath && !hasField) {
+         throw new IllegalArgumentException(
+            "set_format: 'cellPath' on Crosstab '" + name + "' requires 'field' naming the one " +
+            "measure it belongs to -- several measures can otherwise share the same row/column " +
+            "tuple, differing only in the trailing measure name 'cellPath' leaves out.");
+      }
+
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
@@ -2523,6 +2575,7 @@ public class ViewsheetFormatService {
 
       TableDataDescriptor desc = lens.getDescriptor();
       LinkedHashSet<TableDataPath> paths = new LinkedHashSet<>();
+      Set<String> cellPathCandidates = hasCellPath ? new LinkedHashSet<>() : null;
       int colCount = lens.getColCount();
 
       // Bounded defensively against a pathological lens that never stops reporting more rows --
@@ -2538,7 +2591,6 @@ public class ViewsheetFormatService {
       // header-vs-body at render time), draws that line correctly. A plain Table's descriptor
       // (DefaultTableDataDescriptor) never emits those reused types -- only HEADER, DETAIL and
       // TRAILER -- so the original type-only check is kept for it unchanged.
-      boolean isCrosstab = assembly instanceof CrosstabVSAssembly;
       String measureKey = hasField && isCrosstab ?
          resolveCrosstabMeasureKey(lens, field, name) : null;
       Integer resolvedCol = hasField && !isCrosstab ? resolveColumnIndex(lens, field, name) : null;
@@ -2559,12 +2611,46 @@ public class ViewsheetFormatService {
             if(isBody && (measureKey == null || isMeasureBodyType(path.getType()) &&
                measureKey.equals(lastPathElement(path))))
             {
-               paths.add(path);
+               if(!hasCellPath) {
+                  paths.add(path);
+                  continue;
+               }
+
+               // Further scoped to one cell: match the row+column dimension-member tuple with
+               // the trailing measure element stripped (field, above, already picked the
+               // measure) -- see this method's own javadoc and CrossFilterDataDescriptor.
+               List<String> tuple = dimensionTuple(path);
+               cellPathCandidates.add(tuple.toString());
+
+               if(tuple.equals(cellPath)) {
+                  paths.add(path);
+               }
             }
          }
       }
 
+      if(hasCellPath && paths.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: no '" + field + "' cell on Crosstab '" + name + "' has the row/column " +
+            "tuple " + cellPath + ". " + (cellPathCandidates.isEmpty() ?
+            "No '" + field + "' cells are currently rendered." :
+            "Available tuples for '" + field + "': " +
+            String.join(", ", cellPathCandidates) + "."));
+      }
+
       return paths.toArray(new TableDataPath[0]);
+   }
+
+   /**
+    * A Crosstab body path's row+column dimension-member tuple -- {@code path.getPath()} with the
+    * trailing measure element ({@link #lastPathElement}) stripped, the same tuple {@code
+    * cellPath} is matched against. Empty (not null) for a true grand-total cell with no bound
+    * dimension on either side.
+    */
+   private static List<String> dimensionTuple(TableDataPath path) {
+      String[] parts = path.getPath();
+      return parts == null || parts.length == 0 ?
+         List.of() : Arrays.asList(parts).subList(0, parts.length - 1);
    }
 
    /**
