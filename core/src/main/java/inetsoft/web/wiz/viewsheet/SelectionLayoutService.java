@@ -19,11 +19,14 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.web.composer.vs.objects.controller.ComposerCurrentSelectionService;
 import inetsoft.web.composer.vs.objects.controller.ComposerVSSelectionListService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.event.VSObjectEvent;
@@ -66,6 +69,14 @@ import java.util.Map;
  *       siblings to fit when a child expands, and DELETES a target that has no container, so it is
  *       called only for a child of a container that is not already in the requested state;</li>
  *   <li>{@code expandAll}: a Selection Tree's persisted "expand all nodes" flag.</li>
+ *   <li>{@code titleRatio}: the fraction of a Selection Container's row width given to the
+ *       title label (the rest goes to the selected text). It is ONE value on the container,
+ *       shared by every filter in it and by its current-selection rows, written through
+ *       {@link ComposerCurrentSelectionService#setTitleRatio}. A child filter as the target is
+ *       resolved to its container. The service clamps it silently (min 0.05, max
+ *       (width - 50) / width of the container's base layout) and ignores NaN, so the value is
+ *       range-checked up front, re-read, and a clamp is reported as a warning. A Selection Tree
+ *       or Calendar child does not render the split at all.</li>
  * </ul>
  */
 @Service
@@ -74,13 +85,15 @@ public class SelectionLayoutService {
                                  ComposerVSSelectionListService selectionListService,
                                  VSSelectionContainerService containerService,
                                  VSObjectPropertyService propertyService,
-                                 VSObjectService objectService)
+                                 VSObjectService objectService,
+                                 ComposerCurrentSelectionService currentSelectionService)
    {
       this.sessions = sessions;
       this.selectionListService = selectionListService;
       this.containerService = containerService;
       this.propertyService = propertyService;
       this.objectService = objectService;
+      this.currentSelectionService = currentSelectionService;
    }
 
    /**
@@ -90,24 +103,29 @@ public class SelectionLayoutService {
     * @param collapsed        optional: collapse (true) or expand (false) a list or range slider
     *                         that is a child of a Selection Container.
     * @param expandAll        optional: a Selection Tree's expand-all flag (trees only).
+    * @param titleRatio       optional: the Selection Container's title / selected-text width
+    *                         fraction, strictly between 0 and 1. The target may be the container
+    *                         or a filter inside it.
     *
     * @return the post-write layout snapshot (see {@link #snapshot}) plus {@code warnings}.
     */
    public Map<String, Object> setLayout(String sessionToken, Principal user, String assemblyName,
                                         Number columnCount, Number measureTextWidth,
                                         Number measureBarWidth, Boolean collapsed,
-                                        Boolean expandAll, String linkUri)
+                                        Boolean expandAll, Number titleRatio, String linkUri)
       throws Exception
    {
       requireName(assemblyName);
 
       if(columnCount == null && measureTextWidth == null && measureBarWidth == null &&
-         collapsed == null && expandAll == null)
+         collapsed == null && expandAll == null && titleRatio == null)
       {
          throw new IllegalArgumentException(
             "Nothing to set — give at least one of 'columnCount', 'measureTextWidth', " +
-            "'measureBarWidth', 'collapsed', 'expandAll'.");
+            "'measureBarWidth', 'collapsed', 'expandAll', 'titleRatio'.");
       }
+
+      final Double ratio = titleRatio == null ? null : requireRatio(titleRatio);
 
       final Integer requestedCols = columnCount == null
          ? null : requireInt("columnCount", columnCount);
@@ -125,8 +143,9 @@ public class SelectionLayoutService {
 
       // Refuse before mutate(): a refused call inside it still costs an undo step and a revision.
       sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireWritable(assemblyName, resolve(rvs, assemblyName, collapsed != null),
-                         requestedCols, widths, collapsed, expandAll);
+         requireWritable(assemblyName,
+                         resolve(rvs, assemblyName, collapsed != null, ratio != null),
+                         requestedCols, widths, collapsed, expandAll, ratio);
          return null;
       });
 
@@ -134,8 +153,9 @@ public class SelectionLayoutService {
       final List<String> own = new ArrayList<>();
 
       List<String> captured = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         VSAssembly assembly = resolve(rvs, assemblyName, collapsed != null);
-         requireWritable(assemblyName, assembly, requestedCols, widths, collapsed, expandAll);
+         VSAssembly assembly = resolve(rvs, assemblyName, collapsed != null, ratio != null);
+         requireWritable(assemblyName, assembly, requestedCols, widths, collapsed, expandAll,
+                         ratio);
 
          if(requestedCols != null || widths) {
             SelectionBaseVSAssemblyInfo info =
@@ -186,6 +206,13 @@ public class SelectionLayoutService {
 
          if(expandAll != null) {
             applyExpandAll(rvs, assemblyName, assembly, expandAll, linkUri, user, dispatcher);
+         }
+
+         List<String> ratioAffects = null;
+
+         if(ratio != null) {
+            ratioAffects = applyTitleRatio(runtimeId, assemblyName, assembly, ratio, user,
+                                           dispatcher, own);
          }
 
          Boolean changed = null;
@@ -241,6 +268,11 @@ public class SelectionLayoutService {
          if(alsoCollapsed != null && !alsoCollapsed.isEmpty()) {
             result.put("alsoCollapsed", alsoCollapsed);
          }
+
+         if(ratioAffects != null) {
+            result.put("titleRatioContainer", containerOf(assembly).getAbsoluteName());
+            result.put("titleRatioAffects", ratioAffects);
+         }
       });
 
       List<String> warnings = new ArrayList<>(own);
@@ -259,7 +291,94 @@ public class SelectionLayoutService {
    {
       requireName(assemblyName);
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) ->
-         snapshot(assemblyName, resolve(rvs, assemblyName, false)));
+         snapshot(assemblyName, resolve(rvs, assemblyName, false, true)));
+   }
+
+   /**
+    * Writes the container's ratio through the Composer service, then re-reads it: that service
+    * clamps silently and returns null (no error) for a name that is not a container.
+    *
+    * @return what else the one container-wide value changes, for the response.
+    */
+   private List<String> applyTitleRatio(String runtimeId, String assemblyName,
+                                        VSAssembly assembly, double ratio, Principal user,
+                                        CommandDispatcher dispatcher, List<String> warnings)
+      throws Exception
+   {
+      CurrentSelectionVSAssembly container = containerOf(assembly);
+      String containerName = container.getAbsoluteName();
+      VSObjectEvent event = new VSObjectEvent();
+      event.setName(containerName);
+      currentSelectionService.setTitleRatio(runtimeId, ratio, event, user, dispatcher);
+
+      double now = storedRatio(container);
+
+      if(Double.isNaN(now)) {
+         throw new IllegalStateException(
+            "titleRatio is still unset on the Selection Container '" + containerName +
+            "' after the request to set it to " + ratio + "; the write was not applied.");
+      }
+
+      if(Math.abs(now - ratio) > 1e-9) {
+         warnings.add("titleRatio " + ratio + " was adjusted to " + now + ": the Composer keeps " +
+                      "it between 0.05 and (width - 50px) / width of the container's width in " +
+                      "the base layout (a container 50px wide or less is forced to 0.05).");
+      }
+
+      if(assembly instanceof SelectionTreeVSAssembly || assembly instanceof CalendarVSAssembly) {
+         warnings.add("'" + assemblyName + "' is a " +
+                      (assembly instanceof CalendarVSAssembly ? "Calendar" : "Selection Tree") +
+                      ", which does not show the title / selected-text split. The ratio is " +
+                      "stored on its container '" + containerName + "' and changes the other " +
+                      "filters in it and the current-selection rows.");
+      }
+
+      List<String> affects = new ArrayList<>();
+      String[] children = container.getAbsoluteAssemblies();
+
+      for(String child : children == null ? new String[0] : children) {
+         if(!child.equals(assemblyName)) {
+            affects.add(child);
+         }
+      }
+
+      affects.add("the current-selection rows of '" + containerName + "'");
+      return affects;
+   }
+
+   private static CurrentSelectionVSAssembly containerOf(VSAssembly assembly) {
+      if(assembly instanceof CurrentSelectionVSAssembly) {
+         return (CurrentSelectionVSAssembly) assembly;
+      }
+
+      VSAssembly container = assembly.getContainer();
+      return container instanceof CurrentSelectionVSAssembly
+         ? (CurrentSelectionVSAssembly) container : null;
+   }
+
+   /** The container's stored ratio, NaN when unset or unreadable. */
+   private static double storedRatio(CurrentSelectionVSAssembly container) {
+      VSAssemblyInfo info = container.getVSAssemblyInfo();
+      return info instanceof CurrentSelectionVSAssemblyInfo
+         ? ((CurrentSelectionVSAssemblyInfo) info).getTitleRatio() : Double.NaN;
+   }
+
+   /**
+    * {@code titleRatio} and {@code titleRatioSet} for a selection container or a filter inside
+    * one; the effective value is 0.5 where none is stored, as the renderers use.
+    */
+   private static void putRatio(Map<String, Object> out, VSAssembly assembly) {
+      CurrentSelectionVSAssembly container = containerOf(assembly);
+
+      if(container == null ||
+         !(container.getVSAssemblyInfo() instanceof CurrentSelectionVSAssemblyInfo))
+      {
+         return;
+      }
+
+      double stored = storedRatio(container);
+      out.put("titleRatio", Double.isNaN(stored) ? 0.5 : stored);
+      out.put("titleRatioSet", !Double.isNaN(stored));
    }
 
    private void applyExpandAll(RuntimeViewsheet rvs, String assemblyName, VSAssembly assembly,
@@ -296,9 +415,25 @@ public class SelectionLayoutService {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
 
+      if(assembly instanceof CurrentSelectionVSAssembly) {
+         out.put("type", "selection_container");
+         String[] children = ((CurrentSelectionVSAssembly) assembly).getAbsoluteAssemblies();
+         out.put("children", children == null ? List.of() : List.of(children));
+         putRatio(out, assembly);
+         return out;
+      }
+
+      if(assembly instanceof CalendarVSAssembly) {
+         out.put("type", "calendar");
+         putContainerState(out, assembly, false);
+         putRatio(out, assembly);
+         return out;
+      }
+
       if(assembly instanceof TimeSliderVSAssembly) {
          out.put("type", "range_slider");
          putContainerState(out, assembly);
+         putRatio(out, assembly);
          return out;
       }
 
@@ -309,10 +444,12 @@ public class SelectionLayoutService {
          out.put("columnCount", ((SelectionListVSAssemblyInfo) info).getColumnCount());
          out.put("valueCount", valueCount(assembly));
          putContainerState(out, assembly);
+         putRatio(out, assembly);
       }
       else {
          out.put("type", "selection_tree");
          out.put("expandAll", ((SelectionTreeVSAssemblyInfo) info).isExpandAll());
+         putRatio(out, assembly);
       }
 
       out.put("measureTextWidth", info.getMeasureSize());
@@ -324,10 +461,19 @@ public class SelectionLayoutService {
    }
 
    private void putContainerState(Map<String, Object> out, VSAssembly assembly) {
+      putContainerState(out, assembly, true);
+   }
+
+   private void putContainerState(Map<String, Object> out, VSAssembly assembly,
+                                  boolean withCollapsed)
+   {
       VSAssembly container = assembly.getContainer();
       boolean inContainer = container instanceof CurrentSelectionVSAssembly;
       out.put("inContainer", inContainer ? container.getAbsoluteName() : null);
-      out.put("collapsed", inContainer ? (Boolean) collapsedState(assembly) : null);
+
+      if(withCollapsed) {
+         out.put("collapsed", inContainer ? (Boolean) collapsedState(assembly) : null);
+      }
    }
 
    /**
@@ -370,13 +516,19 @@ public class SelectionLayoutService {
    }
 
    private static VSAssembly resolve(RuntimeViewsheet rvs, String assemblyName,
-                                     boolean forCollapse)
+                                     boolean forCollapse, boolean forRatio)
    {
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
       if(assembly == null) {
          throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
+      }
+
+      if(forRatio && (assembly instanceof CurrentSelectionVSAssembly ||
+                      assembly instanceof CalendarVSAssembly))
+      {
+         return assembly;
       }
 
       if(!(assembly instanceof SelectionListVSAssembly) &&
@@ -396,12 +548,18 @@ public class SelectionLayoutService {
 
    private static void requireWritable(String assemblyName, VSAssembly assembly,
                                        Integer requestedCols, boolean widths, Boolean collapsed,
-                                       Boolean expandAll)
+                                       Boolean expandAll, Double titleRatio)
    {
       if(assembly.getVSAssemblyInfo().isEmbedded()) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is embedded from another viewsheet and its layout cannot be " +
             "changed here. The change would not be saved; set it in the viewsheet that owns it.");
+      }
+
+      if(titleRatio != null) {
+         requireRatioTarget(assemblyName, assembly,
+                            requestedCols != null || widths || collapsed != null ||
+                            expandAll != null);
       }
 
       if(assembly instanceof TimeSliderVSAssembly &&
@@ -441,6 +599,58 @@ public class SelectionLayoutService {
       }
    }
 
+   /** Every titleRatio refusal, so that it is raised before mutate() costs an undo step. */
+   private static void requireRatioTarget(String assemblyName, VSAssembly assembly,
+                                          boolean otherSetters)
+   {
+      CurrentSelectionVSAssembly container = containerOf(assembly);
+
+      if(container == null) {
+         throw new IllegalArgumentException(
+            "'titleRatio' is the Selection Container's layout, and '" + assemblyName +
+            "' is not inside a Selection Container. Put it in one, or name the container.");
+      }
+
+      if(container.getVSAssemblyInfo().isEmbedded()) {
+         throw new IllegalArgumentException(
+            "The Selection Container '" + container.getAbsoluteName() + "' that holds '" +
+            assemblyName + "' is embedded from another viewsheet and its layout cannot be " +
+            "changed here. The change would not be saved; set it in the viewsheet that owns it.");
+      }
+
+      if(otherSetters &&
+         (assembly instanceof CurrentSelectionVSAssembly || assembly instanceof CalendarVSAssembly))
+      {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a " +
+            (assembly instanceof CalendarVSAssembly ? "Calendar" : "Selection Container") +
+            "; only 'titleRatio' applies to it. 'columnCount', 'measureTextWidth', " +
+            "'measureBarWidth', 'collapsed' and 'expandAll' are for the filters inside it.");
+      }
+   }
+
+   private static double requireRatio(Number value) {
+      double d = value.doubleValue();
+
+      if(Double.isNaN(d) || Double.isInfinite(d)) {
+         throw new IllegalArgumentException(
+            "'titleRatio' must be a finite fraction strictly between 0 and 1, got " + value + ".");
+      }
+
+      if(d > 1) {
+         throw new IllegalArgumentException(
+            "'titleRatio' is a fraction, not a percentage: " + value + " looks like a percent. " +
+            "Give a value strictly between 0 and 1, e.g. 0.3 for a 30% title.");
+      }
+
+      if(d <= 0 || d >= 1) {
+         throw new IllegalArgumentException(
+            "'titleRatio' must be strictly between 0 and 1, got " + value + ".");
+      }
+
+      return d;
+   }
+
    private static void requireName(String assemblyName) {
       if(assemblyName == null || assemblyName.isBlank()) {
          throw new IllegalArgumentException(
@@ -476,4 +686,5 @@ public class SelectionLayoutService {
    private final VSSelectionContainerService containerService;
    private final VSObjectPropertyService propertyService;
    private final VSObjectService objectService;
+   private final ComposerCurrentSelectionService currentSelectionService;
 }
