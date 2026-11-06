@@ -124,7 +124,7 @@
           </split-pane>
         </div>
         <div class="right-container ps-2 split">
-          <div class="right-binding-container">
+          <div class="right-binding-container" [class.has-status-bar]="isVS">
             <div class="right-top-container">
               @if (bindingType == 'chart') {
                 <chart-data-pane
@@ -157,10 +157,10 @@
             @if (isVS) {
               <div class="status-bar">
                 <status-bar>
-                  <div class="d-flex align-items-end status-bar-component" status-bar-component>
-                    <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap"
+                  <div class="d-flex align-items-center status-bar-component" status-bar-component>
+                    <button type="button" class="btn btn-sm btn-default rounded-pill me-1 text-nowrap"
                       (click)="openConsoleDialog()">
-                      _#(Console) <span class="badge console-count-badge">{{consoleMessages ? consoleMessages.length : 0}}</span>
+                      _#(Console) <span class="badge console-count-badge ms-2">{{consoleMessages ? consoleMessages.length : 0}}</span>
                     </button>
                   </div>
                 </status-bar>

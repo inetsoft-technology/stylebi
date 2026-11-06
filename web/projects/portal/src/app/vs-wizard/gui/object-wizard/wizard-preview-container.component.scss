@@ -50,18 +50,33 @@
       height: calc(100% - 200px);
    }
 
+   // dedicated bottom lane for the status bar / Console pill
+   box-sizing: border-box;
+   padding-bottom: 44px;
+
    .status-bar {
       position: absolute;
-      right: 75px;
-      bottom: 20px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 44px;
+
+      ::ng-deep .status-bar {
+         height: 100%;
+      }
    }
 
    .status-bar-component {
+      height: 100%;
       justify-content: flex-end;
    }
 
    .console-count-badge {
-      color: var(--inet-button-light-text-color);
-      background-color: var(--inet-button-light-bg-color);
+      color: var(--inet-text-muted-color);
+      background-color: var(--inet-shell-surface-hover);
+      // match the "Console" label's size and baseline, same as the composer main editor
+      font-size: inherit;
+      vertical-align: baseline;
+      top: 0;
    }
 }
