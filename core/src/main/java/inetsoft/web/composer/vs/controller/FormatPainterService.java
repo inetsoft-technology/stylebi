@@ -1348,7 +1348,7 @@ public class FormatPainterService {
       }
 
       if(!Tool.equals(presenter, opresenter) || reset) {
-         if(presenter == null) {
+         if(presenter == null || presenter.isEmpty()) {
             userFormat.setPresenterValue(null, !reset);
          }
          else {
