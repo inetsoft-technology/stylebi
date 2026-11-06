@@ -1118,6 +1118,7 @@ public class DateComparisonUtil {
 
       cal.setTime(date);
       int refYear = cal.get(Calendar.YEAR);
+      boolean weekOfMonthPart = false;
       List<XDimensionRef> mergedRefs = cell.getMergedRefs();
 
       for(int i = 0; i < mergedRefs.size(); i++) {
@@ -1148,6 +1149,7 @@ public class DateComparisonUtil {
             }
             else if(mergedRef.getFullName().startsWith("WeekOfMonth(")) {
                cal.set(Calendar.WEEK_OF_MONTH, value);
+               weekOfMonthPart = true;
                cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
             }
             else if(mergedRef.getFullName().startsWith("WeekOfYear(")) {
@@ -1167,6 +1169,7 @@ public class DateComparisonUtil {
                   // @see JavaScriptEngine.datePart().
                   cal.set(Calendar.MONTH, value / 10 - 1);
                   cal.set(Calendar.WEEK_OF_MONTH, value % 10);
+                  weekOfMonthPart = true;
                   cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
                }
             }
@@ -1207,7 +1210,10 @@ public class DateComparisonUtil {
       if(cal.get(Calendar.YEAR) < refYear) {
          cal.add(Calendar.DATE, 7);
       }
-      else if(cal.get(Calendar.YEAR) > refYear) {
+      else if(cal.get(Calendar.YEAR) > refYear && !weekOfMonthPart) {
+         // a week of month that a month lacks rolls into the next month, and for December into
+         // the next year (week 5 of December 2020 starts 2021-01-03); that is its real start
+         // (Bug #79149), unlike a sequential week number that overshoots the year
          cal.add(Calendar.DATE, -7);
       }
 
