@@ -1170,7 +1170,70 @@ public final class TableBindingMutator {
          out.add(ref);
       }
 
+      if(carried == null) {
+         noteResetCalculators(fields, previous, out);
+      }
+
       return out;
+   }
+
+   /**
+    * A wholesale replace that changes a measure's formula leaves the new measure with no
+    * calculator, because matching is by (column, formula) and the old calculator has no
+    * counterpart to copy from. That reset is the documented contract, but it was silent: say so,
+    * so a caller who changed Sum to Average does not read plain averages as a percentage.
+    *
+    * <p>A previous calculator-bearing (column, formula) that no new aggregate still binds is
+    * paired, per column and in order, with a fresh same-column aggregate that supplied neither
+    * calculateInfo nor an explicit null (the caller named nothing, so the loss is theirs to be
+    * told about). Multi-argument and dynamic formulas are included; only the wording differs.
+    * A calculator that vanishes with no same-column replacement (a removed measure), or a second
+    * vanished calculator with only one fresh aggregate, is not reported here.
+    * Bug #80339.
+    */
+   private static void noteResetCalculators(List<FieldRef> fields,
+                                            List<BAggregateRefModel> previous,
+                                            List<BAggregateRefModel> out)
+   {
+      List<Integer> fresh = new ArrayList<>();
+
+      for(int i = 0; i < out.size(); i++) {
+         BAggregateRefModel agg = out.get(i);
+         FieldRef field = fields.get(i);
+
+         if(field.calculateInfo() == null && !field.clearsCalculateInfo() &&
+            previous.stream().noneMatch(p -> sameAggregate(p, agg)))
+         {
+            fresh.add(i);
+         }
+      }
+
+      for(BAggregateRefModel old : previous) {
+         if(old.getCalculateInfo() == null ||
+            out.stream().anyMatch(a -> sameAggregate(old, a)))
+         {
+            continue;
+         }
+
+         for(int j = 0; j < fresh.size(); j++) {
+            int at = fresh.get(j);
+
+            if(!columnOf(out.get(at)).equalsIgnoreCase(columnOf(old))) {
+               continue;
+            }
+
+            fresh.remove(j);
+            String raw = fields.get(at).aggregate();
+            String change = raw == null
+               ? "to the default formula, which this write did not name"
+               : "to " + raw;
+            notes().add(NOTE_PREFIX + "the calculator on '" + columnOf(old) + "' (" +
+               calculatorName(old.getCalculateInfo()) + ") was removed, because its formula " +
+               "changed from " + old.getFormula() + " " + change + " and this write did not " +
+               "name calculateInfo. Send calculateInfo to set one.");
+            break;
+         }
+      }
    }
 
    /** Whether {@code previous} is the same occurrence of the same measure as {@code field}. */
