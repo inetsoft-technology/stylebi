@@ -61,8 +61,9 @@
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import { ViewsheetScriptPane } from "./viewsheet-script-pane.component";
+import { ViewsheetCommandMessage } from "../../../common/viewsheet-client";
 import { ViewsheetScriptPaneModel } from "../../data/vs/viewsheet-script-pane-model";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { CodemirrorService } from "../../../../../../shared/util/codemirror/codemirror.service";
@@ -70,6 +71,7 @@ import { HelpUrlService } from "../../../widget/help-link/help-url.service";
 import { ScriptSettingsService } from "../../../widget/dialog/script-pane/script-settings.service";
 import { FormulaFunctionAnalyzerService } from "../../../widget/dialog/script-pane/formula-function-analyzer.service";
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
+import { FollowFocusService } from "../../gui/wiz/services/follow-focus.service";
 
 // ---------------------------------------------------------------------------
 // Shared mock infrastructure
@@ -150,6 +152,47 @@ async function renderComponent(modelOverrides: Partial<ViewsheetScriptPaneModel>
       },
    });
    return { comp: fixture.componentInstance as ViewsheetScriptPane, fixture };
+}
+
+async function renderComponentWithSocket(
+   modelOverrides: Partial<ViewsheetScriptPaneModel> = {})
+{
+   const commands = new Subject<ViewsheetCommandMessage>();
+   // whenConnected() is required by the embedded <script-pane>'s own ConnectToClaudeComponent
+   // (rendered once [runtimeId]/[socketConnection] are both set) -- a never-emitting Subject is
+   // enough since this file isn't testing pairing/join behavior.
+   const socketConnection: any = { commands, whenConnected: () => new Subject() };
+   const { fixture } = await render(ViewsheetScriptPane, {
+      schemas: [NO_ERRORS_SCHEMA],
+      providers: [
+         { provide: UIContextService, useValue: uiContextServiceMock },
+         { provide: CodemirrorService, useValue: codemirrorServiceMock },
+         { provide: HelpUrlService, useValue: { getScriptHelpUrl: () => of("") } },
+         { provide: ScriptSettingsService, useValue: { isCursorTop: () => of(false) } },
+         { provide: FormulaFunctionAnalyzerService, useValue: analyzerServiceMock },
+         // The embedded <script-pane> (a real ScriptPane instance) pushes Follow Focus in its
+         // own ngOnInit when FollowFocusService.isEnabled() is true. FollowFocusService is
+         // providedIn: 'root', so without this override it is the real singleton, whose state
+         // can leak across tests/files (bug caught by this exact test: a prior test enabling
+         // Follow Focus for "Viewsheet1" made this one call the mock socketConnection's
+         // nonexistent whenConnected()). Mocked disabled here since this file is testing
+         // ViewsheetScriptPane's own agent-refresh subscription, not Follow Focus.
+         { provide: FollowFocusService, useValue: {
+            isEnabled: () => false, setEnabled: () => {}, pushFocus: () => false, popFocus: () => {},
+         } },
+      ],
+      componentInputs: {
+         model: createModel(modelOverrides),
+         scriptTreeModel: createTreeModel(),
+         runtimeId: "Viewsheet1",
+         socketConnection,
+      },
+   });
+   return { comp: fixture.componentInstance as ViewsheetScriptPane, fixture, commands };
+}
+
+function agentScriptCommand(kind: string, text: string): ViewsheetCommandMessage {
+   return new ViewsheetCommandMessage(null, "RefreshAgentScriptCommand", { kind, text } as any);
 }
 
 beforeEach(() => {
@@ -381,5 +424,70 @@ describe("ViewsheetScriptPane — onExpressionChange with node", () => {
       });
       // "my param" is not a JS identifier → parameter['my param']
       expect(comp.model.onInit).toContain("parameter");
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 5: agent script live-refresh (bug #80447 symptom 1) [Risk 3]
+// ---------------------------------------------------------------------------
+
+describe("ViewsheetScriptPane — agent script live-refresh (bug #80447)", () => {
+   it("applies an onInit push when the human has not edited the field", async () => {
+      const { comp, commands } = await renderComponentWithSocket({ onInit: "old();", onLoad: "" });
+      comp.initScriptVisible = true;
+
+      commands.next(agentScriptCommand("viewsheetOnInit", "new();"));
+
+      expect(comp.model.onInit).toBe("new();");
+      expect(comp.staleScript).toBeNull();
+   });
+
+   it("applies an onLoad push without touching onInit", async () => {
+      const { comp, commands } = await renderComponentWithSocket({ onInit: "init();", onLoad: "old();" });
+
+      commands.next(agentScriptCommand("viewsheetOnLoad", "new();"));
+
+      expect(comp.model.onLoad).toBe("new();");
+      expect(comp.model.onInit).toBe("init();");
+   });
+
+   it("defers (does not clobber) when the human has typed since this dialog opened", async () => {
+      const { comp, commands } = await renderComponentWithSocket({ onInit: "old();", onLoad: "" });
+      comp.model.onInit = "old(); // my local edit";
+
+      commands.next(agentScriptCommand("viewsheetOnInit", "new();"));
+
+      expect(comp.model.onInit).toBe("old(); // my local edit");
+      expect(comp.staleScript).toEqual({ field: "onInit", text: "new();" });
+   });
+
+   it("reloadStaleScript() applies the deferred push and clears the stale flag", async () => {
+      const { comp, commands } = await renderComponentWithSocket({ onInit: "old();", onLoad: "" });
+      comp.model.onInit = "old(); // my local edit";
+      commands.next(agentScriptCommand("viewsheetOnInit", "new();"));
+
+      comp.reloadStaleScript();
+
+      expect(comp.model.onInit).toBe("new();");
+      expect(comp.staleScript).toBeNull();
+   });
+
+   it("ignores a push for a location this dialog is not editing", async () => {
+      const { comp, commands } = await renderComponentWithSocket({ onInit: "init();", onLoad: "load();" });
+
+      commands.next(agentScriptCommand("calcField", "irrelevant();"));
+
+      expect(comp.model.onInit).toBe("init();");
+      expect(comp.model.onLoad).toBe("load();");
+      expect(comp.staleScript).toBeNull();
+   });
+
+   it("unsubscribes on destroy so a later push is a no-op", async () => {
+      const { comp, fixture, commands } = await renderComponentWithSocket({ onInit: "init();", onLoad: "" });
+      fixture.destroy();
+
+      commands.next(agentScriptCommand("viewsheetOnInit", "new();"));
+
+      expect(comp.model.onInit).toBe("init();");
    });
 });

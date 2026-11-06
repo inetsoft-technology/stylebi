@@ -235,6 +235,24 @@ public class ViewsheetSessionService {
    }
 
    /**
+    * Pushes the just-written text of a script/calc-field expression to the browser holding
+    * {@code rvs}'s paired session -- see {@code SheetAgentBroadcastService.broadcastScriptRefresh}
+    * (which this delegates to verbatim) for the full rationale and the client-side clobber guard
+    * it depends on.
+    *
+    * <p>A thin pass-through rather than folding this into {@link #mutate} itself: unlike the
+    * unconditional per-mutation {@code broadcastRefresh} call {@link #mutate}'s own
+    * {@code finally} block already makes, this one needs the written target's identity
+    * (kind/assembly/name) and new text, which only the caller's mutation lambda -- not this
+    * generic method -- knows. {@code CalcFieldAgentService.modify} is the one caller today.
+    */
+   public void broadcastScriptRefresh(RuntimeViewsheet rvs, String runtimeId, Principal agent,
+                                      String kind, String assembly, String name, String text)
+   {
+      broadcast.broadcastScriptRefresh(rvs, runtimeId, agent, kind, assembly, name, text);
+   }
+
+   /**
     * Adds the messages {@link #mutate} returned to a response under {@code "warnings"}, the
     * field every warning-relaying wiz endpoint uses. Leaves the response untouched when there
     * are none, so an unwarned call reads exactly as it did before.

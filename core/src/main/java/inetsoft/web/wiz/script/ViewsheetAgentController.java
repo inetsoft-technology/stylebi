@@ -217,7 +217,7 @@ public class ViewsheetAgentController {
       editService.apply(sessionToken, user, rvs -> {
          ScriptTarget t = target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
          requirePaneScope(sessionToken, user, t);
-         editService.write(rvs, t, req.text());
+         editService.write(rvs, user, t, req.text());
       });
    }
 

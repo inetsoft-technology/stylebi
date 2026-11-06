@@ -17,6 +17,13 @@
 -->
 @if (model) {
   <div class="modal-body pb-0">
+    @if (staleScript && ((staleScript.field === "onInit") === initScriptVisible)) {
+      <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <span>_#(An agent changed this script; your unsaved edits were kept.)</span>
+        <button type="button" class="btn btn-sm btn-outline-warning"
+          (click)="reloadStaleScript()">_#(Reload)</button>
+      </div>
+    }
     <script-pane
       [expression]="initScriptVisible ? model.onInit : model.onLoad"
       [columnTreeRoot]="scriptTreeModel.columnTree" [preventEscape]="true"

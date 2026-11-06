@@ -15,14 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnInit, Input } from "@angular/core";
+import { Component, OnInit, OnDestroy, Input } from "@angular/core";
+import { Subscription } from "rxjs";
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
 import { ScriptTreeNodeData } from "../../../widget/formula-editor/script-tree-node-data";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ViewsheetScriptPaneModel } from "../../data/vs/viewsheet-script-pane-model";
-import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ViewsheetClientService, ViewsheetCommandMessage } from "../../../common/viewsheet-client";
 import { EditorContext } from "../../gui/wiz/editor-context";
+import { matchesAgentScriptRefresh, shouldApplyAgentScriptPush } from "../../gui/wiz/agent-script-refresh";
+import { RefreshAgentScriptCommand } from "../../../vsobjects/command/refresh-agent-script-command";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -37,13 +40,28 @@ import { FormsModule } from "@angular/forms";
     FormsModule
 ]
 })
-export class ViewsheetScriptPane implements OnInit {
+export class ViewsheetScriptPane implements OnInit, OnDestroy {
    @Input() model: ViewsheetScriptPaneModel;
    @Input() scriptTreeModel: ScriptPaneTreeModel;
    @Input() runtimeId: string;
    @Input() socketConnection: ViewsheetClientService;
    cursor: {line: number, ch: number};
    initScriptVisible = false;
+
+   /**
+    * Set when a `RefreshAgentScriptCommand` arrives for a script this dialog has displayed with
+    * local, unapplied edits -- i.e. applying it would silently overwrite text the human typed
+    * since this dialog opened or since the last push. Holds the field the push was for and the
+    * text it carried; `reloadStaleScript()` is the explicit, human-driven way to accept it
+    * anyway. See `shouldApplyAgentScriptPush`'s own doc for the exact guard logic. */
+   staleScript: { field: "onInit" | "onLoad", text: string } | null = null;
+
+   /** The text last known to match the server for each field -- set at open and whenever a push
+    *  is actually applied. Compared against the live model to detect a local, unsaved edit;
+    *  never updated by the human simply typing. */
+   private lastKnownOnInit: string;
+   private lastKnownOnLoad: string;
+   private commandSubscription: Subscription;
 
    constructor(private uiContextService: UIContextService) {
    }
@@ -66,6 +84,78 @@ export class ViewsheetScriptPane implements OnInit {
          this.initScriptVisible =
             this.uiContextService.getDefaultTab("vs.onInit", "true") == "true";
       }
+
+      this.lastKnownOnInit = this.model.onInit;
+      this.lastKnownOnLoad = this.model.onLoad;
+
+      if(this.socketConnection?.commands) {
+         this.commandSubscription = this.socketConnection.commands.subscribe(
+            (message: ViewsheetCommandMessage) => {
+               if(message.type === "RefreshAgentScriptCommand") {
+                  this.onAgentScriptRefresh(message.command as RefreshAgentScriptCommand);
+               }
+            });
+      }
+   }
+
+   ngOnDestroy(): void {
+      this.commandSubscription?.unsubscribe();
+   }
+
+   /**
+    * Applies (or, if the human has an unsaved local edit, defers) an agent's just-written
+    * onInit/onLoad text. `RefreshAgentScriptCommand` has no `assembly`/`name` for either kind, so
+    * matching is by `kind` alone -- `matchesAgentScriptRefresh` still runs, against a per-kind
+    * `EditorContext`, for the one actual check that matters here: kind equality.
+    */
+   private onAgentScriptRefresh(command: RefreshAgentScriptCommand): void {
+      if(matchesAgentScriptRefresh(command, { kind: "viewsheetOnInit" })) {
+         this.applyAgentPush("onInit", command.text);
+      }
+      else if(matchesAgentScriptRefresh(command, { kind: "viewsheetOnLoad" })) {
+         this.applyAgentPush("onLoad", command.text);
+      }
+   }
+
+   private applyAgentPush(field: "onInit" | "onLoad", text: string): void {
+      const lastKnown = field === "onInit" ? this.lastKnownOnInit : this.lastKnownOnLoad;
+
+      if(!shouldApplyAgentScriptPush(this.model[field], lastKnown)) {
+         this.staleScript = { field, text };
+         return;
+      }
+
+      this.model[field] = text;
+
+      if(field === "onInit") {
+         this.lastKnownOnInit = text;
+      }
+      else {
+         this.lastKnownOnLoad = text;
+      }
+
+      if(this.staleScript?.field === field) {
+         this.staleScript = null;
+      }
+   }
+
+   /** The human's explicit choice to accept a deferred push, discarding their own local edit. */
+   reloadStaleScript(): void {
+      if(!this.staleScript) {
+         return;
+      }
+
+      const { field, text } = this.staleScript;
+      this.model[field] = text;
+
+      if(field === "onInit") {
+         this.lastKnownOnInit = text;
+      }
+      else {
+         this.lastKnownOnLoad = text;
+      }
+
+      this.staleScript = null;
    }
 
    onInitClicked() {

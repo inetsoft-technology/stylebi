@@ -34,6 +34,7 @@ import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
 import inetsoft.web.composer.ws.command.SetAgentActiveCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
+import inetsoft.web.viewsheet.command.RefreshAgentScriptCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.command.SetViewsheetInfoCommand;
@@ -257,6 +258,58 @@ public class SheetAgentBroadcastService {
       }
       catch(Exception e) {
          LOG.warn("Failed to build/send viewsheet info refresh (runtimeId={})", runtimeId, e);
+      }
+   }
+
+   /**
+    * Push the just-written text of a script/calc-field expression to the browser holding this
+    * runtime's paired session, so an already-open {@code ViewsheetScriptPane}/
+    * {@code FormulaEditorDialog} editing that EXACT location can refresh its own display --
+    * see {@link RefreshAgentScriptCommand}'s own javadoc for the client-side clobber guard this
+    * depends on.
+    *
+    * <p>Extends the same unsolicited, runtime-id-keyed addressing {@link #broadcastBindingTreeRefresh}/
+    * {@link #broadcastViewsheetInfoRefresh} already use, rather than inventing a new push
+    * architecture -- but unlike those two (read-only tree/status chip, safe to apply
+    * unconditionally), this targets EDITABLE dialog state, which is exactly why it is the CLIENT
+    * that decides whether applying it would clobber an unsaved human edit, not this method.
+    *
+    * <p>Callers must not let a failure here fail the mutation that already succeeded -- same
+    * contract as {@link #broadcastBindingTreeRefresh}/{@link #broadcastViewsheetInfoRefresh}.
+    *
+    * @param kind     the script location's wire kind (e.g. {@code "viewsheetOnInit"},
+    *                 {@code "calcField"} -- mirrors {@code ScriptTarget.Kind.wireName()})
+    * @param assembly the assembly name, or -- for {@code calcField} -- the table the field
+    *                 belongs to; {@code null} for a kind with neither
+    * @param name     the calc field's own name; {@code null} for a kind with no third component
+    * @param text     the new script/expression text, as just written
+    */
+   public void broadcastScriptRefresh(RuntimeSheet rs, String runtimeId, Principal owner,
+                                      String kind, String assembly, String name, String text)
+   {
+      String sessionId = rs.getSocketSessionId();
+
+      if(sessionId == null) {
+         return;
+      }
+
+      String user = rs.getSocketUserName();
+
+      if(user == null) {
+         user = owner == null ? null : owner.getName();
+      }
+
+      try {
+         RefreshAgentScriptCommand command = new RefreshAgentScriptCommand();
+         command.setKind(kind);
+         command.setAssembly(assembly);
+         command.setName(name);
+         command.setText(text);
+         sendCommand(user, sessionId, runtimeId, command);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to build/send agent script refresh (runtimeId={}, kind={})",
+                  runtimeId, kind, e);
       }
    }
 
