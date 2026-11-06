@@ -42,9 +42,11 @@ import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.BorderColors;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
+import inetsoft.uql.viewsheet.RadioButtonVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
@@ -60,6 +62,7 @@ import inetsoft.uql.viewsheet.graph.RadarChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.InputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionBaseVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
@@ -736,6 +739,195 @@ public class ViewsheetFormatService {
       }
    }
 
+   private static boolean isChartRegionTarget(String target) {
+      return AXIS_LABEL.equals(target) || AXIS_LABEL2.equals(target) ||
+         LEGEND_TITLE_TARGET.equals(target) || LEGEND_CONTENT_TARGET.equals(target) ||
+         PLOT_LABEL.equals(target);
+   }
+
+   /** The {@code camelCase} name a caller wrote for one of {@link #isChartRegionTarget}'s targets. */
+   private static String chartRegionDisplayName(String target) {
+      if(AXIS_LABEL.equals(target)) {
+         return "axisLabel";
+      }
+
+      if(AXIS_LABEL2.equals(target)) {
+         return "axisLabel2";
+      }
+
+      if(LEGEND_TITLE_TARGET.equals(target)) {
+         return "legendTitle";
+      }
+
+      if(LEGEND_CONTENT_TARGET.equals(target)) {
+         return "legendContent";
+      }
+
+      return "plotLabel";
+   }
+
+   /**
+    * The {@link ChartFormatConstants} region {@code isChartRegionTarget}'s target writes to --
+    * {@code axisLabel}/{@code axisLabel2} are the primary/secondary value axis's tick-label
+    * region (not the axis title, a separate region set_chart_region_properties already covers).
+    */
+   private static String chartRegionConstant(String target) {
+      if(AXIS_LABEL.equals(target)) {
+         return ChartFormatConstants.LEFT_Y_AXIS;
+      }
+
+      if(AXIS_LABEL2.equals(target)) {
+         return ChartFormatConstants.RIGHT_Y_AXIS;
+      }
+
+      if(LEGEND_TITLE_TARGET.equals(target)) {
+         return ChartFormatConstants.LEGEND_TITLE;
+      }
+
+      if(LEGEND_CONTENT_TARGET.equals(target)) {
+         return ChartFormatConstants.LEGEND_CONTENT;
+      }
+
+      return ChartFormatConstants.PLOT_AREA;
+   }
+
+   /**
+    * Refuses a chart-region target ({@code axisLabel}, {@code axisLabel2}, {@code legendTitle},
+    * {@code legendContent}, {@code plotLabel}) for an assembly that is not a chart, which the
+    * per-chart painter would otherwise cast unguarded -- same reasoning as
+    * {@link #refuseTextOnNonChart}. Fails open only when the viewsheet cannot be resolved.
+    */
+   private static void refuseChartRegionTargetOnNonChart(Viewsheet viewsheet, List<String> names,
+                                                         String target)
+   {
+      if(viewsheet == null) {
+         return;
+      }
+
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet.getAssembly(name);
+
+         if(!(assembly instanceof ChartVSAssembly)) {
+            offenders.add("'" + name + "' is " +
+                          (assembly == null ? "not found" : assembly.getClass().getSimpleName()));
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target '" + chartRegionDisplayName(target) + "' only applies to a " +
+            "chart; " + String.join("; ", offenders) + ". The request was not applied.");
+      }
+   }
+
+   /**
+    * Refuses {@code axisLabel2} for a chart with no secondary (right) Y-axis configured -- most
+    * charts never set a measure's {@code secondaryY}, so this is the common case, not an edge one.
+    * Without this, {@code FormatPainterService.getChartRegionFormat}'s {@code RIGHT_Y_AXIS} branch
+    * reaches {@code ChartRegionHandler.getAxisColumnName}, which has no null guard for an absent
+    * axis area and throws an unhandled NullPointerException (bug #80443 follow-up).
+    *
+    * <p>Reuses {@link ChartRegionResolver}, the same binding+graph answer
+    * {@code set_chart_region_properties}'s own {@code y2} target already refuses against, rather
+    * than a second, parallel notion of "does this chart have a secondary axis".
+    */
+   private static void refuseAxisLabel2WithoutSecondaryAxis(RuntimeViewsheet rvs,
+                                                             List<String> names)
+   {
+      if(rvs == null) {
+         return;
+      }
+
+      Viewsheet viewsheet = rvs.getViewsheet();
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+         if(!(assembly instanceof ChartVSAssembly chart)) {
+            // Not a chart at all -- already refused by refuseChartRegionTargetOnNonChart.
+            continue;
+         }
+
+         ChartRegionResolver.Axes axes = ChartRegionResolver.resolve(rvs, chart);
+
+         if(!axes.has("y2")) {
+            offenders.add("'" + name + "' has " + (axes.ordered().isEmpty()
+               ? "no axes at all"
+               : "only: " + String.join(", ", axes.ordered())));
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'axisLabel2' requires a secondary (right) Y-axis; " +
+            String.join("; ", offenders) + ". A secondary axis exists only when a measure uses " +
+            "the secondary axis, or the engine created one (date comparison, percent scale). " +
+            "Use 'axisLabel' for the primary axis, or configure a secondary axis first.");
+      }
+   }
+
+   /**
+    * {@code optionText} writes the one detail-row format path a CheckBox/RadioButton's option
+    * labels all share today; any other assembly has no such path.
+    */
+   private static void refuseOptionTextOnNonOption(Viewsheet viewsheet, List<String> names) {
+      if(viewsheet == null) {
+         return;
+      }
+
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet.getAssembly(name);
+
+         if(!(assembly instanceof CheckBoxVSAssembly) &&
+            !(assembly instanceof RadioButtonVSAssembly))
+         {
+            offenders.add("'" + name + "' is " +
+                          (assembly == null ? "not found" : assembly.getClass().getSimpleName()));
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'optionText' only applies to a CheckBox or RadioButton; " +
+            String.join("; ", offenders) + ". The request was not applied.");
+      }
+   }
+
+   /**
+    * {@code inputLabel} writes to {@link InputVSAssemblyInfo#getLabelInfo()}, which only an
+    * {@code InputVSAssemblyInfo}-backed assembly (Text Input, Combo Box, Check Box, Radio
+    * Button, Slider, Spinner) has.
+    */
+   private static void refuseInputLabelOnNonInput(Viewsheet viewsheet, List<String> names) {
+      if(viewsheet == null) {
+         return;
+      }
+
+      List<String> offenders = new ArrayList<>();
+
+      for(String name : names) {
+         VSAssembly assembly = viewsheet.getAssembly(name);
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+
+         if(!(info instanceof InputVSAssemblyInfo)) {
+            offenders.add("'" + name + "' is " +
+                          (assembly == null ? "not found" : assembly.getClass().getSimpleName()));
+         }
+      }
+
+      if(!offenders.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'inputLabel' only applies to a Text Input, Combo Box, Check " +
+            "Box, Radio Button, Slider or Spinner; " + String.join("; ", offenders) +
+            ". The request was not applied.");
+      }
+   }
+
    private static final List<String> BORDER_STYLES =
       List.of("borderTopStyle", "borderLeftStyle", "borderBottomStyle", "borderRightStyle");
 
@@ -753,6 +945,22 @@ public class ViewsheetFormatService {
    private static final String VIEWSHEET = "viewsheet";
    /** Normalized (lower-cased) form of target {@code activeTab}, see requireTarget. */
    private static final String ACTIVE_TAB = "activetab";
+   /** Normalized (lower-cased) form of target {@code axisLabel}, see requireTarget. */
+   private static final String AXIS_LABEL = "axislabel";
+   /** Normalized (lower-cased) form of target {@code axisLabel2}, see requireTarget. */
+   private static final String AXIS_LABEL2 = "axislabel2";
+   /** Normalized (lower-cased) form of target {@code legendTitle}, see requireTarget. */
+   private static final String LEGEND_TITLE_TARGET = "legendtitle";
+   /** Normalized (lower-cased) form of target {@code legendContent}, see requireTarget. */
+   private static final String LEGEND_CONTENT_TARGET = "legendcontent";
+   /** Normalized (lower-cased) form of target {@code plotLabel}, see requireTarget. */
+   private static final String PLOT_LABEL = "plotlabel";
+   /** Normalized (lower-cased) form of target {@code optionText}, see requireTarget. */
+   private static final String OPTION_TEXT = "optiontext";
+   /** Normalized (lower-cased) form of target {@code inputLabel}, see requireTarget. */
+   private static final String INPUT_LABEL_TARGET = "inputlabel";
+   /** Normalized (lower-cased) form of target {@code measureBarNegative}, see isSelectionRegionTarget. */
+   private static final String MEASURE_BAR_NEGATIVE = "measurebarnegative";
 
    /**
     * What a {@code set_format} call reports back.
@@ -815,7 +1023,9 @@ public class ViewsheetFormatService {
       }
 
       if("object".equals(target) || "title".equals(target) || isCalendarTarget(target) ||
-         isSelectionRegionTarget(target) || ACTIVE_TAB.equals(target))
+         isSelectionRegionTarget(target) || ACTIVE_TAB.equals(target) ||
+         isChartRegionTarget(target) || OPTION_TEXT.equals(target) ||
+         INPUT_LABEL_TARGET.equals(target))
       {
          requireKnownAssemblies(sessionToken, user, request.assemblies());
       }
@@ -830,6 +1040,28 @@ public class ViewsheetFormatService {
          RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
          refuseCalendarTargetOnNonCalendar(resolved == null ? null : resolved.getViewsheet(),
                                            request.assemblies(), target);
+      }
+
+      if(isChartRegionTarget(target)) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         refuseChartRegionTargetOnNonChart(resolved == null ? null : resolved.getViewsheet(),
+                                           request.assemblies(), target);
+
+         if(AXIS_LABEL2.equals(target)) {
+            refuseAxisLabel2WithoutSecondaryAxis(resolved, request.assemblies());
+         }
+      }
+
+      if(OPTION_TEXT.equals(target)) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         refuseOptionTextOnNonOption(resolved == null ? null : resolved.getViewsheet(),
+                                     request.assemblies());
+      }
+
+      if(INPUT_LABEL_TARGET.equals(target)) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         refuseInputLabelOnNonInput(resolved == null ? null : resolved.getViewsheet(),
+                                    request.assemblies());
       }
 
       // Binding-only refusals run against a read-only resolve, before mutate: a refused request
@@ -891,6 +1123,25 @@ public class ViewsheetFormatService {
             event.setRegions(new String[]{ ChartFormatConstants.TEXT });
             event.setColumnNames(new String[][]{ { request.field() } });
             event.setIndexes(new int[][]{ { -1 } });
+         }
+         else if(isChartRegionTarget(target)) {
+            // Same per-chart-region route as "text" above, but for a whole axis/legend/plot-
+            // label region rather than one aesthetic-bound field. A dummy non-empty
+            // columnNames[i] keeps FormatPainterService's outer dispatch from treating an axis
+            // or plot-area region with no column name as "format the whole chart" (its bulk-
+            // overwrite route); indexes[i] == null then makes setChartFormat's own single-shot
+            // branch resolve "the whole region" itself (index 0, columnName null) instead of
+            // one field.
+            event.setObjects(new String[0]);
+            String[] charts = request.assemblies().toArray(new String[0]);
+            event.setCharts(charts);
+            String[] regions = new String[charts.length];
+            Arrays.fill(regions, chartRegionConstant(target));
+            event.setRegions(regions);
+            String[][] columnNames = new String[charts.length][];
+            Arrays.fill(columnNames, new String[]{ "" });
+            event.setColumnNames(columnNames);
+            event.setIndexes(new int[charts.length][]);
          }
          else if(sheet) {
             // An empty object list is FormatPainterService's route to the viewsheet's own format.
@@ -990,6 +1241,33 @@ public class ViewsheetFormatService {
 
                event.setData(data);
             }
+            else if(OPTION_TEXT.equals(target)) {
+               // Same event.getData() per-path mechanism as "data"/"header" above, but a fixed
+               // path rather than a computed one: a CheckBox/RadioButton's option labels all
+               // render from this one shared detail-row format -- the same TableDataPath(-1,
+               // DETAIL) shape a plain Table's "data" target and a Selection List's "cell"
+               // target already write to.
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(int i = 0; i < request.assemblies().size(); i++) {
+                  data.add(new TableDataPath[]{ new TableDataPath(-1, TableDataPath.DETAIL) });
+               }
+
+               event.setData(data);
+            }
+            else if(INPUT_LABEL_TARGET.equals(target)) {
+               // Same event.getData() per-path mechanism as "title" above. FormatPainterService
+               // already has a dedicated INPUT_LABEL branch that writes to
+               // InputVSAssemblyInfo.getLabelInfo() instead of the generic per-cell changeFormat
+               // -- this just routes a target string to that existing path.
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(int i = 0; i < request.assemblies().size(); i++) {
+                  data.add(new TableDataPath[]{ new TableDataPath(-1, TableDataPath.INPUT_LABEL) });
+               }
+
+               event.setData(data);
+            }
          }
 
          // Snapshot what was asked for before the painter runs: it can null the request's own
@@ -1000,7 +1278,8 @@ public class ViewsheetFormatService {
          // Stale messages from an earlier request on this pooled thread are not this call's.
          CoreTool.clearUserMessage();
 
-         List<FormatVSObjectEvent> events = "text".equals(target) ? List.of(event) :
+         List<FormatVSObjectEvent> events =
+            "text".equals(target) || isChartRegionTarget(target) ? List.of(event) :
             seededEvents(rvs, request.format(), request.reset(), request.formatKeys(),
                          sheet ? Arrays.asList((String) null) : request.assemblies(),
                          event.getData(), event);
@@ -2154,9 +2433,12 @@ public class ViewsheetFormatService {
          "cell".equals(target) ? "item label cells" :
          "measuretext".equals(target) ? "measure text" :
          "measurebar".equals(target) ? "measure bar" :
+         MEASURE_BAR_NEGATIVE.equals(target) ? "negative measure bar" :
          CALENDAR_HEADER.equals(target) ? "calendar header" :
          CALENDAR_GRID.equals(target) ? "calendar grid" :
          ACTIVE_TAB.equals(target) ? "active tab" :
+         OPTION_TEXT.equals(target) ? "option text" :
+         INPUT_LABEL_TARGET.equals(target) ? "input label" :
          "title".equals(target) ? "title" : "whole assembly";
    }
 
@@ -2772,23 +3054,24 @@ public class ViewsheetFormatService {
 
    private static boolean isSelectionRegionTarget(String target) {
       return "cell".equals(target) || "measuretext".equals(target) ||
-         "measurebar".equals(target);
+         "measurebar".equals(target) || MEASURE_BAR_NEGATIVE.equals(target);
    }
 
    /** Points a caller who aimed table targets at a Selection List/Tree to the right ones. */
    private static String selectionTargetsHint(VSAssembly assembly) {
       return assembly instanceof SelectionListVSAssembly ||
          assembly instanceof SelectionTreeVSAssembly ?
-         " Use target 'cell' (item labels), 'measureText' or 'measureBar' for a Selection " +
-         "List/Tree's regions." : "";
+         " Use target 'cell' (item labels), 'measureText', 'measureBar' or " +
+         "'measureBarNegative' for a Selection List/Tree's regions." : "";
    }
 
    /** {@code level} is meaningful only for the three Selection List/Tree region targets. */
    private static void requireLevelTarget(String target, Integer level) {
       if(level != null && !isSelectionRegionTarget(target)) {
          throw new IllegalArgumentException(
-            "set_format: 'level' only applies to targets 'cell', 'measureText' and 'measureBar' " +
-            "on a Selection List/Tree; target '" + target + "' has no levels.");
+            "set_format: 'level' only applies to targets 'cell', 'measureText', 'measureBar' " +
+            "and 'measureBarNegative' on a Selection List/Tree; target '" + target + "' has no " +
+            "levels.");
       }
    }
 
@@ -2806,9 +3089,9 @@ public class ViewsheetFormatService {
     * so a level above 0 is refused for {@code cell}.
     *
     * <p>Measure text and bar: {@link SelectionBaseVSAssemblyInfo#getMeasureTextPath} /
-    * {@link SelectionBaseVSAssemblyInfo#getMeasureBarPath} per level, where the last tree level's
-    * measure path keeps its own index (unlike its label cell). Only the positive-value bar is
-    * written; the negative bar's path ({@code getMeasureNBarPath}) is not.
+    * {@link SelectionBaseVSAssemblyInfo#getMeasureBarPath} /
+    * {@link SelectionBaseVSAssemblyInfo#getMeasureNBarPath} per level, where the last tree
+    * level's measure path keeps its own index (unlike its label cell).
     *
     * @param level the 0-based level, or null for every level
     * @throws IllegalArgumentException if {@code name} is not a Selection List/Tree, or
@@ -2872,6 +3155,7 @@ public class ViewsheetFormatService {
       for(int i = first; i <= last; i++) {
          paths[i - first] = !cell ?
             ("measuretext".equals(target) ? SelectionBaseVSAssemblyInfo.getMeasureTextPath(i) :
+             MEASURE_BAR_NEGATIVE.equals(target) ? SelectionBaseVSAssemblyInfo.getMeasureNBarPath(i) :
              SelectionBaseVSAssemblyInfo.getMeasureBarPath(i)) :
             i < treeLevels - 1 ? new TableDataPath(i, TableDataPath.GROUP_HEADER) :
             new TableDataPath(-1, TableDataPath.DETAIL);
@@ -2963,19 +3247,28 @@ public class ViewsheetFormatService {
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
          !VIEWSHEET.equals(name) &&
          !"data".equals(name) && !"header".equals(name) && !"field".equals(name) &&
-         !isCalendarTarget(name) && !isSelectionRegionTarget(name) && !ACTIVE_TAB.equals(name))
+         !isCalendarTarget(name) && !isSelectionRegionTarget(name) && !ACTIVE_TAB.equals(name) &&
+         !isChartRegionTarget(name) && !OPTION_TEXT.equals(name) &&
+         !INPUT_LABEL_TARGET.equals(name))
       {
          throw new IllegalArgumentException(
             "set_format 'target' must be 'object', 'title', 'text', 'data', 'header', 'field', " +
-            "'cell', 'measureText', 'measureBar', 'calendarHeader', 'calendarGrid', 'activeTab' " +
-            "or 'viewsheet', got '" +
+            "'cell', 'measureText', 'measureBar', 'measureBarNegative', 'calendarHeader', " +
+            "'calendarGrid', 'activeTab', 'axisLabel', 'axisLabel2', 'legendTitle', " +
+            "'legendContent', 'plotLabel', 'optionText', 'inputLabel' or 'viewsheet', got '" +
             target + "'. 'viewsheet' formats the dashboard itself (its background colour and " +
-            "alpha) and takes no 'assemblies'. 'cell', 'measureText' " +
-            "and 'measureBar' format a Selection List/Tree's item labels, measure numbers and " +
-            "measure bar separately (optional 'level' picks one tree level). 'calendarHeader' " +
+            "alpha) and takes no 'assemblies'. 'cell', 'measureText', 'measureBar' and " +
+            "'measureBarNegative' format a Selection List/Tree's item labels, measure numbers, " +
+            "positive measure bar and negative measure bar separately (optional 'level' picks " +
+            "one tree level). 'calendarHeader' " +
             "formats a Calendar's month/year header text; 'calendarGrid' formats its date grid " +
             "(month grid in month view, year grid in year view). 'activeTab' formats only a " +
             "Tab's currently selected tab (Tab only; 'object' on a Tab recolors every tab). " +
+            "'axisLabel'/'axisLabel2' format a chart's primary/secondary value-axis tick " +
+            "labels; 'legendTitle'/'legendContent' format its legend title/entries; " +
+            "'plotLabel' formats its plot-area data labels — chart only. 'optionText' formats " +
+            "a CheckBox or RadioButton's option labels. 'inputLabel' formats the label of a " +
+            "Text Input, Combo Box, Check Box, Radio Button, Slider or Spinner. " +
             "'object' (the " +
             "default) formats the whole " +
             "assembly, including — for a chart — the font and colour that unstyled axis " +
