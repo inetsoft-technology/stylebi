@@ -841,7 +841,7 @@ public class FormTableRowService {
     * make {@code rows[0]} data row {@code start - headerRowCount} and would need that offset
     * exposed as well.
     */
-   private static void populateSnapshot(Map<String, Object> result,
+   static void populateSnapshot(Map<String, Object> result,
                                         CapturingCommandDispatcher dispatcher, String assemblyName)
    {
       LoadTableDataCommand load = null;

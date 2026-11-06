@@ -25,9 +25,32 @@ import java.util.List;
 import java.util.Set;
 
 public interface ImportXLSService {
+   /**
+    * The Viewer's Import Excel: replaces the rows of every Form table the file has named ranges
+    * for. Reports through the dispatcher and the two out parameters; use
+    * {@link #importWorkbook} when the per-table outcome is needed.
+    */
    void updateViewsheet(Path excelPath, String type, RuntimeViewsheet rvs, String linkUri,
                         CommandDispatcher dispatcher, CoreLifecycleService coreLifecycleService,
                         Catalog catalog, List<String> assemblies, Set<String> notInRange)
+      throws Exception;
+
+   /**
+    * Reads the file and reports what an import would be working with, without changing the
+    * viewsheet. A file that cannot be opened is reported as not readable, never thrown.
+    */
+   ImportXLSInspection inspect(Path excelPath, String type, RuntimeViewsheet rvs, Catalog catalog)
+      throws Exception;
+
+   /**
+    * The import itself, returning the per-table outcome. Same effect on the runtime as
+    * {@link #updateViewsheet}.
+    *
+    * @throws java.io.FileNotFoundException if the file is not a workbook with a "Current View" sheet
+    */
+   ImportXLSResult importWorkbook(Path excelPath, String type, RuntimeViewsheet rvs,
+                                  String linkUri, CommandDispatcher dispatcher,
+                                  CoreLifecycleService coreLifecycleService, Catalog catalog)
       throws Exception;
 
    static ImportXLSService getInstance() {

@@ -58,32 +58,137 @@ public class PoiImportXLSService implements ImportXLSService {
                                Catalog catalog, List<String> assemblies, Set<String> notInRange)
       throws Exception
    {
+      ImportXLSResult result = importWorkbook(excelPath, type, rvs, linkUri, dispatcher,
+                                              coreLifecycleService, catalog);
+      assemblies.addAll(result.notFound());
+      notInRange.addAll(result.notInRange());
+   }
+
+   @Override
+   public ImportXLSResult importWorkbook(Path excelPath, String type, RuntimeViewsheet rvs,
+                                         String linkUri, CommandDispatcher dispatcher,
+                                         CoreLifecycleService coreLifecycleService,
+                                         Catalog catalog)
+      throws Exception
+   {
       Workbook wb = initWorkbook(excelPath, type);
-      Map<String, Name> sheetNames;
-      Map<String, Name> bSheetNames;
 
-      String sheetName = catalog.getString("Current View");
-      Sheet sheet = null;
-      Sheet bSheet = null;
+      try {
+         Scope scope = openScope(wb, catalog);
 
-      if(wb != null) {
-         sheet = wb.getSheet(sheetName);
-         bSheet = wb.getSheet(sheetName + "_Backup");
+         if(scope.sheet == null) {
+            throw new FileNotFoundException();
+         }
+
+         Viewsheet vs = rvs.getViewsheet();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+         Collector out = new Collector();
+
+         if(box.isPresent()) {
+            updateViewsheet(rvs, vs, box.get(), linkUri, dispatcher, coreLifecycleService, scope,
+                            out);
+         }
+
+         return new ImportXLSResult(out.tables, out.notFound, out.notInRange);
       }
+      finally {
+         close(wb);
+      }
+   }
+
+   @Override
+   public ImportXLSInspection inspect(Path excelPath, String type, RuntimeViewsheet rvs,
+                                      Catalog catalog)
+      throws Exception
+   {
+      Workbook wb = initWorkbook(excelPath, type);
+
+      if(wb == null) {
+         return new ImportXLSInspection(false, false, false, List.of());
+      }
+
+      try {
+         Scope scope = openScope(wb, catalog);
+         List<ImportXLSInspection.TableCheck> tables = new ArrayList<>();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(scope.sheet != null && box.isPresent()) {
+            // getTableData consumes the backup names it matches; work on a copy
+            Scope scratch = new Scope(scope.sheet, scope.bSheet, scope.sheetNames,
+                                      scope.bSheetNames == null ?
+                                         null : new HashMap<>(scope.bSheetNames));
+            inspectTables(rvs.getViewsheet(), box.get(), scratch, tables);
+         }
+
+         return new ImportXLSInspection(true, scope.sheet != null, scope.bSheet != null, tables);
+      }
+      finally {
+         close(wb);
+      }
+   }
+
+   private Scope openScope(Workbook wb, Catalog catalog) {
+      String sheetName = catalog.getString("Current View");
+      Sheet sheet = wb == null ? null : wb.getSheet(sheetName);
+      Sheet bSheet = wb == null ? null : wb.getSheet(sheetName + "_Backup");
 
       if(sheet == null) {
-         throw new FileNotFoundException();
+         return new Scope(null, bSheet, null, null);
       }
 
-      sheetNames = PoiExcelVSUtil.getSheetNames(sheet);
-      bSheetNames = bSheet == null ? null : PoiExcelVSUtil.getSheetNames(bSheet);
+      return new Scope(sheet, bSheet, PoiExcelVSUtil.getSheetNames(sheet),
+                       // Bug #74352: absent when the file has no backup sheet
+                       bSheet == null ? null : PoiExcelVSUtil.getSheetNames(bSheet));
+   }
 
-      Viewsheet vs = rvs.getViewsheet();
-      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+   /**
+    * Checks each table against the file with the same code the import runs: the same existence
+    * test and the same row reader ({@link #getTableData}), so what is reported is what an import
+    * would do.
+    */
+   private void inspectTables(Viewsheet vs, ViewsheetSandbox box, Scope scope,
+                              List<ImportXLSInspection.TableCheck> out)
+      throws Exception
+   {
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof Viewsheet) {
+            inspectTables((Viewsheet) assembly, box, scope, out);
+            continue;
+         }
 
-      if(box.isPresent()) {
-         updateViewsheet(rvs, vs, box.get(), assemblies, linkUri, dispatcher, coreLifecycleService,
-                         sheet, bSheet, sheetNames, bSheetNames, notInRange);
+         if(!(assembly instanceof TableVSAssembly)) {
+            continue;
+         }
+
+         TableVSAssembly vsAssembly = (TableVSAssembly) assembly;
+         String name = vsAssembly.getAbsoluteName();
+         TableVSAssemblyInfo tinfo = (TableVSAssemblyInfo) vsAssembly.getVSAssemblyInfo();
+         boolean visible = tinfo.isVisible(true);
+         FormTableLens table = box.getFormTableLens(name);
+         boolean inFile = isAssemblyExist(vsAssembly, scope.sheetNames);
+         int lensColumns = table == null ? 0 : table.getColCount();
+         int dataRows = 0;
+         int namedRows = 0;
+         int unbacked = 0;
+         int fileColumns = -1;
+
+         if(visible && inFile && table != null) {
+            TableStats stats = new TableStats();
+            List<FormTableRow> rows =
+               getTableData(vsAssembly, scope.sheet, scope.bSheet, scope.sheetNames,
+                            scope.bSheetNames, new HashSet<>(), table, tinfo, stats);
+            dataRows = rows == null ? 0 : Math.max(0, rows.size() - 1);
+            namedRows = stats.namedRows;
+            unbacked = stats.unbackedRows;
+            fileColumns = headerColumnCount(getValidCellName(vsAssembly), scope);
+         }
+
+         out.add(new ImportXLSInspection.TableCheck(name, visible, table != null, inFile,
+                                                    dataRows,
+                                                    table == null ? 0 : table.getRowCount() -
+                                                       table.getHeaderRowCount(),
+                                                    namedRows, unbacked, fileColumns,
+                                                    lensColumns));
       }
    }
 
@@ -91,19 +196,17 @@ public class PoiImportXLSService implements ImportXLSService {
     * Update whole viewsheet.
     */
    private void updateViewsheet(RuntimeViewsheet rvs, Viewsheet vs, ViewsheetSandbox box,
-                                List<String> assemblies, String linkUri,
-                                CommandDispatcher dispatcher, CoreLifecycleService coreLifecycleService,
-                                Sheet sheet, Sheet bSheet, Map<String, Name> sheetNames,
-                                Map<String, Name> bSheetNames, Set<String> notInRange)
+                                String linkUri, CommandDispatcher dispatcher,
+                                CoreLifecycleService coreLifecycleService, Scope scope,
+                                Collector out)
       throws Exception
    {
       Assembly[] vsAssemblies = vs.getAssemblies();
-      boolean reset = false;
 
       for(Assembly assembly : vsAssemblies) {
          if(assembly instanceof Viewsheet) {
-            updateViewsheet(rvs, (Viewsheet) assembly, box, assemblies, linkUri, dispatcher,
-                    coreLifecycleService, sheet, bSheet, sheetNames, bSheetNames, notInRange);
+            updateViewsheet(rvs, (Viewsheet) assembly, box, linkUri, dispatcher,
+                            coreLifecycleService, scope, out);
             continue;
          }
 
@@ -113,13 +216,27 @@ public class PoiImportXLSService implements ImportXLSService {
          VSAssemblyInfo vsInfo = vsAssembly.getVSAssemblyInfo();
 
          if(!vsInfo.isVisible(true)) {
+            if(vsAssembly instanceof TableVSAssembly &&
+               ((TableVSAssemblyInfo) vsInfo).isForm())
+            {
+               out.tables.add(ImportXLSResult.TableResult.of(
+                  name, ImportXLSResult.Outcome.SKIPPED_INVISIBLE));
+            }
+
             continue;
          }
 
-         if(!isAssemblyExist(vsAssembly, sheetNames)) {
+         if(!isAssemblyExist(vsAssembly, scope.sheetNames)) {
             if(!VSUtil.isInTab(vsAssembly) ||
                VSUtil.isVisibleInTab(vsAssembly, vs, rvs != null && rvs.isRuntime())) {
-               assemblies.add(name);
+               out.notFound.add(name);
+
+               if(vsAssembly instanceof TableVSAssembly &&
+                  ((TableVSAssemblyInfo) vsInfo).isForm())
+               {
+                  out.tables.add(ImportXLSResult.TableResult.of(
+                     name, ImportXLSResult.Outcome.NOT_IN_FILE));
+               }
             }
 
             continue;
@@ -131,18 +248,35 @@ public class PoiImportXLSService implements ImportXLSService {
 
             FormTableLens table = box.getFormTableLens(name);
 
-            if(table != null) {
-               List<FormTableRow> data = getTableData((TableVSAssembly) vsAssembly, sheet,
-                                                      bSheet, sheetNames, bSheetNames, notInRange, table, tinfo);
+            if(table == null) {
+               out.tables.add(ImportXLSResult.TableResult.of(
+                  name, ImportXLSResult.Outcome.NOT_A_FORM_TABLE));
+            }
+            else {
+               List<FormTableRow> data = getTableData((TableVSAssembly) vsAssembly, scope.sheet,
+                                                      scope.bSheet, scope.sheetNames,
+                                                      scope.bSheetNames, out.notInRange, table,
+                                                      tinfo, null);
 
-               if(notInRange.contains(name)) {
+               if(out.notInRange.contains(name)) {
+                  out.tables.add(ImportXLSResult.TableResult.of(
+                     name, ImportXLSResult.Outcome.NOT_IN_RANGE));
+                  continue;
+               }
+
+               if(data == null) {
+                  out.tables.add(ImportXLSResult.TableResult.of(
+                     name, ImportXLSResult.Outcome.NOT_IN_FILE));
                   continue;
                }
 
                // reload table data by the excel data
+               List<FormTableRow> deleted =
+                  getDeleteRows((TableVSAssembly) vsAssembly, scope.bSheet, scope.bSheetNames,
+                                table);
                table.init(data);
-               table.addDeleteRows(
-                  getDeleteRows((TableVSAssembly) vsAssembly, bSheet, bSheetNames, table));
+               table.addDeleteRows(deleted);
+               out.tables.add(count(name, data, deleted));
                AttributeTableLens atbl = new AttributeTableLens(table);
                atbl.setRowBorderColor(VSAssemblyInfo.DEFAULT_BORDER_COLOR);
                atbl.setColBorderColor(VSAssemblyInfo.DEFAULT_BORDER_COLOR);
@@ -194,23 +328,36 @@ public class PoiImportXLSService implements ImportXLSService {
             }
          }
       }
+   }
 
-      if(reset) {
-         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+   private static ImportXLSResult.TableResult count(String name, List<FormTableRow> data,
+                                                    List<FormTableRow> deleted)
+   {
+      int added = 0;
+      int changed = 0;
+      int unchanged = 0;
+
+      // data.get(0) is the header row the importer copies from the live lens
+      for(int i = 1; i < data.size(); i++) {
+         switch(data.get(i).getRowState()) {
+         case FormTableRow.ADDED -> added++;
+         case FormTableRow.CHANGED -> changed++;
+         default -> unchanged++;
+         }
       }
+
+      return new ImportXLSResult.TableResult(name, ImportXLSResult.Outcome.IMPORTED, added, changed,
+                                             unchanged, deleted.size(), data.size() - 1);
    }
 
    /**
-    * Init workbook by the file.
+    * Init workbook by the file. The stream is closed before this returns: the workbook is read
+    * into memory, and an open handle would keep a caller from deleting the file on Windows.
     */
    private Workbook initWorkbook(Path excelPath, String fileType) {
       Workbook wb = null;
-      InputStream ifile;
 
-      try {
-         ifile = Files.newInputStream(excelPath);
-         ifile = new BufferedInputStream(ifile);
-
+      try(InputStream ifile = new BufferedInputStream(Files.newInputStream(excelPath))) {
          if("xls".equals(fileType) || "xlsx".equals(fileType)) {
             wb = WorkbookFactory.create(ifile);
          }
@@ -228,6 +375,17 @@ public class PoiImportXLSService implements ImportXLSService {
       }
 
       return wb;
+   }
+
+   private static void close(Workbook wb) {
+      if(wb != null) {
+         try {
+            wb.close();
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to close Excel workbook", ex);
+         }
+      }
    }
 
    /**
@@ -270,13 +428,15 @@ public class PoiImportXLSService implements ImportXLSService {
     * @param sheet the edit excel sheet.
     * @param bSheet the backup sheet of excel.
     * @param tableLens the spcified form table.
+    * @param stats if not null, receives how many of the file's rows carry a row name and how many
+    *              of those have no row in the backup sheet.
     */
    private List<FormTableRow> getTableData(TableVSAssembly assembly, Sheet sheet, Sheet bSheet,
                                            Map<String, Name> sheetNames,
                                            Map<String, Name> bSheetNames,
                                            Set<String> notInRange,
                                            FormTableLens tableLens,
-                                           TableVSAssemblyInfo tinfo)
+                                           TableVSAssemblyInfo tinfo, TableStats stats)
    {
       String tName = getValidCellName(assembly);
       ColumnOption[] options = PoiExcelVSUtil.getTableOption(tinfo);
@@ -451,6 +611,14 @@ public class PoiImportXLSService implements ImportXLSService {
             bSheetNames.remove(nname);
          }
 
+         if(stats != null && name != null) {
+            stats.namedRows++;
+
+            if(bName == null && state != FormTableRow.ADDED) {
+               stats.unbackedRows++;
+            }
+         }
+
          // no cell name, must be added row
          if(name == null || bName == null || state == FormTableRow.ADDED) {
             ftr = new FormTableRow(data, -1);
@@ -512,28 +680,108 @@ public class PoiImportXLSService implements ImportXLSService {
          return delRows;
       }
 
-      Set<String> keySet = bSheetNames.keySet();
+      Pattern rowName = backupRowName(name);
 
-      for(String str : keySet) {
-         if(str.startsWith(name) && str.endsWith("_TR")) {
+      for(Map.Entry<String, Name> entry : bSheetNames.entrySet()) {
+         if(rowName.matcher(entry.getKey()).matches()) {
             FormTableRow delRow = new FormTableRow(colCount);
-            Name delName = bSheetNames.get(str);
-            Cell rCell = PoiExcelVSUtil.getCellByName(delName, bSheet);
+            Cell rCell = PoiExcelVSUtil.getCellByName(entry.getValue(), bSheet);
             int rowIdx = rCell.getRowIndex();
             int colIdx = rCell.getColumnIndex();
+            boolean blank = true;
 
             for(int i = 0; i < colCount; i++) {
                Cell cell = getCell(rowIdx, colIdx + i, bSheet);
-               delRow.set(i, PoiExcelVSUtil.getCellValue(cell));
+               Object value = PoiExcelVSUtil.getCellValue(cell);
+               blank = blank && "".equals(value);
+               delRow.set(i, value);
             }
 
-            delRow.setRowState(FormTableRow.DELETED);
-            delRows.add(delRow);
+            // the export also names the empty padding rows below the data; they are not rows
+            // anyone deleted
+            if(!blank) {
+               delRow.setRowState(FormTableRow.DELETED);
+               delRows.add(delRow);
+            }
          }
       }
 
       return delRows;
    }
+
+   /**
+    * The names the export gives the rows of one table in the backup sheet: the table name, the row
+    * number, the row state (always present, 1-4: OLD is 1, never 0), and {@code _TR}, followed by the {@code _<n>} suffix
+    * {@code OfflineExcelVSExporter.getNextCellName} adds when the main sheet already used the name.
+    * Matched in full, state included, so that a table whose name is a prefix of another's ({@code Table1}/
+    * {@code Table10}) or the other table's name plus {@code _<n>} ({@code Orders}/{@code Orders_1}) does not take its rows.
+    */
+   private static Pattern backupRowName(String tableName) {
+      return Pattern.compile(Pattern.quote(tableName) + "[._]\\d+[._][1-4]_TR(?:_\\d+)?");
+   }
+
+   /**
+    * The width of the table's header row in the file, counted over the non-blank cells that follow
+    * one another from the header range's first cell (a merged cell counts once). -1 when the file
+    * has no header range for the table.
+    */
+   private int headerColumnCount(String tableName, Scope scope) {
+      Name headerName = scope.sheetNames.get(tableName + "_Header");
+      Cell first = headerName == null ? null : PoiExcelVSUtil.getCellByName(headerName, scope.sheet);
+
+      if(first == null) {
+         return -1;
+      }
+
+      int row = first.getRowIndex();
+      int col = first.getColumnIndex();
+      int count = 0;
+
+      while(col < MAX_COLUMNS) {
+         Cell cell = getCell(row, col, scope.sheet);
+
+         if("".equals(PoiExcelVSUtil.getCellValue(cell))) {
+            break;
+         }
+
+         count++;
+         CellRangeAddress addr = PoiExcelVSUtil.getCellMergeRegion(cell);
+         col = addr == null ? col + 1 : addr.getLastColumn() + 1;
+      }
+
+      return count;
+   }
+
+   /** The sheets of the workbook that an import reads, and their named ranges. */
+   private static final class Scope {
+      Scope(Sheet sheet, Sheet bSheet, Map<String, Name> sheetNames,
+            Map<String, Name> bSheetNames)
+      {
+         this.sheet = sheet;
+         this.bSheet = bSheet;
+         this.sheetNames = sheetNames;
+         this.bSheetNames = bSheetNames;
+      }
+
+      final Sheet sheet;
+      final Sheet bSheet;
+      final Map<String, Name> sheetNames;
+      final Map<String, Name> bSheetNames;
+   }
+
+   /** What one import collects. */
+   private static final class Collector {
+      final List<ImportXLSResult.TableResult> tables = new ArrayList<>();
+      final List<String> notFound = new ArrayList<>();
+      final Set<String> notInRange = new HashSet<>();
+   }
+
+   private static final class TableStats {
+      int namedRows;
+      int unbackedRows;
+   }
+
+   private static final int MAX_COLUMNS = 16384;
 
    /**
     *  Poi not allowed cellName contains ".",  so "." was changed to "\"

@@ -116,6 +116,7 @@ class FormTableInsertRowModeTest {
                                           mock(AssemblyMaxModeService.class),
                                           mock(SelectionLayoutService.class),
                                           rows,
+                                          mock(FormTableImportService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
