@@ -1820,7 +1820,8 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri);
+      return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri,
+                                   Boolean.TRUE.equals(request.submit()));
    }
 
    /**
@@ -2024,7 +2025,8 @@ public class ViewsheetAssemblyAgentController {
    public record CalendarDisplayRequest(String assembly, Boolean yearView, Boolean doubleCalendar,
                                         Boolean rangeComparison) {}
    public record CalendarDatesRequest(String assembly, java.util.List<String> dates) {}
-   public record InputValueRequest(String assembly, java.util.List<Object> value) {}
+   public record InputValueRequest(String assembly, java.util.List<Object> value,
+                                   Boolean submit) {}
    public record SelectionLayoutRequest(String assembly, Number columnCount,
                                         Number measureTextWidth, Number measureBarWidth) {}
    public record MaxModeRequest(String assembly, boolean maximized, Integer width, Integer height) {}

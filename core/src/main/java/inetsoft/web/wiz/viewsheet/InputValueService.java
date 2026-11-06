@@ -22,10 +22,23 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.uql.asset.ConfirmException;
+import inetsoft.util.CancelledException;
+import inetsoft.util.InvalidUserException;
 import inetsoft.util.Tool;
+import inetsoft.util.script.ScriptException;
+import inetsoft.web.viewsheet.controller.OnClickService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
+import inetsoft.web.wiz.dispatch.AssetScriptFailureWarnings;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.service.RenderNotReadyException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -70,12 +83,21 @@ public class InputValueService {
    /** Fixed-length so the mask reveals nothing about the secret's length. */
    static final String SECRET_MASK = TextInputVSAssemblyInfo.PASSWORD_MASK;
 
+   @Autowired
    public InputValueService(ViewsheetSessionService sessions, VSInputService inputs,
-                            CoreLifecycleService lifecycle)
+                            CoreLifecycleService lifecycle, OnClickService onClickService)
    {
       this.sessions = sessions;
       this.inputs = inputs;
       this.lifecycle = lifecycle;
+      this.onClickService = onClickService;
+   }
+
+   /** For callers that never submit; {@code submit:true} then fails loud instead of firing. */
+   public InputValueService(ViewsheetSessionService sessions, VSInputService inputs,
+                            CoreLifecycleService lifecycle)
+   {
+      this(sessions, inputs, lifecycle, null);
    }
 
    /**
@@ -89,6 +111,31 @@ public class InputValueService {
                                        List<Object> values, String linkUri)
       throws Exception
    {
+      return setValue(sessionToken, user, assemblyName, values, linkUri, false);
+   }
+
+   /**
+    * Sets an input assembly's value and, when {@code submit} is true, fires a text input's onClick
+    * script the way the Viewer's Enter key does.
+    *
+    * <p><b>submit.</b> Only a text input (any Input Editor: Text, Password, Integer, Float, Date)
+    * has the Enter-fires-onClick path; every other input type is refused, before anything is
+    * written. The value is stored first, as the browser does, then the script runs as the
+    * separate onClick event, then the value is read back (the script may have changed it and the
+    * refresh it triggers may re-copy variables onto inputs). Once the value is stored, any failure of
+    * the script or its refresh (a throw, or an ERROR it dispatches) is reported as
+    * {@code scriptFailed} and the call still succeeds, so the caller does not retry and run the
+    * script again. The stored value and side effects made before the failure are not undone: one
+    * undo checkpoint covers all of it. For a password editor the submitted and held values are
+    * scrubbed from every script-supplied message. A {@code confirm()} in the script is captured and reported as
+    * {@code confirmPending}, never answered.
+    *
+    * @param submit true to fire the onClick script after storing the value
+    */
+   public Map<String, Object> setValue(String sessionToken, Principal user, String assemblyName,
+                                       List<Object> values, String linkUri, boolean submit)
+      throws Exception
+   {
       if(assemblyName == null || assemblyName.isBlank()) {
          throw new IllegalArgumentException("'assembly' is required — name the input assembly.");
       }
@@ -100,10 +147,31 @@ public class InputValueService {
       }
 
       final Map<String, Object> result = new LinkedHashMap<>();
+      final List<String> scriptWarnings = new ArrayList<>();
+      final Set<String> secrets = new LinkedHashSet<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          InputVSAssembly assembly = requireInput(rvs, assemblyName, false);
          boolean multi = assembly instanceof CheckBoxVSAssembly;
+
+         if(submit) {
+            // refused before any write: a value stored and then a refusal would leave the input
+            // changed after the caller was told 'no'
+            if(!(assembly instanceof TextInputVSAssembly)) {
+               throw new IllegalArgumentException(
+                  "'submit' applies only to a text input, which is the one input the Viewer fires " +
+                  "an onClick script for on Enter; '" + assemblyName + "' is " +
+                  describe(assembly) + ". Nothing was changed. Omit 'submit' to just set the value.");
+            }
+
+            if(onClickService == null) {
+               throw new IllegalStateException("'submit' is not available: no onClick service.");
+            }
+
+            if(rvs.getViewsheetSandbox().isEmpty()) {
+               throw new PairingException("Viewsheet sandbox not available for this runtime");
+            }
+         }
 
          if(!multi && values.size() > 1) {
             throw new IllegalArgumentException(
@@ -132,6 +200,29 @@ public class InputValueService {
          inputs.singleApplySelection(runtimeId, assemblyName, selected, user, dispatcher, linkUri);
          commitIfNotSubmittedOnChange(rvs, assemblyName, info0, dispatcher, linkUri);
 
+         List<Object> beforeScript = null;
+         boolean secret = isSecret(info0);
+
+         if(submit && secret) {
+            // every value that could be echoed back by a script message: what was asked for, and
+            // (below) what is held before and after the script
+            values.stream().filter(Objects::nonNull).map(String::valueOf).forEach(secrets::add);
+         }
+
+         if(submit) {
+            VSAssembly stored = rvs.getViewsheet().getAssembly(assemblyName);
+            beforeScript = stored != null &&
+               stored.getVSAssemblyInfo() instanceof InputVSAssemblyInfo held
+               ? heldValues(held) : List.of();
+
+            if(secret) {
+               beforeScript.stream().filter(Objects::nonNull).map(String::valueOf)
+                  .forEach(secrets::add);
+            }
+            fireOnClick(rvs, runtimeId, assemblyName, user, dispatcher, linkUri, result,
+                        scriptWarnings);
+         }
+
          // Read back what the assembly actually holds -- a slider can still snap to its increment.
          VSAssembly applied = rvs.getViewsheet().getAssembly(assemblyName);
 
@@ -148,12 +239,185 @@ public class InputValueService {
             else {
                result.put("values", held);
             }
+
+            if(submit && secret) {
+               held.stream().filter(Objects::nonNull).map(String::valueOf).forEach(secrets::add);
+            }
+
+            if(submit && beforeScript != null && !sameValues(held, beforeScript)) {
+               // the script (or the refresh it triggered) changed what was just stored
+               result.put("valuesBeforeScript",
+                          secret ? beforeScript.stream().map(v -> (Object) SECRET_MASK).toList()
+                                 : beforeScript);
+               result.put("adjustedByScript", true);
+            }
          }
       });
+
+      if(!scriptWarnings.isEmpty()) {
+         List<String> all = new ArrayList<>(warnings == null ? List.of() : warnings);
+         scriptWarnings.stream().filter(w -> !all.contains(w)).forEach(all::add);
+         warnings = all;
+      }
+
+      if(!secrets.isEmpty()) {
+         // a script can print the value it read; scripts' free text must not carry a password back
+         if(result.get("scriptError") instanceof String text) {
+            result.put("scriptError", scrub(text, secrets));
+         }
+
+         if(result.get("confirmPending") instanceof String text) {
+            result.put("confirmPending", scrub(text, secrets));
+         }
+         else if(result.get("confirmPending") instanceof List<?> list) {
+            result.put("confirmPending", list.stream().map(o -> (Object) scrub(String.valueOf(o), secrets))
+               .toList());
+         }
+
+         if(warnings != null) {
+            warnings = warnings.stream().map(w -> scrub(w, secrets)).toList();
+         }
+      }
+
       ViewsheetSessionService.relayWarnings(result, warnings);
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * Fires the text input's onClick script the way {@code OnClickService.process0} would, after
+    * checking the same gates it silently returns on, so {@code scriptFired} is computed here and
+    * never inferred from {@code onClick} returning normally.
+    */
+   private void fireOnClick(RuntimeViewsheet rvs, String runtimeId, String assemblyName,
+                            Principal user, CapturingCommandDispatcher dispatcher, String linkUri,
+                            Map<String, Object> result, List<String> scriptWarnings)
+      throws Exception
+   {
+      if(!dispatcher.getErrors().isEmpty()) {
+         // the write itself reported an error: the script is not fired, so the call fails (the
+         // capturing dispatcher's post-check throws) and "an error response means the script did
+         // not run" holds
+         return;
+      }
+
+      result.put("valueStored", true);
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+      String skipped = null;
+
+      if(assembly == null ||
+         !(assembly.getVSAssemblyInfo() instanceof ClickableInputVSAssemblyInfo clickable))
+      {
+         skipped = "the assembly is not clickable";
+      }
+      else if(!clickable.isScriptEnabled()) {
+         skipped = "the assembly's script is disabled";
+      }
+      else if(clickable.getOnClick() == null || clickable.getOnClick().isEmpty()) {
+         skipped = "the text input has no onClick script";
+      }
+
+      if(skipped != null) {
+         result.put("scriptFired", false);
+         result.put("scriptSkippedReason", skipped);
+         return;
+      }
+
+      result.put("scriptFired", true);
+      // An ERROR the script or its refresh dispatches would make the capturing dispatcher fail the
+      // call after the value is stored and the script has run, and a caller that reads "error"
+      // retries and runs it again. So it is taken here and reported instead.
+      int mark = dispatcher.capturedCount();
+      List<String> failures = new ArrayList<>();
+
+      try {
+         // a fresh ASSET_EXCEPTIONS list around the call surfaces other assemblies' scripts that
+         // fail in the refresh onClick triggers
+         scriptWarnings.addAll(AssetScriptFailureWarnings.collect(() -> {
+            onClickService.onClick(runtimeId, assemblyName, "0", "0", null, linkUri, user,
+                                   dispatcher);
+            return List.of();
+         }));
+      }
+      catch(Exception ex) {
+         if(isControlFlow(ex)) {
+            // security, session and cancellation keep their own handling and status
+            throw ex;
+         }
+
+         // the value was stored before the script ran and stays stored, as in the browser; any
+         // other failure from here on is reported, not thrown, so the caller does not retry
+         LOG.warn("onClick of '{}' failed after its value was stored", assemblyName, ex);
+         ScriptException script = scriptCause(ex);
+         String message = script != null && script.getMessage() != null ? script.getMessage()
+            : ex.getMessage() != null ? ex.getMessage() : ex.toString();
+         failures.add(message);
+      }
+
+      failures.addAll(dispatcher.consumeErrorsSince(mark));
+
+      if(!failures.isEmpty()) {
+         String message = String.join("\n", failures);
+         result.put("scriptFailed", true);
+         result.put("scriptError", message);
+         scriptWarnings.add("The onClick script of '" + assemblyName + "' failed: " + message +
+                            "\nThe value was stored. Anything the script did before it failed " +
+                            "was not undone.");
+      }
+
+      List<String> confirms = dispatcher.getConfirmMessages();
+
+      if(!confirms.isEmpty()) {
+         result.put("confirmPending", confirms.size() == 1 ? confirms.get(0) : confirms);
+         scriptWarnings.add("The onClick script of '" + assemblyName + "' asked for confirmation " +
+                            "(" + confirms.get(0) + "). It was not answered, so the script's " +
+                            "confirmed branch did not run.");
+      }
+   }
+
+   private static String scrub(String text, Collection<String> secrets) {
+      String out = text;
+
+      for(String secret : secrets) {
+         if(!secret.isEmpty()) {
+            out = out.replace(secret, SECRET_MASK);
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * Exceptions with their own handler or status, which {@code
+    * CapturingCommandDispatcher.toCommandError} also leaves alone: security, permission, an
+    * expired session or sheet, a cancelled or confirm-pending request, a stale pairing, a render
+    * not ready. Looked for through the cause chain.
+    */
+   static boolean isControlFlow(Throwable e) {
+      for(int depth = 0; e != null && depth < 10; depth++, e = e.getCause()) {
+         if(e instanceof java.lang.SecurityException ||
+            e instanceof inetsoft.sree.security.SecurityException ||
+            e instanceof InvalidUserException || e instanceof ExpiredSheetException ||
+            e instanceof CancelledException || e instanceof ConfirmException ||
+            e instanceof PairingException || e instanceof RenderNotReadyException ||
+            e instanceof InterruptedException)
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static ScriptException scriptCause(Throwable e) {
+      for(int depth = 0; e != null && depth < 10; depth++, e = e.getCause()) {
+         if(e instanceof ScriptException script) {
+            return script;
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -652,7 +916,10 @@ public class InputValueService {
 
    private static final int MAX_LISTED = 20;
 
+   private static final Logger LOG = LoggerFactory.getLogger(InputValueService.class);
+
    private final ViewsheetSessionService sessions;
    private final VSInputService inputs;
    private final CoreLifecycleService lifecycle;
+   private final OnClickService onClickService;
 }
