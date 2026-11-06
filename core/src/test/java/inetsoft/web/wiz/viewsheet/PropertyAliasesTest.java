@@ -1999,6 +1999,7 @@ class PropertyAliasesTest {
    private static final String CHECKBOX = "checkboxGeneralPaneModel";
    private static final String COMBOBOX = "comboboxGeneralPaneModel";
    private static final String RADIO = "radioButtonGeneralPaneModel";
+   private static final String TEXT_OPTION = "textInputColumnOptionPaneModel.";
    private static final String LIST_EDITOR = ".listValuesPaneModel.comboBoxEditorModel.dataType";
 
    private static final List<AliasCase> FORM_OUTPUT_ALIASES = List.of(
@@ -2070,6 +2071,34 @@ class PropertyAliasesTest {
          "textinput", "textInputGeneralPaneModel.multiLine")),
       new AliasCase("inputControl", "Date", paths(
          "textinput", "textInputColumnOptionPaneModel.type")),
+      // text input Input Control sub-editors (PR4): one name per type, since only the selected
+      // type's editor is shown, applied and read back
+      new AliasCase("textPattern", "[0-9]+", paths(
+         "textinput", TEXT_OPTION + "textEditorModel.pattern")),
+      new AliasCase("textErrorMessage", "digits only", paths(
+         "textinput", TEXT_OPTION + "textEditorModel.errorMessage")),
+      new AliasCase("passwordPattern", ".{8,}", paths(
+         "textinput", TEXT_OPTION + "passwordEditorModel.pattern")),
+      new AliasCase("passwordErrorMessage", "too short", paths(
+         "textinput", TEXT_OPTION + "passwordEditorModel.errorMessage")),
+      new AliasCase("dateMinimum", "2020-01-01", paths(
+         "textinput", TEXT_OPTION + "dateEditorModel.minimum")),
+      new AliasCase("dateMaximum", "2021-01-01", paths(
+         "textinput", TEXT_OPTION + "dateEditorModel.maximum")),
+      new AliasCase("dateErrorMessage", "bad date", paths(
+         "textinput", TEXT_OPTION + "dateEditorModel.errorMessage")),
+      new AliasCase("integerMinimum", 1, paths(
+         "textinput", TEXT_OPTION + "integerEditorModel.minimum")),
+      new AliasCase("integerMaximum", 9, paths(
+         "textinput", TEXT_OPTION + "integerEditorModel.maximum")),
+      new AliasCase("integerErrorMessage", "bad int", paths(
+         "textinput", TEXT_OPTION + "integerEditorModel.errorMessage")),
+      new AliasCase("floatMinimum", 1.5f, paths(
+         "textinput", TEXT_OPTION + "floatEditorModel.minimum")),
+      new AliasCase("floatMaximum", 9.5f, paths(
+         "textinput", TEXT_OPTION + "floatEditorModel.maximum")),
+      new AliasCase("floatErrorMessage", "bad float", paths(
+         "textinput", TEXT_OPTION + "floatEditorModel.errorMessage")),
       new AliasCase("writeBackColumn", "c1", paths(
          "radiobutton", "dataInputPaneModel.columnValue",
          "combobox", "dataInputPaneModel.columnValue")),
@@ -2139,7 +2168,7 @@ class PropertyAliasesTest {
          }
       }
 
-      assertEquals(69, checked);
+      assertEquals(82, checked);
    }
 
    /**
@@ -2220,19 +2249,59 @@ class PropertyAliasesTest {
 
    /**
     * Names deliberately NOT registered: {@code noDefault} is never read by VSInputService (the
-    * Composer just clears the default value), and the rest belong to later parts of bug #80464
-    * (combobox-only fields need DEAD_FIELDS entries; multiLine, inputControl (an unrecognised
-    * type is silently dropped) and the static items need new validation). Registering one here would be the "exposes but does nothing" trap or would
-    * ship before its guard.
+    * Composer just clears the default value), so registering it would be the "exposes but does
+    * nothing" trap.
     */
    @Test
    void deferredOrDeadNamesAreNotRegisteredOnAnyInputOrOutputType() {
       for(String type : FORM_OUTPUT_TYPES) {
-         for(String name : List.of("noDefault", "staticLabels", "staticValues"))
+         for(String name : List.of("noDefault"))
          {
             assertFalse(PropertyAliases.forType(type).aliases().containsKey(name),
                         name + " on " + type);
          }
+      }
+   }
+
+   /**
+    * The embedded list items are String arrays, so they are outside the scalar round-trip table:
+    * registered on exactly the three list types, resolving to the variable list's own fields,
+    * coerced from a JSON array and refusing a bare string (the plugin's `value` key is one letter
+    * from the plain names, hence the static prefix).
+    */
+   @Test
+   void staticListItemAliasesAreRegisteredOnTheThreeListTypesAndTakeArrays() throws Exception {
+      for(String type : FORM_OUTPUT_TYPES) {
+         boolean list = List.of("checkbox", "radiobutton", "combobox").contains(type);
+
+         for(String name : List.of("staticLabels", "staticValues")) {
+            assertEquals(list, PropertyAliases.forType(type).aliases().containsKey(name),
+                         name + " on " + type);
+         }
+
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("labels"), type);
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("values"), type);
+
+         if(!list) {
+            continue;
+         }
+
+         Class<?> modelClass = PropertyAliases.forType(type).modelClass();
+         String editor = PropertyAliases.resolve(type, "embedded");
+         editor = editor.substring(0, editor.lastIndexOf('.')) + ".variableListDialogModel.";
+         assertEquals(editor + "labels", PropertyAliases.resolveForWrite(type, "staticLabels"));
+         assertEquals(editor + "values", PropertyAliases.resolveForWrite(type, "staticValues"));
+
+         Object model = modelClass.getDeclaredConstructor().newInstance();
+         String path = PropertyAliases.resolveForWrite(type, "staticLabels");
+         populateIntermediatePanes(model, path);
+         Object written = PropertyPath.set(model, path, List.of("A", "B"));
+         assertArrayEquals(new String[] { "A", "B" }, (String[]) PropertyPath.get(written, path),
+                           type);
+
+         String message = assertThrows(IllegalArgumentException.class,
+            () -> PropertyPath.set(model, path, "A")).getMessage();
+         assertTrue(message.contains("JSON array"), message);
       }
    }
 
