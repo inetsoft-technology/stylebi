@@ -1724,8 +1724,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          for(int c = 0; c < colCount; c++) {
             Cell cell = row.createCell(c);
             Object obj = table.getObject(r, c);
+            boolean mergeDates = obj instanceof DCMergeDatesCell;
 
-            if(obj instanceof DCMergeDatesCell) {
+            if(mergeDates) {
                obj = ((DCMergeDatesCell) obj).getFormatedOriginalDate();
             }
 
@@ -1734,40 +1735,64 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
             if(obj != null) {
                // headers stay text, so numeric labels (e.g. year headers) keep their form
                boolean header = r < headerRows || c < headerCols;
+               // the table is wrapped by VSFormatTableLens, which turns a formatted number or
+               // date into its display text. Get the raw value and the Excel pattern like the
+               // main sheet does so that the cell is typed and shows the same text.
+               String pattern = null;
+               Object value = obj;
 
-               if(!header && obj instanceof Number && isExactNumber((Number) obj)) {
-                  double value = ((Number) obj).doubleValue();
-                  cell.setCellValue(value);
+               if(!header && !mergeDates) {
+                  try {
+                     pattern = ExportUtil.getCellFormat(table, r, c, isMatchLayout(), false);
+                     Object raw = ExportUtil.getObject(table, r, c, pattern, true);
 
-                  if(Math.abs(value) >= 1E11 && Math.abs(value) < 1E15 &&
-                     value == Math.rint(value))
-                  {
-                     // General format shows 12+ digit integers in scientific notation
-                     cellStyle = numberStyles.computeIfAbsent("0", f -> {
-                        CellStyle intStyle = book.createCellStyle();
-                        intStyle.cloneStyleFrom(style);
-                        intStyle.setDataFormat(book.createDataFormat().getFormat(f));
-                        return intStyle;
-                     });
+                     // no pattern, or a text pattern (e.g. MessageFormat on a number), means
+                     // the display text is the value; never write the raw number instead
+                     if(pattern != null && !"@".equals(pattern) &&
+                        (raw instanceof Number || raw instanceof java.util.Date))
+                     {
+                        value = raw;
+                     }
+                  }
+                  catch(Exception ex) {
+                     LOG.debug("Failed to get the raw value of data tab cell ({}, {})", r, c, ex);
+                     pattern = null;
+                     value = obj;
                   }
                }
-               else if(!header && obj instanceof Boolean) {
-                  cell.setCellValue((Boolean) obj);
+
+               boolean general = pattern == null || "General".equals(pattern);
+
+               if(!header && value instanceof Number && isExactNumber((Number) value)) {
+                  double number = ((Number) value).doubleValue();
+                  cell.setCellValue(number);
+
+                  if(!general) {
+                     cellStyle = getDataTabStyle(numberStyles, pattern, style);
+                  }
+                  else if(Math.abs(number) >= 1E11 && Math.abs(number) < 1E15 &&
+                     number == Math.rint(number))
+                  {
+                     // General format shows 12+ digit integers in scientific notation
+                     cellStyle = getDataTabStyle(numberStyles, "0", style);
+                  }
                }
-               else if(!header && obj instanceof java.util.Date) {
-                  String format = getDataTabDateFormat((java.util.Date) obj);
-                  cellStyle = numberStyles.computeIfAbsent(format, f -> {
-                     CellStyle dateStyle = book.createCellStyle();
-                     dateStyle.cloneStyleFrom(style);
-                     dateStyle.setDataFormat(book.createDataFormat().getFormat(f));
-                     return dateStyle;
-                  });
-                  cell.setCellValue((java.util.Date) obj);
+               else if(!header && value instanceof Boolean) {
+                  cell.setCellValue((Boolean) value);
+               }
+               else if(!header && value instanceof java.util.Date &&
+                       PoiExcelVSUtil.setDateCellValue(cell, (java.util.Date) value))
+               {
+                  cellStyle = getDataTabStyle(
+                     numberStyles, general ? getDataTabDateFormat((java.util.Date) value) : pattern,
+                     style);
                }
                else {
                   // this is the limit by excel
                   final int MAXLEN = 32767;
-                  String text = obj.toString();
+                  // a date earlier than 1900 can't be a date cell, write the text
+                  String text = obj instanceof java.util.Date ?
+                     getDataTabDateText((java.util.Date) obj) : obj.toString();
 
                   if(text.length() > MAXLEN) {
                      text = text.substring(0, MAXLEN);
@@ -1780,6 +1805,48 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
             cell.setCellStyle(cellStyle);
          }
       }
+   }
+
+   /**
+    * Get the (cached) cell style with the data format, cloned from the data tab base style.
+    */
+   private CellStyle getDataTabStyle(Map<String, CellStyle> styles, String format,
+                                     CellStyle style)
+   {
+      return styles.computeIfAbsent(format, f -> {
+         CellStyle dataStyle = book.createCellStyle();
+         dataStyle.cloneStyleFrom(style);
+
+         try {
+            dataStyle.setDataFormat(book.createDataFormat().getFormat(f));
+         }
+         catch(Exception ex) {
+            LOG.debug("Invalid data tab cell format: {}", f, ex);
+         }
+
+         return dataStyle;
+      });
+   }
+
+   private static String getDataTabDateText(java.util.Date date) {
+      // use the local fields of the date, not SimpleDateFormat (calendar of the default locale)
+      if(date instanceof java.sql.Timestamp) {
+         return java.time.format.DateTimeFormatter.ofPattern(
+            "yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT)
+            .format(((java.sql.Timestamp) date).toLocalDateTime());
+      }
+      else if(date instanceof java.sql.Date) {
+         return ((java.sql.Date) date).toLocalDate().toString();
+      }
+      else if(date instanceof java.sql.Time) {
+         return java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss", java.util.Locale.ROOT)
+            .format(((java.sql.Time) date).toLocalTime());
+      }
+
+      return java.time.format.DateTimeFormatter.ofPattern(
+         "yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT)
+         .format(java.time.Instant.ofEpochMilli(date.getTime())
+                    .atZone(java.time.ZoneId.systemDefault()));
    }
 
    /**

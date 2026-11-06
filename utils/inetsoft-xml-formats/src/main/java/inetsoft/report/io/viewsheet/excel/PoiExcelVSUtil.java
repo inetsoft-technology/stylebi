@@ -952,6 +952,33 @@ public class PoiExcelVSUtil {
    }
 
    /**
+    * Write a date into the cell as an Excel date serial number.
+    * @return false (and leave the cell untouched) if the date can't be represented, i.e. it
+    * is earlier than 1900-01-01, so the caller should write a text instead.
+    */
+   public static boolean setDateCellValue(Cell cell, Date value) {
+      long time = value.getTime();
+      Calendar calendar = CoreTool.calendar.get();
+      calendar.set(1900, 0, 1);
+
+      // excel doesn't support the date time earlier than 1900-01-1
+      if(time <= calendar.getTimeInMillis()) {
+         return false;
+      }
+
+      // use the LocalDateTime overload instead of setCellValue(Date) so POI computes the
+      // Excel serial date directly from the Gregorian year/day-of-year fields instead of
+      // going through org.apache.poi.util.LocaleUtil.getLocaleCalendar(), which resolves a
+      // Calendar.getInstance(tz, Locale.getDefault()) that becomes a non-Gregorian calendar
+      // (e.g. sun.util.BuddhistCalendar, java.util.JapaneseImperialCalendar) on some JVM
+      // default locales, corrupting the exported date value.
+      LocalDateTime localDateTime =
+         Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDateTime();
+      cell.setCellValue(localDateTime);
+      return true;
+   }
+
+   /**
     * set a value for the cell.
     */
    public static void setCellValue(Cell cell, Object value,
@@ -978,23 +1005,7 @@ public class PoiExcelVSUtil {
       }
 
       if(value instanceof Date) {
-         long time = ((Date) value).getTime();
-         Calendar calendar = CoreTool.calendar.get();
-         calendar.set(1900, 0, 1);
-
-         // excel doesn't support the date time earlier than 1900-01-1
-         if(time > calendar.getTimeInMillis()) {
-            // use the LocalDateTime overload instead of setCellValue(Date) so POI computes the
-            // Excel serial date directly from the Gregorian year/day-of-year fields instead of
-            // going through org.apache.poi.util.LocaleUtil.getLocaleCalendar(), which resolves a
-            // Calendar.getInstance(tz, Locale.getDefault()) that becomes a non-Gregorian calendar
-            // (e.g. sun.util.BuddhistCalendar, java.util.JapaneseImperialCalendar) on some JVM
-            // default locales, corrupting the exported date value.
-            LocalDateTime localDateTime =
-               Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDateTime();
-            cell.setCellValue(localDateTime);
-         }
-         else {
+         if(!setDateCellValue(cell, (Date) value)) {
             cell.setCellValue(defaultText);
          }
 
