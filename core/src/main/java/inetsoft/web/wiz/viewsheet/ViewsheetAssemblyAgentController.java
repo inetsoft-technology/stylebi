@@ -2157,7 +2157,8 @@ public class ViewsheetAssemblyAgentController {
     * {@code set_selection_layout}. A Selection List's column count and the measure text/bar widths
     * -- the Composer sets these only by dragging, so they are in no property-dialog model --
     * plus {@code collapsed} (a list/range slider inside a Selection Container) and
-    * {@code expandAll} (a Selection Tree).
+    * {@code expandAll} (a Selection Tree) and {@code titleRatio} (a Selection Container's
+    * title / selected-text width split, targeted at the container or a filter inside it).
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/layout")
    public Map<String, Object> setSelectionLayout(@PathVariable String sessionToken,
@@ -2171,7 +2172,7 @@ public class ViewsheetAssemblyAgentController {
       return selectionLayoutService.setLayout(sessionToken, user, request.assembly(),
                                               request.columnCount(), request.measureTextWidth(),
                                               request.measureBarWidth(), request.collapsed(),
-                                              request.expandAll(), linkUri);
+                                              request.expandAll(), request.titleRatio(), linkUri);
    }
 
    /** {@code get_selection_layout}. The stored layout; no checkpoint, no broadcast. */
@@ -2330,7 +2331,8 @@ public class ViewsheetAssemblyAgentController {
                                    Boolean submit) {}
    public record SelectionLayoutRequest(String assembly, Number columnCount,
                                         Number measureTextWidth, Number measureBarWidth,
-                                        Boolean collapsed, Boolean expandAll) {}
+                                        Boolean collapsed, Boolean expandAll,
+                                        Number titleRatio) {}
    public record MaxModeRequest(String assembly, boolean maximized, Integer width, Integer height) {}
 
    /** {@code mode}: "insert" (the default -- shifts {@code index} and after down one) or

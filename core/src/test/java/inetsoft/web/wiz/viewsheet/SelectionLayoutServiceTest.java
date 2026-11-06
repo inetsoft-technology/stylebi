@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
@@ -27,6 +28,7 @@ import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.service.VSObjectService;
 import inetsoft.web.viewsheet.service.VSSelectionContainerService;
+import inetsoft.web.composer.vs.objects.controller.ComposerCurrentSelectionService;
 import inetsoft.web.composer.vs.objects.controller.ComposerVSSelectionListService;
 import inetsoft.web.composer.vs.objects.event.VSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.VSSetMeasuresEvent;
@@ -257,7 +259,7 @@ class SelectionLayoutServiceTest {
       stubToggle(b);
 
       Map<String, Object> out = b.h.service.setLayout("tok", user(), "List1", null, null, null,
-                                                      true, null, "uri");
+                                                      true, null, null, "uri");
 
       verify(b.h.containers).applySelection(any(RuntimeViewsheet.class), eq("List1"), eq(true),
                                             any(), eq("uri"));
@@ -274,7 +276,7 @@ class SelectionLayoutServiceTest {
       stubToggle(b);
 
       Map<String, Object> out = b.h.service.setLayout("tok", user(), "Slider1", null, null, null,
-                                                      false, null, "");
+                                                      false, null, null, "");
 
       verify(b.h.containers).applySelection(any(RuntimeViewsheet.class), eq("Slider1"), eq(false),
                                             any(), eq(""));
@@ -287,13 +289,13 @@ class SelectionLayoutServiceTest {
       Box b = box(false, false);
 
       Map<String, Object> collapsed = b.h.service.setLayout("tok", user(), "List2", null, null,
-                                                            null, true, null, "");
+                                                            null, true, null, null, "");
 
       verifyNoInteractions(b.h.containers);
       assertEquals(false, collapsed.get("changed"));
       assertEquals(true, collapsed.get("collapsed"));
 
-      b.h.service.setLayout("tok", user(), "List1", null, null, null, false, null, "");
+      b.h.service.setLayout("tok", user(), "List1", null, null, null, false, null, null, "");
       verifyNoInteractions(b.h.containers);
    }
 
@@ -306,7 +308,7 @@ class SelectionLayoutServiceTest {
       Harness h = harness(assembly, 3);
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> h.service.setLayout("tok", user(), "Filter1", null, null, null, true, null, ""));
+         () -> h.service.setLayout("tok", user(), "Filter1", null, null, null, true, null, null, ""));
       assertTrue(e.getMessage().contains("Filter1") &&
                  e.getMessage().contains("Selection Container") &&
                  e.getMessage().contains("showType"), e.getMessage());
@@ -318,14 +320,14 @@ class SelectionLayoutServiceTest {
    void refusesCalendarAndTreeChildrenByName() throws Exception {
       Harness tree = tree("Sum(Total)", true, true);
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> tree.service.setLayout("tok", user(), "Tree1", null, null, null, true, null, ""));
+         () -> tree.service.setLayout("tok", user(), "Tree1", null, null, null, true, null, null, ""));
       assertTrue(e.getMessage().contains("Tree1") && e.getMessage().contains("Selection Tree"),
                  e.getMessage());
       verifyNoInteractions(tree.containers);
 
       Harness cal = harness(mock(CalendarVSAssembly.class));
       e = assertThrows(IllegalArgumentException.class,
-         () -> cal.service.setLayout("tok", user(), "Cal1", null, null, null, true, null, ""));
+         () -> cal.service.setLayout("tok", user(), "Cal1", null, null, null, true, null, null, ""));
       assertTrue(e.getMessage().contains("Cal1") && e.getMessage().contains("Calendar"),
                  e.getMessage());
       verifyNoInteractions(cal.containers);
@@ -342,7 +344,7 @@ class SelectionLayoutServiceTest {
       stubToggle(b);
 
       Map<String, Object> out = b.h.service.setLayout("tok", user(), "Slider1", null, null, null,
-                                                      true, null, "");
+                                                      true, null, null, "");
 
       verify(b.h.containers).applySelection(any(RuntimeViewsheet.class), eq("Slider1"), eq(true),
                                             any(), anyString());
@@ -360,7 +362,7 @@ class SelectionLayoutServiceTest {
                                              eq(true), any(), anyString());
 
       Map<String, Object> out = b.h.service.setLayout("tok", user(), "Slider1", null, null, null,
-                                                      true, null, "");
+                                                      true, null, null, "");
 
       assertTrue(((List<?>) out.get("warnings")).get(0).toString().contains("hidden"));
    }
@@ -370,7 +372,7 @@ class SelectionLayoutServiceTest {
       Box b = box(false, false);
 
       Exception e = assertThrows(IllegalStateException.class,
-         () -> b.h.service.setLayout("tok", user(), "List1", null, null, null, true, null, ""));
+         () -> b.h.service.setLayout("tok", user(), "List1", null, null, null, true, null, null, ""));
       assertTrue(e.getMessage().contains("List1") && e.getMessage().contains("still expanded"),
                  e.getMessage());
    }
@@ -384,7 +386,7 @@ class SelectionLayoutServiceTest {
       {
          Exception e = assertThrows(IllegalArgumentException.class,
             () -> b.h.service.setLayout("tok", user(), "Slider1", (Number) bad[0], (Number) bad[1],
-                                        (Number) bad[2], null, (Boolean) bad[3], ""));
+                                        (Number) bad[2], null, (Boolean) bad[3], null, ""));
          assertTrue(e.getMessage().contains("Slider1"), e.getMessage());
       }
 
@@ -409,7 +411,7 @@ class SelectionLayoutServiceTest {
                                               any(), any());
 
       Map<String, Object> out = h.service.setLayout("tok", user(), "Tree1", null, null, null,
-                                                    null, true, "uri");
+                                                    null, true, null, "uri");
 
       verify(clone).setExpandAll(true);
       verify(h.properties).editObjectProperty(any(), eq(clone), eq("Tree1"), eq("Tree1"),
@@ -424,7 +426,7 @@ class SelectionLayoutServiceTest {
          .thenReturn(true);
 
       Map<String, Object> out = h.service.setLayout("tok", user(), "Tree1", null, null, null,
-                                                    null, true, "");
+                                                    null, true, null, "");
 
       verifyNoInteractions(h.properties);
       assertEquals(true, out.get("expandAll"));
@@ -439,7 +441,7 @@ class SelectionLayoutServiceTest {
       doReturn(clone).when(cur).clone();
 
       Exception e = assertThrows(IllegalStateException.class,
-         () -> h.service.setLayout("tok", user(), "Tree1", null, null, null, null, true, ""));
+         () -> h.service.setLayout("tok", user(), "Tree1", null, null, null, null, true, null, ""));
       assertTrue(e.getMessage().contains("expandAll"), e.getMessage());
    }
 
@@ -448,7 +450,7 @@ class SelectionLayoutServiceTest {
       Harness h = list(3, -1, -1, "Sum(Total)", true, true);
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> h.service.setLayout("tok", user(), "Filter1", null, null, null, null, true, ""));
+         () -> h.service.setLayout("tok", user(), "Filter1", null, null, null, null, true, null, ""));
       assertTrue(e.getMessage().contains("expandAll") && e.getMessage().contains("Selection Tree"),
                  e.getMessage());
       verifyNoInteractions(h.properties);
@@ -486,10 +488,195 @@ class SelectionLayoutServiceTest {
       assertFalse(t.containsKey("collapsed"));
    }
 
+   // titleRatio: one value on the Selection Container (#80451)
+
+   /** The Composer service stores the ratio, clamped to {@code cap}, as the real one would. */
+   private void stubRatioStore(Box b, double cap) throws Exception {
+      doAnswer(inv -> {
+         double requested = inv.getArgument(1);
+         when(b.containerInfo().getTitleRatio()).thenReturn(Math.min(cap, requested));
+         return null;
+      }).when(b.h.current()).setTitleRatio(anyString(), anyDouble(), any(), any(), any());
+   }
+
+   private Map<String, Object> setRatio(Harness h, String name, Number ratio) throws Exception {
+      return h.service.setLayout("tok", user(), name, null, null, null, null, null, ratio, "");
+   }
+
+   @Test
+   void rejectsAnOutOfRangeOrNonFiniteTitleRatioBeforeTouchingTheSession() {
+      Box b = box(false, false);
+
+      for(double bad : new double[] {0, 1, -0.2, Double.NaN, Double.POSITIVE_INFINITY}) {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> setRatio(b.h, "List1", bad));
+         assertTrue(e.getMessage().contains("'titleRatio'") &&
+                    e.getMessage().contains("between 0 and 1"), e.getMessage());
+      }
+
+      Exception percent = assertThrows(IllegalArgumentException.class,
+         () -> setRatio(b.h, "List1", 40));
+      assertTrue(percent.getMessage().contains("percent") &&
+                 percent.getMessage().contains("0.3"), percent.getMessage());
+      verifyNoInteractions(b.h.sessions);
+   }
+
+   @Test
+   void titleRatioIsWrittenOnTheContainerWhenTheTargetIsAChild() throws Exception {
+      Box b = box(false, false);
+      stubRatioStore(b, 1);
+
+      Map<String, Object> out = setRatio(b.h, "List1", 0.3);
+
+      ArgumentCaptor<VSObjectEvent> event = ArgumentCaptor.forClass(VSObjectEvent.class);
+      verify(b.h.current()).setTitleRatio(eq("rt1"), eq(0.3), event.capture(), any(), any());
+      assertEquals("Box1", event.getValue().getName());
+      assertEquals(0.3, (Double) out.get("titleRatio"), 1e-9);
+      assertEquals(true, out.get("titleRatioSet"));
+      assertEquals("Box1", out.get("titleRatioContainer"));
+      List<?> affects = (List<?>) out.get("titleRatioAffects");
+      assertEquals(List.of("List2", "Slider1", "the current-selection rows of 'Box1'"), affects);
+      assertFalse(out.containsKey("warnings"));
+      verifyNoInteractions(b.h.composer);
+   }
+
+   @Test
+   void titleRatioOnTheContainerItselfIsAcceptedAndReadBack() throws Exception {
+      Box b = box(false, false);
+      stubRatioStore(b, 1);
+
+      Map<String, Object> out = setRatio(b.h, "Box1", 0.6);
+
+      assertEquals("selection_container", out.get("type"));
+      assertEquals(0.6, (Double) out.get("titleRatio"), 1e-9);
+      assertEquals(List.of("List1", "List2", "Slider1"), out.get("children"));
+      assertEquals(List.of("List1", "List2", "Slider1",
+                           "the current-selection rows of 'Box1'"), out.get("titleRatioAffects"));
+   }
+
+   @Test
+   void titleRatioReportsAClampAsAWarningWithTheAppliedValue() throws Exception {
+      Box b = box(false, false);
+      stubRatioStore(b, 0.8);
+
+      Map<String, Object> out = setRatio(b.h, "List1", 0.95);
+
+      assertEquals(0.8, (Double) out.get("titleRatio"), 1e-9);
+      String warning = ((List<?>) out.get("warnings")).get(0).toString();
+      assertTrue(warning.contains("0.95") && warning.contains("0.8") &&
+                 warning.contains("base layout") && warning.contains("50px"), warning);
+   }
+
+   @Test
+   void titleRatioFailsLoudWhenTheServiceLeftItUnset() throws Exception {
+      Box b = box(false, false);
+
+      Exception e = assertThrows(IllegalStateException.class, () -> setRatio(b.h, "List1", 0.3));
+      assertTrue(e.getMessage().contains("Box1") && e.getMessage().contains("not applied"),
+                 e.getMessage());
+   }
+
+   @Test
+   void everyTitleRatioRefusalHappensBeforeMutateSoItCostsNoCheckpoint() throws Exception {
+      // a filter outside a container
+      SelectionListVSAssemblyInfo info = mock(SelectionListVSAssemblyInfo.class);
+      SelectionListVSAssembly loose = mock(SelectionListVSAssembly.class);
+      doReturn(info).when(loose).getVSAssemblyInfo();
+      Harness outside = harness(loose, 3);
+      Exception e = assertThrows(IllegalArgumentException.class, () -> setRatio(outside, "F", 0.3));
+      assertTrue(e.getMessage().contains("not inside a Selection Container"), e.getMessage());
+      verify(outside.sessions, never()).mutate(anyString(), any(), any());
+
+      // an embedded container
+      Box embedded = box(false, false);
+      when(embedded.containerInfo().isEmbedded()).thenReturn(true);
+      e = assertThrows(IllegalArgumentException.class, () -> setRatio(embedded.h, "List1", 0.3));
+      assertTrue(e.getMessage().contains("Box1") && e.getMessage().contains("embedded"),
+                 e.getMessage());
+      verify(embedded.h.sessions, never()).mutate(anyString(), any(), any());
+
+      // the container with another setter
+      Box mixed = box(false, false);
+      e = assertThrows(IllegalArgumentException.class,
+         () -> mixed.h.service.setLayout("tok", user(), "Box1", 2, null, null, null, null, 0.3, ""));
+      assertTrue(e.getMessage().contains("only 'titleRatio'"), e.getMessage());
+      verify(mixed.h.sessions, never()).mutate(anyString(), any(), any());
+      verifyNoInteractions(mixed.h.current());
+   }
+
+   @Test
+   void titleRatioOnATreeOrCalendarChildWarnsThatItDoesNotRenderTheSplit() throws Exception {
+      for(boolean calendar : new boolean[] {false, true}) {
+         Box b = box(false, false);
+         VSAssembly child = calendar ? mock(CalendarVSAssembly.class)
+                                     : mock(SelectionTreeVSAssembly.class);
+         doReturn(mock(SelectionTreeVSAssemblyInfo.class)).when(child).getVSAssemblyInfo();
+         when(child.getContainer()).thenReturn(b.container());
+         b.h.byName().put("Child1", child);
+         stubRatioStore(b, 1);
+
+         Map<String, Object> out = setRatio(b.h, "Child1", 0.4);
+
+         String warning = ((List<?>) out.get("warnings")).get(0).toString();
+         assertTrue(warning.contains("does not show the title / selected-text split") &&
+                    warning.contains(calendar ? "Calendar" : "Selection Tree") &&
+                    warning.contains("Box1"), warning);
+         assertEquals(calendar ? "calendar" : "selection_tree", out.get("type"));
+         assertEquals(0.4, (Double) out.get("titleRatio"), 1e-9);
+      }
+   }
+
+   @Test
+   void aCalendarTakesOnlyTitleRatio() throws Exception {
+      Box b = box(false, false);
+      CalendarVSAssembly cal = mock(CalendarVSAssembly.class);
+      doReturn(mock(SelectionTreeVSAssemblyInfo.class)).when(cal).getVSAssemblyInfo();
+      when(cal.getContainer()).thenReturn(b.container());
+      b.h.byName().put("Cal1", cal);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> b.h.service.setLayout("tok", user(), "Cal1", 2, null, null, null, null, 0.3, ""));
+      assertTrue(e.getMessage().contains("Cal1") && e.getMessage().contains("only 'titleRatio'"),
+                 e.getMessage());
+      verify(b.h.sessions, never()).mutate(anyString(), any(), any());
+   }
+
+   @Test
+   void snapshotReportsTheEffectiveRatioAndWhetherItIsStored() {
+      Box b = box(false, false);
+
+      Map<String, Object> unset = b.h.service.snapshot("List1", b.list1);
+      assertEquals(0.5, (Double) unset.get("titleRatio"), 1e-9);
+      assertEquals(false, unset.get("titleRatioSet"));
+
+      when(b.containerInfo().getTitleRatio()).thenReturn(0.25);
+      Map<String, Object> box = b.h.service.snapshot("Box1", b.container());
+      assertEquals("selection_container", box.get("type"));
+      assertEquals(0.25, (Double) box.get("titleRatio"), 1e-9);
+      assertEquals(true, box.get("titleRatioSet"));
+      assertEquals(0.25, (Double) b.h.service.snapshot("Slider1", b.slider)
+                      .get("titleRatio"), 1e-9);
+
+      Harness standalone = list(3, -1, -1, "Sum(Total)", true, true);
+      assertFalse(standalone.service.snapshot("Filter1", standalone.assembly)
+                     .containsKey("titleRatio"));
+   }
+
+   @Test
+   void getLayoutAcceptsAContainer() throws Exception {
+      Box b = box(false, false);
+
+      Map<String, Object> out = b.h.service.getLayout("tok", user(), "Box1");
+
+      assertEquals("selection_container", out.get("type"));
+      assertEquals(0.5, (Double) out.get("titleRatio"), 1e-9);
+   }
+
    // container harness
 
    private record Box(Harness h, TimeSliderVSAssembly slider, SelectionListVSAssembly list1,
-                      SelectionListVSAssembly list2) {}
+                      SelectionListVSAssembly list2, CurrentSelectionVSAssembly container,
+                      CurrentSelectionVSAssemblyInfo containerInfo) {}
 
    /**
     * Container "Box1" with an expanded List1 (collapsed when list1Collapsed), a collapsed List2
@@ -500,6 +687,9 @@ class SelectionLayoutServiceTest {
       when(container.getAbsoluteName()).thenReturn("Box1");
       when(container.getAbsoluteAssemblies())
          .thenReturn(new String[] {"List1", "List2", "Slider1"});
+      CurrentSelectionVSAssemblyInfo containerInfo = mock(CurrentSelectionVSAssemblyInfo.class);
+      when(containerInfo.getTitleRatio()).thenReturn(Double.NaN);
+      doReturn(containerInfo).when(container).getVSAssemblyInfo();
 
       SelectionListVSAssembly list1 = containedList(container, list1Collapsed);
       SelectionListVSAssembly list2 = containedList(container, true);
@@ -517,7 +707,7 @@ class SelectionLayoutServiceTest {
       byName.put("List1", list1);
       byName.put("List2", list2);
       byName.put("Slider1", slider);
-      return new Box(harness(byName, slider, 0), slider, list1, list2);
+      return new Box(harness(byName, slider, 0), slider, list1, list2, container, containerInfo);
    }
 
    private SelectionListVSAssembly containedList(CurrentSelectionVSAssembly container,
@@ -663,14 +853,15 @@ class SelectionLayoutServiceTest {
          Dimension d = sizes.get(inv.getArgument(0));
          return d == null ? new Dimension(200, 100) : d;
       });
+      ComposerCurrentSelectionService current = mock(ComposerCurrentSelectionService.class);
       return new Harness(new SelectionLayoutService(sessions, composer, containers, properties,
-                                                    objects)
+                                                    objects, current)
       {
          @Override
          int valueCount(VSAssembly a) {
             return valueCount;
          }
-      }, sessions, composer, fallback, containers, properties, byName);
+      }, sessions, composer, fallback, containers, properties, byName, current);
    }
 
    private final Map<Object, Dimension> sizes = new IdentityHashMap<>();
@@ -678,7 +869,7 @@ class SelectionLayoutServiceTest {
    private Map<String, Object> set(Harness h, String name, Number cols, Number text, Number bar)
       throws Exception
    {
-      return h.service.setLayout("tok", user(), name, cols, text, bar, null, null, "");
+      return h.service.setLayout("tok", user(), name, cols, text, bar, null, null, null, "");
    }
 
    private static VSAssemblyInfo embeddedInfo() {
@@ -694,5 +885,6 @@ class SelectionLayoutServiceTest {
    private record Harness(SelectionLayoutService service, ViewsheetSessionService sessions,
                           ComposerVSSelectionListService composer, VSAssembly assembly,
                           VSSelectionContainerService containers,
-                          VSObjectPropertyService properties, Map<String, VSAssembly> byName) {}
+                          VSObjectPropertyService properties, Map<String, VSAssembly> byName,
+                          ComposerCurrentSelectionService current) {}
 }

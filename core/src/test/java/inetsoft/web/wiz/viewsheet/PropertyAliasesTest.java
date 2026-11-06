@@ -1928,6 +1928,31 @@ class PropertyAliasesTest {
       assertFalse(text.getMessage().contains("set_selection_source"), text.getMessage());
    }
 
+   // ── #80451: layout view state names set_selection_layout, not a raw path ──
+
+   @Test
+   void expandAllOnATreeAndTitleRatioOnAContainerNameSetSelectionLayout() {
+      for(String[] typeAndKey : new String[][] {
+         {"selectiontree", "expandAll"}, {"selectiontree", "EXPANDALL"},
+         {"selectioncontainer", "titleRatio"}})
+      {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(typeAndKey[0], typeAndKey[1]));
+
+         assertTrue(thrown.getMessage().contains("set_selection_layout"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("raw model path"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void theLayoutRedirectIsScopedToItsType() {
+      // expandAll is a tree property only; elsewhere it is an ordinary unknown key
+      IllegalArgumentException list = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite("selectionlist", "expandAll"));
+      assertFalse(list.getMessage().contains("set_selection_layout"), list.getMessage());
+      assertTrue(list.getMessage().contains("raw model path"), list.getMessage());
+   }
+
    // ── Redmine #79233: selection short names that only existed as raw dotted paths ──────────
 
    /**

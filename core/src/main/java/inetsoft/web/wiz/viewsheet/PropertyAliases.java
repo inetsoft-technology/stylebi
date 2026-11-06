@@ -780,12 +780,29 @@ public final class PropertyAliases {
             "column(s)) is set with set_selection_source, not set_assembly_properties.");
       }
 
+      // View state that lives outside the property dialog model is not reachable by a raw path
+      // either, so the hint names the tool that does carry it (Redmine #80451).
+      if(key != null && SELECTION_LAYOUT_WORDS.getOrDefault(entry.assemblyType(), Map.of())
+         .containsKey(key.toLowerCase(Locale.ROOT)))
+      {
+         throw new IllegalArgumentException(
+            "'" + key + "' is not a property of " + entry.assemblyType() + ": " +
+            SELECTION_LAYOUT_WORDS.get(entry.assemblyType()).get(key.toLowerCase(Locale.ROOT)) +
+            ", set with set_selection_layout, not set_assembly_properties.");
+      }
+
       throw new IllegalArgumentException(
          "'" + key + "' is not a property of " + entry.assemblyType() + "." +
          nearest(key, entry.aliases().keySet()) +
          " Known names: " + String.join(", ", new TreeSet<>(entry.aliases().keySet())) +
          ". A raw model path (containing a '.') is also accepted.");
    }
+
+   /** Assembly type -> lower-cased layout view-state name -> what it is (#80451). */
+   private static final Map<String, Map<String, String>> SELECTION_LAYOUT_WORDS = Map.of(
+      "selectiontree", Map.of("expandall", "it is the tree's expand-all view state"),
+      "selectioncontainer", Map.of(
+         "titleratio", "it is the Selection Container's title / selected-text width ratio"));
 
    private static final Set<String> SELECTION_SOURCE_TYPES =
       Set.of("selectionlist", "selectiontree", "timeslider", "calendar");
