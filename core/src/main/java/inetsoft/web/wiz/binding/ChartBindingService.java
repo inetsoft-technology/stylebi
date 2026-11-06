@@ -242,6 +242,23 @@ public class ChartBindingService {
          default -> null;
       };
 
+      requireAestheticCalculatorResolvedOn(info, aesthetic, field);
+   }
+
+   /**
+    * {@link #requireAestheticCalculatorResolved(VSChartInfo, String, FieldRef)} for a field that
+    * lives somewhere other than the chart-level slot (bug #80332: one measure's own field on a
+    * multi-style chart), which that lookup would not find and so would silently pass.
+    *
+    * @param aesthetic the runtime ref now bound where the field was written.
+    */
+   static void requireAestheticCalculatorResolvedOn(VSChartInfo info, AestheticRef aesthetic,
+                                                    FieldRef field)
+   {
+      if(info == null || field == null) {
+         return;
+      }
+
       if(aesthetic != null && aesthetic.getDataRef() instanceof XAggregateRef aggregate) {
          CalculatorColumnRefs.requireResolved(info, field.calculateInfo(), aggregate.getCalculator());
       }
@@ -276,6 +293,29 @@ public class ChartBindingService {
          default -> null;
       };
 
+      requireAestheticNamedGroupKeptOn(aesthetic, channel, field);
+   }
+
+   /**
+    * {@link #requireAestheticNamedGroupKept(VSChartInfo, String, FieldRef)} for a field that lives
+    * somewhere other than the chart-level slot (bug #80332: one measure's own field).
+    *
+    * @param aesthetic the runtime ref now bound where the field was written.
+    */
+   static void requireAestheticNamedGroupKeptOn(AestheticRef aesthetic, String channel,
+                                                FieldRef field)
+   {
+      if(field == null || !"dimension".equalsIgnoreCase(field.type())) {
+         return;
+      }
+
+      boolean groupSent = field.namedGroupValues() != null ||
+         field.namedGroup() != null && !field.namedGroup().isBlank();
+
+      if(!groupSent) {
+         return;
+      }
+
       if(aesthetic != null && aesthetic.getDataRef() instanceof XDimensionRef dimension &&
          dimension.getNamedGroupInfo() == null)
       {
@@ -303,6 +343,20 @@ public class ChartBindingService {
    static void requireAestheticNamedGroupAgreesWithShelf(ChartBindingModel model, String channel,
                                                          FieldRef field)
    {
+      requireAestheticNamedGroupAgreesWithShelf(
+         model, channel, field,
+         model == null || channel == null
+            ? null : ChartAestheticMutator.read(model, channel.toLowerCase()));
+   }
+
+   /**
+    * @param aesthetic the field as written, wherever it lives: the chart-level slot for the
+    *        three-argument form, or (bug #80332) one measure's own slot, which that form would not
+    *        find and so would silently pass.
+    */
+   static void requireAestheticNamedGroupAgreesWithShelf(ChartBindingModel model, String channel,
+                                                         FieldRef field, AestheticInfo aesthetic)
+   {
       if(model == null || field == null || channel == null ||
          !"dimension".equalsIgnoreCase(field.type()))
       {
@@ -315,8 +369,6 @@ public class ChartBindingService {
       if(!groupSent) {
          return;
       }
-
-      AestheticInfo aesthetic = ChartAestheticMutator.read(model, channel.toLowerCase());
 
       if(aesthetic == null || !(aesthetic.getDataInfo() instanceof BDimensionRefModel sent) ||
          !hasNamedGroup(sent.getNamedGroupInfo()))

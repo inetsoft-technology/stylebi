@@ -347,9 +347,22 @@ public class BindingAgentController {
                                      linkUri));
    }
 
-   /** @param table see {@link ShelfRequest#table()}. */
+   /**
+    * @param table see {@link ShelfRequest#table()}.
+    * @param measure bug #80332: the measure of a multi-style chart to write the field for, or the
+    *        reserved literal {@code all} (case-insensitive) for every measure the chart renders
+    *        its own aesthetic fields for. Absent keeps the chart-level write, which a multi-style
+    *        chart refuses. Appended last so the 4-argument form below stays source compatible.
+    */
    public record AestheticFieldRequest(String assembly, String channel, FieldRef field,
-                                       String table) {}
+                                       String table, String measure)
+   {
+      public AestheticFieldRequest(String assembly, String channel, FieldRef field,
+                                   String table)
+      {
+         this(assembly, channel, field, table, null);
+      }
+   }
    /**
     * @param measure see
     *        {@link ChartAestheticMutator#setFrame(inetsoft.web.binding.model.ChartBindingModel,
@@ -406,7 +419,8 @@ public class BindingAgentController {
                                              List.of(request.field()));
       return ViewsheetSessionService.warningsBody(
          aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
-                                resolved.fields().get(0), resolved.source(), linkUri));
+                                resolved.fields().get(0), resolved.source(),
+                                request.measure(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field/clear")
@@ -419,7 +433,7 @@ public class BindingAgentController {
       requireEnabled();
       return ViewsheetSessionService.warningsBody(
          aestheticService.clearField(sessionToken, user, request.assembly(), request.channel(),
-                                  linkUri));
+                                  request.measure(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/frame")
