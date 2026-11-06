@@ -305,6 +305,36 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       // NO-OP — nothing is transmitted, so there is nothing to flush.
    }
 
+   /** The number of commands captured so far, as a mark for {@link #consumeErrorsSince}. */
+   public int capturedCount() {
+      return captured.size();
+   }
+
+   /**
+    * Removes the captured {@code Type.ERROR} messages dispatched after {@code mark} (a value from
+    * {@link #capturedCount}) and returns their text. The post-check in
+    * {@link #withCapturingDispatcher} fails the whole call on any remaining ERROR, so a caller
+    * that has already made an irreversible write and wants to report an error instead of failing
+    * takes it here. Errors dispatched before the mark are left for that post-check.
+    */
+   public List<String> consumeErrorsSince(int mark) {
+      List<String> messages = new ArrayList<>();
+
+      for(int i = Math.max(mark, 0); i < captured.size(); ) {
+         if(captured.get(i).getCommand() instanceof MessageCommand message &&
+            message.getType() == MessageCommand.Type.ERROR)
+         {
+            messages.add(CommandErrorException.messageOf(message.getMessage()));
+            captured.remove(i);
+         }
+         else {
+            i++;
+         }
+      }
+
+      return messages;
+   }
+
    /** Every command the wrapped call dispatched, in order. */
    public List<Command> getCapturedCommands() {
       return Collections.unmodifiableList(captured);

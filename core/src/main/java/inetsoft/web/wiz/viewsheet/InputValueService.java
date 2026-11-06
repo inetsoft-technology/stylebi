@@ -115,9 +115,12 @@ public class InputValueService {
     * has the Enter-fires-onClick path; every other input type is refused, before anything is
     * written. The value is stored first, as the browser does, then the script runs as the
     * separate onClick event, then the value is read back (the script may have changed it and the
-    * refresh it triggers may re-copy variables onto inputs). A script that throws does not undo
-    * the stored value, and side effects it made before throwing are not undone either: one undo
-    * checkpoint covers all of it. A {@code confirm()} in the script is captured and reported as
+    * refresh it triggers may re-copy variables onto inputs). Once the value is stored, any failure of
+    * the script or its refresh (a throw, or an ERROR it dispatches) is reported as
+    * {@code scriptFailed} and the call still succeeds, so the caller does not retry and run the
+    * script again. The stored value and side effects made before the failure are not undone: one
+    * undo checkpoint covers all of it. For a password editor the submitted and held values are
+    * scrubbed from every script-supplied message. A {@code confirm()} in the script is captured and reported as
     * {@code confirmPending}, never answered.
     *
     * @param submit true to fire the onClick script after storing the value
@@ -138,6 +141,7 @@ public class InputValueService {
 
       final Map<String, Object> result = new LinkedHashMap<>();
       final List<String> scriptWarnings = new ArrayList<>();
+      final Set<String> secrets = new LinkedHashSet<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          InputVSAssembly assembly = requireInput(rvs, assemblyName, false);
@@ -192,11 +196,22 @@ public class InputValueService {
          List<Object> beforeScript = null;
          boolean secret = isSecret(info0);
 
+         if(submit && secret) {
+            // every value that could be echoed back by a script message: what was asked for, and
+            // (below) what is held before and after the script
+            values.stream().filter(Objects::nonNull).map(String::valueOf).forEach(secrets::add);
+         }
+
          if(submit) {
             VSAssembly stored = rvs.getViewsheet().getAssembly(assemblyName);
             beforeScript = stored != null &&
                stored.getVSAssemblyInfo() instanceof InputVSAssemblyInfo held
                ? heldValues(held) : List.of();
+
+            if(secret) {
+               beforeScript.stream().filter(Objects::nonNull).map(String::valueOf)
+                  .forEach(secrets::add);
+            }
             fireOnClick(rvs, runtimeId, assemblyName, user, dispatcher, linkUri, result,
                         scriptWarnings);
          }
@@ -218,6 +233,10 @@ public class InputValueService {
                result.put("values", held);
             }
 
+            if(submit && secret) {
+               held.stream().filter(Objects::nonNull).map(String::valueOf).forEach(secrets::add);
+            }
+
             if(submit && beforeScript != null && !sameValues(held, beforeScript)) {
                // the script (or the refresh it triggered) changed what was just stored
                result.put("valuesBeforeScript",
@@ -232,6 +251,25 @@ public class InputValueService {
          List<String> all = new ArrayList<>(warnings == null ? List.of() : warnings);
          scriptWarnings.stream().filter(w -> !all.contains(w)).forEach(all::add);
          warnings = all;
+      }
+
+      if(!secrets.isEmpty()) {
+         // a script can print the value it read; scripts' free text must not carry a password back
+         if(result.get("scriptError") instanceof String text) {
+            result.put("scriptError", scrub(text, secrets));
+         }
+
+         if(result.get("confirmPending") instanceof String text) {
+            result.put("confirmPending", scrub(text, secrets));
+         }
+         else if(result.get("confirmPending") instanceof List<?> list) {
+            result.put("confirmPending", list.stream().map(o -> (Object) scrub(String.valueOf(o), secrets))
+               .toList());
+         }
+
+         if(warnings != null) {
+            warnings = warnings.stream().map(w -> scrub(w, secrets)).toList();
+         }
       }
 
       ViewsheetSessionService.relayWarnings(result, warnings);
@@ -273,6 +311,11 @@ public class InputValueService {
       }
 
       result.put("scriptFired", true);
+      // An ERROR the script or its refresh dispatches would make the capturing dispatcher fail the
+      // call after the value is stored and the script has run, and a caller that reads "error"
+      // retries and runs it again. So it is taken here and reported instead.
+      int mark = dispatcher.capturedCount();
+      List<String> failures = new ArrayList<>();
 
       try {
          // a fresh ASSET_EXCEPTIONS list around the call surfaces other assemblies' scripts that
@@ -284,18 +327,22 @@ public class InputValueService {
          }));
       }
       catch(Exception ex) {
+         // the value was stored before the script ran and stays stored, as in the browser; any
+         // failure from here on is reported, not thrown, so the caller does not retry
          ScriptException script = scriptCause(ex);
+         String message = script != null && script.getMessage() != null ? script.getMessage()
+            : ex.getMessage() != null ? ex.getMessage() : ex.toString();
+         failures.add(message);
+      }
 
-         if(script == null) {
-            throw ex;
-         }
+      failures.addAll(dispatcher.consumeErrorsSince(mark));
 
-         // the value was stored before the script ran and stays stored, as in the browser
-         String message = script.getMessage() == null ? script.toString() : script.getMessage();
+      if(!failures.isEmpty()) {
+         String message = String.join("\n", failures);
          result.put("scriptFailed", true);
          result.put("scriptError", message);
          scriptWarnings.add("The onClick script of '" + assemblyName + "' failed: " + message +
-                            "\nThe value was stored. Anything the script did before it threw " +
+                            "\nThe value was stored. Anything the script did before it failed " +
                             "was not undone.");
       }
 
@@ -307,6 +354,18 @@ public class InputValueService {
                             "(" + confirms.get(0) + "). It was not answered, so the script's " +
                             "confirmed branch did not run.");
       }
+   }
+
+   private static String scrub(String text, Collection<String> secrets) {
+      String out = text;
+
+      for(String secret : secrets) {
+         if(!secret.isEmpty()) {
+            out = out.replace(secret, SECRET_MASK);
+         }
+      }
+
+      return out;
    }
 
    private static ScriptException scriptCause(Throwable e) {

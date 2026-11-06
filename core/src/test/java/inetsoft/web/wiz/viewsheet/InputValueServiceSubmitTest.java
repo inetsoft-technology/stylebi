@@ -27,6 +27,7 @@ import inetsoft.web.viewsheet.controller.OnClickService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.pairing.PairingException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -198,12 +199,122 @@ class InputValueServiceSubmitTest {
    }
 
    @Test
-   void nonScriptFailureIsNotSwallowed() throws Exception {
+   void nonScriptFailureAfterTheWriteIsReportedNotThrown() throws Exception {
       setUp(SCRIPT, true);
       doThrow(new IllegalStateException("db down")).when(onClick)
          .onClick(any(), any(), any(), any(), any(), any(), any(), any());
 
-      assertThrows(IllegalStateException.class, () -> submit("v"));
+      Map<String, Object> r = submit("v");
+
+      assertEquals(true, r.get("scriptFailed"));
+      assertTrue(String.valueOf(r.get("scriptError")).contains("db down"), r.toString());
+      assertEquals(List.of("v"), r.get("values"));
+   }
+
+   /**
+    * The capturing dispatcher fails a call on any ERROR it captured, which after the write and the
+    * script would read as a failure and invite a retry that runs the script a second time.
+    */
+   @Test
+   void errorDispatchedByTheScriptIsReportedAndTheCallSucceeds() throws Exception {
+      setUp(SCRIPT, true);
+      doAnswer(inv -> {
+         CapturingCommandDispatcher d = inv.getArgument(7);
+         d.sendCommand(message(MessageCommand.Type.ERROR, "query failed"));
+         return null;
+      }).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit("kept");
+
+      assertEquals(true, r.get("valueStored"));
+      assertEquals(true, r.get("scriptFired"));
+      assertEquals(true, r.get("scriptFailed"));
+      assertTrue(String.valueOf(r.get("scriptError")).contains("query failed"), r.toString());
+      assertEquals(List.of("kept"), r.get("values"));
+      assertTrue(r.get("warnings").toString().contains("query failed"), r.toString());
+      // no retry hazard: the write and the script each happened exactly once
+      verify(inputs, times(1)).singleApplySelection(any(), any(), any(), any(), any(), any());
+      verify(onClick, times(1)).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void errorBeforeTheScriptStillFailsTheCall() throws Exception {
+      setUp(SCRIPT, true);
+      doAnswer(inv -> {
+         stored.set(inv.getArgument(2));
+         ((CapturingCommandDispatcher) inv.getArgument(4))
+            .sendCommand(message(MessageCommand.Type.ERROR, "write refused"));
+         return null;
+      }).when(inputs).singleApplySelection(any(), any(), any(), any(), any(), any());
+
+      CommandErrorException ex = assertThrows(CommandErrorException.class, () -> submit("v"));
+
+      assertTrue(ex.getErrors().contains("write refused"), ex.getErrors().toString());
+   }
+
+   @Test
+   void submitWorksOnAnInputThatDoesNotSubmitOnChange() throws Exception {
+      setUp(SCRIPT, true);
+      when(info.isSubmitOnChange()).thenReturn(false);
+
+      Map<String, Object> r = submit("hello");
+
+      assertEquals(true, r.get("scriptFired"));
+      assertEquals(List.of("hello"), r.get("values"));
+      verify(onClick, times(1)).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+   }
+
+   private static final String SECRET = "s3cr3t-Hunter2";
+
+   private void secretInput(String script) throws Exception {
+      setUp(script, true);
+      when(info.getColumnOption()).thenReturn(new PasswordColumnOption());
+   }
+
+   @Test
+   void secretNeverAppearsInAThrownScriptMessage() throws Exception {
+      secretInput("throw 'bad ' + TextInput1.value");
+      doThrow(new ScriptException("bad " + SECRET)).when(onClick)
+         .onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit(SECRET);
+
+      assertEquals(true, r.get("scriptFailed"));
+      assertFalse(r.toString().contains(SECRET), r.toString());
+      assertTrue(String.valueOf(r.get("scriptError")).contains(InputValueService.SECRET_MASK),
+                 r.toString());
+   }
+
+   @Test
+   void secretNeverAppearsInAConfirmMessageOrScriptError() throws Exception {
+      secretInput("confirm('Log in with ' + TextInput1.value + '?')");
+      doAnswer(inv -> {
+         CapturingCommandDispatcher d = inv.getArgument(7);
+         d.sendCommand(message(MessageCommand.Type.CONFIRM, "Log in with " + SECRET + "?"));
+         d.sendCommand(message(MessageCommand.Type.ERROR, "rejected " + SECRET));
+         d.sendCommand(message(MessageCommand.Type.WARNING, "warned " + SECRET));
+         return null;
+      }).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit(SECRET);
+
+      assertFalse(r.toString().contains(SECRET), r.toString());
+      assertEquals("Log in with " + InputValueService.SECRET_MASK + "?", r.get("confirmPending"));
+      assertEquals(true, r.get("masked"));
+   }
+
+   @Test
+   void secretHeldBeforeTheScriptIsAlsoScrubbed() throws Exception {
+      secretInput(SCRIPT);
+      doAnswer(inv -> {
+         stored.set("other-secret");
+         throw new ScriptException("saw other-secret and " + SECRET);
+      }).when(onClick).onClick(any(), any(), any(), any(), any(), any(), any(), any());
+
+      Map<String, Object> r = submit(SECRET);
+
+      assertFalse(r.toString().contains(SECRET), r.toString());
+      assertFalse(r.toString().contains("other-secret"), r.toString());
    }
 
    @Test
