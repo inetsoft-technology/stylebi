@@ -414,7 +414,7 @@ export class EditableObjectContainer extends AbstractActionComponent
 
    get isSearchResults(): boolean {
       if(this.searchMode) {
-         return this.composerVsSearchService.matchName(this.vsObject?.absoluteName);
+         return this.composerVsSearchService.matchObject(this.vsObject);
       }
 
       return false;

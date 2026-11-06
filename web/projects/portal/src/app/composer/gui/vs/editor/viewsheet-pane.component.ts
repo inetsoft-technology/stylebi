@@ -2737,7 +2737,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
                   return o;
                })
-               .filter(o => this.composerVsSearchService.matchName(o.absoluteName))
+               .filter(o => this.composerVsSearchService.matchObject(o))
                .sort((a, b) => {
                   let pintA = new Point(a.objectFormat.left, a.objectFormat.top);
                   let pintB = new Point(b.objectFormat.left, b.objectFormat.top);

@@ -114,6 +114,7 @@ export function makeComposerVsSearchService() {
       assemblyVisible: vi.fn().mockReturnValue(true),
       isFocusAssembly: vi.fn().mockReturnValue(false),
       matchName: vi.fn().mockReturnValue(false),
+      matchObject: vi.fn().mockReturnValue(false),
    };
 }
 
