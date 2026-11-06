@@ -1883,18 +1883,23 @@ public class ViewsheetAssemblyAgentController {
 
    /**
     * {@code set_selection_layout}. A Selection List's column count and the measure text/bar widths
-    * -- the Composer sets these only by dragging, so they are in no property-dialog model.
+    * -- the Composer sets these only by dragging, so they are in no property-dialog model --
+    * plus {@code collapsed} (a list/range slider inside a Selection Container) and
+    * {@code expandAll} (a Selection Tree).
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/layout")
    public Map<String, Object> setSelectionLayout(@PathVariable String sessionToken,
                                                  @RequestBody SelectionLayoutRequest request,
+                                                 @RequestParam(required = false, defaultValue = "")
+                                                 String linkUri,
                                                  Principal user)
       throws Exception
    {
       requireEnabled();
       return selectionLayoutService.setLayout(sessionToken, user, request.assembly(),
                                               request.columnCount(), request.measureTextWidth(),
-                                              request.measureBarWidth());
+                                              request.measureBarWidth(), request.collapsed(),
+                                              request.expandAll(), linkUri);
    }
 
    /** {@code get_selection_layout}. The stored layout; no checkpoint, no broadcast. */
@@ -2052,7 +2057,8 @@ public class ViewsheetAssemblyAgentController {
    public record InputValueRequest(String assembly, java.util.List<Object> value,
                                    Boolean submit) {}
    public record SelectionLayoutRequest(String assembly, Number columnCount,
-                                        Number measureTextWidth, Number measureBarWidth) {}
+                                        Number measureTextWidth, Number measureBarWidth,
+                                        Boolean collapsed, Boolean expandAll) {}
    public record MaxModeRequest(String assembly, boolean maximized, Integer width, Integer height) {}
 
    /** {@code mode}: "insert" (the default -- shifts {@code index} and after down one) or
