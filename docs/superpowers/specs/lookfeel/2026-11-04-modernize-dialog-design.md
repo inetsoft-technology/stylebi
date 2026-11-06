@@ -431,7 +431,9 @@ Rulings after the scripted manual checks (2026-11-05):
 6. **"Keep my formatting" adopts the current modern card.** Classic components without an author
    background end with the card a new assembly gets (after PR #7750, the translucent tint).
 7. **Modernize Dashboard... is reachable in device and print layouts.** The layout pane's menu
-   offers the same entry, with the same visibility; the bar stays hidden there.
+   offers the same entry, with the same visibility; the bar stays hidden there. Revert Dashboard
+   to Classic Look is offered there too, for the same reason. The canvas hands both of its
+   entries to the layout pane, so the two menus cannot drift apart.
 
 ## 12. Verification
 
