@@ -40,6 +40,7 @@ import java.awt.Color;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -60,16 +61,21 @@ class ChartDescriptorSavedDefaultsTest {
    @Test
    void aSwitchedOnDescriptorWritesItsRegisteredDefaultTiers() throws Exception {
       ChartDescriptor desc = new ChartDescriptor();
-      desc.getPlotDescriptor().setYGridColor(new Color(0x4A484F), CompositeValue.Type.DEFAULT);
+      List<Object> sentinels = new ArrayList<>();
+
+      for(CompositeValue<?> field : desc.savedDefaults()) {
+         sentinels.add(setSentinelDefault(field));
+      }
+
       desc.setSaveDefaults(true);
 
       // a fresh descriptor reads as an older build does: its own switch is off
       ChartDescriptor read = parse(new ChartDescriptor(), xml(desc));
 
-      assertEquals(new Color(0x4A484F), read.getPlotDescriptor().getYGridColor());
+      assertEquals(sentinels.size(), read.savedDefaults().size());
 
-      for(int i = 0; i < desc.savedDefaults().size(); i++) {
-         assertEquals(desc.savedDefaults().get(i).get(CompositeValue.Type.DEFAULT),
+      for(int i = 0; i < sentinels.size(); i++) {
+         assertEquals(sentinels.get(i),
                       read.savedDefaults().get(i).get(CompositeValue.Type.DEFAULT), "field " + i);
          assertFalse(read.savedDefaults().get(i).hasUserValue(), "field " + i);
       }
@@ -164,7 +170,7 @@ class ChartDescriptorSavedDefaultsTest {
       info.reseedIfResolvedTypeChanged();
 
       assertEquals(GraphTypes.CHART_LINE, info.getSeededType().type(),
-                   "precondition: the re-seed ran");
+                   "precondition: the re-seed recorded the new type");
 
       for(int i = 0; i < fields.size(); i++) {
          assertTrue(fields.get(i).hasUserValue(), "field " + i);
@@ -193,6 +199,33 @@ class ChartDescriptorSavedDefaultsTest {
 
    private static <T> void promoteDefaultToUser(CompositeValue<T> value) {
       value.setValue(value.get(CompositeValue.Type.DEFAULT), CompositeValue.Type.USER);
+   }
+
+   // gives the field a default that differs from its constructor's; returns it
+   @SuppressWarnings({ "unchecked", "rawtypes" })
+   private static Object setSentinelDefault(CompositeValue field) {
+      Object current = field.get(CompositeValue.Type.DEFAULT);
+      Object sentinel;
+
+      if(current instanceof Color c) {
+         sentinel = new Color(~c.getRGB() & 0xFFFFFF);
+      }
+      else if(current instanceof Boolean b) {
+         sentinel = !b;
+      }
+      else if(current instanceof Integer n) {
+         sentinel = n + 1;
+      }
+      else if(current instanceof Double n) {
+         sentinel = n + 1;
+      }
+      else {
+         return fail("no sentinel for registered field type " +
+                     (current == null ? "null" : current.getClass().getName()));
+      }
+
+      field.setValue(sentinel, CompositeValue.Type.DEFAULT);
+      return sentinel;
    }
 
    // copies from's default into to's user tier; both are the same registered field

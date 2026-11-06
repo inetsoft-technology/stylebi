@@ -1250,7 +1250,8 @@ class SeedChromeDefaultsTest {
       assertEquals(dark, restored.getXGridColor(), "x gridline");
       assertEquals(dark, restored.getYGridColor(), "y gridline");
       assertEquals(dark, restored.getFacetGridColor(), "facet lines");
-      assertEquals(dark, restored.getDiagonalColor(), "diagonal, which no render-time CSS write rescues");
+      assertEquals(dark, restored.getDiagonalColor(),
+                   "diagonal, which no render-time CSS write rescues");
       assertEquals(dark, restored.getQuadrantColor(), "quadrant, likewise");
    }
 

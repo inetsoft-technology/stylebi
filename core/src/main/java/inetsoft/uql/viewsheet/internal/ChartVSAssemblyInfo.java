@@ -3274,8 +3274,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private DynamicValue2 summarySortVal;
    private boolean userBarCornerRadius = false;
    private boolean userSmoothLines = false;
-   // not saved and not copied; a clone carries it
-   private ResolvedChartType seededType;
+   // not saved, not serialized; a clone carries it
+   private transient ResolvedChartType seededType;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }

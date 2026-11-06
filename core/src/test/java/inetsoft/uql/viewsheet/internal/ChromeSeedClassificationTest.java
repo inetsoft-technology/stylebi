@@ -86,8 +86,10 @@ class ChromeSeedClassificationTest {
          {
             @Override
             protected boolean isCandidateComponent(AnnotatedBeanDefinition definition) {
+               // production classes only; test helpers live under test-classes
                return definition.getMetadata().isIndependent() &&
-                  !definition.getMetadata().isAbstract();
+                  !definition.getMetadata().isAbstract() &&
+                  !String.valueOf(definition.getResourceDescription()).contains("test-classes");
             }
          };
 

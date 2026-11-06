@@ -93,9 +93,11 @@ class ResolvedTypeReseedTest {
 
    @Test
    void theFullSeedRecordsTheTypeItSeeded() {
-      ChartVSAssembly chart = probeChart(new Viewsheet(), true);
+      ChartVSAssembly chart = probeChart(new Viewsheet(), true, false);
       ChartVSAssemblyInfo info = chart.getChartInfo();
+      ProbeInfo probe = (ProbeInfo) info;
 
+      assertFalse(probe.seeded.isEmpty(), "the full seed runs the per-type seed");
       assertNotNull(info.getSeededType());
       assertEquals(ResolvedChartType.of(info.getVSChartInfo()), info.getSeededType());
    }
@@ -301,6 +303,8 @@ class ResolvedTypeReseedTest {
 
       render(chart);
 
+      assertTrue(DateComparisonUtil.appliedDateComparison(chart.getChartInfo()),
+                 "precondition: the date comparison path ran");
       assertTrue(probe.seeded.isEmpty(), "seeded " + probe.seeded);
    }
 
@@ -323,6 +327,10 @@ class ResolvedTypeReseedTest {
    }
 
    private static ChartVSAssembly probeChart(Viewsheet vs, boolean created) {
+      return probeChart(vs, created, true);
+   }
+
+   private static ChartVSAssembly probeChart(Viewsheet vs, boolean created, boolean clear) {
       ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1") {
          @Override
          protected VSAssemblyInfo createInfo() {
@@ -339,7 +347,10 @@ class ResolvedTypeReseedTest {
          probe.initDefaultFormat();
       }
 
-      probe.clear();
+      if(clear) {
+         probe.clear();
+      }
+
       return chart;
    }
 
