@@ -331,6 +331,16 @@ public final class ChartGeoShelf {
                "that it is a column of the chart's source.");
          }
 
+         String name = field.column();
+
+         if(!name.startsWith("=") && !name.startsWith("$(") &&
+            info.getRTGeoColumns().getAttribute(name) == null)
+         {
+            throw new IllegalArgumentException(
+               "Column '" + name + "' was not found in the chart's source, so it cannot be " +
+               "used as a geographic column.");
+         }
+
          String colType = col.getGeographicOption().getMapping().getType();
          colType = colType == null ? "" : colType;
          int layer = col.getGeographicOption().getLayer();

@@ -102,6 +102,29 @@ class ChartGeoShelfTest {
    }
 
    @Test
+   void aColumnNotInTheSourceIsRefusedAsNotFoundNotAsALayerError() {
+      // Bug #80345: an unresolved column was registered as geographic, detection skipped it, and
+      // the refusal blamed the layer with an empty map type ("State layer is not supported by !").
+      for(String column : new String[] { "NoSuchCol", " =bad syntax(" }) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field(column, "State"))));
+
+         assertTrue(e.getMessage().contains("'" + column + "'"), e.getMessage());
+         assertTrue(e.getMessage().contains("not found in the chart's source"), e.getMessage());
+         assertFalse(e.getMessage().contains("layer is not supported"), e.getMessage());
+         assertFalse(e.getMessage().matches("(?s).*by\s*!.*"), e.getMessage());
+      }
+   }
+
+   @Test
+   void aRealColumnWithAnyLayerIsStillNotRefusedAsMissing() throws Exception {
+      assertDoesNotThrow(() ->
+         ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("State", "State"))));
+      assertDoesNotThrow(() ->
+         ChartGeoShelf.apply(rvs, chart, handler, List.of(new Field("City", "State"))));
+   }
+
+   @Test
    void stateThenCityGetEqualNonEmptyMappingTypes() throws Exception {
       List<Detected> detected = ChartGeoShelf.apply(
          rvs, chart, handler, List.of(new Field("State", "State"), new Field("City", "City")));
@@ -181,6 +204,7 @@ class ChartGeoShelfTest {
       city.getGeographicOption().setLayerValue("1001");
       mixed.getGeoColumns().addAttribute(state);
       mixed.getGeoColumns().addAttribute(city);
+      resolveRuntimeColumns(mixed);
 
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
          ChartGeoShelf.check(mixed, List.of(new Field("State", "State"), new Field("City", "City"))));
@@ -199,11 +223,19 @@ class ChartGeoShelfTest {
          col.getGeographicOption().setLayerValue("2");
          moved.getGeoColumns().addAttribute(col);
       }
+      resolveRuntimeColumns(moved);
 
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
          ChartGeoShelf.check(moved, List.of(new Field("State", "State"), new Field("City", "City"))));
 
       assertTrue(e.getMessage().contains("Multiple state or country layers"), e.getMessage());
+   }
+
+   private static void resolveRuntimeColumns(VSMapInfo target) {
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(new ColumnRef(new BaseField(null, "State")));
+      columns.addAttribute(new ColumnRef(new BaseField(null, "City")));
+      target.updateGeoColumns(new Viewsheet(), columns);
    }
 
    @Test

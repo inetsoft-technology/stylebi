@@ -63,6 +63,39 @@ class BindableColumnsTest {
       new BindableTable("Products", false,
                         List.of(new BindableField("PRODUCT_NAME", null, null))));
 
+   @Test
+   void geoColumnMissingFromTheCurrentSourceIsRefusedAsNotFound() {
+      for(String column : new String[] { "NoSuchCol", " PRICE" }) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+            BindableColumns.requireGeoColumns(BOUND_TO_QUERY1, "M", List.of(column)));
+
+         assertTrue(e.getMessage().contains("'" + column + "'"), e.getMessage());
+         assertTrue(e.getMessage().contains("not found in the source of M ('Query1')"),
+                    e.getMessage());
+      }
+   }
+
+   @Test
+   void geoColumnOfAnotherTableIsRefusedWhenASourceIsCurrent() {
+      assertThrows(IllegalArgumentException.class, () ->
+         BindableColumns.requireGeoColumns(BOUND_TO_QUERY1, "M", List.of("PRODUCT_NAME")));
+   }
+
+   @Test
+   void geoColumnsInTheSourceAndDynamicOnesPass() {
+      assertDoesNotThrow(() -> BindableColumns.requireGeoColumns(
+         BOUND_TO_QUERY1, "M", List.of("PRICE", "=expr()", "$(Combo1)")));
+   }
+
+   @Test
+   void geoCheckFailsOpenWhenTheCurrentTableCarriesWarnings() {
+      List<BindableTable> warned = List.of(
+         new BindableTable("Query1", true, List.of(), List.of("script failed"), null));
+
+      assertDoesNotThrow(() ->
+         BindableColumns.requireGeoColumns(warned, "M", List.of("ANYTHING")));
+   }
+
    private static FieldRef dim(String column) {
       return new FieldRef(column, "dimension", null, null, null);
    }
