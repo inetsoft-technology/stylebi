@@ -252,8 +252,8 @@ public class FormatInfo implements AssetObject {
     */
    /**
     * Whether this path's border colour is the assembly's own rather than the object frame's. A
-    * chart draws its own title rule and must keep the colour seeded onto it; every other type still
-    * inherits the frame colour here, which is long-standing behaviour a table's title relies on.
+    * chart's title keeps its own border colour; every other type still inherits the frame colour
+    * here, which is long-standing behaviour a table's title relies on.
     */
    private static boolean ownsTitleBorder(TableDataPath tpath, VSCompositeFormat objfmt) {
       return VSAssemblyInfo.TITLEPATH.equals(tpath) &&

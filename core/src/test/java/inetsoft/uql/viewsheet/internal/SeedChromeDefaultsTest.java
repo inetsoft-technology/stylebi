@@ -636,23 +636,26 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
-   void aModernChartTitleCarriesTheBottomRule() {
-      // The base seeds a title composite that ChartVSAssemblyInfo then replaces, so the chart
-      // re-invokes the hook after its own install; without that the rule is written to a
-      // composite that is thrown away.
+   void aModernChartTitleCarriesNoRule() {
       gateOn();
-      VizContext ctx = VizContext.ofGate();
       VSFormat def = titleFormat(newChart()).getDefaultFormat();
 
+      assertNull(def.getBordersValue(), "a modern chart title has no rule");
+      assertNull(def.getBorderColorsValue());
       assertNull(def.getBackgroundValue(),
                  "the chart's title composite has never carried a fill, on either branch");
+   }
 
-      Insets borders = def.getBordersValue();
-      assertNotNull(borders, "the rule reaches the composite the chart actually keeps");
-      assertEquals(StyleConstants.NONE, borders.top);
-      assertEquals(StyleConstants.THIN_LINE, borders.bottom);
-      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
-                   def.getBorderColorsValue().bottomColor);
+   @Test
+   void tablesSelectionsAndCalendarsKeepTheirTitleRule() {
+      gateOn();
+      VSAssemblyInfo[] infos = { newTable(), newSelectionList(), newCalendar() };
+
+      for(VSAssemblyInfo info : infos) {
+         Insets borders = titleFormat(info).getDefaultFormat().getBordersValue();
+         assertNotNull(borders, info.getClass().getSimpleName());
+         assertEquals(StyleConstants.THIN_LINE, borders.bottom, info.getClass().getSimpleName());
+      }
    }
 
    @Test
@@ -718,18 +721,18 @@ class SeedChromeDefaultsTest {
    // in place, so the seeded colour has to survive a read through that path.
 
    @Test
-   void aUserObjectBorderColourDoesNotReachAChartTitleRule() {
+   void aUserObjectBorderColourDoesNotReachAChartTitle() {
       gateOn();
-      VizContext ctx = VizContext.ofGate();
       ChartVSAssemblyInfo info = newChart();
       info.getFormat().getUserDefinedFormat().setBorderColorsValue(
          new BorderColors(Color.RED, Color.RED, Color.RED, Color.RED));
 
       VSCompositeFormat title = info.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH, false);
 
-      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
-                   title.getBorderColors().bottomColor,
-                   "the chart's title rule keeps its own colour, not the author's frame colour");
+      assertNull(title.getBorders(), "a chart title has no rule for the frame colour to reach");
+      assertTrue(title.getBorderColors() == null ||
+                 !Color.RED.equals(title.getBorderColors().bottomColor),
+                 "the author's frame colour does not reach a chart title");
    }
 
    @Test
@@ -747,10 +750,8 @@ class SeedChromeDefaultsTest {
 
    @Test
    void aModernizedChartEqualsAFreshlyCreatedOne() {
-      // the equality the re-invocation must preserve: creation and Modernize run the same hook
-      // against the same composite, so they cannot diverge
+      // creation and Modernize run the same hook against the same composite
       gateOn();
-      VizContext ctx = VizContext.ofGate();
       VSFormat fresh = titleFormat(newChart()).getDefaultFormat();
 
       gateOff();
@@ -760,27 +761,30 @@ class SeedChromeDefaultsTest {
       modernized.seedChromeDefaults(VizContext.of(modernized));
       VSFormat after = titleFormat(modernized).getDefaultFormat();
 
-      assertEquals(fresh.getBordersValue(), after.getBordersValue());
-      assertEquals(fresh.getBorderColorsValue().bottomColor,
-                   after.getBorderColorsValue().bottomColor);
-      assertEquals(VSTitleChromeDefaults.titleBorderColor(ctx),
-                   after.getBorderColorsValue().bottomColor);
+      assertNull(fresh.getBordersValue());
+      assertNull(after.getBordersValue());
+      assertNull(fresh.getBorderColorsValue());
+      assertNull(after.getBorderColorsValue());
    }
 
    @Test
-   void revertingAChartTitleRemovesTheRule() {
+   void aChartSeededWithTheRuleLosesItOnItsNextSeed() {
       gateOn();
       ChartVSAssemblyInfo info = newChart();
       info.setVizMark(VizMark.fromGate());
+      VizContext ctx = VizContext.of(info);
+      VSFormat def = titleFormat(info).getDefaultFormat();
+      def.setBordersValue(VSTitleChromeDefaults.titleRuleBorders());
+      def.setBorderColorsValue(VSTitleChromeDefaults.titleRuleColors(ctx));
+
       info.seedChromeDefaults(VizContext.of(info));
-      assertNotNull(titleFormat(info).getDefaultFormat().getBordersValue(),
-                    "precondition: the modern chart has the rule");
+      assertNull(titleFormat(info).getDefaultFormat().getBordersValue());
+      assertNull(titleFormat(info).getDefaultFormat().getBorderColorsValue());
 
       info.setVizMark(null);
       info.seedChromeDefaults(VizContext.of((VizMark) null));
-
-      assertNull(titleFormat(info).getDefaultFormat().getBordersValue(),
-                 "Revert restores a chart title with no rule");
+      assertNull(titleFormat(info).getDefaultFormat().getBordersValue());
+      assertNull(titleFormat(info).getDefaultFormat().getBorderColorsValue());
    }
 
    // ---- backgrounds ---------------------------------------------------------------------------

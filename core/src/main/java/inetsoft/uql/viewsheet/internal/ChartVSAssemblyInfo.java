@@ -136,15 +136,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          setPadding(defaultPadding(ctx));
       }
 
-      // the title lane's rule and its text colour. No background write on either branch: this
-      // type's own title composite has never carried one, so the modern lane is unfilled by
-      // construction and the legacy branch has nothing to restore
+      // the title's text colour. A chart title carries no rule on either branch, so both rule
+      // fields are cleared to drop one an earlier seed wrote. No background write: this type's
+      // title composite has never carried one
       VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
 
       if(titleFormat != null) {
          VSFormat def = titleFormat.getDefaultFormat();
-         def.setBordersValue(ctx.modern ? VSTitleChromeDefaults.titleRuleBorders() : null);
-         def.setBorderColorsValue(ctx.modern ? VSTitleChromeDefaults.titleRuleColors(ctx) : null);
+         def.setBordersValue(null);
+         def.setBorderColorsValue(null);
          def.setForegroundValue(
             ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
          // getForeground() falls back to the fg field when fgval yields nothing, so the legacy
