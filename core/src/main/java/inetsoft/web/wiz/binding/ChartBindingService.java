@@ -107,7 +107,8 @@ public class ChartBindingService {
    public List<String> setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
                         List<FieldRef> fields, String sourceTable, String linkUri) throws Exception
    {
-      return sessions.mutate(sessionToken, user,
+      List<String> notes = new ArrayList<>();
+      List<String> warnings = sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assemblyName, scriptExpressions(fields),
             (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -125,7 +126,8 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-         ChartHyperlinkCarry.reapply(requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links);
+         notes.addAll(ChartHyperlinkCarry.reapply(
+            requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links));
 
          try {
             requireCalculatorsResolved(requireChart(rvs, assemblyName).getVSChartInfo(), shelf,
@@ -147,6 +149,8 @@ public class ChartBindingService {
             throw new IllegalArgumentException(refusalMessage(e.getMessage(), restored), e);
          }
       }));
+
+      return withNotes(warnings, notes);
    }
 
    /**
@@ -782,7 +786,8 @@ public class ChartBindingService {
                               String shelf, FieldRef field, String sourceTable, String linkUri)
       throws Exception
    {
-      return sessions.mutate(sessionToken, user,
+      List<String> notes = new ArrayList<>();
+      List<String> warnings = sessions.mutate(sessionToken, user,
          ChartRenderCheck.checked(assemblyName, scriptExpressions(field),
             (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -800,8 +805,11 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
-         ChartHyperlinkCarry.reapply(requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links);
+         notes.addAll(ChartHyperlinkCarry.reapply(
+            requireChart(rvs, assemblyName).getVSChartInfo(), shelf, links));
       }));
+
+      return withNotes(warnings, notes);
    }
 
    /**
