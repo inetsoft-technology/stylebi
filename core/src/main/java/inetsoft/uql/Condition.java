@@ -27,6 +27,7 @@ import inetsoft.uql.schema.*;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.pojava.datetime.DateTime;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -608,6 +609,7 @@ public class Condition extends AbstractCondition {
          }
 
          List<Object> currentSortedValues = sortedValues;
+         boolean unsafeForBinarySearch = false;
 
          // optimization, avoid iterative search. (54486)
          if(sortedValues == null || !Tool.equals(Tool.getDataType(value), type)) {
@@ -624,9 +626,23 @@ public class Condition extends AbstractCondition {
                }
             }
 
+            // a numeric probe is compared numerically against string elements, so the
+            // elements must be sorted in numeric order too or binarySearch misses (80356)
+            if(value instanceof Number && !normalizeNumericStrings(currentSortedValues)) {
+               unsafeForBinarySearch = true;
+            }
+
             Collections.sort(currentSortedValues, comp);
 
-            if(value != null && !"".equals(value)) {
+            // only cache a list whose normalization matches the condition type, otherwise a
+            // later probe of the declared type would reuse a list sorted in the wrong order
+            boolean numericType = XSchema.INTEGER.equals(type) || XSchema.LONG.equals(type) ||
+               XSchema.SHORT.equals(type) || XSchema.BYTE.equals(type) ||
+               XSchema.DOUBLE.equals(type) || XSchema.FLOAT.equals(type);
+
+            if(value != null && !"".equals(value) && !unsafeForBinarySearch &&
+               (value instanceof Number) == numericType)
+            {
                sortedValues = currentSortedValues;
             }
          }
@@ -636,7 +652,11 @@ public class Condition extends AbstractCondition {
 
          String valueType = Tool.getDataType(value);
 
-         if(!Tool.equals(valueType, type) && sortedValues != null &&
+         if(unsafeForBinarySearch) {
+            final Object currentValue = value;
+            result = currentSortedValues.stream().anyMatch(sv -> comp.compare(currentValue, sv) == 0);
+         }
+         else if(!Tool.equals(valueType, type) && sortedValues != null &&
             sortedValues.size() > 0 && !Tool.equals(Tool.getDataType(sortedValues.get(0)), valueType))
          {
             final Object currentValue = value;
@@ -1572,6 +1592,28 @@ public class Condition extends AbstractCondition {
     */
    public boolean isOptimized() {
       return optimized;
+   }
+
+   /**
+    * Convert numeric-looking string elements to Double in place.
+    * @return false if a string looks numeric but could not be parsed, in which case the list
+    * can not be ordered consistently with numeric probes and must be scanned linearly.
+    */
+   private static boolean normalizeNumericStrings(List<Object> list) {
+      for(int i = 0; i < list.size(); i++) {
+         Object obj = list.get(i);
+
+         if(obj instanceof String && NumberUtils.isCreatable((String) obj)) {
+            try {
+               list.set(i, Double.valueOf(((String) obj).trim()));
+            }
+            catch(NumberFormatException ex) {
+               return false;
+            }
+         }
+      }
+
+      return true;
    }
 
    /**
