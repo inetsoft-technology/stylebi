@@ -920,7 +920,8 @@ public class FormatPainterService {
 
       String str = path.getPath()[0];
 
-      return "Measure Text".equals(str) || "Measure Bar".equals(str);
+      return "Measure Text".equals(str) || "Measure Bar".equals(str) ||
+         "Measure Bar(-)".equals(str);
    }
 
    private boolean isFormattedStringColumn(FormatVSObjectEvent event, VSAssembly assembly,
@@ -1758,6 +1759,10 @@ public class FormatPainterService {
          format.getCSSFormat().addCSSAttribute("axis", axisIndex);
       }
       else if(box.isPresent() && region.equals(ChartFormatConstants.RIGHT_Y_AXIS)) {
+         if(columnName == null || columnName.isEmpty()) {
+            columnName = regionHandler.getAxisColumnName(chartInfo, area, region, index);
+         }
+
          format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
                                          area, false);
          format.getCSSFormat().addCSSAttribute("axis", "y2");

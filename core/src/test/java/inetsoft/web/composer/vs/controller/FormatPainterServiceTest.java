@@ -236,6 +236,33 @@ class FormatPainterServiceTest {
                 "a resolved field must write its own text format, not the plot's shared default");
    }
 
+   /**
+    * Bug #80443 sub-gap 1 refutation finding: the {@code RIGHT_Y_AXIS} branch of
+    * {@code getChartRegionFormat} skipped the null/empty-columnName pre-resolution the
+    * {@code BOTTOM_X_AXIS}/{@code TOP_X_AXIS}/{@code LEFT_Y_AXIS} branches all do, which a
+    * separated/trellis chart's {@code axisLabel2} write would have exposed as a write under a
+    * null column key instead of the real axis's slot.
+    */
+   @Test
+   void resolvesTheColumnNameForTheRightYAxisLikeTheLeftYAxis() throws Exception {
+      AxisDescriptor axisDescriptor = new AxisDescriptor();
+
+      doReturn(axisDescriptor).when(chartRegionHandler)
+         .getAxisDescriptor(nullable(VSChartInfo.class), nullable(ChartArea.class),
+                            nullable(String.class), anyInt(), nullable(String.class));
+
+      GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
+      event.setName("Chart1");
+      event.setRegion("right_y_axis");
+      event.setDimensionColumn(true);
+      event.setIndex(0);
+      event.setColumnName("");
+
+      service.getFormat("Viewsheet1", event, null, dispatcher);
+
+      verify(chartRegionHandler).getAxisColumnName(any(), any(), eq("right_y_axis"), anyInt());
+   }
+
    @Captor ArgumentCaptor<SetCurrentFormatCommand> argCaptor;
    @Mock ViewsheetEngine viewsheetEngine;
    @Mock

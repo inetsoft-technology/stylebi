@@ -133,6 +133,30 @@ class ViewsheetFormatServiceSelectionRegionTest {
       }
    }
 
+   /** Bug 80443 sub-gap 2: {@code measureBarNegative} writes getMeasureNBarPath, per level. */
+   @Test
+   void measureBarNegativeWritesTheNegativeBarPath() {
+      RuntimeViewsheet rvs = rvs("Tree1", tree(2, false));
+
+      assertArrayEquals(
+         new TableDataPath[]{ SelectionBaseVSAssemblyInfo.getMeasureNBarPath(1) },
+         paths(rvs, "Tree1", "measurebarnegative", 1));
+
+      for(TableDataPath path : paths(rvs, "Tree1", "measurebarnegative", null)) {
+         assertArrayEquals(new String[]{ "Measure Bar(-)" }, path.getPath());
+      }
+   }
+
+   @Test
+   void idModeTreeMeasureBarNegativeAlsoSpansTenLevels() {
+      RuntimeViewsheet rvs = rvs("Tree1", tree(3, true));
+
+      assertEquals(10, paths(rvs, "Tree1", "measurebarnegative", null).length);
+      assertArrayEquals(
+         new TableDataPath[]{ SelectionBaseVSAssemblyInfo.getMeasureNBarPath(7) },
+         paths(rvs, "Tree1", "measurebarnegative", 7));
+   }
+
    @Test
    void listMeasureIsLevelZero() {
       RuntimeViewsheet rvs = rvs("List1", mock(SelectionListVSAssembly.class));
@@ -157,7 +181,7 @@ class ViewsheetFormatServiceSelectionRegionTest {
    void outOfRangeLevelIsRefusedNamingTheAssemblyAndTheValidRange() {
       RuntimeViewsheet rvs = rvs("Tree1", tree(2, false));
 
-      for(String target : List.of("cell", "measuretext", "measurebar")) {
+      for(String target : List.of("cell", "measuretext", "measurebar", "measurebarnegative")) {
          String message = refusal(rvs, "Tree1", target, 2);
          assertTrue(message.contains("level 2") && message.contains("'Tree1'") &&
                     message.contains("2 levels: 0-1"), message);
