@@ -1710,6 +1710,9 @@ class PropertyAliasesTest {
 
    private static final Map<String, List<String>> SIZE_POSITION_LIVE = Map.of(
       "scaleVertical", List.of("text"),
+      "titleHeight", List.of("calctable", "calendar", "chart", "crosstab", "selectioncontainer",
+                             "selectionlist", "selectiontree", "table", "timeslider", "checkbox",
+                             "radiobutton"),
       "cellHeight", List.of("selectionlist", "selectiontree", "checkbox", "radiobutton"),
       "container", List.of());
 
@@ -2074,7 +2077,25 @@ class PropertyAliasesTest {
       // Select First Item: shown by list-values-pane only for the check box, applied only by
       // the check box setter -- never in the shared listInput() set
       new AliasCase("selectFirstItem", true, paths(
-         "checkbox", CHECKBOX + ".listValuesPaneModel.selectFirstItem")));
+         "checkbox", CHECKBOX + ".listValuesPaneModel.selectFirstItem")),
+      // ComboBox-only (PR2): the other types refuse the same raw paths, see
+      // comboBoxOnlyFieldsAreRefusedOnTheOtherInputAndOutputTypes
+      new AliasCase("editable", true, paths(
+         "combobox", COMBOBOX + ".generalPropPaneModel.basicGeneralPaneModel.editable")),
+      new AliasCase("queryDateFormat", true, paths(
+         "combobox", "dataInputPaneModel.queryDateFormat")),
+      new AliasCase("dateFormatPattern", "dd.MM.yyyy", paths(
+         "combobox", "dataInputPaneModel.dateFormatPattern")),
+      new AliasCase("calendar", true, paths(
+         "combobox", COMBOBOX + ".listValuesPaneModel.comboBoxEditorModel.calendar")),
+      new AliasCase("serverTZ", true, paths(
+         "combobox", COMBOBOX + ".listValuesPaneModel.comboBoxEditorModel.serverTZ")),
+      new AliasCase("minDate", "2020-01-01", paths(
+         "combobox", COMBOBOX + ".listValuesPaneModel.comboBoxEditorModel.minDate")),
+      new AliasCase("maxDate", "2021-01-01", paths(
+         "combobox", COMBOBOX + ".listValuesPaneModel.comboBoxEditorModel.maxDate")),
+      new AliasCase("defaultValue", "2020-06-01", paths(
+         "combobox", COMBOBOX + ".listValuesPaneModel.comboBoxEditorModel.defaultValue")));
 
    /** Alias -> raw-path equality, on every registered type, through both resolvers. */
    @Test
@@ -2097,7 +2118,7 @@ class PropertyAliasesTest {
          }
       }
 
-      assertEquals(51, checked);
+      assertEquals(59, checked);
    }
 
    /**
@@ -2185,9 +2206,8 @@ class PropertyAliasesTest {
    @Test
    void deferredOrDeadNamesAreNotRegisteredOnAnyInputOrOutputType() {
       for(String type : FORM_OUTPUT_TYPES) {
-         for(String name : List.of("noDefault", "multiLine", "inputControl", "editable", "queryDateFormat",
-                                   "dateFormatPattern", "calendar", "serverTZ", "minDate",
-                                   "maxDate", "defaultValue", "staticLabels", "staticValues"))
+         for(String name : List.of("noDefault", "multiLine", "inputControl", "staticLabels",
+                                   "staticValues"))
          {
             assertFalse(PropertyAliases.forType(type).aliases().containsKey(name),
                         name + " on " + type);
@@ -2250,6 +2270,127 @@ class PropertyAliasesTest {
       }
 
       assertTrue(covered, imagePop);
+   }
+
+   private static final String CB_EDITOR = ".listValuesPaneModel.comboBoxEditorModel.";
+
+   /** type -> the raw ComboBox-only paths that type does not apply, in that type's own shape. */
+   private static Map<String, List<String>> comboBoxOnlyPaths() {
+      Map<String, List<String>> map = new java.util.LinkedHashMap<>();
+      String[] editor = {"calendar", "serverTZ", "minDate", "maxDate", "defaultValue"};
+
+      for(String type : List.of("checkbox", "radiobutton")) {
+         String prefix = type.equals("checkbox") ? CHECKBOX : RADIO;
+         List<String> paths = new ArrayList<>(List.of(
+            prefix + ".generalPropPaneModel.basicGeneralPaneModel.editable",
+            "dataInputPaneModel.queryDateFormat", "dataInputPaneModel.dateFormatPattern"));
+
+         for(String field : editor) {
+            paths.add(prefix + CB_EDITOR + field);
+         }
+
+         map.put(type, paths);
+      }
+
+      for(Map.Entry<String, String> entry : Map.of(
+         "spinner", "spinnerGeneralPaneModel", "textinput", "textInputGeneralPaneModel",
+         "slider", "sliderGeneralPaneModel").entrySet())
+      {
+         map.put(entry.getKey(), List.of(
+            entry.getValue() + ".generalPropPaneModel.basicGeneralPaneModel.editable",
+            "dataInputPaneModel.queryDateFormat", "dataInputPaneModel.dateFormatPattern"));
+      }
+
+      for(String type : List.of("gauge", "text", "image")) {
+         map.put(type, List.of(
+            type + "GeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.editable"));
+      }
+
+      return map;
+   }
+
+   /**
+    * Editable, the date-format pair and the calendar editor fields are applied by the ComboBox
+    * setters only, so every other input/output type refuses the raw path with the read-only
+    * message (it used to report success and change nothing). The ComboBox accepts them all.
+    */
+   @Test
+   void comboBoxOnlyFieldsAreRefusedOnTheOtherInputAndOutputTypes() {
+      int checked = 0;
+
+      for(Map.Entry<String, List<String>> entry : comboBoxOnlyPaths().entrySet()) {
+         for(String path : entry.getValue()) {
+            String message = refusal(entry.getKey(), path);
+            assertTrue(message.contains("is read-only on " + entry.getKey()) &&
+                       message.contains("ComboBox only"),
+                       entry.getKey() + " " + path + ": " + message);
+            checked++;
+         }
+      }
+
+      assertEquals(2 * 8 + 3 * 3 + 3, checked);
+
+      for(String field : List.of("calendar", "serverTZ", "minDate", "maxDate", "defaultValue")) {
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("combobox", field), field);
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(
+            "combobox", COMBOBOX + CB_EDITOR + field), field);
+      }
+
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("combobox", "editable"));
+   }
+
+   /** Select First Item is a CheckBox-only write: refused on RadioButton and ComboBox. */
+   @Test
+   void selectFirstItemIsRefusedOnRadioButtonAndComboBoxButNotCheckBox() {
+      for(String type : List.of("radiobutton", "combobox")) {
+         String prefix = type.equals("radiobutton") ? RADIO : COMBOBOX;
+         String message = refusal(type, prefix + ".listValuesPaneModel.selectFirstItem");
+         assertTrue(message.contains("is read-only on " + type) &&
+                    message.contains("CheckBox only"), message);
+      }
+
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("checkbox", "selectFirstItem"));
+   }
+
+   /** Editable resolves to the live editable flag, never to the misnamed ...enabled leftover. */
+   @Test
+   void editableAliasIsTheEditableFlagNotTheMisnamedEnabledOne() {
+      String path = PropertyAliases.resolve("combobox", "editable");
+      assertTrue(path.endsWith("basicGeneralPaneModel.editable"), path);
+      assertFalse(PropertyAliases.resolve("combobox", "enabled")
+                     .contains("basicGeneralPaneModel"));
+   }
+
+   /**
+    * titleHeight is read back by an explicit set of types; on any other type that registers the
+    * size pane a raw write is refused instead of being a silent no-op, over every size-pane type.
+    */
+   @Test
+   void rawTitleHeightIsRefusedExactlyOnTypesThatIgnoreIt() {
+      int refusedCount = 0;
+
+      for(String type : SIZE_POSITION_TYPES) {
+         String path = sizePositionPath(type, "titleHeight");
+
+         if(path == null) {
+            continue;
+         }
+
+         boolean live = SIZE_POSITION_LIVE.get("titleHeight").contains(type);
+         assertEquals(!live, refused(type, path), type + " " + path);
+         refusedCount += live ? 0 : 1;
+      }
+
+      assertTrue(refusedCount >= 10, "refused " + refusedCount);
+
+      for(String type : List.of("combobox", "spinner", "textinput", "gauge", "text", "image")) {
+         assertTrue(refusal(type, sizePositionPath(type, "titleHeight"))
+                       .contains("is read-only on " + type), type);
+      }
+
+      for(String type : List.of("checkbox", "radiobutton")) {
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(type, "titleHeight"), type);
+      }
    }
 
    /**
