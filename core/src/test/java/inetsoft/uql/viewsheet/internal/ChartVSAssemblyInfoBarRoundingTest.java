@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,13 @@ class ChartVSAssemblyInfoBarRoundingTest {
    }
 
    private PlotDescriptor newChartPlot() {
+      return newChartPlot(GraphTypes.CHART_AUTO);
+   }
+
+   // the type is set before creation, so the creation seed resolves it
+   private PlotDescriptor newChartPlot(int type) {
       ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.getVSChartInfo().setChartType(type);
       info.setVizMark(VizMark.fromGate());
       info.initDefaultFormat();
       return info.getChartDescriptor().getPlotDescriptor();
@@ -103,10 +110,10 @@ class ChartVSAssemblyInfoBarRoundingTest {
    }
 
    @Test
-   void smoothLinesSeededUnderGate() {
+   void smoothLinesNotSeededUnderGate() {
       withGate("true", () -> {
          PlotDescriptor plot = newChartPlot();
-         assertTrue(plot.isSmoothLines());
+         assertFalse(plot.isSmoothLines());
       });
    }
 
@@ -121,7 +128,7 @@ class ChartVSAssemblyInfoBarRoundingTest {
    @Test
    void seededSmoothLinesSurviveTheGateTurningOff() {
       PlotDescriptor[] holder = new PlotDescriptor[1];
-      withGate("true", () -> holder[0] = newChartPlot());
+      withGate("true", () -> holder[0] = newChartPlot(GraphTypes.CHART_CIRCULAR));
 
       withGate("false", () -> assertTrue(holder[0].isSmoothLines(),
                                          "a chart made under the gate stays smooth"));

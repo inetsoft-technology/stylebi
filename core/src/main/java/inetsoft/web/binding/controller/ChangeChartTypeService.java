@@ -332,8 +332,8 @@ public class ChangeChartTypeService {
     * Default smoothLines on first transition into a (non-step) Area or Circular type so newly-
     * created charts use smooth curves; user can still turn it off via Plot Options. On the
     * reverse transition (Area/Circular → Line) clear the flag so the Line chart does not
-    * silently inherit curves from the previously-smooth source type, unless the chart itself is
-    * modern, in which case any transition into Line sets smoothLines instead.
+    * silently inherit curves from the previously-smooth source type. A modern chart is left to
+    * its type seed, which runs when the assembly is updated and keeps an author's smoothing.
     *
     * <p>Package-private and pure (no Spring/runtime state) so the transition matrix is unit-
     * testable without standing up the WebSocket controller; the caller resolves the chart's own
@@ -342,6 +342,10 @@ public class ChangeChartTypeService {
    static void applySmoothLinesTransition(int oldType, int newType, PlotDescriptor plotDesc,
                                           boolean modern)
    {
+      if(modern) {
+         return;
+      }
+
       boolean newSmoothDefault = GraphTypes.isSmoothLinesDefault(newType);
       boolean oldSmoothDefault = GraphTypes.isSmoothLinesDefault(oldType);
       boolean newIsCircular = newType == GraphTypes.CHART_CIRCULAR;
@@ -351,20 +355,12 @@ public class ChangeChartTypeService {
       boolean newIsArea = newSmoothDefault && !newIsCircular;
       boolean oldIsArea = oldSmoothDefault && !oldIsCircular;
       boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
-      boolean oldIsLine = oldType == GraphTypes.CHART_LINE || oldType == GraphTypes.CHART_LINE_STACK;
 
       if((newIsArea && !oldIsArea) || (newIsCircular && !oldIsCircular)) {
          plotDesc.setSmoothLines(true);
       }
-      else if(newIsLine) {
-         if(modern && !oldIsLine) {
-            // a modern chart switched into Line is smooth whatever the source type had, so set
-            // rather than preserve
-            plotDesc.setSmoothLines(true);
-         }
-         else if(oldSmoothDefault) {
-            plotDesc.setSmoothLines(false);
-         }
+      else if(newIsLine && oldSmoothDefault) {
+         plotDesc.setSmoothLines(false);
       }
    }
 

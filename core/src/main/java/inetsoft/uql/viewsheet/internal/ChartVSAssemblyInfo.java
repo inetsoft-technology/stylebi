@@ -161,10 +161,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             plotDesc.setBarCornerRadius(0.3);
          }
 
-         if(!isUserSmoothLines()) {
-            plotDesc.setSmoothLines(true);
-         }
-
          // the plot's structural lines. Seeded rather than resolved at render so they travel in
          // an exported asset, and so the composer pane and the canvas read one stored value
          Color gridline = VSChartChromeDefaults.gridlineColor(ctx);
@@ -3104,6 +3100,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
       seedXGrid(ctx, type);
+      // modern only; the classic value stays in legacySmoothLines()
+      seedSmoothLines(ctx, type);
    }
 
    private void seedXGrid(VizContext ctx, ResolvedChartType type) {
@@ -3119,6 +3117,28 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       if(plot != null) {
          plot.setXGridStyle(style, CompositeValue.Type.DEFAULT);
       }
+   }
+
+   private void seedSmoothLines(VizContext ctx, ResolvedChartType type) {
+      PlotDescriptor plot = plotOf(getChartDescriptor());
+
+      if(!ctx.modern || isUserSmoothLines() || plot == null) {
+         return;
+      }
+
+      boolean smooth = VSChartTypeDefaults.smoothLines(type.type());
+      PlotDescriptor rplot = plotOf(getRTChartDescriptor());
+
+      // a script-made runtime copy follows unless the script changed its value
+      if(rplot != null && rplot.isSmoothLines() == plot.isSmoothLines()) {
+         rplot.setSmoothLines(smooth);
+      }
+
+      plot.setSmoothLines(smooth);
+   }
+
+   private static PlotDescriptor plotOf(ChartDescriptor desc) {
+      return desc == null ? null : desc.getPlotDescriptor();
    }
 
    /**

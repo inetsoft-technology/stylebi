@@ -1013,7 +1013,7 @@ class SeedChromeDefaultsTest {
       gateOn();
       PlotDescriptor plot = newChart().getChartDescriptor().getPlotDescriptor();
       assertEquals(0.3, plot.getBarCornerRadius(), 0.0001);
-      assertTrue(plot.isSmoothLines());
+      assertFalse(plot.isSmoothLines(), "an unbound chart resolves AUTO, which is straight");
    }
 
    @Test
@@ -1170,6 +1170,23 @@ class SeedChromeDefaultsTest {
 
       assertEquals(StyleConstants.NONE,
                    plot((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).getXGridStyle());
+   }
+
+   @Test
+   void aModernAreaBookmarkRestoredAfterRevertIsSmooth() throws Exception {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = chartOn(vs);
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_AREA);
+      info.seedChromeDefaults(VizContext.of(info));
+      String state = writeState(chart);
+      assertFalse(plot(info).isSmoothLines(), "premise: a modern area is straight");
+
+      VizModernizeUtil.revert(vs);
+      restoreState(chart, state);
+
+      assertTrue(plot((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).isSmoothLines());
    }
 
    private static void bindScatter(ChartVSAssemblyInfo info) {
@@ -1558,7 +1575,7 @@ class SeedChromeDefaultsTest {
                    objectDefault(info).getBackgroundValue());
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
       assertEquals(0.3, plot.getBarCornerRadius(), 0.0001, "the plot seeds are reachable");
-      assertTrue(plot.isSmoothLines());
+      assertFalse(plot.isSmoothLines(), "an unbound chart resolves AUTO, which is straight");
       assertEquals(new Insets(12, 12, 12, 12), info.getPadding(),
                    "an unflagged padding is not an author opinion, so Modernize seeds over it; " +
                    "anAuthorsInsetSurvivesModernize covers the flagged case");

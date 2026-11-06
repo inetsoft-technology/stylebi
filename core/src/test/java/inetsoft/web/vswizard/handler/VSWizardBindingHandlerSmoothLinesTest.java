@@ -36,9 +36,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for VSWizardBindingHandler.applyWizardSmoothLines, the wizard's own statement that
- * Area/Circular charts are created smooth. initDefaultFormat now writes that same default itself,
- * so the value is forced off before the handler runs: only the handler can turn it back on, which
- * is what keeps these tests sensitive to its body instead of passing on the creation default alone.
+ * classic Area/Circular charts are created smooth; a marked chart is left to its type seed.
+ * initDefaultFormat writes the classic default itself, so the value is forced off before the
+ * handler runs: only the handler can turn it back on, which is what keeps these tests sensitive to
+ * its body instead of passing on the creation default alone.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -78,27 +79,39 @@ class VSWizardBindingHandlerSmoothLinesTest {
       ChartVSAssembly assembly = newChart(chartType);
       // creation writes the plot defaults first
       assembly.initDefaultFormat();
+      assertNull(assembly.getVSAssemblyInfo().getVizMark(), "premise: classic");
       PlotDescriptor plotDesc = assembly.getChartDescriptor().getPlotDescriptor();
       plotDesc.setSmoothLines(false);
       HANDLER.applyWizardSmoothLines(assembly);
       assertTrue(plotDesc.isSmoothLines());
    }
 
+   // a marked chart's smoothing is its type seed's, so the forced value stays
+   private void assertHandlerLeavesAMarkedChartAlone(int chartType) {
+      ChartVSAssembly assembly = newChart(chartType);
+      assembly.initDefaultFormat();
+      assertNotNull(assembly.getVSAssemblyInfo().getVizMark(), "premise: marked");
+      PlotDescriptor plotDesc = assembly.getChartDescriptor().getPlotDescriptor();
+      plotDesc.setSmoothLines(false);
+      HANDLER.applyWizardSmoothLines(assembly);
+      assertFalse(plotDesc.isSmoothLines());
+   }
+
    @Test
-   void areaStaysSmoothInBothGateStates() {
-      withGate("true", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA));
+   void areaIsSmoothedOnlyWhenClassic() {
+      withGate("true", () -> assertHandlerLeavesAMarkedChartAlone(GraphTypes.CHART_AREA));
       withGate("false", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA));
    }
 
    @Test
-   void areaStackStaysSmoothInBothGateStates() {
-      withGate("true", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA_STACK));
+   void areaStackIsSmoothedOnlyWhenClassic() {
+      withGate("true", () -> assertHandlerLeavesAMarkedChartAlone(GraphTypes.CHART_AREA_STACK));
       withGate("false", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_AREA_STACK));
    }
 
    @Test
-   void circularStaysSmoothInBothGateStates() {
-      withGate("true", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_CIRCULAR));
+   void circularIsSmoothedOnlyWhenClassic() {
+      withGate("true", () -> assertHandlerLeavesAMarkedChartAlone(GraphTypes.CHART_CIRCULAR));
       withGate("false", () -> assertHandlerTurnsSmoothLinesOn(GraphTypes.CHART_CIRCULAR));
    }
 
@@ -116,14 +129,14 @@ class VSWizardBindingHandlerSmoothLinesTest {
    }
 
    @Test
-   void wizardCreatedAreaChartEndsUpSmoothRegardlessOfWhichWriterDidIt() {
-      // end-to-end guard on the property both the handler and initDefaultFormat independently
-      // assert: an Area chart the wizard creates is smooth, whichever of the two wrote it
+   void wizardCreatedAreaChartIsStraightWhenMarkedAndSmoothWhenClassic() {
+      // end to end: a marked Area chart the wizard creates is straight; a classic one is smooth,
+      // whichever of the handler and initDefaultFormat wrote it
       withGate("true", () -> {
          ChartVSAssembly assembly = newChart(GraphTypes.CHART_AREA);
          assembly.initDefaultFormat();
          HANDLER.applyWizardSmoothLines(assembly);
-         assertTrue(assembly.getChartDescriptor().getPlotDescriptor().isSmoothLines());
+         assertFalse(assembly.getChartDescriptor().getPlotDescriptor().isSmoothLines());
       });
       withGate("false", () -> {
          ChartVSAssembly assembly = newChart(GraphTypes.CHART_AREA);

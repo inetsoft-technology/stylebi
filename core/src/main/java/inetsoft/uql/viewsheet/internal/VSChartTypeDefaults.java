@@ -64,4 +64,11 @@ final class VSChartTypeDefaults {
       return scatter && t.measureOnX() && t.measureOnY() ? StyleConstants.THIN_LINE :
          StyleConstants.NONE;
    }
+
+   /**
+    * Whether a modern chart draws smooth lines; only a circular network keeps curved chords.
+    */
+   static boolean smoothLines(int type) {
+      return type == GraphTypes.CHART_CIRCULAR;
+   }
 }

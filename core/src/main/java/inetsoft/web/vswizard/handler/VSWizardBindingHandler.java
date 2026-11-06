@@ -849,12 +849,12 @@ public class VSWizardBindingHandler {
    }
 
    /**
-    * Default smoothLines on for wizard-recommended (non-step) Area and Circular charts,
+    * Default smoothLines on for wizard-recommended (non-step) Area and Circular classic charts,
     * matching the default applied when a user picks the type via the chart-type chooser.
-    * Ordering-independent: initDefaultFormat's chrome seed writes true unconditionally in the
-    * modern branch and derives from chart type in the legacy branch, so on a wizard-created
-    * Area/Circular chart this is a re-assertion either way. It is kept as the wizard's own
-    * statement of the default, not as a repair of a seed that undoes it.
+    * Ordering-independent: initDefaultFormat's legacy chrome seed derives the same value from the
+    * chart type, so on a wizard-created Area/Circular chart this is a re-assertion. It is kept as
+    * the wizard's own statement of the default, not as a repair of a seed that undoes it. A marked
+    * chart is left to its type seed.
     *
     * <p>Package-private so the wizard smooth-lines default is unit-testable without standing
     * up the wizard pipeline.
@@ -867,7 +867,7 @@ public class VSWizardBindingHandler {
       ChartVSAssembly chart = (ChartVSAssembly) assembly;
       VSChartInfo chartInfo = chart.getVSChartInfo();
 
-      if(chartInfo == null) {
+      if(chartInfo == null || chart.getVSAssemblyInfo().getVizMark() != null) {
          return;
       }
 

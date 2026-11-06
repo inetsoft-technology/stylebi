@@ -139,6 +139,23 @@ class VSChartTypeDefaultsTest {
       }
    }
 
+   @Test
+   void smoothLinesOnlyForCircular() {
+      assertTrue(VSChartTypeDefaults.smoothLines(GraphTypes.CHART_CIRCULAR), "circular network");
+
+      int[] straight = {
+         GraphTypes.CHART_LINE, GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_STEP,
+         GraphTypes.CHART_STEP_STACK, GraphTypes.CHART_JUMP, GraphTypes.CHART_AREA,
+         GraphTypes.CHART_AREA_STACK, GraphTypes.CHART_STEP_AREA,
+         GraphTypes.CHART_STEP_AREA_STACK, GraphTypes.CHART_BAR, GraphTypes.CHART_NETWORK,
+         GraphTypes.CHART_TREE, GraphTypes.CHART_AUTO
+      };
+
+      for(int t : straight) {
+         assertFalse(VSChartTypeDefaults.smoothLines(t), "type " + t);
+      }
+   }
+
    private static ResolvedChartType rt(int type, boolean x, boolean y) {
       return new ResolvedChartType(type, x, y, List.of(), List.of());
    }

@@ -195,28 +195,18 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    // --- Gated transitions ---
 
    @Test
-   void areaToLine_underGate_setsSmoothLinesTrue() {
-      PlotDescriptor pd = descWith(true);
-      ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_AREA, GraphTypes.CHART_LINE, pd, true);
-      assertTrue(pd.isSmoothLines(), "under the gate a line chart stays smooth");
+   void areaToLine_underGate_leavesSmoothingToTheSeed() {
+      assertUnchangedUnderGate(GraphTypes.CHART_AREA, GraphTypes.CHART_LINE);
    }
 
    @Test
-   void barToLine_underGate_setsSmoothLinesTrue() {
-      // a saved bar chart switched to Line has no marker, so the transition must SET, not merely skip
-      PlotDescriptor pd = descWith(false);
-      ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_BAR, GraphTypes.CHART_LINE, pd, true);
-      assertTrue(pd.isSmoothLines());
+   void barToLine_underGate_leavesSmoothingToTheSeed() {
+      assertUnchangedUnderGate(GraphTypes.CHART_BAR, GraphTypes.CHART_LINE);
    }
 
    @Test
-   void circularToLine_underGate_setsSmoothLinesTrue() {
-      PlotDescriptor pd = descWith(true);
-      ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_LINE_STACK, pd, true);
-      assertTrue(pd.isSmoothLines());
+   void circularToLine_underGate_leavesSmoothingToTheSeed() {
+      assertUnchangedUnderGate(GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_LINE_STACK);
    }
 
    @Test
@@ -229,13 +219,8 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
    }
 
    @Test
-   void barToArea_underGate_stillSetsSmoothLinesTrue() {
-      // area/circular are already smooth by default, whatever the chart is; this branch is the
-      // same either way
-      PlotDescriptor pd = descWith(false);
-      ChangeChartTypeService.applySmoothLinesTransition(
-         GraphTypes.CHART_BAR, GraphTypes.CHART_AREA, pd, true);
-      assertTrue(pd.isSmoothLines());
+   void barToArea_underGate_leavesSmoothingToTheSeed() {
+      assertUnchangedUnderGate(GraphTypes.CHART_BAR, GraphTypes.CHART_AREA);
    }
 
    @Test
@@ -254,5 +239,14 @@ class ChangeChartTypeServiceSmoothLinesTransitionTest {
       ChangeChartTypeService.applySmoothLinesTransition(
          GraphTypes.CHART_LINE, GraphTypes.CHART_LINE_STACK, pd, true);
       assertFalse(pd.isSmoothLines());
+   }
+
+   // a modern chart's smoothing is its type seed's, so neither starting value is touched
+   private static void assertUnchangedUnderGate(int oldType, int newType) {
+      for(boolean before : new boolean[] { false, true }) {
+         PlotDescriptor pd = descWith(before);
+         ChangeChartTypeService.applySmoothLinesTransition(oldType, newType, pd, true);
+         assertEquals(before, pd.isSmoothLines(), "starting " + before);
+      }
    }
 }

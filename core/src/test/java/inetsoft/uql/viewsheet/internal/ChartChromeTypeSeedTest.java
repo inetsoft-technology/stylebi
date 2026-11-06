@@ -611,6 +611,125 @@ class ChartChromeTypeSeedTest {
                    "the design descriptor");
    }
 
+   // ---- smoothing ---------------------------------------------------------------------------
+
+   @Test
+   void modernLinesAndAreasAreStraight() {
+      gateOn();
+      int[] types = {
+         GraphTypes.CHART_LINE, GraphTypes.CHART_STEP, GraphTypes.CHART_JUMP,
+         GraphTypes.CHART_AREA, GraphTypes.CHART_STEP_AREA, GraphTypes.CHART_AREA_STACK
+      };
+
+      for(int type : types) {
+         ChartVSAssemblyInfo info = newChart();
+         bind(info, type, refs(dim("state")), refs(agg("v")));
+         // an unflagged value, which the seed replaces
+         plot(info).setSmoothLines(true);
+         seed(info);
+
+         assertFalse(plot(info).isSmoothLines(), "type " + type);
+      }
+   }
+
+   @Test
+   void aModernCircularNetworkStaysCurved() {
+      gateOn();
+      ChartVSAssemblyInfo info = circularNetwork();
+
+      assertTrue(plot(info).isSmoothLines());
+   }
+
+   @Test
+   void aClassicAreaStaysSmooth() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSChartInfo().setChartType(GraphTypes.CHART_AREA);
+      chart.getVSAssemblyInfo().initDefaultFormat();
+
+      assertTrue(plot(chart.getChartInfo()).isSmoothLines());
+   }
+
+   @Test
+   void anAuthorsSmoothingSurvivesATypeChange() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_LINE, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      info.setUserSmoothLines(true);
+      plot(info).setSmoothLines(true);
+
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_AREA);
+      info.reseedIfResolvedTypeChanged();
+
+      assertEquals(GraphTypes.CHART_AREA, info.getSeededType().type(), "premise: the re-seed ran");
+      assertTrue(plot(info).isSmoothLines());
+   }
+
+   @Test
+   void aTypeReseedWritesTheRuntimeSmoothing() {
+      gateOn();
+      ChartVSAssemblyInfo marked = circularNetwork();
+      // a script-made copy, taken while the chords were curved
+      ChartDescriptor rdesc = (ChartDescriptor) marked.getChartDescriptor().clone();
+      marked.setRTChartDescriptor(rdesc);
+      assertTrue(rdesc.getPlotDescriptor().isSmoothLines(), "premise: copied curved");
+
+      toLine(marked);
+      marked.reseedIfResolvedTypeChanged();
+
+      assertSame(rdesc, marked.getRTChartDescriptor());
+      assertFalse(plot(marked).isSmoothLines(), "the design descriptor");
+      assertFalse(rdesc.getPlotDescriptor().isSmoothLines(), "the runtime descriptor");
+   }
+
+   @Test
+   void aRuntimeCopyThatMatchesTheDesignFollowsATypeReseed() {
+      gateOn();
+      ChartVSAssemblyInfo marked = markedLine();
+      // unflagged curves, as a marked chart saved before straight lines carries
+      plot(marked).setSmoothLines(true);
+      ChartDescriptor rdesc = runtimeCopy(marked);
+
+      toArea(marked);
+
+      assertFalse(plot(marked).isSmoothLines(), "the design descriptor");
+      assertFalse(rdesc.getPlotDescriptor().isSmoothLines(), "the runtime descriptor");
+   }
+
+   @Test
+   void aScriptsRuntimeSmoothingSurvivesATypeReseed() {
+      gateOn();
+      ChartVSAssemblyInfo marked = markedLine();
+      ChartDescriptor rdesc = runtimeCopy(marked);
+      // the script curves the runtime copy only
+      rdesc.getPlotDescriptor().setSmoothLines(true);
+
+      toArea(marked);
+
+      assertEquals(GraphTypes.CHART_AREA, marked.getSeededType().type(),
+                   "premise: the re-seed ran");
+      assertFalse(plot(marked).isSmoothLines(), "the design descriptor");
+      assertTrue(rdesc.getPlotDescriptor().isSmoothLines(), "the script's value stays");
+   }
+
+   @Test
+   void anAuthorsSmoothingSurvivesATypeReseedOnTheRuntimeDescriptor() {
+      gateOn();
+      ChartVSAssemblyInfo marked = markedLine();
+      marked.setUserSmoothLines(true);
+      plot(marked).setSmoothLines(true);
+      ChartDescriptor rdesc = runtimeCopy(marked);
+
+      toArea(marked);
+
+      assertEquals(GraphTypes.CHART_AREA, marked.getSeededType().type(),
+                   "premise: the re-seed ran");
+      assertTrue(plot(marked).isSmoothLines(), "the design descriptor");
+      assertTrue(rdesc.getPlotDescriptor().isSmoothLines(), "the runtime descriptor");
+   }
+
    // ---- harness -----------------------------------------------------------------------------
 
    private void gateOn() {
@@ -682,6 +801,45 @@ class ChartChromeTypeSeedTest {
       cinfo.removeXField(0);
       cinfo.addXField(dim("state"));
       cinfo.setChartType(GraphTypes.CHART_BAR);
+   }
+
+   // a seeded circular network; marked when the gate is on
+   private ChartVSAssemblyInfo circularNetwork() {
+      ChartVSAssemblyInfo info = newChart();
+      info.setVSChartInfo(new RelationVSChartInfo());
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_CIRCULAR);
+      seed(info);
+      return info;
+   }
+
+   // a type change swaps the network's chart info for a line chart's
+   private static void toLine(ChartVSAssemblyInfo info) {
+      info.setVSChartInfo(new DefaultVSChartInfo());
+      bind(info, GraphTypes.CHART_LINE, refs(dim("state")), refs(agg("v")));
+   }
+
+   // a seeded line chart; marked when the gate is on
+   private ChartVSAssemblyInfo markedLine() {
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_LINE, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      return info;
+   }
+
+   // a runtime descriptor copied from the design, as a script makes it
+   private static ChartDescriptor runtimeCopy(ChartVSAssemblyInfo info) {
+      ChartDescriptor rdesc = (ChartDescriptor) info.getChartDescriptor().clone();
+      info.setRTChartDescriptor(rdesc);
+      return rdesc;
+   }
+
+   private static void toArea(ChartVSAssemblyInfo info) {
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_AREA);
+      info.reseedIfResolvedTypeChanged();
+   }
+
+   private static PlotDescriptor plot(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getPlotDescriptor();
    }
 
    // without a principal every chart type is denied
