@@ -221,6 +221,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedColorPalette(ctx);
       // only a marked chart saves its seeded tiers
       getChartDescriptor().setSaveDefaults(ctx.modern);
+
+      ResolvedChartType now = ResolvedChartType.of(getVSChartInfo());
+      seedTypeDefaults(ctx, now);
+      seededType = now;
    }
 
    @Override
@@ -2266,6 +2270,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          VSChartInfo clone = dcInfo == null ? cinfo : cinfo.clone();
          clone.update(vs, columns, !cinfo.isMultiStyles(), dim, source.getSource(), dcInfo);
          cinfo = clone;
+         reseedIfResolvedTypeChanged();
          removeUselessChildRefs();
          chartTree.updateHierarcy(cinfo, cube, cubeType);
          updateSelections();
@@ -3010,6 +3015,30 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       this.userSmoothLines = userSmoothLines;
    }
 
+   /**
+    * The key the per-type seed last ran for, or null before the first observation.
+    */
+   public ResolvedChartType getSeededType() {
+      return seededType;
+   }
+
+   protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
+      // values that depend on the resolved type; written on both branches
+   }
+
+   /**
+    * Re-run the per-type seed when a marked chart's resolved type changed; otherwise only record.
+    */
+   public void reseedIfResolvedTypeChanged() {
+      ResolvedChartType now = ResolvedChartType.of(cinfo);
+
+      if(getVizMark() != null && seededType != null && !seededType.equals(now)) {
+         seedTypeDefaults(VizContext.of(this), now);
+      }
+
+      seededType = now;
+   }
+
    @Override
    public Insets getTitlePadding() {
       return titleInfo.getPadding();
@@ -3245,6 +3274,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private DynamicValue2 summarySortVal;
    private boolean userBarCornerRadius = false;
    private boolean userSmoothLines = false;
+   // not saved and not copied; a clone carries it
+   private ResolvedChartType seededType;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }

@@ -142,6 +142,40 @@ class ChartDescriptorSavedDefaultsTest {
       }
    }
 
+   @Test
+   void aTypeReseedLeavesEveryAuthorValueAlone() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      assertNotNull(info.getVizMark(), "precondition: only a marked chart re-seeds");
+      List<CompositeValue<?>> fields = info.getChartDescriptor().savedDefaults();
+      List<CompositeValue<?>> classic = new ChartDescriptor().savedDefaults();
+
+      for(int i = 0; i < fields.size(); i++) {
+         setUser(fields.get(i), classic.get(i));
+      }
+
+      PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
+      info.setUserBarCornerRadius(true);
+      plot.setBarCornerRadius(0.17);
+      info.setUserSmoothLines(true);
+      plot.setSmoothLines(false);
+
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_LINE);
+      info.reseedIfResolvedTypeChanged();
+
+      assertEquals(GraphTypes.CHART_LINE, info.getSeededType().type(),
+                   "precondition: the re-seed ran");
+
+      for(int i = 0; i < fields.size(); i++) {
+         assertTrue(fields.get(i).hasUserValue(), "field " + i);
+         assertEquals(classic.get(i).get(CompositeValue.Type.DEFAULT),
+                      fields.get(i).get(CompositeValue.Type.USER), "field " + i);
+      }
+
+      assertEquals(0.17, plot.getBarCornerRadius(), 1e-9);
+      assertFalse(plot.isSmoothLines());
+   }
+
    private void gateOn() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
    }
@@ -159,6 +193,12 @@ class ChartDescriptorSavedDefaultsTest {
 
    private static <T> void promoteDefaultToUser(CompositeValue<T> value) {
       value.setValue(value.get(CompositeValue.Type.DEFAULT), CompositeValue.Type.USER);
+   }
+
+   // copies from's default into to's user tier; both are the same registered field
+   @SuppressWarnings("unchecked")
+   private static <T> void setUser(CompositeValue<T> to, CompositeValue<?> from) {
+      to.setValue((T) from.get(CompositeValue.Type.DEFAULT), CompositeValue.Type.USER);
    }
 
    private static String xml(XMLSerializable obj) {
