@@ -30,14 +30,26 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.util.DataSpace;
+import inetsoft.util.css.CSSDictionary;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.awt.Color;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -81,6 +93,167 @@ class ChartChromeRenderTest {
    @Test
    void aClassicChartReadsTheStoredMaxModeTitleValue() {
       assertEquals("State", maxModeXTitleLabel(null));
+   }
+
+   @Test
+   void aModernTreemapPicksItsLabelColour() {
+      assertTrue(treemapAutoColor(VizMark.MODERN_LIGHT, null));
+   }
+
+   @Test
+   void aModernTreemapKeepsAnAuthorColour() {
+      assertFalse(treemapAutoColor(VizMark.MODERN_LIGHT, Color.RED));
+   }
+
+   @Test
+   void aClassicTreemapIsUnchanged() {
+      assertTrue(treemapAutoColor(null, null));
+      assertFalse(treemapAutoColor(null, Color.RED));
+   }
+
+   @Test
+   void aModernTreePicksItsLabelColour() {
+      assertTrue(treeAutoColor(VizMark.MODERN_LIGHT, null));
+   }
+
+   @Test
+   void aModernTreeKeepsAnAuthorColour() {
+      assertFalse(treeAutoColor(VizMark.MODERN_LIGHT, Color.RED));
+   }
+
+   @Test
+   void aClassicTreeIsUnchanged() {
+      assertTrue(treeAutoColor(null, null));
+      assertFalse(treeAutoColor(null, Color.RED));
+   }
+
+   @Test
+   void aModernTreemapKeepsTheOldDefaultInkWhenTheAuthorPickedIt() {
+      assertFalse(treemapAutoColor(VizMark.MODERN_LIGHT, new Color(0x4B4B4B)));
+   }
+
+   @Test
+   void aModernTreemapKeepsAStylesheetColour() throws Exception {
+      assertFalse(treemapAutoColor(VizMark.MODERN_LIGHT, null, stylesheet(
+         "ChartPlotLabels { color: #FF0000; }")));
+   }
+
+   @Test
+   void aModernTreemapWithAnUnrelatedStylesheetStillPicksItsColour() throws Exception {
+      assertTrue(treemapAutoColor(VizMark.MODERN_LIGHT, null, stylesheet(
+         "ChartPlotLabels { font-size: 12; }")));
+   }
+
+   @Test
+   void aModernTreeKeepsAnAuthorColourOnTheSource() {
+      assertFalse(treeAutoColor(VizMark.MODERN_LIGHT, Color.RED, true));
+   }
+
+   @AfterEach
+   void cleanup() {
+      CSSDictionary.resetDictionaryCache();
+      DataSpace space = DataSpace.getDataSpace();
+
+      for(String file : written) {
+         if(space.exists("portal", file)) {
+            space.delete("portal", file);
+         }
+      }
+
+      written.clear();
+   }
+
+   private CSSDictionary stylesheet(String css) throws IOException {
+      String file = "chart-chrome-render-" + NEXT_FILE.getAndIncrement() + ".css";
+      written.add(file);
+      DataSpace.getDataSpace().withOutputStream(
+         "portal", file, out -> out.write(css.getBytes(StandardCharsets.UTF_8)));
+      return CSSDictionary.getDictionary("portal", file, false);
+   }
+
+   private static final AtomicInteger NEXT_FILE = new AtomicInteger();
+   private final List<String> written = new ArrayList<>();
+
+   private static boolean treemapAutoColor(VizMark mark, Color author) {
+      return treemapAutoColor(mark, author, null);
+   }
+
+   private static boolean treemapAutoColor(VizMark mark, Color author, CSSDictionary css) {
+      Object[][] rows = new Object[7][];
+      rows[0] = new Object[]{ "State", "Sum(Total)" };
+
+      for(int i = 1; i < rows.length; i++) {
+         rows[i] = new Object[]{ i % 3 == 0 ? "CA" : (i % 3 == 1 ? "NY" : "TX"),
+                                 (double) (i * 100) };
+      }
+
+      VSChartDimensionRef state = new VSChartDimensionRef(new BaseField("State"));
+      VSChartAggregateRef total = new VSChartAggregateRef();
+      total.setDataRef(new BaseField("Total"));
+      total.setFormulaValue("Sum");
+
+      state.initDefaultFormat(VizContext.of(mark));
+
+      if(css != null) {
+         state.getTextFormat().getCSSFormat().setCSSDictionary(css);
+      }
+
+      if(author != null) {
+         state.getTextFormat().getUserDefinedFormat().setColor(author);
+      }
+
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_TREEMAP);
+      cinfo.setRTChartType(GraphTypes.CHART_TREEMAP);
+      cinfo.addGroupField(state);
+      VSAestheticRef size = new VSAestheticRef();
+      size.setDataRef(total);
+      size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+      cinfo.setSizeField(size);
+      cinfo.updateChartType(false);
+
+      return autoColor(cinfo, rows, mark);
+   }
+
+   private static boolean treeAutoColor(VizMark mark, Color author) {
+      return treeAutoColor(mark, author, false);
+   }
+
+   private static boolean treeAutoColor(VizMark mark, Color author, boolean onSource) {
+      Object[][] rows = new Object[][]{
+         { "Parent", "Child" }, { "A", "B" }, { "A", "C" }, { "B", "D" } };
+      VSChartDimensionRef source = new VSChartDimensionRef(new BaseField("Parent"));
+      VSChartDimensionRef target = new VSChartDimensionRef(new BaseField("Child"));
+
+      source.initDefaultFormat(VizContext.of(mark));
+      target.initDefaultFormat(VizContext.of(mark));
+
+      if(author != null) {
+         (onSource ? source : target).getTextFormat().getUserDefinedFormat().setColor(author);
+      }
+
+      RelationVSChartInfo cinfo = new RelationVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_TREE);
+      cinfo.setRTChartType(GraphTypes.CHART_TREE);
+      cinfo.setSourceField(source);
+      cinfo.setTargetField(target);
+      cinfo.setRTSourceField(source);
+      cinfo.setRTTargetField(target);
+      cinfo.updateChartType(false);
+
+      return autoColor(cinfo, rows, mark);
+   }
+
+   private static boolean autoColor(VSChartInfo cinfo, Object[][] rows, VizMark mark) {
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(new ChartDescriptor());
+      assemblyInfo.setVizMark(mark);
+
+      EGraph graph = GraphGenerator.getGenerator(
+         assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
+         XSourceInfo.NONE, null).createEGraph();
+      return graph.getElement(0).isAutoTextColor();
    }
 
    // a maximized bar whose x title is off at the default tier only, as the modern seed leaves it

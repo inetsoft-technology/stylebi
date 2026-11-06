@@ -1157,7 +1157,7 @@ public abstract class GraphGenerator {
                   }
                }
 
-               if(!GDefaults.DEFAULT_TEXT_COLOR.equals(textSpec.getColor()) || highlight != null) {
+               if(isTextColorSet(fmt2, textSpec) || highlight != null) {
                   elem.setAutoTextColor(false);
                }
             }
@@ -1366,15 +1366,27 @@ public abstract class GraphGenerator {
       }
    }
 
+   // modern: an author or stylesheet colour turns the automatic one off; classic: any non-default
+   private boolean isTextColorSet(CompositeTextFormat fmt, TextSpec spec) {
+      if(vizContext.modern) {
+         return fmt != null && (fmt.getUserDefinedFormat().isColorDefined() ||
+            !VSUtil.isIgnoreCSSFormat() && fmt.getCSSFormat().isColorDefined());
+      }
+
+      return !GDefaults.DEFAULT_TEXT_COLOR.equals(spec.getColor());
+   }
+
    private void initRelationElement(PlotDescriptor plotdesc, RelationElement elem) {
       // set source format
       String sdim = elem.getSourceDim();
       Format fmt = getDefaultFormat(sdim);
       ChartRef sourceRef = info.getFieldByName(sdim, false);
       CompositeTextFormat fmt2 = GraphFormatUtil.getTextFormat(info, sourceRef, plotdesc, false);
+      CompositeTextFormat sourceFmt = fmt2;
       // relation highlights defined on source/target instead of textfield.
       HighlightGroup highlight = getTextHighlightGroup(sourceRef, null);
       TextSpec textSpec = GraphUtil.getTextSpec(fmt2, fmt, highlight);
+      TextSpec sourceSpec = textSpec;
       setNodeTextBackground(plotdesc, textSpec, elem);
       elem.setTextSpec(sdim, textSpec);
       boolean applyAestheticsToSource = plotdesc.isApplyAestheticsToSource() &&
@@ -1541,9 +1553,9 @@ public abstract class GraphGenerator {
          processSizeLegend(desc.getLegendsDescriptor(), var, frame, false);
       }
 
-      // we don't track whether the color has changed so just check if it's default.
-      // will need to add a flag and a ui button to reset otherwise.
-      if(!GDefaults.DEFAULT_TEXT_COLOR.equals(textSpec.getColor()) ||
+      // classic compares with the default colour; modern asks whether the author set one
+      if(isTextColorSet(fmt2, textSpec) ||
+         (vizContext.modern && isTextColorSet(sourceFmt, sourceSpec)) ||
          highlight != null || highlight2 != null)
       {
          elem.setAutoTextColor(false);
