@@ -59,6 +59,7 @@ import org.mockito.MockedStatic;
 import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -170,6 +171,64 @@ class AdminScheduleGatewayTest {
             Collections.emptyList(), List.of(action), null, "", orgUser);
 
          verify(scheduleManager).setScheduleTask(anyString(), any(), eq(orgUser));
+      }
+   }
+
+   // Bug #80587, a value that does not fit its integer/double dataType used to be saved as a
+   // String and then dropped the whole action when the task was reloaded
+   @Test
+   void addScheduleTask_rejectsParameterValueThatDoesNotFitItsDataType() throws Exception {
+      for(String[] bad : new String[][] {
+         {"integer", "abc"}, {"integer", "1.5"}, {"integer", "99999999999"}, {"double", "x1"}})
+      {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> addTaskWithParameter("rate", bad[0], bad[1]),
+            bad[0] + " " + bad[1]);
+         assertTrue(ex.getMessage().contains("'rate'"), ex.getMessage());
+         assertTrue(ex.getMessage().contains(bad[0]), ex.getMessage());
+      }
+
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+   }
+
+   @Test
+   void addScheduleTask_acceptsParameterValueThatFitsItsDataType() throws Exception {
+      // past validation the conversion needs DynamicValueModel, whose static init needs a Spring
+      // context this unit test does not have; only the validation outcome is asserted here
+      for(String[] good : new String[][] {{"integer", "42"}, {"double", "3.14"}}) {
+         try {
+            addTaskWithParameter("p", good[0], good[1]);
+         }
+         catch(IllegalArgumentException ex) {
+            fail("valid " + good[0] + " " + good[1] + " was rejected: " + ex.getMessage());
+         }
+         catch(Throwable ignore) {
+            // environment limitation described above
+         }
+      }
+   }
+
+   private void addTaskWithParameter(String name, String dataType, String value) throws Exception {
+      try(MockedStatic<XSessionService> sessionStatic = mockStatic(XSessionService.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class))
+      {
+         mockSession(sessionStatic);
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         when(orgManager.isSiteAdmin((Principal) any())).thenReturn(false);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+
+         SRPrincipal orgUser = createPrincipal("caller", "host-org");
+
+         ViewsheetAction action = new ViewsheetAction();
+         action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+         action.setParameters(new java.util.HashMap<>(Map.of(name,
+            new java.util.HashMap<>(Map.of("value", value, "dataType", dataType)))));
+
+         ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+         gateway.addScheduleTask(
+            taskMetaData, true, false, -1, -1, null, null, null,
+            Collections.emptyList(), List.of(action), null, "", orgUser);
       }
    }
 
