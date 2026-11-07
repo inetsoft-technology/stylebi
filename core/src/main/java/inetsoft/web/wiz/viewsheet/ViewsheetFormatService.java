@@ -30,12 +30,25 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.filter.CrossFilter;
+import inetsoft.report.filter.Highlight;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.filter.TextHighlight;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.binding.Field;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.JunctionOperator;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
@@ -87,6 +100,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Insets;
 import java.security.Principal;
 import java.text.DecimalFormat;
@@ -812,6 +826,52 @@ public class ViewsheetFormatService {
    }
 
    /**
+    * {@code plotLabel}'s per-chart column names: every measure actually bound to the chart's x or
+    * y shelf, by full name -- the same {@code getXFields()}/{@code getYFields()} (design-time, not
+    * runtime) shelves, and the same full-name match, that
+    * {@code FormatPainterService.getChartRegionFormat} itself uses to resolve a {@code ChartRef}
+    * via {@code chartInfo.getFieldByName(columnName, false)}, so every name this returns is
+    * guaranteed to resolve back to the same {@code ChartRef} object there. Unlike
+    * {@code axisLabel}/{@code legendTitle}/{@code legendContent}, a data label's
+    * {@code TextFormat} is owned by the bound measure ({@code ChartAggregateRef.getTextFormat()}),
+    * not by a chart-wide region descriptor -- {@code GraphGenerator.fixGraphProperties} only falls
+    * back to the chart-wide {@code PlotDescriptor.getTextFormat()} when a rendered element
+    * resolves no measure at all (bug 80443). Both shelves are checked because the measure can be
+    * on either one (e.g. a horizontal bar chart has its measure on x).
+    */
+   private static String[] resolvePlotLabelColumnNames(Viewsheet viewsheet, String name) {
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof ChartVSAssembly)) {
+         // refuseChartRegionTargetOnNonChart already rejected this before the mutate ran.
+         return new String[0];
+      }
+
+      VSChartInfo chartInfo = ((ChartVSAssembly) assembly).getVSChartInfo();
+      LinkedHashSet<String> names = new LinkedHashSet<>();
+
+      for(ChartRef ref : chartInfo.getXFields()) {
+         if(ref.isMeasure()) {
+            names.add(ref.getFullName());
+         }
+      }
+
+      for(ChartRef ref : chartInfo.getYFields()) {
+         if(ref.isMeasure()) {
+            names.add(ref.getFullName());
+         }
+      }
+
+      if(names.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_format: 'plotLabel' found no bound measure on chart '" + name + "' to format " +
+            "data labels for -- a data label belongs to a measure bound on the x or y shelf.");
+      }
+
+      return names.toArray(new String[0]);
+   }
+
+   /**
     * Refuses a chart-region target ({@code axisLabel}, {@code axisLabel2}, {@code legendTitle},
     * {@code legendContent}, {@code plotLabel}) for an assembly that is not a chart, which the
     * per-chart painter would otherwise cast unguarded -- same reasoning as
@@ -1144,11 +1204,46 @@ public class ViewsheetFormatService {
             event.setColumnNames(new String[][]{ { request.field() } });
             event.setIndexes(new int[][]{ { -1 } });
          }
+         else if(PLOT_LABEL.equals(target)) {
+            // Unlike the other chart-region targets below, a data label's TextFormat is owned by
+            // its bound measure, not by a chart-wide region descriptor -- route through the same
+            // per-column mechanism "text" uses above (real columnNames + non-null indexes), one
+            // entry per measure actually bound to the chart, instead of the "whole region, no
+            // field" write those other targets use (bug 80443: that write lands in
+            // PlotDescriptor's chart-wide fallback TextFormat, which the renderer only reads when
+            // no measure is bound at all -- never our case here, hence a silent no-op).
+            event.setObjects(new String[0]);
+            String[] charts = request.assemblies().toArray(new String[0]);
+            event.setCharts(charts);
+            String[] regions = new String[charts.length];
+            Arrays.fill(regions, ChartFormatConstants.PLOT_AREA);
+            event.setRegions(regions);
+            String[][] columnNames = new String[charts.length][];
+            int[][] indexes = new int[charts.length][];
+
+            for(int i = 0; i < charts.length; i++) {
+               columnNames[i] = resolvePlotLabelColumnNames(rvs.getViewsheet(), charts[i]);
+               int[] idx = new int[columnNames[i].length];
+
+               for(int j = 0; j < idx.length; j++) {
+                  idx[j] = j;
+               }
+
+               indexes[i] = idx;
+            }
+
+            event.setColumnNames(columnNames);
+            event.setIndexes(indexes);
+            // "for show-value text only, not text binding" -- see FormatVSObjectEvent.isValueText.
+            // A data label always means the show-values text, never a chart's separately-bound
+            // Text aesthetic field, even when one happens to also be bound.
+            event.setValueText(true);
+         }
          else if(isChartRegionTarget(target)) {
-            // Same per-chart-region route as "text" above, but for a whole axis/legend/plot-
-            // label region rather than one aesthetic-bound field. A dummy non-empty
-            // columnNames[i] keeps FormatPainterService's outer dispatch from treating an axis
-            // or plot-area region with no column name as "format the whole chart" (its bulk-
+            // Same per-chart-region route as "text" above, but for a whole axis/legend region
+            // rather than one aesthetic-bound field (plotLabel is handled separately above). A
+            // dummy non-empty columnNames[i] keeps FormatPainterService's outer dispatch from
+            // treating an axis region with no column name as "format the whole chart" (its bulk-
             // overwrite route); indexes[i] == null then makes setChartFormat's own single-shot
             // branch resolve "the whole region" itself (index 0, columnName null) instead of
             // one field.
@@ -1201,14 +1296,39 @@ public class ViewsheetFormatService {
                // directly to each cell's own TableDataPath bypasses that gate entirely, the
                // same way a human dragging over data cells in the native UI already does
                // (FormatPainterService's paths != null branch, below).
+               //
+               // 'cellPath' is documented as dimension-MEMBER values (e.g. ["West","Y2024"]), but
+               // every TableDataPath a Crosstab body cell can have is built from static header
+               // names and shared by every cell at the same row/col nesting (bug 80443) -- the
+               // per-TableDataPath write below cannot distinguish them. tryApplyCellPathHighlight
+               // resolves a genuine member-value cellPath against the real rendered data and
+               // formats just that one cell through a synthesized per-cell Highlight condition
+               // instead; an assembly it handles is left out of this generic path-keyed write
+               // entirely (both from 'remaining' and from 'data', kept index-aligned with it) so
+               // it doesn't ALSO get the shared-band overwrite. An assembly it declines (not a
+               // Crosstab, no 'field', or cellPath matches no rendered cell) falls through to
+               // computeDataRegionPaths unchanged, which still throws its own existing refusals --
+               // including the one genuine structural match this request can have, the
+               // grand-total corner's singleton TableDataPath.
+               List<String> cellPath = request.cellPath();
+               boolean hasCellPath = cellPath != null && !cellPath.isEmpty();
+               List<String> remaining = new ArrayList<>();
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
+                  if(hasCellPath && tryApplyCellPathHighlight(rvs, name, request.field(), cellPath,
+                                                              request.format(), request.reset()))
+                  {
+                     continue;
+                  }
+
+                  remaining.add(name);
                   data.add(requirePaths(computeDataRegionPaths(rvs, name, request.field(),
-                                                                request.cellPath()),
+                                                                cellPath),
                                         name, "body"));
                }
 
+               event.setObjects(remaining.toArray(new String[0]));
                event.setData(data);
             }
             else if("header".equals(target)) {
@@ -1299,10 +1419,15 @@ public class ViewsheetFormatService {
          // Stale messages from an earlier request on this pooled thread are not this call's.
          CoreTool.clearUserMessage();
 
+         // event.getObjects() rather than request.assemblies(): for target "data", an assembly
+         // tryApplyCellPathHighlight already handled is left out of both event.getObjects() and
+         // event.getData() (see that branch above), and this list must stay index-aligned with
+         // event.getData() the same way seededEvents itself pairs them -- every other target still
+         // sets event.getObjects() to the full request.assemblies(), so this is a no-op for them.
          List<FormatVSObjectEvent> events =
             "text".equals(target) || isChartRegionTarget(target) ? List.of(event) :
             seededEvents(rvs, request.format(), request.reset(), request.formatKeys(),
-                         sheet ? Arrays.asList((String) null) : request.assemblies(),
+                         sheet ? Arrays.asList((String) null) : Arrays.asList(event.getObjects()),
                          event.getData(), event);
 
          for(FormatVSObjectEvent part : events) {
@@ -2651,6 +2776,210 @@ public class ViewsheetFormatService {
       String[] parts = path.getPath();
       return parts == null || parts.length == 0 ?
          List.of() : Arrays.asList(parts).subList(0, parts.length - 1);
+   }
+
+   /**
+    * Attempts to resolve {@code cellPath} as real dimension-MEMBER values -- its documented,
+    * intended use -- against the Crosstab's actually-rendered data, and, if a body cell genuinely
+    * has that member combination, formats just that one cell through a synthesized per-cell
+    * {@link Highlight} condition instead of {@link #computeDataRegionPaths}'s shared per-band
+    * {@code TableDataPath} write (bug 80443: every body {@code TableDataPath} is built from
+    * static header names and shared by every cell at the same row/col nesting, so a direct write
+    * there can only ever address a whole band, never one cell). A {@link HighlightGroup}'s
+    * condition, by contrast, is evaluated per rendered row/col against the real
+    * {@link CrossFilter} data ({@link CrosstabConditionGroup}) -- the same mechanism a human's
+    * native-UI highlight rule already uses to single out one cell sharing a {@code TableDataPath}
+    * with five siblings.
+    *
+    * <p>Returns {@code false} -- no side effect at all -- when this isn't a Crosstab, {@code field}
+    * is missing, or no rendered body cell actually has the requested member tuple, leaving the
+    * caller to fall back to {@link #computeDataRegionPaths}'s own existing validation and refusal
+    * (including the one genuine singleton match it already handles correctly: the grand-total
+    * corner's structural, never-shared {@code TableDataPath}).
+    */
+   private static boolean tryApplyCellPathHighlight(RuntimeViewsheet rvs, String name, String field,
+                                                     List<String> cellPath,
+                                                     VSObjectFormatInfoModel format, boolean reset)
+      throws Exception
+   {
+      Viewsheet viewsheet = rvs.getViewsheet();
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof CrosstabVSAssembly) || field == null || field.isBlank()) {
+         return false;
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return false;
+      }
+
+      VSTableLens lens = TableLensGuard.lensOrNull(box.get(), name, false);
+
+      if(lens == null) {
+         return false;
+      }
+
+      CrossFilter crossFilter = Util.getCrossFilter(lens);
+
+      if(crossFilter == null) {
+         return false;
+      }
+
+      TableDataDescriptor desc = lens.getDescriptor();
+      String measureKey = resolveCrosstabMeasureKey(lens, field, name);
+      int colCount = lens.getColCount();
+
+      for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
+         for(int col = 0; col < colCount; col++) {
+            TableDataPath path = desc.getCellDataPath(row, col);
+
+            if(path == null || !isBodyCell(lens, row, col) || !isMeasureBodyType(path.getType()) ||
+               !measureKey.equals(lastPathElement(path)))
+            {
+               continue;
+            }
+
+            List<String> dims = dimensionTuple(path);
+
+            if(dims.size() != cellPath.size()) {
+               continue;
+            }
+
+            // The real per-cell lookup -- the same one CrosstabConditionGroup.evaluate() uses --
+            // keyed by the crosstab's own header names (dims, e.g. "REGION"/"YR"), not by
+            // dimensionTuple's header-name-as-placeholder trick computeDataRegionPaths relies on.
+            Map<Object, Object> memberValues = crossFilter.getKeyValuePairs(row, col, new HashMap<>());
+            boolean matches = true;
+
+            for(int i = 0; i < dims.size(); i++) {
+               Object actual = memberValues.get(dims.get(i));
+
+               if(!Tool.equals(cellPath.get(i), actual == null ? null : actual.toString())) {
+                  matches = false;
+                  break;
+               }
+            }
+
+            if(matches) {
+               applyCellPathHighlight((CrosstabVSAssembly) assembly, path, dims, cellPath, lens,
+                                      row, col, format, reset);
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Writes (or, on reset, removes) one {@code cellPath}'s synthesized {@link Highlight}: an AND
+    * of per-dimension equality conditions (field = the Crosstab's own header name, e.g.
+    * {@code "REGION"}; value = the matching {@code cellPath} member, e.g. {@code "West"}),
+    * evaluated by {@code CrosstabConditionGroup} against the real rendered (row, col) data.
+    * Additive: merges into whatever {@link HighlightGroup} already exists at this band's path
+    * (keyed by a name derived from {@code cellPath}, so a repeat call with the same {@code
+    * cellPath} updates its own entry instead of accumulating a duplicate), never replacing any
+    * other highlight already on this table.
+    */
+   private static void applyCellPathHighlight(CrosstabVSAssembly assembly, TableDataPath bandPath,
+                                               List<String> dimensionNames, List<String> cellPath,
+                                               VSTableLens lens, int row, int col,
+                                               VSObjectFormatInfoModel format, boolean reset)
+   {
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+      TableHighlightAttr attr = info.getHighlightAttr();
+      String highlightName = cellPathHighlightName(cellPath);
+
+      if(reset) {
+         HighlightGroup existing = attr == null ? null : attr.getHighlight(bandPath);
+
+         if(existing != null) {
+            existing.removeHighlight(highlightName);
+            attr.setHighlight(bandPath, existing);
+         }
+
+         return;
+      }
+
+      if(attr == null) {
+         attr = new TableHighlightAttr();
+         info.setHighlightAttr(attr);
+      }
+
+      HighlightGroup group = attr.getHighlight(bandPath);
+
+      if(group == null) {
+         group = new HighlightGroup();
+      }
+
+      ConditionList conditions = new ConditionList();
+      Field[] available = TableHighlightAttr.getAvailableFields(lens, row, col);
+
+      for(int i = 0; i < dimensionNames.size(); i++) {
+         if(i > 0) {
+            conditions.append(new JunctionOperator(JunctionOperator.AND, 0));
+         }
+
+         String dataType = XSchema.STRING;
+
+         for(Field f : available) {
+            if(f != null && dimensionNames.get(i).equals(f.getName())) {
+               dataType = f.getDataType();
+               break;
+            }
+         }
+
+         Condition condition = new Condition();
+         condition.setType(dataType);
+         condition.setOperation(XCondition.EQUAL_TO);
+         condition.addValue(cellPath.get(i));
+         conditions.append(
+            new ConditionItem(new AttributeRef(null, dimensionNames.get(i)), condition, 0));
+      }
+
+      Highlight highlight = new TextHighlight();
+      highlight.setName(highlightName);
+      highlight.setConditionGroup(conditions);
+      applyHighlightFormat(highlight, format);
+
+      group.addHighlight(highlightName, highlight);
+      attr.setHighlight(bandPath, group);
+   }
+
+   /**
+    * Deterministic per-{@code cellPath} name so a repeat {@code set_format} call on the same
+    * {@code cellPath} updates its own {@link HighlightGroup} entry ({@code addHighlight} keys by
+    * name) instead of accumulating a duplicate rule every time.
+    */
+   private static String cellPathHighlightName(List<String> cellPath) {
+      return "wiz-cellPath:" + String.join("\u0000", cellPath);
+   }
+
+   /**
+    * Minimal {@code VSObjectFormatInfoModel -> Highlight} style mapping: a {@link Highlight}
+    * carries only foreground/background/font (see that interface), not the full CSS-aware
+    * {@code VSCompositeFormat} set_format's other targets write through {@code
+    * FormatPainterService.changeFormat} -- sufficient for what a cell highlight can actually
+    * display.
+    */
+   private static void applyHighlightFormat(Highlight highlight, VSObjectFormatInfoModel format) {
+      if(format == null) {
+         return;
+      }
+
+      if(format.getColor() != null) {
+         highlight.setForeground(Tool.getColorFromHexString(format.getColor()));
+      }
+
+      if(format.getBackgroundColor() != null) {
+         highlight.setBackground(Tool.getColorFromHexString(format.getBackgroundColor()));
+      }
+
+      if(format.getFont() != null) {
+         highlight.setFont(format.getFont().toFont());
+      }
    }
 
    /**
