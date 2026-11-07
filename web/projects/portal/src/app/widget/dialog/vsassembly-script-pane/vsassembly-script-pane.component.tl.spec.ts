@@ -22,12 +22,15 @@
  * Risk-first coverage:
  *   Group 1 [Risk 3] — onExpressionChange: field / parameter / component column-tree inserts
  *   Group 2 [Risk 2] — onExpressionChange: axis legend, non-columnTree suffix, guards
+ *   Group 3 [Risk 3] — agent script live-refresh (bug #80600)
  *
  * Direct instantiation — ScriptPane child not rendered.
  */
 
+import { Subject } from "rxjs";
 import { ScriptTreeNodeData } from "../../formula-editor/script-tree-node-data";
 import { TreeNodeModel } from "../../tree/tree-node-model";
+import { ViewsheetCommandMessage } from "../../../common/viewsheet-client";
 import { VSAssemblyScriptPaneModel } from "./vsassembly-script-pane-model";
 import { VSAssemblyScriptPane } from "./vsassembly-script-pane.component";
 
@@ -40,6 +43,22 @@ function createPane(expression = "") {
    const comp = new VSAssemblyScriptPane();
    comp.model = { expression, scriptEnabled: true } as VSAssemblyScriptPaneModel;
    return comp;
+}
+
+function createPaneWithSocket(expression = "", assembly = "Chart1") {
+   const comp = createPane(expression);
+   comp.assembly = assembly;
+   comp.runtimeId = "Viewsheet1";
+   const commands = new Subject<ViewsheetCommandMessage>();
+   comp.socketConnection = { commands } as any;
+   comp.ngOnInit();
+   return { comp, commands };
+}
+
+function agentScriptCommand(overrides: Partial<{ kind: string, assembly: string, text: string }>) {
+   return new ViewsheetCommandMessage(null, "RefreshAgentScriptCommand", {
+      kind: "assemblyMain", assembly: "Chart1", text: "new();", ...overrides,
+   } as any);
 }
 
 function nodeData(overrides: Partial<ScriptTreeNodeData>): ScriptTreeNodeData {
@@ -187,5 +206,62 @@ describe("VSAssemblyScriptPane — editorContext", () => {
       comp.assembly = "Chart1";
 
       expect(comp.editorContext).toEqual({ kind: "assemblyMain", assembly: "Chart1" });
+   });
+});
+
+describe("VSAssemblyScriptPane — agent script live-refresh (bug #80600) [Group 3, Risk 3]", () => {
+   it("applies a push for this exact assembly when the human has not edited the script", () => {
+      const { comp, commands } = createPaneWithSocket("old();");
+
+      commands.next(agentScriptCommand({ text: "new();" }));
+
+      expect(comp.model.expression).toBe("new();");
+      expect(comp.staleScript).toBeNull();
+   });
+
+   it("ignores a push for a different assembly", () => {
+      const { comp, commands } = createPaneWithSocket("old();", "Chart1");
+
+      commands.next(agentScriptCommand({ assembly: "Chart2", text: "irrelevant();" }));
+
+      expect(comp.model.expression).toBe("old();");
+   });
+
+   it("defers (does not clobber) when the human has typed since this dialog opened", () => {
+      const { comp, commands } = createPaneWithSocket("old();");
+      comp.model.expression = "old(); // my local edit";
+
+      commands.next(agentScriptCommand({ text: "new();" }));
+
+      expect(comp.model.expression).toBe("old(); // my local edit");
+      expect(comp.staleScript).toBe("new();");
+   });
+
+   it("reloadStaleScript() applies the deferred push and clears the stale flag", () => {
+      const { comp, commands } = createPaneWithSocket("old();");
+      comp.model.expression = "old(); // my local edit";
+      commands.next(agentScriptCommand({ text: "new();" }));
+
+      comp.reloadStaleScript();
+
+      expect(comp.model.expression).toBe("new();");
+      expect(comp.staleScript).toBeNull();
+   });
+
+   it("does nothing when there is no socketConnection (no pairing transport)", () => {
+      const comp = createPane("old();");
+      comp.assembly = "Chart1";
+
+      expect(() => comp.ngOnInit()).not.toThrow();
+      expect(comp.model.expression).toBe("old();");
+   });
+
+   it("unsubscribes on destroy so a later push is a no-op", () => {
+      const { comp, commands } = createPaneWithSocket("old();");
+      comp.ngOnDestroy();
+
+      commands.next(agentScriptCommand({ text: "new();" }));
+
+      expect(comp.model.expression).toBe("old();");
    });
 });

@@ -474,6 +474,25 @@ class WorksheetScriptServiceTest {
       assertEquals("<=", captor.getValue().operation());
    }
 
+   /**
+    * Bug #80600: like {@link #writeToAnExistingExpressionPushesTheTextToTheOpenDialog}, editOp
+    * only repaints the canvas, so an open Edit Expression dialog on a condition's value kept the
+    * old text until this write also pushed a refresh for it.
+    */
+   @Test
+   void writingAConditionValuePushesTheTextToTheOpenDialog() throws Exception {
+      seedCondition("Query1", "Price", ">", "0");
+      JoinSession session =
+         sessionScopedTo(new EditorContext("worksheetConditionValue", "Query1", "Price", null));
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE, "Query1", "Price");
+
+      assertNull(service.write(session, agent, target, "5"));
+
+      verify(broadcast).broadcastScriptRefresh(any(RuntimeWorksheet.class), eq("Worksheet/ws-1"),
+         eq(agent), eq("worksheetConditionValue"), eq("Query1"), eq("Price"), eq("5"));
+   }
+
    @Test
    void refusesWhenNoConditionExistsYet() throws Exception {
       Worksheet ws = new Worksheet();

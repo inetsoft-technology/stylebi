@@ -15,18 +15,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, OnInit } from "@angular/core";
+import { Component, Input, OnInit, OnDestroy } from "@angular/core";
+import { Subscription } from "rxjs";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ScriptTreeNodeData } from "../../../widget/formula-editor/script-tree-node-data";
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
 import { ClickableScriptPaneModel } from "../../data/vs/clickable-script-pane-model";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
-import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ViewsheetClientService, ViewsheetCommandMessage } from "../../../common/viewsheet-client";
 import { EditorContext } from "../../gui/wiz/editor-context";
+import { matchesAgentScriptRefresh, shouldApplyAgentScriptPush } from "../../gui/wiz/agent-script-refresh";
+import { RefreshAgentScriptCommand } from "../../../vsobjects/command/refresh-agent-script-command";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormsModule } from "@angular/forms";
+
+type ClickableScriptField = "scriptExpression" | "onClickExpression";
 
 @Component({
     selector: "clickable-script-pane",
@@ -34,7 +39,7 @@ import { FormsModule } from "@angular/forms";
     styleUrls: ["clickable-script-pane.component.scss"],
     imports: [FormsModule, ScriptPane]
 })
-export class ClickableScriptPane implements OnInit{
+export class ClickableScriptPane implements OnInit, OnDestroy {
    columnTree: TreeNodeModel;
    @Input() model: ClickableScriptPaneModel;
    @Input() scriptTreeModel: ScriptPaneTreeModel;
@@ -48,6 +53,18 @@ export class ClickableScriptPane implements OnInit{
    cursor: { line: number, ch: number };
    onClick: boolean = false;
    expression: string = "";
+
+   /** Set when a `RefreshAgentScriptCommand` arrives for a field while this dialog has local,
+    *  unapplied edits to it -- see `shouldApplyAgentScriptPush`'s own doc for the guard logic.
+    *  `reloadStaleScript()` is the human's explicit way to accept it anyway. The banner only
+    *  shows when `field` is the one currently visible -- see the template. */
+   staleScript: { field: ClickableScriptField, text: string } | null = null;
+
+   /** The text last known to match the server for each field -- set at open and whenever a push
+    *  is actually applied. Compared against the live model to detect a local, unsaved edit. */
+   private lastKnownScriptExpression: string;
+   private lastKnownOnClickExpression: string;
+   private commandSubscription: Subscription;
 
    constructor(private uiContextService: UIContextService) {
       this.onClick = uiContextService.getDefaultTab("vs.onClick", "false") == "true";
@@ -69,6 +86,84 @@ export class ClickableScriptPane implements OnInit{
 
       this.expression = this.onClick ? this.model.onClickExpression :
          this.model.scriptExpression;
+      this.lastKnownScriptExpression = this.model.scriptExpression;
+      this.lastKnownOnClickExpression = this.model.onClickExpression;
+
+      if(this.socketConnection?.commands) {
+         this.commandSubscription = this.socketConnection.commands.subscribe(
+            (message: ViewsheetCommandMessage) => {
+               if(message.type === "RefreshAgentScriptCommand") {
+                  this.onAgentScriptRefresh(message.command as RefreshAgentScriptCommand);
+               }
+            });
+      }
+   }
+
+   ngOnDestroy(): void {
+      this.commandSubscription?.unsubscribe();
+   }
+
+   private onAgentScriptRefresh(command: RefreshAgentScriptCommand): void {
+      if(matchesAgentScriptRefresh(command, { kind: "assemblyMain", assembly: this.assembly })) {
+         this.applyAgentPush("scriptExpression", command.text);
+      }
+      else if(matchesAgentScriptRefresh(command, { kind: "assemblyOnClick", assembly: this.assembly })) {
+         this.applyAgentPush("onClickExpression", command.text);
+      }
+   }
+
+   private applyAgentPush(field: ClickableScriptField, text: string): void {
+      const lastKnown = field === "scriptExpression" ?
+         this.lastKnownScriptExpression : this.lastKnownOnClickExpression;
+
+      if(!shouldApplyAgentScriptPush(this.model[field], lastKnown)) {
+         this.staleScript = { field, text };
+         return;
+      }
+
+      this.model[field] = text;
+
+      if(field === "scriptExpression") {
+         this.lastKnownScriptExpression = text;
+      }
+      else {
+         this.lastKnownOnClickExpression = text;
+      }
+
+      if(field === this.visibleField) {
+         this.expression = text;
+      }
+
+      if(this.staleScript?.field === field) {
+         this.staleScript = null;
+      }
+   }
+
+   /** The human's explicit choice to accept a deferred push, discarding their own local edit. */
+   reloadStaleScript(): void {
+      if(!this.staleScript) {
+         return;
+      }
+
+      const { field, text } = this.staleScript;
+      this.model[field] = text;
+
+      if(field === "scriptExpression") {
+         this.lastKnownScriptExpression = text;
+      }
+      else {
+         this.lastKnownOnClickExpression = text;
+      }
+
+      if(field === this.visibleField) {
+         this.expression = text;
+      }
+
+      this.staleScript = null;
+   }
+
+   private get visibleField(): ClickableScriptField {
+      return this.onClick ? "onClickExpression" : "scriptExpression";
    }
 
    get scriptLabel() {

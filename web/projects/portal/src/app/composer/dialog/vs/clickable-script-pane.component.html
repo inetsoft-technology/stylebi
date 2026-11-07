@@ -17,6 +17,13 @@
   -->
 <form>
   <fieldset>
+    @if (staleScript && (staleScript.field === "onClickExpression") === onClick) {
+      <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <span>_#(An agent changed this script; your unsaved edits were kept.)</span>
+        <button type="button" class="btn btn-sm btn-outline-warning"
+          (click)="reloadStaleScript()">_#(Reload)</button>
+      </div>
+    }
     <script-pane [expression]="expression" (expressionChange)="onExpressionChange($event)"
                  [columnTreeRoot]="scriptTreeModel.columnTree"
                  [columnTreeEnabled]="!!scriptTreeModel.columnTree"

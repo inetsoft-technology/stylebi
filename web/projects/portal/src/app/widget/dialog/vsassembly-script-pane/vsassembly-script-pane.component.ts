@@ -15,14 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input } from "@angular/core";
+import { Component, Input, OnInit, OnDestroy } from "@angular/core";
+import { Subscription } from "rxjs";
 import { ScriptTreeNodeData } from "../../formula-editor/script-tree-node-data";
 import { TreeNodeModel } from "../../tree/tree-node-model";
-import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ViewsheetClientService, ViewsheetCommandMessage } from "../../../common/viewsheet-client";
 import { ScriptPaneTreeModel } from "../script-pane/script-pane-tree-model";
 import { ScriptPane } from "../script-pane/script-pane.component";
 import { VSAssemblyScriptPaneModel } from "./vsassembly-script-pane-model";
 import { EditorContext } from "../../../composer/gui/wiz/editor-context";
+import { matchesAgentScriptRefresh, shouldApplyAgentScriptPush } from "../../../composer/gui/wiz/agent-script-refresh";
+import { RefreshAgentScriptCommand } from "../../../vsobjects/command/refresh-agent-script-command";
 import { FormulaEditorDialog } from "../../formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormsModule } from "@angular/forms";
@@ -32,7 +35,7 @@ import { FormsModule } from "@angular/forms";
     templateUrl: "vsassembly-script-pane.component.html",
     imports: [ScriptPane, FormsModule]
 })
-export class VSAssemblyScriptPane {
+export class VSAssemblyScriptPane implements OnInit, OnDestroy {
    @Input() view: string;
    @Input() model: VSAssemblyScriptPaneModel;
    @Input() scriptTreeModel: ScriptPaneTreeModel;
@@ -43,8 +46,62 @@ export class VSAssemblyScriptPane {
    @Input() assembly?: string;
    cursor: {line: number, ch: number};
 
+   /** Set when a `RefreshAgentScriptCommand` arrives for this script while this dialog has
+    *  local, unapplied edits -- i.e. applying it would silently overwrite text the human typed
+    *  since this dialog opened or since the last push. `reloadStaleScript()` is the explicit,
+    *  human-driven way to accept it anyway. See `shouldApplyAgentScriptPush`'s own doc. */
+   staleScript: string | null = null;
+
+   /** The text last known to match the server -- set at open and whenever a push is actually
+    *  applied. Compared against the live model to detect a local, unsaved edit. */
+   private lastKnownExpression: string;
+   private commandSubscription: Subscription;
+
    get editorContext(): EditorContext {
       return { kind: "assemblyMain", assembly: this.assembly };
+   }
+
+   ngOnInit(): void {
+      this.lastKnownExpression = this.model.expression;
+
+      if(this.socketConnection?.commands) {
+         this.commandSubscription = this.socketConnection.commands.subscribe(
+            (message: ViewsheetCommandMessage) => {
+               if(message.type === "RefreshAgentScriptCommand") {
+                  this.onAgentScriptRefresh(message.command as RefreshAgentScriptCommand);
+               }
+            });
+      }
+   }
+
+   ngOnDestroy(): void {
+      this.commandSubscription?.unsubscribe();
+   }
+
+   private onAgentScriptRefresh(command: RefreshAgentScriptCommand): void {
+      if(!matchesAgentScriptRefresh(command, this.editorContext)) {
+         return;
+      }
+
+      if(!shouldApplyAgentScriptPush(this.model.expression, this.lastKnownExpression)) {
+         this.staleScript = command.text;
+         return;
+      }
+
+      this.model.expression = command.text;
+      this.lastKnownExpression = command.text;
+      this.staleScript = null;
+   }
+
+   /** The human's explicit choice to accept a deferred push, discarding their own local edit. */
+   reloadStaleScript(): void {
+      if(this.staleScript == null) {
+         return;
+      }
+
+      this.model.expression = this.staleScript;
+      this.lastKnownExpression = this.staleScript;
+      this.staleScript = null;
    }
 
    private queryPath(root: TreeNodeModel, label: string, end: string): string {
