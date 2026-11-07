@@ -75,6 +75,22 @@ class ViewsheetFormatServiceChartRegionTargetTest {
    }
 
    /**
+    * Same as {@link #targetsAndRegions} minus {@code plotLabel}: bug 80443 gave {@code plotLabel}
+    * its own per-bound-measure column-name/index resolution (see {@code
+    * plotLabelWritesEachBoundMeasuresOwnColumnNameAndIndex} below) instead of the dummy
+    * placeholder {@code columnNames}/{@code null} {@code indexes} shape the other four targets
+    * still use -- a data label's {@code TextFormat} is owned by its bound measure, never by a
+    * chart-wide region descriptor the way an axis/legend region is.
+    */
+   private static Stream<Arguments> wholeRegionTargetsAndRegions() {
+      return Stream.of(
+         Arguments.of("axisLabel", ChartFormatConstants.LEFT_Y_AXIS),
+         Arguments.of("axisLabel2", ChartFormatConstants.RIGHT_Y_AXIS),
+         Arguments.of("legendTitle", ChartFormatConstants.LEGEND_TITLE),
+         Arguments.of("legendContent", ChartFormatConstants.LEGEND_CONTENT));
+   }
+
+   /**
     * A chart with a secondary (right) Y-axis configured, so every {@code targetsAndRegions} case
     * -- including {@code axisLabel2} -- can exercise the write path without tripping the bug
     * #80443 follow-up refusal ({@code refuseAxisLabel2WithoutSecondaryAxis}).
@@ -140,7 +156,7 @@ class ViewsheetFormatServiceChartRegionTargetTest {
    }
 
    @ParameterizedTest
-   @MethodSource("targetsAndRegions")
+   @MethodSource("wholeRegionTargetsAndRegions")
    void writesTheChartRegionWithAWholeAxisShape(String target, String region) throws Exception {
       FormatVSObjectEvent event =
          write(rvsWith("Chart1", chart()), mock(FormatPainterService.class), target);
@@ -192,6 +208,68 @@ class ViewsheetFormatServiceChartRegionTargetTest {
                  e.getMessage().contains("'Chart1'"), e.getMessage());
       verify(sessions, never()).mutate(anyString(), any(java.security.Principal.class), any());
       verifyNoInteractions(painter);
+   }
+
+   /**
+    * Bug 80443: {@code plotLabel} must resolve the chart's own bound measure(s) and route
+    * through the per-column branch (real {@code columnNames}, non-null {@code indexes}) instead
+    * of the dummy-placeholder "whole region" shape the other four chart-region targets use --
+    * that shape lands the write in {@code PlotDescriptor}'s chart-wide fallback {@code
+    * TextFormat}, which the renderer never reads once a measure is bound, making the write a
+    * silent no-op.
+    */
+   @Test
+   void plotLabelWritesEachBoundMeasuresOwnColumnNameAndIndex() throws Exception {
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      ChartAggregateRef measure = mock(ChartAggregateRef.class);
+      when(measure.isMeasure()).thenReturn(true);
+      when(measure.getFullName()).thenReturn("Sum(QTY)");
+      when(chartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(chartInfo.getYFields()).thenReturn(new ChartRef[]{ measure });
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(assembly.getVSChartInfo()).thenReturn(chartInfo);
+
+      FormatVSObjectEvent event =
+         write(rvsWith("Chart1", assembly), mock(FormatPainterService.class), "plotLabel");
+
+      assertArrayEquals(new String[0], event.getObjects(), "objects stays empty, like 'text'");
+      assertArrayEquals(new String[]{ "Chart1" }, event.getCharts());
+      assertArrayEquals(new String[]{ ChartFormatConstants.PLOT_AREA }, event.getRegions());
+      assertArrayEquals(new String[]{ "Sum(QTY)" }, event.getColumnNames()[0],
+                        "must resolve the chart's own bound measure, not a dummy placeholder " +
+                        "column name");
+      assertArrayEquals(new int[]{ 0 }, event.getIndexes()[0],
+                        "non-null indexes route setChartFormat's per-column branch instead of " +
+                        "the whole-region branch");
+      assertTrue(event.isValueText(),
+                "plotLabel always means the show-values text, never a separately-bound Text " +
+                "aesthetic field");
+   }
+
+   /** A chart with no bound measure on either shelf has no data label to format at all. */
+   @Test
+   void plotLabelRefusesAChartWithNoBoundMeasure() {
+      ChartVSAssembly assembly = mock(ChartVSAssembly.class);
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(chartInfo.getYFields()).thenReturn(new ChartRef[0]);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(assembly.getVSChartInfo()).thenReturn(chartInfo);
+
+      ViewsheetSessionService sessions = sessionsFor(rvsWith("Chart1", assembly));
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter),
+                                          mock(CalcTableService.class), null)
+            .setFormat("tok", principal(), request("plotLabel"), ""));
+
+      assertTrue(e.getMessage().contains("plotLabel") && e.getMessage().contains("Chart1"),
+                e.getMessage());
    }
 
    @Test
