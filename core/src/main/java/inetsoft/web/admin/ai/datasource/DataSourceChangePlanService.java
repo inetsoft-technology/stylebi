@@ -103,6 +103,9 @@ public class DataSourceChangePlanService {
       // Bug #79892: names an earlier change of this plan frees (rename away / delete); a later
       // rename may legitimately take such a name, since apply runs the changes in order.
       Set<String> vacatedNames = new HashSet<>();
+      // Bug #80186: paths an earlier change of this plan takes (rename target, created folder and
+      // the folders implied above them); a later change may not take the same path or go under it.
+      PathClaims claims = new PathClaims();
       Map<String, String> dependencyProjections = new LinkedHashMap<>();
       // Bug 78819: hidden per-change hash input for a supplied JDBC password (see hash()).
       Map<String, String> passwordHashInputs = new LinkedHashMap<>();
@@ -110,7 +113,7 @@ public class DataSourceChangePlanService {
 
       for(DataSourceChangeRequest change : req.getChanges()) {
          String label = "changes[" + index++ + "]";
-         changes.add(resolveOne(label, change, user, seenNames, vacatedNames,
+         changes.add(resolveOne(label, change, user, seenNames, vacatedNames, claims,
                                 dependencyProjections, passwordHashInputs));
       }
 
@@ -124,7 +127,7 @@ public class DataSourceChangePlanService {
 
    private PlanChange resolveOne(String label, DataSourceChangeRequest change, Principal user,
                                  Set<String> seenNames, Set<String> vacatedNames,
-                                 Map<String, String> dependencyProjections,
+                                 PathClaims claims, Map<String, String> dependencyProjections,
                                  Map<String, String> passwordHashInputs)
       throws Exception
    {
@@ -137,7 +140,7 @@ public class DataSourceChangePlanService {
       // Bug 76599: verb=create targets a bare folder path, not an existing data source -- it has
       // no id/name to resolve at all, unlike update/delete below.
       if(DataSourceChangeRequest.VERB_CREATE.equals(verb)) {
-         return resolveFolderCreate(label, change, seenNames);
+         return resolveFolderCreate(label, change, seenNames, vacatedNames, claims);
       }
 
       String name = resolveName(label, change, user);
@@ -148,7 +151,8 @@ public class DataSourceChangePlanService {
       }
 
       if(DataSourceChangeRequest.VERB_UPDATE.equals(verb)) {
-         return resolveUpdate(label, name, change, user, vacatedNames, passwordHashInputs);
+         return resolveUpdate(label, name, change, user, vacatedNames, claims,
+                              passwordHashInputs);
       }
 
       PlanChange deleted = resolveDelete(label, name, change, user, dependencyProjections);
@@ -163,7 +167,8 @@ public class DataSourceChangePlanService {
     * ViewsheetChangePlanService#resolveFolderCreate}'s own {@code RISK_LOW} classification for the
     * viewsheets analog). */
    private PlanChange resolveFolderCreate(String label, DataSourceChangeRequest change,
-                                          Set<String> seenNames)
+                                          Set<String> seenNames, Set<String> vacatedNames,
+                                          PathClaims claims)
       throws Exception
    {
       requireUnused(label, "id", change.getId());
@@ -186,6 +191,29 @@ public class DataSourceChangePlanService {
          throw new IllegalArgumentException(
             label + ".folderPath: folder \"" + folderPath + "\" already exists");
       }
+
+      // Bug #80186: the refusals EM's folder create makes -- a path that is a data source (or a
+      // folder), or that lies under a data source, in the registry now or after an earlier change
+      // of this plan
+      String claimed = claims.clash(folderPath);
+
+      if(claimed != null) {
+         throw new IllegalArgumentException(
+            label + ".folderPath: \"" + folderPath + "\" is not available: \"" + claimed +
+            "\" is already taken by an earlier change of this plan");
+      }
+
+      try {
+         dataSourceService.checkFolderCreateTarget(folderPath, vacatedNames);
+      }
+      catch(ResourceExistsException e) {
+         throw new IllegalArgumentException(
+            label + ".folderPath: \"" + folderPath + "\" is not available: \"" +
+            e.getMessage() + "\" is already a data source or data source folder, and a " +
+            "folder cannot be created at it or under a data source");
+      }
+
+      claims.claim(folderPath, false);
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       String description = "create data source folder \"" + folderPath + "\"";
@@ -353,7 +381,7 @@ public class DataSourceChangePlanService {
    // ---------------------------------------------------------------- update
 
    private PlanChange resolveUpdate(String label, String name, DataSourceChangeRequest change,
-                                    Principal user, Set<String> vacatedNames,
+                                    Principal user, Set<String> vacatedNames, PathClaims claims,
                                     Map<String, String> passwordHashInputs)
       throws Exception
    {
@@ -404,8 +432,9 @@ public class DataSourceChangePlanService {
       }
 
       if(proposedName != null && !proposedName.equals(name)) {
-         checkRenameTarget(label, name, proposedName, user, vacatedNames);
+         checkRenameTarget(label, name, proposedName, user, vacatedNames, claims);
          vacatedNames.add(name);
+         claims.claim(proposedName, true);
       }
 
       String beforeProjection = DataSourceProjection.project(before);
@@ -501,10 +530,18 @@ public class DataSourceChangePlanService {
     * running the same checks {@code DataSourceService#updateDataSource} runs at write time.
     */
    private void checkRenameTarget(String label, String name, String proposedName, Principal user,
-                                  Set<String> vacatedNames)
+                                  Set<String> vacatedNames, PathClaims claims)
       throws Exception
    {
       String field = label + ".spec.name: ";
+      String claimed = claims.clash(proposedName);
+
+      if(claimed != null) {
+         throw new IllegalArgumentException(
+            field + "\"" + proposedName + "\" is not available: \"" + claimed +
+            "\" is already taken by an earlier change of this plan, and a data source " +
+            "cannot be renamed onto it or under it");
+      }
 
       try {
          dataSourceService.checkRenameTarget(name, proposedName, user, vacatedNames);
@@ -518,6 +555,48 @@ public class DataSourceChangePlanService {
       catch(MessageException e) {
          throw new IllegalArgumentException(field + e.getMessage());
       }
+   }
+
+   /**
+    * Bug #80186: the registry paths earlier changes of one plan take. The live registry cannot see
+    * them yet, because the plan is only resolved, not applied. A path freed by an earlier change
+    * (see the vacated names) is not in here until a later change takes it.
+    */
+   private static final class PathClaims {
+      /** @return the claimed path that {@code path} clashes with, or {@code null}. */
+      String clash(String path) {
+         if(targets.contains(path) || parents.contains(path)) {
+            return path;
+         }
+
+         for(int i = path.indexOf('/'); i != -1; i = path.indexOf('/', i + 1)) {
+            String parent = path.substring(0, i);
+
+            if(dataSources.contains(parent)) {
+               return parent;
+            }
+         }
+
+         return null;
+      }
+
+      void claim(String path, boolean dataSource) {
+         targets.add(path);
+
+         if(dataSource) {
+            dataSources.add(path);
+         }
+
+         for(int i = path.indexOf('/'); i != -1; i = path.indexOf('/', i + 1)) {
+            parents.add(path.substring(0, i));
+         }
+      }
+
+      // the paths taken, the parent folders they imply (shared by several changes, so only a
+      // path of their own clashes with them) and the taken paths that are data sources
+      private final Set<String> targets = new HashSet<>();
+      private final Set<String> parents = new HashSet<>();
+      private final Set<String> dataSources = new HashSet<>();
    }
 
    /**
