@@ -54,7 +54,10 @@ export class ClickableScriptPane implements OnInit{
    }
 
    get editorContext(): EditorContext {
-      return { kind: "assemblyOnClick", assembly: this.assembly };
+      return {
+         kind: this.onClick ? "assemblyOnClick" : "assemblyMain",
+         assembly: this.assembly
+      };
    }
 
    ngOnInit(): void {

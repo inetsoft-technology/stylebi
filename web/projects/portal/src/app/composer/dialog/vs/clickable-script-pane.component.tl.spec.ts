@@ -43,10 +43,31 @@ function createPane(): ClickableScriptPane {
 }
 
 describe("ClickableScriptPane — editorContext", () => {
-   it("should report assemblyOnClick with the bound assembly name", () => {
+   it("should report assemblyMain when the Script radio is selected", () => {
       const comp = createPane();
       comp.assembly = "Table1";
+      comp.onClick = false;
+
+      expect(comp.editorContext).toEqual({ kind: "assemblyMain", assembly: "Table1" });
+   });
+
+   it("should report assemblyOnClick when the onClick/onEnter radio is selected", () => {
+      const comp = createPane();
+      comp.assembly = "Table1";
+      comp.onClick = true;
 
       expect(comp.editorContext).toEqual({ kind: "assemblyOnClick", assembly: "Table1" });
+   });
+
+   it("should follow the radio when it is toggled", () => {
+      const comp = createPane();
+      comp.assembly = "Text1";
+      comp.onClick = false;
+
+      comp.toggleTextarea();
+      expect(comp.editorContext.kind).toBe("assemblyOnClick");
+
+      comp.toggleTextarea();
+      expect(comp.editorContext.kind).toBe("assemblyMain");
    });
 });
