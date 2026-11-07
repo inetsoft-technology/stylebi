@@ -66,7 +66,7 @@ class VSChartAxesVisibilityServiceTest {
          String kind = marked ? "modern" : "classic";
          AxisDescriptor value = valueAxis(info.getVSChartInfo());
 
-         VSChartAxesVisibilityService.setVisible(value, false, false, modern(info));
+         VSChartAxesVisibilityService.setVisible(value, false, false);
 
          assertFalse(value.isLineVisible(), kind);
          assertFalse(value.isLabelVisible(), kind);
@@ -82,7 +82,7 @@ class VSChartAxesVisibilityServiceTest {
          AxisDescriptor value = valueAxis(info.getVSChartInfo());
          boolean line = value.isLineVisible();
 
-         VSChartAxesVisibilityService.setVisible(value, false, true, modern(info));
+         VSChartAxesVisibilityService.setVisible(value, false, true);
 
          assertFalse(value.isMaxModeLineVisible(), kind);
          assertFalse(value.isMaxModeLabelVisible(), kind);
@@ -98,8 +98,8 @@ class VSChartAxesVisibilityServiceTest {
       VSChartInfo cinfo = info.getVSChartInfo();
       AxisDescriptor value = valueAxis(cinfo);
       AxisDescriptor state = cinfo.getXField(0).getAxisDescriptor();
-      VSChartAxesVisibilityService.setVisible(value, false, false, true);
-      VSChartAxesVisibilityService.setVisible(state, false, false, true);
+      VSChartAxesVisibilityService.setVisible(value, false, false);
+      VSChartAxesVisibilityService.setVisible(state, false, false);
       assertFalse(state.isLineVisible(), "premise: the baseline is hidden");
 
       VSChartAxesVisibilityService.showAllAxes(info, cinfo, false);
@@ -115,13 +115,30 @@ class VSChartAxesVisibilityServiceTest {
    }
 
    @Test
+   void showAllKeepsAValueLineTheAuthorTurnedOn() {
+      ChartVSAssemblyInfo info = bar(true);
+      VSChartInfo cinfo = info.getVSChartInfo();
+      AxisDescriptor value = valueAxis(cinfo);
+      AxisDescriptor state = cinfo.getXField(0).getAxisDescriptor();
+      value.setAuthorLineVisible(true);
+      VSChartAxesVisibilityService.setVisible(state, false, false);
+
+      VSChartAxesVisibilityService.showAllAxes(info, cinfo, false);
+
+      assertTrue(value.isLineVisible(), "the author's value line");
+      assertTrue(value.isUserLineVisible(), "its flag");
+      assertTrue(state.isLineVisible(), "the category baseline");
+      assertFalse(state.isUserLineVisible(), "the shown axis's flag");
+   }
+
+   @Test
    void showAllOnAClassicChartTurnsEveryLineOn() {
       ChartVSAssemblyInfo info = bar(false);
       VSChartInfo cinfo = info.getVSChartInfo();
       AxisDescriptor value = valueAxis(cinfo);
       AxisDescriptor state = cinfo.getXField(0).getAxisDescriptor();
-      VSChartAxesVisibilityService.setVisible(value, false, false, false);
-      VSChartAxesVisibilityService.setVisible(state, false, false, false);
+      VSChartAxesVisibilityService.setVisible(value, false, false);
+      VSChartAxesVisibilityService.setVisible(state, false, false);
 
       VSChartAxesVisibilityService.showAllAxes(info, cinfo, false);
 
@@ -143,8 +160,8 @@ class VSChartAxesVisibilityServiceTest {
       String valueBefore = xml(value);
       String stateBefore = xml(state);
 
-      VSChartAxesVisibilityService.setVisible(value, false, false, false);
-      VSChartAxesVisibilityService.setVisible(state, false, false, false);
+      VSChartAxesVisibilityService.setVisible(value, false, false);
+      VSChartAxesVisibilityService.setVisible(state, false, false);
       assertNotEquals(valueBefore, xml(value), "premise: the hide changed the XML");
 
       VSChartAxesVisibilityService.showAllAxes(info, cinfo, false);
@@ -158,7 +175,7 @@ class VSChartAxesVisibilityServiceTest {
       ChartVSAssemblyInfo info = bar(true);
       VSChartInfo cinfo = info.getVSChartInfo();
       AxisDescriptor state = cinfo.getXField(0).getAxisDescriptor();
-      VSChartAxesVisibilityService.setVisible(state, false, false, true);
+      VSChartAxesVisibilityService.setVisible(state, false, false);
 
       VSChartAxesVisibilityService.showAllAxes(info, cinfo, true);
 
@@ -178,7 +195,7 @@ class VSChartAxesVisibilityServiceTest {
       seed(info);
       // no seed reaches the radar's label axis
       AxisDescriptor label = radar.getLabelAxisDescriptor();
-      VSChartAxesVisibilityService.setVisible(label, false, false, true);
+      VSChartAxesVisibilityService.setVisible(label, false, false);
 
       VSChartAxesVisibilityService.showAllAxes(info, radar, false);
 
@@ -191,7 +208,7 @@ class VSChartAxesVisibilityServiceTest {
    void aRevertAfterHidingKeepsTheAxisHidden() {
       ChartVSAssemblyInfo info = bar(true);
       AxisDescriptor value = valueAxis(info.getVSChartInfo());
-      VSChartAxesVisibilityService.setVisible(value, false, false, true);
+      VSChartAxesVisibilityService.setVisible(value, false, false);
 
       info.setVizMark(null);
       VizModernizeUtil.reseedAfterRestore(info);

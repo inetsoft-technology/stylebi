@@ -721,9 +721,7 @@ class SeedChromeDefaultsTest {
                  "Revert restores a chart title with no foreground of its own");
    }
 
-   // A chart draws its own title rule, so the object frame's colour must not reach it. The copy
-   // that would overwrite it lives in FormatInfo.getFormat, which mutates the stored title format
-   // in place, so the seeded colour has to survive a read through that path.
+   // a chart title keeps its own border colour, not the object frame's
 
    @Test
    void aUserObjectBorderColourDoesNotReachAChartTitle() {

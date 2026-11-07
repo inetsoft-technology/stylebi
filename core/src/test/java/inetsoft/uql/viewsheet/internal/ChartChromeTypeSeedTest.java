@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.graph.SwapXYBindingProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -33,6 +34,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
@@ -50,6 +52,8 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -730,6 +734,102 @@ class ChartChromeTypeSeedTest {
       assertTrue(rdesc.getPlotDescriptor().isSmoothLines(), "the runtime descriptor");
    }
 
+   @Test
+   void anOldFilesSmoothedLineSurvivesModernizeAndRevert() throws Exception {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_LINE, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      // ticked in a build that kept no flag
+      plot(info).setSmoothLines(true);
+
+      ChartVSAssemblyInfo loaded = parseInfo(withoutSmoothFlag(writeXml(info)));
+
+      assertTrue(loaded.isUserSmoothLines(), "the old file's smoothing is the author's");
+      modernize(loaded);
+      assertTrue(plot(loaded).isSmoothLines(), "Modernize keeps the curves");
+      revert(loaded);
+      assertTrue(plot(loaded).isSmoothLines(), "Revert keeps the curves");
+   }
+
+   @Test
+   void anOldFilesDefaultSmoothAreaIsNoOpinion() throws Exception {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_AREA, refs(dim("state")), refs(agg("v")));
+      seed(info);
+      assertTrue(plot(info).isSmoothLines(), "premise: a classic area is smooth");
+
+      ChartVSAssemblyInfo loaded = parseInfo(withoutSmoothFlag(writeXml(info)));
+
+      assertFalse(loaded.isUserSmoothLines());
+      modernize(loaded);
+      assertFalse(plot(loaded).isSmoothLines(), "Modernize straightens it");
+      revert(loaded);
+      assertTrue(plot(loaded).isSmoothLines(), "Revert curves it again");
+   }
+
+   @Test
+   void anUneditedClassicFileSavesWhatItLoaded() throws Exception {
+      gateOff();
+
+      for(int type : new int[] { GraphTypes.CHART_LINE, GraphTypes.CHART_AREA,
+                                 GraphTypes.CHART_BAR })
+      {
+         ChartVSAssemblyInfo info = newChart();
+         bind(info, type, refs(dim("state")), refs(agg("v")));
+         seed(info);
+         // a saved file, as a build without the flag wrote it
+         String old = withoutSmoothFlag(writeXml(parseInfo(writeXml(info))));
+
+         assertEquals(old, writeXml(parseInfo(old)), "type " + type);
+      }
+   }
+
+   // ---- Modernize then Revert ---------------------------------------------------------------
+
+   @Test
+   void aBoundBarsXmlSurvivesModernizeAndRevert() throws Exception {
+      assertModernizeThenRevertKeepsTheXml(GraphTypes.CHART_BAR, refs(dim("state")));
+   }
+
+   @Test
+   void aBoundScattersXmlSurvivesModernizeAndRevert() throws Exception {
+      assertModernizeThenRevertKeepsTheXml(GraphTypes.CHART_POINT, refs(agg("w")));
+   }
+
+   private void assertModernizeThenRevertKeepsTheXml(int type, ChartRef[] x) throws Exception {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = chartOn(vs);
+      ChartVSAssemblyInfo info = chart.getChartInfo();
+      bind(info, type, x, refs(agg("v")));
+
+      try(MockedStatic<GraphTypeUtil> types = permitChartTypes()) {
+         render(chart);
+         String before = writeXml(info);
+         gateOn();
+         VizModernizeUtil.modernize(vs);
+         assertNotNull(info.getVizMark(), "premise: Modernize marked the chart");
+         render(chart);
+         assertNotEquals(before, writeXml(info), "premise: Modernize changed the XML");
+         VizModernizeUtil.revert(vs);
+
+         assertEquals(withoutAlphaDefinedHint(before), withoutAlphaDefinedHint(writeXml(info)));
+      }
+   }
+
+   // Revert's object alpha write sets this hint bit, as it did before the chart seeds
+   private static String withoutAlphaDefinedHint(String xml) {
+      Matcher m = Pattern.compile("<type>" + TableDataPath.OBJECT + "</type>\\s*" +
+                                  "<dataType>[^<]*</dataType>\\s*<path>\\s*</path>\\s*" +
+                                  "</tableDataPath>\\s*<VSCompositeFormat[^>]*>" +
+                                  "<defaultFormat><VSFormat [^>]* hint=\"(\\d+)\"").matcher(xml);
+      assertTrue(m.find(), "premise: the object format's hint");
+      int hint = Integer.parseInt(m.group(1)) & ~VSFormat.TRANS_VAL_DEFINED;
+      return xml.substring(0, m.start(1)) + hint + xml.substring(m.end(1));
+   }
+
    // ---- harness -----------------------------------------------------------------------------
 
    private void gateOn() {
@@ -998,6 +1098,11 @@ class ChartChromeTypeSeedTest {
       info.writeXML(writer);
       writer.flush();
       return buf.toString();
+   }
+
+   // as a released build wrote it, without the smoothing flag
+   private static String withoutSmoothFlag(String xml) {
+      return xml.replaceAll("\\s+userSmoothLines=\"[a-z]*\"", "");
    }
 
    private static ChartVSAssemblyInfo parseInfo(String xml) throws Exception {

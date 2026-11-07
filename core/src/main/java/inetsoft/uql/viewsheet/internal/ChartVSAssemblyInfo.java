@@ -367,6 +367,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       return false;
    }
 
+   // smoothing that differs from the type's classic default is the author's
+   private boolean derivedUserSmoothLines() {
+      PlotDescriptor plot = plotOf(desc);
+      return plot != null && plot.isSmoothLines() != legacySmoothLines();
+   }
+
    // the legends' layout decides; the render re-resolves it after a layout change
    private static void seedLegendBorder(ChartDescriptor desc, VizContext ctx) {
       LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
@@ -1665,7 +1671,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
       writer.print(" userBarCornerRadius=\"" + isUserBarCornerRadius() + "\"");
-      writer.print(" userSmoothLines=\"" + isUserSmoothLines() + "\"");
+      DerivedUserFlag.write(writer, "userSmoothLines", isUserSmoothLines(),
+                            derivedUserSmoothLines());
 
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
@@ -1715,9 +1722,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // mark-appropriate value
       String userBarCornerRadiusProp = Tool.getAttribute(element, "userBarCornerRadius");
       setUserBarCornerRadius("true".equalsIgnoreCase(userBarCornerRadiusProp));
-
-      String userSmoothLinesProp = Tool.getAttribute(element, "userSmoothLines");
-      setUserSmoothLines("true".equalsIgnoreCase(userSmoothLinesProp));
 
       cubeType = Tool.getAttribute(element, "cubeType");
 
@@ -1999,6 +2003,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             dateComparison = dcomparison;
          }
       }
+
+      // after the plot and the chart info, as the derivation reads both
+      userSmoothLines = DerivedUserFlag.parse(Tool.getAttribute(elem, "userSmoothLines"),
+                                              derivedUserSmoothLines());
    }
 
    /**

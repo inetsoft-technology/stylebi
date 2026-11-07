@@ -220,8 +220,10 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       LegendsDescriptor olegendsDescriptor = odescriptor.getLegendsDescriptor();
       LegendsDescriptor nlegendsDescriptor = ndescriptor.getLegendsDescriptor();
 
-      // a marked target keeps its seeded frame; only an author value travels
-      if(targetChart.getVSAssemblyInfo().getVizMark() != null) {
+      // once either chart is marked, only an author value travels
+      if(targetChart.getVSAssemblyInfo().getVizMark() != null ||
+         fromChart.getVSAssemblyInfo().getVizMark() != null)
+      {
          if(olegendsDescriptor.hasBorderUserValue()) {
             nlegendsDescriptor.setBorder(olegendsDescriptor.getBorder(),
                                          CompositeValue.Type.USER);

@@ -430,23 +430,65 @@ class PerTypeSeedSharedDescriptorTest {
    }
 
    @Test
-   void anUnmarkedTargetStillTakesTheOriginalsFrame() {
+   void aMarkedOriginalSyncedIntoAnUnmarkedTargetStampsNothing() {
       gateOn();
       ChartVSAssembly original = barOn(new Viewsheet(), "Chart1");
       LegendsDescriptor from = legends(original);
       gateOff();
       ChartVSAssembly target = barOn(new Viewsheet(), "Chart2");
       LegendsDescriptor legends = legends(target);
-      assertNotEquals(from.getBorderColor(), legends.getBorderColor(),
-                      "premise: the colours differ");
-      assertNotEquals(from.getBorder(), legends.getBorder(), "premise: the borders differ");
+      Color seededColor = legends.getBorderColor();
+      int seededBorder = legends.getBorder();
+      assertNotEquals(from.getBorderColor(), seededColor, "premise: the colours differ");
+      assertNotEquals(from.getBorder(), seededBorder, "premise: the borders differ");
+      from.setLayout(LegendsDescriptor.BOTTOM);
+      assertNotEquals(LegendsDescriptor.BOTTOM, legends.getLayout(), "premise: the layouts differ");
+
+      syncPreview(original, target);
+
+      assertEquals(LegendsDescriptor.BOTTOM, legends.getLayout(), "premise: the legends synced");
+      assertFalse(legends.hasBorderColorUserValue(), "border colour tier");
+      assertFalse(legends.hasBorderUserValue(), "border tier");
+      assertEquals(seededColor, legends.getBorderColor(), "the classic colour");
+      assertEquals(seededBorder, legends.getBorder(), "the classic border");
+   }
+
+   @Test
+   void anAuthorsLegendFrameReachesAnUnmarkedTargetFromAMarkedOriginal() {
+      gateOn();
+      ChartVSAssembly original = barOn(new Viewsheet(), "Chart1");
+      legends(original).setBorderColor(Color.RED);
+      legends(original).setBorder(StyleConstants.MEDIUM_LINE);
+      gateOff();
+      ChartVSAssembly target = barOn(new Viewsheet(), "Chart2");
+      LegendsDescriptor legends = legends(target);
 
       syncPreview(original, target);
 
       assertTrue(legends.hasBorderColorUserValue(), "border colour tier");
-      assertEquals(from.getBorderColor(), legends.getBorderColor(), "border colour");
+      assertEquals(Color.RED, legends.getBorderColor(), "border colour");
       assertTrue(legends.hasBorderUserValue(), "border tier");
-      assertEquals(from.getBorder(), legends.getBorder(), "border");
+      assertEquals(StyleConstants.MEDIUM_LINE, legends.getBorder(), "border");
+   }
+
+   @Test
+   void twoUnmarkedChartsStillShareTheOriginalsFrame() {
+      gateOff();
+      ChartVSAssembly original = barOn(new Viewsheet(), "Chart1");
+      LegendsDescriptor from = legends(original);
+      // values below the user tier, which only the classic copy carries over
+      from.setBorderColor(Color.RED, CompositeValue.Type.DEFAULT);
+      from.setBorder(StyleConstants.MEDIUM_LINE, CompositeValue.Type.DEFAULT);
+      assertFalse(from.hasBorderUserValue(), "premise: no author value");
+      ChartVSAssembly target = barOn(new Viewsheet(), "Chart2");
+      LegendsDescriptor legends = legends(target);
+
+      syncPreview(original, target);
+
+      assertTrue(legends.hasBorderColorUserValue(), "border colour tier");
+      assertEquals(Color.RED, legends.getBorderColor(), "border colour");
+      assertTrue(legends.hasBorderUserValue(), "border tier");
+      assertEquals(StyleConstants.MEDIUM_LINE, legends.getBorder(), "border");
    }
 
    // ---- harness ------------------------------------------------------------------------------

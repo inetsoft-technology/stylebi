@@ -27,7 +27,6 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.viewsheet.event.chart.VSChartAxesVisibilityEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -138,14 +137,13 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
          axisDescriptor = chartInfo.getAxisDescriptor();
       }
 
-      boolean modern = VizContext.of(info).modern;
-      setVisible(axisDescriptor, false, maxMode, modern);
+      setVisible(axisDescriptor, false, maxMode);
 
       if(maxMode && chartState.getRuntimeViewsheet() != null &&
          (chartState.getRuntimeViewsheet().isBinding() ||
             chartState.getRuntimeViewsheet().getEmbedAssemblyInfo() != null))
       {
-         setVisible(axisDescriptor, false, false, modern);
+         setVisible(axisDescriptor, false, false);
       }
 
       chartInfo.clearRuntime();
@@ -185,13 +183,12 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
    }
 
    static void showAllAxes(ChartVSAssemblyInfo info, VSChartInfo chartInfo, boolean maxMode) {
-      boolean modern = VizContext.of(info).modern;
       ChartRef[][] fields = {chartInfo.getBindingRefs(false), chartInfo.getBindingRefs(true)};
 
       for(ChartRef[] arr : fields) {
          for(ChartRef field : arr) {
             if(field != null) {
-               setVisible(field.getAxisDescriptor(), true, maxMode, modern);
+               setVisible(field.getAxisDescriptor(), true, maxMode);
             }
          }
       }
@@ -200,15 +197,15 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
 
       for(ChartRef field : rtDCRefs) {
          if(field != null) {
-            setVisible(field.getAxisDescriptor(), true, maxMode, modern);
+            setVisible(field.getAxisDescriptor(), true, maxMode);
          }
       }
 
-      setVisible(chartInfo.getAxisDescriptor(), true, maxMode, modern);
-      setVisible(chartInfo.getAxisDescriptor2(), true, maxMode, modern);
+      setVisible(chartInfo.getAxisDescriptor(), true, maxMode);
+      setVisible(chartInfo.getAxisDescriptor2(), true, maxMode);
 
       if(chartInfo instanceof RadarVSChartInfo) {
-         setVisible(((RadarVSChartInfo) chartInfo).getLabelAxisDescriptor(), true, maxMode, modern);
+         setVisible(((RadarVSChartInfo) chartInfo).getLabelAxisDescriptor(), true, maxMode);
       }
 
       // the shown lines take the chart type's modern look again
@@ -217,7 +214,7 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
       }
    }
 
-   static void setVisible(AxisDescriptor axis, boolean isVisible, boolean maxMode, boolean modern) {
+   static void setVisible(AxisDescriptor axis, boolean isVisible, boolean maxMode) {
       if(axis != null) {
          axis.setMaxModeLineVisible(isVisible);
          axis.setMaxModeLabelVisible(isVisible);
@@ -226,8 +223,8 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
             if(!isVisible) {
                axis.setAuthorLineVisible(false);
             }
-            else {
-               // back to the default, which a modern re-seed may turn off
+            // a hidden line goes back to the default, which a modern re-seed may turn off
+            else if(!axis.isLineVisible()) {
                axis.setLineVisible(true);
                axis.setUserLineVisible(false);
             }

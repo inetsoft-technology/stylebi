@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
 import inetsoft.util.DataSpace;
 import inetsoft.util.css.CSSDictionary;
 import org.junit.jupiter.api.AfterEach;
@@ -155,6 +156,7 @@ class ChartChromeRenderTest {
       EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false);
       AxisSpec primary = ((RectCoord) g.getCoordinate()).getYScale().getAxisSpec();
       AxisSpec percent = ((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec();
+      assertFalse(primary.isLineVisible(), "premise: the modern seed took the value line");
       assertFalse(percent.isTickVisible());
       assertEquals(primary.isLineVisible(), percent.isLineVisible());
       assertEquals(primary.isLabelVisible(), percent.isLabelVisible());
@@ -350,6 +352,8 @@ class ChartChromeRenderTest {
       assemblyInfo.setVSChartInfo(cinfo);
       assemblyInfo.setChartDescriptor(new ChartDescriptor());
       assemblyInfo.setVizMark(mark);
+      // the seed a chart is created with
+      VizModernizeUtil.reseedAfterRestore(assemblyInfo);
 
       return GraphGenerator.getGenerator(
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
