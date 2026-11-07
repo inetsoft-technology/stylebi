@@ -859,15 +859,16 @@ public class ViewsheetFormatService {
       int index = r.index() == null ? 0 : r.index();
 
       if("axis_title".equals(region)) {
-         if("y2".equals(axis)) {
-            ChartRef[] yrefs = chart.getVSChartInfo().getRTYFields();
+         if(axis.endsWith("2")) {
+            ChartRef[] refs = axisRefs(chart, axis);
 
-            if(yrefs == null || java.util.Arrays.stream(yrefs).noneMatch(
+            if(refs == null || java.util.Arrays.stream(refs).noneMatch(
                ViewsheetFormatService::isSecondaryY))
             {
                throw new IllegalArgumentException(
-                  tool + ": chart '" + r.assembly() + "' renders no y2 axis (no measure is on " +
-                  "the secondary Y axis), so there is no y2 title to format.");
+                  tool + ": chart '" + r.assembly() + "' renders no " + axis + " axis (no " +
+                  "measure is on the secondary axis), so there is no " + axis +
+                  " title to format.");
             }
          }
 
@@ -895,8 +896,7 @@ public class ViewsheetFormatService {
       String column = r.field();
 
       if(column == null || column.isBlank()) {
-         VSChartInfo info = chart.getVSChartInfo();
-         ChartRef[] refs = axis.startsWith("x") ? info.getRTXFields() : info.getRTYFields();
+         ChartRef[] refs = axisRefs(chart, axis);
 
          if(refs == null || refs.length == 0) {
             throw new IllegalArgumentException(
@@ -906,8 +906,8 @@ public class ViewsheetFormatService {
 
          column = pickAxisRef(tool, r.assembly(), axis, refs).getFullName();
       }
-      else if(axis.startsWith("y")) {
-         checkYAxisSide(tool, r.assembly(), axis, column, chart.getVSChartInfo().getRTYFields());
+      else {
+         checkAxisSide(tool, axis, column, axisRefs(chart, axis));
       }
 
       return new ChartRegion(painterRegion, column, index);
@@ -922,11 +922,12 @@ public class ViewsheetFormatService {
     * the requested side, so y2 must land on a secondary-Y measure and y on a primary one; otherwise
     * the write would silently format the other axis.
     */
-   private static ChartRef pickAxisRef(String tool, String assembly, String axis, ChartRef[] refs) {
-      if(axis.startsWith("x")) {
-         return refs[axis.endsWith("2") ? refs.length - 1 : 0];
-      }
+   private static ChartRef[] axisRefs(ChartVSAssembly chart, String axis) {
+      VSChartInfo info = chart.getVSChartInfo();
+      return axis.startsWith("x") ? info.getRTXFields() : info.getRTYFields();
+   }
 
+   private static ChartRef pickAxisRef(String tool, String assembly, String axis, ChartRef[] refs) {
       boolean secondary = axis.endsWith("2");
 
       for(int i = 0; i < refs.length; i++) {
@@ -939,12 +940,11 @@ public class ViewsheetFormatService {
 
       throw new IllegalArgumentException(
          tool + ": chart '" + assembly + "' renders no " + axis + " axis" +
-         (secondary ? " (no measure is on the secondary Y axis)" : " (every measure is on the " +
-          "secondary Y axis; use axis 'y2')") + ".");
+         (secondary ? " (no measure is on the secondary axis)" : " (every measure is on the " +
+          "secondary axis; use axis '" + axis + "2')") + ".");
    }
 
-   private static void checkYAxisSide(String tool, String assembly, String axis, String field,
-                                      ChartRef[] refs)
+   private static void checkAxisSide(String tool, String axis, String field, ChartRef[] refs)
    {
       if(refs == null) {
          return;
@@ -956,7 +956,7 @@ public class ViewsheetFormatService {
          if(field.equals(ref.getFullName()) && isSecondaryY(ref) != secondary) {
             throw new IllegalArgumentException(
                tool + ": field '" + field + "' is " + (secondary ? "not " : "") +
-               "on the secondary Y axis, so it has no " + axis + " axis labels.");
+               "on the secondary axis, so it has no " + axis + " axis labels.");
          }
       }
    }

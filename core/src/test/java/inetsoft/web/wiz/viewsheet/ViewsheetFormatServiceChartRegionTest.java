@@ -66,12 +66,16 @@ class ViewsheetFormatServiceChartRegionTest {
    }
 
    private static RuntimeViewsheet rvs(int targets, ChartRef... yRefs) {
-      ChartDescriptor descriptor = mock(ChartDescriptor.class);
-      when(descriptor.getTargetCount()).thenReturn(targets);
       ChartRef x = mock(ChartRef.class);
       when(x.getFullName()).thenReturn("Region");
+      return rvs(targets, new ChartRef[]{ x }, yRefs);
+   }
+
+   private static RuntimeViewsheet rvs(int targets, ChartRef[] xRefs, ChartRef[] yRefs) {
+      ChartDescriptor descriptor = mock(ChartDescriptor.class);
+      when(descriptor.getTargetCount()).thenReturn(targets);
       VSChartInfo info = mock(VSChartInfo.class);
-      when(info.getRTXFields()).thenReturn(new ChartRef[]{ x });
+      when(info.getRTXFields()).thenReturn(xRefs);
       when(info.getRTYFields()).thenReturn(yRefs);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getChartDescriptor()).thenReturn(descriptor);
@@ -132,6 +136,28 @@ class ViewsheetFormatServiceChartRegionTest {
 
    /** The painter picks the descriptor from the field, so a y2 request on a one-axis chart
     *  used to format the primary y axis and report success. */
+   /** x2 used to resolve to the last x field, the same column as x on a one-dimension chart, so
+    *  the bottom axis was formatted and the call reported success. */
+   @Test
+   void refusesX2LabelsAndTitleWhenNoMeasureIsOnTheTopAxis() {
+      for(String region : new String[]{ "axis_labels", "axis_title" }) {
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class, () -> write(request(region, "x2", null, null), 0));
+         assertTrue(e.getMessage().contains("x2"), e.getMessage());
+      }
+   }
+
+   /** Inverted chart: the measures are on x and the second one is on the secondary (top) axis. */
+   @Test
+   void x2PicksTheSecondaryMeasureOnAnInvertedChart() throws Exception {
+      ChartRef[] xs = { measure("Sum(Total)", false), measure("Sum(Qty)", true) };
+      RuntimeViewsheet rvs = rvs(0, xs, new ChartRef[0]);
+      assertArrayEquals(new String[]{ "Sum(Qty)" },
+                        write(request("axis_labels", "x2", null, null), rvs).getColumnNames()[0]);
+      assertEquals("x2_title",
+                   write(request("axis_title", "x2", null, null), rvs).getRegions()[0]);
+   }
+
    @Test
    void refusesY2LabelsWhenNoMeasureIsOnTheSecondaryAxis() {
       IllegalArgumentException e = assertThrows(

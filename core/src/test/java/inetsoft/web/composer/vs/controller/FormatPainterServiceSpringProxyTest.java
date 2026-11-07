@@ -53,7 +53,7 @@ class FormatPainterServiceSpringProxyTest {
       @Bean VSObjectModelFactoryService d() { return mock(VSObjectModelFactoryService.class); }
       @Bean VSBindingService e() { return mock(VSBindingService.class); }
       @Bean VSLayoutService f() { return mock(VSLayoutService.class); }
-      
+
       @Bean SheetWriteAspect h() { return new SheetWriteAspect(mock(WorksheetService.class)); }
       @Bean FormatPainterService svc(CoreLifecycleService a, ChartRegionHandler b, ViewsheetService c,
          VSObjectModelFactoryService d, VSBindingService e, VSLayoutService f) {
