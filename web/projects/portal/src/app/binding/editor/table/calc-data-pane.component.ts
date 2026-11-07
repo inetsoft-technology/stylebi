@@ -40,6 +40,7 @@ import { CalcAggregateOption } from "./calc-aggregate-option.component";
 import { CalcGroupOption } from "./calc-group-option.component";
 import { FormsModule } from "@angular/forms";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
 
 
 @Component({
@@ -62,7 +63,8 @@ export class CalcDataPane {
 
    public constructor(private editorService: VSCalcTableEditorService,
                       private dialogService: NgbModal, public bindingService: BindingService,
-                      private changeRef: ChangeDetectorRef)
+                      private changeRef: ChangeDetectorRef,
+                      private clientService: ViewsheetClientService)
    {
    }
 
@@ -332,6 +334,21 @@ export class CalcDataPane {
       dialog.isCondition = true;
       dialog.returnTypeVisible = false;
       dialog.isCalcTable = true;
+      // Pairing runs against the binding editor's own runtime (vsId) and its socket, the same
+      // ones the dialog's OK writes through.
+      dialog.runtimeId = this.vsId;
+      dialog.socketConnection = this.clientService;
+      const cells = this.editorService.getSelectCells();
+      dialog.contextCell = cells && cells.length == 1
+         ? {row: cells[0].row, col: cells[0].col} : null;
+
+      // An agent write changes the cell on the server while the pane still caches the old
+      // binding: reload it, so a later unrelated edit in this pane cannot write the old
+      // formula text back.
+      dialog.agentScriptPushed.subscribe(() => {
+         this.editorService.invalidateCellBinding();
+         this.editorService.loadCellBinding();
+      });
    }
 
    private getTreeNodeChildren(nodes: any[]): TreeNodeModel[] {

@@ -155,9 +155,10 @@ public class ScheduleTaskImportChangesetApplyService {
             String key = change.property();
 
             AtomicBoolean mutationEntered = new AtomicBoolean(false);
+            String stillChanged;
 
             try {
-               applyOne(txId, reviewedTask, key, req.getStagingToken(), original, user, linkURI,
+               stillChanged = applyOne(txId, reviewedTask, key, req.getStagingToken(), original, user, linkURI,
                        backupRef, reviewOutcome, results, undoable, mutationEntered);
             }
             catch(Exception e) {
@@ -174,6 +175,13 @@ public class ScheduleTaskImportChangesetApplyService {
             }
 
             if(AdminChangeRecord.STATUS_FAILED.equals(lastStatus(results))) {
+               // A failed post-write check is only a clean "nothing happened" when the observed
+               // state still equals the pre-state; otherwise the write is still in place and no
+               // undo was queued for it, so it must not be reported as rolled back (bug #80355).
+               if(stillChanged != null) {
+                  unknownStateFailures.add(new RollbackFailure(key, stillChanged));
+               }
+
                failed = true;
                break;
             }
@@ -205,7 +213,7 @@ public class ScheduleTaskImportChangesetApplyService {
       }
    }
 
-   private void applyOne(String txId, String task, String key, String stagingToken,
+   private String applyOne(String txId, String task, String key, String stagingToken,
                          ScheduleTaskImportChangeRequest original, Principal user, String linkURI,
                          String backupRef, String reviewOutcome,
                          List<ScheduleTaskImportApplyOutcome> results, List<Undo> undoable,
@@ -233,6 +241,11 @@ public class ScheduleTaskImportChangesetApplyService {
       // Bug #80027, Gap 2: re-check at apply time, same as preview -- the owner's organization
       // could have been removed since the plan was reviewed.
       scheduleGateway.requireOwnerOrganizationExists(staged.getOwner());
+      // Bug #80355, sibling of #79974: setScheduleTask makes every one of its refusals (action
+      // viewsheet READ, org boundary, scheduler permission, ...) before its first write, so run
+      // them first -- a refusal here proves nothing was touched and mustn't be reported as a state
+      // that is unknown (rollback-failed).
+      scheduleManager.checkScheduleTaskSave(taskId, staged, user);
 
       mutationEntered.set(true);
       // Bug #78592, an overwrite keeps the task in the folder it is stored in, a save without a
@@ -240,6 +253,12 @@ public class ScheduleTaskImportChangesetApplyService {
       scheduleManager.setScheduleTask(taskId, staged, getFolderEntry(existing), user);
 
       boolean verified = scheduleManager.getScheduleTask(taskId) != null;
+      // A create that reads back nothing equals its pre-state (nothing existed), but an
+      // overwrite that reads back nothing has already removed the task it replaced.
+      String stillChanged = !verified && existing != null
+         ? "write took effect but its post-write check failed: the overwritten task is no " +
+            "longer stored"
+         : null;
       String after = verified ? ScheduleXmlProjection.project(staged) : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ScheduleTaskImportApplyOutcome(key, before, after, status,
@@ -252,6 +271,8 @@ public class ScheduleTaskImportChangesetApplyService {
          undoable.add(capturedOriginal == null ? Undo.create(key, taskId, staged) :
             Undo.overwrite(key, taskId, capturedOriginal));
       }
+
+      return stillChanged;
    }
 
    // ---------------------------------------------------------------- rollback

@@ -61,10 +61,12 @@ import { InputTrimDirective } from "../directive/input-trim.directive";
 
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
-import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { ViewsheetClientService, ViewsheetCommandMessage } from "../../common/viewsheet-client";
 import { EditorContext } from "../../composer/gui/wiz/editor-context";
 import { ConnectToClaudeComponent } from "../../composer/gui/wiz/connect-to-claude.component";
 import { FollowFocusService } from "../../composer/gui/wiz/services/follow-focus.service";
+import { matchesAgentScriptRefresh, shouldApplyAgentScriptPush } from "../../composer/gui/wiz/agent-script-refresh";
+import { RefreshAgentScriptCommand } from "../../vsobjects/command/refresh-agent-script-command";
 
 const DATE_PARTS: any[] = [
    { label: "_#(js:Year)", data: "year" },
@@ -118,6 +120,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() isVSContext: boolean = true;
    @Input() isHighlight: boolean = false;
    @Input() isCalcTable: boolean = false;
+   /** The single selected cell a calc-table (Freehand) dialog is editing, as row/col. Mints
+    *  a pairing code scoped to that one cell. Unset when more than one cell is selected, which
+    *  hides the Connect button: a cell grant cannot honestly cover a multi-cell edit. */
+   @Input() contextCell: {row: number, col: number} = null;
 
    /** Runtime identifier of the sheet hosting the expression this dialog is
     *  editing. Scopes an agent pairing session to this expression's sheet
@@ -176,6 +182,13 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     * this dialog opens with, which intentionally does not exist on the runtime yet.
     */
    @Input() isNewCalcField: boolean = false;
+   /**
+    * True only when the worksheet Create Expression dialog is authoring a brand-new expression
+    * column rather than editing one. Threaded into `deriveEditorContext()`'s `worksheetExpression`
+    * case as `pending`, so mint validation accepts the pre-assigned name (e.g. "Expression1"),
+    * which intentionally does not exist on the worksheet until the user clicks OK.
+    */
+   @Input() isNewExpression: boolean = false;
    @Input() calcType: string;
    @Input() calcFieldsGroup: string[] = [];
 
@@ -204,6 +217,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Output() onCommit: EventEmitter<FormulaEditorDialogModel> =
       new EventEmitter<FormulaEditorDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
+   /** Fires when an agent write to this dialog's location was received while the dialog is
+    *  open, so the host can refresh any cached state of the edited location. */
+   @Output() agentScriptPushed: EventEmitter<string> = new EventEmitter<string>();
    @Output() aggregateModify: EventEmitter<any> = new EventEmitter<any>();
    @Output() aggregateDelete: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild("newAggrDialog") newAggrDialog: TemplateRef<any>;
@@ -234,6 +250,17 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     * same fix `ScriptPane` needed for its own live-getter-at-pop-time hazard.
     */
    private pushedEditorContext: EditorContext | null = null;
+
+   /** The text last known to match the server -- set at open and whenever an agent's push is
+    *  actually applied. Compared against `expression` to detect a local, unsaved edit; never
+    *  updated by the human simply typing. */
+   private lastKnownExpression: string;
+
+   /** Set when a `RefreshAgentScriptCommand` arrives for this exact `editorContext` while
+    *  `expression` already diverges from `lastKnownExpression` -- applying it would silently
+    *  overwrite unsaved local text. Holds the pushed text; `reloadStaleExpression()` is the
+    *  explicit, human-driven way to accept it anyway. See `shouldApplyAgentScriptPush`. */
+   staleExpression: string | null = null;
 
    get title(): string {
       return this.isCube ? "_#(js:Create Measure)" : this.isCalc ? "_#(js:Edit Calculated Field)" :
@@ -285,6 +312,14 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       // doc comment for why they're not the same field.
       const assembly = this.contextTable ?? this.assemblyName;
 
+      // A freehand cell formula is addressed by (calc table, row/col), not by the table
+      // assembly script it would otherwise be mistaken for.
+      if(this.isCalcTable) {
+         return { kind: "calcTableCell", assembly,
+                  name: this.contextCell ? `${this.contextCell.row},${this.contextCell.col}`
+                     : undefined };
+      }
+
       if(this.isCalc) {
          return { kind: "calcField", assembly, name: this.formulaName,
                   pending: this.isNewCalcField };
@@ -310,6 +345,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
             : { kind: "worksheetConditionValue", assembly };
       }
 
+      if(!this.isVSContext && this.isNewExpression) {
+         return { kind: "worksheetExpression", assembly, name: this.formulaName, pending: true };
+      }
+
       return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",
                assembly, name: this.formulaName };
    }
@@ -323,7 +362,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     * opens with an empty `formulaName`, because the user has not named the thing yet.
     */
    private static readonly COLUMN_ADDRESSED_KINDS =
-      ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue"];
+      ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
+       "calcTableCell"];
 
    /**
     * The operations with exactly one value slot -- the only shape `worksheetConditionValue` may
@@ -382,6 +422,16 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       this.oname = this.formulaName;
       this.returnTypes = FormulaEditorService.returnTypes;
       this.init = true;
+      this.lastKnownExpression = this.expression;
+
+      if(this.hasPairingTransport && this.socketConnection.commands) {
+         this.subscriptions.add(this.socketConnection.commands.subscribe(
+            (message: ViewsheetCommandMessage) => {
+               if(message.type === "RefreshAgentScriptCommand") {
+                  this.onAgentScriptRefresh(message.command as RefreshAgentScriptCommand);
+               }
+            }));
+      }
 
       // Follow Focus (separate from, and in addition to, the ConnectToClaudeComponent#detach()
       // call in ngOnDestroy below): if the human has opted in, this dialog opening pushes an
@@ -583,6 +633,39 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
    cancel(): void {
       this.onCancel.emit("cancel");
+   }
+
+   /**
+    * Applies (or, if the human has an unsaved local edit, defers) an agent's just-written
+    * expression text for the exact location this dialog is editing. Pushes for any other
+    * location (a different calc field, a different assembly's condition, ...) are ignored.
+    */
+   private onAgentScriptRefresh(command: RefreshAgentScriptCommand): void {
+      if(!matchesAgentScriptRefresh(command, this.editorContext)) {
+         return;
+      }
+
+      this.agentScriptPushed.emit(command.text);
+
+      if(!shouldApplyAgentScriptPush(this.expression, this.lastKnownExpression)) {
+         this.staleExpression = command.text;
+         return;
+      }
+
+      this.expression = command.text;
+      this.lastKnownExpression = command.text;
+      this.staleExpression = null;
+   }
+
+   /** The human's explicit choice to accept a deferred push, discarding their own local edit. */
+   reloadStaleExpression(): void {
+      if(this.staleExpression == null) {
+         return;
+      }
+
+      this.expression = this.staleExpression;
+      this.lastKnownExpression = this.staleExpression;
+      this.staleExpression = null;
    }
 
    populateTrees(): void {

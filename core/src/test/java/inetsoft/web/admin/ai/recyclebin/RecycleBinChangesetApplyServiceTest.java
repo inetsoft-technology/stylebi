@@ -163,7 +163,8 @@ class RecycleBinChangesetApplyServiceTest {
    {
       RecycleBinService hashRecycleBinService = mock(RecycleBinService.class);
       lenient().when(hashRecycleBinService.requireEntry(entry.getPath(), user)).thenReturn(entry);
-      lenient().when(hashRecycleBinService.wouldCollide(entry)).thenReturn(collides);
+      lenient().when(hashRecycleBinService.occupantOf(entry)).thenReturn(
+         collides ? RecycleBinService.Occupant.SAME_TYPE_SHEET : RecycleBinService.Occupant.NONE);
       RecycleBinChangePlanService hashPlanService = new RecycleBinChangePlanService(
          hashRecycleBinService);
       return hashPlanService.resolve(planRequest(task, Arrays.asList(changes)), user).planHash();
@@ -179,7 +180,7 @@ class RecycleBinChangesetApplyServiceTest {
       RecycleBin.Entry entry = sheetEntry("Recycle Bin/uuid1", "folder1/ws1", "ws1");
       String hash = hashFor("restore ws1", entry, false, restore("Recycle Bin/uuid1"));
 
-      // apply()'s own fresh top-of-method resolve() re-checks requireEntry/wouldCollide once more
+      // apply()'s own fresh top-of-method resolve() re-checks requireEntry/occupantOf once more
       // (call #1) before the loop is even reached; applyRestore's OWN re-check (call #2) is the one
       // that throws -- a concurrent purge/restore of the same entry between preview and apply, the
       // scenario this class's own doc comment names.
@@ -187,7 +188,7 @@ class RecycleBinChangesetApplyServiceTest {
          .thenReturn(entry)
          .thenThrow(new MissingResourceException(
             "path: no recycle bin entry found at \"Recycle Bin/uuid1\""));
-      when(recycleBinService.wouldCollide(entry)).thenReturn(false);
+      when(recycleBinService.occupantOf(entry)).thenReturn(RecycleBinService.Occupant.NONE);
 
       RecycleBinApplyRequest req = applyRequest("restore ws1", hash, restore("Recycle Bin/uuid1"));
       RecycleBinApplyResult result;
@@ -278,7 +279,7 @@ class RecycleBinChangesetApplyServiceTest {
       String hash = hashFor("restore ws3", entry, false, restore("Recycle Bin/uuid4"));
 
       when(recycleBinService.requireEntry("Recycle Bin/uuid4", user)).thenReturn(entry);
-      when(recycleBinService.wouldCollide(entry)).thenReturn(false);
+      when(recycleBinService.occupantOf(entry)).thenReturn(RecycleBinService.Occupant.NONE);
       // The concurrent-purge race: the trashed asset itself is gone by the time
       // RecycleUtils.restoreSheet's own getSheetEntry lookup would have run -- strictly before
       // validatePath, that method's first mutating statement.
@@ -307,7 +308,7 @@ class RecycleBinChangesetApplyServiceTest {
       String hash = hashFor("restore folder2", entry, false, restore("Recycle Bin/uuid5"));
 
       when(recycleBinService.requireEntry("Recycle Bin/uuid5", user)).thenReturn(entry);
-      when(recycleBinService.wouldCollide(entry)).thenReturn(false);
+      when(recycleBinService.occupantOf(entry)).thenReturn(RecycleBinService.Occupant.NONE);
       // Mirrors RecycleUtils.restoreRepositoryFolder's opening getRegistry load, which precedes
       // checkParentFolderExist -- the first statement there that mutates.
       doThrow(new Exception("simulated registry load failure"))
@@ -336,7 +337,7 @@ class RecycleBinChangesetApplyServiceTest {
       String hash = hashFor("restore ws4", entry, false, restore("Recycle Bin/uuid6"));
 
       when(recycleBinService.requireEntry("Recycle Bin/uuid6", user)).thenReturn(entry);
-      when(recycleBinService.wouldCollide(entry)).thenReturn(false);
+      when(recycleBinService.occupantOf(entry)).thenReturn(RecycleBinService.Occupant.NONE);
       // requireRestorableSource passes (mock default no-op), so mutationEntered is set before the
       // restore call below throws from somewhere at or past validatePath.
       RecycleBinApplyRequest req = applyRequest("restore ws4", hash, restore("Recycle Bin/uuid6"));

@@ -114,7 +114,8 @@ public class StoredAssetChangePlanService {
 
          if(!seenPaths.add(path)) {
             throw new IllegalArgumentException(
-               label + ": duplicate entry for \"" + path + "\"; list each path at most once");
+               label + ": duplicate entry for \"" + path + "\"; a path may appear once per " +
+               "submission, counting a rename's target");
          }
 
          ResolvedChange resolved;
@@ -128,6 +129,7 @@ public class StoredAssetChangePlanService {
                break;
             case StoredAssetChangeRequest.VERB_RENAME:
                resolved = resolveRename(label, unitType, path, raw);
+               claimRenameTarget(label, resolved.newPath(), seenPaths);
                break;
             default:
                resolved = resolveDelete(label, unitType, path, raw);
@@ -146,6 +148,8 @@ public class StoredAssetChangePlanService {
          throw new IllegalArgumentException(label + ": content/newName not used for verb=create");
       }
 
+      StoredAssetPathValidator.requireValidNameChars(leafOf(path), label + ".path");
+
       if(dataSpace.exists(null, path)) {
          throw new IllegalArgumentException(
             label + ": \"" + path + "\" already exists -- refusing to create over an existing " +
@@ -163,6 +167,8 @@ public class StoredAssetChangePlanService {
       if(raw.getNewName() != null) {
          throw new IllegalArgumentException(label + ".newName: not used for verb=write");
       }
+
+      StoredAssetPathValidator.requireValidNameChars(leafOf(path), label + ".path");
 
       String content = raw.getContent();
 
@@ -218,6 +224,7 @@ public class StoredAssetChangePlanService {
       }
 
       String newName = StoredAssetPathValidator.requireSiblingName(raw.getNewName(), label + ".newName");
+      StoredAssetPathValidator.requireValidNameChars(newName, label + ".newName");
 
       if(!dataSpace.exists(null, path)) {
          throw new StoredAssetNotFoundException(path, label);
@@ -242,6 +249,19 @@ public class StoredAssetChangePlanService {
             : ""));
       return new ResolvedChange(unitType, StoredAssetChangeRequest.VERB_RENAME, path, newPath, null,
          true, null, planChange, Map.of());
+   }
+
+   /**
+    * Bug #80355: a rename's landing path shares the entries'-own-path set, so a write/create/second
+    * rename onto the same path (either order) is refused at preview instead of overwriting the
+    * renamed entry at apply, when the destination does not exist yet.
+    */
+   private void claimRenameTarget(String label, String newPath, Set<String> seenPaths) {
+      if(!seenPaths.add(newPath)) {
+         throw new IllegalArgumentException(
+            label + ".newName: duplicate entry for \"" + newPath + "\"; a path may appear once " +
+            "per submission, counting a rename's target");
+      }
    }
 
    private ResolvedChange resolveDelete(String label, String unitType, String path,
@@ -377,6 +397,11 @@ public class StoredAssetChangePlanService {
    static String parentOf(String path) {
       int idx = path.lastIndexOf('/');
       return idx < 0 ? "" : path.substring(0, idx);
+   }
+
+   static String leafOf(String path) {
+      int idx = path.lastIndexOf('/');
+      return idx < 0 ? path : path.substring(idx + 1);
    }
 
    static String join(String parent, String name) {

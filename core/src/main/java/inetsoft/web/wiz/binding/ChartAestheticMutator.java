@@ -309,6 +309,166 @@ public final class ChartAestheticMutator {
       assign(model, name, null);
    }
 
+   /** Bug #80332: the reserved {@code measure} value that targets every measure of the chart. */
+   public static final String ALL_MEASURES = "all";
+
+   /** Whether {@code measure} is the reserved all-measures literal (case-insensitive). */
+   static boolean isAllMeasures(String measure) {
+      return measure != null && ALL_MEASURES.equalsIgnoreCase(measure.trim());
+   }
+
+   /**
+    * Bug #80332: binds a field on one measure (or all) of a multi-style chart -- what the
+    * Composer's Aesthetic pane does when its measure selector is on a measure or on "All". A
+    * multi-aesthetic chart renders each measure from that measure's own colour/shape/size/text
+    * field and ignores the chart-level slot {@link #setField} writes, which is why that write is
+    * refused there.
+    *
+    * <p>Targets are {@link #multiAggregates}, the measures the renderer consumes
+    * ({@code getAestheticAggregateRefs}); {@code all} writes every one of them, and a measure
+    * bound twice on Y is one target, as it is to the renderer. Every target is resolved before
+    * any is written, and is put back as it was when a guard refuses the write. An existing
+    * binding keeps its frame ({@link #bindField}); a new one gets none, since a measure's
+    * field-less frame is a static one that {@code GraphUtil.fixVisualFrame} replaces.
+    *
+    * <p>Decision (A3): the chart-level slot is left alone. {@link #setGanttField} clears it, but a
+    * Gantt chart's chart-level slot can only be a leftover; on another multi-style chart this
+    * write does not own it, and the renderer ignores it either way.
+    *
+    * @param perMeasureFrameChannels see {@link #setFrame(ChartBindingModel, String, Map, boolean,
+    *        Collection)}; color/shape/size are refused by name when the chart does not render them
+    *        per measure, since the field would be stored and never drawn.
+    * @return the indexes, within {@link #multiAggregates}, of the measures written, so the caller
+    *         can run its per-target validators ({@link #measureField}).
+    */
+   public static List<Integer> setMeasureField(ChartBindingModel model, String channel,
+                                               FieldRef field, RuntimeViewsheet rvs,
+                                               SourceInfo source,
+                                               DataRefModelFactoryService refModelService,
+                                               Collection<String> perMeasureFrameChannels,
+                                               String measure)
+      throws Exception
+   {
+      String name = requireMeasureChannel(channel, perMeasureFrameChannels);
+
+      if(field == null) {
+         throw new IllegalArgumentException(
+            "Binding the " + name + " channel needs a field. To unbind it, use " +
+            "clear_aesthetic_field instead — an absent field is not the same request as an " +
+            "explicit clear.");
+      }
+
+      List<ChartAggregateRefModel> all = multiAggregates(model);
+      List<ChartAggregateRefModel> targets = selectMeasures(all, name, measure);
+      List<AestheticInfo> before = new ArrayList<>();
+      List<AestheticInfo> beforeState = new ArrayList<>();
+
+      for(ChartAggregateRefModel target : targets) {
+         AestheticInfo existing = aggregateFieldOf(target, name);
+         before.add(existing);
+         beforeState.add(existing == null ? null : snapshot(existing));
+      }
+
+      try {
+         for(int i = 0; i < targets.size(); i++) {
+            ChartAggregateRefModel target = targets.get(i);
+            bindField(model, name, field, rvs, source, refModelService, before.get(i), null,
+                      info -> assignAggregateField(target, name, info));
+         }
+      }
+      catch(RuntimeException e) {
+         for(int i = 0; i < targets.size(); i++) {
+            AestheticInfo existing = before.get(i);
+
+            if(existing != null) {
+               AestheticInfo state = beforeState.get(i);
+               existing.setFullName(state.getFullName());
+               existing.setDataInfo(state.getDataInfo());
+               existing.setFrame(state.getFrame());
+            }
+
+            assignAggregateField(targets.get(i), name, existing);
+         }
+
+         throw e;
+      }
+
+      List<Integer> written = new ArrayList<>();
+
+      for(ChartAggregateRefModel target : targets) {
+         written.add(all.indexOf(target));
+      }
+
+      return written;
+   }
+
+   /**
+    * Bug #80332: unbinds a channel from one measure (or all) of a multi-style chart. Nothing is
+    * written when the measure is unknown.
+    */
+   public static void clearMeasureField(ChartBindingModel model, String channel, String measure) {
+      String name = requireMeasureChannel(channel, null);
+
+      for(ChartAggregateRefModel target : selectMeasures(multiAggregates(model), name, measure)) {
+         assignAggregateField(target, name, null);
+      }
+   }
+
+   /**
+    * The field the measure at {@code index} of {@link #multiAggregates} carries for
+    * {@code channel}, for the per-target validators.
+    */
+   static AestheticInfo measureField(ChartBindingModel model, String channel, int index) {
+      List<ChartAggregateRefModel> all = multiAggregates(model);
+      return index < 0 || index >= all.size() ? null : aggregateFieldOf(all.get(index), channel);
+   }
+
+   /**
+    * Only color, shape, size and text exist on an aggregate; the node channels of a relation chart
+    * do not, and are refused here by name rather than hitting {@link #assignAggregateField}'s
+    * "Unhandled field channel".
+    */
+   static String requireMeasureChannel(String channel,
+                                               Collection<String> perMeasureFrameChannels)
+   {
+      String name = AestheticChannels.requireFieldChannel(channel, true);
+
+      if(AestheticChannels.NODE_CHANNELS.contains(name)) {
+         throw new IllegalArgumentException(
+            "Channel '" + name + "' has no per-measure field: 'measure' applies to color, shape, " +
+            "size and text only. Omit 'measure' to bind " + name + " on the chart.");
+      }
+
+      if(perMeasureFrameChannels != null && !"text".equals(name) &&
+         !perMeasureFrameChannels.contains(name))
+      {
+         throw new IllegalArgumentException(
+            "This chart type does not render the " + name + " channel per measure, so a " +
+            name + " field bound to one measure would be stored and never drawn. Omit 'measure' " +
+            "to bind " + name + " on the chart instead.");
+      }
+
+      return name;
+   }
+
+   private static List<ChartAggregateRefModel> selectMeasures(
+      List<ChartAggregateRefModel> all, String channel, String measure)
+   {
+      if(measure == null || measure.isBlank()) {
+         throw new IllegalArgumentException(
+            "'measure' must name a measure of this chart, or be 'all'.");
+      }
+
+      if(all.isEmpty()) {
+         throw new IllegalArgumentException(
+            "This chart has no measure to bind the " + channel + " channel on. Bind a measure " +
+            "with set_chart_shelf first, or omit 'measure'.");
+      }
+
+      return isAllMeasures(measure)
+         ? new ArrayList<>(all) : List.of(requireTargetMeasure(all, channel, measure.trim()));
+   }
+
    /**
     * The measures a Gantt chart draws a field channel from (#78918): the start field (the bars)
     * and, when bound, the milestone field (the markers). {@code VSFrameVisitor.getAggregates()}

@@ -1047,7 +1047,7 @@ public class AdminScheduleGateway {
 
       for(Map.Entry<String, Object> e : action.getParameters().entrySet()) {
          if(e.getValue() instanceof Map) {
-            request.setParameter(e.getKey(), convertParameter((Map) e.getValue()));
+            request.setParameter(e.getKey(), convertParameter(String.valueOf(e.getKey()), (Map) e.getValue()));
          }
          else {
             request.setParameter(e.getKey(), e.getValue());
@@ -1102,7 +1102,7 @@ public class AdminScheduleGateway {
       return codes;
    }
 
-   private Object convertParameter(Map map) {
+   private Object convertParameter(String name, Map map) {
       if(!map.containsKey("value")) {
          return map;
       }
@@ -1122,10 +1122,30 @@ public class AdminScheduleGateway {
          return scheduleConditionService.getParamValueAsArray(type, value);
       }
       else if(valueType.equals(ConditionValueModel.VALUE)) {
+         // getParamValueAsType swallows a parse failure and keeps the raw String, which is saved
+         // but cannot be read back (RepletRequest does Integer/Double.valueOf unguarded), so the
+         // whole action is dropped when the task reloads. Reject here, scoped to this admin path;
+         // the shared service is also used by EM and the public API and is left unchanged.
+         validateParameterValue(name, type, value);
          parameterValue.setValue(scheduleConditionService.getParamValueAsType(type, new DynamicValueModel(value)));
       }
 
       return parameterValue;
+   }
+
+   private void validateParameterValue(String name, String type, String value) {
+      try {
+         if("integer".equals(type)) {
+            Integer.valueOf(value);
+         }
+         else if("double".equals(type)) {
+            Double.valueOf(value);
+         }
+      }
+      catch(NumberFormatException ex) {
+         throw new IllegalArgumentException("Parameter '" + name + "' has dataType " + type +
+            " but its value '" + value + "' is not a valid " + type);
+      }
    }
 
    private inetsoft.sree.schedule.BatchAction convertAction(BatchAction action) {
@@ -1146,7 +1166,7 @@ public class AdminScheduleGateway {
 
          for(Map.Entry e : row.entrySet()) {
             if(e.getValue() instanceof Map) {
-               convertedRow.put(e.getKey().toString(), convertParameter((Map) e.getValue()));
+               convertedRow.put(e.getKey().toString(), convertParameter(e.getKey().toString(), (Map) e.getValue()));
             }
             else {
                convertedRow.put(e.getKey().toString(), e.getValue());

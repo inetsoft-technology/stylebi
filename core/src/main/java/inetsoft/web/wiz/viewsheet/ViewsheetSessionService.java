@@ -87,9 +87,12 @@ public class ViewsheetSessionService {
     * Resolves {@code sessionToken} WITHOUT the pane-scope refusal {@link #requireSession}
     * applies.
     *
-    * <p>Exactly one caller: {@link SheetOpenService}, which must inspect a pane-scoped session in
-    * order to refuse it with a message naming {@code open_base_worksheet} specifically -- see
-    * that class. Anything else that reaches for this instead of {@link #requireSession} is
+    * <p>Exactly two callers: {@link SheetOpenService}, which must inspect a pane-scoped session
+    * in order to refuse it with a message naming {@code open_base_worksheet} specifically -- see
+    * that class -- and {@link #requireCellSession}, the ONE helper through which the three
+    * {@code calc/cell} endpoints serve a {@code calcTableCell} session, and which always applies
+    * {@link PaneScopeService#requireCellGrant} (so a calcField or assemblyMain grant is still
+    * refused there). Anything else that reaches for this instead of {@link #requireSession} is
     * re-opening the hole: a pane token is not a whole-sheet handle, and the name says so.
     */
    public JoinSession requireSessionAllowingPaneScope(String sessionToken, Principal agent)
@@ -108,11 +111,40 @@ public class ViewsheetSessionService {
    }
 
    public RuntimeViewsheet resolve(String sessionToken, Principal agent) throws PairingException {
-      JoinSession session = requireSession(sessionToken, agent);
+      return open(requireSession(sessionToken, agent), agent);
+   }
+
+   private RuntimeViewsheet open(JoinSession session, Principal agent) throws PairingException {
       RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
          SheetType.VIEWSHEET, session.runtimeId(), agent);
       applySocketSession(rvs, session);
       return rvs;
+   }
+
+   /**
+    * Resolves {@code sessionToken} for work on ONE cell of a freehand table: a whole-sheet session
+    * passes as it always did, and a {@code calcTableCell} session passes only for the cell it was
+    * paired at ({@link PaneScopeService#requireCellGrant}). Every other pane grant is refused.
+    *
+    * <p>The single funnel for the cell-scoped exemption -- {@link #resolveForCell},
+    * {@link #readForCell} and {@link #mutateForCell} all start here, so no caller can reach a cell
+    * grant without the cell comparison.
+    */
+   public JoinSession requireCellSession(String sessionToken, Principal agent, String assembly,
+                                         int row, int col)
+      throws PairingException
+   {
+      JoinSession session = requireSessionAllowingPaneScope(sessionToken, agent);
+      PaneScopeService.requireCellGrant(session, assembly, row, col);
+      return session;
+   }
+
+   /** {@link #resolve} for a cell-addressed read; see {@link #requireCellSession}. */
+   public RuntimeViewsheet resolveForCell(String sessionToken, Principal agent, String assembly,
+                                          int row, int col)
+      throws PairingException
+   {
+      return open(requireCellSession(sessionToken, agent, assembly, row, col), agent);
    }
 
    /**
@@ -158,10 +190,28 @@ public class ViewsheetSessionService {
    public List<String> mutate(String sessionToken, Principal agent, Mutation mutation)
       throws Exception
    {
-      JoinSession session = requireSession(sessionToken, agent);
-      RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
-         SheetType.VIEWSHEET, session.runtimeId(), agent);
-      applySocketSession(rvs, session);
+      return mutate(requireSession(sessionToken, agent), agent,
+                    (rvs, runtimeId, dispatcher, cellScoped) ->
+                       mutation.run(rvs, runtimeId, dispatcher));
+   }
+
+   /**
+    * {@link #mutate} for a cell-addressed write; see {@link #requireCellSession}. The mutation is
+    * told whether the session is cell-scoped, because a cell grant may write only the cell's
+    * formula and the caller has to hold the write to that.
+    */
+   public List<String> mutateForCell(String sessionToken, Principal agent, String assembly,
+                                     int row, int col, CellMutation mutation)
+      throws Exception
+   {
+      return mutate(requireCellSession(sessionToken, agent, assembly, row, col), agent, mutation);
+   }
+
+   private List<String> mutate(JoinSession session, Principal agent, CellMutation mutation)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = open(session, agent);
+      boolean cellScoped = PaneScopeService.isCellGrant(session.editorContext());
 
       List<String> warnings = List.of();
 
@@ -176,7 +226,7 @@ public class ViewsheetSessionService {
 
       try {
          warnings = CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
-            mutation.run(rvs, session.runtimeId(), dispatcher);
+            mutation.run(rvs, session.runtimeId(), dispatcher, cellScoped);
             return dispatcher.getWarnings();
          });
       }
@@ -235,6 +285,24 @@ public class ViewsheetSessionService {
    }
 
    /**
+    * Pushes the just-written text of a script/calc-field expression to the browser holding
+    * {@code rvs}'s paired session -- see {@code SheetAgentBroadcastService.broadcastScriptRefresh}
+    * (which this delegates to verbatim) for the full rationale and the client-side clobber guard
+    * it depends on.
+    *
+    * <p>A thin pass-through rather than folding this into {@link #mutate} itself: unlike the
+    * unconditional per-mutation {@code broadcastRefresh} call {@link #mutate}'s own
+    * {@code finally} block already makes, this one needs the written target's identity
+    * (kind/assembly/name) and new text, which only the caller's mutation lambda -- not this
+    * generic method -- knows. {@code CalcFieldAgentService.modify} is the one caller today.
+    */
+   public void broadcastScriptRefresh(RuntimeViewsheet rvs, String runtimeId, Principal agent,
+                                      String kind, String assembly, String name, String text)
+   {
+      broadcast.broadcastScriptRefresh(rvs, runtimeId, agent, kind, assembly, name, text);
+   }
+
+   /**
     * Adds the messages {@link #mutate} returned to a response under {@code "warnings"}, the
     * field every warning-relaying wiz endpoint uses. Leaves the response untouched when there
     * are none, so an unwarned call reads exactly as it did before.
@@ -270,10 +338,19 @@ public class ViewsheetSessionService {
     * happened. Hence a third entry point rather than a flag on the second.
     */
    public <T> T read(String sessionToken, Principal agent, Read<T> read) throws Exception {
-      JoinSession session = requireSession(sessionToken, agent);
-      RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
-         SheetType.VIEWSHEET, session.runtimeId(), agent);
-      applySocketSession(rvs, session);
+      return read(requireSession(sessionToken, agent), agent, read);
+   }
+
+   /** {@link #read} for a cell-addressed read; see {@link #requireCellSession}. */
+   public <T> T readForCell(String sessionToken, Principal agent, String assembly, int row,
+                            int col, Read<T> read)
+      throws Exception
+   {
+      return read(requireCellSession(sessionToken, agent, assembly, row, col), agent, read);
+   }
+
+   private <T> T read(JoinSession session, Principal agent, Read<T> read) throws Exception {
+      RuntimeViewsheet rvs = open(session, agent);
 
       return CapturingCommandDispatcher.withCapturingDispatcher(
          agent, dispatcher -> read.run(rvs, session.runtimeId(), dispatcher));
@@ -282,6 +359,14 @@ public class ViewsheetSessionService {
    @FunctionalInterface
    public interface Mutation {
       void run(RuntimeViewsheet rvs, String runtimeId, CapturingCommandDispatcher dispatcher)
+         throws Exception;
+   }
+
+   /** A {@link Mutation} that also learns whether the session is scoped to one freehand cell. */
+   @FunctionalInterface
+   public interface CellMutation {
+      void run(RuntimeViewsheet rvs, String runtimeId, CapturingCommandDispatcher dispatcher,
+               boolean cellScoped)
          throws Exception;
    }
 

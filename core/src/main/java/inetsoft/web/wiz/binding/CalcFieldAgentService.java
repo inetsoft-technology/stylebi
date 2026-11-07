@@ -45,6 +45,7 @@ import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
 import inetsoft.web.binding.model.ExpressionRefModel;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.script.ScriptTarget;
 import inetsoft.web.wiz.viewsheet.ChartRenderCheck;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -132,8 +133,17 @@ public class CalcFieldAgentService {
     *                            one (see {@code ModifyCalculateFieldService
     *                            .renameCalcFieldDependents}) -- empty otherwise. The caller has no
     *                            other way to learn a dependent's formula changed.
+    * @param trapDetected        {@code true} when the expression mixes columns across a
+    *                            data-model trap (duplicated or undercounted aggregates from a
+    *                            join fan-out/chasm), per {@code
+    *                            ModifyCalculateFieldService#checkTrap} -- mirrors native
+    *                            Composer's Trap dialog, which warns but never refuses: the field
+    *                            has already been written either way, same as every other write
+    *                            this method performs. Always {@code false} on a remove, which has
+    *                            no expression to check.
     */
-   public record CalcFieldResult(List<String> warnings, List<String> rewrittenDependents) {}
+   public record CalcFieldResult(List<String> warnings, List<String> rewrittenDependents,
+                                 boolean trapDetected) {}
 
    public CalcFieldResult modify(String sessionToken, Principal agent, CalcFieldRequest req,
                                  String linkUri)
@@ -191,6 +201,10 @@ public class CalcFieldAgentService {
          ? req.newName() : req.name();
       List<String> rewrittenDependents = new ArrayList<>();
       List<String> aggregateWarnings = new ArrayList<>();
+      // Bug #80441: mutated inside the mutate() lambda below, right before the write, mirroring
+      // native Composer's own check-then-write order (ModifyCalculateFieldController.checkTrap /
+      // VSBindingTreeActions.modifyCalculateField).
+      boolean[] trapDetected = {false};
 
       List<String> warnings = sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
          BindableTable bindable = requireBindableTable(runtimeId, req.table(), agent);
@@ -302,6 +316,18 @@ public class CalcFieldAgentService {
          CalcFieldRemovalCleanup removal = req.remove()
             ? CalcFieldRemovalCleanup.begin(rvs.getViewsheet(), tableName, req.name()) : null;
 
+         // Bug #80441: native Composer always runs this check before a calc-field write (see
+         // ModifyCalculateFieldController.checkTrap, called by VSBindingTreeActions
+         // .modifyCalculateField before it ever sends the write event) and warns -- it does not
+         // refuse -- when the expression mixes columns across a data-model trap (duplicated or
+         // undercounted aggregates from a join fan-out/chasm). modifyCalculateField itself never
+         // consults this, so without an explicit pre-write call here the agent path silently
+         // skipped it. A remove has no CalculateRef to check a trap against.
+         if(!req.remove()) {
+            trapDetected[0] = "true".equals(modifyCalculateFieldService.checkTrap(
+               runtimeId, tableName, req.name(), String.valueOf(req.create()), model, agent));
+         }
+
          ImmutableModifyCalculateFieldEvent event = ImmutableModifyCalculateFieldEvent.builder()
             .name(req.assembly())
             .confirmed(true)
@@ -316,6 +342,22 @@ public class CalcFieldAgentService {
 
          modifyCalculateFieldService.modifyCalculateField(
             runtimeId, event, agent, dispatcher, linkUri);
+
+         if(!req.remove() && newName.equals(req.name())) {
+            // Bug #80447 symptom 1: broadcastRefresh (sent by ViewsheetSessionService.mutate's
+            // own finally block, below) only repaints visible assembly canvases -- it never
+            // reaches an already-open FormulaEditorDialog editing THIS calc field, which binds
+            // its text as a plain one-shot @Input with no live-refresh subscription. Push the new
+            // expression so that dialog, if open, can refresh itself -- see
+            // ScriptEditService.write's identical call for the full rationale and the client-side
+            // clobber guard this depends on. Skipped on a rename: the open dialog's own
+            // editorContext still names the OLD field name, so a push naming the new one could
+            // never match it, and addressing it under the old name would misdescribe what changed
+            // (the field itself, not just its expression).
+            sessions.broadcastScriptRefresh(rvs, runtimeId, agent,
+                                            ScriptTarget.Kind.CALC_FIELD.wireName(), tableName,
+                                            newName, req.expression());
+         }
 
          if(removal != null) {
             aggregateWarnings.addAll(removal.finish());
@@ -344,7 +386,7 @@ public class CalcFieldAgentService {
          warnings = merged;
       }
 
-      return new CalcFieldResult(warnings, rewrittenDependents);
+      return new CalcFieldResult(warnings, rewrittenDependents, trapDetected[0]);
    }
 
    /**

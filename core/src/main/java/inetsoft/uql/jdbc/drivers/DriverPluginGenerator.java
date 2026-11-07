@@ -82,6 +82,15 @@ public class DriverPluginGenerator {
                               String[] drivers, UploadedFile[] jarFiles, File pluginFile)
       throws IOException
    {
+      try {
+         inetsoft.util.Plugins.validatePluginId(pluginId);
+      }
+      catch(IllegalArgumentException e) {
+         throw new IllegalArgumentException("pluginId: " + e.getMessage(), e);
+      }
+
+      validateManifestValue("pluginName", pluginName);
+      validateManifestValue("pluginVersion", pluginVersion);
       String packageName = "drivers." + pluginId.replaceAll("[^a-zA-Z0-9.]", "_");
       String driverServiceClassName = packageName + ".DriverService";
 
@@ -96,6 +105,12 @@ public class DriverPluginGenerator {
          writeDrivers(driverServiceClassName, drivers, zip);
          writeUrls(driverServiceClassName, zip);
          writeJarFiles(jarFiles, zip);
+      }
+   }
+
+   private static void validateManifestValue(String field, String value) {
+      if(value != null && (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0)) {
+         throw new IllegalArgumentException(field + ": must not contain line breaks");
       }
    }
 

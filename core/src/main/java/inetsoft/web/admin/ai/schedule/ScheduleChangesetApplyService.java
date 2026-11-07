@@ -138,6 +138,7 @@ public class ScheduleChangesetApplyService {
             ScheduleChangeRequest original = originals.get(i);
             String taskId = change.property();
             AtomicBoolean mutationEntered = new AtomicBoolean(false);
+            String stillChanged = null;
 
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
@@ -146,7 +147,7 @@ public class ScheduleChangesetApplyService {
                              mutationEntered);
                }
                else {
-                  applyDelete(txId, reviewedTask, taskId, backupRef, req.getReviewOutcome(), user,
+                  stillChanged = applyDelete(txId, reviewedTask, taskId, backupRef, req.getReviewOutcome(), user,
                              results, undoable, mutationEntered);
                }
             }
@@ -165,6 +166,14 @@ public class ScheduleChangesetApplyService {
             }
 
             if(AdminChangeRecord.STATUS_FAILED.equals(lastStatus(results))) {
+               // A failed post-write check is only a clean "nothing happened" when the observed
+               // state still equals the pre-state; otherwise the write is still in place and no
+               // undo was queued for it, so it must not be reported as rolled back (bug #80355).
+               if(stillChanged != null) {
+                  unknownStateFailures.add(new RollbackFailure(taskId, stillChanged));
+                  unknownStateMutationEntered = true;
+               }
+
                failed = true;
                break;
             }
@@ -239,7 +248,7 @@ public class ScheduleChangesetApplyService {
       }
    }
 
-   private void applyDelete(String txId, String task, String taskId, String backupRef,
+   private String applyDelete(String txId, String task, String taskId, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
                             List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
@@ -262,7 +271,13 @@ public class ScheduleChangesetApplyService {
       mutationEntered.set(true);
       scheduleGateway.removeScheduleTask(taskId, orgId, user);
 
-      boolean verified = scheduleManager.getScheduleTask(taskId) == null;
+      inetsoft.sree.schedule.ScheduleTask afterTask = scheduleManager.getScheduleTask(taskId);
+      boolean verified = afterTask == null;
+      // A surviving task that no longer matches the pre-state was already partly modified.
+      String stillChanged = !verified && !before.equals(ScheduleXmlProjection.project(afterTask))
+         ? "write took effect but its post-write check failed: the task still exists but " +
+            "was modified"
+         : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(taskId, before, null, status,
                                    verified ? null : "task still exists after delete"));
@@ -273,6 +288,8 @@ public class ScheduleChangesetApplyService {
          undoable.add(new Undo(ScheduleChangeRequest.VERB_DELETE, taskId, orgId, beforeTask,
                                recreateTask, permission));
       }
+
+      return stillChanged;
    }
 
    /** Undoes verified changes newest-first, attempting all of them and collecting any failures. */

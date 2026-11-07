@@ -189,6 +189,7 @@ class ViewsheetImageExportInProgressTest {
          mock(AssemblyConvertService.class), mock(SelectionRuntimeService.class),
          mock(CalendarDisplayService.class), mock(InputValueService.class),
          mock(AssemblyMaxModeService.class), mock(SelectionLayoutService.class), mock(FormTableRowService.class),
+         mock(FormTableImportService.class),
          mock(ColumnOptionService.class), mock(ParameterCollectionService.class),
          mock(ParameterValueService.class),
          mock(inetsoft.analytic.composition.ViewsheetService.class),

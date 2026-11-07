@@ -41,6 +41,16 @@ public interface BrowseDataModel {
       return false;
    }
 
+   /**
+    * Whether one or more null (blank) values in the source column were excluded from
+    * {@link #values()}. Always present in the serialized response, like {@link #dataTruncated()} —
+    * callers must read its value, not infer anything from the field's presence.
+    */
+   @Value.Default
+   default boolean nullExcluded() {
+      return false;
+   }
+
    @JsonIgnore
    default boolean existLabels() {
       return labels() != null;

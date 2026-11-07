@@ -46,7 +46,9 @@ import java.util.Base64;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -197,6 +199,42 @@ class ScheduleTaskImportChangePlanServiceTest {
       inetsoft.util.MessageException ex = assertThrows(inetsoft.util.MessageException.class,
          () -> planService.resolve(request(token, change(child.getTaskId())), user, LINK_URI));
       assertTrue(ex.getMessage().contains("qa-no-such-org-xyz"), ex.getMessage());
+   }
+
+   // Bug #80355 (P1), sibling of #79974: the save's own refusals (run principal can't read an
+   // action viewsheet, org boundary, scheduler permission, ...) must be refused at preview too, for
+   // new and overwrite entries alike, instead of previewing clean and failing on apply.
+   @Test void taskTheSaveWouldRefuseIsRefusedAtPreviewNamingTheTaskId() throws Exception {
+      ScheduleTask child = task("child");
+      doThrow(new SecurityException("principal cannot read viewsheet vs1"))
+         .when(scheduleManager).checkScheduleTaskSave(eq(child.getTaskId()), any(), eq(user));
+      String token = stage(child);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(request(token, change(child.getTaskId())), user, LINK_URI));
+      assertTrue(ex.getMessage().startsWith("changes[0].taskId"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("refused when saved"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("principal cannot read viewsheet vs1"), ex.getMessage());
+   }
+
+   @Test void overwriteTheSaveWouldRefuseIsRefusedAtPreview() throws Exception {
+      ScheduleTask child = task("child");
+      lenient().when(scheduleManager.getScheduleTask(child.getTaskId())).thenReturn(task("child"));
+      doThrow(new java.io.IOException("batch target not readable"))
+         .when(scheduleManager).checkScheduleTaskSave(eq(child.getTaskId()), any(), eq(user));
+      String token = stage(child);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(request(token, change(child.getTaskId(), true)), user, LINK_URI));
+      assertTrue(ex.getMessage().contains("batch target not readable"), ex.getMessage());
+   }
+
+   @Test void taskTheSaveAcceptsStillPreviewsAndWasChecked() throws Exception {
+      ScheduleTask child = task("child");
+      PlanChange change = previewOne(child);
+
+      assertEquals("low", change.risk());
+      verify(scheduleManager).checkScheduleTaskSave(eq(child.getTaskId()), any(), eq(user));
    }
 
    @Test void flagDoesNotChangeThePlanHash() throws Exception {

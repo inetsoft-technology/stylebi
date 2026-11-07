@@ -125,14 +125,16 @@ public class RecycleBinChangePlanService {
       }
 
       boolean overwrite = Boolean.TRUE.equals(change.getOverwrite());
-      boolean collides = recycleBinService.wouldCollide(entry);
+      RecycleBinService.Occupant occupant = recycleBinService.occupantOf(entry);
+      requireOverwritable(label + ".overwrite", entry.getOriginalPath(), occupant, type);
+      boolean collides = occupant.occupied();
 
       if(collides && !overwrite) {
          throw new IllegalArgumentException(
             label + ".overwrite: the destination \"" + entry.getOriginalPath() + "\" is already " +
             "occupied by an existing " + type + " -- set overwrite: true to replace it (this " +
-            "permanently deletes whatever currently occupies that path, bypassing the recycle " +
-            "bin), or choose a different entry; refusing rather than silently doing nothing");
+            "permanently deletes that " + type + ", bypassing the recycle bin), or choose a " +
+            "different entry; refusing rather than silently doing nothing");
       }
 
       String risk = collides ? AdminChangeRecord.RISK_HIGH : AdminChangeRecord.RISK_LOW;
@@ -145,6 +147,27 @@ public class RecycleBinChangePlanService {
                "destination)" : "");
       return new PlanChange(key, orgId, beforeProjection, "(restored to \"" +
          entry.getOriginalPath() + "\")", risk, AdminChangeRecord.SCOPE_STORAGE, true, description);
+   }
+
+   /**
+    * A folder, repository folder, viewsheet snapshot, or a worksheet occupying a destination meant
+    * for a worksheet folder is never overwritable: {@code RecycleUtils.restoreSheet}/{@code
+    * restoreWSFolder} cannot actually replace it (see {@link RecycleBinService.Occupant}'s own
+    * javadoc) -- refused regardless of {@code overwrite}, mirroring bug #79939's
+    * {@code AutoSaveRecycleBinChangePlanService.requireOverwritable}. Single-sourced so {@link
+    * RecycleBinChangesetApplyService}'s apply-time re-check can never drift from this preview-time
+    * check.
+    */
+   static void requireOverwritable(String fieldLabel, String destinationPath,
+                                   RecycleBinService.Occupant occupant, String draftType)
+   {
+      if(occupant.occupied() && !occupant.overwritable()) {
+         throw new IllegalArgumentException(
+            fieldLabel + ": the destination \"" + destinationPath + "\" is already occupied by a " +
+            occupant.describe(draftType) + ", not a " + draftType + " -- restoring here would not " +
+            "replace it, only add the restored " + draftType + " beside it; choose a different " +
+            "entry");
+      }
    }
 
    static String requireVerb(String label, String verb) {

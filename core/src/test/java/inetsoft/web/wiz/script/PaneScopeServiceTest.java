@@ -110,6 +110,26 @@ class PaneScopeServiceTest {
       assertFalse(ex.getMessage().contains("require.script.pane"), ex.getMessage());
    }
 
+   /**
+    * Bug #80462: the refusal keeps the phrase the plugin guardrail case matches
+    * ("...no name at sheet level.*expression editor") and now also points at Create Expression,
+    * the one place a NEW column can be paired.
+    */
+   @Test
+   void theWorksheetExpressionRefusalAlsoPointsAtCreateExpression() throws Exception {
+      PaneScopeService service = new PaneScopeService(false);
+      ScriptTarget target =
+         ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, "Query1", "Margin");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> service.check(wholeSheetSession(), target));
+
+      assertTrue(ex.getMessage().matches(
+         "(?s).*worksheet expression column has no name at sheet level.*expression editor.*"),
+         ex.getMessage());
+      assertTrue(ex.getMessage().contains("Create Expression"), ex.getMessage());
+   }
+
    @Test
    void strictPostureAlsoRefusesViewsheetLevelKinds() throws Exception {
       JoinSession wholeSheetSession = wholeSheetSession();

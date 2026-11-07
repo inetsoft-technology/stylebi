@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.presentation;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -29,11 +30,15 @@ import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.model.FileData;
+import inetsoft.web.admin.presentation.model.ExportMenuOption;
 import inetsoft.web.admin.presentation.model.LookAndFeelSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationDashboardSettingsModel;
+import inetsoft.web.admin.presentation.model.PresentationExportMenuSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationFormatsSettingsModel;
+import inetsoft.web.admin.presentation.model.PresentationViewsheetToolbarOptionsModel;
 import inetsoft.web.admin.presentation.model.PortalIntegrationSettingsModel;
 import inetsoft.web.admin.presentation.model.PortalTabModel;
+import inetsoft.web.admin.presentation.model.ToolbarOption;
 import inetsoft.web.admin.presentation.model.ViewsheetCSSEntry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -431,6 +436,169 @@ class PresentationChangesetApplyServiceTest {
       PortalIntegrationSettingsModel after = (PortalIntegrationSettingsModel)
          state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true));
       assertEquals("Renamed", after.tabs().get(4).name());
+   }
+
+   // ---------------------------------------------------------------- Bug #80433: key order of replaced list entries
+
+   /** a copy of {@code node} with every object's keys in the opposite order, at any depth */
+   private static JsonNode reverseKeys(JsonNode node) {
+      if(node.isObject()) {
+         List<String> names = new ArrayList<>();
+         node.fieldNames().forEachRemaining(names::add);
+         Collections.reverse(names);
+         ObjectNode copy = obj();
+
+         for(String name : names) {
+            copy.set(name, reverseKeys(node.get(name)));
+         }
+
+         return copy;
+      }
+
+      if(node.isArray()) {
+         ArrayNode copy = MAPPER.createArrayNode();
+         node.forEach(e -> copy.add(reverseKeys(e)));
+         return copy;
+      }
+
+      return node;
+   }
+
+   private static ObjectNode exportOption(String name, boolean value, String description) {
+      ObjectNode o = obj();
+      o.put("name", name).put("value", value).put("description", description);
+      return o;
+   }
+
+   private static PresentationExportMenuSettingsModel exportMenu() {
+      return PresentationExportMenuSettingsModel.builder().vsEnabled(true)
+         .addVsOptions(ExportMenuOption.builder().name("CSV").description("CSV desc").value(true)
+                          .build())
+         .addVsOptions(ExportMenuOption.builder().name("PDF").description("PDF desc").value(true)
+                          .build())
+         .build();
+   }
+
+   private void assertAppliedAndVerified(PresentationApplyRequest req) throws Exception {
+      var result = service.apply(req, user);
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("verified", result.results().get(0).status());
+   }
+
+   @Test
+   void applyVerifiesExportMenuOptionsInThePluginKeyOrder() throws Exception {
+      // the plugin fill appends the omitted description after the given keys: name, value, description
+      seed(PresentationSubModel.EXPORT_MENU, true, exportMenu());
+      ObjectNode spec = obj();
+      spec.set("vsOptions", MAPPER.createArrayNode()
+         .add(exportOption("CSV", true, "CSV desc")).add(exportOption("PDF", true, "PDF desc")));
+
+      assertAppliedAndVerified(applyRequest("t", "ok", null,
+         change("exportMenu", "global", spec)));
+   }
+
+   @Test
+   void applyVerifiesARealExportMenuChangeInReverseKeyOrder() throws Exception {
+      seed(PresentationSubModel.EXPORT_MENU, true, exportMenu());
+      ObjectNode spec = obj();
+      spec.set("vsOptions", MAPPER.createArrayNode()
+         .add(exportOption("CSV", false, "CSV desc")).add(exportOption("PDF", true, "PDF desc")));
+      spec.set("vsOptions", reverseKeys(spec.get("vsOptions")));
+
+      assertAppliedAndVerified(applyRequest("t", "ok", null,
+         change("exportMenu", "global", spec)));
+      PresentationExportMenuSettingsModel after = (PresentationExportMenuSettingsModel)
+         state.get(stateKey(PresentationSubModel.EXPORT_MENU, true));
+      assertFalse(after.vsOptions().get(0).value());
+      assertTrue(after.vsOptions().get(1).value());
+   }
+
+   @Test
+   void applyVerifiesViewsheetToolbarOptionsInANonLiveKeyOrder() throws Exception {
+      PresentationViewsheetToolbarOptionsModel live = PresentationViewsheetToolbarOptionsModel
+         .builder()
+         .addOptions(ToolbarOption.builder().id("Print").visible(true).enabled(true).alias("P")
+                        .build())
+         .addOptions(ToolbarOption.builder().id("Email").visible(true).enabled(true).build())
+         .build();
+      seed(PresentationSubModel.VIEWSHEET_TOOLBAR, true, live);
+      ObjectNode spec = obj();
+      ObjectNode print = obj();
+      print.put("alias", "Printer").put("id", "Print").put("enabled", true).put("visible", false);
+      ObjectNode email = obj();
+      email.put("visible", true).put("id", "Email").put("enabled", true).putNull("alias");
+      spec.set("options", MAPPER.createArrayNode().add(print).add(email));
+
+      assertAppliedAndVerified(applyRequest("t", "ok", null,
+         change("viewsheetToolbar", "global", spec)));
+      PresentationViewsheetToolbarOptionsModel after = (PresentationViewsheetToolbarOptionsModel)
+         state.get(stateKey(PresentationSubModel.VIEWSHEET_TOOLBAR, true));
+      assertEquals("Printer", after.options().get(0).alias());
+      assertFalse(after.options().get(0).visible());
+   }
+
+   @Test
+   void applyVerifiesPortalTabsInANonLiveKeyOrder() throws Exception {
+      seed(PresentationSubModel.PORTAL_INTEGRATION, true, portal());
+      ObjectNode spec = liveTabsSpec(portal());
+      ((ObjectNode) spec.get("tabs").get(4)).put("name", "Renamed").put("label", "Renamed");
+      spec.set("tabs", reverseKeys(spec.get("tabs")));
+
+      assertAppliedAndVerified(applyRequest("t", "ok", true,
+         change("portalIntegration", "global", spec)));
+      PortalIntegrationSettingsModel after = (PortalIntegrationSettingsModel)
+         state.get(stateKey(PresentationSubModel.PORTAL_INTEGRATION, true));
+      assertEquals("Renamed", after.tabs().get(4).name());
+   }
+
+   @Test
+   void applyStillFailsVerificationWhenTheStoredValueGenuinelyDiffers() throws Exception {
+      // key order is no longer a difference, but a different value still is
+      seed(PresentationSubModel.EXPORT_MENU, true, exportMenu());
+      doAnswer(inv -> {
+         PresentationExportMenuSettingsModel model = inv.getArgument(1);
+         state.put(stateKey(PresentationSubModel.EXPORT_MENU, true),
+            PresentationExportMenuSettingsModel.builder().from(model).vsOptions(List.of(
+               ExportMenuOption.builder().name("CSV").description("TAMPERED").value(true).build(),
+               ExportMenuOption.builder().name("PDF").description("PDF desc").value(true).build()))
+               .build());
+         return null;
+      }).when(access).write(any(), any(), any(), anyBoolean());
+      ObjectNode spec = obj();
+      spec.set("vsOptions", MAPPER.createArrayNode()
+         .add(exportOption("CSV", true, "CSV desc")).add(exportOption("PDF", true, "PDF desc")));
+
+      var result = service.apply(applyRequest("t", "ok", null,
+         change("exportMenu", "global", spec)), user);
+
+      assertNotEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("failed", result.results().get(0).status());
+   }
+
+   @Test
+   void applyVerifiesAnOrganizationExportMenuNoOpResendOfLiveValues() throws Exception {
+      // the reported symptom: vsOptions [{name,value,description}] at organization scope, re-sending
+      // the values that are already live
+      seed(PresentationSubModel.EXPORT_MENU, false, exportMenu());
+      ObjectNode spec = obj();
+      spec.set("vsOptions", MAPPER.createArrayNode()
+         .add(exportOption("CSV", true, "CSV desc")).add(exportOption("PDF", true, "PDF desc")));
+
+      assertAppliedAndVerified(applyRequest("t", "ok", null,
+         change("exportMenu", "organization", spec)));
+      PresentationExportMenuSettingsModel after = (PresentationExportMenuSettingsModel)
+         state.get(stateKey(PresentationSubModel.EXPORT_MENU, false));
+      assertEquals(exportMenu(), after);
+   }
+
+   @Test
+   void sameTreeIgnoresObjectKeyOrderButNotArrayOrder() {
+      assertTrue(PresentationJson.sameTree("{\"a\":1,\"b\":{\"c\":2,\"d\":3}}",
+                                           "{\"b\":{\"d\":3,\"c\":2},\"a\":1}"));
+      assertTrue(PresentationJson.sameTree("{\"l\":[{\"x\":1,\"y\":2}]}",
+                                           "{\"l\":[{\"y\":2,\"x\":1}]}"));
+      assertFalse(PresentationJson.sameTree("{\"l\":[1,2]}", "{\"l\":[2,1]}"));
+      assertFalse(PresentationJson.sameTree("{\"a\":1}", "{\"a\":2}"));
    }
 
    // ---------------------------------------------------------------- lookAndFeel FileData read-back (bug #76729)

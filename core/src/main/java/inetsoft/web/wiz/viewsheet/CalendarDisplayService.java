@@ -22,7 +22,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.event.calendar.*;
@@ -74,18 +76,24 @@ public class CalendarDisplayService {
     * @param yearView        show years/months rather than days, or null to leave it.
     * @param doubleCalendar  show two calendars for a range, or null to leave it.
     * @param rangeComparison compare two periods — requires double-calendar mode.
+    * @param month           the month shown by the first (or only) calendar as ISO "YYYY-MM"
+    *                        ("YYYY" in year view), or null to leave it.
+    * @param secondMonth     the same for the second calendar of a double calendar.
     */
    public Map<String, Object> setDisplay(String sessionToken, Principal user, String assemblyName,
                                          Boolean yearView, Boolean doubleCalendar,
-                                         Boolean rangeComparison, String linkUri)
+                                         Boolean rangeComparison, String month,
+                                         String secondMonth, String linkUri)
       throws Exception
    {
       requireName(assemblyName);
 
-      if(yearView == null && doubleCalendar == null && rangeComparison == null) {
+      if(yearView == null && doubleCalendar == null && rangeComparison == null &&
+         isBlank(month) && isBlank(secondMonth))
+      {
          throw new IllegalArgumentException(
-            "Nothing to do — give at least one of 'yearView', 'doubleCalendar' or " +
-            "'rangeComparison'.");
+            "Nothing to do — give at least one of 'yearView', 'doubleCalendar', " +
+            "'rangeComparison', 'month' or 'secondMonth'.");
       }
 
       final Map<String, Object> result = new LinkedHashMap<>();
@@ -103,6 +111,18 @@ public class CalendarDisplayService {
             info.isYearView(), info.isPeriod(),
             info.getDates() != null && info.getDates().length > 0,
             yearView, doubleCalendar, rangeComparison, comparisonEnabled, assemblyName);
+
+         // Refused before anything is written. The toggles clear the dates, so a selection only
+         // blocks a month write when no toggle in this same call is about to clear it.
+         boolean datesAfterToggles = info.getDates() != null && info.getDates().length > 0 &&
+            !plan.setDouble() && !plan.setYearView();
+         Navigation navigation = resolveNavigation(
+            month, secondMonth,
+            doubleCalendar != null ? doubleCalendar :
+               info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE,
+            yearView != null ? yearView : info.isYearView(),
+            datesAfterToggles, info.getRange(), info.getCurrentDate1(), info.getCurrentDate2(),
+            assemblyName);
 
          result.put("assembly", assemblyName);
          result.put("changed", plan.changed());
@@ -148,6 +168,23 @@ public class CalendarDisplayService {
                   .currentDate1(date1).currentDate2(date2)
                   .dates(dates).build(),
                linkUri, user, dispatcher);
+         }
+
+         if(navigation != null) {
+            calendars.navigate(runtimeId, assemblyName, navigation.date1(), navigation.date2(),
+                               linkUri, user, dispatcher);
+            CalendarVSAssemblyInfo shown = (CalendarVSAssemblyInfo)
+               requireCalendar(rvs, assemblyName).getVSAssemblyInfo();
+            Map<String, Object> displayed = new LinkedHashMap<>();
+            displayed.put("month", displayMonth(shown.getCurrentDate1(), shown.isYearView()));
+
+            if(shown.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE) {
+               displayed.put("secondMonth",
+                             displayMonth(shown.getCurrentDate2(), shown.isYearView()));
+            }
+
+            result.put("displayed", displayed);
+            result.put("persistsOnSave", true);
          }
       });
 
@@ -197,8 +234,8 @@ public class CalendarDisplayService {
     * that exception surface.
     *
     * <p>{@code currentDate1}/{@code currentDate2} are the calendar's navigation position (which
-    * month is currently displayed), not part of the selection, so they are echoed back unchanged
-    * rather than taken as a parameter — mirroring {@link #setDisplay}.
+    * month is currently displayed), not part of the selection, so they are not a parameter: they
+    * follow the selection, the way {@code CalendarUtil.fixCurrentDates} makes them on every load.
     */
    public Map<String, Object> setDates(String sessionToken, Principal user, String assemblyName,
                                        List<String> dates, String linkUri)
@@ -242,9 +279,15 @@ public class CalendarDisplayService {
             result.put("sideEffects", List.of(DAY_SELECTION_SIDE_EFFECT));
          }
 
+         // The painter, the browser and a reload all show the month of the first selected date
+         // (CalendarUtil.fixCurrentDates), so store that month rather than echoing the old one.
+         CalendarVSAssemblyInfo navigated = (CalendarVSAssemblyInfo) Tool.clone(info);
+         navigated.setDates(requested);
+         CalendarUtil.fixCurrentDates(navigated);
+
          calendars.applyCalendar(
             runtimeId, assemblyName,
-            selectionEvent(requested, info.getCurrentDate1(), info.getCurrentDate2()),
+            selectionEvent(requested, navigated.getCurrentDate1(), navigated.getCurrentDate2()),
             user, dispatcher, linkUri);
 
          if(dispatcher != null) {
@@ -260,6 +303,187 @@ public class CalendarDisplayService {
       result.put("persistsOnSave", true);
       ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
+   }
+
+   /** The positions to store, in the painter's format; a null date is left as it is. */
+   record Navigation(String date1, String date2) {}
+
+   /**
+    * Checks a month/secondMonth request and turns it into what the calendar stores: the painter
+    * and the browser read currdate1/currdate2 as {@code year-month} with a 0-based month, or
+    * {@code year} in year view. Pure and given plain values because
+    * {@code CalendarVSAssemblyInfo} cannot be constructed outside a Spring context.
+    *
+    * @param dual         the calendar is (or this call makes it) a double calendar.
+    * @param yearView     the calendar is (or this call makes it) in year view.
+    * @param hasDates     dates are still selected once this call's own toggles have run.
+    * @param range        {@code getRange()}: {@code year-month-day} with a 0-based month, a null
+    *                     end is open; null when unbound.
+    * @param current1     the stored first position, to compare a lone secondMonth/month with.
+    * @param current2     the stored second position.
+    * @return null when neither month was asked for.
+    */
+   static Navigation resolveNavigation(String month, String secondMonth, boolean dual,
+                                       boolean yearView, boolean hasDates, String[] range,
+                                       String current1, String current2, String assemblyName)
+   {
+      boolean wantsFirst = !isBlank(month);
+      boolean wantsSecond = !isBlank(secondMonth);
+
+      if(!wantsFirst && !wantsSecond) {
+         return null;
+      }
+
+      if(wantsSecond && !dual) {
+         throw new IllegalArgumentException(
+            "'secondMonth' needs a double calendar, and '" + assemblyName + "' is a single " +
+            "calendar. Pass doubleCalendar=true in the same call, or drop secondMonth. Nothing " +
+            "was changed.");
+      }
+
+      if(hasDates) {
+         throw new IllegalArgumentException(
+            "'" + (wantsFirst ? "month" : "secondMonth") + "' cannot be set: '" + assemblyName +
+            "' has dates selected, and a calendar always shows the month of its selection (in " +
+            "the image, the export and after reopening), so " + (wantsFirst && wantsSecond ?
+            "'month' and 'secondMonth' would" : "it would") + " not be visible. Clear it with " +
+            "clear_calendar first, or select dates in the month you want with " +
+            "set_calendar_dates. Nothing was changed.");
+      }
+
+      int[] first = wantsFirst ? parseMonth("month", month, yearView, assemblyName) :
+         parseStored(current1, yearView);
+      int[] second = wantsSecond ? parseMonth("secondMonth", secondMonth, yearView, assemblyName) :
+         dual ? parseStored(current2, yearView) : null;
+
+      if(wantsFirst) {
+         checkRange("month", first, range, yearView, assemblyName);
+      }
+
+      if(wantsSecond) {
+         checkRange("secondMonth", second, range, yearView, assemblyName);
+      }
+
+      if(dual && first != null && second != null && (wantsFirst || wantsSecond) &&
+         compare(second, first) < 0)
+      {
+         throw new IllegalArgumentException(
+            "'secondMonth' (" + iso(second, yearView) + ") is before 'month' (" +
+            iso(first, yearView) + "): the second calendar of '" + assemblyName + "' cannot " +
+            "show an earlier " + (yearView ? "year" : "month") + " than the first. Give " +
+            "secondMonth the same as or later than month. Nothing was changed.");
+      }
+
+      return new Navigation(wantsFirst ? store(first, yearView) : null,
+                            wantsSecond ? store(second, yearView) : null);
+   }
+
+   private static int[] parseMonth(String field, String value, boolean yearView,
+                                   String assemblyName)
+   {
+      String text = value.trim();
+      String shape = yearView ? "YYYY" : "YYYY-MM";
+      String pattern = yearView ? "\\d{4}" : "\\d{4}-(0[1-9]|1[0-2])";
+
+      if(!text.matches(pattern)) {
+         throw new IllegalArgumentException(
+            "'" + field + "' is '" + value + "', which '" + assemblyName + "' cannot display: " +
+            (yearView ? "it is in year view, so " : "") + "give an ISO " + shape + " (" +
+            (yearView ? "e.g. 2024" : "month 01-12, e.g. 2024-03") + "). Nothing was changed.");
+      }
+
+      return new int[] { Integer.parseInt(text.substring(0, 4)),
+                         yearView ? 0 : Integer.parseInt(text.substring(5)) - 1 };
+   }
+
+   /** A stored "year-month" (0-based) or "year" as {year, month}; null when empty or unreadable. */
+   private static int[] parseStored(String stored, boolean yearView) {
+      if(isBlank(stored)) {
+         return null;
+      }
+
+      try {
+         String[] parts = stored.trim().split("-");
+         int year = Integer.parseInt(parts[0].trim());
+
+         if(yearView) {
+            return new int[] { year, 0 };
+         }
+
+         return parts.length > 1 ? new int[] { year, Integer.parseInt(parts[1].trim()) } : null;
+      }
+      catch(NumberFormatException ex) {
+         return null;
+      }
+   }
+
+   private static int compare(int[] a, int[] b) {
+      return a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(a[1], b[1]);
+   }
+
+   private static void checkRange(String field, int[] value, String[] range, boolean yearView,
+                                  String assemblyName)
+   {
+      if(range == null || range.length != 2) {
+         return;
+      }
+
+      int[] min = parseRangeEnd(range[0]);
+      int[] max = parseRangeEnd(range[1]);
+      int[] v = yearView ? new int[] { value[0], 0 } : value;
+
+      if(yearView) {
+         min = min == null ? null : new int[] { min[0], 0 };
+         max = max == null ? null : new int[] { max[0], 0 };
+      }
+
+      if(min != null && compare(v, min) < 0 || max != null && compare(v, max) > 0) {
+         throw new IllegalArgumentException(
+            "'" + field + "' " + iso(value, yearView) + " is outside the selectable range of '" +
+            assemblyName + "' (" + (min == null ? "open" : iso(min, yearView)) + " to " +
+            (max == null ? "open" : iso(max, yearView)) + "), which covers the bound column's " +
+            "data and any min/max set on the calendar; the calendar would move to the nearest " +
+            "end of it. Nothing was changed.");
+      }
+   }
+
+   /** {@code year-month-day} with a 0-based month, as {year, month}; null for an open end. */
+   private static int[] parseRangeEnd(String end) {
+      if(isBlank(end)) {
+         return null;
+      }
+
+      try {
+         String[] parts = end.trim().split("-");
+         return new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]) };
+      }
+      catch(RuntimeException ex) {
+         return null;
+      }
+   }
+
+   private static String store(int[] value, boolean yearView) {
+      return yearView ? String.valueOf(value[0]) : value[0] + "-" + value[1];
+   }
+
+   private static String iso(int[] value, boolean yearView) {
+      return yearView ? String.format("%04d", value[0]) :
+         String.format("%04d-%02d", value[0], value[1] + 1);
+   }
+
+   /**
+    * A stored position (0-based month, or a year in year view) as the ISO text a caller passes to
+    * month/secondMonth; null when nothing readable is stored (the calendar then shows today). In
+    * year view either stored shape is read, because the Viewer writes {@code year-month} there
+    * too.
+    */
+   static String displayMonth(String stored, boolean yearView) {
+      int[] value = parseStored(stored, yearView);
+      return value == null ? null : iso(value, yearView);
+   }
+
+   private static boolean isBlank(String value) {
+      return value == null || value.isBlank();
    }
 
    /**

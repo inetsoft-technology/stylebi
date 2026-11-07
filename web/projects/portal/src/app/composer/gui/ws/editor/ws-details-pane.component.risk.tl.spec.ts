@@ -32,7 +32,7 @@
  *   Group 5  [Risk 1] — openImportCSVDialog: calls ngbModal.open with importCsvDialog ref.
  */
 
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import { makeMocks, makeTable, makeWorksheet, renderComponent } from "./ws-details-pane.component.test-helpers";
 
 afterEach(() => vi.restoreAllMocks());
@@ -85,6 +85,63 @@ describe("WSDetailsPaneComponent — openFormulaEditorDialog", () => {
       comp.openFormulaEditorDialog();
 
       expect(mocks.dialogService.open).toHaveBeenCalled();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Bug #80462: Create Expression pre-assigns a server-suggested name so Connect Agent can pair
+// ---------------------------------------------------------------------------
+
+describe("WSDetailsPaneComponent — openFormulaEditorDialog create vs edit (bug #80462)", () => {
+   function mocksReturning(model: any) {
+      const mocks = makeMocks();
+      const instance: any = { onCommit: new Subject<string>() };
+      mocks.dialogService.open = vi.fn().mockReturnValue({
+         result: new Promise<never>((_, reject) => reject("cancel")),
+         componentInstance: instance,
+      });
+      mocks.modelService.getModel = vi.fn().mockReturnValue(of({
+         oldName: "",
+         dataType: "string",
+         formulaType: "script",
+         expression: "",
+         columnTree: { children: [{ children: [] }] },
+         scriptDefinitions: {},
+         sqlMergeable: false,
+         tableName: "TestTable",
+         ...model,
+      }));
+      return { mocks, instance };
+   }
+
+   it("pre-assigns the server's suggestedName and marks the dialog new on the create path", async () => {
+      const { mocks, instance } = mocksReturning({ suggestedName: "Expression2" });
+      const { comp } = await renderComponent(mocks);
+
+      comp.openFormulaEditorDialog();
+
+      expect(instance.formulaName).toBe("Expression2");
+      expect(instance.isNewExpression).toBe(true);
+   });
+
+   it("leaves the name empty and the dialog not-new when the server suggests nothing", async () => {
+      const { mocks, instance } = mocksReturning({});
+      const { comp } = await renderComponent(mocks);
+
+      comp.openFormulaEditorDialog();
+
+      expect(instance.formulaName).toBe("");
+      expect(instance.isNewExpression).toBe(false);
+   });
+
+   it("keeps the existing column name and is not new on the edit path", async () => {
+      const { mocks, instance } = mocksReturning({ oldName: "Margin", suggestedName: "Expression1" });
+      const { comp } = await renderComponent(mocks);
+
+      comp.openFormulaEditorDialog(3);
+
+      expect(instance.formulaName).toBe("Margin");
+      expect(instance.isNewExpression).toBe(false);
    });
 });
 

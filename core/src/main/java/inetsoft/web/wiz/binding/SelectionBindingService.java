@@ -579,9 +579,9 @@ public class SelectionBindingService {
     * @param components chart/crosstab aggregate sources the assembly could also bind, named in the
     *                   refusal only
     */
-   private static String resolveTable(List<BindableTable> tables,
-                                      List<AggregateSource> components, String assemblyName,
-                                      String table)
+   static String resolveTable(List<BindableTable> tables,
+                              List<AggregateSource> components, String assemblyName,
+                              String table)
    {
       String resolved = findByName(tables, table);
 
@@ -949,9 +949,9 @@ public class SelectionBindingService {
          dataOutputService, runtimeId, user, assemblyName, table, additionalTables, measure);
    }
 
-   private static List<BindableField> resolveColumns(List<BindableTable> tables,
-                                                      String assemblyName, String table,
-                                                      List<String> columns)
+   static List<BindableField> resolveColumns(List<BindableTable> tables,
+                                              String assemblyName, String table,
+                                              List<String> columns)
    {
       List<BindableField> fields = List.of();
 
@@ -1080,7 +1080,7 @@ public class SelectionBindingService {
     * every affected assembly. Never split: the full column string is the attribute, matching what
     * a human's own selection binding round-trips through this same tree.
     */
-   private static OutputColumnRefModel columnRef(String table, BindableField field) {
+   static OutputColumnRefModel columnRef(String table, BindableField field) {
       OutputColumnRefModel ref = new OutputColumnRefModel();
       ref.setTable(table);
       String column = field.column();

@@ -26,5 +26,7 @@ export interface ExpressionDialogModel {
    expression: string;
    columnTree?: TreeNodeModel;
    sqlMergeable?: boolean;
+   /** An unused column name for Create Expression to pre-assign; set only when creating. */
+   suggestedName?: string;
    scriptDefinitions?: any;
 }

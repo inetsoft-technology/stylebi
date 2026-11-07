@@ -208,6 +208,11 @@ public class ExpressionDialogService extends WorksheetControllerService {
       modelBuilder.columnTree(root.children(rootChildren).build());
       modelBuilder.scriptDefinitions(scriptController.getScriptDefinition(rws, table, principal));
 
+      if(columnIndex < 0) {
+         modelBuilder.suggestedName(ExpressionNameSupport.suggest(
+            columns, ExpressionNameSupport.sourceColumns(getWorksheetEngine(), rws, table)));
+      }
+
       if(column == null || !(column.getDataRef() instanceof ExpressionRef)) {
          modelBuilder.dataType(XSchema.STRING)
             .setSQL(query.isSourceMergeable0())

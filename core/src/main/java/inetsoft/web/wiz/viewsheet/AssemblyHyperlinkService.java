@@ -29,13 +29,18 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.table.TableAttr;
+import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.DrillPath;
+import inetsoft.uql.XDrillInfo;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
@@ -53,6 +58,7 @@ import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -159,6 +165,11 @@ public class AssemblyHyperlinkService {
          target.text(), target.titleLink(), target.emptyPlotLink(), user);
       Map<String, Object> out = describe(assemblyName, model, target,
          model == null ? null : tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow()));
+      List<Map<String, Object>> inherited = tableInheritedLinks(rvs, assemblyName, cell);
+
+      if(inherited != null) {
+         out.put("inheritedLinks", inherited);
+      }
 
       // A freehand table cell is addressed by layout row/col and read at its runtime instance;
       // echo the cell the caller named, not the runtime one it rendered at.
@@ -633,6 +644,106 @@ public class AssemblyHyperlinkService {
    private static final AssetEntry.Selector SELECTOR = new AssetEntry.Selector(
       AssetEntry.Type.REPOSITORY_FOLDER, AssetEntry.Type.VIEWSHEET);
 
+   /**
+    * A single target's bookmarks and declared parameters -- the two pieces of data the Composer's
+    * own Hyperlink dialog shows (its Bookmark dropdown and its Parameter dialog's name dropdown)
+    * that {@link #listLinkTargets} and {@link #set} never surface: a target's bookmark names
+    * otherwise leak only through a rejected {@link #set} call's error text, and its parameter
+    * names are never surfaced at all (bug #80474).
+    *
+    * <p>Resolves {@code assetLinkPath}/{@code assetLinkId} the same way {@link #set}'s
+    * {@link #resolveTargetId} does, but checks READ explicitly
+    * ({@code assetRepository.checkAssetPermission}, mirroring
+    * {@code HyperlinkDialogController.getBookmarks}'s own gate) rather than relying on
+    * {@code containsEntry}, which does no permission checking at all -- reusing the write path's
+    * resolution as-is here would leak a target's bookmarks/parameters for a viewsheet the caller
+    * cannot read.
+    *
+    * <p>A missing, unresolvable or unreadable target answers with empty lists rather than
+    * throwing, matching both UI endpoints this mirrors ({@code getBookmarks},
+    * {@code getViewsheetParameters}): the response must not distinguish "exists but unreadable"
+    * from "doesn't exist", so a caller cannot use this to probe for an asset's existence.
+    *
+    * <p>A <b>recycled</b> target is deliberately answered like any other readable one (unlike
+    * {@link #set}, which refuses a recycled target outright): a recycled-but-still-readable
+    * asset's bookmarks/parameters are real data, whereas {@code set}'s concern is not creating a
+    * new link that goes nowhere -- a concern this read-only method has no reason to share.
+    */
+   public Map<String, Object> describeTarget(String sessionToken, Principal user,
+                                             String assetLinkPath, String assetLinkId)
+      throws Exception
+   {
+      if((assetLinkPath == null || assetLinkPath.isBlank()) &&
+         (assetLinkId == null || assetLinkId.isBlank()))
+      {
+         return emptyTargetDetails();
+      }
+
+      AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
+      String assetId;
+
+      try {
+         assetId = resolveTargetId(assetLinkPath, assetLinkId, repository, user, true);
+      }
+      catch(IllegalArgumentException e) {
+         return emptyTargetDetails();
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(assetId);
+
+      if(entry == null) {
+         return emptyTargetDetails();
+      }
+
+      try {
+         repository.checkAssetPermission(user, entry, ResourceAction.READ, true);
+      }
+      catch(MessageException e) {
+         return emptyTargetDetails();
+      }
+
+      IdentityID currentUser = IdentityID.getIdentityIDFromKey(user.getName());
+      List<Map<String, Object>> bookmarks = new ArrayList<>();
+
+      for(VSBookmarkInfo bookmark : VSUtil.getBookmarks(assetId, currentUser)) {
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("name", bookmark.getName());
+         out.put("owner", VSUtil.getUserAlias(bookmark.getOwner()));
+         bookmarks.add(out);
+      }
+
+      List<Map<String, Object>> parameters = new ArrayList<>();
+      Viewsheet vs;
+
+      try {
+         vs = (Viewsheet) repository.getSheet(entry, user, true, AssetContent.NO_DATA);
+      }
+      catch(MessageException e) {
+         vs = null;
+      }
+
+      if(vs != null) {
+         for(UserVariable variable : vs.getAllVariables()) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("name", variable.getName());
+            out.put("type", variable.getTypeNode() == null ? null : variable.getTypeNode().getType());
+            parameters.add(out);
+         }
+      }
+
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("parameters", parameters);
+      result.put("bookmarks", bookmarks);
+      return result;
+   }
+
+   private static Map<String, Object> emptyTargetDetails() {
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("parameters", new ArrayList<>());
+      result.put("bookmarks", new ArrayList<>());
+      return result;
+   }
+
    // ── vocabulary ────────────────────────────────────────────────────────────
 
    private static String requireType(Map<String, Object> link) {
@@ -685,18 +796,35 @@ public class AssemblyHyperlinkService {
    private String resolveViewsheetTarget(Map<String, Object> link, String sessionToken,
                                          Principal user) throws Exception
    {
-      String explicit = str(link, "assetLinkId");
+      AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
+      return resolveTargetId(str(link, "assetLinkPath"), str(link, "assetLinkId"), repository,
+                             user, false);
+   }
 
-      if(explicit != null) {
-         AssetRepository idRepository =
-            sessions.resolve(sessionToken, user).getAssetRepository();
-         requireOpenableAssetId(explicit, str(link, "assetLinkPath"), idRepository, user);
-         return explicit;
+   /**
+    * The scope-trying logic {@link #resolveViewsheetTarget} and {@link #describeTarget} both
+    * need: an explicit {@code explicitId} is validated and returned as-is; otherwise {@code path}
+    * is tried in the caller's own user scope (the {@code My Dashboards/} form
+    * {@code resolveViewsheetTarget}'s own javadoc explains), then the global scope, then the
+    * caller's personal scope again without the prefix.
+    *
+    * <p>{@code allowRecycled} is false for the write path, which must keep refusing a link to a
+    * deleted viewsheet (unchanged behavior, pinned by existing tests). It is true for
+    * {@code describeTarget}: a recycled-but-still-readable target's bookmarks/parameters are real
+    * data, unlike a new link to it going nowhere, so a read tool answers rather than refusing.
+    */
+   private static String resolveTargetId(String path, String explicitId, AssetRepository repository,
+                                         Principal user, boolean allowRecycled) throws Exception
+   {
+      if(explicitId != null) {
+         requireOpenableAssetId(explicitId, path, repository, user, allowRecycled);
+         return explicitId;
       }
 
-      String path = str(link, "assetLinkPath");
-      requireNotRecycled(path);
-      AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
+      if(!allowRecycled) {
+         requireNotRecycled(path);
+      }
+
       IdentityID owner = IdentityID.getIdentityIDFromKey(user.getName());
 
       // get_hyperlink reads a link to the caller's own sheet back as "My Dashboards/<path>"
@@ -776,7 +904,8 @@ public class AssemblyHyperlinkService {
     * them, so only the path agreement is enforced there.
     */
    private static void requireOpenableAssetId(String id, String path, AssetRepository repository,
-                                              Principal user) throws Exception
+                                              Principal user, boolean allowRecycled)
+      throws Exception
    {
       AssetEntry entry;
 
@@ -793,7 +922,9 @@ public class AssemblyHyperlinkService {
             "exactly as list_hyperlink_targets returns it, or use 'assetLinkPath'.");
       }
 
-      requireNotRecycled(entry.getPath());
+      if(!allowRecycled) {
+         requireNotRecycled(entry.getPath());
+      }
 
       String expected = entry.getPath();
       String given = path;
@@ -1360,6 +1491,91 @@ public class AssemblyHyperlinkService {
       VSTableLens lens = box == null || box.isEmpty()
          ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
       return lens == null ? null : cellLinkScope(lens, cell.row(), cell.col());
+   }
+
+   /**
+    * Auto Drill links the data model attaches to the addressed cell (bug #80475); {@code null}
+    * for a non-table assembly or a table that did not render. They are not part of the cell's
+    * own stored hyperlink (the dialog model never carries them), yet the Viewer shows them.
+    */
+   private static List<Map<String, Object>> tableInheritedLinks(RuntimeViewsheet rvs,
+                                                                String assemblyName,
+                                                                TableLensGuard.Cell cell)
+      throws Exception
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return null;
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSTableLens lens = box == null || box.isEmpty()
+         ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
+      return lens == null ? null : inheritedLinks(lens, cell.row(), cell.col());
+   }
+
+   /**
+    * The drill paths at a rendered cell, read the way the Viewer reads them
+    * ({@code BaseTableCellModel}/{@code VSTableLens.getCellHyperlink}): from the inner table
+    * under the {@link AttributeTableLens}, falling back to the filter's own source. Empty when
+    * the cell has no drill info (a header cell, or a descriptor that does not know the
+    * attribute metadata).
+    */
+   static List<Map<String, Object>> inheritedLinks(TableLens lens, int row, int col) {
+      List<Map<String, Object>> links = new ArrayList<>();
+
+      if(lens == null) {
+         return links;
+      }
+
+      TableLens inner = Util.getNestedTable(lens, AttributeTableLens.class);
+
+      if(inner == null) {
+         inner = lens instanceof TableFilter filter ? filter.getTable() : lens;
+      }
+
+      XDrillInfo info = inner == null ? null : inner.getXDrillInfo(row, col);
+
+      if(info == null) {
+         return links;
+      }
+
+      for(int i = 0; i < info.getDrillPathCount(); i++) {
+         DrillPath path = info.getDrillPath(i);
+
+         if(path == null) {
+            continue;
+         }
+
+         Map<String, Object> link = new LinkedHashMap<>();
+         link.put("source", "dataModel");
+         link.put("name", path.getName());
+         int type = path.getLinkType();
+         link.put("linkType", type == DrillPath.WEB_LINK ? "web"
+            : type == DrillPath.VIEWSHEET_LINK ? "viewsheet" : (Object) type);
+         link.put("target", path.getLink());
+         link.put("targetFrame", path.getTargetFrame());
+         link.put("tooltip", path.getToolTip());
+         List<Map<String, Object>> params = new ArrayList<>();
+         Enumeration<String> names = path.getParameterNames();
+
+         while(names != null && names.hasMoreElements()) {
+            String name = names.nextElement();
+            Map<String, Object> param = new LinkedHashMap<>();
+            param.put("name", name);
+            param.put("field", path.getParameterField(name));
+            param.put("type", path.getParameterType(name));
+            param.put("hardCoded", path.isParameterHardCoded(name));
+            params.add(param);
+         }
+
+         link.put("parameters", params);
+         links.add(link);
+      }
+
+      return links;
    }
 
    /**

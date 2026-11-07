@@ -28,6 +28,7 @@ import inetsoft.web.wiz.script.ScriptGrammar;
 import inetsoft.web.wiz.script.ScriptTarget;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetsResponse;
+import inetsoft.web.wiz.script.model.ScriptWriteResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -134,15 +135,15 @@ public class WorksheetScriptController {
     * failure mode an LLM caller sending a few fields too many must not trigger silently.
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/script")
-   public void writeScript(@PathVariable String sessionToken,
-                           @RequestBody WriteScriptRequest req, Principal user)
+   public ScriptWriteResult writeScript(@PathVariable String sessionToken,
+                                        @RequestBody WriteScriptRequest req, Principal user)
       throws Exception
    {
       requireEnabled();
       JoinSession session = resolveSession(sessionToken, user);
       ScriptTarget t = ScriptTarget.resolve(null, req.id(), req.kind(), req.assembly(), req.name(),
                                             req.target());
-      scriptService.write(session, user, t, req.text(), extras(req));
+      return scriptService.write(session, user, t, req.text(), extras(req));
    }
 
    private static Map<String, Object> extras(WriteScriptRequest req) {

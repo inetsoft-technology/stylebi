@@ -41,7 +41,7 @@ import java.util.*;
 
 /**
  * A chart or crosstab's custom drill hierarchy — the dimensions on
- * {@code hierarchyPropertyPaneModel.dimensions}: list, add, remove.
+ * {@code hierarchyPropertyPaneModel.dimensions}: list, add, update, remove.
  *
  * <p>{@code dimensions} is a {@code VSDimensionModel[]}, which {@link PropertyPath#coerce} cannot
  * build from JSON — it has no bean-construction branch at all, so every JSON object array for this
@@ -134,43 +134,8 @@ public class HierarchyDimensionService {
 
          OutputColumnRefModel[] catalog = columns(pane);
          VSDimensionModel[] existing = dimensions(pane);
-         Map<String, Integer> consumed = consumedColumns(existing);
-         VSDimensionMemberModel[] members = new VSDimensionMemberModel[wanted.size()];
-         Set<String> seen = new HashSet<>();
-
-         for(int i = 0; i < wanted.size(); i++) {
-            OutputColumnRefModel column = findColumn(catalog, wanted.get(i), assemblyName);
-            String key = columnKey(column);
-
-            if(!seen.add(key)) {
-               throw new IllegalArgumentException(
-                  "'" + wanted.get(i) + "' is listed more than once in 'columns' -- a hierarchy " +
-                  "level can only use a column once.");
-            }
-
-            // Kept apart from `seen`: relaxing that for a Year->Month repeat inside one dimension
-            // must not relax this. Dates get no exemption -- the Composer's Hierarchy dialog
-            // (isDragAccepted) also refuses a date column held by another dimension.
-            Integer holder = consumed.get(key);
-
-            if(holder != null) {
-               throw new IllegalArgumentException(
-                  "'" + wanted.get(i) + "' is already a level of hierarchy dimension " + holder +
-                  " on '" + assemblyName + "' -- a column can belong to only one dimension (the " +
-                  "Composer's Hierarchy dialog enforces the same). Remove that dimension first " +
-                  "(remove_hierarchy_dimension index " + holder + ") or pick a column from " +
-                  "list_hierarchy_dimensions' availableColumns.");
-            }
-
-            VSDimensionMemberModel member = new VSDimensionMemberModel();
-            member.setDataRef(column);
-            Integer requested = levels.get(i);
-            member.setOption(requested != null ? requested : defaultOption(column.getDataType()));
-            members[i] = member;
-         }
-
-         VSDimensionModel newDimension = new VSDimensionModel();
-         newDimension.setMembers(members);
+         VSDimensionModel newDimension =
+            buildDimension(catalog, wanted, levels, consumedColumns(existing), assemblyName);
 
          VSDimensionModel[] updated = Arrays.copyOf(existing, existing.length + 1);
          updated[existing.length] = newDimension;
@@ -189,6 +154,145 @@ public class HierarchyDimensionService {
 
       ViewsheetSessionService.relayWarnings(result, warnings);
       return result;
+   }
+
+   /**
+    * {@code update_hierarchy_dimension}. Replaces the ordered level list of the dimension at
+    * {@code index} in place -- the index is kept, unlike a remove followed by an add. Reordering,
+    * dropping one level, inserting a level and changing a date level are all "replace the list".
+    *
+    * <p>The dimension's own columns do not count as "already used" (that is the point of an
+    * edit); columns held by any OTHER dimension still do.
+    */
+   public Map<String, Object> update(String sessionToken, Principal user, String assemblyName,
+                                     int index, List<String> columns, List<String> dateLevels,
+                                     String linkUri)
+      throws Exception
+   {
+      if(columns == null || columns.isEmpty()) {
+         throw new IllegalArgumentException(
+            "update_hierarchy_dimension needs a non-empty 'columns' -- the new ordered levels " +
+            "for the dimension. To delete the whole dimension use remove_hierarchy_dimension.");
+      }
+
+      List<String> wanted = requireColumns(columns);
+      List<Integer> levels = resolveLevels(wanted, dateLevels);
+      Map<String, Object> result = new LinkedHashMap<>();
+
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         Target target = resolveTarget(rvs, assemblyName);
+         Object model = target.readModel(runtimeId, user);
+         HierarchyPropertyPaneModel pane = target.pane(model);
+         requireColumnCatalog(pane, assemblyName);
+         VSDimensionModel[] existing = dimensions(pane);
+
+         if(index < 0 || index >= existing.length) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' has no hierarchy dimension at index " + index + ". " +
+               (existing.length == 0 ? "It has none at all."
+                  : "Current indexes: 0-" + (existing.length - 1) + ".") +
+               " Take indexes from list_hierarchy_dimensions.");
+         }
+
+         OutputColumnRefModel[] catalog = columns(pane);
+         VSDimensionModel[] others = new VSDimensionModel[existing.length - 1];
+         int[] otherIndexes = new int[others.length];
+
+         for(int i = 0, j = 0; i < existing.length; i++) {
+            if(i != index) {
+               others[j] = existing[i];
+               otherIndexes[j++] = i;
+            }
+         }
+
+         // consumedColumns numbers dimensions by position in the array it is given; map back to
+         // the real indexes so the "already a level of dimension N" message names the right one.
+         Map<String, Integer> consumed = new HashMap<>();
+
+         for(Map.Entry<String, Integer> e : consumedColumns(others).entrySet()) {
+            consumed.put(e.getKey(), otherIndexes[e.getValue()]);
+         }
+
+         VSDimensionModel replacement =
+            buildDimension(catalog, wanted, levels, consumed, assemblyName);
+
+         VSDimensionModel[] updated = Arrays.copyOf(existing, existing.length);
+         updated[index] = replacement;
+         pane.setDimensions(updated);
+         pane.setColumnList(withoutConsumedColumns(catalog, updated));
+
+         ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
+            target.write(runtimeId, model, linkUri, user, dispatcher));
+
+         result.put("assembly", assemblyName);
+         result.put("index", index);
+         result.put("dimension", describeDimension(index, replacement));
+      });
+
+      ViewsheetSessionService.relayWarnings(result, warnings);
+      return result;
+   }
+
+   /**
+    * Builds one dimension from the wanted columns. Uniqueness is on (column, effective date
+    * level): {@code VSDimension.addLevel} collapses two members equal on column+option into one,
+    * so a repeat would silently lose a level. A non-date column may therefore appear once; a date
+    * column once per date level (the effective level is the default, year, when none is given).
+    *
+    * @param consumed columns held by dimensions other than the one being built
+    */
+   private static VSDimensionModel buildDimension(OutputColumnRefModel[] catalog,
+                                                  List<String> wanted, List<Integer> levels,
+                                                  Map<String, Integer> consumed,
+                                                  String assemblyName)
+   {
+      VSDimensionMemberModel[] members = new VSDimensionMemberModel[wanted.size()];
+      Set<String> seen = new HashSet<>();
+
+      for(int i = 0; i < wanted.size(); i++) {
+         OutputColumnRefModel column = findColumn(catalog, wanted.get(i), assemblyName);
+         String key = columnKey(column);
+         Integer requested = levels.get(i);
+         int option = requested != null ? requested : defaultOption(column.getDataType());
+         boolean date = XSchema.isDateType(column.getDataType());
+
+         if(!date && !seen.add(key)) {
+            throw new IllegalArgumentException(
+               "'" + wanted.get(i) + "' is listed more than once in 'columns' -- a hierarchy " +
+               "level can only use a column once.");
+         }
+
+         if(date && !seen.add(key + " " + option)) {
+            throw new IllegalArgumentException(
+               "'" + wanted.get(i) + "' appears more than once at date level '" +
+               dateLevelName(option) + "' -- each date level can be used once per column. Give " +
+               "each repeat its own entry in 'dateLevels', e.g. [\"year\", \"quarter\", " +
+               "\"month\"] (blank means the default, year, for a date column).");
+         }
+
+         // Kept apart from `seen`: a date column may repeat inside one dimension, but never
+         // across dimensions -- the Composer's Hierarchy dialog (isDragAccepted) refuses it too.
+         Integer holder = consumed.get(key);
+
+         if(holder != null) {
+            throw new IllegalArgumentException(
+               "'" + wanted.get(i) + "' is already a level of hierarchy dimension " + holder +
+               " on '" + assemblyName + "' -- a column can belong to only one dimension (the " +
+               "Composer's Hierarchy dialog enforces the same). Remove that dimension first " +
+               "(remove_hierarchy_dimension index " + holder + "), edit that dimension with " +
+               "update_hierarchy_dimension, or pick a column from list_hierarchy_dimensions' " +
+               "availableColumns.");
+         }
+
+         VSDimensionMemberModel member = new VSDimensionMemberModel();
+         member.setDataRef(column);
+         member.setOption(option);
+         members[i] = member;
+      }
+
+      VSDimensionModel dimension = new VSDimensionModel();
+      dimension.setMembers(members);
+      return dimension;
    }
 
    /**

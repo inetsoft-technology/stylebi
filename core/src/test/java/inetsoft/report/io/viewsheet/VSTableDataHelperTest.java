@@ -150,11 +150,10 @@ class VSTableDataHelperTest {
    }
    @Test
    void applyTableBordersKeepsStyleBordersOnStyledTable() {
+      // #79754: the default 1px object border must not overwrite the style border
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
       info.setTableStyle("style1");
-      info.getFormat().getUserDefinedFormat().setBorders(new Insets(1, 1, 1, 1));
-      info.getFormat().getUserDefinedFormat().setBorderColors(
-         new BorderColors(Color.GREEN, Color.GREEN, Color.GREEN, Color.GREEN));
+      setDefaultBorder(info);
       VSFormat cellfmt = styleBorderFormat();
 
       helper().applyTableBorders(cellfmt, info, true, true, true, true);
@@ -162,6 +161,81 @@ class VSTableDataHelperTest {
       assertEquals(new Insets(4, 4, 4, 4), cellfmt.getBorders());
       assertEquals(Color.RED, cellfmt.getBorderColors().leftColor);
       assertEquals(Color.BLUE, cellfmt.getBorderColors().rightColor);
+   }
+
+   @Test
+   void applyTableBordersUsesUserBorderOnStyledTable() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle("style1");
+      setDefaultBorder(info);
+      info.getFormat().getUserDefinedFormat().setBorders(new Insets(3, 3, 3, 3));
+      info.getFormat().getUserDefinedFormat().setBorderColors(
+         new BorderColors(Color.GREEN, Color.GREEN, Color.GREEN, Color.GREEN));
+      VSFormat cellfmt = styleBorderFormat();
+
+      helper().applyTableBorders(cellfmt, info, true, true, true, true);
+
+      assertEquals(new Insets(3, 3, 3, 3), cellfmt.getBorders());
+      assertEquals(Color.GREEN, cellfmt.getBorderColors().leftColor);
+      assertEquals(Color.GREEN, cellfmt.getBorderColors().rightColor);
+   }
+
+   @Test
+   void applyTableBordersOnlyOverridesUserSetSidesOnStyledTable() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle("style1");
+      setDefaultBorder(info);
+      info.getFormat().getUserDefinedFormat().setBordersValue(new Insets(0, 0, 3, 0));
+      VSFormat cellfmt = styleBorderFormat();
+
+      helper().applyTableBorders(cellfmt, info, true, true, true, true);
+
+      assertEquals(new Insets(4, 4, 3, 4), cellfmt.getBorders());
+   }
+
+   @Test
+   void tableStyleCssBorderIsNotUserObjectBorder() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle("style1");
+      setDefaultBorder(info);
+      // setDefaultFormat() writes a CSS TableStyle border color into the default layer
+      info.getFormat().getDefaultFormat().setBorderColorsValue(
+         new BorderColors(Color.ORANGE, Color.ORANGE, Color.ORANGE, Color.ORANGE));
+
+      assertFalse(VSTableDataHelper.hasUserObjectBorder(info));
+      VSFormat cellfmt = styleBorderFormat();
+      helper().applyTableBorders(cellfmt, info, true, true, true, true);
+      assertEquals(new Insets(4, 4, 4, 4), cellfmt.getBorders());
+   }
+
+   @Test
+   void writeDrawsObjectBorderOverlayForStyledTableWithUserBorder() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle("style1");
+      info.setTitleVisible(false);
+      info.setPixelSize(new Dimension(400, 220));
+      setDefaultBorder(info);
+      info.getFormat().getUserDefinedFormat().setBorders(new Insets(3, 3, 3, 3));
+
+      TableDataVSAssembly assembly = Mockito.mock(TableDataVSAssembly.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(assembly.getInfo()).thenReturn(info);
+
+      VSTableDataHelper helper = helper();
+      helper.write(assembly, null);
+
+      Mockito.verify(helper, Mockito.times(1)).drawObjectFormat(info, null, true);
+   }
+
+   @Test
+   void writeOverlayForStyledTableWithPartialUserBorderOnlyHasThatSide() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setTableStyle("style1");
+      setDefaultBorder(info);
+      info.getFormat().getUserDefinedFormat().setBordersValue(new Insets(0, 0, 3, 0));
+
+      assertTrue(VSTableDataHelper.hasUserObjectBorder(info));
+      assertEquals(new Insets(0, 0, 3, 0), info.getFormat().getBorders());
    }
 
    @Test
@@ -223,6 +297,15 @@ class VSTableDataHelperTest {
 
    private VSTableDataHelper helper() {
       return Mockito.mock(VSTableDataHelper.class, Mockito.CALLS_REAL_METHODS);
+   }
+
+   // the default object border (1px #dadada), written by hand because initDefaultFormat()
+   // needs a LibManagerProvider bean that is not available here
+   private void setDefaultBorder(VSAssemblyInfo info) {
+      VSFormat def = info.getFormat().getDefaultFormat();
+      def.setBordersValue(new Insets(1, 1, 1, 1));
+      Color c = VSAssemblyInfo.DEFAULT_BORDER_COLOR;
+      def.setBorderColorsValue(new BorderColors(c, c, c, c));
    }
 
    private VSFormat styleBorderFormat() {

@@ -3068,6 +3068,99 @@ class ChartRegionPropertyServiceTest {
       verifyAxisWritten(h);
    }
 
+   private static Harness chartTypeHarness(int type, boolean runtimeType) throws Exception {
+      Viewsheet vs = viewsheet(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+
+      if(runtimeType) {
+         when(info.getRTChartType()).thenReturn(type);
+      }
+      else {
+         when(info.getChartType()).thenReturn(type);
+      }
+
+      Harness h = harness(vs);
+      stubAxisModel(h);
+      return h;
+   }
+
+   private static Map<String, Object> listedKey(Harness h, String target, String key)
+      throws Exception
+   {
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>)
+         h.service.list("tok", principal(), "Chart1", "axis", target, null).get("properties");
+      return props.stream().filter(p -> key.equals(p.get("name"))).findFirst().orElseThrow();
+   }
+
+   /** Bug #80354: the Pareto measure axis never draws the opposite-side bit, so the key is refused. */
+   @ParameterizedTest
+   @ValueSource(booleans = {true, false})
+   void refusesATruthyLabelOnSecondaryAxisOnTheParetoYAxisAndListsItInapplicable(boolean rt)
+      throws Exception
+   {
+      Harness h = chartTypeHarness(GraphTypes.CHART_PARETO, rt);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> setAxis(h, Map.of("labelOnSecondaryAxis", true)));
+      assertTrue(thrown.getMessage().contains("labelOnSecondaryAxis"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Pareto"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+
+      Map<String, Object> listed = listedKey(h, "y", "labelOnSecondaryAxis");
+      assertEquals(false, listed.get("applies"));
+      assertTrue(String.valueOf(listed.get("reason")).contains("Pareto"), listed.toString());
+   }
+
+   @Test
+   void stillAcceptsLabelOnSecondaryAxisFalseOnTheParetoYAxis() throws Exception {
+      Harness h = chartTypeHarness(GraphTypes.CHART_PARETO, true);
+      setAxis(h, Map.of("labelOnSecondaryAxis", false));
+      verifyAxisWritten(h);
+   }
+
+   /** The Pareto dimension axis does take it (bug #74191). */
+   @Test
+   void stillAcceptsLabelOnSecondaryAxisOnTheParetoDimensionAxis() throws Exception {
+      Harness h = chartTypeHarness(GraphTypes.CHART_PARETO, true);
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("labelOnSecondaryAxis", true), "");
+      verifyAxisWritten(h);
+      assertFalse(listedKey(h, "x", "labelOnSecondaryAxis").containsKey("applies"));
+   }
+
+   @Test
+   void refusesATruthyLabelOnSecondaryAxisOnARadarYAxis() throws Exception {
+      Harness h = chartTypeHarness(GraphTypes.CHART_RADAR, true);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> setAxis(h, Map.of("labelOnSecondaryAxis", true)));
+      assertTrue(thrown.getMessage().contains("labelOnSecondaryAxis"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+      assertEquals(false, listedKey(h, "y", "labelOnSecondaryAxis").get("applies"));
+   }
+
+   @Test
+   void refusesATruthyLabelOnSecondaryAxisOn3DBarAndSaysTheAxisDisappears() throws Exception {
+      Harness h = chartTypeHarness(GraphTypes.CHART_3D_BAR, true);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> setAxis(h, Map.of("labelOnSecondaryAxis", true)));
+      assertTrue(thrown.getMessage().contains("not supported, the axis disappears"),
+                 thrown.getMessage());
+      verifyNoAxisWrite(h);
+      assertEquals(false, listedKey(h, "y", "labelOnSecondaryAxis").get("applies"));
+   }
+
+   /** Mekko x is newly refused (MekkoCoord never reads the bit); y keeps its own message. */
+   @Test
+   void refusesATruthyLabelOnSecondaryAxisOnTheMekkoXAxis() throws Exception {
+      Harness h = mekkoHarness();
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("labelOnSecondaryAxis", true), ""));
+      assertTrue(thrown.getMessage().contains("labelOnSecondaryAxis"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Marimekko"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+   }
+
    /** The same keys stay valid on a non-Mekko chart, including a dual-axis primary y. */
    @Test
    void stillAcceptsLabelOnSecondaryAxisOnTheDualAxisPrimaryY() throws Exception {

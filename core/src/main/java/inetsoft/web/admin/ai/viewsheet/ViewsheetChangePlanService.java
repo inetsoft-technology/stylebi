@@ -197,7 +197,7 @@ public class ViewsheetChangePlanService {
       Sheet current = findViewsheetById(user, assetId);
 
       if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
-         return resolveViewsheetRename(label, key, assetId, current, change, user);
+         return resolveViewsheetRename(label, key, assetId, current, change, user, seenKeys);
       }
 
       if(ViewsheetChangeRequest.VERB_UPDATE.equals(verb)) {
@@ -263,6 +263,29 @@ public class ViewsheetChangePlanService {
       }
    }
 
+   /**
+    * Bug #80355: the repository-state probe above cannot see an earlier rename in the SAME plan
+    * that is about to land on the same path, so two renames to one path both preview clean and the
+    * second one fails at apply. The landing location (unit kind, scope, org, path) is claimed here
+    * so the duplicate is refused at preview. Viewsheet and worksheet keep distinct prefixes (they
+    * do not collide with each other); sharing the key with folder create/rename landings is not
+    * done because folder keys use a different path normalization.
+    */
+   private static void claimRenameLanding(String label, String unit, String assetId, String newPath,
+                                          boolean global, IdentityID owner, Set<String> seenKeys)
+   {
+      String orgId = AssetEntry.createAssetEntry(assetId).getOrgID();
+      String scope = global ? "global" : "user:" + ViewsheetFolderService.ownerKey(owner);
+      String key = unit + "-landing:" + scope + "|" + orgId + "|" + newPath;
+
+      if(!seenKeys.add(key)) {
+         throw new IllegalArgumentException(
+            label + ".newPath: duplicate entry for \"" + newPath + "\"; another " + unit +
+            " rename in this submission already targets it -- a path may appear once per " +
+            "submission, counting a rename's target");
+      }
+   }
+
    /** Worksheet twin of {@link #requireViewsheetRenameTargetFree}. */
    void requireWorksheetRenameTargetFree(String label, String assetId, String newPath,
                                          boolean global, IdentityID owner, Principal user)
@@ -293,7 +316,7 @@ public class ViewsheetChangePlanService {
 
    private PlanChange resolveViewsheetRename(String label, String key, String assetId,
                                              Sheet current, ViewsheetChangeRequest change,
-                                             Principal user)
+                                             Principal user, Set<String> seenKeys)
       throws Exception
    {
       requireUnused(label, "force", change.getForce());
@@ -333,6 +356,7 @@ public class ViewsheetChangePlanService {
       }
 
       requireViewsheetRenameTargetFree(label, assetId, newPath, global, owner, user);
+      claimRenameLanding(label, "viewsheet", assetId, newPath, global, owner, seenKeys);
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
       String proposedProjection = ViewsheetProjection.projectProposedRename(newPath, global, owner);
       String orgId = AssetEntry.createAssetEntry(assetId).getOrgID();
@@ -448,7 +472,7 @@ public class ViewsheetChangePlanService {
       Sheet current = findWorksheetById(user, assetId);
 
       if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
-         return resolveWorksheetRename(label, key, assetId, current, change, user);
+         return resolveWorksheetRename(label, key, assetId, current, change, user, seenKeys);
       }
 
       if(ViewsheetChangeRequest.VERB_UPDATE.equals(verb)) {
@@ -542,7 +566,7 @@ public class ViewsheetChangePlanService {
 
    private PlanChange resolveWorksheetRename(String label, String key, String assetId,
                                              Sheet current, ViewsheetChangeRequest change,
-                                             Principal user)
+                                             Principal user, Set<String> seenKeys)
       throws Exception
    {
       requireUnused(label, "force", change.getForce());
@@ -582,6 +606,7 @@ public class ViewsheetChangePlanService {
       }
 
       requireWorksheetRenameTargetFree(label, assetId, newPath, global, owner, user);
+      claimRenameLanding(label, "worksheet", assetId, newPath, global, owner, seenKeys);
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);
       String proposedProjection =
          ViewsheetProjection.projectProposedWorksheetRename(newPath, global, owner);
@@ -1078,6 +1103,21 @@ public class ViewsheetChangePlanService {
       if(!current.found()) {
          throw new IllegalArgumentException(
             label + ": folder \"" + normalizedOld + "\" does not exist");
+      }
+
+      // Bug #80355: the rename's landing path is claimed like an entry's own path, and an
+      // already-existing destination is refused (renameFolder has no apply-side guard).
+      if(!normalizedNew.equals(normalizedOld)) {
+         if(folderService.getFolder(normalizedNew, owner).found()) {
+            throw new IllegalArgumentException(
+               label + ".newPath: a folder already exists at \"" + normalizedNew + "\"");
+         }
+
+         if(!seenKeys.add(folderKey(normalizedNew, owner))) {
+            throw new IllegalArgumentException(
+               label + ".newPath: duplicate entry for folder \"" + normalizedNew +
+               "\"; a path may appear once per submission, counting a rename's target");
+         }
       }
 
       GetViewsheetFolderResult proposed = new GetViewsheetFolderResult(

@@ -32,6 +32,9 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptEnvRepository;
+import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
@@ -40,6 +43,7 @@ import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.script.ScriptTarget;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
+import inetsoft.web.wiz.script.model.ScriptWriteResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -87,17 +91,20 @@ public class WorksheetScriptService {
 
    @Autowired
    public WorksheetScriptService(WorksheetEditService editService,
-                                 WorksheetAgentController worksheetController)
+                                 WorksheetAgentController worksheetController,
+                                 SheetAgentBroadcastService broadcast)
    {
       this.editService = editService;
       this.worksheetController = worksheetController;
+      this.broadcast = broadcast;
    }
 
    /** Convenience overload — no other fields were sent alongside {@code text}. */
-   public void write(JoinSession session, Principal agent, ScriptTarget target, String text)
+   public ScriptWriteResult write(JoinSession session, Principal agent, ScriptTarget target,
+                                  String text)
       throws Exception
    {
-      write(session, agent, target, text, Map.of());
+      return write(session, agent, target, text, Map.of());
    }
 
    /**
@@ -106,6 +113,9 @@ public class WorksheetScriptService {
     * @param extras any OTHER fields the caller also sent (e.g. {@code type}, {@code sql}, a
     *               rename) — always refused. Pass {@link Map#of()}, or use the 4-arg overload,
     *               when there are none.
+    * @return {@code null} for an ordinary edit of an existing location. For a PENDING
+    *         (Create Expression) session nothing is written: the text is pushed to the user's
+    *         open dialog as a draft and the result says so
     * @throws PairingException if {@code session} may not act on {@code target} (see
     *                          {@link PaneScopeService#check}), {@code target} is not one of the
     *                          two kinds this service serves, {@code extras} is non-empty, the
@@ -113,14 +123,21 @@ public class WorksheetScriptService {
     *                          ({@code worksheetExpression}), or {@code text} does not parse as a
     *                          condition ({@code worksheetCondition}).
     */
-   public void write(JoinSession session, Principal agent, ScriptTarget target, String text,
-                     Map<String, Object> extras)
+   public ScriptWriteResult write(JoinSession session, Principal agent, ScriptTarget target,
+                                  String text, Map<String, Object> extras)
       throws Exception
    {
       requireServedKind(target);
       requireWorksheetSession(session);
       requirePaneScope(session, target);
       rejectExtras(extras);
+
+      // Decided from the grant alone, before any column lookup: a pending session is ALWAYS
+      // draft-only, even if a column of that name has since appeared (another session added
+      // it), so it can never edit an unrelated column.
+      if(isPendingExpression(session, target)) {
+         return pushPendingDraft(session, agent, target, text);
+      }
 
       EditRequest req = switch(target.kind()) {
          case WORKSHEET_EXPRESSION -> expressionEditRequest(session, agent, target, text);
@@ -135,6 +152,110 @@ public class WorksheetScriptService {
       // session outright (whole-branch review finding 1). This call is already narrowed by
       // requirePaneScope above, against the exact target being written -- see editOp's javadoc.
       worksheetController.editOp(session.sessionToken(), req, agent);
+
+      if(target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION) {
+         // editOp only repaints the worksheet canvas. An open Edit Expression dialog holds the
+         // old text as client state and its OK sends that stale text back over this write, so
+         // push the new text for the dialog to show (it parks it behind its own clobber guard if
+         // the user has typed). Best effort: the write already succeeded.
+         RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+
+         if(rws != null) {
+            stampSocketSession(rws, session);
+            broadcast.broadcastScriptRefresh(rws, session.runtimeId(), agent,
+                                             target.kind().wireName(), target.assemblyName(),
+                                             target.name(), text);
+         }
+      }
+
+      return null;
+   }
+
+   private static boolean isPendingExpression(JoinSession session, ScriptTarget target) {
+      EditorContext grant = session.editorContext();
+
+      return target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION && grant != null &&
+         grant.pending() &&
+         ScriptTarget.Kind.WORKSHEET_EXPRESSION.wireName().equals(grant.kind());
+   }
+
+   /**
+    * The pending session's write: validate, then push {@code text} into the open Create
+    * Expression dialog. The worksheet is never touched, so Cancel leaves it unchanged.
+    */
+   private ScriptWriteResult pushPendingDraft(JoinSession session, Principal agent,
+                                              ScriptTarget target, String text)
+      throws Exception
+   {
+      if(text == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+                                    "text is required.");
+      }
+
+      RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
+
+      if(rws == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Runtime not found or expired: " + session.runtimeId());
+      }
+
+      stampSocketSession(rws, session);
+      boolean sent = broadcast.pushScriptRefresh(rws, session.runtimeId(), agent,
+                                                 target.kind().wireName(), target.assemblyName(),
+                                                 target.name(), text);
+
+      if(!sent) {
+         throw new PairingException(
+            "The Create Expression dialog for '" + target.name() + "' on '" +
+            target.assemblyName() + "' is not reachable (closed or disconnected), so nothing " +
+            "was written. Ask the user to reopen Create Expression and click Connect Agent.");
+      }
+
+      return new ScriptWriteResult(
+         true, true,
+         "Pushed to the open Create Expression dialog for the NEW column '" + target.name() +
+         "' on '" + target.assemblyName() + "' as a draft. Nothing exists on the worksheet until " +
+         "the user clicks OK (Cancel discards the draft), and the server cannot see whether the " +
+         "dialog showed it: if the user had already typed, the draft waits behind the dialog's " +
+         "reload prompt instead. Do not retry or read back to verify; after OK, " +
+         "read_worksheet_model shows the column.",
+         draftSyntaxWarning(target.name(), text));
+   }
+
+   /**
+    * A JavaScript syntax warning for the draft, or null. Only a warning: the dialog also holds
+    * the SQL/JavaScript choice, which the server cannot see, and valid SQL (a CASE expression)
+    * does not parse as JavaScript.
+    */
+   private static String draftSyntaxWarning(String name, String text) {
+      if(text.isBlank()) {
+         return null;
+      }
+
+      try {
+         ScriptEnv env = ScriptEnvRepository.getScriptEnv();
+
+         if(env != null) {
+            env.checkFunction(name, ExpressionRef.getSQLExpression(false, text));
+         }
+
+         return null;
+      }
+      catch(Exception ex) {
+         return "The draft does not parse as a JavaScript expression (" + ex.getMessage() +
+            "). Ignore this if the expression is SQL; otherwise fix it before the user clicks OK.";
+      }
+   }
+
+   /** Same stamping as {@code WorksheetEditService.applySocketSession}, for a path that skips it. */
+   private static void stampSocketSession(RuntimeWorksheet rws, JoinSession session) {
+      if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
+         rws.setSocketSessionId(session.socketSessionId());
+      }
+
+      if(rws.getSocketUserName() == null && session.socketUserName() != null) {
+         rws.setSocketUserName(session.socketUserName());
+      }
    }
 
    // ---------------------------------------------------------------------------
@@ -176,9 +297,47 @@ public class WorksheetScriptService {
       }
 
       EditorContext grant = session.editorContext();
+
+      if(grant.pending() &&
+         ScriptTarget.Kind.WORKSHEET_EXPRESSION.wireName().equals(grant.kind()))
+      {
+         return pendingTargets(grant);
+      }
+
       return all.stream()
          .filter(info -> matchesGrant(grant, info))
          .toList();
+   }
+
+   /**
+    * The single synthetic target of a pending (Create Expression) session. The column does not
+    * exist yet, so no enumerated target matches the grant and a listing would otherwise be empty
+    * and read as "nothing to write". Any real column that later takes the same name is
+    * deliberately not listed: a pending session never reaches it.
+    */
+   private static List<ScriptTargetInfo> pendingTargets(EditorContext grant) {
+      String table = grant.table() != null && !grant.table().isBlank()
+         ? grant.table() : grant.assembly();
+
+      ScriptTarget target;
+
+      try {
+         target = ScriptTarget.of(ScriptTarget.Kind.WORKSHEET_EXPRESSION, table, grant.name());
+      }
+      catch(PairingException ex) {
+         return List.of();
+      }
+
+      return List.of(new ScriptTargetInfo(
+         target.id(), ScriptTarget.Kind.WORKSHEET_EXPRESSION.wireName(), table, grant.name(),
+         null, null,
+         "NEW worksheet expression column '" + grant.name() + "' on " + table +
+         " -- not created until the user clicks OK in Create Expression; update_script pushes a " +
+         "draft into that dialog",
+         "when the user clicks OK in Create Expression",
+         false, true,
+         "worksheetExpression:" + table + ":" + grant.name(),
+         "worksheet", null, null, Boolean.TRUE));
    }
 
    /** Decodes {@code info}'s own id back into a {@link ScriptTarget} to test it against grant. */
@@ -283,6 +442,15 @@ public class WorksheetScriptService {
       requireServedKind(target);
       requireWorksheetSession(session);
       requirePaneScope(session, target);
+
+      if(isPendingExpression(session, target)) {
+         return new ScriptInfo(
+            target.toString(), "", true, Boolean.TRUE,
+            "NEW expression column '" + target.name() + "' on '" + target.assemblyName() +
+            "': it does not exist until the user clicks OK in Create Expression, so there is no " +
+            "text to read. The draft lives only in the user's open dialog and the server cannot " +
+            "see it. The empty text is NOT an empty expression and NOT a failed write.");
+      }
 
       RuntimeWorksheet rws = editService.resolve(session.sessionToken(), agent);
       Worksheet ws = rws == null ? null : rws.getWorksheet();
@@ -772,4 +940,5 @@ public class WorksheetScriptService {
 
    private final WorksheetEditService editService;
    private final WorksheetAgentController worksheetController;
+   private final SheetAgentBroadcastService broadcast;
 }

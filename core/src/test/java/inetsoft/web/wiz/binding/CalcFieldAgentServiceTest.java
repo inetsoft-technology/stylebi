@@ -66,6 +66,7 @@ import inetsoft.web.binding.model.ExpressionRefModel;
 import inetsoft.web.wiz.binding.CalcFieldAgentService.CalcFieldRequest;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.script.ScriptTarget;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -456,6 +457,90 @@ class CalcFieldAgentServiceTest {
       assertEquals("NetAfterDiscount", expr.getName());
    }
 
+   /**
+    * Bug #80447, review round 1: the new {@code broadcastScriptRefresh} wiring had zero test
+    * assertions -- a dropped call, or the rename-skip condition below inverted, would still pass
+    * the whole suite. Asserts a successful create fires the push with the written table/name/
+    * expression.
+    */
+   @Test
+   void createFiresBroadcastScriptRefreshWithTheWrittenExpression() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+      Principal agent = principal();
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Fresh", null,
+         "field['Total']*(1-field['Discount'])", "double", false, true, false, true);
+
+      service.modify("tok", agent, req, "");
+
+      verify(sessions).broadcastScriptRefresh(any(), eq("rt1"), eq(agent),
+         eq(ScriptTarget.Kind.CALC_FIELD.wireName()), eq("ORDERS"), eq("Fresh"),
+         eq("field['Total']*(1-field['Discount'])"));
+   }
+
+   /** Same as the create case above, for a successful edit whose name is unchanged. */
+   @Test
+   void editWithUnchangedNameFiresBroadcastScriptRefresh() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+      Principal agent = principal();
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTotal", null,
+         "field['Total']*0.9", "double", false, true, false, false);
+
+      service.modify("tok", agent, req, "");
+
+      verify(sessions).broadcastScriptRefresh(any(), eq("rt1"), eq(agent),
+         eq(ScriptTarget.Kind.CALC_FIELD.wireName()), eq("ORDERS"), eq("NetTotal"),
+         eq("field['Total']*0.9"));
+   }
+
+   /**
+    * The one piece of real business logic this fix adds on the calc-field side: a rename must
+    * NOT fire the push, since an open dialog's editorContext still names the OLD field and a
+    * push addressed under the new name could never match it (see the call site's own comment in
+    * {@code CalcFieldAgentService.modify}). This is the condition the review flagged as easiest
+    * to accidentally invert or drop in a future refactor.
+    */
+   @Test
+   void editWithNewNameRenameDoesNotFireBroadcastScriptRefresh() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+      Principal agent = principal();
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTotal", "NetAfterDiscount",
+         "field['Total']*0.9", "double", false, true, false, false);
+
+      service.modify("tok", agent, req, "");
+
+      verify(sessions, never()).broadcastScriptRefresh(
+         any(), any(), any(), any(), any(), any(), any());
+   }
+
+   /** A remove has no expression to push, and must not fire the broadcast either. */
+   @Test
+   void removeDoesNotFireBroadcastScriptRefresh() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      ViewsheetSessionService sessions = sessionsRunningAgainstRt1();
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessions, fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "NetTotal", null, null, null, null, null, true, false);
+
+      service.modify("tok", principal(), req, "");
+
+      verify(sessions, never()).broadcastScriptRefresh(
+         any(), any(), any(), any(), any(), any(), any());
+   }
+
    @Test
    void removeSendsNoCalculateRefAndSkipsExpressionValidation() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
@@ -643,6 +728,57 @@ class CalcFieldAgentServiceTest {
       verify(proxy).modifyCalculateField(eq("rt1"), captor.capture(), eq(agent), any(), eq(""));
 
       assertFalse(captor.getValue().calculateRef().isBaseOnDetail());
+   }
+
+   /**
+    * Bug #80441: add_calc_field/edit_calc_field never consulted native's trap check before
+    * writing, so a calc field whose expression mixed columns across a data-model trap was
+    * written silently. {@code modify()} must call the proxy's {@code checkTrap(...)} before the
+    * write -- mirroring {@code ModifyCalculateFieldController.checkTrap}'s own call -- and report
+    * a positive result, without refusing the write (native Composer's Trap dialog warns, it does
+    * not refuse).
+    */
+   @Test
+   void reportsTrapDetectedWhenTheProxyChecksPositive() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      when(proxy.checkTrap(eq("rt1"), eq("ORDERS"), eq("Fresh"), eq("true"), any(), any()))
+         .thenReturn("true");
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Fresh", null,
+         "field['Total']*(1-field['Discount'])", "double", false, null, false, true);
+
+      assertTrue(service.modify("tok", principal(), req, "").trapDetected());
+      // The write still proceeds -- a detected trap is a warning, not a refusal.
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
+   @Test
+   void trapDetectedIsFalseWhenTheProxyChecksNegative() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      when(proxy.checkTrap(any(), any(), any(), any(), any(), any())).thenReturn("false");
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Fresh", null,
+         "field['Total']*(1-field['Discount'])", "double", false, null, false, true);
+
+      assertFalse(service.modify("tok", principal(), req, "").trapDetected());
+   }
+
+   /** A remove has no CalculateRef to check a trap against. */
+   @Test
+   void removeNeverCallsCheckTrapAndReportsNoTrap() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "NetTotal", null, null, null, null, null, true, false);
+
+      assertFalse(service.modify("tok", principal(), req, "").trapDetected());
+      verify(proxy, never()).checkTrap(any(), any(), any(), any(), any(), any());
    }
 
    private static CalculateRef calc(String name, String expression, boolean baseOnDetail) {

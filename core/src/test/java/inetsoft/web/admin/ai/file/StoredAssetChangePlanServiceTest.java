@@ -170,6 +170,40 @@ class StoredAssetChangePlanServiceTest {
       assertNotNull(plan.taskToken());
    }
 
+   /** Bug #80419: the EM-forbidden-character/dot rule applies to the leaf name a create/write/
+    * rename newly establishes, validated before any DataSpace call. */
+   @Test
+   void resolveCreateRejectsALeafNameWithAForbiddenCharacter() {
+      StoredAssetChangePlanRequest req = request(
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE,
+                "scripts/lib:v1"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(req, principal));
+      assertTrue(ex.getMessage().contains("changes[0].path"), ex.getMessage());
+      verifyNoInteractions(dataSpace);
+   }
+
+   @Test
+   void resolveWriteRejectsALeafNameWithATrailingDot() {
+      StoredAssetChangeRequest c = write("scripts/report.", "console.log(1);");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(c), principal));
+      assertTrue(ex.getMessage().contains("changes[0].path"), ex.getMessage());
+      verifyNoInteractions(dataSpace);
+   }
+
+   /** Only the new leaf segment is validated -- an earlier, pre-existing folder segment (here
+    * "a:b") is out of scope, per the charter's nested-missing-parent carve-out. */
+   @Test
+   void resolveWriteOnlyValidatesTheLeafSegmentNotEarlierPathSegments() {
+      when(dataSpace.exists(null, "a:b/ok.txt")).thenReturn(false);
+      StoredAssetChangeRequest c = write("a:b/ok.txt", "x");
+
+      assertDoesNotThrow(() -> service.resolve(request(c), principal));
+   }
+
    @Test
    void resolveWriteRequiresContent() {
       StoredAssetChangeRequest c =
@@ -323,6 +357,19 @@ class StoredAssetChangePlanServiceTest {
    }
 
    @Test
+   void resolveRenameRejectsANewNameWithAForbiddenCharacter() {
+      // newName is validated before any DataSpace call, so no stub is exercised here.
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_RENAME, "a.js");
+      c.setNewName("b#1.js");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request(c), principal));
+      assertTrue(ex.getMessage().contains("changes[0].newName"), ex.getMessage());
+      verifyNoInteractions(dataSpace);
+   }
+
+   @Test
    void resolveDeleteRefusesTheDataSpaceRoot() {
       StoredAssetChangeRequest c =
          change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_DELETE, "/");
@@ -385,5 +432,76 @@ class StoredAssetChangePlanServiceTest {
       ResolvedPlan plan3 = service.resolve(req3, principal);
 
       assertNotEquals(plan1.planHash(), plan3.planHash());
+   }
+
+   // ------------------------------------------------ Bug #80355: a rename's landing path is claimed
+
+   private StoredAssetChangeRequest renameFile(String path, String newName) {
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_RENAME, path);
+      c.setNewName(newName);
+      return c;
+   }
+
+   private StoredAssetChangeRequest writeFile(String path) {
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, path);
+      c.setContent("x");
+      return c;
+   }
+
+   private void existingSources(String... paths) {
+      for(String p : paths) {
+         lenient().when(dataSpace.exists(null, p)).thenReturn(true);
+         lenient().when(dataSpace.isDirectory(p)).thenReturn(false);
+      }
+   }
+
+   private void assertClaimRefused(StoredAssetChangeRequest... changes) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolveEntries(request(changes)));
+      assertTrue(ex.getMessage().contains("a path may appear once per submission"), ex.getMessage());
+   }
+
+   @Test
+   void renameThenWriteOntoTheRenameTargetIsRefused() {
+      existingSources("a.js");
+      assertClaimRefused(renameFile("a.js", "x.js"), writeFile("x.js"));
+   }
+
+   @Test
+   void writeThenRenameOntoTheWrittenPathIsRefused() {
+      existingSources("a.js");
+      assertClaimRefused(writeFile("x.js"), renameFile("a.js", "x.js"));
+   }
+
+   @Test
+   void renameThenCreateFolderOntoTheRenameTargetIsRefused() {
+      existingSources("a.js");
+      assertClaimRefused(renameFile("a.js", "x"),
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "x"));
+   }
+
+   @Test
+   void twoRenamesOntoOnePathAreRefused() {
+      existingSources("a.js", "b.js");
+      assertClaimRefused(renameFile("a.js", "x.js"), renameFile("b.js", "x.js"));
+   }
+
+   @Test
+   void independentRenamesAndEntriesStillResolve() {
+      existingSources("a.js", "b.js");
+      assertEquals(2, service.resolveEntries(
+         request(renameFile("a.js", "x.js"), renameFile("b.js", "y.js"))).size());
+      assertEquals(1, service.resolveEntries(request(renameFile("a.js", "x.js"))).size());
+      assertEquals(2, service.resolveEntries(
+         request(renameFile("a.js", "x.js"), writeFile("other.js"))).size());
+   }
+
+   @Test
+   void sameNameUnderDifferentParentsDoesNotCollide() {
+      existingSources("d1/a.js", "d2/b.js");
+      assertEquals(2, service.resolveEntries(
+         request(renameFile("d1/a.js", "x.js"), renameFile("d2/b.js", "x.js"))).size());
    }
 }

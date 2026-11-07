@@ -27,6 +27,9 @@ import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.model.GeoDetectResponse;
+import inetsoft.web.wiz.model.MapViewResponse;
+import inetsoft.web.wiz.service.WizGeoService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.ViewsheetFormatService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -230,6 +233,7 @@ public class BindingAgentController {
       List<ChartGeoShelf.Field> fields = request.fields() == null ? null
          : request.fields().stream()
             .map(f -> new ChartGeoShelf.Field(f.column(), f.layer())).toList();
+      fields = requireGeoColumnsInSource(sessionToken, user, request.assembly(), fields);
       List<ChartGeoShelf.Detected> detected = ChartGeoShelf.write(
          sessions, sessionToken, user, request.assembly(),
          ConfigurationContext.getContext().getSpringBean(VSChartHandler.class), fields,
@@ -238,6 +242,62 @@ public class BindingAgentController {
       out.put("geo", detected);
 
       return out;
+   }
+
+   /** Body of {@code geo/clear}: remove the geographic mark from {@code column}. */
+   public record GeoClearRequest(String assembly, String column) {}
+   /** Body of {@code chart/map-view/get}. */
+   public record MapViewGetRequest(String assembly) {}
+   /**
+    * Body of {@code chart/map-view/set}: a relative zoom step and/or relative pans, or
+    * {@code reset} (exclusive with the rest).
+    */
+   public record MapViewSetRequest(String assembly, Integer zoomBy, Double panX, Double panY,
+                                   Boolean reset) {}
+
+   /**
+    * Clear Geographic for one column of a map chart; one undo checkpoint. The failure leaves the
+    * chart as it was ({@link WizGeoService#clear}). Resolved from the session token like
+    * {@code chart/geo-shelf}.
+    */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/geo/clear")
+   public GeoDetectResponse clearGeographic(@PathVariable String sessionToken,
+                                            @RequestBody GeoClearRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      GeoDetectResponse[] out = new GeoDetectResponse[1];
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         out[0] = geoService().clear(rvs, request.assembly(), request.column()));
+      return out[0];
+   }
+
+   /** Reads a map chart's saved zoom/pan; no checkpoint, no broadcast. */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/map-view/get")
+   public MapViewResponse getChartMapView(@PathVariable String sessionToken,
+                                          @RequestBody MapViewGetRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return geoService().getMapView(sessions.resolve(sessionToken, user), request.assembly());
+   }
+
+   /** Sets or resets a map chart's saved zoom/pan; one undo checkpoint. */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/map-view/set")
+   public MapViewResponse setChartMapView(@PathVariable String sessionToken,
+                                          @RequestBody MapViewSetRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      MapViewResponse[] out = new MapViewResponse[1];
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         out[0] = geoService().setMapView(rvs, request.assembly(), request.zoomBy(),
+                                          request.panX(), request.panY(), request.reset()));
+      return out[0];
+   }
+
+   private WizGeoService geoService() {
+      return ConfigurationContext.getContext().getSpringBean(WizGeoService.class);
    }
 
    /** @see TableSortRequest — same shape, applied to a chart's x/y/group dimension shelves. */
@@ -347,9 +407,22 @@ public class BindingAgentController {
                                      linkUri));
    }
 
-   /** @param table see {@link ShelfRequest#table()}. */
+   /**
+    * @param table see {@link ShelfRequest#table()}.
+    * @param measure bug #80332: the measure of a multi-style chart to write the field for, or the
+    *        reserved literal {@code all} (case-insensitive) for every measure the chart renders
+    *        its own aesthetic fields for. Absent keeps the chart-level write, which a multi-style
+    *        chart refuses. Appended last so the 4-argument form below stays source compatible.
+    */
    public record AestheticFieldRequest(String assembly, String channel, FieldRef field,
-                                       String table) {}
+                                       String table, String measure)
+   {
+      public AestheticFieldRequest(String assembly, String channel, FieldRef field,
+                                   String table)
+      {
+         this(assembly, channel, field, table, null);
+      }
+   }
    /**
     * @param measure see
     *        {@link ChartAestheticMutator#setFrame(inetsoft.web.binding.model.ChartBindingModel,
@@ -406,7 +479,8 @@ public class BindingAgentController {
                                              List.of(request.field()));
       return ViewsheetSessionService.warningsBody(
          aestheticService.setField(sessionToken, user, request.assembly(), request.channel(),
-                                resolved.fields().get(0), resolved.source(), linkUri));
+                                resolved.fields().get(0), resolved.source(),
+                                request.measure(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/aesthetic-field/clear")
@@ -419,7 +493,7 @@ public class BindingAgentController {
       requireEnabled();
       return ViewsheetSessionService.warningsBody(
          aestheticService.clearField(sessionToken, user, request.assembly(), request.channel(),
-                                  linkUri));
+                                  request.measure(), linkUri));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/frame")
@@ -522,8 +596,12 @@ public class BindingAgentController {
     *                 NOT commit.
     * @param rewrittenDependents on a rename, the other calc fields whose expression referenced
     *                 the old name and was rewritten to the new one; empty otherwise.
+    * @param trapDetected {@code true} when the expression mixes columns across a data-model trap
+    *                 (see {@code CalcFieldAgentService.CalcFieldResult#trapDetected}); the write
+    *                 still committed either way.
     */
-   public record CalcFieldResponse(List<String> warnings, List<String> rewrittenDependents) {}
+   public record CalcFieldResponse(List<String> warnings, List<String> rewrittenDependents,
+                                   boolean trapDetected) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc-field")
    public CalcFieldResponse modifyCalcField(@PathVariable String sessionToken,
@@ -535,7 +613,8 @@ public class BindingAgentController {
       requireEnabled();
       CalcFieldAgentService.CalcFieldResult result =
          calcFieldService.modify(sessionToken, user, request, linkUri);
-      return new CalcFieldResponse(result.warnings(), result.rewrittenDependents());
+      return new CalcFieldResponse(
+         result.warnings(), result.rewrittenDependents(), result.trapDetected());
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")
@@ -1000,6 +1079,47 @@ public class BindingAgentController {
       catch(Exception e) {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
          return new Resolved(null, fields);
+      }
+   }
+
+   /**
+    * Refuses a geo column that is not in the chart's source before anything is registered, and
+    * stores the source's real spelling of the others (#80345). A listing failure is skipped, as in
+    * {@link #resolveSourceTable}.
+    */
+   private List<ChartGeoShelf.Field> requireGeoColumnsInSource(String sessionToken, Principal user,
+                                                               String assembly,
+                                                               List<ChartGeoShelf.Field> fields)
+   {
+      if(fields == null || fields.isEmpty()) {
+         return fields;
+      }
+
+      try {
+         List<BindableTable> tables =
+            fieldsService.list(sessions.runtimeId(sessionToken, user), assembly, user);
+         List<FieldRef> refs = fields.stream()
+            .map(f -> new FieldRef(f.column(), "dimension", null, null, null, null, null, null,
+                                   null, null, null, null, null, null))
+            .toList();
+         List<FieldRef> canonical = BindableColumns.canonicalize(tables, assembly, null, refs);
+         BindableColumns.requireGeoColumns(
+            tables, assembly, canonical.stream().map(FieldRef::column).toList());
+         List<ChartGeoShelf.Field> result = new java.util.ArrayList<>();
+
+         for(int i = 0; i < fields.size(); i++) {
+            result.add(new ChartGeoShelf.Field(canonical.get(i).column(), fields.get(i).layer()));
+         }
+
+         return result;
+      }
+      catch(IllegalArgumentException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         LOG.debug("Could not list bindable columns for {}; skipping the geo column check",
+                   assembly, e);
+         return fields;
       }
    }
 

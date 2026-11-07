@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
+import inetsoft.uql.viewsheet.graph.aesthetic.ShapeFrameWrapper;
 import inetsoft.util.CoreTool;
 import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
@@ -555,9 +557,43 @@ public final class VisualFrameAliases {
             "A static shape frame needs a 'shape', e.g. {type: \"static\", shape: \"circle\"}.");
       }
 
+      requireKnownShape(shape);
       StaticShapeModel model = new StaticShapeModel();
       model.setShape(shape);
       return model;
+   }
+
+   /**
+    * Refuses a shape the renderer cannot resolve. The frame wrappers store whatever
+    * {@code ShapeFrameWrapper.getGShape} returns, which is null for an unknown name, so an
+    * unchecked name is accepted and then the category's marks vanish (Bug #80341). A geometric
+    * code (900-916) or a built-in / uploaded image name resolves; the image list is the calling
+    * organization's, so the caller's principal must be the thread context principal.
+    */
+   private static void requireKnownShape(String name) {
+      // built-ins are answered from static tables; only other names need the uploaded-shape
+      // lookup, which reads the organization's shapes folder
+      if(name != null &&
+         (ShapeFrameWrapper.getGeometricShape(name) != null ||
+          ImageShapes.getBuiltins().contains(name) ||
+          ShapeFrameWrapper.getGShape(name) != null))
+      {
+         return;
+      }
+
+      String available;
+
+      try {
+         available = String.join(", ", ImageShapes.getShapeNames());
+      }
+      catch(RuntimeException e) {
+         available = "(unavailable)";
+      }
+
+      throw new IllegalArgumentException(
+         "Unknown shape '" + name + "': no such image shape file exists. Available image " +
+         "shapes: " + available + ". Geometric shapes are the codes 900-916. Upload a custom " +
+         "shape through the Composer's shape picker first.");
    }
 
    private static VisualFrameModel categoricalShape(Map<String, Object> spec) {
@@ -568,6 +604,8 @@ public final class VisualFrameAliases {
             "A categorical shape frame needs a non-empty 'shapes' list.");
       }
 
+      // checked before anything is built, so a bad name in any slot writes nothing
+      shapes.forEach(VisualFrameAliases::requireKnownShape);
       CategoricalShapeModel model = new CategoricalShapeModel();
       model.setShapes(shapes.toArray(new String[0]));
       // CategoricalShapeFrameModelFactory ends its update with setChanged(model.isChanged()),

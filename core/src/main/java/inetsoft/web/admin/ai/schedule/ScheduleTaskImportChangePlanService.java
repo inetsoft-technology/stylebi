@@ -21,6 +21,7 @@ import inetsoft.sree.schedule.BatchAction;
 import inetsoft.sree.schedule.CompletionCondition;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -146,6 +147,20 @@ public class ScheduleTaskImportChangePlanService {
       // refuse one in an organization that does not exist rather than letting the plan (and a
       // later apply) store a task under it.
       scheduleGateway.requireOwnerOrganizationExists(transformed.getOwner());
+      // Bug #80355, sibling of #79974: the save refuses a task whose run principal can't read an
+      // action viewsheet (and its other refusals: org boundary, scheduler permission, batch
+      // targets, ...), for a new task and an overwrite alike, so refuse it here instead of
+      // planning a change apply can only throw on.
+      try {
+         scheduleManager.checkScheduleTaskSave(taskId, transformed, user);
+      }
+      catch(Exception e) {
+         throw new IllegalArgumentException(
+            label + ".taskId: the task would be refused when saved (owner \"" +
+            (transformed.getOwner() == null ? "" : transformed.getOwner().getName()) +
+            "\", action viewsheets " + viewsheetsOf(transformed) + "): " + e.getMessage());
+      }
+
       String after = ScheduleXmlProjection.project(transformed);
       String risk = existing == null ? AdminChangeRecord.RISK_LOW : AdminChangeRecord.RISK_HIGH;
       String description = existing == null ?
@@ -155,6 +170,18 @@ public class ScheduleTaskImportChangePlanService {
       description += missingDependencyNote(transformed, selectedIds);
       return new PlanChange("schedule-import:" + taskId, null, before, after, risk,
                             AdminChangeRecord.SCOPE_STORAGE, true, description);
+   }
+
+   private static List<String> viewsheetsOf(ScheduleTask task) {
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; i < task.getActionCount(); i++) {
+         if(task.getAction(i) instanceof ViewsheetAction) {
+            names.add(((ViewsheetAction) task.getAction(i)).getViewsheet());
+         }
+      }
+
+      return names;
    }
 
    /**

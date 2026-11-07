@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.recyclebin;
 
+import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -31,6 +32,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -250,6 +252,97 @@ class RecycleBinServiceTest {
          Exception thrown = assertThrows(Exception.class,
                                          () -> service.requireRestorableSource(e, user));
          assertEquals("simulated registry load failure", thrown.getMessage());
+      }
+
+      verifyNoInteractions(assetRepository);
+   }
+
+   // ---------------------------------------------------------------- occupantOf (bug #80307)
+
+   /** Mirrors AutoSaveRecycleBinServiceTest's own occupantWith helper: stubs assetRepository
+    * .containsEntry to answer true only for the types listed as "present" at the destination. */
+   private RecycleBinService.Occupant occupantWith(int entryType, String originalPath,
+                                                    AssetEntry.Type... present)
+      throws Exception
+   {
+      RecycleBin.Entry e = entry(entryType, AssetRepository.GLOBAL_SCOPE, "Recycle Bin/uuid9",
+         originalPath, null);
+      java.util.Set<AssetEntry.Type> types = new java.util.HashSet<>(Arrays.asList(present));
+      lenient().when(assetRepository.containsEntry(any(AssetEntry.class)))
+         .thenAnswer(inv -> types.contains(((AssetEntry) inv.getArgument(0)).getType()));
+      return service.occupantOf(e);
+   }
+
+   @Test void occupantOfReportsFolderForAWorksheetEntry() throws Exception {
+      assertEquals(RecycleBinService.Occupant.FOLDER, occupantWith(
+         RepositoryEntry.WORKSHEET, "ws1", AssetEntry.Type.FOLDER));
+   }
+
+   @Test void occupantOfReportsFolderAndSnapshotForAViewsheetEntry() throws Exception {
+      assertEquals(RecycleBinService.Occupant.FOLDER, occupantWith(
+         RepositoryEntry.VIEWSHEET, "vs1", AssetEntry.Type.REPOSITORY_FOLDER));
+      assertEquals(RecycleBinService.Occupant.SNAPSHOT, occupantWith(
+         RepositoryEntry.VIEWSHEET, "vs2", AssetEntry.Type.VIEWSHEET_SNAPSHOT));
+   }
+
+   @Test void occupantOfReportsSameTypeSheetAsOverwritable() throws Exception {
+      RecycleBinService.Occupant ws = occupantWith(
+         RepositoryEntry.WORKSHEET, "ws1", AssetEntry.Type.WORKSHEET);
+      RecycleBinService.Occupant vs = occupantWith(
+         RepositoryEntry.VIEWSHEET, "vs1", AssetEntry.Type.VIEWSHEET);
+
+      assertEquals(RecycleBinService.Occupant.SAME_TYPE_SHEET, ws);
+      assertEquals(RecycleBinService.Occupant.SAME_TYPE_SHEET, vs);
+      assertTrue(ws.overwritable());
+   }
+
+   @Test void occupantOfReportsNoneWhenNothingOccupiesTheDestination() throws Exception {
+      assertEquals(RecycleBinService.Occupant.NONE,
+                   occupantWith(RepositoryEntry.WORKSHEET, "ws1"));
+   }
+
+   /** The mirror case bug #80307 also reports: restoring a recycled worksheet FOLDER onto a
+    * same-named WORKSHEET must report the real occupant (a worksheet, never overwritable here),
+    * not the entry's own "worksheetFolder" type. */
+   @Test void occupantOfReportsWorksheetForAWorksheetFolderEntry() throws Exception {
+      RecycleBinService.Occupant occupant = occupantWith(
+         RepositoryEntry.WORKSHEET_FOLDER, "folder1", AssetEntry.Type.WORKSHEET);
+
+      assertEquals(RecycleBinService.Occupant.WORKSHEET, occupant);
+      assertFalse(occupant.overwritable());
+      assertEquals("worksheet", occupant.describe("worksheetFolder"));
+   }
+
+   /** A genuine folder-on-folder match for a worksheet-folder entry is left classified as
+    * overwritable, unchanged from the pre-existing behavior -- bug #80307 is about a type
+    * MISMATCH being misdescribed, not about this already-same-typed case. */
+   @Test void occupantOfReportsSameTypeSheetForAFolderOnFolderMatch() throws Exception {
+      RecycleBinService.Occupant occupant = occupantWith(
+         RepositoryEntry.WORKSHEET_FOLDER, "folder1", AssetEntry.Type.FOLDER);
+
+      assertEquals(RecycleBinService.Occupant.SAME_TYPE_SHEET, occupant);
+      assertTrue(occupant.overwritable());
+   }
+
+   /** The repository (dashboard) folder branch keeps wouldCollide's old registry.isFolder check
+    * unchanged (out of scope for bug #80307, see 03-fix.md) -- its only positive signal already
+    * names the same type ("folder") the recycled entry itself declares. */
+   @Test void occupantOfRepositoryFolderBranchIsUnchanged() throws Exception {
+      RecycleBin.Entry e = entry(RepositoryEntry.FOLDER, AssetRepository.GLOBAL_SCOPE,
+         "Recycle Bin/uuid10", "dashboards/folder2", new IdentityID("admin", "host-org"));
+      RepletRegistry registry = mock(RepletRegistry.class);
+
+      try(MockedStatic<RecycleUtils> recycleUtils = mockStatic(RecycleUtils.class,
+         Answers.CALLS_REAL_METHODS))
+      {
+         recycleUtils.when(() -> RecycleUtils.getRegistry("dashboards/folder2", e.getOriginalUser()))
+            .thenReturn(registry);
+
+         when(registry.isFolder("dashboards/folder2")).thenReturn(true);
+         assertEquals(RecycleBinService.Occupant.SAME_TYPE_SHEET, service.occupantOf(e));
+
+         when(registry.isFolder("dashboards/folder2")).thenReturn(false);
+         assertEquals(RecycleBinService.Occupant.NONE, service.occupantOf(e));
       }
 
       verifyNoInteractions(assetRepository);

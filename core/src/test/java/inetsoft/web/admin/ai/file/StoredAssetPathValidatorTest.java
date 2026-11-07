@@ -22,6 +22,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.stream.Stream;
+import org.junit.jupiter.params.provider.MethodSource;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -147,5 +150,38 @@ class StoredAssetPathValidatorTest {
    @Test
    void requireNotRootAcceptsANonRootPath() {
       assertDoesNotThrow(() -> StoredAssetPathValidator.requireNotRoot("scripts/a.js", "path"));
+   }
+
+   /** Bug #80419: the EM-forbidden-character/dot rule is a separate check from the path-traversal
+    * checks above -- {@link #requirePath}/{@link #requireSiblingName} accept all of these. */
+   static Stream<String> forbiddenNames() {
+      return Stream.of(
+         "report:v1.xml", "report#1.txt", "report*?.txt", "report%1.txt", "report,1.txt",
+         "report'1.txt", "report<1.txt", "report\"1.txt", "report|1.txt", "report+1.txt",
+         "report.", ".report"
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("forbiddenNames")
+   void requireValidNameCharsRejectsAForbiddenCharacterOrDot(String leaf) {
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> StoredAssetPathValidator.requireValidNameChars(leaf, "path"));
+      assertTrue(ex.getMessage().contains("path"), ex.getMessage());
+   }
+
+   @Test
+   void requireValidNameCharsAcceptsAPlainName() {
+      assertDoesNotThrow(() -> StoredAssetPathValidator.requireValidNameChars("report-v1.txt", "path"));
+   }
+
+   @Test
+   void requireValidNameCharsAcceptsTheStylereportDotException() {
+      assertDoesNotThrow(() -> StoredAssetPathValidator.requireValidNameChars(".stylereport", "path"));
+   }
+
+   @Test
+   void requireValidNameCharsAcceptsAnEmptyLeaf() {
+      assertDoesNotThrow(() -> StoredAssetPathValidator.requireValidNameChars("", "path"));
    }
 }

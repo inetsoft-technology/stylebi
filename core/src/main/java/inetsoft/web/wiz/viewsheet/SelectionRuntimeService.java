@@ -1470,6 +1470,15 @@ public class SelectionRuntimeService {
       result.put("yearView", info.isYearView());
       result.put("dates", dates);
       result.put("tokens", Arrays.asList(tokens));
+      // The month (or year) shown, as the ISO text set_calendar_display takes; null = today.
+      result.put("displayMonth",
+                 CalendarDisplayService.displayMonth(info.getCurrentDate1(), info.isYearView()));
+
+      if(dual) {
+         result.put("displayMonth2",
+                    CalendarDisplayService.displayMonth(info.getCurrentDate2(), info.isYearView()));
+      }
+
       return result;
    }
 

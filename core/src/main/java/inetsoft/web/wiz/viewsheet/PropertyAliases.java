@@ -122,6 +122,15 @@ public final class PropertyAliases {
       return Collections.unmodifiableSet(set);
    }
 
+   private static final String EDITABLE = "basicGeneralPaneModel.editable";
+   private static final List<String> DATE_FORMAT_DEAD = List.of(
+      "dataInputPaneModel.queryDateFormat", "dataInputPaneModel.dateFormatPattern");
+   private static final List<String> CALENDAR_EDITOR_DEAD = List.of(
+      "comboBoxEditorModel.calendar", "comboBoxEditorModel.serverTZ",
+      "comboBoxEditorModel.minDate", "comboBoxEditorModel.maxDate",
+      "comboBoxEditorModel.defaultValue");
+   private static final String SELECT_FIRST_ITEM = "listValuesPaneModel.selectFirstItem";
+
    /**
     * Table and crosstab fields with a getter/setter pair, populated on every GET, that the
     * matching set*PropertyModel apply method never reads back. Confirmed by reading
@@ -143,7 +152,7 @@ public final class PropertyAliases {
     * {@link #calcTable}: {@code CalcTableVSAssemblyInfo} has no such concept to land on either,
     * and {@code CalcTablePropertyDialogService}'s apply method never reads either field back.
     */
-   private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
+   private static final Map<String, Set<String>> DEAD_FIELDS = withFormOutputDeadFields(Map.of(
       "table", Set.of("shadow", "editable", "shrinkEnabled", "formVisible"),
       "crosstab", Set.of("shadow", "editable", "crosstabInfoNull",
                          "sortOthersLastEnabled", "dateComparisonSupport"),
@@ -200,7 +209,71 @@ public final class PropertyAliases {
          "sizePositionPaneModel.width",
          "sizePositionPaneModel.height",
          "sizePositionPaneModel.locked",
-         "sizePositionPaneModel.titleHeight"));
+         "sizePositionPaneModel.titleHeight")));
+
+   /**
+    * Which of the {@link #DEAD_FIELDS} entries carry the "the Composer shows it for X only"
+    * sentence in the refusal, keyed by entry. Only entries whose only live type is known and
+    * unambiguous are listed, so the hint is always true of every type that refuses the entry.
+    */
+   private static final Map<String, String> DEAD_FIELD_HINTS;
+
+   static {
+      Map<String, String> hints = new LinkedHashMap<>();
+
+      for(String entry : DATE_FORMAT_DEAD) {
+         hints.put(entry, "Format Date Values Sent to Query is applied for a ComboBox only.");
+      }
+
+      for(String entry : CALENDAR_EDITOR_DEAD) {
+         hints.put(entry, "The calendar, time zone, date bound and default value settings are " +
+                   "applied for a ComboBox only.");
+      }
+
+      hints.put(EDITABLE, "Editable is applied for a ComboBox only.");
+      hints.put(SELECT_FIRST_ITEM, "Select First Item on Dashboard Load is applied for a " +
+                "CheckBox only.");
+      DEAD_FIELD_HINTS = Collections.unmodifiableMap(hints);
+   }
+
+   /**
+    * Adds the fields the Form/Output dialogs show for one input type but whose apply methods
+    * ignore on the others (bug #80464). Each was read off {@code VSInputService}: Editable,
+    * Format Date Values Sent to Query and its pattern are ComboBox-only reads; the
+    * calendar/server time zone/min/max date/default value editor fields are ComboBox-only
+    * writes (the CheckBox and RadioButton {@code setListValues} never call them); Select First
+    * Item is a CheckBox-only write. Slider already has its set above.
+    */
+   private static Map<String, Set<String>> withFormOutputDeadFields(
+      Map<String, Set<String>> base)
+   {
+      Map<String, Set<String>> map = new LinkedHashMap<>(base);
+
+      for(String type : List.of("gauge", "text", "image")) {
+         map.put(type, Set.of(EDITABLE));
+      }
+
+      for(String type : List.of("spinner", "textinput")) {
+         Set<String> dead = new LinkedHashSet<>(List.of(EDITABLE));
+         dead.addAll(DATE_FORMAT_DEAD);
+         map.put(type, Collections.unmodifiableSet(dead));
+      }
+
+      for(String type : List.of("checkbox", "radiobutton")) {
+         Set<String> dead = new LinkedHashSet<>(List.of(EDITABLE));
+         dead.addAll(DATE_FORMAT_DEAD);
+         dead.addAll(CALENDAR_EDITOR_DEAD);
+
+         if("radiobutton".equals(type)) {
+            dead.add(SELECT_FIRST_ITEM);
+         }
+
+         map.put(type, Collections.unmodifiableSet(dead));
+      }
+
+      map.put("combobox", Set.of(SELECT_FIRST_ITEM));
+      return Collections.unmodifiableMap(map);
+   }
 
    /**
     * Per-field liveness of the shared {@code SizePositionPaneModel} (bugs #76871, #76883, #76895,
@@ -212,6 +285,13 @@ public final class PropertyAliases {
     */
    private static final Map<String, Set<String>> SIZE_POSITION_LIVE_TYPES = Map.of(
       "scaleVertical", Set.of("text"),
+      // Read back by the apply methods of exactly these types (bug #80464): CalcTable, Calendar,
+      // Chart (outside the viewer), Crosstab, SelectionContainer/List/Tree, Table,
+      // CheckBox/RadioButton (VSInputService) and RangeSlider (only when > 0). Gauge, text,
+      // image, combobox, spinner, textinput, tab, group container, shapes and submit ignore it.
+      "titleHeight", Set.of("calctable", "calendar", "chart", "crosstab", "selectioncontainer",
+                            "selectionlist", "selectiontree", "table", "timeslider", "checkbox",
+                            "radiobutton"),
       "cellHeight", Set.of("selectionlist", "selectiontree", "checkbox", "radiobutton"),
       "container", Set.of());
 
@@ -299,7 +379,17 @@ public final class PropertyAliases {
       // lexical connection to the Composer's own caption for the checkbox --
       // text-pane.component.html's `_#(Embed content from URL)` -- the same category of gap
       // "primary" fixed above.
-      "embedUrl", "Embed content from URL");
+      "embedUrl", "Embed content from URL",
+      // DataOutputPaneModel.num: the N of Nth*/the P of PthPercentile, captioned "N/P" in
+      // data-output-pane (bug #80464). Not lexically related to "num".
+      "nthOperand", "N/P",
+      // dataInputPaneModel.table: the write-back "Target" tree of data-input-pane, as opposed to
+      // the list's own "table" query (bug #80464).
+      "writeBackTable", "Target",
+      // textinput-column-option-pane's text-editor caption, shared by Text and Password
+      // (bug #80464).
+      "textPattern", "Pattern Check",
+      "passwordPattern", "Pattern Check");
 
    /**
     * Where a property's caption is itself model state rather than a fixed string, keyed by the
@@ -510,10 +600,12 @@ public final class PropertyAliases {
          }
 
          String named = deadEntry.contains(".") ? pathOrKey : leaf;
+         String hint = DEAD_FIELD_HINTS.get(deadEntry);
 
          return "'" + named + "' is read-only on " + normalizedType + ". It has a getter/setter " +
             "pair on the dialog model, populated on every read, but this type's apply method " +
             "never reads it back -- a write would report success and change nothing." +
+            (hint == null ? "" : " " + hint) +
             ("groupcontainer".equals(normalizedType) && !"enabled".equals(deadEntry)
                ? " A group's size is always the bounding box of its members: resize the " +
                  "members instead (the group re-fits to them), or set left/top to move the group."
@@ -607,7 +699,8 @@ public final class PropertyAliases {
          "PropertyPath builds arrays of primitives, String and enums and nothing else -- and " +
          "hand-writing one is how a column ends up silently double-booked as a measure, or the " +
          "write throws outright, depending on whether the column happens to be found in the " +
-         "pane's own column list. Use add_hierarchy_dimension / remove_hierarchy_dimension, " +
+         "pane's own column list. Use add_hierarchy_dimension / update_hierarchy_dimension / " +
+         "remove_hierarchy_dimension, " +
          "which build the dimension from the pane's own column catalog. Reading is fine -- call " +
          "get_assembly_properties with raw=true, or list_hierarchy_dimensions.";
    }
@@ -687,12 +780,29 @@ public final class PropertyAliases {
             "column(s)) is set with set_selection_source, not set_assembly_properties.");
       }
 
+      // View state that lives outside the property dialog model is not reachable by a raw path
+      // either, so the hint names the tool that does carry it (Redmine #80451).
+      if(key != null && SELECTION_LAYOUT_WORDS.getOrDefault(entry.assemblyType(), Map.of())
+         .containsKey(key.toLowerCase(Locale.ROOT)))
+      {
+         throw new IllegalArgumentException(
+            "'" + key + "' is not a property of " + entry.assemblyType() + ": " +
+            SELECTION_LAYOUT_WORDS.get(entry.assemblyType()).get(key.toLowerCase(Locale.ROOT)) +
+            ", set with set_selection_layout, not set_assembly_properties.");
+      }
+
       throw new IllegalArgumentException(
          "'" + key + "' is not a property of " + entry.assemblyType() + "." +
          nearest(key, entry.aliases().keySet()) +
          " Known names: " + String.join(", ", new TreeSet<>(entry.aliases().keySet())) +
          ". A raw model path (containing a '.') is also accepted.");
    }
+
+   /** Assembly type -> lower-cased layout view-state name -> what it is (#80451). */
+   private static final Map<String, Map<String, String>> SELECTION_LAYOUT_WORDS = Map.of(
+      "selectiontree", Map.of("expandall", "it is the tree's expand-all view state"),
+      "selectioncontainer", Map.of(
+         "titleratio", "it is the Selection Container's title / selected-text width ratio"));
 
    private static final Set<String> SELECTION_SOURCE_TYPES =
       Set.of("selectionlist", "selectiontree", "timeslider", "calendar");
@@ -869,11 +979,12 @@ public final class PropertyAliases {
       // Phase 3 batch a — the input assemblies, all on VSInputService, plus range slider,
       // calendar and tab.
       register(registry, "checkbox", CheckboxPropertyDialogModel.class,
-               listInput("checkboxGeneralPaneModel", true, false));
+               listInput("checkboxGeneralPaneModel", true, false, true));
       register(registry, "combobox", ComboboxPropertyDialogModel.class,
-               listInput("comboboxGeneralPaneModel", false, true));
+               comboBoxOnly(listInput("comboboxGeneralPaneModel", false, true, false),
+                            "comboboxGeneralPaneModel"));
       register(registry, "radiobutton", RadioButtonPropertyDialogModel.class,
-               listInput("radioButtonGeneralPaneModel", true, false));
+               listInput("radioButtonGeneralPaneModel", true, false, false));
       register(registry, "slider", SliderPropertyDialogModel.class, slider());
       register(registry, "spinner", SpinnerPropertyDialogModel.class, spinner());
       register(registry, "textinput", TextInputPropertyDialogModel.class, textInput());
@@ -1031,11 +1142,34 @@ public final class PropertyAliases {
     * ImagePropertyDialogService} set it from and read it into {@code AggregateFormula} the same
     * way {@code GaugePropertyDialogService} does), so it is safe to alias for all three rather
     * than risking the shadow/projectForwardEnabled "exposes but does nothing" trap.
+    *
+    * <p>{@code with} (the second column of a two-column formula), {@code nthOperand} (the N/P
+    * of an Nth/Pth formula; the pane field is called {@code num}) and {@code magnitude} (the
+    * As Is / Thousands / Millions / Billions scale) are read back by all three services as well
+    * (Redmine #80464); they were writable only through the raw {@code dataOutputPaneModel.*}
+    * path.
     */
    private static void dataOutput(Map<String, String> aliases) {
       aliases.put("table", "dataOutputPaneModel.table");
       aliases.put("column", "dataOutputPaneModel.column");
       aliases.put("aggregate", "dataOutputPaneModel.aggregate");
+      aliases.put("with", "dataOutputPaneModel.with");
+      aliases.put("nthOperand", "dataOutputPaneModel.num");
+      aliases.put("magnitude", "dataOutputPaneModel.magnitude");
+   }
+
+   /**
+    * The input label pane shared by the four input assemblies that host one -- combobox, slider,
+    * spinner and text input (checkbox and radio button show a title bar instead and have no
+    * {@code inputLabelPaneModel}). {@code labelPosition} and {@code labelGap} are applied by
+    * {@code VSInputService} for all four (Redmine #80464); the position alias must be exactly
+    * {@code labelPosition} because the plugin pre-validates that key.
+    */
+   private static void inputLabel(Map<String, String> aliases) {
+      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
+      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      aliases.put("labelPosition", "inputLabelPaneModel.labelPosition");
+      aliases.put("labelGap", "inputLabelPaneModel.labelGap");
    }
 
    /**
@@ -1052,6 +1186,9 @@ public final class PropertyAliases {
       aliases.put("table", "dataInputPaneModel.table");
       aliases.put("columnValue", "dataInputPaneModel.columnValue");
       aliases.put("rowValue", "dataInputPaneModel.rowValue");
+      // "Write Back to Storage": applied by the slider, spinner and text input setters in
+      // VSInputService (Redmine #80464).
+      aliases.put("writeBackDirectly", "dataInputPaneModel.writeBackDirectly");
    }
 
    private static Map<String, String> gauge() {
@@ -1141,11 +1278,28 @@ public final class PropertyAliases {
       // visibility flag plus optional custom text, no Data Tip View/tipView radio option (that
       // would be a different pane entirely: image's own separate "Pop Component" feature,
       // ImageAdvancedPaneModel.popComponent/popOption/popLocation, applied unconditionally by
-      // setImagePropertyDialogModel with no gating relation to tipOption at all -- deliberately
-      // NOT aliased here, out of scope for this ticket).
+      // setImagePropertyDialogModel with no gating relation to tipOption at all -- aliased
+      // separately below, see "Pop pane").
       aliases.put("tooltipVisible", "imageGeneralPaneModel.tipPaneModel.tipOption");
       aliases.put("tooltip", "imageGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customTip");
       aliases.put("tooltipMode", "imageGeneralPaneModel.tipPaneModel.tipCustomizeDialogModel.customRB");
+
+      // Pop pane (Redmine #80464). The same three controls the Composer shows for Text, applied
+      // unconditionally by ImagePropertyDialogService.setImagePropertyDialogModel.
+      aliases.put("popComponent", "imageAdvancedPaneModel.popComponent");
+      aliases.put("popLocation", "imageAdvancedPaneModel.popLocation");
+      aliases.put("alpha", "imageAdvancedPaneModel.alpha");
+
+      // Scale pane (Redmine #80464 PR3). Each control is applied by setImagePropertyDialogModel
+      // (:360-370); PatchGuards refuses the combinations the Composer disables.
+      String scale = "imageAdvancedPaneModel.imageScalePaneModel";
+      aliases.put("scaleImage", scale + ".scaleImageChecked");
+      aliases.put("maintainAspectRatio", scale + ".maintainAspectRatio");
+      aliases.put("tile", scale + ".tile");
+      aliases.put("cellGridTop", scale + ".top");
+      aliases.put("cellGridLeft", scale + ".left");
+      aliases.put("cellGridBottom", scale + ".bottom");
+      aliases.put("cellGridRight", scale + ".right");
       dataOutput(aliases);
       return aliases;
    }
@@ -1358,16 +1512,23 @@ public final class PropertyAliases {
     * Check box, combo box and radio button share a list-values general pane. This is the
     * dropdown/list's own choices query — {@code selectionListEditorModel.table}/{@code .column}
     * — distinct from combobox's separate top-level {@code dataInputPaneModel} (row/column
-    * write-back target), which is deliberately not aliased here or via {@link #dataInput}; see
-    * that method's doc for why the two must not collide under the same alias name.
+    * write-back target), which is not routed via {@link #dataInput} and is aliased below under
+    * the distinct {@code writeBack*} names; see that method's doc for why the two must not
+    * collide under the same alias name.
     *
     * <p>{@code hasInputLabel} covers combobox's own top-level {@code inputLabelPaneModel}
     * (the optional label shown next to the dropdown). Checkbox and radiobutton have no such
     * field on their dialog model at all -- they show their own title bar instead -- so this is
     * declared per caller rather than assumed from the shape the other two parameters share.
+    *
+    * <p>{@code checkBox} marks the one list type whose Composer dialog differs on the Data pane
+    * and the list-values pane (Redmine #80464): it has no write-back Column, Row or Write Back to
+    * Storage (the {@code dataInputPaneModel} column/row/writeBackDirectly fields are refused for
+    * it, bug #78579), its Target is variables-only (so {@code writeBackTable} is registered but
+    * refused unless it names a variable), and it is the only one with Select First Item.
     */
    private static Map<String, String> listInput(String prefix, boolean hasTitle,
-                                                 boolean hasInputLabel)
+                                                 boolean hasInputLabel, boolean checkBox)
    {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, prefix);
@@ -1376,27 +1537,87 @@ public final class PropertyAliases {
 
       if(hasTitle) {
          title(aliases, prefix);
+         // The Title Height / Cell Height controls the size pane shows for exactly the two
+         // titled list inputs; VSInputService reads both back for checkbox and radio button.
+         titleHeight(aliases, prefix);
+         aliases.put("cellHeight", prefix + ".sizePositionPaneModel.cellHeight");
       }
 
       if(hasInputLabel) {
-         aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-         aliases.put("labelText", "inputLabelPaneModel.labelText");
+         inputLabel(aliases);
       }
 
-      // "embedded"/"query" gate whether the static labels/values below (still raw-path-only --
-      // VariableListDialogModel.labels/.values are not aliased here) are ever read at
-      // render/bind time: VSInputService's setListValues derives sourceType from these two
-      // flags alone, defaulting to NONE_SOURCE (labels/values stored but never used) when
-      // neither is set. Without a short name, the only way to discover/set "embedded" was
-      // get_assembly_properties(raw: true) (Redmine #76699/VFO-016).
+      // Sort / List Embedded Items Last, shown and applied for all three list types.
+      String listValues = prefix + ".listValuesPaneModel";
+      aliases.put("sortType", listValues + ".sortType");
+      aliases.put("embeddedDataDown", listValues + ".embeddedDataDown");
+
+      if(checkBox) {
+         // list-values-pane shows Select First Item only for the check box, and only the check
+         // box setter calls setSelectFirstItemValue.
+         aliases.put("selectFirstItem", listValues + ".selectFirstItem");
+      }
+
+      // Write-back target. Named writeBack* because the plain "table"/"column" aliases below
+      // are the list's own query. The check box offers only the Target (its tree is
+      // variables-only, VSInputService passes onlyVars=true; AssemblyPropertyService refuses a
+      // non-variable table for it), never Column, Row or Write Back (bug #78579).
+      aliases.put("writeBackTable", "dataInputPaneModel.table");
+
+      if(!checkBox) {
+         aliases.put("writeBackColumn", "dataInputPaneModel.columnValue");
+         aliases.put("writeBackRow", "dataInputPaneModel.rowValue");
+         aliases.put("writeBackDirectly", "dataInputPaneModel.writeBackDirectly");
+      }
+
+      // "embedded"/"query" gate whether the static labels/values (staticLabels/staticValues
+      // below) are ever read at render/bind time: VSInputService's setListValues derives
+      // sourceType from these two flags alone, defaulting to NONE_SOURCE (labels/values stored
+      // but never used) when neither is set. Without a short name, the only way to discover/set
+      // "embedded" was get_assembly_properties(raw: true) (Redmine #76699/VFO-016).
       String comboBoxEditor = prefix + ".listValuesPaneModel.comboBoxEditorModel";
       aliases.put("embedded", comboBoxEditor + ".embedded");
       aliases.put("query", comboBoxEditor + ".query");
+      // Data type select: shown for all three list types, applied by all three setters.
+      aliases.put("dataType", comboBoxEditor + ".dataType");
+      // The "Embedded List Values" items (Redmine #80464): parallel String arrays, one entry per
+      // item. Not named labels/values, which differ by one letter from the plugin's "value" key
+      // (and from the combo box's list-source "column"). Judged by the list guards on the
+      // resolved path, and a write implies embedded:true (deriveEmbeddedFromStaticList).
+      aliases.put("staticLabels", comboBoxEditor + ".variableListDialogModel.labels");
+      aliases.put("staticValues", comboBoxEditor + ".variableListDialogModel.values");
 
       String editor = comboBoxEditor + ".selectionListDialogModel.selectionListEditorModel";
       aliases.put("table", editor + ".table");
       aliases.put("column", editor + ".column");
 
+      return aliases;
+   }
+
+   /**
+    * The ComboBox-only controls (Redmine #80464). The Composer shows each of them for a combo box
+    * alone -- Editable on {@code basic-general-pane} (the model flag {@code showEditableCheckbox}
+    * is set by the ComboBox read only), Calendar / Server Time Zone / Minimum and Maximum Date /
+    * Default Value under {@code combo-box-editor}'s {@code showCalendar}, and Format Date Values
+    * Sent to Query under {@code comboBox && isDateType} -- and {@code VSInputService} reads them
+    * back in the ComboBox setters only. The CheckBox and RadioButton setters never do, so the
+    * same raw paths are refused there through {@link #DEAD_FIELDS}.
+    *
+    * <p>{@code editable} resolves to {@code basicGeneralPaneModel.editable}, <b>not</b> the
+    * neighbouring {@code basicGeneralPaneModel.enabled} (see {@link #basicGeneral}): the latter
+    * is the misnamed leftover nothing reads. {@code noDefault} is deliberately not aliased: the
+    * server never reads it (the Composer just clears the default value).
+    */
+   private static Map<String, String> comboBoxOnly(Map<String, String> aliases, String prefix) {
+      aliases.put("editable", prefix + ".generalPropPaneModel.basicGeneralPaneModel.editable");
+      aliases.put("queryDateFormat", "dataInputPaneModel.queryDateFormat");
+      aliases.put("dateFormatPattern", "dataInputPaneModel.dateFormatPattern");
+      String editor = prefix + ".listValuesPaneModel.comboBoxEditorModel";
+      aliases.put("calendar", editor + ".calendar");
+      aliases.put("serverTZ", editor + ".serverTZ");
+      aliases.put("minDate", editor + ".minDate");
+      aliases.put("maxDate", editor + ".maxDate");
+      aliases.put("defaultValue", editor + ".defaultValue");
       return aliases;
    }
 
@@ -1420,8 +1641,7 @@ public final class PropertyAliases {
       aliases.put("label", sliderLabel + ".label");
       aliases.put("showMin", sliderLabel + ".minimum");
       aliases.put("showMax", sliderLabel + ".maximum");
-      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      inputLabel(aliases);
       dataInput(aliases);
       return aliases;
    }
@@ -1432,8 +1652,7 @@ public final class PropertyAliases {
       submitOnChange(aliases, "spinnerGeneralPaneModel");
       sizePosition(aliases, "spinnerGeneralPaneModel");
       numericRange(aliases, "spinnerGeneralPaneModel");
-      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      inputLabel(aliases);
       dataInput(aliases);
       return aliases;
    }
@@ -1443,8 +1662,34 @@ public final class PropertyAliases {
       dataGeneral(aliases, "textInputGeneralPaneModel");
       submitOnChange(aliases, "textInputGeneralPaneModel");
       sizePosition(aliases, "textInputGeneralPaneModel");
-      aliases.put("showLabel", "inputLabelPaneModel.showLabel");
-      aliases.put("labelText", "inputLabelPaneModel.labelText");
+      inputLabel(aliases);
+      // General pane (Redmine #80464). "Placeholder Text" is bound to the model's toolTip and
+      // "Default Text" to defaultText (textinput-general-pane). multiLine is live only for the
+      // Text input control type (the Composer disables it otherwise; PatchGuards refuses it),
+      // inputControl is the Input Control type select, normalized by AssemblyPropertyService.
+      aliases.put("placeholderText", "textInputGeneralPaneModel.toolTip");
+      aliases.put("defaultText", "textInputGeneralPaneModel.defaultText");
+      aliases.put("insetStyle", "textInputGeneralPaneModel.insetStyle");
+      aliases.put("multiLine", "textInputGeneralPaneModel.multiLine");
+      aliases.put("inputControl", "textInputColumnOptionPaneModel.type");
+      // Input Control editor. Each type has its own sub-editor, shown, applied and read back
+      // only while that type is selected, so the names carry the type; PatchGuards refuses a
+      // write to the editor of a type that is not selected (it would be dropped).
+      String option = "textInputColumnOptionPaneModel.";
+      for(String[] editor : new String[][] {
+         { "text", "textEditorModel" }, { "password", "passwordEditorModel" } })
+      {
+         aliases.put(editor[0] + "Pattern", option + editor[1] + ".pattern");
+         aliases.put(editor[0] + "ErrorMessage", option + editor[1] + ".errorMessage");
+      }
+      for(String[] editor : new String[][] {
+         { "date", "dateEditorModel" }, { "integer", "integerEditorModel" },
+         { "float", "floatEditorModel" } })
+      {
+         aliases.put(editor[0] + "Minimum", option + editor[1] + ".minimum");
+         aliases.put(editor[0] + "Maximum", option + editor[1] + ".maximum");
+         aliases.put(editor[0] + "ErrorMessage", option + editor[1] + ".errorMessage");
+      }
       dataInput(aliases);
       return aliases;
    }

@@ -21,10 +21,18 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.ConditionItem;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.AssetVariable;
+import inetsoft.uql.asset.BoundTableAssembly;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.web.binding.drm.DataRefModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -125,5 +133,47 @@ class VariableOperandCheckTest {
 
       when(box.getWorksheet()).thenThrow(new IllegalStateException("expired"));
       assertTrue(VariableOperandCheck.declaredNames(box).isEmpty());
+   }
+
+   private static Worksheet conditionOnlyWorksheet(String variable) {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = new BoundTableAssembly(ws, "T1");
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(XCondition.GREATER_THAN);
+      cond.setType(XSchema.INTEGER);
+      cond.addValue(new UserVariable(variable));
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new AttributeRef(null, "REVENUE"), cond, 0));
+      table.setPreConditionList(list);
+      ws.addAssembly(table);
+      return ws;
+   }
+
+   @Test
+   void declaredNamesIncludesVariablesReferencedOnlyByABaseWorksheetCondition() {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getWorksheet()).thenReturn(conditionOnlyWorksheet("condOnlyVar"));
+
+      Set<String> declared = VariableOperandCheck.declaredNames(box);
+
+      assertTrue(declared.contains("condOnlyVar"), declared.toString());
+      assertFalse(declared.contains("ghost"), declared.toString());
+      List<String> warnings = run("condOnlyVar", new VariableTable(), declared);
+      assertFalse(warnings.get(0).contains("not defined"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("no value yet"), warnings.get(0));
+      assertTrue(run("ghost", new VariableTable(), declared).get(0).contains("not defined"));
+   }
+
+   @Test
+   void declaredNamesKeepsVariableAssembliesWhenConditionVariablesCannotBeRead() {
+      Worksheet ws = spy(conditionOnlyWorksheet("condOnlyVar"));
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, "cutoffAssembly");
+      assembly.setVariable(new AssetVariable("cutoff"));
+      ws.addAssembly(assembly);
+      doThrow(new RuntimeException("Unsupported method called!")).when(ws).getAllVariables();
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getWorksheet()).thenReturn(ws);
+
+      assertEquals(Set.of("cutoff"), VariableOperandCheck.declaredNames(box));
    }
 }

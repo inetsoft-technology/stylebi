@@ -142,7 +142,7 @@ public class VSChartMapService {
       return null;
    }
 
-   private static void clearPanZoom(PlotDescriptor plot) {
+   public static void clearPanZoom(PlotDescriptor plot) {
       plot.setPanX(0);
       plot.setPanY(0);
       plot.setZoom(1);

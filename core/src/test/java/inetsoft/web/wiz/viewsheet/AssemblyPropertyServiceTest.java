@@ -4024,14 +4024,12 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
-   void allowsValidAndEqualTextInputBoundsAndIgnoresTheUnselectedEditor() {
+   void allowsValidAndEqualTextInputBounds() {
       TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
       Map<String, Object> patch = new LinkedHashMap<>();
       patch.put("textInputColumnOptionPaneModel.type", "Integer");
       patch.put("textInputColumnOptionPaneModel.integerEditorModel.minimum", 5);
       patch.put("textInputColumnOptionPaneModel.integerEditorModel.maximum", 5);
-      // A bad value on an editor the pane's type does not select is never stored, so not checked.
-      patch.put("textInputColumnOptionPaneModel.dateEditorModel.minimum", "garbage-not-a-date");
 
       assertDoesNotThrow(() -> setTextInputColumnOption(model, patch));
       assertEquals(5, model.getTextInputColumnOptionPaneModel().getIntegerEditorModel()
@@ -4112,15 +4110,90 @@ class AssemblyPropertyServiceTest {
       }
    }
 
+   /**
+    * A pattern for an editor the selected type does not use is never stored, and since bug #80464
+    * PR4 it is refused outright (PatchGuards) instead of being accepted and dropped; the regex
+    * check itself still judges only the active editor.
+    */
    @Test
-   void bug79095TextInputPatternOfTheInactiveEditorIsNotChecked() {
-      TextInputPropertyDialogModel model = textInputWithType("Integer");
-
-      assertDoesNotThrow(() -> setTextInputColumnOption(
-         model, patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
-      assertDoesNotThrow(() -> setTextInputColumnOption(
+   void bug79095TextInputPatternOfTheInactiveEditorIsRefusedNotChecked() {
+      Exception e = assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
+         textInputWithType("Integer"),
+         patchOf("textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
+      assertTrue(e.getMessage().contains("inputControl") &&
+                 !e.getMessage().contains("regular expression"), e.getMessage());
+      assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
          textInputWithType("Password"),
          patchOf("textInputColumnOptionPaneModel.textEditorModel.pattern", "[")));
+      // the type and its editor in one call is the active editor again, and is regex-checked
+      assertThrows(IllegalArgumentException.class, () -> setTextInputColumnOption(
+         textInputWithType("Integer"),
+         patchOf("textInputColumnOptionPaneModel.type", "Password",
+                 "textInputColumnOptionPaneModel.passwordEditorModel.pattern", "[")));
+   }
+
+   // ── bug #80464 PR4: Input Control editor names, one editor per type ──
+
+   private static final String OPTION = "textInputColumnOptionPaneModel.";
+
+   /** alias, raw leaf, the type that owns the editor, a value. */
+   private static final Object[][] TEXT_INPUT_EDITOR_FIELDS = {
+      { "textPattern", "textEditorModel.pattern", "Text", "[0-9]+" },
+      { "textErrorMessage", "textEditorModel.errorMessage", "Text", "digits" },
+      { "passwordPattern", "passwordEditorModel.pattern", "Password", ".{8,}" },
+      { "passwordErrorMessage", "passwordEditorModel.errorMessage", "Password", "short" },
+      { "dateMinimum", "dateEditorModel.minimum", "Date", "2020-01-01" },
+      { "dateMaximum", "dateEditorModel.maximum", "Date", "2021-01-01" },
+      { "dateErrorMessage", "dateEditorModel.errorMessage", "Date", "bad date" },
+      { "integerMinimum", "integerEditorModel.minimum", "Integer", 1 },
+      { "integerMaximum", "integerEditorModel.maximum", "Integer", 9 },
+      { "integerErrorMessage", "integerEditorModel.errorMessage", "Integer", "bad int" },
+      { "floatMinimum", "floatEditorModel.minimum", "Float", 1.5f },
+      { "floatMaximum", "floatEditorModel.maximum", "Float", 9.5f },
+      { "floatErrorMessage", "floatEditorModel.errorMessage", "Float", "bad float" },
+   };
+
+   @Test
+   void textInputEditorFieldsAreWrittenWhileTheirInputControlIsSelected() {
+      for(Object[] field : TEXT_INPUT_EDITOR_FIELDS) {
+         for(String key : new String[] { (String) field[0], OPTION + field[1] }) {
+            TextInputPropertyDialogModel model = textInputWithType((String) field[2]);
+            setTextInputColumnOption(model, patchOf(key, field[3]));
+            assertEquals(field[3], PropertyPath.get(model, OPTION + field[1]), key);
+         }
+
+         // switching the type and writing its editor in one call is the active editor again
+         TextInputPropertyDialogModel other = textInputWithType("Text".equals(field[2]) ?
+                                                                   "Date" : "Text");
+         setTextInputColumnOption(other, patchOf("inputControl", field[2], field[0], field[3]));
+         assertEquals(field[2], other.getTextInputColumnOptionPaneModel().getType());
+         assertEquals(field[3], PropertyPath.get(other, OPTION + field[1]), (String) field[0]);
+      }
+   }
+
+   @Test
+   void textInputEditorFieldsOfAnotherInputControlAreRefusedOnTheAliasAndTheRawPath() {
+      for(Object[] field : TEXT_INPUT_EDITOR_FIELDS) {
+         String active = "Text".equals(field[2]) ? "Date" : "Text";
+
+         for(String key : new String[] { (String) field[0], OPTION + field[1] }) {
+            TextInputPropertyDialogModel model = textInputWithType(active);
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> setTextInputColumnOption(model, patchOf(key, field[3])), key);
+
+            assertTrue(e.getMessage().contains(OPTION + field[1]) &&
+                       e.getMessage().contains("inputControl") &&
+                       e.getMessage().contains(active) && e.getMessage().contains(
+                          "\"" + field[2] + "\""), e.getMessage());
+            assertNothingWrittenBy(lastDialogServices);
+         }
+      }
+
+      // an unchanged echo of a stored value is not a write
+      TextInputPropertyDialogModel stored = textInputWithType("Date");
+      stored.getTextInputColumnOptionPaneModel().getIntegerEditorModel().setMinimum(3);
+      assertDoesNotThrow(() -> setTextInputColumnOption(
+         stored, patchOf("integerMinimum", 3)));
    }
 
    @Test
@@ -4157,6 +4230,9 @@ class AssemblyPropertyServiceTest {
    /** A model in the state the real getter returns: the info's default pattern, format off. */
    private static ComboboxPropertyDialogModel seededComboboxModel(boolean qdf, String pattern) {
       ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      // the Composer offers the format only for a date combo (bug #80464 PR3)
+      model.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .setDataType("date");
       model.getDataInputPaneModel().setQueryDateFormat(qdf);
       model.getDataInputPaneModel().setDateFormatPattern(pattern);
       return model;
@@ -4217,14 +4293,14 @@ class AssemblyPropertyServiceTest {
 
    @Test
    void bug79094PatternsTheRuntimeHonoursAreAcceptedVerbatim() throws Exception {
-      for(boolean qdf : new boolean[] { false, true }) {
-         for(String pattern : new String[] { "yyyy-MM", "yyyy_MM_dd", "dd.MM.yyyy", "'abc'",
-                                             "MMM d, yyyy", "yyyy-MM-dd 'HH:mm'" })
-         {
-            ComboboxPropertyDialogModel model = seededComboboxModel(qdf, "yyyy-MM-dd");
-            setCombobox(model, patchOf(DFP, pattern));
-            assertEquals(pattern, model.getDataInputPaneModel().getDateFormatPattern());
-         }
+      // with the format off a changed pattern is refused instead (#80464 PR3, see
+      // aDateFormatPatternNeedsQueryDateFormatOn)
+      for(String pattern : new String[] { "yyyy-MM", "yyyy_MM_dd", "dd.MM.yyyy", "'abc'",
+                                          "MMM d, yyyy", "yyyy-MM-dd 'HH:mm'" })
+      {
+         ComboboxPropertyDialogModel model = seededComboboxModel(true, "yyyy-MM-dd");
+         setCombobox(model, patchOf(DFP, pattern));
+         assertEquals(pattern, model.getDataInputPaneModel().getDateFormatPattern());
       }
    }
 
@@ -6423,5 +6499,502 @@ class AssemblyPropertyServiceTest {
          () -> setOn(target, Map.of("locked", false)));
       assertTrue(e.getMessage().contains("read-only"), e.getMessage());
       assertTrue(target.pane().isLocked());
+   }
+
+   // ── #80464 PR3: guards paired with the new aliases ──
+
+   private static final String SCALE = "imageAdvancedPaneModel.imageScalePaneModel.";
+   private static final String PREVIEW =
+      "imageGeneralPaneModel.staticImagePaneModel.imagePreviewPaneModel.";
+
+   private static ImagePropertyDialogModel pr3Image(boolean scale, boolean tile, boolean aspect,
+                                                     int top, String selected, boolean gif,
+                                                     String dynamic)
+   {
+      return ImagePropertyDialogModel.builder()
+         .imageGeneralPaneModel(ImageGeneralPaneModel.builder()
+            .staticImagePaneModel(StaticImagePaneModel.builder()
+               .imagePreviewPaneModel(ImagePreviewPaneModel.builder()
+                  .selectedImage(selected).animateGifImage(gif).build())
+               .build())
+            .build())
+         .imageAdvancedPaneModel(ImageAdvancedPaneModel.builder()
+            .popComponents(new String[] { "T1" })
+            .dynamicImagePaneModel(inetsoft.web.composer.model.vs.DynamicImagePaneModel.builder()
+               .dynamicImageSelected(dynamic != null).dynamicImageValue(dynamic).build())
+            .imageScalePaneModel(ImageScalePaneModel.builder()
+               .scaleImageChecked(scale).tile(tile).maintainAspectRatio(aspect).top(top).build())
+            .build())
+         .build();
+   }
+
+   @Test
+   void imageScaleAliasesWriteThroughAndTheExclusionGuardFiresOnAliasAndRawPath()
+      throws Exception
+   {
+      // the issue's own repro: tile an image that is scaled; alias and raw path both refused
+      for(String key : new String[] { "tile", SCALE + "tile" }) {
+         String msg = refuseImageScale(pr3Image(true, false, true, 0, "a.png", false, null),
+                                       Map.of(key, true));
+         assertTrue(msg.contains("scaleImageChecked") && msg.contains("tile"), msg);
+      }
+
+      for(String key : new String[] { "scaleImage", SCALE + "scaleImageChecked" }) {
+         String msg = refuseImageScale(pr3Image(false, true, false, 0, "a.png", false, null),
+                                       Map.of(key, true));
+         assertTrue(msg.contains("mutually exclusive"), msg);
+      }
+
+      ImageScalePaneModel pane = setImageScale(
+         pr3Image(false, false, false, 0, "a.png", false, null),
+         patchOf("scaleImage", true, "maintainAspectRatio", false, "cellGridTop", 3,
+                 "cellGridLeft", 4, "cellGridBottom", 5, "cellGridRight", 6));
+      assertTrue(pane.scaleImageChecked());
+      assertFalse(pane.maintainAspectRatio());
+      assertEquals(3, pane.top());
+      assertEquals(4, pane.left());
+      assertEquals(5, pane.bottom());
+      assertEquals(6, pane.right());
+
+      assertTrue(setImageScale(pr3Image(false, false, false, 0, "a.png", false, null),
+                               Map.of("tile", true)).tile());
+   }
+
+   @Test
+   void anSvgCannotUseScaleCellGridAndAnAnimatedGifHasNoInsets() throws Exception {
+      for(String key : new String[] { "maintainAspectRatio", SCALE + "maintainAspectRatio" }) {
+         String msg = refuseImageScale(
+            pr3Image(true, false, true, 0, "^UPLOADED^logo.svg", false, null),
+            Map.of(key, false));
+         assertTrue(msg.contains("SVG"), msg);
+      }
+
+      // a dynamic plain path wins over the static pick, as the pane's selectedImagePath does
+      String dynamic = refuseImageScale(
+         pr3Image(true, false, true, 0, "a.png", false, "logo.svg"),
+         Map.of("maintainAspectRatio", false));
+      assertTrue(dynamic.contains("SVG"), dynamic);
+
+      // a script/variable dynamic value is not judged; a raster image keeps the cell grid
+      assertFalse(setImageScale(
+         pr3Image(true, false, true, 0, "a.png", false, "$(img)"),
+         Map.of("maintainAspectRatio", false)).maintainAspectRatio());
+      assertFalse(setImageScale(
+         pr3Image(true, false, true, 0, "a.png", false, null),
+         Map.of("maintainAspectRatio", false)).maintainAspectRatio());
+
+      for(String key : new String[] { "cellGridTop", SCALE + "top" }) {
+         String msg = refuseImageScale(pr3Image(true, false, false, 0, "a.gif", true, null),
+                                       Map.of(key, 5));
+         assertTrue(msg.contains("animated GIF"), msg);
+      }
+
+      // turning the animation off in the same call restores the insets
+      assertEquals(5, setImageScale(
+         pr3Image(true, false, false, 0, "a.gif", true, null),
+         patchOf(PREVIEW + "animateGifImage", false, "cellGridTop", 5)).top());
+   }
+
+   @Test
+   void multiLineIsRefusedUnlessTheInputControlIsText() throws Exception {
+      for(String key : new String[] { "multiLine", "textInputGeneralPaneModel.multiLine" }) {
+         TextInputPropertyDialogModel date = new TextInputPropertyDialogModel();
+         date.getTextInputColumnOptionPaneModel().setType("Date");
+         AssemblyPropertyService service =
+            serviceWithTextInput(mock(TextInputVSAssembly.class), date, new Worksheet());
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "T1", Map.of(key, true), ""));
+         assertTrue(e.getMessage().contains("Multiple Lines") &&
+                    e.getMessage().contains("Date"), e.getMessage());
+         assertNothingWrittenBy(lastDialogServices);
+      }
+
+      TextInputPropertyDialogModel text = new TextInputPropertyDialogModel();
+      text.getTextInputColumnOptionPaneModel().setType("Text");
+      serviceWithTextInput(mock(TextInputVSAssembly.class), text, new Worksheet())
+         .set("tok", principal(), "T1", Map.of("multiLine", true), "");
+      assertTrue(text.getTextInputGeneralPaneModel().isMultiLine());
+
+      // the same patch that turns it on while moving the type off Text is refused too
+      TextInputPropertyDialogModel both = new TextInputPropertyDialogModel();
+      both.getTextInputColumnOptionPaneModel().setType("Text");
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), both, new Worksheet());
+      assertThrows(IllegalArgumentException.class, () -> service.set(
+         "tok", principal(), "T1", patchOf("inputControl", "Integer", "multiLine", true), ""));
+
+      // moving the type off Text while a stored multiLine:true stays is what the Composer does
+      for(String key : new String[] { "inputControl", "textInputColumnOptionPaneModel.type" }) {
+         TextInputPropertyDialogModel typeOnly = new TextInputPropertyDialogModel();
+         typeOnly.getTextInputColumnOptionPaneModel().setType("Text");
+         typeOnly.getTextInputGeneralPaneModel().setMultiLine(true);
+         serviceWithTextInput(mock(TextInputVSAssembly.class), typeOnly, new Worksheet())
+            .set("tok", principal(), "T1", Map.of(key, "Date"), "");
+         assertEquals("Date", typeOnly.getTextInputColumnOptionPaneModel().getType());
+         assertTrue(typeOnly.getTextInputGeneralPaneModel().isMultiLine());
+      }
+
+      // multiLine:true together with inputControl:Text is fine, on the alias and the raw path
+      for(String[] keys : new String[][] { { "multiLine", "inputControl" },
+         { "textInputGeneralPaneModel.multiLine", "textInputColumnOptionPaneModel.type" } })
+      {
+         TextInputPropertyDialogModel date = new TextInputPropertyDialogModel();
+         date.getTextInputColumnOptionPaneModel().setType("Date");
+         serviceWithTextInput(mock(TextInputVSAssembly.class), date, new Worksheet())
+            .set("tok", principal(), "T1", patchOf(keys[0], true, keys[1], "Text"), "");
+         assertTrue(date.getTextInputGeneralPaneModel().isMultiLine());
+         assertEquals("Text", date.getTextInputColumnOptionPaneModel().getType());
+      }
+
+      // turning it off, or any other write, is never blocked by a stale true
+      TextInputPropertyDialogModel stale = new TextInputPropertyDialogModel();
+      stale.getTextInputColumnOptionPaneModel().setType("Date");
+      stale.getTextInputGeneralPaneModel().setMultiLine(true);
+      serviceWithTextInput(mock(TextInputVSAssembly.class), stale, new Worksheet())
+         .set("tok", principal(), "T1", Map.of("multiLine", false), "");
+      assertFalse(stale.getTextInputGeneralPaneModel().isMultiLine());
+   }
+
+   @Test
+   void inputControlIsNormalizedToTheCanonicalTypeOrRefused() throws Exception {
+      for(String[] c : new String[][] { { "date", "Date" }, { "INTEGER", "Integer" },
+                                        { " float ", "Float" }, { "password", "Password" },
+                                        { "TEXT", "Text" } })
+      {
+         for(String key : new String[] { "inputControl", "textInputColumnOptionPaneModel.type" }) {
+            TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+            serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet())
+               .set("tok", principal(), "T1", Map.of(key, c[0]), "");
+            assertEquals(c[1], model.getTextInputColumnOptionPaneModel().getType(), key + c[0]);
+         }
+      }
+
+      for(String key : new String[] { "inputControl", "textInputColumnOptionPaneModel.type" }) {
+         TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+         model.getTextInputColumnOptionPaneModel().setType("Text");
+         AssemblyPropertyService service =
+            serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+         for(String bad : new String[] { "Spinner", "", "CheckBox" }) {
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> service.set("tok", principal(), "T1", Map.of(key, bad), ""));
+            assertTrue(e.getMessage().contains("Text, Date, Integer, Float or Password"),
+                       e.getMessage());
+            assertEquals("Text", model.getTextInputColumnOptionPaneModel().getType());
+         }
+      }
+   }
+
+   @Test
+   void checkboxWriteBackTableMustBeAVariable() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new DefaultVariableAssembly(ws, "StartDate"));
+
+      for(String key : new String[] { "writeBackTable", "dataInputPaneModel.table" }) {
+         CheckboxPropertyDialogModel ok = new CheckboxPropertyDialogModel();
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), ok, ws)
+            .set("tok", principal(), "C1", Map.of(key, "$(StartDate)"), "");
+         assertEquals("$(StartDate)", ok.getDataInputPaneModel().getTable());
+
+         CheckboxPropertyDialogModel bare = new CheckboxPropertyDialogModel();
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), bare, ws)
+            .set("tok", principal(), "C1", Map.of(key, "StartDate"), "");
+         // accepted as a variable; the setter, not this layer, rewrites it to $(StartDate)
+         assertEquals("StartDate", bare.getDataInputPaneModel().getTable());
+
+         Exception unknown = assertThrows(IllegalArgumentException.class,
+            () -> serviceWithCheckbox(mock(CheckBoxVSAssembly.class),
+                                      new CheckboxPropertyDialogModel(), ws)
+               .set("tok", principal(), "C1", Map.of(key, "$(Nope)"), ""));
+         assertTrue(unknown.getMessage().contains("Nope"), unknown.getMessage());
+
+         CheckboxPropertyDialogModel clear = new CheckboxPropertyDialogModel();
+         clear.getDataInputPaneModel().setTable("$(StartDate)");
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), clear, ws)
+            .set("tok", principal(), "C1", Map.of(key, ""), "");
+         assertEquals("", clear.getDataInputPaneModel().getTable());
+      }
+
+      // a real worksheet table is what the guard exists for
+      for(String key : new String[] { "writeBackTable", "dataInputPaneModel.table" }) {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> serviceWithCheckbox(mock(CheckBoxVSAssembly.class),
+                                      new CheckboxPropertyDialogModel(),
+                                      worksheetWithTables("Table1"))
+               .set("tok", principal(), "C1", Map.of(key, "Table1"), ""));
+         assertTrue(e.getMessage().contains("variable") && e.getMessage().contains("Table1"),
+                    e.getMessage());
+      }
+
+      // Column / Row / Write Back stay refused on a check box (#78579)
+      for(String key : new String[] { "dataInputPaneModel.columnValue",
+                                      "dataInputPaneModel.rowValue" })
+      {
+         assertThrows(IllegalArgumentException.class,
+            () -> serviceWithCheckbox(mock(CheckBoxVSAssembly.class),
+                                      new CheckboxPropertyDialogModel(), ws)
+               .set("tok", principal(), "C1", Map.of(key, "x"), ""));
+      }
+   }
+
+   private AssemblyPropertyService pr3Output(Object model, VSAssembly assembly, String table,
+                                             ColumnSelection cols)
+   {
+      return outputBindingService(assembly, model, worksheetWithTables(table),
+                                  outputServiceWithColumns(table, cols));
+   }
+
+   private static String refusedOutput(AssemblyPropertyService service, String name,
+                                       Map<String, Object> patch)
+   {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), name, patch, ""), patch.toString());
+      assertNothingWrittenBy(lastDialogServices);
+      return e.getMessage();
+   }
+
+   @Test
+   void outputWithAndOperandFollowTheFormulaArity() throws Exception {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      for(String with : new String[] { "with", "dataOutputPaneModel.with" }) {
+         String agg = with.equals("with") ? "aggregate" : "dataOutputPaneModel.aggregate";
+
+         // a two-column formula needs the second column
+         String msg = refusedOutput(
+            pr3Output(gaugeBoundTo("Table1", "Total"), mock(GaugeVSAssembly.class), "Table1",
+                      cols), "Gauge1", Map.of(agg, "Correlation"));
+         assertTrue(msg.contains("second column") && msg.contains("dataOutputPaneModel.with"), msg);
+
+         GaugePropertyDialogModel ok = gaugeBoundTo("Table1", "Total");
+         pr3Output(ok, mock(GaugeVSAssembly.class), "Table1", cols)
+            .set("tok", principal(), "Gauge1", patchOf(agg, "Correlation", with, "Cost"), "");
+         assertEquals("Cost", ok.getDataOutputPaneModel().getWith());
+
+         // a second column for a one-column formula is dropped by the dialog
+         GaugePropertyDialogModel one = gaugeBoundTo("Table1", "Total");
+         one.getDataOutputPaneModel().setAggregate("Sum");
+         msg = refusedOutput(pr3Output(one, mock(GaugeVSAssembly.class), "Table1", cols),
+                             "Gauge1", Map.of(with, "Cost"));
+         assertTrue(msg.contains("does not take a second column"), msg);
+      }
+
+      // N/P operand: needed only by Nth/Pth formulas, and a positive whole number or dynamic
+      for(String num : new String[] { "nthOperand", "dataOutputPaneModel.num" }) {
+         GaugePropertyDialogModel sum = gaugeBoundTo("Table1", "Total");
+         sum.getDataOutputPaneModel().setAggregate("Sum");
+         String msg = refusedOutput(pr3Output(sum, mock(GaugeVSAssembly.class), "Table1", cols),
+                                    "Gauge1", Map.of(num, "3"));
+         assertTrue(msg.contains("no N/P operand"), msg);
+
+         for(String bad : new String[] { "0", "-2", "abc", "1.5", "" }) {
+            GaugePropertyDialogModel nth = gaugeBoundTo("Table1", "Total");
+            nth.getDataOutputPaneModel().setAggregate("NthLargest");
+            msg = refusedOutput(pr3Output(nth, mock(GaugeVSAssembly.class), "Table1", cols),
+                                "Gauge1", Map.of(num, bad));
+            assertTrue(msg.contains("N/P operand"), bad + ": " + msg);
+         }
+
+         for(String good : new String[] { "3", "$(N)", "=Gauge1.n" }) {
+            GaugePropertyDialogModel nth = gaugeBoundTo("Table1", "Total");
+            nth.getDataOutputPaneModel().setAggregate("NthLargest");
+            pr3Output(nth, mock(GaugeVSAssembly.class), "Table1", cols)
+               .set("tok", principal(), "Gauge1", Map.of(num, good), "");
+            assertEquals(good, nth.getDataOutputPaneModel().getNum());
+         }
+      }
+
+      // the same rules hold on Text
+      TextPropertyDialogModel text = new TextPropertyDialogModel();
+      text.getDataOutputPaneModel().setTable("Table1");
+      text.getDataOutputPaneModel().setColumn("Total");
+      String msg = refusedOutput(pr3Output(text, mock(TextVSAssembly.class), "Table1", cols),
+                                 "Text1", Map.of("aggregate", "First"));
+      assertTrue(msg.contains("second column"), msg);
+   }
+
+   @Test
+   void outputAggregateMustFitTheColumnType() throws Exception {
+      ColumnSelection cols = columnsWithType("When", XSchema.TIME_INSTANT, "Flag", XSchema.BOOLEAN,
+                                             "Total", XSchema.DOUBLE, "Name", XSchema.STRING);
+
+      for(String key : new String[] { "aggregate", "dataOutputPaneModel.aggregate" }) {
+         String msg = refusedOutput(
+            pr3Output(gaugeBoundTo("Table1", "When"), mock(GaugeVSAssembly.class), "Table1", cols),
+            "Gauge1", Map.of(key, "Sum"));
+         assertTrue(msg.contains("timeInstant") && msg.contains("When"), msg);
+
+         msg = refusedOutput(
+            pr3Output(gaugeBoundTo("Table1", "Flag"), mock(GaugeVSAssembly.class), "Table1", cols),
+            "Gauge1", Map.of(key, "Max"));
+         assertTrue(msg.contains("boolean"), msg);
+
+         for(String[] ok : new String[][] { { "When", "Max" }, { "Flag", "Count" },
+                                            { "Total", "Sum" }, { "Name", "Max" } })
+         {
+            GaugePropertyDialogModel model = gaugeBoundTo("Table1", ok[0]);
+            pr3Output(model, mock(GaugeVSAssembly.class), "Table1", cols)
+               .set("tok", principal(), "Gauge1", Map.of(key, ok[1]), "");
+         }
+      }
+
+      // moving the column under a stored aggregate is judged too
+      GaugePropertyDialogModel sum = gaugeBoundTo("Table1", "Total");
+      sum.getDataOutputPaneModel().setAggregate("Sum");
+      String msg = refusedOutput(pr3Output(sum, mock(GaugeVSAssembly.class), "Table1", cols),
+                                 "Gauge1", Map.of("column", "When"));
+      assertTrue(msg.contains("timeInstant"), msg);
+
+      // a dynamic aggregate is never judged
+      GaugePropertyDialogModel dynamic = gaugeBoundTo("Table1", "When");
+      pr3Output(dynamic, mock(GaugeVSAssembly.class), "Table1", cols)
+         .set("tok", principal(), "Gauge1", Map.of("aggregate", "$(Agg)"), "");
+   }
+
+   @Test
+   void outputMagnitudeIsOneOfTheFourScalesOnAllThreeTypes() throws Exception {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE);
+
+      for(String key : new String[] { "magnitude", "dataOutputPaneModel.magnitude" }) {
+         for(Object[] c : new Object[][] { { "thousands", 1000 }, { "Millions", 1000000 },
+                                           { "billions", 1000000000 }, { "as is", 1 },
+                                           { 1000, 1000 }, { "1000000", 1000000 } })
+         {
+            GaugePropertyDialogModel gauge = gaugeBoundTo("Table1", "Total");
+            pr3Output(gauge, mock(GaugeVSAssembly.class), "Table1", cols)
+               .set("tok", principal(), "Gauge1", Map.of(key, c[0]), "");
+            assertEquals(c[1], gauge.getDataOutputPaneModel().getMagnitude(), key + c[0]);
+         }
+
+         for(Object bad : new Object[] { 7, 0, 100, "kilo", -1000 }) {
+            GaugePropertyDialogModel gauge = gaugeBoundTo("Table1", "Total");
+            String msg = refusedOutput(
+               pr3Output(gauge, mock(GaugeVSAssembly.class), "Table1", cols), "Gauge1",
+               Map.of(key, bad));
+            assertTrue(msg.contains("magnitude") && msg.contains("thousands"), msg);
+            assertEquals(1, gauge.getDataOutputPaneModel().getMagnitude());
+         }
+
+         TextPropertyDialogModel text = new TextPropertyDialogModel();
+         pr3Output(text, mock(TextVSAssembly.class), "Table1", cols)
+            .set("tok", principal(), "Text1", Map.of(key, "millions"), "");
+         assertEquals(1000000, text.getDataOutputPaneModel().getMagnitude());
+      }
+   }
+
+   private static ComboboxPropertyDialogModel pr3Combo(String dataType, boolean qdf,
+                                                        String pattern)
+   {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      model.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .setDataType(dataType);
+      model.getDataInputPaneModel().setQueryDateFormat(qdf);
+      model.getDataInputPaneModel().setDateFormatPattern(pattern);
+      return model;
+   }
+
+   private static String refusedCombo(ComboboxPropertyDialogModel model, Map<String, Object> patch) {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setCombobox(model, patch), patch.toString());
+      assertFalse(e.getMessage().startsWith("Setting"), e.getMessage());
+      return e.getMessage();
+   }
+
+   private static final String EDITOR =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.";
+
+   @Test
+   void queryDateFormatNeedsADateOrTimeInstantComboBox() throws Exception {
+      for(String key : new String[] { "queryDateFormat", QDF }) {
+         for(String type : new String[] { "string", "integer", "double", "boolean" }) {
+            String msg = refusedCombo(pr3Combo(type, false, "yyyy-MM-dd"), Map.of(key, true));
+            assertTrue(msg.contains("date or timeInstant") && msg.contains(type), msg);
+         }
+
+         for(String type : new String[] { "date", "timeInstant" }) {
+            ComboboxPropertyDialogModel model = pr3Combo(type, false, "yyyy-MM-dd");
+            setCombobox(model, Map.of(key, true));
+            assertTrue(model.getDataInputPaneModel().isQueryDateFormat());
+         }
+
+         // switching it off is always fine, and the type may change in the same call
+         setCombobox(pr3Combo("string", true, "yyyy-MM-dd"), Map.of(key, false));
+         ComboboxPropertyDialogModel both = pr3Combo("string", false, "yyyy-MM-dd");
+         setCombobox(both, patchOf(key, true, EDITOR + "dataType", "date"));
+         assertTrue(both.getDataInputPaneModel().isQueryDateFormat());
+      }
+
+      // moving a date combo with the format on to another type switches the format off, as the
+      // Composer does (data-input-pane ngOnChanges); the pattern is kept
+      for(String key : new String[] { EDITOR + "dataType", "dataType" }) {
+         ComboboxPropertyDialogModel moved = pr3Combo("date", true, "dd.MM.yyyy");
+         setCombobox(moved, Map.of(key, "string"));
+         assertFalse(moved.getDataInputPaneModel().isQueryDateFormat());
+         assertEquals("dd.MM.yyyy", moved.getDataInputPaneModel().getDateFormatPattern());
+      }
+
+      // turning it on for a non-date type in the same call as the type change is still refused
+      String msg = refusedCombo(pr3Combo("date", true, "yyyy-MM-dd"),
+                                patchOf(EDITOR + "dataType", "string", QDF, true));
+      assertTrue(msg.contains("date or timeInstant") && msg.contains("dataType"), msg);
+
+      // date -> timeInstant keeps the format on
+      ComboboxPropertyDialogModel instant = pr3Combo("date", true, "yyyy-MM-dd");
+      setCombobox(instant, Map.of(EDITOR + "dataType", "timeInstant"));
+      assertTrue(instant.getDataInputPaneModel().isQueryDateFormat());
+
+      // an unrelated write on a combo already in that state is never blocked
+      setCombobox(pr3Combo("string", true, "yyyy-MM-dd"),
+                  Map.of("inputLabelPaneModel.labelText", "x"));
+   }
+
+   @Test
+   void aDateFormatPatternNeedsQueryDateFormatOn() throws Exception {
+      for(String key : new String[] { "dateFormatPattern", DFP }) {
+         String msg = refusedCombo(pr3Combo("date", false, "yyyy-MM-dd"),
+                                   Map.of(key, "dd.MM.yyyy"));
+         assertTrue(msg.contains("queryDateFormat") && msg.contains("dd.MM.yyyy"), msg);
+
+         ComboboxPropertyDialogModel on = pr3Combo("date", false, "yyyy-MM-dd");
+         setCombobox(on, patchOf(key, "dd.MM.yyyy", "queryDateFormat", true));
+         assertEquals("dd.MM.yyyy", on.getDataInputPaneModel().getDateFormatPattern());
+
+         ComboboxPropertyDialogModel already = pr3Combo("date", true, "yyyy-MM-dd");
+         setCombobox(already, Map.of(key, "dd.MM.yyyy"));
+         assertEquals("dd.MM.yyyy", already.getDataInputPaneModel().getDateFormatPattern());
+
+         // the unchanged read-back value, and clearing it, are not refused with the format off
+         setCombobox(pr3Combo("date", false, "yyyy-MM-dd"), Map.of(key, "yyyy-MM-dd"));
+         setCombobox(pr3Combo("date", false, "yyyy-MM-dd"), Map.of(key, ""));
+      }
+
+      // an unusable pattern keeps the #79094 refusal with the format off
+      assertComboboxRefused(pr3Combo("date", false, "yyyy-MM-dd"), patchOf(DFP, "abc"), "abc");
+   }
+
+   @Test
+   void comboBoxDateRangeNeedsCalendarMode() throws Exception {
+      for(String key : new String[] { "minDate", "maxDate" }) {
+         for(String path : new String[] { key, EDITOR + key }) {
+            String msg = refusedCombo(pr3Combo("date", false, "yyyy-MM-dd"),
+                                      Map.of(path, "2024-01-01"));
+            assertTrue(msg.contains(key) && msg.contains("calendar"), msg);
+
+            ComboboxPropertyDialogModel on = pr3Combo("date", false, "yyyy-MM-dd");
+            setCombobox(on, patchOf(path, "2024-01-01", "calendar", true));
+            assertEquals("2024-01-01", key.equals("minDate") ?
+               on.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+                  .getMinDate() :
+               on.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+                  .getMaxDate());
+         }
+      }
+
+      // clearing a bound, or a write while calendar is already on, is fine
+      setCombobox(pr3Combo("date", false, "yyyy-MM-dd"), Map.of("minDate", ""));
+      ComboboxPropertyDialogModel cal = pr3Combo("date", false, "yyyy-MM-dd");
+      cal.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
+         .setCalendar(true);
+      setCombobox(cal, Map.of("minDate", "2024-01-01"));
    }
 }

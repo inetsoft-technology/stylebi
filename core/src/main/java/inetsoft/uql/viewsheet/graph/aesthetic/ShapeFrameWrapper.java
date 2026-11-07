@@ -68,13 +68,21 @@ public abstract class ShapeFrameWrapper extends VisualFrameWrapper {
     * Get the shape according to shape id.
     */
    public static final GShape getGShape(String id) {
-      GShape shape = SHAPES.get(id);
+      GShape shape = getGeometricShape(id);
 
       if(shape == null) {
          shape = ImageShapes.getShape(id);
       }
 
       return shape;
+   }
+
+   /**
+    * Get a built-in geometric shape by its code (900-916) from the static table only, with no
+    * image shape (and so no organization or security) lookup.
+    */
+   public static GShape getGeometricShape(String id) {
+      return SHAPES.get(id);
    }
 
    private static final Map<String,GShape> SHAPES = new HashMap<>();

@@ -163,7 +163,9 @@ public class ScriptEditService {
    }
 
    /** Sets the raw script text at {@code target}. */
-   public void write(RuntimeViewsheet rvs, ScriptTarget target, String text) throws PairingException {
+   public void write(RuntimeViewsheet rvs, Principal agent, ScriptTarget target, String text)
+      throws PairingException
+   {
       Viewsheet vs = requireViewsheet(rvs);
 
       switch(target.location()) {
@@ -187,6 +189,15 @@ public class ScriptEditService {
             "written through the viewsheet script API. Use WorksheetScriptService (worksheet-chat's " +
             "edit_expression/edit_condition) instead.");
       }
+
+      // Bug #80447 symptom 1: the canvas-repaint broadcast apply() already issues (per-assembly
+      // RefreshVSObjectCommand + undo state) never reaches an already-open ViewsheetScriptPane/
+      // FormulaEditorDialog -- neither component subscribes to any command, so a script an agent
+      // just wrote stayed invisible in a dialog the human already had open until they closed and
+      // reopened it. This is the only place every write this method performs funnels through, so
+      // it is the one place that can push the new text to that specific open dialog.
+      broadcast.broadcastScriptRefresh(rvs, rvs.getID(), agent, target.kind().wireName(),
+                                       target.assemblyName(), target.name(), text);
    }
 
    /**

@@ -26,6 +26,10 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.web.composer.ws.dialog.ExpressionNameSupport;
+import inetsoft.web.wiz.binding.CalcTableService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -62,7 +66,8 @@ public class SheetPairingService {
     */
    static final List<String> RECOGNIZED_KINDS = List.of(
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
-      "worksheetExpression", "worksheetCondition", "worksheetConditionValue");
+      "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
+      EditorContext.CALC_TABLE_CELL);
 
    /**
     * The two assembly-scoped script kinds (as opposed to viewsheetOnInit/viewsheetOnLoad, which
@@ -80,6 +85,12 @@ public class SheetPairingService {
    private final SheetDirectAccessor viewsheetAccessor;
 
    /**
+    * Used only to read a bound table's source columns for the pending-expression name check;
+    * null in the test constructors that have no engine.
+    */
+   private final WorksheetService worksheetEngine;
+
+   /**
     * Production constructor — Spring injects WorksheetService (WorksheetEngine) and
     * ViewsheetService (ViewsheetEngine), both of which implement SheetDirectAccessor. Used to
     * validate an {@link EditorContext} against the real runtime at mint time.
@@ -88,7 +99,7 @@ public class SheetPairingService {
    public SheetPairingService(WorksheetService worksheetService, ViewsheetService viewsheetService)
    {
       this(System::currentTimeMillis, asAccessor(worksheetService, "WorksheetService"),
-           asAccessor(viewsheetService, "ViewsheetService"));
+           asAccessor(viewsheetService, "ViewsheetService"), worksheetService);
    }
 
    /** Back-compat convenience constructor: no editorContext validation is possible. */
@@ -104,6 +115,7 @@ public class SheetPairingService {
       this.grants = source.grants;
       this.worksheetAccessor = source.worksheetAccessor;
       this.viewsheetAccessor = source.viewsheetAccessor;
+      this.worksheetEngine = source.worksheetEngine;
    }
 
    /**
@@ -113,10 +125,18 @@ public class SheetPairingService {
    SheetPairingService(LongSupplier clock, SheetDirectAccessor worksheetAccessor,
                        SheetDirectAccessor viewsheetAccessor)
    {
+      this(clock, worksheetAccessor, viewsheetAccessor, null);
+   }
+
+   private SheetPairingService(LongSupplier clock, SheetDirectAccessor worksheetAccessor,
+                               SheetDirectAccessor viewsheetAccessor,
+                               WorksheetService worksheetEngine)
+   {
       this.clock = clock;
       this.grants = new ConcurrentHashMap<>();
       this.worksheetAccessor = worksheetAccessor;
       this.viewsheetAccessor = viewsheetAccessor;
+      this.worksheetEngine = worksheetEngine;
    }
 
    private static SheetDirectAccessor asAccessor(Object service, String name) {
@@ -206,6 +226,11 @@ public class SheetPairingService {
          }
       }
 
+      if(EditorContext.CALC_TABLE_CELL.equals(ctx.kind())) {
+         validateCalcTableCellContext(rs, ctx);
+         return;
+      }
+
       if("calcField".equals(ctx.kind())) {
          // Addressed by (table, name), not by assembly -- Viewsheet.getCalcField is keyed by
          // table. The current browser wiring sends the table name in `assembly` (mirroring
@@ -247,7 +272,7 @@ public class SheetPairingService {
       }
 
       if(WORKSHEET_COLUMN_KINDS.contains(ctx.kind())) {
-         validateWorksheetColumnContext(rs, ctx);
+         validateWorksheetColumnContext(rs, ctx, worksheetEngine);
          return;
       }
 
@@ -280,6 +305,42 @@ public class SheetPairingService {
    }
 
    /**
+    * Verifies a {@code calcTableCell} context: a calc table of this viewsheet, a strict
+    * {@code "row,col"} name, a coordinate inside the cell grid, and not a cell a merge has
+    * swallowed (a write there never reaches the anchor; the dialog edits the anchor).
+    */
+   private static void validateCalcTableCellContext(RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      int[] cell = EditorContext.parseCellName(ctx.name());
+
+      if(isBlank(ctx.assembly()) || cell == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'calcTableCell' requires 'assembly' (the calc table) and 'name' " +
+            "as \"row,col\" (e.g. \"2,1\"), got name '" + ctx.name() + "'");
+      }
+
+      Assembly a = rs instanceof RuntimeViewsheet rvs && rvs.getViewsheet() != null
+         ? rvs.getViewsheet().getAssembly(ctx.assembly()) : null;
+
+      if(!(a instanceof CalcTableVSAssembly calc) ||
+         !(calc.getInfo() instanceof CalcTableVSAssemblyInfo info) ||
+         info.getTableLayout() == null)
+      {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Calc table not found: " + ctx.assembly());
+      }
+
+      try {
+         CalcTableService.requireInGrid(info.getTableLayout(), cell[0], cell[1]);
+         CalcTableService.requireNotMerged(info.getTableLayout(), cell[0], cell[1]);
+      }
+      catch(IllegalArgumentException e) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT, e.getMessage());
+      }
+   }
+
+   /**
     * The worksheet kinds addressed by (table, field) rather than by assembly alone --
     * exactly like {@code calcField}, and validated the same way (whole-branch review finding 3).
     *
@@ -306,7 +367,8 @@ public class SheetPairingService {
     * refuse. {@code worksheetCondition} and {@code worksheetConditionValue} are checked against
     * any column, since adding a condition to a field that has none yet is legitimate.
     */
-   private static void validateWorksheetColumnContext(RuntimeSheet rs, EditorContext ctx)
+   private static void validateWorksheetColumnContext(RuntimeSheet rs, EditorContext ctx,
+                                                      WorksheetService worksheetEngine)
       throws PairingException
    {
       // Same `table`-or-`assembly` alias the calcField branch accepts, and for the same reason:
@@ -327,6 +389,23 @@ public class SheetPairingService {
       if(!(a instanceof TableAssembly t)) {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "Table not found: " + table);
+      }
+
+      if(ctx.pending() && "worksheetExpression".equals(ctx.kind())) {
+         // Create flow (Create Expression, not yet OK'd): the name was pre-assigned precisely
+         // because the column does not exist yet, so validate the table (above) and that the name
+         // is still unused, with the same rules the OK path applies -- a stale name must not
+         // later alias an unrelated column.
+         ColumnSelection source = rs instanceof RuntimeWorksheet rws
+            ? ExpressionNameSupport.sourceColumns(worksheetEngine, rws, t) : null;
+
+         if(ExpressionNameSupport.isTaken(name, t.getColumnSelection(), source)) {
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "Column '" + name + "' already exists on '" + table + "'; a pending (new) " +
+               "expression needs an unused name.");
+         }
+
+         return;
       }
 
       boolean found = "worksheetExpression".equals(ctx.kind())

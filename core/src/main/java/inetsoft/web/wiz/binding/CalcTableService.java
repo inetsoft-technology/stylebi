@@ -65,6 +65,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
 import inetsoft.web.binding.event.SetCellBindingEvent;
@@ -173,7 +174,7 @@ public class CalcTableService {
                                        int row, int col)
       throws Exception
    {
-      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      RuntimeViewsheet rvs = sessions.resolveForCell(sessionToken, user, assemblyName, row, col);
       CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
       TableLayout layout = layoutOf(assembly);
       requireInGrid(layout, row, col);
@@ -257,7 +258,8 @@ public class CalcTableService {
                                          int row, int col)
       throws Exception
    {
-      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.readForCell(sessionToken, user, assemblyName, row, col,
+                                  (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
 
@@ -381,12 +383,19 @@ public class CalcTableService {
 
       List<String> rankWarnings = new ArrayList<>();
       List<String> formatNotes = new ArrayList<>();
-      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutateForCell(sessionToken, user, assemblyName, row, col,
+                                                     (rvs, runtimeId, dispatcher, cellScoped) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
          requireNotMerged(layoutOf(assembly), row, col);
 
-         CellBindingInfo cellBindingInfo = toCellBindingInfo(binding, rvs, assembly);
+         // A calcTableCell session owns the formula text of its one cell and nothing else: the
+         // dialog's OK re-sends its cached binding, so any other field changed behind it would be
+         // silently reverted, and the grant must not become a general cell-binding write path.
+         CellBindingInfo cellBindingInfo = cellScoped
+            ? formulaOnlyWrite(binding, layoutService.getCellBindingInfo(assembly, row, col),
+                               aggregatesOf(rvs, assembly), row, col)
+            : toCellBindingInfo(binding, rvs, assembly);
 
          if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
             cellBindingInfo.setValue(
@@ -455,6 +464,16 @@ public class CalcTableService {
          remapRankings(rvs, assembly, rankings, rankWarnings);
          clearDateFormatOnNumericCell(rvs, assemblyName, row, col, formatNotes);
          noteFormulaCellUnderObjectDateFormat(assembly, row, col, cellBindingInfo, formatNotes);
+
+         // Pushes the new text to a Freehand formula dialog open at this cell (its agent-refresh
+         // matcher compares kind/assembly/name). Sent for every session type: a whole-sheet write
+         // on a runtime where that dialog is open must refresh it too. Not for a non-formula
+         // write, which that dialog's text does not represent.
+         if(cellBindingInfo.getType() == CellBinding.BIND_FORMULA) {
+            sessions.broadcastScriptRefresh(rvs, runtimeId, user, EditorContext.CALC_TABLE_CELL,
+                                            assemblyName, EditorContext.cellName(row, col),
+                                            cellBindingInfo.getValue());
+         }
       });
 
       Map<String, Object> body = new LinkedHashMap<>();
@@ -466,6 +485,76 @@ public class CalcTableService {
       }
 
       return body.isEmpty() ? null : body;
+   }
+
+   /** The binding fields a formula-only write compares against the cell's current ones. */
+   private static final List<String> FORMULA_ONLY_STRUCTURAL_KEYS = List.of(
+      "grouping", "expand", "mergeCells", "rowGroup", "colGroup", "name", "mergeRowGroup",
+      "mergeColGroup", "timeSeries");
+
+   /**
+    * The binding a {@code calcTableCell} session may write: the cell's CURRENT binding with only
+    * its formula text replaced.
+    *
+    * <p>Refused, naming the reason: a cell that is not a formula cell (the grant covers the
+    * formula this editor owns, not turning a cell into one), a formula GROUP cell (its list
+    * decides which rows dependent cells aggregate, and serving it needs the table layout a cell
+    * session cannot read), a write whose content is not {@code formula}, and a write that
+    * carries any structural field (grouping, expand, groups, name, merge, sort, topn, field)
+    * different from the cell's current value. Fields the write omits are simply kept, so
+    * {@code set_calc_cell_script}'s read-merge-write round-trips unchanged.
+    */
+   private static CellBindingInfo formulaOnlyWrite(Map<String, Object> binding,
+                                                   CellBindingInfo current,
+                                                   AggregateRef[] aggregates, int row, int col)
+   {
+      String where = "cell [" + row + "," + col + "]";
+
+      if(current == null || current.getType() != CellBinding.BIND_FORMULA) {
+         throw new IllegalArgumentException(
+            "This session is paired at the formula of " + where + ", and that cell does not " +
+            "hold a formula, so it cannot be written from here. Only a formula cell's formula " +
+            "can be edited from a session paired at its formula dialog.");
+      }
+
+      if(current.getBtype() == CellBinding.GROUP) {
+         throw new IllegalArgumentException(
+            where + " is a formula group cell: its formula decides which rows the cells that " +
+            "depend on it aggregate, and editing it needs the whole table layout, which a " +
+            "session paired at one cell cannot read. Edit this formula in the dialog itself.");
+      }
+
+      if(!"formula".equalsIgnoreCase(str(binding, "content"))) {
+         throw new IllegalArgumentException(
+            "This session is paired at the formula of " + where + " and may only change that " +
+            "formula. Send content 'formula' with the new script; other content types are not " +
+            "allowed from here.");
+      }
+
+      Map<String, Object> now = CalcCellVocabulary.describe(current, aggregates);
+
+      for(String key : FORMULA_ONLY_STRUCTURAL_KEYS) {
+         if(binding.containsKey(key) &&
+            !String.valueOf(binding.get(key)).equals(String.valueOf(now.get(key))))
+         {
+            throw new IllegalArgumentException(
+               "This session is paired at the formula of " + where + " and may only change " +
+               "that formula, but this write also changes '" + key + "' (now '" + now.get(key) +
+               "'). Resend it unchanged, or omit it.");
+         }
+      }
+
+      for(String key : List.of("sort", "topn", "field")) {
+         if(binding.get(key) != null) {
+            throw new IllegalArgumentException(
+               "This session is paired at the formula of " + where + " and may only change " +
+               "that formula; '" + key + "' cannot be set on a formula cell from here. Omit it.");
+         }
+      }
+
+      String script = str(binding, "formula");
+      current.setValue(script != null ? script : str(binding, "value"));
+      return current;
    }
 
    /**
@@ -2119,7 +2208,7 @@ public class CalcTableService {
       requireNotMerged(layoutOf(requireCalcTable(rvs, assemblyName)), row, col);
    }
 
-   static void requireNotMerged(TableLayout layout, int row, int col) {
+   public static void requireNotMerged(TableLayout layout, int row, int col) {
       MergeAnchor anchor = mergedIntoMap(layout).get(row + "," + col);
 
       if(anchor != null) {

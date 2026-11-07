@@ -127,11 +127,68 @@ public class PaneScopeService {
          return;
       }
 
+      if(isCellGrant(session.editorContext())) {
+         throw new PairingException(
+            "This session is scoped to the formula of one freehand-table cell (" +
+            grantDescription(session.editorContext()) + "), so it may not be used for " +
+            "whole-sheet work. It works on the binding editor's working copy: use " +
+            "get_cell_binding, get_calc_cell_script and set_calc_cell_script for that one cell " +
+            "only. Formula group cells need the table layout, which this session cannot read, " +
+            "so their formula can only be edited in the dialog itself. Changes land when the " +
+            "user clicks Done in the binding editor and are discarded on Cancel; save_viewsheet " +
+            "is not available from here.");
+      }
+
       throw new PairingException(
          "This session is scoped to one script location (" +
          grantDescription(session.editorContext()) + "), not to the whole sheet, so it may not " +
          "be used for whole-sheet work. Re-pair from the sheet toolbar ('Connect to Claude') " +
          "and use that session for anything outside this one script location.");
+   }
+
+   /** Whether {@code ctx} is a {@code calcTableCell} grant (see {@link EditorContext#CALC_TABLE_CELL}). */
+   public static boolean isCellGrant(EditorContext ctx) {
+      return ctx != null && EditorContext.CALC_TABLE_CELL.equals(ctx.kind());
+   }
+
+   /**
+    * The narrow exemption to {@link #requireWholeSheetSession}: a {@code calcTableCell} session
+    * may touch exactly the one cell it was paired at, and nothing else.
+    *
+    * <p>Returns for a {@code null} session (the token did not resolve; the caller reports that)
+    * and for a whole-sheet session (no grant to enforce). A cell grant passes only when the
+    * request names the SAME assembly and the SAME row/col. EVERY other grant kind -- including
+    * calcField and assemblyMain -- is refused exactly as {@link #requireWholeSheetSession}
+    * refuses it: this exemption belongs to the cell kind alone.
+    *
+    * <p>Compared against the REQUEST (not the runtime), so a cell session cannot be pointed at
+    * another cell, another calc table or, since the runtime always comes from the session, another
+    * sheet.
+    */
+   public static void requireCellGrant(JoinSession session, String assembly, int row, int col)
+      throws PairingException
+   {
+      if(session == null || session.editorContext() == null) {
+         return;
+      }
+
+      EditorContext grant = session.editorContext();
+
+      if(!isCellGrant(grant)) {
+         requireWholeSheetSession(session);
+         return;
+      }
+
+      if(Objects.equals(grant.assembly(), assembly) &&
+         EditorContext.cellName(row, col).equals(grant.name()))
+      {
+         return;
+      }
+
+      throw new PairingException(
+         "This session is paired to " + grantDescription(grant) + "; it may not act on cell [" +
+         row + "," + col + "] of calc table '" + assembly + "'. Open that cell's formula " +
+         "dialog and click Connect to Claude to act on it.");
    }
 
    /**
@@ -218,12 +275,25 @@ public class PaneScopeService {
     * a user can act on -- names the location the session IS paired to, not the one it refused.
     */
    private static String outOfGrantReason(EditorContext grant, ScriptTarget target) {
+      if(isCellGrant(grant)) {
+         return "This session is paired to " + grantDescription(grant) + ", which the script " +
+            "tools do not serve; it may not act on " + targetDescription(target) + ". Use " +
+            "get_calc_cell_script and set_calc_cell_script for that cell instead.";
+      }
+
       return "This session is paired to " + grantDescription(grant) + "; it may not act on " +
          targetDescription(target) + ". Open that location in its own editor and click Connect " +
          "Agent to act on it.";
    }
 
    private static String grantDescription(EditorContext grant) {
+      if(isCellGrant(grant)) {
+         int[] cell = EditorContext.parseCellName(grant.name());
+
+         return cell == null ? "a cell of calc table '" + grant.assembly() + "'"
+            : "cell [" + cell[0] + "," + cell[1] + "] of calc table '" + grant.assembly() + "'";
+      }
+
       try {
          ScriptTarget.Kind grantedKind = ScriptTarget.Kind.fromWire(grant.kind());
 
@@ -279,7 +349,8 @@ public class PaneScopeService {
          case CALC_FIELD -> "a calculated field has no name at sheet level — open its formula " +
             "editor and click Connect Agent.";
          case WORKSHEET_EXPRESSION -> "a worksheet expression column has no name at sheet " +
-            "level — open its expression editor and click Connect Agent.";
+            "level — open its expression editor and click Connect Agent. For a NEW column, open " +
+            "Create Expression and click Connect Agent there.";
          case WORKSHEET_CONDITION -> "a worksheet condition has no name at sheet level — open " +
             "its condition editor and click Connect Agent.";
          case WORKSHEET_CONDITION_VALUE -> "a worksheet condition's value has no name at sheet " +

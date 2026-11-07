@@ -4798,6 +4798,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
          else if(ass instanceof VariableAssembly) {
             vt.put(tname, mdata == null ? cdata : mdata);
+            removeStaleOwnNameKey(iassembly, vt, tname);
 
             applyComboBoxDateFormat(iassembly, vt, tname);
             wbox.refreshVariableTable(vt);
@@ -4808,6 +4809,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             for(UserVariable var : uvars) {
                if(var != null && tname.equals(var.getName())) {
                   vt.put(tname, mdata == null ? cdata : mdata);
+                  removeStaleOwnNameKey(iassembly, vt, tname);
                   applyComboBoxDateFormat(iassembly, vt, tname);
                   break;
                }
@@ -4820,6 +4822,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          vt.put(iassembly.getName(), mdata == null ? cdata : mdata);
          applyComboBoxDateFormat(iassembly, vt, iassembly.getName());
          wbox.refreshVariableTable(vt);
+      }
+   }
+
+   /**
+    * Drop the entry keyed by the input's own name once the input writes to a variable
+    * target. It can only be a leftover from a refresh made while the input was unbound,
+    * and applyParameterToInput() would otherwise re-apply it over the current value on
+    * the next runtime reset. A passed parameter of that name was already consumed by
+    * applyParameterToInput() at the top of refreshVariable(). (Bug #80215)
+    */
+   private static void removeStaleOwnNameKey(InputVSAssembly iassembly, VariableTable vt,
+                                             String targetName)
+   {
+      String own = iassembly.getName();
+
+      if(own != null && !own.equals(targetName)) {
+         vt.remove(own);
       }
    }
 

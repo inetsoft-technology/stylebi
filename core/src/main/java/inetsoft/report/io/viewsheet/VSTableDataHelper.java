@@ -373,8 +373,9 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       // of the data borders.
       // a styled table takes its borders from the table style, as in the viewer
       // (same precedent as applyTableBorders above) - don't let the object's own
-      // default border overlay overwrite the style border.
-      if(!info.isStyled()) {
+      // default border overlay overwrite the style border. A border the user set on
+      // the object explicitly still wins over the style.
+      if(!info.isStyled() || hasUserObjectBorder(info)) {
          drawObjectFormat(info, lens, true);
       }
    }
@@ -426,6 +427,17 @@ public abstract class VSTableDataHelper extends ExporterHelper {
    }
 
    /**
+    * Check whether the user explicitly set the object border (as opposed to the
+    * default or table-style css border).
+    */
+   protected static boolean hasUserObjectBorder(VSAssemblyInfo info) {
+      VSCompositeFormat fmt = info.getFormat();
+      VSFormat userfmt = fmt == null ? null : fmt.getUserDefinedFormat();
+      return userfmt != null &&
+         (userfmt.isBordersDefined() || userfmt.isBordersValueDefined());
+   }
+
+   /**
     * Set the table (vsobject) borders to the left/bottom/right cell so the
     * border on the outer edge doesn't look like broken in to (different color)
     * segments.
@@ -438,9 +450,11 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          return;
       }
 
-      // a styled table takes its borders from the table style, as in the viewer
+      // a styled table takes its borders from the table style, as in the viewer,
+      // unless the user set an object border explicitly
       if(info instanceof TableDataVSAssemblyInfo &&
-         ((TableDataVSAssemblyInfo) info).isStyled())
+         ((TableDataVSAssemblyInfo) info).isStyled() &&
+         !hasUserObjectBorder(info))
       {
          return;
       }

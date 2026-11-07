@@ -415,6 +415,74 @@ class SheetPairingServiceTest {
    }
 
    // ---------------------------------------------------------------------------
+   // Bug #80462 -- pending worksheetExpression (Create Expression) mint
+   // ---------------------------------------------------------------------------
+
+   private SheetPairingService serviceWithTable(String tableName, TableAssembly table) {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      Worksheet ws = mock(Worksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly(tableName)).thenReturn(table);
+      return serviceWithWorksheetRuntime(rws);
+   }
+
+   @Test
+   void mintsAPendingWorksheetExpressionForAnUnusedNameOnATableTheRuntimeHas()
+      throws PairingException
+   {
+      SheetPairingService svc = serviceWithTable("Query1", tableWithColumn("price"));
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Expression1", null, true);
+
+      String code = svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   @Test
+   void refusesAPendingWorksheetExpressionWhoseNameAlreadyExistsCaseInsensitively() {
+      SheetPairingService svc = serviceWithTable("Query1", tableWithColumn("expression1"));
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "Expression1", null, true);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+      assertTrue(ex.getMessage().contains("already exists"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Expression1"), ex.getMessage());
+   }
+
+   @Test
+   void refusesAPendingWorksheetExpressionNamingATableTheRuntimeDoesNotHave() {
+      SheetPairingService svc = serviceWithTable("Query1", tableWithColumn("price"));
+      EditorContext ctx = new EditorContext("worksheetExpression", "NoSuchTable", "Expression1", null, true);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+
+      assertTrue(ex.getMessage().contains("NoSuchTable"), ex.getMessage());
+   }
+
+   @Test
+   void refusesAPendingWorksheetExpressionWithNoName() {
+      SheetPairingService svc = serviceWithTable("Query1", tableWithColumn("price"));
+      EditorContext ctx = new EditorContext("worksheetExpression", "Query1", "", null, true);
+
+      assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+   }
+
+   /** pending only means "create" for worksheetExpression; a condition still needs its column. */
+   @Test
+   void aPendingFlagDoesNotRelaxTheColumnCheckForWorksheetCondition() {
+      SheetPairingService svc = serviceWithTable("Query1", tableWithColumn("price"));
+      EditorContext ctx = new EditorContext("worksheetCondition", "Query1", "nosuch", null, true);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("ws-1", "user", "sock-1", "user", SheetType.WORKSHEET, ctx));
+      assertTrue(ex.getMessage().contains("Column not found"), ex.getMessage());
+   }
+
+   // ---------------------------------------------------------------------------
    // Whole-branch review finding 3 -- a mint that can match nothing must not succeed
    // ---------------------------------------------------------------------------
 

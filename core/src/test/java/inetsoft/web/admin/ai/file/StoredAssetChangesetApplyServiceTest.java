@@ -423,24 +423,47 @@ class StoredAssetChangesetApplyServiceTest {
    }
 
    /**
-    * The rename's destination ("target-folder") is not tracked by {@code
-    * StoredAssetChangePlanService.resolveEntries}'s own {@code seenPaths} guard (it only tracks
-    * each entry's own source path, never a rename's {@code newName}), so this batch resolves
-    * cleanly even though entry 1's rename creates "target-folder" and entry 2's create then throws
-    * from its own pre-mutation existence guard against state entry 1 itself just created. Entry 1's
-    * own rename genuinely succeeded and is genuinely, verifiably rolled back -- this must report
-    * {@code STATUS_ROLLED_BACK}, not {@code STATUS_ROLLBACK_FAILED}, since entry 2's own mutating
-    * call ({@code dataSpace.makeDirectory}) never ran.
+    * Bug #80355: entry 1's rename lands on "target-folder" and entry 2 creates it. The plan used to
+    * claim only each entry's own source path, so this batch resolved cleanly and failed half-way at
+    * apply (entry 2's pre-mutation guard against state entry 1 had just created). It is now refused
+    * when the plan is resolved, before anything is touched, and nothing was renamed.
     */
-   @Test void appliesRollsBackCleanlyWhenALaterCreateThrowsFromItsOwnPreMutationGuard() throws Exception {
+   @Test void refusesARenameTargetThatALaterCreateWouldCollideWithAtPlanTime() throws Exception {
       folders.add("old-folder");
       StoredAssetChangeRequest rename =
          change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_RENAME, "old-folder");
       rename.setNewName("target-folder");
       StoredAssetChangeRequest create =
          change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "target-folder");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> planService.resolve(request(rename, create), user));
+      assertTrue(ex.getMessage().contains("a path may appear once per submission"), ex.getMessage());
+      assertTrue(folders.contains("old-folder"));
+      assertFalse(folders.contains("target-folder"));
+   }
+
+   /**
+    * Entry 1's rename is written; entry 2's create then hits its own apply-time pre-mutation guard
+    * because "late-folder" appeared after the plan was resolved (a concurrent actor). Entry 2's
+    * mutating call never ran, so entry 1's verified undo must yield STATUS_ROLLED_BACK, not
+    * STATUS_ROLLBACK_FAILED.
+    */
+   @Test void appliesRollsBackCleanlyWhenALaterCreateThrowsFromItsOwnPreMutationGuard() throws Exception {
+      folders.add("old-folder");
+      StoredAssetChangeRequest rename =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_RENAME, "old-folder");
+      rename.setNewName("renamed-folder");
+      StoredAssetChangeRequest create =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "late-folder");
       String hash = planService.resolve(request(rename, create), user).planHash();
       StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, rename, create);
+
+      // exists(late-folder): call 1 is apply's re-resolve (still free); from call 2 on --
+      // applyCreate's own guard -- the folder is there.
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      lenient().when(dataSpace.exists(isNull(), eq("late-folder")))
+         .thenAnswer(inv -> calls.incrementAndGet() >= 2);
 
       StoredAssetApplyResult result;
 
@@ -450,10 +473,8 @@ class StoredAssetChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       assertNull(result.rollbackFailures());
-      // The rename was genuinely, verifiably undone: original folder back, nothing at the
-      // destination.
       assertTrue(folders.contains("old-folder"));
-      assertFalse(folders.contains("target-folder"));
+      assertFalse(folders.contains("renamed-folder"));
    }
 
    @Test void reportsRollbackFailedWhenAnUndoItselfFails() throws Exception {

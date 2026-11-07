@@ -1177,6 +1177,96 @@ class ViewsheetFormatServiceTest {
                         "by string-comparing path.getPath()[0] to the caller's typed value");
    }
 
+   // ── target: "data" with "cellPath" (bug 80443 sub-gap 5) ────────────────────────────────
+
+   /**
+    * {@code cellPath} further narrows an already measure-scoped (via {@code field}) Crosstab
+    * write to the one body cell whose own {@code TableDataPath.getPath()}, with the trailing
+    * measure element stripped, equals the caller's tuple -- the row-dimension member(s) only,
+    * here (one row dimension, no column dimension).
+    */
+   @Test
+   void targetDataWithCellPathOnACrosstabWritesOnlyTheMatchingCell() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+      Map<String, TableDataPath> p = new HashMap<>();
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> regionSalesCrosstab(lens, p));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), format, false, "data", "Sum(Sales)", null, null,
+            List.of("West")), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertArrayEquals(new TableDataPath[]{ p.get("west") }, captor.getValue().getData().get(0),
+                        "cellPath:[\"West\"] must write only the West row's cell, not East's " +
+                        "or the grand total's");
+   }
+
+   /** Refused outright: a plain Table's body path carries no row/dimension information at all. */
+   @Test
+   void targetDataWithCellPathRefusesAPlainTable() throws Exception {
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(1);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getObject(0, 0)).thenReturn("NAME");
+      });
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Table1"), new VSObjectFormatInfoModel(), false, "data", "NAME", null,
+               null, List.of("anything")), ""));
+      assertTrue(thrown.getMessage().contains("Table1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("cellPath"), thrown.getMessage());
+   }
+
+   /**
+    * {@code cellPath} without {@code field} is refused: several measures could otherwise share
+    * the same row/column tuple, differing only in the trailing measure name {@code cellPath}
+    * leaves out.
+    */
+   @Test
+   void targetDataWithCellPathRequiresField() throws Exception {
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1",
+         lens -> regionSalesCrosstab(lens, new HashMap<>()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data", null, null,
+               null, List.of("West")), ""));
+      assertTrue(thrown.getMessage().contains("cellPath"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
+   }
+
+   /** A non-matching tuple is refused loud, naming what was asked for and what is available. */
+   @Test
+   void targetDataWithCellPathRefusesANonMatchingTuple() throws Exception {
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1",
+         lens -> regionSalesCrosstab(lens, new HashMap<>()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data", "Sum(Sales)",
+               null, null, List.of("North")), ""));
+      assertTrue(thrown.getMessage().contains("North"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("West"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("East"), thrown.getMessage());
+   }
+
    // ── target: "header" (bug 76917) ────────────────────────────────────────────────────────
 
    /**
@@ -1537,6 +1627,48 @@ class ViewsheetFormatServiceTest {
       Map<String, Object> format = (Map<String, Object>) read.get("format");
       assertEquals("PercentFormat", format.get("format"));
       assertEquals("#333333", format.get("color"));
+   }
+
+   /**
+    * Bug #80442 round 2 D6: {@code toWireFormat} was a hand-maintained 16-field projection that
+    * never had presenter/cssID/cssClass added when set_calc_cell_format gained write support for
+    * them, so a caller writing them could never read them back.
+    */
+   @Test
+   void getCellFormatReadsBackPresenterCssIdAndCssClass() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      TableDataPath cellPath = new TableDataPath(-1, TableDataPath.DETAIL,
+         inetsoft.uql.schema.XSchema.STRING, new String[]{ "Cell [0,0]" });
+      when(calcService.cellFormatPath(any(), eq("FreehandTable1"), eq(0), eq(0)))
+         .thenReturn(cellPath);
+
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      model.setPresenter("inetsoft.report.painter.BooleanPresenter");
+      model.setCssID("kpi");
+      model.setCssClass("hot");
+
+      doAnswer(invocation -> {
+         CapturingCommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("FreehandTable1", new SetCurrentFormatCommand(model));
+         return null;
+      }).when(painter).getFormat(eq("rt1"), any(GetVSObjectFormatEvent.class),
+                                 any(Principal.class), any());
+
+      VSAssemblyInfo info = gaugeInfo();
+      VSCompositeFormat own = new VSCompositeFormat();
+      own.getUserDefinedFormat().setForegroundValue("0x333333", true);
+      info.getFormatInfo().setFormat(cellPath, own);
+
+      Map<String, Object> read = serviceWith(painter, calcService,
+                                             rvsOf(Map.of("FreehandTable1", info)))
+         .getCellFormat("tok", principal(), "FreehandTable1", 0, 0);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> format = (Map<String, Object>) read.get("format");
+      assertEquals("inetsoft.report.painter.BooleanPresenter", format.get("presenter"));
+      assertEquals("kpi", format.get("cssID"));
+      assertEquals("hot", format.get("cssClass"));
    }
 
    private static final TableDataPath NO_OVERRIDE_PATH =
@@ -2438,6 +2570,46 @@ class ViewsheetFormatServiceTest {
       }
 
       when(lens.moreRows(4)).thenReturn(false);
+   }
+
+   /**
+    * A measures-in-rows Crosstab with one row dimension (Region: West, East) and one aggregate
+    * ({@code Sum(Sales)}), plus its grand total -- shaped for {@code cellPath} tests, where each
+    * body/grand-total path's own dimension-member tuple (its {@code getPath()} with the trailing
+    * measure element stripped) is exactly what a caller's {@code cellPath} must match. Col 0 is
+    * the row-dimension label (header-band by position, regardless of its own type); col 1 is the
+    * aggregate value (body-band by position).
+    */
+   private static void regionSalesCrosstab(VSTableLens lens, Map<String, TableDataPath> out) {
+      TableDataDescriptor desc = lens.getDescriptor();
+      TableDataPath dimLabel = new TableDataPath(-1, TableDataPath.GROUP_HEADER, XSchema.STRING,
+         new String[]{ "Region" });
+      TableDataPath westBody = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+         new String[]{ "West", "Sum(Sales)" });
+      TableDataPath eastBody = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+         new String[]{ "East", "Sum(Sales)" });
+      TableDataPath grandLabel = new TableDataPath(-1, TableDataPath.GRAND_TOTAL, XSchema.STRING,
+         new String[]{ "Total" });
+      TableDataPath grandBody = new TableDataPath(-1, TableDataPath.GRAND_TOTAL, XSchema.DOUBLE,
+         new String[]{ "Sum(Sales)" });
+      out.put("west", westBody);
+      out.put("east", eastBody);
+      out.put("grand", grandBody);
+
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getHeaderRowCount()).thenReturn(0);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.moreRows(0)).thenReturn(true);
+      when(lens.moreRows(1)).thenReturn(true);
+      when(lens.moreRows(2)).thenReturn(true);
+      when(lens.moreRows(3)).thenReturn(false);
+
+      when(desc.getCellDataPath(0, 0)).thenReturn(dimLabel);
+      when(desc.getCellDataPath(0, 1)).thenReturn(westBody);
+      when(desc.getCellDataPath(1, 0)).thenReturn(dimLabel);
+      when(desc.getCellDataPath(1, 1)).thenReturn(eastBody);
+      when(desc.getCellDataPath(2, 0)).thenReturn(grandLabel);
+      when(desc.getCellDataPath(2, 1)).thenReturn(grandBody);
    }
 
    /** Runs a field-scoped set_format on {@code Crosstab1} and returns the painted paths. */

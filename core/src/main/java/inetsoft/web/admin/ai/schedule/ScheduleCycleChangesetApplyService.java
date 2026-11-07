@@ -109,18 +109,21 @@ public class ScheduleCycleChangesetApplyService {
             ScheduleCycleChangeRequest original = originals.get(i);
             String orgId = change.orgId();
 
+            String stillChanged;
+
             try {
                switch(original.verb()) {
                case ScheduleCycleChangeRequest.VERB_CREATE:
                   applyCreate(txId, reviewedTask, change, original, orgId, backupRef,
                              req.getReviewOutcome(), user, results, undoable);
+                  stillChanged = null;
                   break;
                case ScheduleCycleChangeRequest.VERB_UPDATE:
-                  applyUpdate(txId, reviewedTask, change, original, orgId, backupRef,
+                  stillChanged = applyUpdate(txId, reviewedTask, change, original, orgId, backupRef,
                              req.getReviewOutcome(), user, results, undoable);
                   break;
                default:
-                  applyDelete(txId, reviewedTask, change, orgId, backupRef, req.getReviewOutcome(),
+                  stillChanged = applyDelete(txId, reviewedTask, change, orgId, backupRef, req.getReviewOutcome(),
                              user, results, undoable);
                   break;
                }
@@ -137,6 +140,13 @@ public class ScheduleCycleChangesetApplyService {
             }
 
             if(AdminChangeRecord.STATUS_FAILED.equals(lastStatus(results))) {
+               // A failed post-write check is only a clean "nothing happened" when the observed
+               // state still equals the pre-state; otherwise the write is still in place and no
+               // undo was queued for it, so it must not be reported as rolled back (bug #80355).
+               if(stillChanged != null) {
+                  unknownStateFailures.add(new RollbackFailure(change.property(), stillChanged));
+               }
+
                failed = true;
                break;
             }
@@ -191,7 +201,7 @@ public class ScheduleCycleChangesetApplyService {
       }
    }
 
-   private void applyUpdate(String txId, String task, PlanChange change,
+   private String applyUpdate(String txId, String task, PlanChange change,
                             ScheduleCycleChangeRequest original, String orgId, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
                             List<Undo> undoable)
@@ -208,6 +218,17 @@ public class ScheduleCycleChangesetApplyService {
       boolean verified = after != null &&
          (newName.equals(currentName) || cycleGateway.currentAsset(currentName, orgId) == null);
       String afterProjection = verified ? AdminScheduleCycleGateway.projectXml(after) : null;
+      // Compare the observed state to the pre-state: the cycle must still be as it was at its
+      // old name and absent at the new one.
+      DataCycleManager.DataCycleAsset oldNow =
+         newName.equals(currentName) ? after : cycleGateway.currentAsset(currentName, orgId);
+      boolean untouched = oldNow != null &&
+         beforeProjection.equals(AdminScheduleCycleGateway.projectXml(oldNow)) &&
+         (newName.equals(currentName) || after == null);
+      String stillChanged = !verified && !untouched
+         ? "write took effect but its post-write check failed: the cycle is no longer as it " +
+            "was at \"" + currentName + "\" or now exists at \"" + newName + "\""
+         : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(change.property(), beforeProjection, afterProjection, status,
                                    verified ? null
@@ -221,9 +242,11 @@ public class ScheduleCycleChangesetApplyService {
          // §5.5) -- restored regardless of whether this update touched name, conditions, or both.
          undoable.add(Undo.update(newName, currentName, before.getConditions()));
       }
+
+      return stillChanged;
    }
 
-   private void applyDelete(String txId, String task, PlanChange change, String orgId,
+   private String applyDelete(String txId, String task, PlanChange change, String orgId,
                             String backupRef, String reviewOutcome, Principal user,
                             List<ApplyOutcome> results, List<Undo> undoable)
       throws Exception
@@ -241,7 +264,14 @@ public class ScheduleCycleChangesetApplyService {
 
       cycleGateway.deleteCycles(List.of(name), user);
 
-      boolean verified = cycleGateway.currentAsset(name, orgId) == null;
+      DataCycleManager.DataCycleAsset afterDelete = cycleGateway.currentAsset(name, orgId);
+      boolean verified = afterDelete == null;
+      // A surviving cycle that no longer matches the pre-state was already partly modified.
+      String stillChanged = !verified &&
+         !beforeProjection.equals(AdminScheduleCycleGateway.projectXml(afterDelete))
+         ? "write took effect but its post-write check failed: the cycle still exists but " +
+            "was modified"
+         : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ApplyOutcome(change.property(), beforeProjection, null, status,
                                    verified ? null : "scheduled cycle still exists after delete"));
@@ -259,6 +289,8 @@ public class ScheduleCycleChangesetApplyService {
          undoable.add(Undo.delete(name, before.getConditions(), before.getInfo(), beforePermission,
                                   before.isEnabled()));
       }
+
+      return stillChanged;
    }
 
    /** Undoes verified changes newest-first, attempting all of them and collecting any failures. */
