@@ -1629,6 +1629,48 @@ class ViewsheetFormatServiceTest {
       assertEquals("#333333", format.get("color"));
    }
 
+   /**
+    * Bug #80442 round 2 D6: {@code toWireFormat} was a hand-maintained 16-field projection that
+    * never had presenter/cssID/cssClass added when set_calc_cell_format gained write support for
+    * them, so a caller writing them could never read them back.
+    */
+   @Test
+   void getCellFormatReadsBackPresenterCssIdAndCssClass() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      TableDataPath cellPath = new TableDataPath(-1, TableDataPath.DETAIL,
+         inetsoft.uql.schema.XSchema.STRING, new String[]{ "Cell [0,0]" });
+      when(calcService.cellFormatPath(any(), eq("FreehandTable1"), eq(0), eq(0)))
+         .thenReturn(cellPath);
+
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      model.setPresenter("inetsoft.report.painter.BooleanPresenter");
+      model.setCssID("kpi");
+      model.setCssClass("hot");
+
+      doAnswer(invocation -> {
+         CapturingCommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("FreehandTable1", new SetCurrentFormatCommand(model));
+         return null;
+      }).when(painter).getFormat(eq("rt1"), any(GetVSObjectFormatEvent.class),
+                                 any(Principal.class), any());
+
+      VSAssemblyInfo info = gaugeInfo();
+      VSCompositeFormat own = new VSCompositeFormat();
+      own.getUserDefinedFormat().setForegroundValue("0x333333", true);
+      info.getFormatInfo().setFormat(cellPath, own);
+
+      Map<String, Object> read = serviceWith(painter, calcService,
+                                             rvsOf(Map.of("FreehandTable1", info)))
+         .getCellFormat("tok", principal(), "FreehandTable1", 0, 0);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> format = (Map<String, Object>) read.get("format");
+      assertEquals("inetsoft.report.painter.BooleanPresenter", format.get("presenter"));
+      assertEquals("kpi", format.get("cssID"));
+      assertEquals("hot", format.get("cssClass"));
+   }
+
    private static final TableDataPath NO_OVERRIDE_PATH =
       new TableDataPath(-1, TableDataPath.DETAIL, inetsoft.uql.schema.XSchema.STRING,
                         new String[]{ "Cell [1,0]" });
@@ -2640,7 +2682,7 @@ class ViewsheetFormatServiceTest {
       // No binding handler: these tests never reach the field writer (its refusals run first),
       // and VSWizardBindingHandler's static initializer needs the SREE context -- see
       // ViewsheetFormatServiceFieldTargetTest for the field target against the real handler.
-      return new ViewsheetFormatService(sessions, painter, calcService, null);
+      return new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), calcService, null);
    }
 
    /**

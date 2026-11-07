@@ -245,7 +245,7 @@ class ViewsheetFormatServiceFieldTargetRenderTest {
    }
 
    private ViewsheetFormatService service() throws Exception {
-      return new ViewsheetFormatService(sessions, mock(FormatPainterService.class),
+      return new ViewsheetFormatService(sessions, FormatPainterProxies.local(mock(FormatPainterService.class)),
                                         mock(CalcTableService.class), realBindingHandler());
    }
 

@@ -25,7 +25,7 @@ import inetsoft.util.Tool;
 import java.awt.*;
 import java.util.Objects;
 
-public class FontInfo {
+public class FontInfo implements java.io.Serializable {
    public FontInfo() {
    }
 

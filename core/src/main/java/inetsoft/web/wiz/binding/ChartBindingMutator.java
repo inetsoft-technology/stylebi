@@ -987,6 +987,25 @@ public final class ChartBindingMutator {
       return refs == null ? List.of() : refs;
    }
 
+   /**
+    * The shelf a ranking call addresses: x/y/group, plus {@code geo} on a map. Kept apart from
+    * {@link #readShelf} and {@link #SHELVES} so a map's geo dimension never becomes a writable
+    * list shelf; the Composer offers Top N on a geo field but not Sort (bug #80334).
+    */
+   private static List<ChartRefModel> readRankableShelf(ChartBindingModel model, String shelf) {
+      if(shelf == null || !"geo".equals(shelf.trim().toLowerCase())) {
+         return readShelf(model, shelf);
+      }
+
+      if(!GraphTypes.isGeo(model.getChartType())) {
+         throw new IllegalArgumentException(
+            "The 'geo' shelf only exists on a map or map_contour chart; this chart is not a map.");
+      }
+
+      List<ChartRefModel> refs = model.getGeoFields();
+      return refs == null ? List.of() : refs;
+   }
+
    // ── per-dimension sort/ranking (bug #76350, PCB-001) ──────────────────────────────────────
    //
    // ChartDimensionRefModel extends BDimensionRefModel — the same base class TableBindingMutator
@@ -1008,7 +1027,7 @@ public final class ChartBindingMutator {
          return requireAestheticDimension(model, shelf.trim().toLowerCase(), column);
       }
 
-      List<ChartRefModel> refs = readShelf(model, shelf);
+      List<ChartRefModel> refs = readRankableShelf(model, shelf);
       List<String> present = new ArrayList<>();
       Map<Integer, BDimensionRefModel> matches = new LinkedHashMap<>();
 
@@ -1071,6 +1090,13 @@ public final class ChartBindingMutator {
                                       Integer index, DimensionSortRanking.Sort sort,
                                       boolean multiAesthetic)
    {
+      if(shelf != null && "geo".equals(shelf.trim().toLowerCase())) {
+         throw new IllegalArgumentException(
+            "Sorting the 'geo' shelf is not supported: the Composer does not offer a sort on a " +
+            "geographic field. Use set_chart_field_ranking with shelf 'geo' to keep the top or " +
+            "bottom N regions.");
+      }
+
       if(sort != null && sort.sortByField() != null && !sort.sortByField().isBlank()) {
          requireUnambiguousMeasure(model, sort.sortByField(), "sortByField");
       }

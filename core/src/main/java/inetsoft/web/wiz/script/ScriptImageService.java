@@ -24,6 +24,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
@@ -61,10 +62,16 @@ import java.security.Principal;
  * actually look at.
  *
  * <p>For assembly types {@link AssemblyImageService#downloadAssemblyImage} supports directly
- * (charts, gauges, thermometers, cylinders, sliding scales, images, shapes, group containers),
+ * (charts, gauges, thermometers, cylinders, sliding scales, images, shapes),
  * reuses that mechanism — the same lightweight, already-open-runtime render path the browser
  * itself uses for every on-screen assembly tile (via {@code GetImageController}) and that
  * {@code WizVisualizationService} already uses for the chart wizard's live preview/thumbnail.</p>
+ *
+ * <p>Group containers are also rendered by that path, but it paints only the container's own
+ * background and border, never its member assemblies (the browser draws members as separate
+ * tiles), so the result is a full-size image with nothing in it and the 1x1 placeholder check
+ * below can't catch it. They are therefore routed to the whole-viewsheet fallback up front, with
+ * a note saying so (Bug #80498).</p>
  *
  * <p>For types that path doesn't support (tables/crosstabs), falls back to rendering the whole
  * viewsheet instead of trying to crop the single assembly out of a full-page export. An earlier
@@ -132,6 +139,16 @@ public class ScriptImageService {
 
       if(assembly == null) {
          throw new PairingException("No such assembly \"" + assemblyName + "\"");
+      }
+
+      // The single-assembly render of a group container draws only the container's own
+      // background/border, not its members, so it is a full-size image that looks blank. The
+      // placeholder check further down only catches 1x1 images, so route it to the
+      // whole-viewsheet render explicitly, and say so (Bug #80498).
+      if(assembly instanceof GroupContainerVSAssembly) {
+         return wholeViewsheetFallback(rvs, width, height, principal,
+            "\"" + assemblyName + "\" is a group container; a single-assembly render draws " +
+            "only its own background, not its members -- showing the whole viewsheet instead.");
       }
 
       // A chart with no source table has nothing bound to it at all - every field on a chart
@@ -237,16 +254,9 @@ public class ScriptImageService {
          BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(bytes));
 
          if(decoded == null || decoded.getWidth() <= 1 || decoded.getHeight() <= 1) {
-            ChartImage whole = getViewsheetImage(rvs, width, height, principal);
-            String fallbackNote = "\"" + assemblyName + "\" can't be rendered on its own — " +
-               "showing the whole viewsheet instead.";
-
-            if(whole.note() != null) {
-               fallbackNote = fallbackNote + " " + whole.note();
-            }
-
-            return new ChartImage(whole.pngBytes(), whole.isPng(), whole.width(), whole.height(),
-               fallbackNote);
+            return wholeViewsheetFallback(rvs, width, height, principal,
+               "\"" + assemblyName + "\" can't be rendered on its own — " +
+               "showing the whole viewsheet instead.");
          }
       }
 
@@ -265,6 +275,17 @@ public class ScriptImageService {
       }
 
       return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), note);
+   }
+
+   /** Whole-viewsheet render returned in place of a single assembly, with {@code note} leading. */
+   private ChartImage wholeViewsheetFallback(RuntimeViewsheet rvs, Integer width, Integer height,
+                                             Principal principal, String note)
+      throws Exception
+   {
+      ChartImage whole = getViewsheetImage(rvs, width, height, principal);
+      String fallbackNote = whole.note() != null ? note + " " + whole.note() : note;
+      return new ChartImage(whole.pngBytes(), whole.isPng(), whole.width(), whole.height(),
+         fallbackNote);
    }
 
    /**

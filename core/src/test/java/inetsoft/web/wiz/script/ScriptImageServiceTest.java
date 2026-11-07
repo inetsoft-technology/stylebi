@@ -25,6 +25,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
+import inetsoft.uql.viewsheet.RectangleVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
@@ -375,6 +376,58 @@ class ScriptImageServiceTest {
       assertEquals(300, img.height());
       assertNotNull(img.note());
       assertTrue(img.note().contains("Table1"));
+   }
+
+   /**
+    * Bug #80498: the lightweight single-assembly render of a group container paints only the
+    * container's own background, never its members, and comes back as a full-size image, so the
+    * 1x1 placeholder check never fires and the caller got a blank image reported as success with
+    * no note. The stub below returns exactly that: a 200x100 image for the group. A group
+    * container must instead be sent to the whole-viewsheet render, and say so.
+    */
+   @Test
+   void fallsBackToTheWholeViewsheetForAGroupContainerWithMembers() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      RectangleVSAssembly rect = new RectangleVSAssembly(vs, "Rectangle1");
+      rect.setPixelOffset(new Point(40, 40));
+      rect.setPixelSize(new Dimension(200, 100));
+      vs.addAssembly(rect);
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      text.setPixelOffset(new Point(60, 60));
+      text.setPixelSize(new Dimension(150, 30));
+      vs.addAssembly(text);
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "GroupContainer1");
+      group.setAssemblies(new String[] {"Rectangle1", "Text1"});
+      vs.addAssembly(group);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      BinaryTransfer transfer = mock(BinaryTransfer.class);
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(new AssemblyImageService.ImageRenderResult(true, transfer, 200, 100));
+
+      BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
+      when(binaryTransferService.getData(transfer)).thenReturn(fakePng(200, 100));
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc =
+         new ScriptImageService(imageService, binaryTransferService, exportService);
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
+         rvs, "GroupContainer1", null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertTrue(img.isPng());
+      assertEquals(400, img.width(), "must be the whole-viewsheet image, not the group's own box");
+      assertEquals(300, img.height());
+      assertNotNull(img.note(), "a group container must never come back as a blank success");
+      assertTrue(img.note().contains("GroupContainer1"), img.note());
+      assertTrue(img.note().contains("group container"), img.note());
+      assertTrue(img.note().contains("whole viewsheet"), img.note());
    }
 
    /**

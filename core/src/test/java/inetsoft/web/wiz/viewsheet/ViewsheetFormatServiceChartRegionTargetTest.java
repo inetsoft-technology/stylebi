@@ -146,7 +146,7 @@ class ViewsheetFormatServiceChartRegionTargetTest {
    private static FormatVSObjectEvent write(RuntimeViewsheet rvs, FormatPainterService painter,
                                             String target) throws Exception
    {
-      new ViewsheetFormatService(sessionsFor(rvs), painter, mock(CalcTableService.class), null)
+      new ViewsheetFormatService(sessionsFor(rvs), FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
          .setFormat("tok", principal(), request(target), "");
       ArgumentCaptor<FormatVSObjectEvent> captor =
          ArgumentCaptor.forClass(FormatVSObjectEvent.class);
@@ -182,7 +182,7 @@ class ViewsheetFormatServiceChartRegionTargetTest {
 
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
-         () -> new ViewsheetFormatService(sessions, painter, mock(CalcTableService.class), null)
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request(target), ""));
 
       assertTrue(e.getMessage().contains("'" + target + "' only applies to a chart") &&
@@ -200,7 +200,7 @@ class ViewsheetFormatServiceChartRegionTargetTest {
 
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
-         () -> new ViewsheetFormatService(sessions, painter, mock(CalcTableService.class), null)
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request("axisLabel2"), ""));
 
       assertTrue(e.getMessage().contains("'axisLabel2'") &&
@@ -276,7 +276,7 @@ class ViewsheetFormatServiceChartRegionTargetTest {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
          () -> new ViewsheetFormatService(sessionsFor(rvsWith("Chart1", null)),
-                                          mock(FormatPainterService.class),
+                                          FormatPainterProxies.local(mock(FormatPainterService.class)),
                                           mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request("axisLabel"), ""));
       assertTrue(e.getMessage().contains("no assembly named 'Chart1'"), e.getMessage());
@@ -286,7 +286,7 @@ class ViewsheetFormatServiceChartRegionTargetTest {
    void unknownTargetErrorListsTheChartRegionTargets() {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
-         () -> new ViewsheetFormatService(sessionsFor(null), mock(FormatPainterService.class),
+         () -> new ViewsheetFormatService(sessionsFor(null), FormatPainterProxies.local(mock(FormatPainterService.class)),
                                           mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request("bogus"), ""));
       assertTrue(e.getMessage().contains("'axisLabel'") && e.getMessage().contains("'axisLabel2'") &&
