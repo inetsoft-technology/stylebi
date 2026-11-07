@@ -32,7 +32,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.ColumnOption;
+import inetsoft.uql.viewsheet.SingleTimeInfo;
 import inetsoft.uql.viewsheet.TimeInfo;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
@@ -272,7 +274,31 @@ public class AssemblyPropertyService {
       out.put("assembly", assemblyName);
       out.put("assemblyType", type);
       out.put("properties", properties);
+      Double effective = effectiveRangeSize(rvs.getViewsheet().getAssembly(assemblyName));
+
+      if(effective != null) {
+         out.put("effectiveRangeSize", effective);
+      }
+
       return out;
+   }
+
+   /**
+    * The step a NUMBER range slider actually uses at run time (Bug #80654). The dialog model's
+    * {@code rangeSize} is the DESIGN value; TimeSliderVSAQuery rounds the step up to a nice number
+    * for the slider's data span and stores that in the runtime field only, so the two differ
+    * without any other signal. Null for anything that has no such step (not a range slider, a
+    * composite or non-NUMBER slider, a log-scale slider).
+    */
+   static Double effectiveRangeSize(Object assembly) {
+      if(!(assembly instanceof TimeSliderVSAssembly slider) ||
+         !(slider.getTimeInfo() instanceof SingleTimeInfo info) ||
+         info.getRangeTypeValue() != TimeInfo.NUMBER || slider.isLogScale())
+      {
+         return null;
+      }
+
+      return info.getRangeSize();
    }
 
    /** Current values, by alias. {@code raw} returns the whole dialog model instead. */
@@ -292,6 +318,12 @@ public class AssemblyPropertyService {
 
       for(Map.Entry<String, String> alias : entry.aliases().entrySet()) {
          values.put(alias.getKey(), PropertyPath.get(model, alias.getValue()));
+      }
+
+      Double effective = effectiveRangeSize(rvs.getViewsheet().getAssembly(assemblyName));
+
+      if(effective != null) {
+         values.put("effectiveRangeSize", effective);
       }
 
       return values;
