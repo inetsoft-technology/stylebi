@@ -3575,6 +3575,165 @@ class WorksheetAgentControllerTest {
       assertEquals(0, unrelated.loads.get(), "tables outside the refreshed chain stay untouched");
    }
 
+   /** ev(id, v, n) tabular source and mirror ev_by_v = group by v, Sum(n); box drops v on refresh. */
+   private static Worksheet mirrorOverTabularWorksheet() {
+      Worksheet ws = new Worksheet();
+      CountingTabular ev = new CountingTabular(ws, "ev");
+      ev.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      setSelection(ev, "id", "v", "n");
+      ws.addAssembly(ev);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "ev_by_v", ev);
+      setSelection(mirror, "id", "v", "n");
+      TestWorksheets.withGroupSumAndSort(mirror, "v", "n");
+      ws.addAssembly(mirror);
+      return ws;
+   }
+
+   private static void setSelection(TableAssembly table, String... names) {
+      for(boolean pub : new boolean[] { false, true }) {
+         ColumnSelection cols = new ColumnSelection();
+
+         for(String name : names) {
+            cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+         }
+
+         table.setColumnSelection(cols, pub);
+      }
+   }
+
+   /** Stands in for the real refresh, which re-validates every dependent against the source. */
+   private static void dropColumnVOnRefresh(Worksheet ws, AssetQuerySandbox box) throws Exception {
+      doAnswer(inv -> {
+         setSelection((TableAssembly) ws.getAssembly("ev"), "id", "n");
+         setSelection((TableAssembly) ws.getAssembly("ev_by_v"), "id", "n");
+         return null;
+      }).when(box).refreshColumnSelection(anyString(), anyBoolean());
+   }
+
+   /** Bug #79595 (a): the single-table refresh dropped the mirror's group with no message. */
+   @Test
+   void refreshDataSingleTableWarnsWhenAMirrorLosesItsGroupColumn() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("ev_by_v"), agent);
+      }
+
+      assertNotNull(response.getBody(), "a refresh that dropped a group must not be a bare 204");
+      String note = response.getBody().note();
+      assertTrue(note.contains("ev_by_v") && note.contains("v") && note.contains("group"),
+                 "note: " + note);
+      assertEquals(0, ((TableAssembly) ws.getAssembly("ev_by_v")).getAggregateInfo()
+         .getGroupCount(), "the loss is real, the warning must not hide it");
+   }
+
+   /** Refreshing the tabular source itself reaches its dependents through the same diff. */
+   @Test
+   void refreshDataOfTheTabularSourceWarnsAboutItsDependents() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("ev"), agent);
+      }
+
+      assertNotNull(response.getBody());
+      assertTrue(response.getBody().note().contains("ev_by_v"), response.getBody().note());
+   }
+
+   @Test
+   void refreshDataSingleTableStaysSilentWhenNothingWasLost() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      WorksheetAgentController ctrl = refreshController(ws, mock(AssetQuerySandbox.class));
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest("ev_by_v"), agent);
+      }
+
+      assertNull(response.getBody());
+   }
+
+   /**
+    * Bug #79595 (b): WorksheetEventUtil.refreshColumnSelection swallows what the sandbox throws,
+    * but not a failure to obtain the sandbox itself; that one must not abort the rest of the bulk
+    * refresh, and the column-loss warning gathered before it must still reach the response.
+    */
+   @Test
+   void refreshDataBulkSurvivesADependentRefreshThatThrows() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+      java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+      // Lookup 1 is the controller's own, lookup 2 the dependents' re-validation that drops column
+      // v (and so produces the warning); every later lookup, the per-table loop's, fails.
+      when(rws.getAssetQuerySandbox()).thenAnswer(inv -> {
+         if(calls.incrementAndGet() > 2) {
+            throw new IllegalStateException("sandbox gone");
+         }
+
+         return box;
+      });
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-79595"), any())).thenReturn(session("TOK-79595"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), editSvc,
+         mock(WorksheetService.class),
+         mock(inetsoft.report.composition.execution.AssetDataCache.class));
+
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertTrue(calls.get() > 2, "the per-table refresh must have been attempted");
+      assertNotNull(response.getBody(), "the warning must survive the failed dependent refresh");
+      assertTrue(response.getBody().note().contains("ev_by_v"), response.getBody().note());
+      verify(box, atLeastOnce()).getTableLens(eq("ev_by_v"), anyInt());
+   }
+
+   @Test
+   void refreshDataBulkWarnsWhenAMirrorLosesItsGroupColumn() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = mirrorOverTabularWorksheet();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      dropColumnVOnRefresh(ws, box);
+      WorksheetAgentController ctrl = refreshController(ws, box);
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         response = ctrl.edit("TOK-79595", refreshDataRequest(null), agent);
+      }
+
+      assertEquals(1, ((CountingTabular) ws.getAssembly("ev")).loads.get(),
+                   "the bulk refresh must re-discover the tabular source");
+      assertNotNull(response.getBody());
+      String note = response.getBody().note();
+      assertTrue(note.contains("ev_by_v") && note.contains("group"), "note: " + note);
+   }
+
    /** Bug 76873: refreshing a table must also drop the cached results of its dependents. */
    @Test
    void refreshDataInvalidatesTransitiveDependentsOfTheRefreshedTable() throws Exception {

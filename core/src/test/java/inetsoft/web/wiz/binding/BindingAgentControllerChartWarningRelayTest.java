@@ -134,8 +134,9 @@ class BindingAgentControllerChartWarningRelayTest {
                               anyString())).thenReturn(warnings);
       when(aesthetic.clearField(anyString(), any(), anyString(), anyString(), anyString()))
          .thenReturn(warnings);
+      // The controller always calls the summary-aware overload (Bug #80335).
       when(aesthetic.setFrame(anyString(), any(), anyString(), anyString(), any(), any(),
-                              anyString())).thenReturn(warnings);
+                              anyString(), anyBoolean())).thenReturn(warnings);
       when(aesthetic.resetFrame(anyString(), any(), anyString(), anyString(), any(),
                                 anyString())).thenReturn(warnings);
 

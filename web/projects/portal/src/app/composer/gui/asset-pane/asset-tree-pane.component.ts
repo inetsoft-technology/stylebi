@@ -84,6 +84,7 @@ const CURRENT_USER_URI: string = "../api/portal/get-current-user";
 
 const ASSET_ENTRY_BANNED_CHARS_MESSAGE = "_#(js:composer.sheet.checkSpeChar)";
 const START_WITH_CHART_DIGIT_MESSAGE = "_#(js:asset.tree.checkStart)";
+const INVALID_JS_FUNCTION_NAME_MESSAGE = "_#(js:common.sree.internal.invalidCharInName)";
 
 @Component({
     selector: "asset-tree-pane",
@@ -748,16 +749,29 @@ export class AssetTreePane implements OnChanges, OnInit {
       dialog.label = "_#(js:Asset Name)";
       dialog.value = node.label;
       dialog.helpLinkKey = "RenameAsset";
-      dialog.validators = [
-         FormValidators.required,
-         FormValidators.assetEntryBannedCharacters,
-         FormValidators.assetNameStartWithCharDigit
-      ];
-      dialog.validatorMessages = [
-         {validatorName: "required", message: "_#(js:asset.tree.nameValid)"},
-         {validatorName: "assetEntryBannedCharacters", message: ASSET_ENTRY_BANNED_CHARS_MESSAGE},
-         {validatorName: "assetNameStartWithCharDigit", message: START_WITH_CHART_DIGIT_MESSAGE}
-      ];
+
+      if(AssetEntryHelper.isScript(node.data as AssetEntry)) {
+         dialog.validators = [
+            FormValidators.required,
+            FormValidators.invalidJSFunctionName
+         ];
+         dialog.validatorMessages = [
+            {validatorName: "required", message: "_#(js:asset.tree.nameValid)"},
+            {validatorName: "invalidJSFunctionName", message: INVALID_JS_FUNCTION_NAME_MESSAGE}
+         ];
+      }
+      else {
+         dialog.validators = [
+            FormValidators.required,
+            FormValidators.assetEntryBannedCharacters,
+            FormValidators.assetNameStartWithCharDigit
+         ];
+         dialog.validatorMessages = [
+            {validatorName: "required", message: "_#(js:asset.tree.nameValid)"},
+            {validatorName: "assetEntryBannedCharacters", message: ASSET_ENTRY_BANNED_CHARS_MESSAGE},
+            {validatorName: "assetNameStartWithCharDigit", message: START_WITH_CHART_DIGIT_MESSAGE}
+         ];
+      }
    }
 
    private renameAsset(entry: AssetEntry, name: string, node: TreeNodeModel) {

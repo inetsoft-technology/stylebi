@@ -960,4 +960,46 @@ class ChartAestheticAgentServiceTest {
          ((inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel)
             measure.getColorField().getFrame()).getColors());
    }
+
+   // -- categorical palettes (bug 80335 gap 1) --------------------------------
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void optionsPublishesCategoricalPalettesAsNameAndColorsForADefaultOrgCaller() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Map<String, Object> options = service.options(null);
+
+      List<Map<String, Object>> palettes =
+         (List<Map<String, Object>>) options.get("categoricalPalettes");
+      assertNotNull(palettes);
+
+      for(Map<String, Object> palette : palettes) {
+         assertTrue(palette.get("name") instanceof String);
+
+         for(Object color : (List<?>) palette.get("colors")) {
+            assertTrue(((String) color).matches("#[0-9A-F]{6}"));
+         }
+      }
+
+      assertTrue(options.containsKey("palettes"), "the measure ramps stay under palettes");
+   }
+
+   @Test
+   void optionsForANonDefaultOrgPrincipalNeverThrowsAndLeavesTheThreadPrincipalAlone() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+      inetsoft.uql.XPrincipal principal = mock(inetsoft.uql.XPrincipal.class);
+      org.mockito.Mockito.when(principal.getCurrentOrgId()).thenReturn("org2");
+      java.security.Principal before = inetsoft.util.ThreadContext.getContextPrincipal();
+
+      Map<String, Object> options = assertDoesNotThrow(() -> service.options(principal));
+
+      assertTrue(options.get("categoricalPalettes") instanceof List,
+                 "an org with no palette map yields an empty list, not an NPE");
+      assertSame(before, inetsoft.util.ThreadContext.getContextPrincipal());
+   }
 }

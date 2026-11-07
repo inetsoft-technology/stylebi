@@ -255,6 +255,66 @@ class RepositoryImportChangePlanServiceTest {
       assertEquals(1, other.willCreate().size());
    }
 
+   // ---- Bug #80423: entries name the destination they were classified against ----
+
+   @Test
+   void noRetargetEntryNamesTheRecordedPath() throws Exception {
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", null, null),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "A/ws", null));
+      assertEquals("A/ws", plan.willOverwrite().get(0).path());
+      assertNull(plan.willOverwrite().get(0).user());
+   }
+
+   @Test
+   void globalRetargetCreateEntryNamesTheDestination() throws Exception {
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", "Target/A/ws", null),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "A/ws", null));
+      assertEquals("Target/A/ws", plan.willCreate().get(0).path());
+      assertNull(plan.willCreate().get(0).user());
+   }
+
+   @Test
+   void globalRetargetOverwriteEntryNamesTheDestination() throws Exception {
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", "Target/A/ws", null),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "Target/A/ws", null));
+      assertEquals("Target/A/ws", plan.willOverwrite().get(0).path());
+      assertNull(plan.willOverwrite().get(0).user());
+   }
+
+   @Test
+   void nullMarkerUserIsReportedAsGlobal() throws Exception {
+      IdentityID none = new IdentityID("__NULL__", "host-org");
+      RepositoryImportPlan plan = resolveWith(worksheet("A/ws", "Target/A/ws", none),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "Target/A/ws", null));
+      assertEquals("Target/A/ws", plan.willOverwrite().get(0).path());
+      assertNull(plan.willOverwrite().get(0).user());
+   }
+
+   @Test
+   void userRetargetEntryNamesTheDestinationPathAndUser() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+      RepositoryImportPlan over = resolveWith(worksheet("A/ws", "Target/A/ws", bob),
+         repoHolding(AssetRepository.USER_SCOPE, "Target/A/ws", bob));
+      assertEquals("Target/A/ws", over.willOverwrite().get(0).path());
+      assertEquals(bob.convertToKey(), over.willOverwrite().get(0).user());
+
+      RepositoryImportPlan created = resolveWith(worksheet("A/ws", "Target/A/ws", bob),
+         repoHolding(AssetRepository.GLOBAL_SCOPE, "Target/A/ws", null));
+      assertEquals("Target/A/ws", created.willCreate().get(0).path());
+      assertEquals(bob.convertToKey(), created.willCreate().get(0).user());
+   }
+
+   @Test
+   void planHashChangesWithTheRetargetedEntry() throws Exception {
+      AssetRepository repo = repoHolding(AssetRepository.GLOBAL_SCOPE, "none", null);
+      String plain = resolveWith(worksheet("A/ws", null, null), repo).planHash();
+      String global = resolveWith(worksheet("A/ws", "Target/A/ws", null), repo).planHash();
+      String user = resolveWith(
+         worksheet("A/ws", "Target/A/ws", new IdentityID("bob", "host-org")), repo).planHash();
+      assertNotEquals(plain, global);
+      assertNotEquals(global, user);
+   }
+
    private static BookmarkConflict conflict(String path, String user, String label, String name) {
       return BookmarkConflict.builder().viewsheetPath(path).user(user).userLabel(label)
          .bookmarkName(name).existingCreated(0L).existingModified(0L).importedCreated(0L)

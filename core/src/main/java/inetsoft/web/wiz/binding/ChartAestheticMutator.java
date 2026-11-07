@@ -155,6 +155,7 @@ public final class ChartAestheticMutator {
          field, model, rvs, source, refModelService,
          FieldRefFactory.findExpertPlaceholder(
             field, Collections.singletonList(previousData)));
+      ChartBindingMutator.requireDiscreteAllowed(model, name, field, dataInfo);
       info.setFullName(field.column());
       ChartBindingMutator.carryForwardSameField(previousData, dataInfo, field);
       info.setDataInfo(dataInfo);
@@ -575,6 +576,79 @@ public final class ChartAestheticMutator {
          case "node-color" -> model.setNodeColorFrame((ColorFrameModel) frame);
          case "node-size" -> model.setNodeSizeFrame((SizeFrameModel) frame);
          default -> throw new IllegalArgumentException("Unhandled frame channel '" + name + "'.");
+      }
+   }
+
+   /**
+    * Writes a waterfall's Total (summary) bar colour or texture: the per-aggregate
+    * {@code summaryColorFrame}/{@code summaryTextureFrame} the Composer's colour and shape panes
+    * edit as an extra frame editor. Only valid on a waterfall, only for {@code color} or
+    * {@code texture}, only with a static frame, and only while no colour (resp. shape) field is
+    * bound -- the panes hide the summary editors then. Refused, not half-written, on a
+    * multi-aesthetic chart.
+    *
+    * @param measure one measure to target, or null for every measure.
+    */
+   public static void setSummaryFrame(ChartBindingModel model, String channel,
+                                      Map<String, Object> spec, boolean relationChart,
+                                      String measure, boolean multiAesthetic)
+   {
+      String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+
+      if(!"color".equals(name) && !"texture".equals(name)) {
+         throw new IllegalArgumentException(
+            "'summary' (a waterfall's Total bar) applies only to the color and texture " +
+            "channels, not '" + name + "'.");
+      }
+
+      if(!GraphTypes.isWaterfall(model.getChartType())) {
+         throw new IllegalArgumentException(
+            "'summary' sets a waterfall chart's Total bar, and this chart is not a waterfall.");
+      }
+
+      if(multiAesthetic) {
+         throw new IllegalArgumentException(
+            "'summary' is not supported on a chart that renders each measure from its own " +
+            "aesthetic fields (multi-aesthetic); there is no single Total bar frame to set.");
+      }
+
+      AestheticInfo bound = "color".equals(name) ? read(model, "color") : read(model, "shape");
+
+      if(bound != null) {
+         throw new IllegalArgumentException(
+            "'" + fieldNameOf(bound) + "' is bound to the " + ("color".equals(name) ? "color" :
+            "shape") + " channel, and the Composer shows the Total bar's " + name + " only while " +
+            "that channel is empty. Clear the field with clear_aesthetic_field first.");
+      }
+
+      VisualFrameModel frame = VisualFrameAliases.create(name, spec, relationChart);
+
+      if(!(frame instanceof StaticColorModel) && !(frame instanceof StaticTextureModel)) {
+         throw new IllegalArgumentException(
+            "The Total bar takes a static " + name + " frame, e.g. {type: \"static\", " + name +
+            ": ...}; a '" + spec.get("type") + "' frame cannot be used with 'summary'.");
+      }
+
+      List<ChartAggregateRefModel> targets = aggregates(model);
+
+      if(targets.isEmpty()) {
+         throw new IllegalArgumentException("This chart has no measure whose Total bar to set.");
+      }
+
+      if(measure != null) {
+         targets = List.of(requireTargetMeasure(targets, name, measure));
+      }
+
+      for(ChartAggregateRefModel aggregate : targets) {
+         VisualFrameModel copy = VisualFrameAliases.create(name, spec, relationChart);
+         copy.setSummary(true);
+
+         if("color".equals(name)) {
+            aggregate.setSummaryColorFrame((ColorFrameModel) copy);
+         }
+         else {
+            aggregate.setSummaryTextureFrame((TextureFrameModel) copy);
+         }
       }
    }
 
@@ -1803,6 +1877,29 @@ public final class ChartAestheticMutator {
    }
 
    /**
+    * A waterfall's Total bar frames, per measure, so what {@link #setSummaryFrame} writes can be
+    * read back. Null for any other chart type.
+    */
+   private static List<Map<String, Object>> describeSummary(ChartBindingModel model) {
+      if(!GraphTypes.isWaterfall(model.getChartType())) {
+         return null;
+      }
+
+      List<Map<String, Object>> out = new ArrayList<>();
+
+      for(ChartAggregateRefModel aggregate : aggregates(model)) {
+         Map<String, Object> entry = new LinkedHashMap<>();
+         entry.put("measure", measureLabel(aggregate));
+         entry.put("summaryColor", VisualFrameAliases.describe(aggregate.getSummaryColorFrame()));
+         entry.put("summaryTexture",
+                   VisualFrameAliases.describe(aggregate.getSummaryTextureFrame()));
+         out.add(entry);
+      }
+
+      return out;
+   }
+
+   /**
     * @param multiAesthetic see {@code setFrame}'s parameter of that name. The read must agree with
     *                       the write: in that mode the chart-level slot is a decoy the renderer
     *                       ignores, so {@code field}/{@code frame} come from the measures instead
@@ -1835,6 +1932,12 @@ public final class ChartAestheticMutator {
                                           sizeSupported, colorShapeSupported,
                                           shapeFamilySupported, multiAesthetic));
          }
+      }
+
+      List<Map<String, Object>> summary = describeSummary(model);
+
+      if(summary != null) {
+         out.put("summaryFrames", summary);
       }
 
       return out;

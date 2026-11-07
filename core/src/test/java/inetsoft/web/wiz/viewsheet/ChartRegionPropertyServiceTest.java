@@ -1764,6 +1764,60 @@ class ChartRegionPropertyServiceTest {
    }
 
    @Test
+   void refusesNotShowNullOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("notShowNull", true), ""));
+
+      assertTrue(thrown.getMessage().contains("notShowNull"));
+      verifyNoLegendWrite(h);
+   }
+
+   /**
+    * A time-scale legend also refuses notShowNull, but for UI parity (the Composer's dialog hides
+    * the control there too, same as for a dimension-only measure legend), not because the engine
+    * is verified to ignore it the way it is for a measure legend -- TimeScale does read
+    * Scale.NO_NULL, unlike LinearScale/LogScale/PowerScale.
+    */
+   @Test
+   void refusesNotShowNullOnTimeLegend() throws Exception {
+      Harness h = legendHarness(false, true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("notShowNull", true), ""));
+
+      assertTrue(thrown.getMessage().contains("notShowNull"));
+      verifyNoLegendWrite(h);
+   }
+
+   @Test
+   void acceptsNotShowNullOnDimensionLegend() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("notShowNull", true), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void acceptsFalseNotShowNullOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("notShowNull", false), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
    void staleLegendScaleValueNotInPatchIsNotRefused() throws Exception {
       Harness h = harness();
       LegendFormatDialogModel model = legendModel();
@@ -1814,8 +1868,37 @@ class ChartRegionPropertyServiceTest {
 
       @SuppressWarnings("unchecked")
       List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
-      assertTrue(props.stream().noneMatch(p -> p.containsKey("applies")));
+      List<String> scaleKeys = List.of("logarithmicScale", "reverse", "includeZero");
+      assertTrue(props.stream().filter(p -> scaleKeys.contains(p.get("name")))
+                    .noneMatch(p -> p.containsKey("applies")));
       assertFalse(String.valueOf(listed.get("note")).contains("dimension/date"));
+   }
+
+   @Test
+   void listFlagsNotShowNullInapplicableOnMeasureLegend() throws Exception {
+      Harness h = legendHarness(false, false);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> notShowNull = props.stream()
+         .filter(p -> "notShowNull".equals(p.get("name"))).findFirst().orElseThrow();
+      assertEquals(false, notShowNull.get("applies"));
+      assertTrue(String.valueOf(listed.get("note")).contains("bound to a dimension"));
+   }
+
+   @Test
+   void listDoesNotFlagNotShowNullOnDimensionLegend() throws Exception {
+      Harness h = legendHarness(true, false);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> notShowNull = props.stream()
+         .filter(p -> "notShowNull".equals(p.get("name"))).findFirst().orElseThrow();
+      assertFalse(notShowNull.containsKey("applies"));
    }
 
    /**
@@ -2387,6 +2470,103 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   private static Viewsheet candleLike(int chartType, ChartRef[] x, ChartRef[] y) {
+      Viewsheet vs = withRuntimeFields(withShelves(mixedShelfViewsheet(new ChartRef[0]), x, y));
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      when(info.getChartType()).thenReturn(chartType);
+      return vs;
+   }
+
+   private void assertIncrementAccepted(Harness h, String field) throws Exception {
+      stubAxisModel(h);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", field,
+                    Map.of("increment", "6"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** Bug #80340: a candle chart keeps its measures on OHLC shelves, so its x date is innermost. */
+   @Test
+   void acceptsIncrementOnACandleChartTimeSeriesXAxis() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[] { dateDim() }, new ChartRef[0]));
+
+      assertIncrementAccepted(h, "Year(ORDER_DATE)");
+   }
+
+   @Test
+   void acceptsIncrementOnAStockChartTimeSeriesXAxis() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_STOCK,
+                                     new ChartRef[] { dateDim() }, new ChartRef[0]));
+
+      assertIncrementAccepted(h, "Year(ORDER_DATE)");
+   }
+
+   @Test
+   void stillRefusesIncrementOnADateDimensionOnACandleChartYShelf() {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[0], new ChartRef[] { dateDim() }));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", "Year(ORDER_DATE)",
+                             Map.of("increment", "3"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"), thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void acceptsIncrementOnlyOnTheDateOfACandleChartCategoryAndDateXShelf() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[] { categoryDim(), dateDim() }, new ChartRef[0]));
+      assertIncrementAccepted(h, "Year(ORDER_DATE)");
+
+      Harness other = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                         new ChartRef[] { categoryDim(), dateDim() },
+                                         new ChartRef[0]));
+      assertThrows(IllegalArgumentException.class,
+         () -> other.service.set("tok", principal(), "Chart1", "axis", "x", "STATE",
+                                 Map.of("increment", "3"), ""));
+      verifyNoInteractions(other.regions);
+   }
+
+   @Test
+   void stillRefusesIncrementOnALineChartWithAnEmptyYShelfOrADateFollowedByAMeasure() {
+      Harness empty = harness(candleLike(GraphTypes.CHART_LINE,
+                                         new ChartRef[] { dateDim() }, new ChartRef[0]));
+      assertThrows(IllegalArgumentException.class,
+         () -> empty.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                                 Map.of("increment", "3"), ""));
+      verifyNoInteractions(empty.regions);
+
+      Harness followed = harness(candleLike(GraphTypes.CHART_LINE,
+                                            new ChartRef[] { dateDim(), measureRef() },
+                                            new ChartRef[] { measureRef() }));
+      assertThrows(IllegalArgumentException.class,
+         () -> followed.service.set("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)",
+                                    Map.of("increment", "3"), ""));
+      verifyNoInteractions(followed.regions);
+   }
+
+   @Test
+   void listsIncrementAsApplicableOnACandleChartTimeSeriesXAxis() throws Exception {
+      Harness h = harness(candleLike(GraphTypes.CHART_CANDLE,
+                                     new ChartRef[] { dateDim() }, new ChartRef[0]));
+      stubAxisModel(h);
+
+      Map<String, Object> listed =
+         h.service.list("tok", principal(), "Chart1", "axis", "x", "Year(ORDER_DATE)");
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> inc = props.stream().filter(p -> "increment".equals(p.get("name")))
+         .findFirst().orElseThrow();
+      assertFalse(Boolean.FALSE.equals(inc.get("applies")), String.valueOf(inc));
+   }
+
    private static VSChartAggregateRef measureRef() {
       VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
       when(measure.isDiscrete()).thenReturn(false);
@@ -2597,7 +2777,7 @@ class ChartRegionPropertyServiceTest {
       Map<String, Object> flagged = flaggedKeys(
          h.service.list("tok", principal(), "Chart1", "legend", "0", null));
 
-      assertEquals(java.util.Set.of("reverse"), flagged.keySet());
+      assertEquals(java.util.Set.of("reverse", "notShowNull"), flagged.keySet());
       assertTrue(flagged.get("reverse").toString().contains("treemap Size legend"));
    }
 
@@ -2610,8 +2790,8 @@ class ChartRegionPropertyServiceTest {
 
       verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
                                                    anyString(), any(Principal.class), any());
-      assertTrue(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
-                    .isEmpty());
+      assertFalse(flaggedKeys(h.service.list("tok", principal(), "Chart1", "legend", "0", null))
+                    .containsKey("reverse"));
    }
 
    private static void verifyNoAxisWrite(Harness h) throws Exception {

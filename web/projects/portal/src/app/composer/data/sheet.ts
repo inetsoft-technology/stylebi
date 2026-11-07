@@ -131,6 +131,11 @@ export abstract class Sheet {
          // the runtime the agent is paired to.
          this.closeOnServer = sheet.closeOnServer;
          this.closedOnServer = sheet.closedOnServer;
+         // Bug #80372: same trap as closeOnServer. The agent-connected state is pushed once (on
+         // open or join) onto the current object, but worksheets are replaced by copy on every
+         // OpenWorksheetCommand init and UpdateUndoStateCommand, which would silently drop it.
+         this.agentConnected = sheet.agentConnected;
+         this.agentOwnerLabel = sheet.agentOwnerLabel;
       }
    }
 

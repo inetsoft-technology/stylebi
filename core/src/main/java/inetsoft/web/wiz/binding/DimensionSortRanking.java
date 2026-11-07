@@ -70,12 +70,15 @@ public final class DimensionSortRanking {
    public record Sort(String direction, String sortByField, List<String> manualOrder) {}
 
    /**
-    * @param mode    {@code top}, {@code bottom} or {@code none}
-    * @param n       how many
+    * @param mode    {@code top}, {@code bottom} or {@code none}, or a {@code $(Component)}
+    *                reference the viewer's control resolves at render time
+    * @param n       how many: an integer (JSON number or numeric string) or a
+    *                {@code $(Component)} reference. Typed {@code Object} so Jackson binds
+    *                either JSON shape and existing integer-literal callers still compile.
     * @param measure the measure to rank by, by name
     * @param others  group the remainder into an "Others" row
     */
-   public record Ranking(String mode, Integer n, String measure, Boolean others) {}
+   public record Ranking(String mode, Object n, String measure, Boolean others) {}
 
    public static void applySort(BDimensionRefModel dimension, Sort sort) {
       String direction = require(SORTS, sort == null ? null : sort.direction(), "direction",
@@ -114,11 +117,13 @@ public final class DimensionSortRanking {
    }
 
    public static void applyRanking(BDimensionRefModel dimension, Ranking ranking) {
-      String mode = require(RANKINGS, ranking == null ? null : ranking.mode(), "mode",
-                            rankingTokens());
-      int option = RANKINGS.get(mode);
+      String requested = ranking == null || ranking.mode() == null ? null : ranking.mode().trim();
+      boolean dynamicMode = isVariableValue(requested);
+      String mode = dynamicMode ? requested
+         : require(RANKINGS, ranking == null ? null : ranking.mode(), "mode", rankingTokens());
+      int option = dynamicMode ? XCondition.TOP_N : RANKINGS.get(mode);
 
-      if(option == XCondition.NONE) {
+      if(!dynamicMode && option == XCondition.NONE) {
          dimension.setRankingOption(String.valueOf(XCondition.NONE));
          dimension.setRankingN(null);
          dimension.setRankingCol(null);
@@ -126,10 +131,7 @@ public final class DimensionSortRanking {
          return;
       }
 
-      if(ranking.n() == null || ranking.n() < 1) {
-         throw new IllegalArgumentException(
-            "'" + mode + "' ranking needs an 'n' of at least 1, got " + ranking.n() + ".");
-      }
+      String n = resolveN(ranking.n(), mode);
 
       // Ranking by an unbound or unnamed measure produces an empty or arbitrary result rather
       // than an error, so the measure is required by name.
@@ -140,13 +142,47 @@ public final class DimensionSortRanking {
       }
 
       requireName(ranking.measure(), "measure");
-      dimension.setRankingOption(String.valueOf(option));
-      dimension.setRankingN(String.valueOf(ranking.n()));
+      // A "$(Component)" mode is stored verbatim: BDimensionRefModel/VSDimensionRef keep it as a
+      // dynamic value and resolve it from the component at render time.
+      dimension.setRankingOption(dynamicMode ? mode : String.valueOf(option));
+      dimension.setRankingN(n);
       dimension.setRankingCol(ranking.measure());
 
       if(ranking.others() != null) {
          dimension.setGroupOthers(ranking.others());
       }
+   }
+
+   /**
+    * The ranking count as the string the model stores: an integer of at least 1, or a
+    * {@code $(Component)} reference kept verbatim.
+    */
+   private static String resolveN(Object n, String mode) {
+      if(n instanceof String text) {
+         String trimmed = text.trim();
+
+         if(isVariableValue(trimmed)) {
+            return trimmed;
+         }
+
+         try {
+            n = Long.parseLong(trimmed);
+         }
+         catch(NumberFormatException e) {
+            throw new IllegalArgumentException(
+               "'" + mode + "' ranking needs an 'n' that is an integer of at least 1 or a " +
+               "$(ComponentName) reference, got '" + text + "'.");
+         }
+      }
+
+      if(n instanceof Number number && number.doubleValue() == Math.rint(number.doubleValue()) &&
+         number.doubleValue() >= 1 && number.doubleValue() <= Integer.MAX_VALUE)
+      {
+         return String.valueOf(number.intValue());
+      }
+
+      throw new IllegalArgumentException(
+         "'" + mode + "' ranking needs an 'n' of at least 1, got " + n + ".");
    }
 
    /** What a dimension is currently sorted and ranked by, in the agent vocabulary. */
@@ -242,6 +278,10 @@ public final class DimensionSortRanking {
          return "none";
       }
 
+      if((isVariableValue(option.trim()) || option.trim().startsWith("="))) {
+         return option.trim();
+      }
+
       try {
          int value = Integer.parseInt(option.trim());
 
@@ -264,6 +304,14 @@ public final class DimensionSortRanking {
       List<String> names = new ArrayList<>(table.keySet());
       Collections.sort(names);
       return names;
+   }
+
+   /**
+    * Same test as {@code VSUtil.isVariableValue}, kept local so this class does not drag in
+    * VSUtil's static initialisation (which needs the Spring context).
+    */
+   private static boolean isVariableValue(String value) {
+      return value != null && value.startsWith("$(") && value.endsWith(")");
    }
 
    private static boolean blank(String value) {

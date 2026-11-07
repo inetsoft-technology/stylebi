@@ -439,7 +439,7 @@ describe("Repository settings pages without settings", () => {
    });
 
    it("should not throw in the script settings page", () => {
-      const page = new RepositoryScriptSettingsPageComponent(null);
+      const page = new RepositoryScriptSettingsPageComponent(null, null);
       page.model = <any> { path: "s1", type: RepositoryEntryType.SCRIPT, scriptSettings: null };
 
       expect(() => page.ngOnInit()).not.toThrow();
