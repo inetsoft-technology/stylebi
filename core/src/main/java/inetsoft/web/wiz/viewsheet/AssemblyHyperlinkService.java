@@ -29,12 +29,15 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.table.TableAttr;
+import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.DrillPath;
+import inetsoft.uql.XDrillInfo;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
@@ -159,6 +162,11 @@ public class AssemblyHyperlinkService {
          target.text(), target.titleLink(), target.emptyPlotLink(), user);
       Map<String, Object> out = describe(assemblyName, model, target,
          model == null ? null : tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow()));
+      List<Map<String, Object>> inherited = tableInheritedLinks(rvs, assemblyName, cell);
+
+      if(inherited != null) {
+         out.put("inheritedLinks", inherited);
+      }
 
       // A freehand table cell is addressed by layout row/col and read at its runtime instance;
       // echo the cell the caller named, not the runtime one it rendered at.
@@ -1360,6 +1368,91 @@ public class AssemblyHyperlinkService {
       VSTableLens lens = box == null || box.isEmpty()
          ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
       return lens == null ? null : cellLinkScope(lens, cell.row(), cell.col());
+   }
+
+   /**
+    * Auto Drill links the data model attaches to the addressed cell (bug #80475); {@code null}
+    * for a non-table assembly or a table that did not render. They are not part of the cell's
+    * own stored hyperlink (the dialog model never carries them), yet the Viewer shows them.
+    */
+   private static List<Map<String, Object>> tableInheritedLinks(RuntimeViewsheet rvs,
+                                                                String assemblyName,
+                                                                TableLensGuard.Cell cell)
+      throws Exception
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return null;
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSTableLens lens = box == null || box.isEmpty()
+         ? null : TableLensGuard.lensOrNull(box.get(), assemblyName, false);
+      return lens == null ? null : inheritedLinks(lens, cell.row(), cell.col());
+   }
+
+   /**
+    * The drill paths at a rendered cell, read the way the Viewer reads them
+    * ({@code BaseTableCellModel}/{@code VSTableLens.getCellHyperlink}): from the inner table
+    * under the {@link AttributeTableLens}, falling back to the filter's own source. Empty when
+    * the cell has no drill info (a header cell, or a descriptor that does not know the
+    * attribute metadata).
+    */
+   static List<Map<String, Object>> inheritedLinks(TableLens lens, int row, int col) {
+      List<Map<String, Object>> links = new ArrayList<>();
+
+      if(lens == null) {
+         return links;
+      }
+
+      TableLens inner = Util.getNestedTable(lens, AttributeTableLens.class);
+
+      if(inner == null) {
+         inner = lens instanceof TableFilter filter ? filter.getTable() : lens;
+      }
+
+      XDrillInfo info = inner == null ? null : inner.getXDrillInfo(row, col);
+
+      if(info == null) {
+         return links;
+      }
+
+      for(int i = 0; i < info.getDrillPathCount(); i++) {
+         DrillPath path = info.getDrillPath(i);
+
+         if(path == null) {
+            continue;
+         }
+
+         Map<String, Object> link = new LinkedHashMap<>();
+         link.put("source", "dataModel");
+         link.put("name", path.getName());
+         int type = path.getLinkType();
+         link.put("linkType", type == DrillPath.WEB_LINK ? "web"
+            : type == DrillPath.VIEWSHEET_LINK ? "viewsheet" : (Object) type);
+         link.put("target", path.getLink());
+         link.put("targetFrame", path.getTargetFrame());
+         link.put("tooltip", path.getToolTip());
+         List<Map<String, Object>> params = new ArrayList<>();
+         Enumeration<String> names = path.getParameterNames();
+
+         while(names != null && names.hasMoreElements()) {
+            String name = names.nextElement();
+            Map<String, Object> param = new LinkedHashMap<>();
+            param.put("name", name);
+            param.put("field", path.getParameterField(name));
+            param.put("type", path.getParameterType(name));
+            param.put("hardCoded", path.isParameterHardCoded(name));
+            params.add(param);
+         }
+
+         link.put("parameters", params);
+         links.add(link);
+      }
+
+      return links;
    }
 
    /**
