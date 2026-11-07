@@ -40,6 +40,7 @@ import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.BookmarkRecord;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.VSBookmarkService;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1134,6 +1135,33 @@ public class RuntimeViewsheet extends RuntimeSheet {
                                   VSBookmarkInfo.PRIVATE, false, true);
          }
 
+         String callerKey = getUserName();
+
+         if(callerKey != null && !user.convertToKey().equals(callerKey) &&
+            !VSBookmark.HOME_BOOKMARK.equals(name))
+         {
+            // Overwriting another user's bookmark: decide from the freshly loaded storage, not
+            // from the session cache, which may predate the owner's change (Bug #79737).
+            // A bookmark that no longer exists was deleted by its owner and is being re-added,
+            // so the values passed in are kept.
+            VSBookmarkInfo stored = bookmark.getBookmarkInfo(name);
+
+            if(stored != null) {
+               IdentityID caller = IdentityID.getIdentityIDFromKey(callerKey);
+
+               if(!VSBookmarkService.isBookmarkAccessAllowed(
+                  caller, user, stored, () -> isSameGroup(user, caller),
+                  VSBookmarkService.BookmarkAccess.WRITE))
+               {
+                  throw new BookmarkNotWritableException(name, user);
+               }
+
+               // the sharing type and read-only flag belong to the owner
+               type = stored.getType();
+               readOnly = stored.isReadOnly();
+            }
+         }
+
          bookmark.addBookmark(name, vs, type, readOnly, true);
          // update this RVS with the new bookmark
          bookmarksMap.put(user.convertToKey(), bookmark);
@@ -1146,6 +1174,15 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
       finally {
          cluster.unlockKey(lockKey);
+      }
+   }
+
+   /**
+    * Thrown when the owner of a bookmark no longer allows the current user to overwrite it.
+    */
+   public static class BookmarkNotWritableException extends Exception {
+      public BookmarkNotWritableException(String name, IdentityID owner) {
+         super("Bookmark '" + name + "' of user " + owner + " is not writable");
       }
    }
 
