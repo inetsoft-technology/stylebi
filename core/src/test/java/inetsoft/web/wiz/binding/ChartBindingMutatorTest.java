@@ -47,6 +47,7 @@ import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.ChartGeoRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticLineModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticShapeModel;
@@ -336,6 +337,71 @@ class ChartBindingMutatorTest {
       assertEquals("top", region.get("ranking"));
       assertEquals("5", region.get("rankingN"));
       assertEquals("Sales", region.get("rankingMeasure"));
+   }
+
+   // ── ranking on a map's geo shelf (bug #80334) ─────────────────────────────
+
+   private static ChartBindingModel mapWithGeoState(int chartType) {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(chartType);
+      ChartGeoRefModel geo = new ChartGeoRefModel();
+      geo.setName("State");
+      model.setGeoFields(new ArrayList<>(List.of(geo)));
+      return model;
+   }
+
+   @Test
+   void ranksAGeoDimensionOnAMap() {
+      ChartBindingModel model = mapWithGeoState(GraphTypes.CHART_MAP);
+
+      ChartBindingMutator.setRanking(model, "geo", "State", null,
+         new DimensionSortRanking.Ranking("top", 3, "Sales", null));
+
+      Map<?, ?> state = (Map<?, ?>) ChartBindingMutator.describeSorts(model.getGeoFields())
+         .get("State");
+      assertEquals("top", state.get("ranking"));
+      assertEquals("3", state.get("rankingN"));
+      assertEquals("Sales", state.get("rankingMeasure"));
+   }
+
+   @Test
+   void ranksAGeoDimensionOnAMapContour() {
+      ChartBindingModel model = mapWithGeoState(GraphTypes.CHART_MAP_CONTOUR);
+
+      assertDoesNotThrow(() -> ChartBindingMutator.setRanking(model, "geo", "State", null,
+         new DimensionSortRanking.Ranking("bottom", 2, "Sales", null)));
+   }
+
+   @Test
+   void refusesSortingTheGeoShelfWithANamedMessage() {
+      ChartBindingModel model = mapWithGeoState(GraphTypes.CHART_MAP);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSort(model, "geo", "State", null,
+            new DimensionSortRanking.Sort("asc", null, null)));
+
+      assertTrue(thrown.getMessage().contains("'geo'"));
+      assertTrue(thrown.getMessage().contains("ranking"));
+   }
+
+   @Test
+   void refusesRankingTheGeoShelfOfANonMapChart() {
+      ChartBindingModel model = mapWithGeoState(GraphTypes.CHART_BAR);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingMutator.setRanking(model, "geo", "State", null,
+            new DimensionSortRanking.Ranking("top", 3, "Sales", null)));
+
+      assertTrue(thrown.getMessage().contains("map"));
+   }
+
+   @Test
+   void geoIsStillNotAWritableShelf() {
+      ChartBindingModel model = mapWithGeoState(GraphTypes.CHART_MAP);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(model, "geo",
+            List.of(new FieldRef("State", "dimension", null, null, null))));
    }
 
    /**
