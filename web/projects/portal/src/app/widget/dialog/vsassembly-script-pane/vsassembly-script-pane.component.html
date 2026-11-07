@@ -17,6 +17,13 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()">
   <fieldset>
+    @if (staleScript != null) {
+      <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <span>_#(An agent changed this script; your unsaved edits were kept.)</span>
+        <button type="button" class="btn btn-sm btn-outline-warning"
+          (click)="reloadStaleScript()">_#(Reload)</button>
+      </div>
+    }
     <script-pane [expression]="model.expression" (expressionChange)="onExpressionChange($event)"
                  [columnTreeRoot]="scriptTreeModel.columnTree"
                  [columnTreeEnabled]="!!scriptTreeModel.columnTree"

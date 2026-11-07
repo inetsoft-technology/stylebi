@@ -153,7 +153,9 @@ public class WorksheetScriptService {
       // requirePaneScope above, against the exact target being written -- see editOp's javadoc.
       worksheetController.editOp(session.sessionToken(), req, agent);
 
-      if(target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION) {
+      if(target.kind() == ScriptTarget.Kind.WORKSHEET_EXPRESSION ||
+         target.kind() == ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE)
+      {
          // editOp only repaints the worksheet canvas. An open Edit Expression dialog holds the
          // old text as client state and its OK sends that stale text back over this write, so
          // push the new text for the dialog to show (it parks it behind its own clobber guard if
