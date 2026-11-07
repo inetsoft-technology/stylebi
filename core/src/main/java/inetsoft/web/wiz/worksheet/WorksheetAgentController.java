@@ -2679,8 +2679,15 @@ public class WorksheetAgentController {
          // that guard is VSBindingService.createSourceTables, a different code path with no
          // timestamp/cache mechanism this reset touches at all. PVA-009's pairing with PVA-002 is
          // unconfirmed; excluded from this fix pass.
+         //
+         // Bug #80656: the cascade above never reaches an open viewsheet that is not stored, so a
+         // save that renamed something must still name every design session it could not
+         // reload; the markers are read here, before initWorksheetOldName resets them below.
          refreshConnectedViewsheets(connectedViewsheets(entry, user),
-                                    result.get("dependenciesUpdated") != null, result);
+                                    result.get("dependenciesUpdated") != null,
+                                    WorksheetRenameNotice.pendingRenames(
+                                       rws.getWorksheet(), entry.toIdentifier()),
+                                    result);
       }
 
       // Bug #78593: a confirmed Save-As onto a different EXISTING worksheet overwrites that
@@ -2693,7 +2700,7 @@ public class WorksheetAgentController {
          // reload=false: the rename cascade is skipped here (see above), so no stored dependent
          // was rewritten and there is no storage-vs-runtime divergence to repair; the warning
          // below already says bindings are not rewritten.
-         refreshConnectedViewsheets(targetViewsheets, false, result);
+         refreshConnectedViewsheets(targetViewsheets, false, List.of(), result);
 
          if(!resetIds.isEmpty()) {
             result.put("resetViewsheets", resetIds);
@@ -2776,9 +2783,13 @@ public class WorksheetAgentController {
     * edits, or one that was never saved, is kept as is (it only gets the plain reset, which
     * loses nothing) and reported under {@code staleViewsheets}. Otherwise every runtime just gets
     * the plain reset (Bug PVA-002).
+    *
+    * <p>Bug #80656: when the save renamed something ({@code renames} not empty) but no stored
+    * dependent was rewritten, no design session is reloaded from storage (it would still show
+    * the old name); each is kept, reset and reported as stale with the rename named.
     */
    private void refreshConnectedViewsheets(List<RuntimeViewsheet> connected, boolean reload,
-                                           Map<String, Object> result)
+                                           List<String> renames, Map<String, Object> result)
    {
       List<Map<String, Object>> stale = new ArrayList<>();
       List<String> reloaded = new ArrayList<>();
@@ -2786,7 +2797,9 @@ public class WorksheetAgentController {
       for(RuntimeViewsheet rvs : connected) {
          // viewer / preview / binding-editor runtimes are not the agent's design session; they
          // keep the plain reset and are never reloaded or reported
-         if(!reload || !StaleViewsheetReloader.isDesignSession(rvs)) {
+         if(!WorksheetRenameNotice.keepsSessionAndReports(
+            StaleViewsheetReloader.isDesignSession(rvs), reload, renames))
+         {
             rvs.resetRuntime();
             continue;
          }
@@ -2799,6 +2812,10 @@ public class WorksheetAgentController {
                "the viewsheet has never been saved" :
                "the viewsheet has changes since its last save (a refresh, a failed edit or " +
                "a script run also counts as a change)";
+         }
+         else if(!reload) {
+            reason = "the worksheet was renamed by this save but no stored copy of the " +
+               "viewsheet was rewritten";
          }
          else {
             try {
@@ -2848,12 +2865,8 @@ public class WorksheetAgentController {
 
       if(!stale.isEmpty()) {
          result.put("staleViewsheets", stale);
-         result.put("warning", "Open viewsheet session(s) " + connectedViewsheetIds(stale) +
-            " still hold the previous in-memory sheet and were not reloaded, so their " +
-            "bindings may still use the old table/column names. Calling save_viewsheet on a " +
-            "saved one applies the pending rename and reloads it. An unsaved one has nothing in " +
-            "storage to reload and no pending rename: rebind it (set_chart_source / " +
-            "set_table_source) to the new name before saving.");
+         result.put("warning", WorksheetRenameNotice.staleWarning(
+            connectedViewsheetIds(stale), renames));
       }
    }
 
