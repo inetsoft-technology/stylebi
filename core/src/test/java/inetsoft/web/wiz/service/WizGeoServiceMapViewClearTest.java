@@ -40,8 +40,6 @@ import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.viewsheet.controller.chart.VSChartMapService;
-import inetsoft.web.wiz.model.GeoClearRequest;
-import inetsoft.web.wiz.model.MapViewRequest;
 import inetsoft.web.wiz.model.MapViewResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -97,6 +95,7 @@ class WizGeoServiceMapViewClearTest {
    private ViewsheetSandbox box;
    private ChartVSAssemblyInfo assemblyInfo;
    private WizGeoService service;
+   private RuntimeViewsheet rvs;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -108,7 +107,7 @@ class WizGeoServiceMapViewClearTest {
          eq(principal), eq(ResourceType.VIEWSHEET), eq("*"), eq(ResourceAction.ACCESS)))
          .thenReturn(true);
 
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      rvs = mock(RuntimeViewsheet.class);
       Viewsheet vs = mock(Viewsheet.class);
       chart = mock(ChartVSAssembly.class);
       chartInfo = mock(VSChartInfo.class);
@@ -132,12 +131,27 @@ class WizGeoServiceMapViewClearTest {
       service = new WizGeoService(vsService, chartHandler, securityEngine);
    }
 
-   private static MapViewRequest viewRequest() {
-      MapViewRequest request = new MapViewRequest();
-      request.setRuntimeId("rt1");
-      request.setAssemblyName("Chart1");
-      return request;
+   /** Test-side holder for set-view arguments. */
+   private static class MapViewRequest {
+      Integer zoomBy;
+      Double panX;
+      Double panY;
+      Boolean reset;
+
+      void setZoomBy(Integer v) { zoomBy = v; }
+      void setPanX(Double v) { panX = v; }
+      void setPanY(Double v) { panY = v; }
+      void setReset(Boolean v) { reset = v; }
    }
+
+   private static MapViewRequest viewRequest() {
+      return new MapViewRequest();
+   }
+
+   private MapViewResponse setView(MapViewRequest r) throws Exception {
+      return service.setMapView(rvs, "Chart1", r.zoomBy, r.panX, r.panY, r.reset);
+   }
+
 
    // ── map view ──────────────────────────────────────────────────────────────
 
@@ -150,7 +164,7 @@ class WizGeoServiceMapViewClearTest {
       plot.setPanY(-0.5);
       plot.setWebMap(true);
 
-      MapViewResponse response = service.getMapView(viewRequest(), principal);
+      MapViewResponse response = service.getMapView(rvs, "Chart1");
 
       assertEquals(2.0, response.getZoom());
       assertEquals(4, response.getZoomLevel());
@@ -164,12 +178,12 @@ class WizGeoServiceMapViewClearTest {
       when(chartInfo.getChartType()).thenReturn(GraphTypes.CHART_BAR);
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
-         () -> service.getMapView(viewRequest(), principal));
+         () -> service.getMapView(rvs, "Chart1"));
       assertTrue(thrown.getMessage().contains("not a map"));
 
       MapViewRequest set = viewRequest();
       set.setReset(true);
-      assertThrows(IllegalArgumentException.class, () -> service.setMapView(set, principal));
+      assertThrows(IllegalArgumentException.class, () -> setView(set));
    }
 
    @Test
@@ -180,7 +194,7 @@ class WizGeoServiceMapViewClearTest {
       request.setZoomBy(1);
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
-         () -> service.setMapView(request, principal));
+         () -> setView(request));
       assertTrue(thrown.getMessage().contains("reset"));
    }
 
@@ -189,7 +203,7 @@ class WizGeoServiceMapViewClearTest {
       when(chartInfo.getChartType()).thenReturn(GraphTypes.CHART_MAP);
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
-         () -> service.setMapView(viewRequest(), principal));
+         () -> setView(viewRequest()));
       assertTrue(thrown.getMessage().contains("Nothing to set"));
    }
 
@@ -199,7 +213,7 @@ class WizGeoServiceMapViewClearTest {
       MapViewRequest request = viewRequest();
       request.setPanX(Double.NaN);
 
-      assertThrows(IllegalArgumentException.class, () -> service.setMapView(request, principal));
+      assertThrows(IllegalArgumentException.class, () -> setView(request));
    }
 
    @Test
@@ -209,7 +223,7 @@ class WizGeoServiceMapViewClearTest {
       request.setZoomBy(1);
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
-         () -> service.setMapView(request, principal));
+         () -> setView(request));
       assertTrue(thrown.getMessage().contains("Chart1"));
    }
 
@@ -219,32 +233,15 @@ class WizGeoServiceMapViewClearTest {
       MapViewRequest request = viewRequest();
       request.setReset(true);
 
-      service.setMapView(request, principal);
+      setView(request);
 
       assertEquals(1.0, plot.getZoom());
       assertEquals(0.0, plot.getPanX());
       assertEquals(0.0, plot.getPanY());
    }
 
-   @Test
-   void mapViewIsDeniedWithoutComposerAccess() throws Exception {
-      when(securityEngine.checkPermission(
-         eq(principal), eq(ResourceType.VIEWSHEET), eq("*"), eq(ResourceAction.ACCESS)))
-         .thenReturn(false);
-
-      assertThrows(inetsoft.sree.security.SecurityException.class,
-         () -> service.getMapView(viewRequest(), principal));
-   }
-
    // ── clear geographic ──────────────────────────────────────────────────────
 
-   private static GeoClearRequest clearRequest() {
-      GeoClearRequest request = new GeoClearRequest();
-      request.setRuntimeId("rt1");
-      request.setAssemblyName("Chart1");
-      request.setColumn("State");
-      return request;
-   }
 
    @Test
    void clearRefusesAColumnThatIsNotGeographic() throws Exception {
@@ -252,7 +249,7 @@ class WizGeoServiceMapViewClearTest {
       when(chartInfo.getGeoColumns()).thenReturn(new ColumnSelection());
 
       Exception thrown = assertThrows(IllegalArgumentException.class,
-         () -> service.clear(clearRequest(), principal));
+         () -> service.clear(rvs, "Chart1", "State"));
 
       assertTrue(thrown.getMessage().contains("'State'"));
       verify(chartHandler, never()).changeGeographic(any(), any(), any(), anyBoolean());
@@ -263,27 +260,15 @@ class WizGeoServiceMapViewClearTest {
       when(chartInfo.getRTGeoColumns()).thenReturn(new ColumnSelection());
       when(chartInfo.getGeoColumns()).thenReturn(new ColumnSelection());
 
-      assertThrows(IllegalArgumentException.class, () -> service.clear(clearRequest(), principal));
+      assertThrows(IllegalArgumentException.class, () -> service.clear(rvs, "Chart1", "State"));
 
       verify(chartHandler).updateGeoColumns(any(), any(), eq(chart), eq(chartInfo));
    }
 
    @Test
-   void clearIsDeniedWithoutComposerAccess() throws Exception {
-      when(securityEngine.checkPermission(
-         eq(principal), eq(ResourceType.VIEWSHEET), eq("*"), eq(ResourceAction.ACCESS)))
-         .thenReturn(false);
-
-      assertThrows(inetsoft.sree.security.SecurityException.class,
-         () -> service.clear(clearRequest(), principal));
-   }
-
-   @Test
    void clearRequiresAColumn() {
-      GeoClearRequest request = clearRequest();
-      request.setColumn("");
 
-      assertThrows(IllegalArgumentException.class, () -> service.clear(request, principal));
+      assertThrows(IllegalArgumentException.class, () -> service.clear(rvs, "Chart1", ""));
    }
 
    private VSMapInfo geoMapInfo() {
@@ -316,7 +301,7 @@ class WizGeoServiceMapViewClearTest {
       VSMapInfo info = geoMapInfo();
       stubClearRemovesState();
 
-      service.clear(clearRequest(), principal);
+      service.clear(rvs, "Chart1", "State");
 
       assertNull(info.getGeoColumns().getAttribute("State"));
       verify(chartHandler).fixMapInfo(eq(info), eq("State"), any());
@@ -333,7 +318,7 @@ class WizGeoServiceMapViewClearTest {
             return null;
          });
 
-      assertThrows(IllegalStateException.class, () -> service.clear(clearRequest(), principal));
+      assertThrows(IllegalStateException.class, () -> service.clear(rvs, "Chart1", "State"));
 
       ArgumentCaptor<VSChartInfo> restored = ArgumentCaptor.forClass(VSChartInfo.class);
       verify(assemblyInfo).setVSChartInfo(restored.capture());
@@ -354,7 +339,7 @@ class WizGeoServiceMapViewClearTest {
          });
 
       Exception thrown = assertThrows(IllegalStateException.class,
-         () -> service.clear(clearRequest(), principal));
+         () -> service.clear(rvs, "Chart1", "State"));
       assertTrue(thrown.getMessage().contains("still geographic"));
 
       ArgumentCaptor<VSChartInfo> restored = ArgumentCaptor.forClass(VSChartInfo.class);
@@ -370,7 +355,7 @@ class WizGeoServiceMapViewClearTest {
       stubClearRemovesState();
       doThrow(new IllegalStateException("update failed")).when(box).updateAssembly(any());
 
-      assertThrows(IllegalStateException.class, () -> service.clear(clearRequest(), principal));
+      assertThrows(IllegalStateException.class, () -> service.clear(rvs, "Chart1", "State"));
 
       ArgumentCaptor<VSChartInfo> restored = ArgumentCaptor.forClass(VSChartInfo.class);
       verify(assemblyInfo).setVSChartInfo(restored.capture());
@@ -400,7 +385,7 @@ class WizGeoServiceMapViewClearTest {
                return null;
             });
 
-         MapViewResponse response = service.setMapView(request, principal);
+         MapViewResponse response = setView(request);
 
          mocked.verify(() -> VSChartMapService.applyZoomPan(
             eq(2), eq(0.25), eq(0.0), any(), any(), any(), any()));
@@ -439,7 +424,7 @@ class WizGeoServiceMapViewClearTest {
             });
 
          Exception thrown = assertThrows(IllegalArgumentException.class,
-            () -> service.setMapView(request, principal));
+            () -> setView(request));
          assertTrue(thrown.getMessage().contains("layout failed"));
       }
 

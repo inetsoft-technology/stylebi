@@ -131,21 +131,6 @@ public class WizViewsheetController {
       return run("geo detect", () -> wizGeoService.detect(request, user));
    }
 
-   @PostMapping(value = "/viewsheet/geo/clear", produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<?> geoClear(@Valid @RequestBody GeoClearRequest request, Principal user) {
-      return run("geo clear", () -> wizGeoService.clear(request, user));
-   }
-
-   @PostMapping(value = "/viewsheet/chart/map-view/get", produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<?> getMapView(@Valid @RequestBody MapViewRequest request, Principal user) {
-      return run("get map view", () -> wizGeoService.getMapView(request, user));
-   }
-
-   @PostMapping(value = "/viewsheet/chart/map-view/set", produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<?> setMapView(@Valid @RequestBody MapViewRequest request, Principal user) {
-      return run("set map view", () -> wizGeoService.setMapView(request, user));
-   }
-
    @PostMapping(value = "/viewsheet/geo/apply", produces = MediaType.APPLICATION_JSON_VALUE)
    public ResponseEntity<?> geoApply(@Valid @RequestBody GeoApplyRequest request, Principal user) {
       return run("geo apply", () -> wizGeoService.apply(request, user));

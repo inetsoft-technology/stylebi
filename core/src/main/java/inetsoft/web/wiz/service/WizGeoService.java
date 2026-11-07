@@ -63,10 +63,8 @@ import inetsoft.web.viewsheet.controller.chart.VSChartMapService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.GeoApplyRequest;
 import inetsoft.web.wiz.model.GeoApplyResponse;
-import inetsoft.web.wiz.model.GeoClearRequest;
 import inetsoft.web.wiz.model.GeoDetectRequest;
 import inetsoft.web.wiz.model.GeoDetectResponse;
-import inetsoft.web.wiz.model.MapViewRequest;
 import inetsoft.web.wiz.model.MapViewResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -328,18 +326,16 @@ public class WizGeoService {
     *
     * <p>The response has the {@code detect} shape with empty detection results.
     */
-   public GeoDetectResponse clear(GeoClearRequest request, Principal user) throws Exception {
-      requireComposerAccess(user);
-
-      RuntimeViewsheet rvs =
-         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
+   public GeoDetectResponse clear(RuntimeViewsheet rvs, String assemblyName, String column)
+      throws Exception
+   {
       Viewsheet vs = rvs.getViewsheet();
-      ChartVSAssembly chart = getChart(vs, request.getAssemblyName());
+      ChartVSAssembly chart = getChart(vs, assemblyName);
       ViewsheetSandbox box = getSandbox(rvs);
 
       ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       VSChartInfo cinfo = ainfo.getVSChartInfo();
-      String refName = request.getColumn();
+      String refName = column;
 
       if(Tool.isEmptyString(refName)) {
          throw new IllegalArgumentException("column is required");
@@ -353,8 +349,8 @@ public class WizGeoService {
          rtCols.getAttribute(refName) == null || designCols.getAttribute(refName) == null)
       {
          throw new IllegalArgumentException(
-            "Column '" + refName + "' is not geographic on chart '" + request.getAssemblyName() +
-            "'; there is nothing to clear. Use geo/detect to mark a column geographic.");
+            "Column '" + refName + "' is not geographic on chart '" + assemblyName +
+            "'; there is nothing to clear. Use set_chart_geo_shelf or detect_geographic to mark a column geographic.");
       }
 
       VSChartInfo before = (VSChartInfo) cinfo.clone();
@@ -390,21 +386,12 @@ public class WizGeoService {
       response.setUnmatched(new ArrayList<>());
       response.setCandidateFeatures(new ArrayList<>());
 
-      if(!request.getRuntimeId().equals(rvs.getID())) {
-         response.setRuntimeId(rvs.getID());
-      }
-
-      persistViewsheet(vs, request.getViewsheetIdentifier(), user);
       return response;
    }
 
    /** Reads the saved zoom/pan of a map chart. */
-   public MapViewResponse getMapView(MapViewRequest request, Principal user) throws Exception {
-      requireComposerAccess(user);
-      RuntimeViewsheet rvs =
-         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
-      ChartVSAssembly chart = getMapChart(rvs.getViewsheet(), request.getAssemblyName());
-      return mapView(chart, request, rvs);
+   public MapViewResponse getMapView(RuntimeViewsheet rvs, String assemblyName) {
+      return mapView(getMapChart(rvs.getViewsheet(), assemblyName));
    }
 
    /**
@@ -414,12 +401,11 @@ public class WizGeoService {
     * ({@code lonLat}) is not persisted by StyleBI, so a saved viewport is replayed against the
     * current data's extent.
     */
-   public MapViewResponse setMapView(MapViewRequest request, Principal user) throws Exception {
-      requireComposerAccess(user);
-      boolean reset = Boolean.TRUE.equals(request.getReset());
-      Integer zoomBy = request.getZoomBy();
-      Double panX = request.getPanX();
-      Double panY = request.getPanY();
+   public MapViewResponse setMapView(RuntimeViewsheet rvs, String name, Integer zoomBy,
+                                     Double panX, Double panY, Boolean resetFlag)
+      throws Exception
+   {
+      boolean reset = Boolean.TRUE.equals(resetFlag);
 
       if(reset && (zoomBy != null || panX != null || panY != null)) {
          throw new IllegalArgumentException(
@@ -437,10 +423,7 @@ public class WizGeoService {
          }
       }
 
-      RuntimeViewsheet rvs =
-         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
       Viewsheet vs = rvs.getViewsheet();
-      String name = request.getAssemblyName();
       ChartVSAssembly chart = getMapChart(vs, name);
       ViewsheetSandbox box = getSandbox(rvs);
       ChartDescriptor desc = chart.getChartDescriptor();
@@ -483,13 +466,10 @@ public class WizGeoService {
 
       chart.getChartInfo().setRTChartDescriptor(null);
       box.clearGraph(name);
-      persistViewsheet(vs, request.getViewsheetIdentifier(), user);
-      return mapView(chart, request, rvs);
+      return mapView(chart);
    }
 
-   private MapViewResponse mapView(ChartVSAssembly chart, MapViewRequest request,
-                                   RuntimeViewsheet rvs)
-   {
+   private MapViewResponse mapView(ChartVSAssembly chart) {
       PlotDescriptor plot = chart.getChartDescriptor().getPlotDescriptor();
       MapViewResponse response = new MapViewResponse();
       response.setZoom(plot.getZoom());
@@ -497,11 +477,6 @@ public class WizGeoService {
       response.setPanX(plot.getPanX());
       response.setPanY(plot.getPanY());
       response.setWebMap(plot.isWebMap());
-
-      if(!request.getRuntimeId().equals(rvs.getID())) {
-         response.setRuntimeId(rvs.getID());
-      }
-
       return response;
    }
 
@@ -517,12 +492,6 @@ public class WizGeoService {
       return chart;
    }
 
-   private void requireComposerAccess(Principal user) throws SecurityException {
-      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
-         throw new SecurityException(Catalog.getCatalog().getString(
-            "composer.authorization.permissionDenied"));
-      }
-   }
 
    // ── helpers ──────────────────────────────────────────────────────────────────
 

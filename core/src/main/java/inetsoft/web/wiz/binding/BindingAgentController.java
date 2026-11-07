@@ -27,6 +27,9 @@ import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.model.GeoDetectResponse;
+import inetsoft.web.wiz.model.MapViewResponse;
+import inetsoft.web.wiz.service.WizGeoService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.ViewsheetFormatService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -238,6 +241,62 @@ public class BindingAgentController {
       out.put("geo", detected);
 
       return out;
+   }
+
+   /** Body of {@code geo/clear}: remove the geographic mark from {@code column}. */
+   public record GeoClearRequest(String assembly, String column) {}
+   /** Body of {@code chart/map-view/get}. */
+   public record MapViewGetRequest(String assembly) {}
+   /**
+    * Body of {@code chart/map-view/set}: a relative zoom step and/or relative pans, or
+    * {@code reset} (exclusive with the rest).
+    */
+   public record MapViewSetRequest(String assembly, Integer zoomBy, Double panX, Double panY,
+                                   Boolean reset) {}
+
+   /**
+    * Clear Geographic for one column of a map chart; one undo checkpoint. The failure leaves the
+    * chart as it was ({@link WizGeoService#clear}). Resolved from the session token like
+    * {@code chart/geo-shelf}.
+    */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/geo/clear")
+   public GeoDetectResponse clearGeographic(@PathVariable String sessionToken,
+                                            @RequestBody GeoClearRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      GeoDetectResponse[] out = new GeoDetectResponse[1];
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         out[0] = geoService().clear(rvs, request.assembly(), request.column()));
+      return out[0];
+   }
+
+   /** Reads a map chart's saved zoom/pan; no checkpoint, no broadcast. */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/map-view/get")
+   public MapViewResponse getChartMapView(@PathVariable String sessionToken,
+                                          @RequestBody MapViewGetRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return geoService().getMapView(sessions.resolve(sessionToken, user), request.assembly());
+   }
+
+   /** Sets or resets a map chart's saved zoom/pan; one undo checkpoint. */
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/chart/map-view/set")
+   public MapViewResponse setChartMapView(@PathVariable String sessionToken,
+                                          @RequestBody MapViewSetRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      MapViewResponse[] out = new MapViewResponse[1];
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+         out[0] = geoService().setMapView(rvs, request.assembly(), request.zoomBy(),
+                                          request.panX(), request.panY(), request.reset()));
+      return out[0];
+   }
+
+   private WizGeoService geoService() {
+      return ConfigurationContext.getContext().getSpringBean(WizGeoService.class);
    }
 
    /** @see TableSortRequest — same shape, applied to a chart's x/y/group dimension shelves. */
