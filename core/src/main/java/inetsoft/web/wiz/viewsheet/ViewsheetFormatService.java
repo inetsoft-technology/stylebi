@@ -77,6 +77,7 @@ import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
+import inetsoft.web.composer.vs.controller.FormatPainterServiceProxy;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -115,7 +116,8 @@ import java.util.stream.Collectors;
 @Service
 public class ViewsheetFormatService {
    @Autowired
-   public ViewsheetFormatService(ViewsheetSessionService sessions, FormatPainterService painter,
+   public ViewsheetFormatService(ViewsheetSessionService sessions,
+                                 FormatPainterServiceProxy painter,
                                  CalcTableService calcService,
                                  VSWizardBindingHandler bindingHandler)
    {
@@ -992,6 +994,257 @@ public class ViewsheetFormatService {
     *                 that cannot take effect at all is refused with a 400 instead.
     */
    public record FormatResult(List<String> warnings) {
+   }
+
+   /**
+    * One chart text sub-region addressed the way the Composer's chart format pane does.
+    *
+    * @param assembly the chart's name
+    * @param region   {@code axis_labels}, {@code axis_title}, {@code legend_title},
+    *                 {@code legend_content} or {@code target_label}
+    * @param axis     {@code x}, {@code x2}, {@code y} or {@code y2}; required for
+    *                 {@code axis_labels} and {@code axis_title}
+    * @param field    the axis column (full name) for {@code axis_labels}; defaults to the first
+    *                 field on the axis' shelf
+    * @param index    the legend index ({@code legend_content}, default 0) or the target index
+    *                 ({@code target_label}, required)
+    * @param format   the font/colour to write; null when reading or resetting
+    * @param reset    clear the region's own format back to the default
+    */
+   public record ChartRegionFormatRequest(String assembly, String region, String axis,
+                                          String field, Integer index,
+                                          VSObjectFormatInfoModel format, boolean reset)
+   {
+      @JsonCreator
+      public static ChartRegionFormatRequest fromJson(
+         @JsonProperty("assembly") String assembly, @JsonProperty("region") String region,
+         @JsonProperty("axis") String axis, @JsonProperty("field") String field,
+         @JsonProperty("index") Integer index, @JsonProperty("format") JsonNode format,
+         @JsonProperty("reset") boolean reset)
+      {
+         return new ChartRegionFormatRequest(assembly, region, axis, field, index,
+                                             parseFormat(format, "set_chart_region_format"), reset);
+      }
+   }
+
+   /** The effective format of a chart sub-region, read back after a write or on request. */
+   public record ChartRegionFormatResult(VSObjectFormatInfoModel format, List<String> warnings) {
+   }
+
+   private record ChartRegion(String painterRegion, String column, int index) {
+   }
+
+   private static ChartRegion resolveChartRegion(RuntimeViewsheet rvs, ChartRegionFormatRequest r) {
+      String tool = "chart region format";
+
+      if(r.assembly() == null || r.assembly().isBlank()) {
+         throw new IllegalArgumentException(tool + ": 'assembly' is required.");
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(r.assembly());
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new IllegalArgumentException(
+            tool + ": '" + r.assembly() + "' is not a chart.");
+      }
+
+      String region = r.region() == null ? "" : r.region().trim().toLowerCase().replace('-', '_');
+      String axis = r.axis() == null ? null : r.axis().trim().toLowerCase();
+
+      if(axis != null && !Set.of("x", "x2", "y", "y2").contains(axis)) {
+         throw new IllegalArgumentException(
+            tool + ": 'axis' must be x, x2, y or y2; got '" + r.axis() + "'.");
+      }
+
+      switch(region) {
+      case "axis_labels":
+      case "axis_title":
+         if(axis == null) {
+            throw new IllegalArgumentException(
+               tool + ": region '" + region + "' requires 'axis' (x, x2, y or y2).");
+         }
+
+         break;
+      case "legend_title":
+      case "legend_content":
+         break;
+      case "target_label":
+         if(r.index() == null || r.index() < 0 ||
+            r.index() >= chart.getChartDescriptor().getTargetCount())
+         {
+            throw new IllegalArgumentException(
+               tool + ": region 'target_label' requires 'index' of an existing target line (chart '" +
+               r.assembly() + "' has " + chart.getChartDescriptor().getTargetCount() + ").");
+         }
+
+         break;
+      default:
+         throw new IllegalArgumentException(
+            tool + ": 'region' must be one of axis_labels, axis_title, legend_title, " +
+            "legend_content, target_label; got '" + r.region() + "'.");
+      }
+
+      int index = r.index() == null ? 0 : r.index();
+
+      if("axis_title".equals(region)) {
+         if(axis.endsWith("2")) {
+            ChartRef[] refs = axisRefs(chart, axis);
+
+            if(refs == null || java.util.Arrays.stream(refs).noneMatch(
+               ViewsheetFormatService::isSecondaryY))
+            {
+               throw new IllegalArgumentException(
+                  tool + ": chart '" + r.assembly() + "' renders no " + axis + " axis (no " +
+                  "measure is on the secondary axis), so there is no " + axis +
+                  " title to format.");
+            }
+         }
+
+         return new ChartRegion(axis + "_title", null, index);
+      }
+
+      if("legend_title".equals(region)) {
+         return new ChartRegion(ChartFormatConstants.LEGEND_TITLE, null, index);
+      }
+
+      if("legend_content".equals(region)) {
+         return new ChartRegion(ChartFormatConstants.LEGEND_CONTENT, null, index);
+      }
+
+      if("target_label".equals(region)) {
+         return new ChartRegion(FormatPainterService.TARGET_LABEL_BY_INDEX, null, index);
+      }
+
+      String painterRegion = switch(axis) {
+         case "x" -> ChartFormatConstants.BOTTOM_X_AXIS;
+         case "x2" -> ChartFormatConstants.TOP_X_AXIS;
+         case "y" -> ChartFormatConstants.LEFT_Y_AXIS;
+         default -> ChartFormatConstants.RIGHT_Y_AXIS;
+      };
+      String column = r.field();
+
+      if(column == null || column.isBlank()) {
+         ChartRef[] refs = axisRefs(chart, axis);
+
+         if(refs == null || refs.length == 0) {
+            throw new IllegalArgumentException(
+               tool + ": chart '" + r.assembly() + "' has no field on the " + axis +
+               " axis, so there are no axis labels to format.");
+         }
+
+         column = pickAxisRef(tool, r.assembly(), axis, refs).getFullName();
+      }
+      else {
+         checkAxisSide(tool, axis, column, axisRefs(chart, axis));
+      }
+
+      return new ChartRegion(painterRegion, column, index);
+   }
+
+   private static boolean isSecondaryY(ChartRef ref) {
+      return ref instanceof ChartAggregateRef agg && agg.isSecondaryY();
+   }
+
+   /**
+    * The default field for an axis. The painter picks the axis descriptor from the field, not from
+    * the requested side, so y2 must land on a secondary-Y measure and y on a primary one; otherwise
+    * the write would silently format the other axis.
+    */
+   private static ChartRef[] axisRefs(ChartVSAssembly chart, String axis) {
+      VSChartInfo info = chart.getVSChartInfo();
+      return axis.startsWith("x") ? info.getRTXFields() : info.getRTYFields();
+   }
+
+   private static ChartRef pickAxisRef(String tool, String assembly, String axis, ChartRef[] refs) {
+      boolean secondary = axis.endsWith("2");
+
+      for(int i = 0; i < refs.length; i++) {
+         ChartRef ref = refs[secondary ? refs.length - 1 - i : i];
+
+         if(isSecondaryY(ref) == secondary) {
+            return ref;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         tool + ": chart '" + assembly + "' renders no " + axis + " axis" +
+         (secondary ? " (no measure is on the secondary axis)" : " (every measure is on the " +
+          "secondary axis; use axis '" + axis + "2')") + ".");
+   }
+
+   private static void checkAxisSide(String tool, String axis, String field, ChartRef[] refs)
+   {
+      if(refs == null) {
+         return;
+      }
+
+      boolean secondary = axis.endsWith("2");
+
+      for(ChartRef ref : refs) {
+         if(field.equals(ref.getFullName()) && isSecondaryY(ref) != secondary) {
+            throw new IllegalArgumentException(
+               tool + ": field '" + field + "' is " + (secondary ? "not " : "") +
+               "on the secondary axis, so it has no " + axis + " axis labels.");
+         }
+      }
+   }
+
+   public ChartRegionFormatResult getChartRegionFormat(String sessionToken, Principal user,
+                                                       ChartRegionFormatRequest request)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ChartRegion region = resolveChartRegion(rvs, request);
+      return new ChartRegionFormatResult(
+         painter.getChartRegionFormatModel(rvs.getID(), user, request.assembly(),
+                                           region.painterRegion(), region.index(),
+                                           region.column()),
+         List.of());
+   }
+
+   public ChartRegionFormatResult setChartRegionFormat(String sessionToken, Principal user,
+                                                       ChartRegionFormatRequest request,
+                                                       String linkUri)
+      throws Exception
+   {
+      if(request.format() == null && !request.reset()) {
+         throw new IllegalArgumentException(
+            "set_chart_region_format requires 'format' unless 'reset' is true.");
+      }
+
+      Set<String> warnings = new LinkedHashSet<>();
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
+                                                                          dispatcher) -> {
+         ChartRegion region = resolveChartRegion(rvs, request);
+         FormatVSObjectEvent event = new FormatVSObjectEvent();
+         VSObjectFormatInfoModel model = request.format();
+         event.setFormat(model == null ? new VSObjectFormatInfoModel() : model);
+         event.setReset(request.reset());
+         event.setObjects(new String[0]);
+         event.setCharts(new String[]{ request.assembly() });
+         event.setRegions(new String[]{ region.painterRegion() });
+         event.setColumnNames(new String[][]{ { region.column() == null ? "" : region.column() } });
+         event.setIndexes(new int[][]{ { region.index() } });
+         CoreTool.clearUserMessage();
+
+         try {
+            painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
+         }
+         finally {
+            drainUserMessages(warnings);
+         }
+      });
+
+      if(sessionWarnings != null) {
+         warnings.addAll(sessionWarnings);
+      }
+
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ChartRegion region = resolveChartRegion(rvs, request);
+      VSObjectFormatInfoModel after = painter.getChartRegionFormatModel(
+         rvs.getID(), user, request.assembly(), region.painterRegion(), region.index(),
+         region.column());
+      return new ChartRegionFormatResult(after, new ArrayList<>(warnings));
    }
 
    public FormatResult setFormat(String sessionToken, Principal user, FormatRequest request,
@@ -3378,7 +3631,7 @@ public class ViewsheetFormatService {
    }
 
    private final ViewsheetSessionService sessions;
-   private final FormatPainterService painter;
+   private final FormatPainterServiceProxy painter;
    private final CalcTableService calcService;
    private final VSWizardBindingHandler bindingHandler;
 }

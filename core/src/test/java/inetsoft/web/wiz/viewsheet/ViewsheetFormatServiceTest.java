@@ -2682,7 +2682,7 @@ class ViewsheetFormatServiceTest {
       // No binding handler: these tests never reach the field writer (its refusals run first),
       // and VSWizardBindingHandler's static initializer needs the SREE context -- see
       // ViewsheetFormatServiceFieldTargetTest for the field target against the real handler.
-      return new ViewsheetFormatService(sessions, painter, calcService, null);
+      return new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), calcService, null);
    }
 
    /**

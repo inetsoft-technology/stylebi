@@ -727,7 +727,9 @@ public class FormatPainterService {
                   GraphUtil.syncWorldCloudColor(chartInfo);
                }
             }
-            else if(ChartFormatConstants.TARGET_LABEL.equals(event.getRegions()[i])) {
+            else if(ChartFormatConstants.TARGET_LABEL.equals(event.getRegions()[i]) ||
+               TARGET_LABEL_BY_INDEX.equals(event.getRegions()[i]))
+            {
                setChartFormat(runtimeId, event.getRegions()[i], event.getIndexes()[i],
                               null, assembly,
                               event.getFormat(), event.getOrigFormat(), event.isValueText(),
@@ -1600,6 +1602,24 @@ public class FormatPainterService {
 
          format.getCSSFormat().setCSSType(CSSConstants.CHART_AXIS_LABELS);
       }
+      else if(TARGET_LABEL_BY_INDEX.equals(region)) {
+         // Addressed by the target's stable index, so it does not depend on a rendered plot area.
+         if(index < 0 || index >= chartDescriptor.getTargetCount()) {
+            throw new IllegalArgumentException(
+               "Chart '" + name + "' has " + chartDescriptor.getTargetCount() +
+               " target line(s); target index " + index + " does not exist.");
+         }
+
+         GraphTarget target = chartDescriptor.getTarget(index);
+         format = target.getTextFormat();
+
+         if(format == null) {
+            format = new CompositeTextFormat();
+            target.setTextFormat(format);
+         }
+
+         format.getCSSFormat().setCSSType(CSSConstants.CHART_TARGET_LABELS);
+      }
       else if(region.equals(ChartFormatConstants.TARGET_LABEL) && area != null) {
          PlotArea plotArea = area.getPlotArea();
          DefaultArea[] areas = plotArea.getAllAreas();
@@ -1768,6 +1788,17 @@ public class FormatPainterService {
          format.getCSSFormat().addCSSAttribute("axis", "y2");
       }
       else if(box.isPresent() && region.equals(ChartFormatConstants.LEGEND_CONTENT)) {
+         // Only an out-of-range index is refused: with no rendered legends area the descriptor
+         // lookup below keeps its historical behaviour for the Composer's own format pane.
+         int legendCount = area == null || area.getLegendsArea() == null ? -1 :
+            area.getLegendsArea().getLegendAreas().length;
+
+         if(legendCount >= 0 && (index < 0 || index >= legendCount)) {
+            throw new IllegalArgumentException(
+               "Chart '" + name + "' has " + legendCount + " rendered legend(s); legend index " +
+               index + " does not exist.");
+         }
+
          LegendDescriptor descriptor = getLegendDescriptor(chartDescriptor, chartInfo, area, index);
 
          if(descriptor != null) {
@@ -1798,6 +1829,48 @@ public class FormatPainterService {
       }
 
       return new RegionInfo(format, area);
+   }
+
+   /**
+    * Region name that addresses a target-line label by the target's stable index (the position in
+    * the chart's target list) instead of an index into the rendered plot area.
+    */
+   public static final String TARGET_LABEL_BY_INDEX = "target_label_by_index";
+
+   /**
+    * Reads the effective font and colours of one chart text region, without a command dispatcher.
+    *
+    * @return the region's format, or null when the region has no format yet (for example an axis
+    *         label region that is not rendered)
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VSObjectFormatInfoModel getChartRegionFormatModel(@ClusterProxyKey String runtimeId,
+                                                            Principal principal,
+                                                            String name, String region, int index,
+                                                            String columnName)
+      throws Exception
+   {
+      CompositeTextFormat format = getChartRegionFormat(
+         runtimeId, principal, name, region, index, columnName, false).format;
+
+      if(format == null) {
+         return null;
+      }
+
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      Font font = format.getFont();
+
+      if(font != null) {
+         model.setFont(new FontInfo(font));
+      }
+
+      model.setColor(Tool.toString(format.getColor()));
+      model.setBackgroundColor(Tool.toString(format.getBackground()));
+      model.setColorType("Static");
+      model.setBackgroundColorType("Static");
+      model.setBackgroundAlpha(format.getAlpha());
+      model.setAlign(new AlignmentInfo(format.getAlignment()));
+      return model;
    }
 
    private CompositeTextFormat getAxisLabelTextFormat(String name, String region, int index,

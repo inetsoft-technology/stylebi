@@ -393,6 +393,31 @@ public class ViewsheetAssemblyAgentController {
       return formatService.setFormat(sessionToken, user, request, linkUri);
    }
 
+   /** Writes the font/colour of one chart text sub-region (axis labels/title, legend, target). */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/region/format")
+   public ViewsheetFormatService.ChartRegionFormatResult setChartRegionFormat(
+      @PathVariable String sessionToken,
+      @RequestBody ViewsheetFormatService.ChartRegionFormatRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formatService.setChartRegionFormat(sessionToken, user, request, linkUri);
+   }
+
+   /** Reads back the effective font/colour of one chart text sub-region. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/region/format/read")
+   public ViewsheetFormatService.ChartRegionFormatResult getChartRegionFormat(
+      @PathVariable String sessionToken,
+      @RequestBody ViewsheetFormatService.ChartRegionFormatRequest request,
+      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formatService.getChartRegionFormat(sessionToken, user, request);
+   }
+
    public record ImageResponse(String image, String format, int width, int height, String note) {}
 
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/image")

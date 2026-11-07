@@ -90,7 +90,7 @@ class ViewsheetFormatServiceInputLabelTargetTest {
    private static FormatVSObjectEvent write(RuntimeViewsheet rvs, FormatPainterService painter,
                                             String assembly) throws Exception
    {
-      new ViewsheetFormatService(sessionsFor(rvs), painter, mock(CalcTableService.class), null)
+      new ViewsheetFormatService(sessionsFor(rvs), FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
          .setFormat("tok", principal(), request(assembly), "");
       ArgumentCaptor<FormatVSObjectEvent> captor =
          ArgumentCaptor.forClass(FormatVSObjectEvent.class);
@@ -119,7 +119,7 @@ class ViewsheetFormatServiceInputLabelTargetTest {
 
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
-         () -> new ViewsheetFormatService(sessions, painter, mock(CalcTableService.class), null)
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request("Table1"), ""));
 
       assertTrue(e.getMessage().contains("'inputLabel' only applies to a Text Input") &&
@@ -135,7 +135,7 @@ class ViewsheetFormatServiceInputLabelTargetTest {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
          () -> new ViewsheetFormatService(sessionsFor(rvsWith("Input1", null)),
-                                          mock(FormatPainterService.class),
+                                          FormatPainterProxies.local(mock(FormatPainterService.class)),
                                           mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request("Input1"), ""));
       assertTrue(e.getMessage().contains("no assembly named 'Input1'"), e.getMessage());
@@ -145,7 +145,7 @@ class ViewsheetFormatServiceInputLabelTargetTest {
    void unknownTargetErrorListsInputLabel() {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
-         () -> new ViewsheetFormatService(sessionsFor(null), mock(FormatPainterService.class),
+         () -> new ViewsheetFormatService(sessionsFor(null), FormatPainterProxies.local(mock(FormatPainterService.class)),
                                           mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request("Input1", "bogus"), ""));
       assertTrue(e.getMessage().contains("'inputLabel'"), e.getMessage());

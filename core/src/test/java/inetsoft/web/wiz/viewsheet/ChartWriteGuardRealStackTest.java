@@ -666,7 +666,7 @@ class ChartWriteGuardRealStackTest {
          coreLifecycleService, new ChartRegionHandler(), viewsheetService,
          mock(VSObjectModelFactoryService.class),
          mock(VSBindingService.class), mock(VSLayoutService.class));
-      return new ViewsheetFormatService(seam(rvs), painter, null, null);
+      return new ViewsheetFormatService(seam(rvs), FormatPainterProxies.local(painter), null, null);
    }
 
    private static ViewsheetFormatService.FormatRequest parse(String json) throws Exception {
