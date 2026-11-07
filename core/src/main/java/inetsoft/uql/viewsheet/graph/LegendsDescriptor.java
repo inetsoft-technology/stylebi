@@ -187,6 +187,20 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Whether the author set the legends border color.
+    */
+   public boolean hasBorderColorUserValue() {
+      return borderColor.hasUserValue();
+   }
+
+   /**
+    * Whether the author set the legends border.
+    */
+   public boolean hasBorderUserValue() {
+      return border.hasUserValue();
+   }
+
+   /**
     * Get the legends layout option.
     */
    public int getLayout() {

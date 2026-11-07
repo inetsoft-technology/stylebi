@@ -1743,6 +1743,11 @@ public class VSWizardBindingHandler {
       // keep target. (54593)
       chart2.setChartDescriptor(chart1.getChartDescriptor());
 
+      // the flag guards smoothing in the shared plot from the receiver's type seed
+      if(chart1.getChartInfo().isUserSmoothLines()) {
+         chart2.getChartInfo().setUserSmoothLines(true);
+      }
+
       if(selection != null && !selection.isEmpty()) {
          chart2.setBrushSelection(selection);
       }

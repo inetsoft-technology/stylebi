@@ -2013,6 +2013,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(!Tool.equalsContent(desc, ninfo.desc)) {
          desc = ninfo.desc;
+         // the key travels with the values, so the next update re-seeds a mismatch
+         seededType = ninfo.seededType;
          result = true;
       }
 
@@ -3164,6 +3166,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(getVizMark() != null && seededType != null && !seededType.equals(now)) {
          seedTypeDefaults(VizContext.of(this), now);
+      }
+
+      seededType = now;
+   }
+
+   /**
+    * Re-seed after a descriptor swap; an unmarked chart only when a marked one shared it.
+    */
+   public void reseedTypeDefaults(boolean sharedWithMarked) {
+      ResolvedChartType now = ResolvedChartType.of(cinfo);
+
+      if(getVizMark() != null) {
+         seedTypeDefaults(VizContext.of(this), now);
+      }
+      else if(sharedWithMarked) {
+         seedChromeDefaults(VizContext.of(this));
       }
 
       seededType = now;

@@ -21,6 +21,7 @@ import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.filter.HighlightGroup;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.XCube;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -67,6 +68,11 @@ public class SyncChartHandler extends SyncAssemblyHandler {
          // the flags guarding the copied plot's values, which the re-seed below would replace
          targetAssemblyInfo.setUserSmoothLines(fromAssemblyInfo.isUserSmoothLines());
          targetAssemblyInfo.setUserBarCornerRadius(fromAssemblyInfo.isUserBarCornerRadius());
+
+         // the copied plot holds the source's per-type values, maybe the temp chart's
+         ChartVSAssembly tempChart = tempInfo.getTempChart();
+         targetAssemblyInfo.reseedTypeDefaults(
+            tempChart != null && tempChart.getVSAssemblyInfo().getVizMark() != null);
 
          // sync legend properties
          if(syncLegend) {
@@ -214,8 +220,23 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       LegendsDescriptor olegendsDescriptor = odescriptor.getLegendsDescriptor();
       LegendsDescriptor nlegendsDescriptor = ndescriptor.getLegendsDescriptor();
 
-      nlegendsDescriptor.setBorder(olegendsDescriptor.getBorder(), false);
-      nlegendsDescriptor.setBorderColor(olegendsDescriptor.getBorderColor(), false);
+      // a marked target keeps its seeded frame; only an author value travels
+      if(targetChart.getVSAssemblyInfo().getVizMark() != null) {
+         if(olegendsDescriptor.hasBorderUserValue()) {
+            nlegendsDescriptor.setBorder(olegendsDescriptor.getBorder(),
+                                         CompositeValue.Type.USER);
+         }
+
+         if(olegendsDescriptor.hasBorderColorUserValue()) {
+            nlegendsDescriptor.setBorderColor(olegendsDescriptor.getBorderColor(),
+                                              CompositeValue.Type.USER);
+         }
+      }
+      else {
+         nlegendsDescriptor.setBorder(olegendsDescriptor.getBorder(), false);
+         nlegendsDescriptor.setBorderColor(olegendsDescriptor.getBorderColor(), false);
+      }
+
       nlegendsDescriptor.setLayout(olegendsDescriptor.getLayout());
 
       if(oColorField != null && nColorField != null) {
