@@ -859,6 +859,18 @@ public class ViewsheetFormatService {
       int index = r.index() == null ? 0 : r.index();
 
       if("axis_title".equals(region)) {
+         if("y2".equals(axis)) {
+            ChartRef[] yrefs = chart.getVSChartInfo().getRTYFields();
+
+            if(yrefs == null || java.util.Arrays.stream(yrefs).noneMatch(
+               ViewsheetFormatService::isSecondaryY))
+            {
+               throw new IllegalArgumentException(
+                  tool + ": chart '" + r.assembly() + "' renders no y2 axis (no measure is on " +
+                  "the secondary Y axis), so there is no y2 title to format.");
+            }
+         }
+
          return new ChartRegion(axis + "_title", null, index);
       }
 
@@ -892,10 +904,61 @@ public class ViewsheetFormatService {
                " axis, so there are no axis labels to format.");
          }
 
-         column = refs[axis.endsWith("2") ? refs.length - 1 : 0].getFullName();
+         column = pickAxisRef(tool, r.assembly(), axis, refs).getFullName();
+      }
+      else if(axis.startsWith("y")) {
+         checkYAxisSide(tool, r.assembly(), axis, column, chart.getVSChartInfo().getRTYFields());
       }
 
       return new ChartRegion(painterRegion, column, index);
+   }
+
+   private static boolean isSecondaryY(ChartRef ref) {
+      return ref instanceof ChartAggregateRef agg && agg.isSecondaryY();
+   }
+
+   /**
+    * The default field for an axis. The painter picks the axis descriptor from the field, not from
+    * the requested side, so y2 must land on a secondary-Y measure and y on a primary one; otherwise
+    * the write would silently format the other axis.
+    */
+   private static ChartRef pickAxisRef(String tool, String assembly, String axis, ChartRef[] refs) {
+      if(axis.startsWith("x")) {
+         return refs[axis.endsWith("2") ? refs.length - 1 : 0];
+      }
+
+      boolean secondary = axis.endsWith("2");
+
+      for(int i = 0; i < refs.length; i++) {
+         ChartRef ref = refs[secondary ? refs.length - 1 - i : i];
+
+         if(isSecondaryY(ref) == secondary) {
+            return ref;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         tool + ": chart '" + assembly + "' renders no " + axis + " axis" +
+         (secondary ? " (no measure is on the secondary Y axis)" : " (every measure is on the " +
+          "secondary Y axis; use axis 'y2')") + ".");
+   }
+
+   private static void checkYAxisSide(String tool, String assembly, String axis, String field,
+                                      ChartRef[] refs)
+   {
+      if(refs == null) {
+         return;
+      }
+
+      boolean secondary = axis.endsWith("2");
+
+      for(ChartRef ref : refs) {
+         if(field.equals(ref.getFullName()) && isSecondaryY(ref) != secondary) {
+            throw new IllegalArgumentException(
+               tool + ": field '" + field + "' is " + (secondary ? "not " : "") +
+               "on the secondary Y axis, so it has no " + axis + " axis labels.");
+         }
+      }
    }
 
    public ChartRegionFormatResult getChartRegionFormat(String sessionToken, Principal user,

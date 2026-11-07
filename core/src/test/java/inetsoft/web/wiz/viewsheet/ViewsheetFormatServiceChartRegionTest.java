@@ -23,6 +23,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -53,13 +54,25 @@ import static org.mockito.Mockito.*;
 @SreeHome
 @Tag("core")
 class ViewsheetFormatServiceChartRegionTest {
+   private static ChartAggregateRef measure(String name, boolean secondary) {
+      ChartAggregateRef ref = mock(ChartAggregateRef.class);
+      when(ref.getFullName()).thenReturn(name);
+      when(ref.isSecondaryY()).thenReturn(secondary);
+      return ref;
+   }
+
    private static RuntimeViewsheet rvs(int targets) {
+      return rvs(targets, measure("Sum(Total)", false));
+   }
+
+   private static RuntimeViewsheet rvs(int targets, ChartRef... yRefs) {
       ChartDescriptor descriptor = mock(ChartDescriptor.class);
       when(descriptor.getTargetCount()).thenReturn(targets);
       ChartRef x = mock(ChartRef.class);
       when(x.getFullName()).thenReturn("Region");
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.getRTXFields()).thenReturn(new ChartRef[]{ x });
+      when(info.getRTYFields()).thenReturn(yRefs);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getChartDescriptor()).thenReturn(descriptor);
       when(chart.getVSChartInfo()).thenReturn(info);
@@ -83,8 +96,15 @@ class ViewsheetFormatServiceChartRegionTest {
    private static FormatVSObjectEvent write(
       ViewsheetFormatService.ChartRegionFormatRequest request, int targets) throws Exception
    {
+      return write(request, rvs(targets));
+   }
+
+   private static FormatVSObjectEvent write(
+      ViewsheetFormatService.ChartRegionFormatRequest request, RuntimeViewsheet rvs)
+      throws Exception
+   {
       FormatPainterService painter = mock(FormatPainterService.class);
-      new ViewsheetFormatService(sessionsFor(rvs(targets)), FormatPainterProxies.local(painter),
+      new ViewsheetFormatService(sessionsFor(rvs), FormatPainterProxies.local(painter),
                                  mock(CalcTableService.class), null)
          .setChartRegionFormat("tok", principal(), request, "");
       ArgumentCaptor<FormatVSObjectEvent> captor =
@@ -104,8 +124,57 @@ class ViewsheetFormatServiceChartRegionTest {
 
    @Test
    void axisTitleUsesThePainterTitleRegion() throws Exception {
-      FormatVSObjectEvent event = write(request("axis_title", "y2", null, null), 0);
+      FormatVSObjectEvent event = write(
+         request("axis_title", "y2", null, null),
+         rvs(0, measure("Sum(Total)", false), measure("Sum(Qty)", true)));
       assertArrayEquals(new String[]{ "y2_title" }, event.getRegions());
+   }
+
+   /** The painter picks the descriptor from the field, so a y2 request on a one-axis chart
+    *  used to format the primary y axis and report success. */
+   @Test
+   void refusesY2LabelsWhenNoMeasureIsOnTheSecondaryAxis() {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> write(request("axis_labels", "y2", null, null), 0));
+      assertTrue(e.getMessage().contains("y2"), e.getMessage());
+   }
+
+   @Test
+   void refusesY2TitleWhenNoMeasureIsOnTheSecondaryAxis() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> write(request("axis_title", "y2", null, null), 0));
+   }
+
+   @Test
+   void y2LabelsPickTheSecondaryMeasure() throws Exception {
+      FormatVSObjectEvent event = write(
+         request("axis_labels", "y2", null, null),
+         rvs(0, measure("Sum(Total)", false), measure("Sum(Qty)", true)));
+      assertArrayEquals(new String[]{ "Sum(Qty)" }, event.getColumnNames()[0]);
+   }
+
+   @Test
+   void plainYSkipsAMeasureOnTheSecondaryAxis() throws Exception {
+      FormatVSObjectEvent event = write(
+         request("axis_labels", "y", null, null),
+         rvs(0, measure("Sum(Qty)", true), measure("Sum(Total)", false)));
+      assertArrayEquals(new String[]{ "Sum(Total)" }, event.getColumnNames()[0]);
+   }
+
+   @Test
+   void refusesPlainYWhenEveryMeasureIsSecondary() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> write(request("axis_labels", "y", null, null),
+                               rvs(0, measure("Sum(Qty)", true))));
+   }
+
+   @Test
+   void refusesAnExplicitFieldOnTheOtherYAxisSide() {
+      RuntimeViewsheet rvs = rvs(0, measure("Sum(Total)", false), measure("Sum(Qty)", true));
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> write(request("axis_labels", "y2", "Sum(Total)", null), rvs));
+      assertTrue(e.getMessage().contains("Sum(Total)"), e.getMessage());
    }
 
    @Test
