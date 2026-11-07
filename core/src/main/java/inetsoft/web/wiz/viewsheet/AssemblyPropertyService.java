@@ -244,7 +244,8 @@ public class AssemblyPropertyService {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       String type = typeOf(rvs, assemblyName);
       PropertyAliases.TypeAliases entry = PropertyAliases.forType(type);
-      Object model = readModel(rvs, type, assemblyName, user);
+      Object model = hideIdModeSingleSelectionLevels(
+         type, readModel(rvs, type, assemblyName, user));
       List<Map<String, Object>> properties = new ArrayList<>();
 
       for(Map.Entry<String, String> alias : entry.aliases().entrySet()) {
@@ -307,7 +308,8 @@ public class AssemblyPropertyService {
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       String type = typeOf(rvs, assemblyName);
-      Object model = readModel(rvs, type, assemblyName, user);
+      Object model = hideIdModeSingleSelectionLevels(
+         type, readModel(rvs, type, assemblyName, user));
 
       if(raw) {
          return model;
@@ -1084,6 +1086,25 @@ public class AssemblyPropertyService {
             "children has no effect (the Composer disables it). Set singleSelection:false in " +
             "the same call, or leave selectChildren false.");
       }
+   }
+
+   /**
+    * Read-side counterpart of the write guard in {@link #requireKnownSingleSelectionLevels}
+    * (bug #80659). {@code getSingleSelectionLevelNames()} fills every data ref (the parent-id, id
+    * and label columns) for a single-select ID-mode tree, so the read listed levels the write
+    * refuses ("an ID-mode tree has no fixed levels"). Stored levels and the viewer runtime are
+    * untouched; only this read projection drops them. Column-mode trees and every other type are
+    * returned as read. Only the get/list reads call this, never the patch's own read.
+    */
+   static Object hideIdModeSingleSelectionLevels(String type, Object model) {
+      if("selectiontree".equals(type) && model != null &&
+         Integer.valueOf(SelectionTreeVSAssemblyInfo.ID).equals(
+            PropertyPath.get(model, "selectionTreePaneModel.mode")))
+      {
+         return PropertyPath.set(model, SINGLE_SELECTION_LEVELS_PATH, null);
+      }
+
+      return model;
    }
 
    private static final String SINGLE_SELECTION_LEVELS_PATH =

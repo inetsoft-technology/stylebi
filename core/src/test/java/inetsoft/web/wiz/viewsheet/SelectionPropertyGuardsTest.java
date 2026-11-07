@@ -175,6 +175,45 @@ class SelectionPropertyGuardsTest {
       assertEquals(List.of("State", "Region"), PropertyPath.get(result, LEVELS));
    }
 
+   // bug #80659: the read must not list levels the write refuses on an ID-mode tree
+
+   @Test
+   void idModeSingleSelectTreeReadsNoLevels() {
+      SelectionTreePropertyDialogModel model = tree(
+         true, SelectionTreeVSAssemblyInfo.ID, List.of("PARENT_ID", "ID", "NAME"), "PARENT_ID",
+         "ID", "NAME");
+
+      Object read = AssemblyPropertyService.hideIdModeSingleSelectionLevels("selectiontree", model);
+
+      assertNull(PropertyPath.get(read, LEVELS));
+      assertEquals(Boolean.TRUE,
+                   PropertyPath.get(read, "selectionGeneralPaneModel.singleSelection"));
+   }
+
+   @Test
+   void columnModeTreeStillReadsItsLevels() {
+      SelectionTreePropertyDialogModel model = tree(
+         true, SelectionTreeVSAssemblyInfo.COLUMN, List.of("Region", "State"), "Region", "State");
+
+      Object read = AssemblyPropertyService.hideIdModeSingleSelectionLevels("selectiontree", model);
+
+      assertEquals(List.of("Region", "State"), PropertyPath.get(read, LEVELS));
+   }
+
+   @Test
+   void nonTreeModelIsReturnedUntouched() {
+      RangeSliderPropertyDialogModel model = slider(false, 0, false);
+
+      assertSame(model, AssemblyPropertyService.hideIdModeSingleSelectionLevels("rangeslider", model));
+   }
+
+   @Test
+   void idModeLevelsWriteIsStillRefused() {
+      assertTrue(levelsRefusal(
+         tree(true, SelectionTreeVSAssemblyInfo.ID, List.of("PARENT_ID", "ID", "NAME"),
+              "PARENT_ID", "ID", "NAME")).contains("ID-mode"));
+   }
+
    // P4: range slider applicability
 
    private static RangeSliderPropertyDialogModel slider(boolean composite, int rangeType,
