@@ -200,7 +200,8 @@ class ViewsheetFormatServiceCellPathHighlightTest {
          return null;
       }).when(sessions).mutate(anyString(), any(Principal.class), any());
 
-      service = new ViewsheetFormatService(sessions, painter, null, null);
+      service = new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter), null,
+                                           null);
    }
 
    @Test

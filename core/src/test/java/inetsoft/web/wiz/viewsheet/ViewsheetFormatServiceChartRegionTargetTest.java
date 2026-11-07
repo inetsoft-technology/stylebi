@@ -264,7 +264,8 @@ class ViewsheetFormatServiceChartRegionTargetTest {
 
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class,
-         () -> new ViewsheetFormatService(sessions, painter, mock(CalcTableService.class), null)
+         () -> new ViewsheetFormatService(sessions, FormatPainterProxies.local(painter),
+                                          mock(CalcTableService.class), null)
             .setFormat("tok", principal(), request("plotLabel"), ""));
 
       assertTrue(e.getMessage().contains("plotLabel") && e.getMessage().contains("Chart1"),
