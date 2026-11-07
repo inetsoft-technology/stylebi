@@ -34,6 +34,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
@@ -61,8 +62,8 @@ import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.viewsheet.controller.chart.VSChartMapService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.GeoApplyRequest;
-import inetsoft.web.wiz.model.GeoClearRequest;
 import inetsoft.web.wiz.model.GeoApplyResponse;
+import inetsoft.web.wiz.model.GeoClearRequest;
 import inetsoft.web.wiz.model.GeoDetectRequest;
 import inetsoft.web.wiz.model.GeoDetectResponse;
 import inetsoft.web.wiz.model.MapViewRequest;
@@ -71,6 +72,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.awt.geom.Rectangle2D;
 import java.security.Principal;
 import java.util.*;
 
@@ -327,10 +329,7 @@ public class WizGeoService {
     * <p>The response has the {@code detect} shape with empty detection results.
     */
    public GeoDetectResponse clear(GeoClearRequest request, Principal user) throws Exception {
-      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
-         throw new SecurityException(Catalog.getCatalog().getString(
-            "composer.authorization.permissionDenied"));
-      }
+      requireComposerAccess(user);
 
       RuntimeViewsheet rvs =
          getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
@@ -347,9 +346,11 @@ public class WizGeoService {
       }
 
       chartHandler.updateGeoColumns(box, vs, chart, cinfo);
+      ColumnSelection rtCols = cinfo.getRTGeoColumns();
+      ColumnSelection designCols = cinfo.getGeoColumns();
 
-      if(cinfo.getRTGeoColumns().getAttribute(refName) == null ||
-         cinfo.getGeoColumns().getAttribute(refName) == null)
+      if(rtCols == null || designCols == null ||
+         rtCols.getAttribute(refName) == null || designCols.getAttribute(refName) == null)
       {
          throw new IllegalArgumentException(
             "Column '" + refName + "' is not geographic on chart '" + request.getAssemblyName() +
@@ -357,19 +358,28 @@ public class WizGeoService {
       }
 
       VSChartInfo before = (VSChartInfo) cinfo.clone();
-      DataRef removed = chartHandler.changeGeographic(
-         cinfo, refName, VSChartHandler.CLEAR_GEOGRAPHIC, true);
 
-      if(removed == null || cinfo.getGeoColumns().getAttribute(refName) != null) {
-         throw new IllegalStateException(
-            "Failed to clear geographic column '" + refName + "': it is still geographic");
+      try {
+         DataRef removed = chartHandler.changeGeographic(
+            cinfo, refName, VSChartHandler.CLEAR_GEOGRAPHIC, true);
+
+         if(removed == null || cinfo.getGeoColumns().getAttribute(refName) != null) {
+            throw new IllegalStateException(
+               "Failed to clear geographic column '" + refName + "': it is still geographic");
+         }
+
+         chartHandler.fixMapInfo(cinfo, refName, VSChartHandler.CLEAR_GEOGRAPHIC);
+         new ChangeChartProcessor().fixMapFrame(before, cinfo);
+         chart.setVSAssemblyInfo(ainfo);
+         box.updateAssembly(chart.getAbsoluteName());
+         chartHandler.updateGeoColumns(box, vs, chart, cinfo);
       }
-
-      chartHandler.fixMapInfo(cinfo, refName, VSChartHandler.CLEAR_GEOGRAPHIC);
-      new ChangeChartProcessor().fixMapFrame(before, cinfo);
-      chart.setVSAssemblyInfo(ainfo);
-      box.updateAssembly(chart.getAbsoluteName());
-      chartHandler.updateGeoColumns(box, vs, chart, cinfo);
+      catch(Exception | Error ex) {
+         // changeGeographic mutates the design chart info in place; leave it untouched on failure
+         ainfo.setVSChartInfo(before);
+         chart.setVSAssemblyInfo(ainfo);
+         throw ex;
+      }
 
       GeoDetectResponse response = new GeoDetectResponse();
       String mapType = cinfo.getMeasureMapType();
@@ -441,7 +451,11 @@ public class WizGeoService {
       }
       else {
          ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
-         java.awt.geom.Rectangle2D lonLat = plot.getLonLat();
+         double oldZoom = plot.getZoom();
+         int oldZoomLevel = plot.getZoomLevel();
+         double oldPanX = plot.getPanX();
+         double oldPanY = plot.getPanY();
+         Rectangle2D lonLat = plot.getLonLat();
 
          try {
             VGraphPair vpair = box.getVGraphPair(name, true, info.getMaxSize());
@@ -456,6 +470,11 @@ public class WizGeoService {
                desc, vpair.getRealSizeVGraph(), vpair.getEGraph(), vpair.getData());
          }
          catch(Exception ex) {
+            // applyZoomPan mutates the design plot step by step, so put every field back
+            plot.setZoom(oldZoom);
+            plot.setZoomLevel(oldZoomLevel);
+            plot.setPanX(oldPanX);
+            plot.setPanY(oldPanY);
             plot.setLonLat(lonLat);
             throw new IllegalArgumentException(
                "Could not apply the map view to '" + name + "': " + ex.getMessage(), ex);
