@@ -789,6 +789,33 @@ class ViewsheetChangePlanServiceTest {
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
    }
 
+   // Bug #80190: renameFolder also refuses a destination occupied by a VIEWSHEET (not a folder);
+   // preview must refuse it too, naming the taken path.
+   @Test void resolveFolderRenameRefusesDestinationOccupiedByAViewsheet() throws Exception {
+      stubFolder("Examples/Old Folder", null, true);
+      stubFolder("Examples/New Folder", null, false);
+      when(viewsheetApiService.isFolderRenameTargetTaken(eq("Examples/New Folder"), any()))
+         .thenReturn(true);
+      ViewsheetChangeRequest change =
+         renameFolderChange("Examples/Old Folder", "Examples/New Folder", null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("\"Examples/New Folder\" already exists"), ex.getMessage());
+   }
+
+   // Bug #80190: same for folder create -- addFolder refuses a viewsheet / case-variant folder.
+   @Test void resolveFolderCreateRefusesPathOccupiedByAViewsheet() throws Exception {
+      stubFolder("Examples/New Folder", null, false);
+      when(viewsheetApiService.isFolderCreateTargetTaken(eq("Examples/New Folder"), any()))
+         .thenReturn(true);
+      ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("\"Examples/New Folder\" already exists"), ex.getMessage());
+   }
+
    // Bug #79896: StyleBI re-points schedule-task actions on rename, so the plan text must not
    // list schedule tasks among the references that go stale.
    @Test void resolveFolderRenameDescriptionSaysScheduleTasksFollow() throws Exception {
