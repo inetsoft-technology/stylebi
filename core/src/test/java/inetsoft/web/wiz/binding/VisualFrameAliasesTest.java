@@ -201,14 +201,14 @@ class VisualFrameAliasesTest {
    void buildsShapeFrames() {
       StaticShapeModel shape = assertInstanceOf(
          StaticShapeModel.class,
-         VisualFrameAliases.create("shape", spec("type", "static", "shape", "circle")));
-      assertEquals("circle", shape.getShape());
+         VisualFrameAliases.create("shape", spec("type", "static", "shape", "900")));
+      assertEquals("900", shape.getShape());
 
       CategoricalShapeModel categorical = assertInstanceOf(
          CategoricalShapeModel.class,
          VisualFrameAliases.create("shape", spec("type", "categorical", "shapes",
-                                                 java.util.List.of("circle", "square"))));
-      assertArrayEquals(new String[]{ "circle", "square" }, categorical.getShapes());
+                                                 java.util.List.of("900", "902"))));
+      assertArrayEquals(new String[]{ "900", "902" }, categorical.getShapes());
 
       assertInstanceOf(TriangleShapeModel.class,
                        VisualFrameAliases.create("shape", spec("type", "triangle")));

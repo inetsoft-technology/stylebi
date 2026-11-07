@@ -426,11 +426,11 @@ class ChartAestheticMutatorTest {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
 
-      ChartAestheticMutator.setFrame(model, "shape", spec("type", "static", "shape", "triangle"));
+      ChartAestheticMutator.setFrame(model, "shape", spec("type", "static", "shape", "901"));
 
       ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
       StaticShapeModel onAggregate = assertInstanceOf(StaticShapeModel.class, agg.getShapeFrame());
-      assertEquals("triangle", onAggregate.getShape());
+      assertEquals("901", onAggregate.getShape());
       assertNull(model.getShapeFrame());
    }
 
@@ -1529,7 +1529,7 @@ class ChartAestheticMutatorTest {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
 
-      ChartAestheticMutator.setFrame(model, "shape", spec("type", "static", "shape", "circle"));
+      ChartAestheticMutator.setFrame(model, "shape", spec("type", "static", "shape", "900"));
 
       ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
       assertInstanceOf(StaticShapeModel.class, agg.getShapeFrame());
