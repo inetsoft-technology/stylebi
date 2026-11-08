@@ -28,6 +28,9 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -104,5 +107,31 @@ class ViewsheetSandboxWriteBackTest {
       sandbox.writeBackFormDataDirectly(null, TABLE, "customer_id", 1, "80");
 
       assertEquals("80", cell(1, CUSTOMER_ID_COL));
+   }
+
+   /**
+    * Regression for Bug #80768: a write-back that is persisted left the base worksheet, which
+    * the sandbox queries read, holding the pre-save rows, so the next refresh or lens rebuild
+    * showed them and the next save wrote them back.
+    */
+   @Test
+   void persistedWriteBackIsVisibleInTheBaseWorksheet() throws Exception {
+      AssetRepository engine = mock(AssetRepository.class);
+      vs.setBaseEntry(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "test/ws", null,
+         OrganizationManager.getInstance().getCurrentOrgID()));
+
+      EmbeddedTableAssembly base = (EmbeddedTableAssembly) vs.getBaseWorksheet().getAssembly(TABLE);
+      XEmbeddedTable baseDataBefore = base.getEmbeddedData();
+
+      sandbox.writeBackFormDataDirectly(engine, TABLE, "customer_id", 1, "80");
+
+      verify(engine).setSheet(any(), eq(vs.getOriginalWorksheet()), any(), eq(true));
+      assertEquals("80", cell(1, CUSTOMER_ID_COL));
+      // same assembly instance, so the sandbox's reference to the base worksheet stays valid
+      assertSame(base, vs.getBaseWorksheet().getAssembly(TABLE));
+      assertEquals("80", base.getEmbeddedData().getObject(1, CUSTOMER_ID_COL));
+      assertNotSame(base.getEmbeddedData(), writtenTable().getEmbeddedData());
+      assertNotSame(baseDataBefore, base.getEmbeddedData());
    }
 }

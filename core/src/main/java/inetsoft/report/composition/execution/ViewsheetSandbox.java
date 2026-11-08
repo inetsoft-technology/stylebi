@@ -9312,6 +9312,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       engine.setSheet(wentry, ws, getUser(), true);
+      syncSavedEmbeddedData(vs);
 
       if(oid != null) {
          ViewsheetService viewsheetService = ViewsheetEngine.getViewsheetEngine();
@@ -9319,6 +9320,40 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(orvs != null) {
             orvs.setNeedRefresh(true);
+         }
+      }
+   }
+
+   /**
+    * Bring the base worksheet, which the sandbox queries read, in line with the embedded data
+    * just persisted from the original worksheet. The two are separate copies (see
+    * Viewsheet.setBaseWorksheet), and the base copy is otherwise only reloaded by
+    * RuntimeViewsheet.resetRuntime(), so without this the next refresh or form table lens
+    * rebuild reads the pre-save rows and the next save writes them back (Bug #80768). The data
+    * is copied in place, so the sandbox's reference to the base worksheet stays valid.
+    */
+   private void syncSavedEmbeddedData(Viewsheet vs) {
+      Worksheet saved = vs.getOriginalWorksheet();
+      Worksheet base = vs.getBaseWorksheet();
+
+      if(saved == null || base == null || saved == base) {
+         return;
+      }
+
+      for(Assembly assembly : saved.getAssemblies()) {
+         if(!(assembly instanceof EmbeddedTableAssembly)) {
+            continue;
+         }
+
+         Assembly target = base.getAssembly(assembly.getName());
+
+         if(target instanceof EmbeddedTableAssembly && target.getClass() == assembly.getClass()) {
+            XEmbeddedTable data = ((EmbeddedTableAssembly) assembly).getEmbeddedData();
+            EmbeddedTableAssembly targetTable = (EmbeddedTableAssembly) target;
+
+            if(data != null && targetTable.getEmbeddedData() != data) {
+               targetTable.setEmbeddedData((XEmbeddedTable) data.clone());
+            }
          }
       }
    }
