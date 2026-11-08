@@ -658,16 +658,21 @@ public class ChartTargetLineService {
          if(real.isEmpty()) {
             throw new IllegalArgumentException(
                "'" + assemblyName + "' has no measure to draw a target line against. Bind an " +
-               "aggregate to the chart first, or pass measure:\"" + ALL_MEASURES + "\" for a " +
-               "line drawn once against the plot's default scale.");
+               "aggregate to the chart first" + (requireBound
+                  ? "; formulas and statistics need a bound measure."
+                  : ", or pass measure:\"" + ALL_MEASURES + "\" for a line drawn once against " +
+                    "the plot's default scale."));
          }
 
          throw new IllegalArgumentException(
             "'" + assemblyName + "' has more than one measure (" + names(real) + "), so " +
-            "'measure' is required: a target line with no measure is drawn once against the " +
-            "plot's default scale, not once per measure, and on a dual-axis chart that is not " +
-            "the axis you meant. Pass measure:\"" + ALL_MEASURES + "\" if you do want the " +
-            "single unbound line.");
+            "'measure' is required: " + (requireBound
+               ? "formulas and statistics are computed from one measure's data. Pick one of: " +
+                 names(real) + "."
+               : "a target line with no measure is drawn once against the plot's default " +
+                 "scale, not once per measure, and on a dual-axis chart that is not the axis " +
+                 "you meant. Pass measure:\"" + ALL_MEASURES + "\" if you do want the single " +
+                 "unbound line."));
       }
 
       for(MeasureInfo field : real) {
@@ -687,8 +692,9 @@ public class ChartTargetLineService {
 
       throw new IllegalArgumentException(
          "'" + assemblyName + "' has no measure '" + measure + "'. It has: " +
-         (real.isEmpty() ? "(none)" : names(real)) + ". Use measure:\"" + ALL_MEASURES +
-         "\" for a line that is not bound to any of them.");
+         (real.isEmpty() ? "(none)" : names(real)) + "." + (requireBound ? "" :
+            " Use measure:\"" + ALL_MEASURES + "\" for a line that is not bound to any of " +
+            "them."));
    }
 
    private static MeasureInfo copy(MeasureInfo measure) {
