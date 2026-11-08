@@ -830,6 +830,63 @@ class ChartAestheticAgentServiceTest {
 
    // ── harness ───────────────────────────────────────────────────────────────
 
+   private static inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo resetCalc(String agg) {
+      inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo();
+      calc.setAggregate(agg);
+      return calc;
+   }
+
+   private static FieldRef withResetCalc(String column, String agg) {
+      return new FieldRef(column, "measure", agg, null, null, null, null, null, resetCalc(agg));
+   }
+
+   private static List<String> resetNotes(List<String> returned) {
+      return returned.stream().filter(n -> n.startsWith("Binding reset: ")).toList();
+   }
+
+   @Test
+   void setFieldReturnsTheResetNoteWhenAFormulaChangeDropsTheColorCalculator() throws Exception {
+      ChartBindingModel existing = new ChartBindingModel();
+      ChartAestheticMutator.setField(existing, "color", withResetCalc("Revenue", "Sum"));
+      ChartBindingMutator.drainNotes();
+
+      List<String> returned = harness(existing, mock(ChangeChartAestheticService.class))
+         .setField("tok", principal(), "Chart1", "color",
+                   new FieldRef("Revenue", "measure", "Average", null, null), null, "");
+
+      List<String> notes = resetNotes(returned);
+      assertEquals(1, notes.size(), returned.toString());
+      assertTrue(notes.get(0).contains("'Revenue'") && notes.get(0).contains("RUNNINGTOTAL") &&
+                 notes.get(0).contains("Sum to Average"), notes.get(0));
+   }
+
+   @Test
+   void setFieldReturnsNoResetNoteForASameFormulaResendOrAClear() throws Exception {
+      ChartBindingModel existing = new ChartBindingModel();
+      ChartAestheticMutator.setField(existing, "color", withResetCalc("Revenue", "Sum"));
+      ChartBindingMutator.drainNotes();
+      ChartAestheticAgentService service = harness(existing, mock(ChangeChartAestheticService.class));
+
+      assertTrue(resetNotes(service.setField("tok", principal(), "Chart1", "color",
+         new FieldRef("Revenue", "measure", "Sum", null, null), null, "")).isEmpty());
+      assertTrue(resetNotes(service.setField("tok", principal(), "Chart1", "color",
+         withResetCalc("Revenue", "Average"), null, "")).isEmpty(),
+         "a calculator the write names is not dropped");
+   }
+
+   @Test
+   void setFieldDoesNotLeakANoteIntoTheNextCall() throws Exception {
+      ChartBindingModel existing = new ChartBindingModel();
+      ChartAestheticMutator.setField(existing, "color", withResetCalc("Revenue", "Sum"));
+      ChartAestheticAgentService service = harness(existing, mock(ChangeChartAestheticService.class));
+      service.setField("tok", principal(), "Chart1", "color",
+                       new FieldRef("Revenue", "measure", "Average", null, null), null, "");
+
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty(),
+                 "the service must drain what the mutator noted");
+   }
+
    private static ChangeChartRefEvent captureEvent(ChangeChartAestheticService aesthetics)
       throws Exception
    {

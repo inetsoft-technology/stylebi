@@ -126,7 +126,7 @@ public class ChartAestheticAgentService {
 
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
-      return sessions.mutate(sessionToken, user,
+      return ChartBindingService.mutateReportingNotes(sessions, sessionToken, user,
          ChartRenderCheck.checked(assemblyName, ChartBindingService.scriptExpressions(field),
             (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -861,7 +861,7 @@ public class ChartAestheticAgentService {
                       java.util.function.BiConsumer<ChartVSAssembly, ChartBindingModel> mutation)
       throws Exception
    {
-      return sessions.mutate(sessionToken, user,
+      return ChartBindingService.mutateReportingNotes(sessions, sessionToken, user,
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
