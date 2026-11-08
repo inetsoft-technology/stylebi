@@ -165,6 +165,36 @@ class AssemblyHyperlinkServiceBookmarkValidationTest {
       }
    }
 
+   /**
+    * Bug #80639: an unreadable target is refused before bookmark validation, so the refusal
+    * cannot disclose the target's bookmark names ("Known bookmarks: ...").
+    */
+   @Test
+   void anUnreadableTargetWithABookmarkDoesNotLeakBookmarkNames() throws Exception {
+      Harness h = harness();
+      doThrow(new inetsoft.util.MessageException("no read access")).when(h.repository())
+         .checkAssetPermission(any(java.security.Principal.class), any(AssetEntry.class),
+                               eq(inetsoft.sree.security.ResourceAction.READ), eq(true));
+
+      try(MockedStatic<VSUtil> vsutil = Mockito.mockStatic(VSUtil.class)) {
+         vsutil.when(() -> VSUtil.getBookmarks(anyString(), any(IdentityID.class)))
+            .thenReturn(new VSBookmarkInfo[]{
+               new VSBookmarkInfo("SecretQ3", VSBookmarkInfo.PRIVATE, OWNER, false, 0L) });
+
+         Exception thrown = assertThrows(
+            Exception.class,
+            () -> h.service().set("tok", principal(), "Chart1", null,
+                                  link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                                       "bookmark", "Nope"),
+                                  ""));
+
+         assertTrue(thrown.getMessage().startsWith("No viewsheet at '"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("SecretQ3"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("Known bookmarks"), thrown.getMessage());
+         vsutil.verifyNoInteractions();
+      }
+   }
+
    // ── bug #80474: describeTarget ───────────────────────────────────────────────
 
    private static void wireVariablesAndSheet(Harness h, UserVariable... variables)

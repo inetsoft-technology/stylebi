@@ -65,6 +65,8 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
 import inetsoft.web.composer.vs.dialog.HyperlinkDialogService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -91,6 +93,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class AssemblyHyperlinkService {
+   private static final Logger LOG = LoggerFactory.getLogger(AssemblyHyperlinkService.class);
+
    /**
     * Agent-facing link types. The integers never appear in either direction.
     *
@@ -838,7 +842,7 @@ public class AssemblyHyperlinkService {
             AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
             path.substring(myPrefix.length()), owner);
 
-         if(repository.containsEntry(mine)) {
+         if(repository.containsEntry(mine) && isReadable(repository, user, mine)) {
             return mine.toIdentifier();
          }
       }
@@ -846,14 +850,14 @@ public class AssemblyHyperlinkService {
       AssetEntry global = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, null);
 
-      if(repository.containsEntry(global)) {
+      if(repository.containsEntry(global) && isReadable(repository, user, global)) {
          return global.toIdentifier();
       }
 
       AssetEntry personal = new AssetEntry(
          AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, path, owner);
 
-      if(repository.containsEntry(personal)) {
+      if(repository.containsEntry(personal) && isReadable(repository, user, personal)) {
          return personal.toIdentifier();
       }
 
@@ -948,11 +952,36 @@ public class AssemblyHyperlinkService {
       boolean otherOrg = entryOrg != null && callerOrg != null &&
          !entryOrg.equalsIgnoreCase(callerOrg);
 
-      if(!otherOrg && !repository.containsEntry(entry)) {
+      // An existing-but-unreadable target must be indistinguishable from a missing one: same
+      // text, so a caller cannot probe for another user's dashboards (or, via the bookmark
+      // validation that follows, learn their bookmark names).
+      if((!otherOrg && !repository.containsEntry(entry)) ||
+         !isReadable(repository, user, entry))
+      {
          throw new IllegalArgumentException(
             "No viewsheet with assetLinkId '" + id + "'. A link to a viewsheet that does not " +
             "exist is accepted by the dialog and then does nothing when clicked, so it is " +
             "refused here instead. Use an assetLinkId from list_hyperlink_targets.");
+      }
+   }
+
+   /**
+    * True when {@code user} may READ {@code entry}. {@code containsEntry} is a permission-free
+    * storage lookup, so the write path needs this gate to match the read tools
+    * ({@link #describeTarget}, {@code getBookmarks}). A system administrator passes by product
+    * design.
+    */
+   private static boolean isReadable(AssetRepository repository, Principal user, AssetEntry entry) {
+      try {
+         repository.checkAssetPermission(user, entry, ResourceAction.READ, true);
+         return true;
+      }
+      catch(MessageException e) {
+         return false;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check READ permission on {}", entry, e);
+         return false;
       }
    }
 

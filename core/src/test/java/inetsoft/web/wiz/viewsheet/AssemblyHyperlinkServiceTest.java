@@ -1333,6 +1333,142 @@ class AssemblyHyperlinkServiceTest {
       verify(h.repository, never()).getSheet(any(), any(), anyBoolean(), any());
    }
 
+   // ── bug #80639: the write path needs the same READ gate as the read tools ──────
+
+   private static final String NO_ID_TEXT = "No viewsheet with assetLinkId '";
+   private static final String NO_PATH_TEXT = "No viewsheet at '";
+
+   private static void denyRead(Harness h, AssetEntry... denied) throws Exception {
+      List<AssetEntry> list = List.of(denied);
+      doAnswer(invocation -> {
+         AssetEntry entry = invocation.getArgument(1);
+
+         if(list.contains(entry)) {
+            throw new MessageException("no read access");
+         }
+
+         return null;
+      }).when(h.repository).checkAssetPermission(any(Principal.class), any(AssetEntry.class),
+                                                  eq(ResourceAction.READ), eq(true));
+   }
+
+   private static String idRefusal(Harness h, String path, String id) {
+      return assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", path,
+                                  "assetLinkId", id), "")).getMessage();
+   }
+
+   /** An existing but unreadable id is refused with the byte-identical text of a missing one. */
+   @Test
+   void anUnreadableAssetLinkIdIsRefusedExactlyLikeAMissingOne() throws Exception {
+      AssetEntry other = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Secret",
+         IdentityID.getIdentityIDFromKey("bob"));
+      Harness missing = harness(new HyperlinkDialogModel());
+      when(missing.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      String missingText = idRefusal(missing, "Secret", other.toIdentifier());
+
+      Harness unreadable = harness(new HyperlinkDialogModel());
+      when(unreadable.repository.containsEntry(any(AssetEntry.class))).thenReturn(true);
+      denyRead(unreadable, other);
+      String unreadableText = idRefusal(unreadable, "Secret", other.toIdentifier());
+
+      assertTrue(missingText.startsWith(NO_ID_TEXT), missingText);
+      assertEquals(missingText, unreadableText);
+      verifyNoInteractions(unreadable.links);
+   }
+
+   /** The cross-organization id skips the existence check but not the READ gate. */
+   @Test
+   void anUnreadableCrossOrgAssetLinkIdIsRefused() throws Exception {
+      AssetEntry foreign = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "Foreign", null, "other-org");
+      Harness h = harness(new HyperlinkDialogModel());
+      denyRead(h, foreign);
+
+      String text = idRefusal(h, "Foreign", foreign.toIdentifier());
+
+      assertTrue(text.startsWith(NO_ID_TEXT), text);
+      verifyNoInteractions(h.links);
+   }
+
+   @Test
+   void aReadableAssetLinkIdIsStillAccepted() throws Exception {
+      AssetEntry readable = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail", null);
+      Harness h = harness(new HyperlinkDialogModel());
+      denyRead(h, new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                 "Other", null));
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail",
+                         "assetLinkId", readable.toIdentifier()), "");
+
+      assertEquals(readable.toIdentifier(), capture(h.links).getAssetLinkId());
+   }
+
+   @Test
+   void anUnreadableGlobalPathIsRefusedWithTheMissingPathText() throws Exception {
+      AssetEntry global = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Secret", null);
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      when(h.repository.containsEntry(global)).thenReturn(true);
+      denyRead(h, global);
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Secret"),
+                             ""));
+
+      assertTrue(e.getMessage().startsWith(NO_PATH_TEXT + "Reports/Secret'"), e.getMessage());
+      verifyNoInteractions(h.links);
+   }
+
+   /** An unreadable global sheet must not mask a readable personal sheet of the same name. */
+   @Test
+   void anUnreadableGlobalPathFallsThroughToAReadablePersonalSheet() throws Exception {
+      AssetEntry global = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail", null);
+      AssetEntry personal = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail",
+         IdentityID.getIdentityIDFromKey("admin"));
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      when(h.repository.containsEntry(global)).thenReturn(true);
+      when(h.repository.containsEntry(personal)).thenReturn(true);
+      denyRead(h, global);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail"), "");
+
+      assertEquals(personal.toIdentifier(), capture(h.links).getAssetLinkId());
+   }
+
+   @Test
+   void aPermissionCheckFailureOtherThanMessageExceptionIsTreatedAsUnreadable() throws Exception {
+      AssetEntry global = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "Reports/Detail", null);
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      when(h.repository.containsEntry(global)).thenReturn(true);
+      doThrow(new IllegalStateException("boom")).when(h.repository)
+         .checkAssetPermission(any(Principal.class), any(AssetEntry.class),
+                               eq(ResourceAction.READ), eq(true));
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "viewsheet", "assetLinkPath", "Reports/Detail"),
+                             ""));
+
+      assertTrue(e.getMessage().startsWith(NO_PATH_TEXT), e.getMessage());
+      verifyNoInteractions(h.links);
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyHyperlinkService service, ViewsheetSessionService sessions,
