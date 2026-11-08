@@ -5674,8 +5674,9 @@ public abstract class GraphGenerator {
       // never force the target to be in-plot if zoomed
       gtf.setInPlot(plotdesc.isInPlot() && !isZooming());
       TextFormat defaultFmt = target.getTextFormat().getDefaultFormat();
-      defaultFmt.setFormat(new XFormatInfo(getDefaultFormat(target.getField())));
-      target.initializeForm(gtf, data);
+      Format sourceFormat = getDefaultFormat(target.getField());
+      defaultFmt.setFormat(new XFormatInfo(sourceFormat));
+      target.initializeForm(gtf, data, sourceFormat);
       gtf.setStacked(GraphTypes.isStack(chartType) || GraphTypes.isPareto(chartType));
       gtf.setXFieldTarget(xmeasures.contains(gtf.getField()) && !ymeasures.isEmpty() ||
          xdims.contains(gtf.getField()) || ydims.contains(gtf.getField()));
