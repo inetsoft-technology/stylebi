@@ -304,7 +304,8 @@ public abstract class VisualFrame implements Cloneable, Serializable {
          return null;
       }
 
-      Object[] labels = vals.clone();
+      // don't clone: a log/power scale's values are a Double[], which can't hold alias strings
+      Object[] labels = new Object[vals.length];
       TextFrame textFrame = legendSpec.getTextFrame();
 
       for(int i = 0; i < labels.length; i++) {
