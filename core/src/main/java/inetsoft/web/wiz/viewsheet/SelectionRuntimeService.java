@@ -379,7 +379,7 @@ public class SelectionRuntimeService {
             String activeSearch = searchString(info);
             List<List<String>> effectiveValues = requested;
 
-            if(activeSearch != null && !activeSearch.isBlank()) {
+            if(isSearching(activeSearch)) {
                // Not a refusal: the apply is legitimate for whatever still matches, but
                // doApplySelection itself has no search-awareness at all -- it would otherwise
                // apply every requested value regardless of the active search (bug-76854). Filter
@@ -514,7 +514,7 @@ public class SelectionRuntimeService {
             // (the filtered UI only sends the visible state). Measure what is left selected
             // after the apply rather than trusting the request (bug-78216).
             if(!skipApply && isValueMatchable(assembly) && !Boolean.TRUE.equals(additive) &&
-               activeSearch != null && !activeSearch.isBlank())
+               isSearching(activeSearch))
             {
                SelectionList after = selectionListOf(assembly);
                retained.addAll(retainedSelection(after == null ? null : after.getSelectionValues(),
@@ -562,7 +562,7 @@ public class SelectionRuntimeService {
 
                String activeSearch = searchString(info);
 
-               if(activeSearch != null && !activeSearch.isBlank()) {
+               if(isSearching(activeSearch)) {
                   stuck.forEach(path -> {
                      if(!retained.contains(path)) {
                         retained.add(path);
@@ -917,7 +917,7 @@ public class SelectionRuntimeService {
 
       SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
       String search = searchString(info);
-      boolean searching = search != null && !search.isBlank();
+      boolean searching = isSearching(search);
 
       if(info.isSingleSelection() && !after.isEmpty()) {
          List<List<String>> reselected = reselectedAfterClear(before, after);
@@ -952,7 +952,7 @@ public class SelectionRuntimeService {
       String search = searchString((SelectionVSAssemblyInfo) assembly.getInfo());
 
       if(!(assembly instanceof SelectionTreeVSAssembly tree) || tree.isIDMode() ||
-         search == null || search.isBlank())
+         !isSearching(search))
       {
          return selected;
       }
@@ -1102,14 +1102,14 @@ public class SelectionRuntimeService {
 
       if(info.isSingleSelection()) {
          List<List<String>> reselected = reselectedAfterSubtreeClear(
-            wholeBefore, wholeAfter, before, after, search != null && !search.isBlank());
+            wholeBefore, wholeAfter, before, after, isSearching(search));
 
          if(!reselected.isEmpty()) {
             result.put("reselectedBySingleSelect", reselected);
          }
       }
 
-      if(!after.isEmpty() && search != null && !search.isBlank()) {
+      if(!after.isEmpty() && isSearching(search)) {
          result.put("scopedBySearch", search);
          result.put("scopedBySearchRetained", after);
       }
@@ -1291,7 +1291,7 @@ public class SelectionRuntimeService {
 
          String subtreeSearch = searchString((SelectionVSAssemblyInfo) tree.getInfo());
 
-         if(!select && subtreeSearch != null && !subtreeSearch.isBlank()) {
+         if(!select && isSearching(subtreeSearch)) {
             // selectSubtree clears the whole subtree, hidden nodes included, and then relies on a
             // merge-back that loses a search-hidden selection sharing a top-level ancestor with a
             // visible match (bug-78787, bug-78983). Like the widget, send only the visible
@@ -3386,6 +3386,16 @@ public class SelectionRuntimeService {
       }
 
       return null;
+   }
+
+   /**
+    * Whether a search string narrows the widget. Mirrors core ({@code VSSelectionService} and
+    * {@code SelectionList.findAll}), which treat only null/empty as "no search": a whitespace-only
+    * string is a real search that hides every value without that character, exactly as the
+    * widget's own search box (which sends the typed text untrimmed) behaves (bug 80652).
+    */
+   private static boolean isSearching(String search) {
+      return search != null && !search.isEmpty();
    }
 
    /** The search string, which is on the base selection info rather than per-type. */
