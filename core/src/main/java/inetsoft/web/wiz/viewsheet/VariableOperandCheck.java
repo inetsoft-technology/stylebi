@@ -24,11 +24,15 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.DateCondition;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.ConditionValueModel;
+import inetsoft.web.composer.model.condition.ExpressionValueModel;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Judges a condition's {@code variable} operands by the value the variable holds now (bug #79535).
@@ -83,6 +87,12 @@ final class VariableOperandCheck {
          }
 
          for(ConditionValueModel value : condition.getValues()) {
+            if(value != null && value.getValue() instanceof ExpressionValueModel expression) {
+               checkExpression(index, condition, expression, vars,
+                               declared == null ? Set.of() : declared, warnings);
+               continue;
+            }
+
             if(value == null || !ConditionValueModel.VARIABLE.equals(value.getType())) {
                continue;
             }
@@ -104,6 +114,8 @@ final class VariableOperandCheck {
 
       try {
          Worksheet ws = box == null ? null : box.getWorksheet();
+
+         addViewsheetVariables(box, names);
 
          if(ws != null) {
             for(UserVariable variable : AssetEventUtil.getWSAllVariables(ws)) {
@@ -131,6 +143,157 @@ final class VariableOperandCheck {
       return names;
    }
 
+   /**
+    * Adds the variables the viewsheet's own assemblies reference (a condition, a highlight),
+    * minus the disabled ones: collect_parameters lists those too (bug #80646).
+    */
+   private static void addViewsheetVariables(ViewsheetSandbox box, Set<String> names) {
+      try {
+         Viewsheet vs = box == null ? null : box.getViewsheet();
+
+         if(vs == null) {
+            return;
+         }
+
+         Set<String> disabled = vs.getDisabledVariables();
+         UserVariable[] used = vs.getAllVariables();
+
+         if(used != null) {
+            for(UserVariable variable : used) {
+               if(variable != null &&
+                  (disabled == null || !disabled.contains(variable.getName())))
+               {
+                  names.add(variable.getName());
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         // keep whatever was collected
+      }
+   }
+
+   /**
+    * Vets {@code parameter.Name} / {@code parameter['Name']} reads of an expression operand the
+    * way a variable operand is vetted (bug #80646). A name that resolves is left alone.
+    */
+   private static void checkExpression(int index, ConditionModel condition,
+                                       ExpressionValueModel expression, VariableTable vars,
+                                       Set<String> declared, List<String> warnings)
+   {
+      if(condition.getField() == null) {
+         return;
+      }
+
+      String use = "condition " + index + " (" + condition.getField().getName() + " " +
+         ConditionVocabulary.operatorToken(condition.getOperation()) + ")";
+
+      for(String name : expressionParameterNames(expression.getExpression())) {
+         if(!resolves(vars, name) && !EXPRESSION_BUILT_INS.contains(name)) {
+            warnUnresolved(use, name, declared, warnings);
+         }
+      }
+   }
+
+   private static final Set<String> EXPRESSION_BUILT_INS = Set.of(
+      "_BEGINNING_OF_YEAR", "_END_OF_YEAR", "_BEGINNING_OF_QUARTER", "_END_OF_QUARTER",
+      "_BEGINNING_OF_MONTH", "_END_OF_MONTH", "_BEGINNING_OF_WEEK", "_END_OF_WEEK",
+      "_TODAY", "_USER_", "_ROLES_", "_GROUPS_");
+
+   private static final Set<String> OBJECT_MEMBERS = Set.of(
+      "constructor", "prototype", "toString", "valueOf", "hasOwnProperty", "isPrototypeOf",
+      "propertyIsEnumerable", "toLocaleString", "__proto__");
+
+   private static final Pattern PARAMETER_READ = Pattern.compile(
+      "(?<![\\w$.])parameter(?:\\s*\\.\\s*([A-Za-z_$][\\w$]*)|" +
+      "\\s*\\[\\s*(?:'([^']+)'|\"([^\"]+)\")\\s*\\])");
+
+   /** The names read off {@code parameter} in a script, ignoring string literals and comments. */
+   static List<String> expressionParameterNames(String script) {
+      List<String> names = new ArrayList<>();
+
+      if(script == null) {
+         return names;
+      }
+
+      List<int[]> ranges = literalRanges(script);
+      Matcher matcher = PARAMETER_READ.matcher(script);
+
+      while(matcher.find()) {
+         int at = matcher.start();
+
+         if(ranges.stream().anyMatch(r -> at >= r[0] && at <= r[1])) {
+            continue;
+         }
+
+         String name = matcher.group(1) != null ? matcher.group(1) :
+            matcher.group(2) != null ? matcher.group(2) : matcher.group(3);
+
+         if(name != null && !names.contains(name) && !OBJECT_MEMBERS.contains(name)) {
+            names.add(name);
+         }
+      }
+
+      return names;
+   }
+
+   private static List<int[]> literalRanges(String script) {
+      List<int[]> ranges = new ArrayList<>();
+      int i = 0;
+
+      while(i < script.length()) {
+         char ch = script.charAt(i);
+         char next = i + 1 < script.length() ? script.charAt(i + 1) : 0;
+
+         if(ch == '\'' || ch == '"' || ch == '`') {
+            int j = i + 1;
+
+            while(j < script.length() && script.charAt(j) != ch) {
+               j += script.charAt(j) == '\\' ? 2 : 1;
+            }
+
+            ranges.add(new int[]{ i, j });
+            i = j + 1;
+         }
+         else if(ch == '/' && next == '/') {
+            int end = script.indexOf('\n', i);
+            int stop = end < 0 ? script.length() : end;
+            ranges.add(new int[]{ i, stop });
+            i = stop;
+         }
+         else if(ch == '/' && next == '*') {
+            int end = script.indexOf("*/", i + 2);
+            int stop = end < 0 ? script.length() : end + 2;
+            ranges.add(new int[]{ i, stop });
+            i = stop;
+         }
+         else {
+            i++;
+         }
+      }
+
+      return ranges;
+   }
+
+   private static void warnUnresolved(String use, String name, Set<String> declared,
+                                      List<String> warnings)
+   {
+      if(declared.contains(name)) {
+         warnings.add("Variable '" + name + "' used by " + use + " is declared on the base " +
+                      "worksheet or used by one of the viewsheet's conditions but has no value " +
+                      "yet, so StyleBI ignores this condition: it currently matches every row " +
+                      "(a highlight paints all rows, a filter removes nothing) until a value is " +
+                      "passed (set_parameters).");
+      }
+      else {
+         warnings.add("Variable '" + name + "' used by " + use + " is not defined: this " +
+                      "viewsheet has no input assembly or variable with that name (yet), so " +
+                      "StyleBI ignores this condition: it currently matches every row (a " +
+                      "highlight paints all rows, a filter removes nothing) until it exists " +
+                      "and is given a value.");
+      }
+   }
+
    private static void checkOperand(int index, ConditionModel condition, String name,
                                     VariableTable vars, Set<String> declared,
                                     boolean refuseDateIn, List<String> warnings)
@@ -141,16 +304,7 @@ final class VariableOperandCheck {
          ConditionVocabulary.operatorToken(operation) + ")";
 
       if(!resolves(vars, name)) {
-         if(declared.contains(name)) {
-            warnings.add("Variable '" + name + "' used by " + use + " is declared on the base " +
-                         "worksheet or used by one of its conditions but has no value yet, so the condition has nothing to " +
-                         "compare against until a value is passed (set_parameters).");
-            return;
-         }
-
-         warnings.add("Variable '" + name + "' used by " + use + " is not defined: this " +
-                      "viewsheet has no input assembly or variable with that name (yet), so " +
-                      "the condition has nothing to compare against until it exists.");
+         warnUnresolved(use, name, declared, warnings);
          return;
       }
 
@@ -158,8 +312,9 @@ final class VariableOperandCheck {
       List<Object> elements = elements(current);
 
       if(elements.isEmpty()) {
-         warnings.add("Variable '" + name + "' used by " + use + " has no value yet, so the " +
-                      "condition has nothing to compare against until it is set.");
+         warnings.add("Variable '" + name + "' used by " + use + " has no value yet, so " +
+                      "there is nothing to compare against; what the condition matches until a " +
+                      "value is set depends on the operator.");
          return;
       }
 

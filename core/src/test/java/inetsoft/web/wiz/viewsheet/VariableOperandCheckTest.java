@@ -33,7 +33,11 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.composer.model.condition.ConditionModel;
+import inetsoft.web.composer.model.condition.ConditionValueModel;
+import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -175,5 +179,115 @@ class VariableOperandCheckTest {
       when(box.getWorksheet()).thenReturn(ws);
 
       assertEquals(Set.of("cutoff"), VariableOperandCheck.declaredNames(box));
+   }
+
+   private static Object[] expressionConditions(String script) {
+      DataRefModel field = mock(DataRefModel.class);
+      when(field.getName()).thenReturn("Order:Num");
+      ExpressionValueModel expression = new ExpressionValueModel();
+      expression.setExpression(script);
+      ConditionValueModel value = new ConditionValueModel();
+      value.setType(ConditionValueModel.EXPRESSION);
+      value.setValue(expression);
+      ConditionModel condition = new ConditionModel();
+      condition.setField(field);
+      condition.setOperation(XCondition.GREATER_THAN);
+      condition.setValues(new ConditionValueModel[]{ value });
+      return new Object[]{ condition };
+   }
+
+   private static List<String> runExpression(String script, Set<String> declared) {
+      List<String> warnings = new ArrayList<>();
+      VariableOperandCheck.check(expressionConditions(script), new VariableTable(), declared,
+                                 false, warnings);
+      return warnings;
+   }
+
+   @Test
+   void expressionOperandReadingADeclaredVariableIsNotReportedAsNotDefined() {
+      List<String> warnings = runExpression("parameter.cutoff * 2", Set.of("cutoff"));
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).startsWith("Variable 'cutoff' used by"), warnings.get(0));
+      assertFalse(warnings.get(0).contains("not defined"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("no value yet"), warnings.get(0));
+      assertEquals(warnings, runExpression("parameter['cutoff'] * 2", Set.of("cutoff")));
+   }
+
+   @Test
+   void expressionOperandReadingAnUndeclaredVariableStillSaysNotDefined() {
+      List<String> warnings = runExpression("parameter.GHOST + 1", Set.of("cutoff"));
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("'GHOST' used by"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("is not defined"), warnings.get(0));
+   }
+
+   @Test
+   void expressionOperandIgnoresBuiltInsLiteralsCommentsAndValuedNames() {
+      assertTrue(runExpression("parameter._USER_ == 'x' ? parameter._TODAY : 0",
+                               Set.of()).isEmpty());
+      assertTrue(runExpression("'parameter.ghost' + \"parameter.ghost2\" // parameter.ghost3\n",
+                               Set.of()).isEmpty());
+      assertTrue(runExpression("/* parameter.ghost */ 1", Set.of()).isEmpty());
+      assertTrue(runExpression("myparameter.ghost + x.parameter.ghost", Set.of()).isEmpty());
+
+      VariableTable vars = new VariableTable();
+      vars.put("cutoff", 5);
+      List<String> warnings = new ArrayList<>();
+      VariableOperandCheck.check(expressionConditions("parameter.cutoff"), vars, Set.of(), false,
+                                 warnings);
+      assertTrue(warnings.isEmpty(), warnings.toString());
+   }
+
+   @Test
+   void declaredNamesIncludesVariablesReferencedOnlyByViewsheetConditions() {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAllVariables()).thenReturn(
+         new UserVariable[]{ new UserVariable("vsOnlyVar"), new UserVariable("offVar") });
+      when(vs.getDisabledVariables()).thenReturn(Set.of("offVar"));
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getViewsheet()).thenReturn(vs);
+
+      Set<String> declared = VariableOperandCheck.declaredNames(box);
+
+      assertTrue(declared.contains("vsOnlyVar"), declared.toString());
+      assertFalse(declared.contains("offVar"), declared.toString());
+      assertFalse(declared.contains("ghost"), declared.toString());
+      assertFalse(run("vsOnlyVar", new VariableTable(), declared).get(0).contains("not defined"));
+      assertTrue(run("ghost", new VariableTable(), declared).get(0).contains("not defined"));
+   }
+
+   @Test
+   void declaredNamesSurvivesAViewsheetThatCannotListItsVariables() {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAllVariables()).thenThrow(new RuntimeException("boom"));
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getViewsheet()).thenReturn(vs);
+
+      assertTrue(VariableOperandCheck.declaredNames(box).isEmpty());
+   }
+
+   @Test
+   void noValueNotesSayTheConditionIsIgnoredAndMatchesEveryRow() {
+      for(String note : List.of(run("cutoff", new VariableTable(), Set.of("cutoff")).get(0),
+                                run("ghost", new VariableTable(), Set.of("cutoff")).get(0),
+                                runExpression("parameter.cutoff", Set.of("cutoff")).get(0)))
+      {
+         assertTrue(note.contains("ignores this condition"), note);
+         assertTrue(note.contains("matches every row"), note);
+         assertFalse(note.contains("nothing to compare against"), note);
+      }
+   }
+
+   @Test
+   void emptyValuedVariableDoesNotOverClaimMatchingEveryRow() {
+      VariableTable vars = new VariableTable();
+      vars.put("cutoff", new Object[0]);
+      List<String> warnings = run("cutoff", vars, Set.of());
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("no value yet"), warnings.get(0));
+      assertFalse(warnings.get(0).contains("every row"), warnings.get(0));
    }
 }
