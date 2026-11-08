@@ -183,6 +183,7 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      requireKnownTable(sessionToken, user, request.assembly(), request.table());
       return ViewsheetSessionService.warningsBody(
          chartService.setSource(sessionToken, user, request.assembly(), request.table(),
                              Boolean.TRUE.equals(request.force()), linkUri));
@@ -1079,6 +1080,30 @@ public class BindingAgentController {
       catch(Exception e) {
          LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
          return new Resolved(null, fields);
+      }
+   }
+
+   /**
+    * Refuses a table name a bare repoint names explicitly but {@code list_bindable_fields} would
+    * not offer for the assembly — the check {@link #resolveSourceTable} would otherwise apply, but
+    * only ever runs for a write that also carries fields, which {@code set_chart_source} never does
+    * (bug #80607: {@code chart/source} has no {@code fields} to validate, so it reached only the
+    * broader, unfiltered table set {@code ChartBindingService.setSource} resolves against). A
+    * listing failure is skipped, as in {@link #resolveSourceTable}.
+    */
+   private void requireKnownTable(String sessionToken, Principal user, String assembly,
+                                  String table)
+   {
+      try {
+         List<BindableTable> tables =
+            fieldsService.list(sessions.runtimeId(sessionToken, user), assembly, user);
+         BindableColumns.requireKnownTable(tables, assembly, table);
+      }
+      catch(IllegalArgumentException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         LOG.debug("Could not list bindable columns for {}; skipping the check", assembly, e);
       }
    }
 
