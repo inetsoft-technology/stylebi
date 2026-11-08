@@ -527,6 +527,76 @@ class ChartTargetLineServiceTest {
       assertNoWrite(h);
    }
 
+   /**
+    * The refusal must not offer a way out the same tool then refuses: a formula is bound to one
+    * measure, so measure:"all" is rejected for it and the hint must list the measures instead.
+    */
+   @Test
+   void aFormulaRefusalNeverOffersAllWhenSeveralMeasuresAndNoneNamed() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), twoMeasures());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.addFormulaLine("tok", principal(), "Chart1", null, "Sum", null, null,
+                                        null, null, null, null, ""));
+      assertFalse(thrown.getMessage().contains("\"all\""), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Sum(Total)")
+                    && thrown.getMessage().contains("Sum(Cost)"),
+                 "the refusal lists the measures to pick from: " + thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void aFormulaRefusalNeverOffersAllForAnUnknownMeasure() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), twoMeasures());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.addFormulaLine("tok", principal(), "Chart1", "Sum(Nope)", "Sum", null,
+                                        null, null, null, null, null, ""));
+      assertFalse(thrown.getMessage().contains("\"all\""), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Sum(Total)"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   @Test
+   void aFormulaRefusalNeverOffersAllWhenTheChartHasNoMeasure() {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(new MeasureInfo("", "", false)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.addFormulaLine("tok", principal(), "Chart1", null, "Sum", null, null,
+                                        null, null, null, null, ""));
+      assertFalse(thrown.getMessage().contains("\"all\""), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Bind an aggregate"), thrown.getMessage());
+      assertNoWrite(h);
+   }
+
+   /** The line tools do accept "all", so their three refusals keep offering it. */
+   @Test
+   void aLineRefusalStillOffersAllAtEveryUnboundSite() {
+      Harness two = harness(chart(GraphTypes.CHART_BAR), twoMeasures());
+      Harness none = harness(chart(GraphTypes.CHART_BAR),
+                             paneWith(new MeasureInfo("", "", false)));
+
+      Exception several = assertThrows(
+         IllegalArgumentException.class,
+         () -> two.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null,
+                               null, ""));
+      Exception unknown = assertThrows(
+         IllegalArgumentException.class,
+         () -> two.service.add("tok", principal(), "Chart1", "Sum(Nope)", "1", null, null, null,
+                               null, null, ""));
+      Exception empty = assertThrows(
+         IllegalArgumentException.class,
+         () -> none.service.add("tok", principal(), "Chart1", null, "1", null, null, null, null,
+                                null, ""));
+      for(Exception e : List.of(several, unknown, empty)) {
+         assertTrue(e.getMessage().contains("measure:\"all\""), e.getMessage());
+      }
+   }
+
    @Test
    void aFormulaLineBindsTheNamedMeasure() throws Exception {
       Harness h = harness(chart(GraphTypes.CHART_BAR), twoMeasures());
