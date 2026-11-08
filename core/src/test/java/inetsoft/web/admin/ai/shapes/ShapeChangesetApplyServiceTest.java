@@ -231,12 +231,13 @@ class ShapeChangesetApplyServiceTest {
       }
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      assertEquals("admin-snapshot/ref", result.backupRef());
+      // Bug #80650: an upload to a new name is a pure create -- no whole-storage snapshot.
+      assertNull(result.backupRef());
       assertArrayEquals("<svg/>".getBytes(StandardCharsets.UTF_8), files.get(GLOBAL_DIR + "/new.svg"));
       // A global upload must invalidate every organization's cache (each falls back to global).
       imageShapes.verify(ImageShapes::clearAllShapes);
       imageShapes.verify(ImageShapes::clearShapes, never());
-      verify(backupService).backup(anyString());
+      verify(backupService, never()).backup(anyString());
    }
 
    @Test void appliesAnOverwriteUploadInOrganizationScopeAndClearsOnlyThatOrgsCache()
@@ -258,6 +259,8 @@ class ShapeChangesetApplyServiceTest {
       assertArrayEquals("<new/>".getBytes(StandardCharsets.UTF_8), files.get(ORG_DIR + "/existing.svg"));
       imageShapes.verify(ImageShapes::clearShapes);
       imageShapes.verify(ImageShapes::clearAllShapes, never());
+      assertEquals("admin-snapshot/ref", result.backupRef());
+      verify(backupService, times(1)).backup(anyString());
    }
 
    @Test void appliesADeleteAndReportsAppliedWithoutAnExtraCacheClearCall() throws Exception {
@@ -279,6 +282,22 @@ class ShapeChangesetApplyServiceTest {
       // ImageShapes.clear*() itself (the asymmetry vs. applyUpload is deliberate).
       imageShapes.verify(ImageShapes::clearAllShapes, never());
       imageShapes.verify(ImageShapes::clearShapes, never());
+      verify(backupService, times(1)).backup(anyString());
+   }
+
+   @Test void appliesAMixedNewUploadAndDeletePlanWithOneSnapshot() throws Exception {
+      files.put(GLOBAL_DIR + "/old.svg", "<svg/>".getBytes(StandardCharsets.UTF_8));
+      ShapeChangeRequest upload = change(ShapeChangeRequest.VERB_UPLOAD, "global", "new.svg");
+      upload.setContent(base64("<svg/>"));
+      ShapeChangeRequest delete = change(ShapeChangeRequest.VERB_DELETE, "global", "old.svg");
+      String hash = planService.resolve(request(upload, delete), user).planHash();
+      ShapeApplyRequest req = applyRequest("task", hash, "looks good", upload, delete);
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         service.apply(req, user);
+      }
+
+      verify(backupService, times(1)).backup(anyString());
    }
 
    // -------------------------------------------------------------------------

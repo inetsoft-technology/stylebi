@@ -28,6 +28,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.general.model.DatabaseSettingsModel;
@@ -115,10 +116,14 @@ public class DataSourceChangePlanService {
       }
 
       String task = req.getTask().trim();
-      // Both verbs are risk:high, snapshotScope:storage, unconditionally (section 4/7) -- no
-      // "recognized" axis the way an uncatalogued property has one.
+      // Signoff is always required. The snapshot is skipped only when every change is a data
+      // source FOLDER create (Bug #80650): verb=create here only ever targets a bare folder path
+      // that does not exist yet, and its undo removes the new leaf.
       String planHash = hash(changes, dependencyProjections, passwordHashInputs);
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true,
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         req.getChanges(),
+         c -> DataSourceChangeRequest.VERB_CREATE.equals(requireVerb("", c.getVerb())));
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup, true,
                               planHash, TaskAuditToken.issue(planHash, task));
    }
 

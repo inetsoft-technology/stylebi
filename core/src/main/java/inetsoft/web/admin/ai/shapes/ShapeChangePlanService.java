@@ -23,6 +23,7 @@ import inetsoft.util.DataSpace;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.ai.file.StoredAssetPathValidator;
 import org.apache.commons.io.IOUtils;
@@ -83,8 +84,16 @@ public class ShapeChangePlanService {
       String planHash = hash(immutableChanges);
       // Every change in this area is RISK_HIGH/SCOPE_STORAGE unconditionally (01-design.md section
       // 2.3 item 3 -- "there is no low-risk verb in this area"), so signoff is always required too.
-      return new ResolvedPlan(task, immutableChanges, true, true, planHash,
+      // The snapshot is skipped only when every entry is an upload to a new name (Bug #80650).
+      return new ResolvedPlan(task, immutableChanges, requiresBackup(resolved), true, planHash,
                               TaskAuditToken.issue(planHash, task));
+   }
+
+   /** Bug #80650: an upload to a name that does not exist yet is a pure create whose undo deletes
+    * the new file; an overwrite or a delete keeps the whole-storage snapshot. Shared with {@link
+    * ShapeChangesetApplyService} so the apply gates its snapshot on the same decision. */
+   static boolean requiresBackup(List<ResolvedChange> resolved) {
+      return StorageBackupPolicy.requiresBackup(resolved, ResolvedChange::pureCreate);
    }
 
    /** Package-visible so {@link ShapeChangesetApplyService} can re-resolve the SAME way, at apply
@@ -333,5 +342,9 @@ public class ShapeChangePlanService {
    record ResolvedChange(String verb, String scope, String name, String subPath, String parentDir,
                         String path, byte[] content, String priorContentBase64, PlanChange planChange)
    {
+      /** True for an upload to a name that did not exist (no prior bytes captured). */
+      boolean pureCreate() {
+         return ShapeChangeRequest.VERB_UPLOAD.equals(verb) && priorContentBase64 == null;
+      }
    }
 }

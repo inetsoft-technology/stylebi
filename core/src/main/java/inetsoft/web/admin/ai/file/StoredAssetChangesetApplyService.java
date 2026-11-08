@@ -50,10 +50,11 @@ import java.util.stream.Collectors;
  * Applies a whole stored-asset changeset, all-or-nothing, and audits every attempt -- the
  * stored-asset analog of {@code DataSourceChangesetApplyService} (01-design.md section 6.3).
  *
- * <p>Every plan in this area is {@code requiresStorageBackup: true} unconditionally (01-design.md
- * section 6.3): the Tier-2 snapshot is taken synchronously here, before any change is attempted,
- * and is the offline recovery path for every non-compensable change -- never a substitute for a
- * live rollback where one exists.
+ * <p>A plan is {@code requiresStorageBackup: true} unless every entry is a pure create (a new
+ * folder, or a write to a path that does not exist yet; Bug #80650). When it is, the Tier-2
+ * snapshot is taken synchronously here, before any change is attempted, and is the offline
+ * recovery path for every non-compensable change -- never a substitute for a live rollback where
+ * one exists. A pure-create plan skips it: its undo deletes the new entry.
  */
 @Component
 public class StoredAssetChangesetApplyService {
@@ -88,10 +89,11 @@ public class StoredAssetChangesetApplyService {
          String task = req.getTask().trim();
          String currentHash = StoredAssetChangePlanService.hash(
             planChanges, StoredAssetChangePlanService.hiddenInputs(resolved));
+         boolean requiresBackup = StoredAssetChangePlanService.requiresBackup(resolved);
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(
-               new ResolvedPlan(task, planChanges, true, true, currentHash, null));
+               new ResolvedPlan(task, planChanges, requiresBackup, true, currentHash, null));
          }
 
          String reviewedTask;
@@ -101,7 +103,8 @@ public class StoredAssetChangesetApplyService {
          }
          catch(TaskAuditToken.TaskTokenException e) {
             throw new AdminChangesetApplyService.TaskTokenMismatchException(
-               new ResolvedPlan(task, planChanges, true, true, currentHash, null), e.getMessage());
+               new ResolvedPlan(task, planChanges, requiresBackup, true, currentHash, null),
+               e.getMessage());
          }
 
          if(req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()) {
@@ -121,7 +124,7 @@ public class StoredAssetChangesetApplyService {
          }
 
          String txId = "storedasset-" + newIdSuffix();
-         String backupRef = backupService.backup(txId);
+         String backupRef = requiresBackup ? backupService.backup(txId) : null;
          String reviewOutcome = req.getReviewOutcome();
          List<StoredAssetApplyOutcome> results = new ArrayList<>();
          List<Undo> undoable = new ArrayList<>();

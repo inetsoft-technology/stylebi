@@ -23,6 +23,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -100,7 +101,12 @@ public class ScriptLibraryChangePlanService {
       boolean requiresAgentSignoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
       String planHash = hash(changes);
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true,
+      // Snapshot skipped only when every change is a script create (Bug #80650): a create refuses
+      // an existing name and its undo deletes the new script.
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         req.getChanges(),
+         c -> ScriptLibraryChangeRequest.VERB_CREATE.equals(requireVerb("", c.getVerb())));
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup,
                               requiresAgentSignoff, planHash, TaskAuditToken.issue(planHash, task));
    }
 

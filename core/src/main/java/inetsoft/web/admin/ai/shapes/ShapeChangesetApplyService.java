@@ -53,8 +53,9 @@ import java.util.stream.Collectors;
  * custom-shape analog of {@code inetsoft.web.admin.ai.file.StoredAssetChangesetApplyService}
  * (01-design.md section 2.3).
  *
- * <p>Every plan in this area is {@code requiresStorageBackup: true} unconditionally: the Tier-2
- * snapshot is taken synchronously here, before any change is attempted. Unlike Stored Assets,
+ * <p>A plan is {@code requiresStorageBackup: true} unless every entry is an upload to a new name
+ * (Bug #80650); then the Tier-2 snapshot is skipped, since the undo deletes the new file. Otherwise
+ * it is taken synchronously here, before any change is attempted. Unlike Stored Assets,
  * there is no {@code acknowledgeIrreversibleDelete} gate at all -- every entry here is
  * unconditionally compensable by construction (01-design.md section 1.4/3.2), so there is no
  * non-compensable case to acknowledge.
@@ -90,10 +91,11 @@ public class ShapeChangesetApplyService {
 
          String task = req.getTask().trim();
          String currentHash = ShapeChangePlanService.hash(planChanges);
+         boolean requiresBackup = ShapeChangePlanService.requiresBackup(resolved);
 
          if(req.getPlanHash() == null || !currentHash.equals(req.getPlanHash())) {
             throw new AdminChangesetApplyService.PlanHashMismatchException(
-               new ResolvedPlan(task, planChanges, true, true, currentHash, null));
+               new ResolvedPlan(task, planChanges, requiresBackup, true, currentHash, null));
          }
 
          String reviewedTask;
@@ -103,7 +105,8 @@ public class ShapeChangesetApplyService {
          }
          catch(TaskAuditToken.TaskTokenException e) {
             throw new AdminChangesetApplyService.TaskTokenMismatchException(
-               new ResolvedPlan(task, planChanges, true, true, currentHash, null), e.getMessage());
+               new ResolvedPlan(task, planChanges, requiresBackup, true, currentHash, null),
+               e.getMessage());
          }
 
          if(req.getReviewOutcome() == null || req.getReviewOutcome().trim().isEmpty()) {
@@ -113,7 +116,7 @@ public class ShapeChangesetApplyService {
          }
 
          String txId = "shapes-" + newIdSuffix();
-         String backupRef = backupService.backup(txId);
+         String backupRef = requiresBackup ? backupService.backup(txId) : null;
          String reviewOutcome = req.getReviewOutcome();
          List<ApplyOutcome> results = new ArrayList<>();
          List<Undo> undoable = new ArrayList<>();

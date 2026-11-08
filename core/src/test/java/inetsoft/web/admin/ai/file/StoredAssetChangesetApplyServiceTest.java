@@ -251,10 +251,11 @@ class StoredAssetChangesetApplyServiceTest {
       }
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      assertEquals("admin-snapshot/ref", result.backupRef());
+      // Bug #80650: a pure-create plan takes no whole-storage snapshot (its undo deletes it).
+      assertNull(result.backupRef());
       assertNull(result.rollbackFailures());
       assertTrue(folders.contains("new-folder"));
-      verify(backupService).backup(anyString());
+      verify(backupService, never()).backup(anyString());
    }
 
    @Test void appliesAWriteToANewFileAndReportsApplied() throws Exception {
@@ -273,6 +274,45 @@ class StoredAssetChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertArrayEquals("console.log(1);".getBytes(StandardCharsets.UTF_8), files.get("new.js"));
       verify(contentSettingsService).updateFolder("new.js");
+      verify(backupService, never()).backup(anyString());
+      assertNull(result.backupRef());
+   }
+
+   @Test void appliesAnOverwriteOfAnExistingFileWithOneSnapshot() throws Exception {
+      files.put("w.txt", "A".getBytes(StandardCharsets.UTF_8));
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE, "w.txt");
+      c.setContent("X");
+      String hash = planService.resolve(request(c), user).planHash();
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, c);
+
+      StoredAssetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals("admin-snapshot/ref", result.backupRef());
+      verify(backupService, times(1)).backup(anyString());
+   }
+
+   @Test void appliesAMixedCreateAndDeletePlanWithOneSnapshot() throws Exception {
+      files.put("a.js", "console.log(1);".getBytes(StandardCharsets.UTF_8));
+      StoredAssetChangeRequest create =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "new-folder");
+      StoredAssetChangeRequest delete =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_DELETE, "a.js");
+      String hash = planService.resolve(request(create, delete), user).planHash();
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, create, delete);
+
+      StoredAssetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals("admin-snapshot/ref", result.backupRef());
+      verify(backupService, times(1)).backup(anyString());
    }
 
    @Test void applyRefusesAWriteWhoseContentWasSwappedAfterPreviewAndWritesNothing() throws Exception {
@@ -361,6 +401,7 @@ class StoredAssetChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertFalse(files.containsKey("a.js"));
+      verify(backupService, times(1)).backup(anyString());
    }
 
    @Test void appliesADeleteOfAFolderOnlyWithAcknowledgement() throws Exception {
