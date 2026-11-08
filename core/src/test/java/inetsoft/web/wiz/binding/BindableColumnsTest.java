@@ -266,6 +266,26 @@ class BindableColumnsTest {
       assertTrue(thrown.getMessage().contains("Query1"), "list what it can bind to");
    }
 
+   /**
+    * {@code requireKnownTable} is {@code requireSource}'s bare-repoint counterpart (no fields
+    * written at all, e.g. {@code set_chart_source}), so it must refuse the same way.
+    */
+   @Test
+   void requireKnownTableRefusesATableThatIsNotListedAtAll() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireKnownTable(NO_SOURCE, "Chart1", "NOPE"));
+
+      assertTrue(thrown.getMessage().contains("NOPE"));
+      assertTrue(thrown.getMessage().contains("Query1"), "list what it can bind to");
+   }
+
+   @Test
+   void requireKnownTableAcceptsAListedTableOrNoRequestAtAll() {
+      assertDoesNotThrow(() -> BindableColumns.requireKnownTable(NO_SOURCE, "Chart1", "Query1"));
+      assertDoesNotThrow(() -> BindableColumns.requireKnownTable(NO_SOURCE, "Chart1", null));
+   }
+
    /** Already sourced: nothing to establish, and the column check stays narrowed to it. */
    @Test
    void establishesNothingWhenTheAssemblyAlreadyHasASource() {
