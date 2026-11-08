@@ -183,6 +183,28 @@ class ChartTargetLineServiceTest {
       assertNoWrite(h);
    }
 
+   /**
+    * Bug #80622: with 'measure' omitted and a date/time measure as the chart's only measure, the
+    * implicit bind skipped the date refusal an explicit name gets, and stored the target.
+    */
+   @ParameterizedTest
+   @ValueSource(booleans = {false, true})
+   void refusesTheOnlyMeasureWhenItIsADateOrTimeAndNoneIsNamed(boolean time) {
+      Harness h = harness(chart(GraphTypes.CHART_BAR),
+                          paneWith(new MeasureInfo("", "", false),
+                               new MeasureInfo("Max(Order:Date)", "Max(Order:Date)", !time, time,
+                                               false)));
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.add("tok", principal(), "Chart1", null, "100", null, null, null, null,
+                             null, ""));
+      assertTrue(e.getMessage().contains("Max(Order:Date)")
+                    && e.getMessage().contains(time ? "time field" : "date field"),
+                 e.getMessage());
+      assertNoWrite(h);
+   }
+
    @Test
    void refusesAnUnknownMeasure() {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());

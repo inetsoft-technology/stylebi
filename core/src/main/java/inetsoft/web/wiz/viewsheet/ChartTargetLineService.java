@@ -652,6 +652,9 @@ public class ChartTargetLineService {
 
       if(wanted.isEmpty()) {
          if(real.size() == 1) {
+            // the one measure is bound implicitly, so it still has to pass the same date/time
+            // refusal an explicitly named one gets
+            requireNumeric(real.get(0));
             return copy(real.get(0));
          }
 
@@ -677,15 +680,7 @@ public class ChartTargetLineService {
 
       for(MeasureInfo field : real) {
          if(wanted.equalsIgnoreCase(field.getName()) || wanted.equalsIgnoreCase(field.getLabel())) {
-            if(field.isDateField() || field.isTimeField()) {
-               throw new IllegalArgumentException(
-                  "'" + field.getName() + "' is a " + (field.isTimeField() ? "time" : "date") +
-                  " field. These tools write numeric target lines; on a date-valued target " +
-                  "the value is parsed as a date and silently dropped when it does not match, " +
-                  "and the Composer refuses statistics on one outright. Pick a numeric " +
-                  "measure.");
-            }
-
+            requireNumeric(field);
             return copy(field);
          }
       }
@@ -695,6 +690,21 @@ public class ChartTargetLineService {
          (real.isEmpty() ? "(none)" : names(real)) + "." + (requireBound ? "" :
             " Use measure:\"" + ALL_MEASURES + "\" for a line that is not bound to any of " +
             "them."));
+   }
+
+   /**
+    * Refuses a date or time measure, whether it was named or picked implicitly as the chart's
+    * only measure: on a date-valued target the value is parsed as a date, not a number.
+    */
+   private static void requireNumeric(MeasureInfo field) {
+      if(field.isDateField() || field.isTimeField()) {
+         throw new IllegalArgumentException(
+            "'" + field.getName() + "' is a " + (field.isTimeField() ? "time" : "date") +
+            " field. These tools write numeric target lines; on a date-valued target " +
+            "the value is parsed as a date and silently dropped when it does not match, " +
+            "and the Composer refuses statistics on one outright. Pick a numeric " +
+            "measure.");
+      }
    }
 
    private static MeasureInfo copy(MeasureInfo measure) {
