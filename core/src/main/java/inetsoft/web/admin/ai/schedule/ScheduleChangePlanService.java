@@ -26,6 +26,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -90,13 +91,16 @@ public class ScheduleChangePlanService {
          changes.add(resolveOne(label, change, user, seenTaskIds));
       }
 
-      // Both verbs are risk:high with snapshotScope:storage unconditionally (spec §4) -- there is
-      // no "recognized" axis for a schedule task the way an uncatalogued property has one, and no
-      // low-risk schedule verb in this area's first cut.
+      // Both verbs are risk:high (spec §4), so signoff is always required. The storage snapshot is
+      // skipped only when every change is a task create: a create refuses an existing task id and
+      // its undo deletes the new task (Bug #80650, see StorageBackupPolicy).
       String planHash = hash(changes);
       String task = req.getTask().trim();
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         req.getChanges(),
+         c -> ScheduleChangeRequest.VERB_CREATE.equals(normalizeVerb("", c.getVerb())));
       return new ResolvedPlan(task, Collections.unmodifiableList(changes),
-                              true, true, planHash, TaskAuditToken.issue(planHash, task));
+                              requiresBackup, true, planHash, TaskAuditToken.issue(planHash, task));
    }
 
    private PlanChange resolveOne(String label, ScheduleChangeRequest change, Principal user,

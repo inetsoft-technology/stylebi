@@ -36,6 +36,7 @@ import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.sree.security.ResourceAction;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,8 +77,10 @@ import java.util.*;
  * RISK_HIGH}) -- folder create and an empty-folder delete use {@code RISK_LOW}, the closest existing
  * constant for a genuinely metadata-only change; a non-empty-folder delete uses {@code RISK_HIGH},
  * matching viewsheet delete's own classification for the same reason (a real, irreversible
- * AssetRepository deletion). {@code requiresStorageBackup} is {@code true} unconditionally for every
- * verb regardless of risk (snapshotScope is independent of risk, AREA-SPEC-GUIDE.md section 2.3).
+ * AssetRepository deletion). {@code requiresStorageBackup} is {@code true} for every verb except a
+ * pure folder create (a new registry label with a live undo); a plan skips the snapshot only when
+ * every change is one (Bug #80650, see {@link StorageBackupPolicy}). snapshotScope is independent of
+ * risk (AREA-SPEC-GUIDE.md section 2.3).
  *
  * <p>Delete's own dependency preflight (section 0.2) reads {@code
  * DependencyTool.getDependencies}, the canonical reverse-dependency index, rather than {@code
@@ -134,8 +137,18 @@ public class ViewsheetChangePlanService {
       boolean requiresAgentSignoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
       String planHash = hash(changes, auxProjections);
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true,
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         req.getChanges(), ViewsheetChangePlanService::isPureFolderCreate);
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup,
                               requiresAgentSignoff, planHash, TaskAuditToken.issue(planHash, task));
+   }
+
+   /** Only a folder create is a pure create here: resolveFolderCreate refuses an existing folder,
+    * and viewsheet/worksheet units have no create verb. Re-normalized with the same helpers
+    * resolveOne used, since the raw request accepts case/alias variants. */
+   private static boolean isPureFolderCreate(ViewsheetChangeRequest change) {
+      return ViewsheetChangeRequest.UNIT_FOLDER.equals(requireUnitType("", change.getUnitType())) &&
+         ViewsheetChangeRequest.VERB_CREATE.equals(requireFolderVerb("", change.getVerb()));
    }
 
    private PlanChange resolveOne(String label, ViewsheetChangeRequest change, Principal user,

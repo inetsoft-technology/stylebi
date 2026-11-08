@@ -479,6 +479,38 @@ class ViewsheetChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("already exists"));
    }
 
+   @Test void resolveFolderCreateOnlyPlanSkipsStorageBackup() throws Exception {
+      stubFolder("Examples/New Folder", null, false);
+      ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
+
+      var plan = service.resolve(request("task", List.of(change)), user);
+
+      // Bug #80650: a brand-new registry folder has a live undo; the snapshot adds nothing.
+      assertFalse(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveFolderCreateWithAliasVerbAndUpperCaseUnitStillSkipsStorageBackup()
+      throws Exception
+   {
+      stubFolder("Examples/New Folder", null, false);
+      ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
+      change.setUnitType("FOLDER");
+      change.setVerb("add");
+
+      assertFalse(service.resolve(request("task", List.of(change)), user).requiresStorageBackup());
+   }
+
+   @Test void resolveFolderCreatePlusViewsheetDeleteKeepsStorageBackup() throws Exception {
+      stubFolder("Examples/New Folder", null, false);
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+
+      var plan = service.resolve(request("task", List.of(
+         createFolderChange("Examples", "New Folder", null),
+         deleteViewsheetChange(VS_ASSET_ID))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
    @Test void resolveFolderCreateAcceptsAddAlias() throws Exception {
       stubFolder("Examples/New Folder", null, false);
       ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);

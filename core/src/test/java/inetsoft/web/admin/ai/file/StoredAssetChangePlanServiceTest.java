@@ -165,9 +165,78 @@ class StoredAssetChangePlanServiceTest {
       ResolvedPlan plan = service.resolve(req, principal);
 
       assertFalse(plan.requiresAgentSignoff(), "a bare create is low risk");
-      assertTrue(plan.requiresStorageBackup());
+      // Bug #80650: a create-only plan makes a new folder with a live undo -- no snapshot needed.
+      assertFalse(plan.requiresStorageBackup());
       assertNotNull(plan.planHash());
       assertNotNull(plan.taskToken());
+   }
+
+   @Test
+   void resolveWriteToANewPathIsAPureCreateAndSkipsStorageBackup() {
+      when(dataSpace.exists(null, "scripts/new.js")).thenReturn(false);
+
+      ResolvedPlan plan = service.resolve(request(write("scripts/new.js", "x")), principal);
+
+      assertFalse(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveWriteOverAnExistingFileKeepsStorageBackup() throws Exception {
+      existingFile("a.js", "old".getBytes());
+
+      ResolvedPlan plan = service.resolve(request(write("a.js", "new")), principal);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveWriteOverAnEmptyExistingFileKeepsStorageBackup() throws Exception {
+      existingFile("empty.js", new byte[0]);
+
+      ResolvedPlan plan = service.resolve(request(write("empty.js", "new")), principal);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveDeleteKeepsStorageBackup() {
+      when(dataSpace.exists(null, "old-folder")).thenReturn(true);
+      when(dataSpace.isDirectory("old-folder")).thenReturn(true);
+
+      ResolvedPlan plan = service.resolve(request(
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_DELETE,
+                "old-folder")), principal);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveRenameKeepsStorageBackup() {
+      when(dataSpace.exists(null, "a.js")).thenReturn(true);
+      when(dataSpace.isDirectory("a.js")).thenReturn(false);
+      when(dataSpace.exists(null, "b.js")).thenReturn(false);
+      StoredAssetChangeRequest c =
+         change(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_RENAME, "a.js");
+      c.setNewName("b.js");
+
+      ResolvedPlan plan = service.resolve(request(c), principal);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test
+   void resolveMixedCreateAndDeleteKeepsStorageBackup() {
+      when(dataSpace.exists(null, "scripts/lib")).thenReturn(false);
+      when(dataSpace.exists(null, "old-folder")).thenReturn(true);
+      when(dataSpace.isDirectory("old-folder")).thenReturn(true);
+
+      ResolvedPlan plan = service.resolve(request(
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE,
+                "scripts/lib"),
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_DELETE,
+                "old-folder")), principal);
+
+      assertTrue(plan.requiresStorageBackup());
    }
 
    /** Bug #80419: the EM-forbidden-character/dot rule applies to the leaf name a create/write/
