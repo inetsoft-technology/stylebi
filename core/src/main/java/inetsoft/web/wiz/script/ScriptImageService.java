@@ -129,6 +129,20 @@ public class ScriptImageService {
                                       Integer width, Integer height, Principal principal)
       throws Exception
    {
+      return getAssemblyImage(rvs, assemblyName, width, height, principal, false);
+   }
+
+   /**
+    * @param svg render the assembly as SVG where StyleBI can (charts and gauges). The result's
+    *        {@link ChartImage#isPng()} reports what the bytes really are: it is still true when
+    *        the render fell back to a raster image, so a caller must not label the bytes SVG on
+    *        the strength of having asked for it.
+    */
+   public ChartImage getAssemblyImage(RuntimeViewsheet rvs, String assemblyName,
+                                      Integer width, Integer height, Principal principal,
+                                      boolean svg)
+      throws Exception
+   {
       Viewsheet vs = rvs.getViewsheet();
 
       if(vs == null) {
@@ -220,7 +234,7 @@ public class ScriptImageService {
 
       for(int attempt = 0; attempt < RENDER_MAX_ATTEMPTS; attempt++) {
          result = assemblyImageService.processGetAssemblyImage(
-            rvs, aid, w, h, w, h, null, 0, 0, 0, principal, false, true);
+            rvs, aid, w, h, w, h, null, 0, 0, 0, principal, svg, true);
 
          if(result == null || result.getRetryAfter() <= 0 || result.isTerminal()) {
             break;
@@ -275,6 +289,23 @@ public class ScriptImageService {
       }
 
       return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), note);
+   }
+
+   /**
+    * Exports one table/crosstab/freehand table the way the table title-bar Export button does
+    * ({@link AssemblyImageService#exportViewsheetTable}). The result carries its own mime, suffix
+    * and file name: it is an xlsx workbook by default but StyleBI switches to CSV for large
+    * tables, so a caller must label the bytes from the result, not from the format it asked for.
+    *
+    * @return the export, or {@code null} when the viewsheet has no sandbox to export from
+    */
+   public AssemblyImageService.SheetExportResult exportTable(RuntimeViewsheet rvs,
+                                                              String assemblyName, String agent,
+                                                              Principal principal)
+      throws Exception
+   {
+      return assemblyImageService.exportViewsheetTable(rvs.getID(), assemblyName, agent,
+                                                       principal);
    }
 
    /** Whole-viewsheet render returned in place of a single assembly, with {@code note} leading. */

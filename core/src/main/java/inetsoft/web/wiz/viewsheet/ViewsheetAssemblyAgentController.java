@@ -52,7 +52,9 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.util.XSourceInfo;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmark;
@@ -78,6 +80,7 @@ import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import inetsoft.web.viewsheet.service.VSBookmarkService;
 import inetsoft.web.viewsheet.service.ExportInProgressException;
+import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.script.ScriptImageService;
@@ -86,6 +89,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -1440,16 +1445,35 @@ public class ViewsheetAssemblyAgentController {
     * {@code WizExportController}'s own established "always expand tables when export to csv"
     * convention.
     */
+   /**
+    * Export without the CSV options or a repeated {@code target}; delegates to the full route.
+    */
+   public ResponseEntity<?> export(String sessionToken, String format, String target,
+                                   Boolean match, Boolean expandSelections, Boolean current,
+                                   Boolean onlyDataComponents, Boolean exportAllTabbedTables,
+                                   String bookmarks, Principal user,
+                                   HttpServletResponse servletResponse)
+      throws Exception
+   {
+      return export(sessionToken, format, target == null ? null : List.of(target), match,
+                    expandSelections, current, onlyDataComponents, exportAllTabbedTables,
+                    bookmarks, null, null, null, null, user, servletResponse);
+   }
+
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/export")
    public ResponseEntity<?> export(@PathVariable String sessionToken,
                                    @RequestParam String format,
-                                   @RequestParam(required = false) String target,
+                                   @RequestParam(required = false) List<String> target,
                                    @RequestParam(required = false) Boolean match,
                                    @RequestParam(required = false) Boolean expandSelections,
                                    @RequestParam(required = false) Boolean current,
                                    @RequestParam(required = false) Boolean onlyDataComponents,
                                    @RequestParam(required = false) Boolean exportAllTabbedTables,
                                    @RequestParam(required = false) String bookmarks,
+                                   @RequestParam(required = false) String delimiter,
+                                   @RequestParam(required = false) String quote,
+                                   @RequestParam(required = false) Boolean keepHeader,
+                                   @RequestParam(required = false) Boolean tabDelimited,
                                    Principal user, HttpServletResponse servletResponse)
       throws Exception
    {
@@ -1462,24 +1486,96 @@ public class ViewsheetAssemblyAgentController {
       }
 
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
-      int formatType = toFormatType(format);
+      // SVG is a single-assembly image format with no FileFormatInfo export type of its own: it
+      // rides the PNG render path with svg=true.
+      boolean svg = format != null && format.trim().equalsIgnoreCase("svg");
+      int formatType = svg ? FileFormatInfo.EXPORT_TYPE_PNG : toFormatType(format);
+      boolean csv = !svg && formatType == FileFormatInfo.EXPORT_TYPE_CSV;
+      boolean png = !svg && formatType == FileFormatInfo.EXPORT_TYPE_PNG;
+      boolean excel = !svg && formatType == FileFormatInfo.EXPORT_TYPE_EXCEL;
+
+      List<String> csvOptionNames = new ArrayList<>();
+
+      if(delimiter != null) {
+         csvOptionNames.add("delimiter");
+      }
+
+      if(quote != null) {
+         csvOptionNames.add("quote");
+      }
+
+      if(keepHeader != null) {
+         csvOptionNames.add("keepHeader");
+      }
+
+      if(tabDelimited != null) {
+         csvOptionNames.add("tabDelimited");
+      }
+
+      if(!csv && !csvOptionNames.isEmpty()) {
+         throw new IllegalArgumentException(
+            "export_viewsheet: " + String.join(", ", csvOptionNames) + " only apply to " +
+            "format=CSV, but format is '" + format + "' -- drop " +
+            (csvOptionNames.size() == 1 ? "it" : "them") + " or switch to format=CSV.");
+      }
+
+      List<String> targets = target == null ? List.of() : target;
+
+      for(String t : targets) {
+         if(t == null || t.isBlank()) {
+            throw new IllegalArgumentException(
+               "export_viewsheet: 'target' must be an assembly name, but one entry is blank.");
+         }
+      }
+
+      if(svg && targets.isEmpty()) {
+         throw new IllegalArgumentException(
+            "export_viewsheet: format=SVG exports a single chart or gauge, so 'target' is " +
+            "required.");
+      }
+
+      if(targets.size() > 1 && !csv) {
+         throw new IllegalArgumentException(
+            "export_viewsheet: 'target' may be repeated only with format=CSV; '" + format +
+            "' exports one assembly at a time.");
+      }
 
       CSVConfig csvConfig = null;
 
-      if(target != null && !target.isBlank()) {
-         if(formatType != FileFormatInfo.EXPORT_TYPE_PNG && formatType != FileFormatInfo.EXPORT_TYPE_CSV) {
+      if(!targets.isEmpty()) {
+         if(!csv && !png && !excel && !svg) {
             throw new IllegalArgumentException(
-               "export_viewsheet: 'target' is only supported with format=PNG or format=CSV for " +
-               "now (a single table/chart export to Excel/PowerPoint/PDF/HTML/Snapshot is not yet " +
+               "export_viewsheet: 'target' is only supported with format=PNG, SVG, Excel or CSV " +
+               "for now (a single table/chart export to PowerPoint/PDF/HTML/Snapshot is not yet " +
                "implemented) -- omit 'target' to export the whole viewsheet in '" + format + "', " +
                "or use get_viewsheet_image for a PNG preview of just this assembly.");
          }
 
-         if(formatType == FileFormatInfo.EXPORT_TYPE_PNG) {
+         String single = targets.get(0);
+
+         if(png || svg) {
+            if(svg) {
+               VSAssembly svgAssembly = rvs.getViewsheet().getAssembly(single);
+
+               if(svgAssembly == null) {
+                  throw new PairingException("No such assembly \"" + single + "\"");
+               }
+
+               if(!(svgAssembly instanceof ChartVSAssembly) &&
+                  !(svgAssembly instanceof GaugeVSAssembly))
+               {
+                  throw new IllegalArgumentException(
+                     "export_viewsheet: format=SVG supports only a Chart or Gauge 'target', but \"" +
+                     single + "\" is a " + assemblyTypeLabel(svgAssembly) + " -- use format=PNG " +
+                     "for this assembly.");
+               }
+            }
+
             ScriptImageService.ChartImage image;
 
             try {
-               image = imageService.getAssemblyImage(rvs, target, null, null, user);
+               image = svg ? imageService.getAssemblyImage(rvs, single, null, null, user, true) :
+                  imageService.getAssemblyImage(rvs, single, null, null, user);
             }
             catch(ScriptException e) {
                throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
@@ -1491,42 +1587,81 @@ public class ViewsheetAssemblyAgentController {
                throw new PairingException(e.getMessage());
             }
 
-            writeAttachment(servletResponse, image.pngBytes(), "image/png", target + ".png");
+            // StyleBI may answer a chart/gauge render with a raster image, so label the bytes
+            // from what came back rather than from the format that was asked for.
+            if(svg && !image.isPng()) {
+               writeAttachment(servletResponse, image.pngBytes(), "image/svg+xml", single + ".svg");
+            }
+            else {
+               writeAttachment(servletResponse, image.pngBytes(), "image/png", single + ".png");
+            }
+
             return null;
          }
 
-         // formatType == EXPORT_TYPE_CSV: scope to just this one table/crosstab/calc table via
-         // CSVConfig#exportAssemblies, the same per-assembly filter StyleBI's own Export dialog's
-         // CSV table-select checkbox uses (CSVVSExporter#needExport). Validated up front -- a
-         // target that resolves to no assembly, is not a table type (CSVVSExporter writes table
-         // data only; its writeChart is a no-op), or is a table CSV export would skip (hidden,
-         // tip/pop component, zero size) would otherwise match nothing in that filter and
-         // silently stream an empty zip with a 200, rather than failing loud (bug 76958).
-         VSAssembly targetAssembly = rvs.getViewsheet().getAssembly(target);
+         // CSV and Excel both need each target to be an exportable table type. Validated up
+         // front -- a target that resolves to no assembly, is not a table type (CSVVSExporter
+         // writes table data only; its writeChart is a no-op), or is a table CSV export would
+         // skip (hidden, tip/pop component, zero size) would otherwise match nothing in that
+         // filter and silently stream an empty zip with a 200, rather than failing loud (bug
+         // 76958).
+         for(String t : targets) {
+            VSAssembly targetAssembly = rvs.getViewsheet().getAssembly(t);
 
-         if(targetAssembly == null) {
-            throw new PairingException("No such assembly \"" + target + "\"");
+            if(targetAssembly == null) {
+               throw new PairingException("No such assembly \"" + t + "\"");
+            }
+
+            if(!(targetAssembly instanceof TableDataVSAssembly)) {
+               throw new IllegalArgumentException(
+                  "export_viewsheet: a " + (excel ? "table" : "CSV") + " 'target' must be a " +
+                  "Table, Crosstab or Freehand Table, but \"" + t + "\" is a " +
+                  assemblyTypeLabel(targetAssembly) + ", which " + (excel ? "table" : "CSV") +
+                  " export does not write -- bind the same fields to a crosstab to export its " +
+                  "data, or use format=PNG (or get_viewsheet_image) for this assembly itself.");
+            }
+
+            if(csv && !CSVUtil.needExport(targetAssembly)) {
+               throw new IllegalArgumentException(
+                  "export_viewsheet: \"" + t + "\" is not exportable to CSV in the current " +
+                  "view (it is hidden, a tooltip/pop-up component, or has no size), so the CSV " +
+                  "export would be empty.");
+            }
          }
 
-         if(!(targetAssembly instanceof TableDataVSAssembly)) {
-            throw new IllegalArgumentException(
-               "export_viewsheet: a CSV 'target' must be a Table, Crosstab or Freehand Table, but \"" +
-               target + "\" is a " + assemblyTypeLabel(targetAssembly) + ", which CSV export " +
-               "does not write -- bind the same fields to a crosstab to export its data as CSV, " +
-               "or use format=PNG (or get_viewsheet_image) for this assembly itself.");
-         }
+         if(excel) {
+            // Single table to Excel: the table title-bar Export button's own path. It is an xlsx
+            // workbook by default but StyleBI switches to CSV for large tables, so the response
+            // mime and file name follow what the service returned.
+            AssemblyImageService.SheetExportResult result;
 
-         if(!CSVUtil.needExport(targetAssembly)) {
-            throw new IllegalArgumentException(
-               "export_viewsheet: \"" + target + "\" is not exportable to CSV in the current " +
-               "view (it is hidden, a tooltip/pop-up component, or has no size), so the CSV " +
-               "export would be empty.");
-         }
+            try {
+               result = imageService.exportTable(rvs, single, null, user);
+            }
+            catch(ScriptException e) {
+               throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+            }
+            catch(ExportInProgressException | InvalidUserException e) {
+               throw e;
+            }
+            catch(MessageException e) {
+               throw new PairingException(e.getMessage());
+            }
 
-         csvConfig = new CSVConfig();
-         csvConfig.setExportAssemblies(List.of(target));
+            if(result == null || result.getData() == null) {
+               throw new PairingException("Nothing to export for \"" + single + "\" -- the " +
+                  "table has no data in the current view.");
+            }
+
+            VSExportService.setResponseHeader(new ExportResponse(servletResponse),
+               result.getSuffix(), "attachment", result.getFileName(), result.getMime());
+            servletResponse.setContentLength(result.getData().length);
+            servletResponse.getOutputStream().write(result.getData());
+            servletResponse.getOutputStream().flush();
+            return null;
+         }
       }
-      else if(formatType == FileFormatInfo.EXPORT_TYPE_CSV) {
+      else if(csv) {
          // Whole-sheet CSV: the same guard VSExportService applies to the human Export dialog --
          // a viewsheet with no exportable table would otherwise produce an empty zip (bug 76958).
          Viewsheet vs = rvs.getViewsheet();
@@ -1534,6 +1669,31 @@ public class ViewsheetAssemblyAgentController {
          if(vs != null && !exportService.hasCsvExportableTable(vs)) {
             throw new IllegalArgumentException(
                Catalog.getCatalog().getString("common.repletAction.exportFailed.cvs"));
+         }
+      }
+
+      if(csv && (!targets.isEmpty() || !csvOptionNames.isEmpty())) {
+         csvConfig = new CSVConfig();
+
+         if(!targets.isEmpty()) {
+            csvConfig.setExportAssemblies(new ArrayList<>(targets));
+         }
+
+         // an empty quote is legal (no quoting); only an absent value keeps the default
+         if(delimiter != null) {
+            csvConfig.setDelimiter(delimiter);
+         }
+
+         if(quote != null) {
+            csvConfig.setQuote(quote);
+         }
+
+         if(keepHeader != null) {
+            csvConfig.setKeepHeader(keepHeader);
+         }
+
+         if(tabDelimited != null) {
+            csvConfig.setTabDelimited(tabDelimited);
          }
       }
 
@@ -1585,6 +1745,14 @@ public class ViewsheetAssemblyAgentController {
       }
       catch(MessageException e) {
          throw new PairingException(e.getMessage());
+      }
+
+      if(csv) {
+         // Always sent for CSV so a client can tell a server that applied its options from an
+         // older one that ignored the unknown query parameters.
+         CSVConfig applied = csvConfig != null ? csvConfig : new CSVConfig();
+         servletResponse.setHeader(EXPORT_APPLIED_HEADER,
+            exportAppliedHeaderValue(applied, targets.size()));
       }
 
       String warningsHeader = ExportCellCapScanner.toHeaderValue(cellCapWarnings);
@@ -1711,6 +1879,30 @@ public class ViewsheetAssemblyAgentController {
          name.substring(0, name.length() - "VSAssembly".length()) : name;
    }
 
+   /** Response header echoing the CSV options an export actually applied. */
+   static final String EXPORT_APPLIED_HEADER = "X-Wiz-Export-Applied";
+
+   /**
+    * URL-encoded JSON object of the applied CSV options and the number of targets, ASCII-safe
+    * like {@link ExportCellCapScanner#WARNINGS_HEADER}.
+    */
+   static String exportAppliedHeaderValue(CSVConfig config, int targetCount) {
+      Map<String, Object> applied = new LinkedHashMap<>();
+      applied.put("delimiter", config.getDelimiter());
+      applied.put("quote", config.getQuote());
+      applied.put("keepHeader", config.isKeepHeader());
+      applied.put("tabDelimited", config.isTabDelimited());
+      applied.put("targets", targetCount);
+
+      try {
+         return URLEncoder.encode(new com.fasterxml.jackson.databind.ObjectMapper()
+            .writeValueAsString(applied), StandardCharsets.UTF_8).replace("+", "%20");
+      }
+      catch(IOException e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
    private static int toFormatType(String format) {
       if(format != null) {
          switch(format.toLowerCase()) {
@@ -1725,8 +1917,8 @@ public class ViewsheetAssemblyAgentController {
       }
 
       throw new IllegalArgumentException(
-         "export_viewsheet: 'format' must be one of Excel, PowerPoint, PDF, PNG, HTML, CSV, " +
-         "Snapshot, got '" + format + "'.");
+         "export_viewsheet: 'format' must be one of Excel, PowerPoint, PDF, PNG, SVG, HTML, " +
+         "CSV, Snapshot, got '" + format + "'.");
    }
 
    public record PropertyPatchRequest(String assembly, Map<String, Object> properties) {}

@@ -69,6 +69,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.MockedStatic;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayOutputStream;
@@ -7081,6 +7082,249 @@ class ViewsheetAssemblyAgentControllerTest {
       ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
       verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
       assertTrue(disposition.getValue().contains("export.zip"));
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #80469: export_viewsheet CSV options, repeated target, single-table Excel, SVG.
+   // ---------------------------------------------------------------------------
+
+   private static final class ExportFixture {
+      final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      final Viewsheet vs = mock(Viewsheet.class);
+      final VSExportService exportService = mock(VSExportService.class);
+      final inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      final ByteArrayOutputStream written = new ByteArrayOutputStream();
+      final HttpServletResponse response;
+      final ViewsheetAssemblyAgentController controller;
+
+      ExportFixture() throws Exception {
+         ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+         when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+         when(rvs.getViewsheet()).thenReturn(vs);
+         when(exportService.hasCsvExportableTable(vs)).thenReturn(true);
+         SecurityEngine securityEngine = mock(SecurityEngine.class);
+         when(securityEngine.checkPermission(any(Principal.class),
+            eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+            .thenReturn(true);
+         response = mockServletResponse(written);
+         controller = controllerForExport(sessions, exportService, securityEngine, imageService);
+      }
+
+      <T extends VSAssembly> T assembly(String name, Class<T> type) {
+         T assembly = mock(type);
+         when(vs.getAssembly(name)).thenReturn(assembly);
+         return assembly;
+      }
+
+      ResponseEntity<?> export(String format, List<String> targets, String delimiter,
+                               String quote, Boolean keepHeader, Boolean tabDelimited)
+         throws Exception
+      {
+         return controller.export("tok", format, targets, null, null, null, null, null, null,
+                                  delimiter, quote, keepHeader, tabDelimited, principal(),
+                                  response);
+      }
+
+      CSVConfig exportedCsvConfig() throws Exception {
+         ArgumentCaptor<CSVConfig> captor = ArgumentCaptor.forClass(CSVConfig.class);
+         verify(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+            anyBoolean(), captor.capture(), anyBoolean(), any(ExportResponse.class),
+            any(Principal.class));
+         return captor.getValue();
+      }
+   }
+
+   @Test
+   void export_csvOptionsReachCsvConfigAndAreEchoedInTheAppliedHeader() throws Exception {
+      ExportFixture f = new ExportFixture();
+
+      f.export("CSV", null, ";", "", false, true);
+
+      CSVConfig config = f.exportedCsvConfig();
+      assertEquals(";", config.getDelimiter());
+      // CSVConfig reads an empty quote back as null: no quoting
+      assertNull(config.getQuote());
+      assertFalse(config.isKeepHeader());
+      assertTrue(config.isTabDelimited());
+
+      ArgumentCaptor<String> header = ArgumentCaptor.forClass(String.class);
+      verify(f.response).setHeader(eq("X-Wiz-Export-Applied"), header.capture());
+      String json = java.net.URLDecoder.decode(header.getValue(),
+         java.nio.charset.StandardCharsets.UTF_8);
+      assertTrue(json.contains("\"delimiter\":\";\""), json);
+      assertTrue(json.contains("\"quote\":null"), json);
+      assertTrue(json.contains("\"keepHeader\":false"), json);
+      assertTrue(json.contains("\"tabDelimited\":true"), json);
+      assertTrue(json.contains("\"targets\":0"), json);
+   }
+
+   @Test
+   void export_plainCsvStillEmitsTheAppliedHeaderWithoutBuildingAConfig() throws Exception {
+      ExportFixture f = new ExportFixture();
+
+      f.export("CSV", null, null, null, null, null);
+
+      assertNull(f.exportedCsvConfig());
+      verify(f.response).setHeader(eq("X-Wiz-Export-Applied"), anyString());
+   }
+
+   @Test
+   void export_repeatedTargetsAllReachCsvExportAssemblies() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("T1", TableDataVSAssembly.class);
+      f.assembly("T2", TableDataVSAssembly.class);
+
+      try(MockedStatic<inetsoft.report.io.viewsheet.excel.CSVUtil> csvUtil =
+             mockStatic(inetsoft.report.io.viewsheet.excel.CSVUtil.class))
+      {
+         csvUtil.when(() -> inetsoft.report.io.viewsheet.excel.CSVUtil.needExport(any()))
+            .thenReturn(true);
+         f.export("CSV", List.of("T1", "T2"), null, null, null, null);
+      }
+
+      assertEquals(List.of("T1", "T2"), f.exportedCsvConfig().getExportAssemblies());
+      ArgumentCaptor<String> header = ArgumentCaptor.forClass(String.class);
+      verify(f.response).setHeader(eq("X-Wiz-Export-Applied"), header.capture());
+      assertTrue(java.net.URLDecoder.decode(header.getValue(),
+         java.nio.charset.StandardCharsets.UTF_8).contains("\"targets\":2"));
+   }
+
+   @Test
+   void export_csvOptionsWithNonCsvFormatAreRejectedByName() throws Exception {
+      ExportFixture f = new ExportFixture();
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> f.export("PDF", null, ";", null, null, true));
+
+      assertTrue(e.getMessage().contains("delimiter"), e.getMessage());
+      assertTrue(e.getMessage().contains("tabDelimited"), e.getMessage());
+      assertTrue(e.getMessage().contains("CSV"), e.getMessage());
+   }
+
+   @Test
+   void export_blankTargetEntryIsRejected() throws Exception {
+      ExportFixture f = new ExportFixture();
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> f.export("CSV", List.of("T1", " "), null, null, null, null));
+
+      assertTrue(e.getMessage().contains("blank"), e.getMessage());
+   }
+
+   @Test
+   void export_repeatedTargetWithExcelIsRejected() throws Exception {
+      ExportFixture f = new ExportFixture();
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> f.export("Excel", List.of("T1", "T2"), null, null, null, null));
+
+      assertTrue(e.getMessage().contains("repeated"), e.getMessage());
+   }
+
+   @Test
+   void export_targetWithPdfStillFailsAndListsTheSupportedFormats() throws Exception {
+      ExportFixture f = new ExportFixture();
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> f.export("PDF", List.of("T1"), null, null, null, null));
+
+      assertTrue(e.getMessage().contains("PNG, SVG, Excel or CSV"), e.getMessage());
+   }
+
+   @Test
+   void export_excelTargetFollowsTheMimeAndFileNameTheTableExportReturned() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("T1", TableDataVSAssembly.class);
+      // a large table comes back as CSV, not xlsx
+      when(f.imageService.exportTable(eq(f.rvs), eq("T1"), any(), any(Principal.class)))
+         .thenReturn(new inetsoft.web.viewsheet.controller.AssemblyImageService
+            .SheetExportResult(new byte[] { 1, 2, 3 }, "sheet_T1", "text/csv", "csv"));
+
+      f.export("Excel", List.of("T1"), null, null, null, null);
+
+      verify(f.response).setContentType("text/csv");
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(f.response).setHeader(eq("Content-disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("sheet_T1.csv"), disposition.getValue());
+      assertArrayEquals(new byte[] { 1, 2, 3 }, f.written.toByteArray());
+      verify(f.exportService, never()).exportViewsheet(any(), anyInt(), anyBoolean(),
+         anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class),
+         anyBoolean(), anyBoolean(), any(), anyBoolean(), any(ExportResponse.class),
+         any(Principal.class));
+   }
+
+   @Test
+   void export_excelTargetMustBeATable() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("Chart1", ChartVSAssembly.class);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> f.export("Excel", List.of("Chart1"), null, null, null, null));
+
+      assertTrue(e.getMessage().contains("Table, Crosstab or Freehand Table"), e.getMessage());
+   }
+
+   @Test
+   void export_excelTargetWithNoDataFailsLoud() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("T1", TableDataVSAssembly.class);
+      when(f.imageService.exportTable(any(), any(), any(), any())).thenReturn(null);
+
+      assertThrows(PairingException.class,
+         () -> f.export("Excel", List.of("T1"), null, null, null, null));
+   }
+
+   @Test
+   void export_svgChartTargetIsLabelledSvg() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("Chart1", ChartVSAssembly.class);
+      byte[] svg = "<svg/>".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+      when(f.imageService.getAssemblyImage(eq(f.rvs), eq("Chart1"), isNull(), isNull(),
+         any(Principal.class), eq(true)))
+         .thenReturn(new inetsoft.web.wiz.script.ScriptImageService.ChartImage(
+            svg, false, 10, 10, null));
+
+      f.export("svg", List.of("Chart1"), null, null, null, null);
+
+      verify(f.response).setContentType("image/svg+xml");
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(f.response).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("Chart1.svg"), disposition.getValue());
+      assertArrayEquals(svg, f.written.toByteArray());
+   }
+
+   @Test
+   void export_svgFallsBackToPngLabelWhenTheRenderWasRaster() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("Chart1", ChartVSAssembly.class);
+      when(f.imageService.getAssemblyImage(any(), any(), any(), any(), any(Principal.class),
+         eq(true)))
+         .thenReturn(new inetsoft.web.wiz.script.ScriptImageService.ChartImage(
+            new byte[] { 5 }, true, 10, 10, null));
+
+      f.export("SVG", List.of("Chart1"), null, null, null, null);
+
+      verify(f.response).setContentType("image/png");
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(f.response).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("Chart1.png"), disposition.getValue());
+   }
+
+   @Test
+   void export_svgRequiresAChartOrGaugeTarget() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("T1", TableDataVSAssembly.class);
+
+      IllegalArgumentException noTarget = assertThrows(IllegalArgumentException.class,
+         () -> f.export("SVG", null, null, null, null, null));
+      assertTrue(noTarget.getMessage().contains("'target' is required"),
+                 noTarget.getMessage());
+
+      IllegalArgumentException table = assertThrows(IllegalArgumentException.class,
+         () -> f.export("SVG", List.of("T1"), null, null, null, null));
+      assertTrue(table.getMessage().contains("Chart or Gauge"), table.getMessage());
    }
 
    // ---------------------------------------------------------------------------
