@@ -199,6 +199,11 @@ public final class ChartBindingMutator {
                unconsumedAggregates.remove(previousAgg);
                preserveAggregateState(previousAgg, aggregate, field);
                preserveAggregateFrames(previousAgg, aggregate);
+               // Bug #80669: a multi-style chart's per-measure colour/shape/size/text fields
+               // live on the measure ref, which toChartRef rebuilds, so a same-measure resend
+               // used to drop them. Same-measure only (column + formula): a different measure,
+               // or Sum -> Average on one column, starts fresh like the frames above.
+               copyAggregateAestheticFields(previousAgg, aggregate);
             }
          }
 
@@ -583,6 +588,33 @@ public final class ChartBindingMutator {
       aggregate.setShapeField(previous.getShapeField());
       aggregate.setSizeField(previous.getSizeField());
       aggregate.setTextField(previous.getTextField());
+   }
+
+   /**
+    * Same-measure counterpart of {@link #preserveAggregateAestheticFields} for the x/y/group
+    * shelf rewrite: each carried {@code AestheticInfo} is copied, not shared, because the
+    * previous ref stays referenced by the pre-write model until the caller replaces the shelf.
+    * The frame and data ref are shared, as {@link #preserveAggregateFrames} already does.
+    */
+   private static void copyAggregateAestheticFields(ChartAggregateRefModel previous,
+                                                     ChartAggregateRefModel aggregate)
+   {
+      aggregate.setColorField(copyOf(previous.getColorField()));
+      aggregate.setShapeField(copyOf(previous.getShapeField()));
+      aggregate.setSizeField(copyOf(previous.getSizeField()));
+      aggregate.setTextField(copyOf(previous.getTextField()));
+   }
+
+   private static AestheticInfo copyOf(AestheticInfo info) {
+      if(info == null) {
+         return null;
+      }
+
+      AestheticInfo copy = new AestheticInfo();
+      copy.setFullName(info.getFullName());
+      copy.setDataInfo(info.getDataInfo());
+      copy.setFrame(info.getFrame());
+      return copy;
    }
 
    /**

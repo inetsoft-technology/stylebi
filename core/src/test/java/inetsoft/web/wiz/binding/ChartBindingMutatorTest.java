@@ -48,6 +48,7 @@ import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartGeoRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticLineModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticShapeModel;
@@ -1847,6 +1848,111 @@ class ChartBindingMutatorTest {
          List.of(new FieldRef("Orders", "measure", "Count", null, null)));
 
       assertNull(((ChartAggregateRefModel) model.getYFields().get(0)).getColorField());
+   }
+
+   // ── per-measure aesthetic fields survive a same-measure resend (#80669) ────
+
+   private static ChartAggregateRefModel withAllAestheticFields(ChartAggregateRefModel ref) {
+      ref.setColorField(aestheticOn("PHASE"));
+      ref.setShapeField(aestheticOn("REGION"));
+      ref.setSizeField(aestheticOn("OWNER"));
+      ref.setTextField(aestheticOn("TASK"));
+      return ref;
+   }
+
+   private static ChartAggregateRefModel agg(ChartBindingModel model, String shelf, int i) {
+      List<ChartRefModel> refs = "x".equals(shelf) ? model.getXFields() : model.getYFields();
+      return (ChartAggregateRefModel) refs.get(i);
+   }
+
+   @Test
+   void sameMeasureYResendKeepsPerMeasureAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+      ChartAggregateRefModel before = withAllAestheticFields(agg(model, "y", 0));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+
+      ChartAggregateRefModel after = agg(model, "y", 0);
+      assertNotSame(before, after);
+      assertEquals("PHASE", after.getColorField().getFullName());
+      assertEquals("REGION", after.getShapeField().getFullName());
+      assertEquals("OWNER", after.getSizeField().getFullName());
+      assertEquals("TASK", after.getTextField().getFullName());
+   }
+
+   @Test
+   void carriedAestheticFieldIsACopyNotTheSharedInstance() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+      ChartAggregateRefModel before = withAllAestheticFields(agg(model, "y", 0));
+      AestheticInfo oldColor = before.getColorField();
+
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+
+      assertNotNull(agg(model, "y", 0).getColorField());
+      assertNotSame(oldColor, agg(model, "y", 0).getColorField());
+   }
+
+   @Test
+   void sameMeasureXResendKeepsPerMeasureAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "x", List.of(sales));
+      withAllAestheticFields(agg(model, "x", 0));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(sales));
+
+      assertEquals("TASK", agg(model, "x", 0).getTextField().getFullName());
+      assertEquals("PHASE", agg(model, "x", 0).getColorField().getFullName());
+   }
+
+   @Test
+   void twoMeasuresKeepTheirOwnAestheticFieldsInOrder() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      FieldRef qty = new FieldRef("Qty", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales, qty));
+      agg(model, "y", 0).setColorField(aestheticOn("A"));
+      agg(model, "y", 1).setTextField(aestheticOn("B"));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(sales, qty));
+
+      assertEquals("A", agg(model, "y", 0).getColorField().getFullName());
+      assertNull(agg(model, "y", 0).getTextField());
+      assertNull(agg(model, "y", 1).getColorField());
+      assertEquals("B", agg(model, "y", 1).getTextField().getFullName());
+   }
+
+   @Test
+   void insertingADimensionAheadOfAMeasureKeepsItsAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+      withAllAestheticFields(agg(model, "y", 0));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(dimension("Region"), sales));
+
+      ChartAggregateRefModel after = agg(model, "y", 1);
+      assertEquals("PHASE", after.getColorField().getFullName());
+      assertEquals("TASK", after.getTextField().getFullName());
+   }
+
+   @Test
+   void changingTheFormulaOnTheSameColumnStartsFreshOnAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      withAllAestheticFields(agg(model, "y", 0));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Average", null, null)));
+
+      ChartAggregateRefModel after = agg(model, "y", 0);
+      assertNull(after.getColorField());
+      assertNull(after.getTextField());
    }
 
    // ── single shelf field kind (#78360) ──────────────────────────────────────

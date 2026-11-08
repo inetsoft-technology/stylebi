@@ -1790,6 +1790,17 @@ public final class ChartAestheticMutator {
       return out;
    }
 
+   /** The first measure's text field that is bound, so a text binding on a later measure reads. */
+   private static AestheticInfo firstTextField(List<ChartAggregateRefModel> targets) {
+      for(ChartAggregateRefModel target : targets) {
+         if(target.getTextField() != null) {
+            return target.getTextField();
+         }
+      }
+
+      return null;
+   }
+
    /**
     * The field a measure carries for a frame channel: its own colour/shape/size field, or for
     * line/texture its shape field when that holds a frame of the family (the per-measure sibling
@@ -2326,8 +2337,12 @@ public final class ChartAestheticMutator {
       Map<String, Object> view = new LinkedHashMap<>();
       // Multi-aesthetic (#77024 P1): the renderer reads each measure's own field and never the
       // chart-level one, so the chart-level slot is ignored here even when it holds a leftover.
+      // Bug #80669: text has no frame, so it is never in perMeasureFrameChannels (which also
+      // drives write validation), yet a multi-style chart still keeps it on each measure (Gantt is read below).
+      boolean textPerMeasure = multiAesthetic && "text".equals(channel) &&
+         !GraphTypes.isGantt(model.getChartType());
       List<ChartAggregateRefModel> multiTargets =
-         multiAesthetic && perMeasureFrameChannels.contains(channel)
+         multiAesthetic && (perMeasureFrameChannels.contains(channel) || textPerMeasure)
             ? multiAggregates(model) : List.of();
       boolean multiView = !multiTargets.isEmpty();
       // Bug #78918: a Gantt chart's field channels are written to its measures
@@ -2341,7 +2356,8 @@ public final class ChartAestheticMutator {
       AestheticInfo info = ganttField
          ? (ganttTargets.isEmpty() ? null : aggregateFieldOf(ganttTargets.get(0), channel))
          : multiView
-         ? aggregateFieldFor(multiTargets.get(0), channel)
+         ? (textPerMeasure ? firstTextField(multiTargets)
+            : aggregateFieldFor(multiTargets.get(0), channel))
          : reportedField(model, channel, perMeasureFrameChannels);
       // The binding set_aesthetic_field can write back: the chart-level slot's, or on a Gantt
       // chart the measures' own, which is where that write puts it.
@@ -2356,7 +2372,7 @@ public final class ChartAestheticMutator {
       view.put("fieldRef", writableField == null || writableField.getDataInfo() == null
          ? null : FieldRefFactory.from(writableField.getDataInfo()));
       view.put("frame", VisualFrameAliases.describe(
-         multiView ? renderedAggregateFrameOf(multiTargets.get(0), channel)
+         multiView && !textPerMeasure ? renderedAggregateFrameOf(multiTargets.get(0), channel)
             : ganttField && info != null ? info.getFrame()
             : frameOf(model, channel, perMeasureFrameChannels)));
       view.put("acceptsField", acceptsFieldWrite(channel, sizeSupported, colorShapeSupported,
@@ -2391,7 +2407,8 @@ public final class ChartAestheticMutator {
 
       Map<String, Object> perMeasureField = ganttField
          ? divergentFields(ganttTargets, channel)
-         : divergentMeasureFields(model, channel, chartLevelField, perMeasureFrameChannels,
+         : divergentMeasureFields(model, channel, chartLevelField,
+                                  textPerMeasure ? Set.of(channel) : perMeasureFrameChannels,
                                   multiTargets);
 
       if(perMeasureField != null) {
