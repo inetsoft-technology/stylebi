@@ -9350,12 +9350,27 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          Assembly target = base.getAssembly(assembly.getName());
 
+         // the base worksheet reads a table a form is bound to through a mirror of the embedded
+         // table "<name>_O" (Viewsheet.createMirrorTable), the data is in the embedded table
+         if(target instanceof MirrorTableAssembly &&
+            ((MirrorTableAssembly) target).getAssemblyName().equals(
+               assembly.getName() + Viewsheet.OUTER_TABLE_SUFFIX))
+         {
+            target = base.getAssembly(((MirrorTableAssembly) target).getAssemblyName());
+         }
+
          if(target instanceof EmbeddedTableAssembly && target.getClass() == assembly.getClass()) {
             XEmbeddedTable data = ((EmbeddedTableAssembly) assembly).getEmbeddedData();
             EmbeddedTableAssembly targetTable = (EmbeddedTableAssembly) target;
 
             if(data != null && targetTable.getEmbeddedData() != data) {
                targetTable.setEmbeddedData((XEmbeddedTable) data.clone());
+
+               // the lenses the worksheet sandbox cached for this table, and for the tables
+               // built on it, still hold the rows from before the save
+               if(wbox != null) {
+                  wbox.reset(targetTable.getAssemblyEntry(), true);
+               }
             }
          }
       }
