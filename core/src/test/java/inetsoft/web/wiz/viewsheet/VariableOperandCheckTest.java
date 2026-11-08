@@ -271,13 +271,29 @@ class VariableOperandCheckTest {
    @Test
    void noValueNotesSayTheConditionIsIgnoredAndMatchesEveryRow() {
       for(String note : List.of(run("cutoff", new VariableTable(), Set.of("cutoff")).get(0),
-                                run("ghost", new VariableTable(), Set.of("cutoff")).get(0),
-                                runExpression("parameter.cutoff", Set.of("cutoff")).get(0)))
+                                run("ghost", new VariableTable(), Set.of("cutoff")).get(0)))
       {
          assertTrue(note.contains("ignores this condition"), note);
          assertTrue(note.contains("matches every row"), note);
          assertFalse(note.contains("nothing to compare against"), note);
       }
+   }
+
+   @Test
+   void expressionNotesDoNotClaimTheConditionIsIgnoredOrMatchesEveryRow() {
+      for(String note : List.of(runExpression("parameter.cutoff", Set.of("cutoff")).get(0),
+                                runExpression("parameter.GHOST", Set.of("cutoff")).get(0)))
+      {
+         assertTrue(note.startsWith("Variable '"), note);
+         assertFalse(note.contains("ignore"), note);
+         assertFalse(note.contains("every row"), note);
+         assertFalse(note.contains("nothing to compare against"), note);
+      }
+
+      assertTrue(runExpression("parameter.cutoff", Set.of("cutoff")).get(0)
+                    .contains("no value yet"));
+      assertTrue(runExpression("parameter.GHOST", Set.of("cutoff")).get(0)
+                    .contains("is not defined"));
    }
 
    @Test

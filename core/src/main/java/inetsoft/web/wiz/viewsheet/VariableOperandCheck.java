@@ -190,7 +190,7 @@ final class VariableOperandCheck {
 
       for(String name : expressionParameterNames(expression.getExpression())) {
          if(!resolves(vars, name) && !EXPRESSION_BUILT_INS.contains(name)) {
-            warnUnresolved(use, name, declared, warnings);
+            warnUnresolved(use, name, declared, true, warnings);
          }
       }
    }
@@ -276,9 +276,21 @@ final class VariableOperandCheck {
    }
 
    private static void warnUnresolved(String use, String name, Set<String> declared,
-                                      List<String> warnings)
+                                      boolean expression, List<String> warnings)
    {
-      if(declared.contains(name)) {
+      if(expression) {
+         // Condition only ignores a null variable operand; what a null read does inside an
+         // expression depends on the expression, so do not claim the condition is ignored.
+         warnings.add("Variable '" + name + "' used by " + use + " is read by an expression " +
+                      (declared.contains(name) ?
+                         "and is declared on the base worksheet or used by one of the " +
+                         "viewsheet's conditions but has no value yet" :
+                         "but is not defined: this viewsheet has no input assembly or " +
+                         "variable with that name (yet)") +
+                      "; the effect depends on how the expression handles an undefined " +
+                      "parameter, so give it a value (set_parameters).");
+      }
+      else if(declared.contains(name)) {
          warnings.add("Variable '" + name + "' used by " + use + " is declared on the base " +
                       "worksheet or used by one of the viewsheet's conditions but has no value " +
                       "yet, so StyleBI ignores this condition: it currently matches every row " +
@@ -304,7 +316,7 @@ final class VariableOperandCheck {
          ConditionVocabulary.operatorToken(operation) + ")";
 
       if(!resolves(vars, name)) {
-         warnUnresolved(use, name, declared, warnings);
+         warnUnresolved(use, name, declared, false, warnings);
          return;
       }
 
