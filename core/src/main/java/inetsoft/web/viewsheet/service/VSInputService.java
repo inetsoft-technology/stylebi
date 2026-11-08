@@ -236,6 +236,19 @@ public class VSInputService {
    }
 
    /**
+    * Computes the grid point {@code min + n * increment} nearest to {@code value}. The product
+    * and sum are done in decimal (via the shortest decimal form of each double) so an inexact
+    * binary increment such as 0.05 or 0.1 does not leave noise like 0.15000000000000002; the
+    * noise grows with the number of steps and with a non-zero min.
+    */
+   private static double snapToGrid(double value, double min, double increment) {
+      long steps = Math.round((value - min) / increment);
+
+      return BigDecimal.valueOf(steps).multiply(BigDecimal.valueOf(increment))
+         .add(BigDecimal.valueOf(min)).doubleValue();
+   }
+
+   /**
     * Rounds a slider's incoming value onto its increment grid when "Snap to Increment" is on.
     *
     * <p>Snapping used to live only in the browser — {@code vs-slider.component.ts}'s own
@@ -254,7 +267,8 @@ public class VSInputService {
     * @return the snapped value, or the value unchanged when snap is off, the increment is
     *         unusable, or the value is not a number.
     */
-   private static Object snapToIncrement(SliderVSAssemblyInfo info, Object obj) {
+   // package-private for VSInputServiceSnapTest
+   static Object snapToIncrement(SliderVSAssemblyInfo info, Object obj) {
       if(!(obj instanceof Number num) || !info.isSnap()) {
          return obj;
       }
@@ -267,7 +281,7 @@ public class VSInputService {
 
       double value = num.doubleValue();
       double min = info.getMin();
-      double snapped = Math.round((value - min) / increment) * increment + min;
+      double snapped = snapToGrid(value, min, increment);
 
       if(snapped == value) {
          return obj;
