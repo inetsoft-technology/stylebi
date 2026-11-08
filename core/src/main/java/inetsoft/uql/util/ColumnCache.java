@@ -57,6 +57,61 @@ public class ColumnCache {
    public static String[][] format(BrowseDataModel browseData, String type,
                                    boolean quotes, Function<Object, String> lbFunc, int option)
    {
+      return format(browseData, type, quotes, lbFunc, option, false).data();
+   }
+
+   /**
+    * Result of formatting column data, with a flag telling whether null entries were dropped.
+    */
+   public static final class FormatResult {
+      public FormatResult(String[][] data, boolean nullExcluded) {
+         this.data = data;
+         this.nullExcluded = nullExcluded;
+      }
+
+      public String[][] data() {
+         return data;
+      }
+
+      /**
+       * True if one or more null values were dropped from the data.
+       */
+      public boolean nullExcluded() {
+         return nullExcluded;
+      }
+
+      private final String[][] data;
+      private final boolean nullExcluded;
+   }
+
+   /**
+    * Format column data for manual sort.
+    *
+    * @param dropNull true to drop null values (opt-in, only for data without separate
+    *                 description labels) instead of turning them into empty strings.
+    */
+   public static FormatResult format(BrowseDataModel browseData, String type, boolean quotes,
+                                     Function<Object, String> lbFunc, int option,
+                                     boolean dropNull)
+   {
+      boolean nullExcluded = false;
+
+      if(dropNull && !browseData.existLabels() && browseData.values() != null) {
+         Object[] all = browseData.values();
+         Object[] kept = Arrays.stream(all).filter(Objects::nonNull).toArray();
+
+         if(kept.length != all.length) {
+            nullExcluded = true;
+            browseData = BrowseDataModel.builder().values(kept).build();
+         }
+      }
+
+      return new FormatResult(format0(browseData, type, quotes, lbFunc, option), nullExcluded);
+   }
+
+   private static String[][] format0(BrowseDataModel browseData, String type,
+                                     boolean quotes, Function<Object, String> lbFunc, int option)
+   {
       Object[] value;
       Object[] label;
 
@@ -414,10 +469,24 @@ public class ColumnCache {
                                          boolean quotes, Function<Object, String> lbFunc, int option)
       throws Exception
    {
+      return getColumnDataString(qrep, query, column, type, user, vars, quotes, lbFunc, option,
+                                 false).data();
+   }
+
+   /**
+    * Same as above, optionally dropping null values and reporting whether any were dropped.
+    */
+   public FormatResult getColumnDataString(XQueryRepository qrep, String query,
+                                           String column, String type,
+                                           Principal user, VariableTable vars,
+                                           boolean quotes, Function<Object, String> lbFunc,
+                                           int option, boolean dropNull)
+      throws Exception
+   {
       column = validateColumn(column);
 
       BrowseDataModel result = getColumnData(qrep, query, column, user, vars);
-      return format(result, type, quotes, lbFunc, option);
+      return format(result, type, quotes, lbFunc, option, dropNull);
    }
 
    /**
@@ -472,6 +541,44 @@ public class ColumnCache {
       BrowseDataModel result = getColumnData(wsproc, entry, column, user, vars, ignoreEmpty);
 
       return format(result, type, quotes, lbFunc, option);
+   }
+
+   /**
+    * Same as above, optionally dropping null values and reporting whether any were dropped.
+    */
+   public FormatResult getColumnDataString(WorksheetProcessor wsproc,
+                                           AssetEntry entry, String column,
+                                           String type, Principal user,
+                                           VariableTable vars, boolean quotes,
+                                           Function<Object, String> lbFunc, int option,
+                                           boolean ignoreEmpty, boolean dropNull)
+      throws Exception
+   {
+      column = validateColumn(column);
+      BrowseDataModel result = getColumnData(wsproc, entry, column, user, vars, ignoreEmpty);
+
+      return format(result, type, quotes, lbFunc, option, dropNull);
+   }
+
+   /**
+    * Same as the XQuery overload, optionally dropping null values and reporting whether any
+    * were dropped.
+    */
+   public FormatResult getColumnDataString(XQuery query, String table,
+                                           String column, String type,
+                                           Principal user, VariableTable vars,
+                                           boolean quotes, Function<Object, String> lbFunc,
+                                           int option, boolean dropNull)
+      throws Exception
+   {
+      column = validateColumn(column);
+
+      if(query == null) {
+         return new FormatResult(new String[0][0], false);
+      }
+
+      BrowseDataModel result = getColumnData(query, table, column, user, vars);
+      return format(result, type, quotes, lbFunc, option, dropNull);
    }
 
    /**
