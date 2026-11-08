@@ -108,7 +108,7 @@ public class ChartBindingService {
                         List<FieldRef> fields, String sourceTable, String linkUri) throws Exception
    {
       List<String> notes = new ArrayList<>();
-      List<String> warnings = sessions.mutate(sessionToken, user,
+      List<String> warnings = mutateReportingNotes(sessions, sessionToken, user,
          ChartRenderCheck.checked(assemblyName, scriptExpressions(fields),
             (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -116,12 +116,10 @@ public class ChartBindingService {
          applySource(model, sourceTable);
          List<ChartHyperlinkCarry.Saved> links =
             ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
-         ChartBindingMutator.drainNotes();
          ChartBindingMutator.setShelf(
             model, shelf, fields, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
             chart.getVSChartInfo());
-         notes.addAll(ChartBindingMutator.drainNotes());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -789,7 +787,7 @@ public class ChartBindingService {
       throws Exception
    {
       List<String> notes = new ArrayList<>();
-      List<String> warnings = sessions.mutate(sessionToken, user,
+      List<String> warnings = mutateReportingNotes(sessions, sessionToken, user,
          ChartRenderCheck.checked(assemblyName, scriptExpressions(field),
             (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -797,12 +795,10 @@ public class ChartBindingService {
          applySource(model, sourceTable);
          List<ChartHyperlinkCarry.Saved> links =
             ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
-         ChartBindingMutator.drainNotes();
          ChartBindingMutator.setSingleShelf(
             model, shelf, field, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
             chart.getVSChartInfo());
-         notes.addAll(ChartBindingMutator.drainNotes());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -847,6 +843,33 @@ public class ChartBindingService {
    private static boolean isMultiAesthetic(ChartVSAssembly chart) {
       VSChartInfo info = chart.getVSChartInfo();
       return info != null && info.isMultiAesthetic();
+   }
+
+   /**
+    * The one way a chart write that can rebuild a measure ({@code ChartBindingMutator.setShelf},
+    * {@code setSingleShelf}, {@code ChartAestheticMutator.setField}/{@code setMeasureField}/
+    * {@code setGanttField}) goes through {@code sessions.mutate}: the mutator's own notes (a
+    * calculator reset by a formula change, bug #80648) are drained around the whole mutation and
+    * returned with its warnings, so a call site cannot forget them.
+    */
+   static List<String> mutateReportingNotes(ViewsheetSessionService sessions, String sessionToken,
+                                            Principal user,
+                                            ViewsheetSessionService.Mutation mutation)
+      throws Exception
+   {
+      List<String> notes = new ArrayList<>();
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartBindingMutator.drainNotes();
+
+         try {
+            mutation.run(rvs, runtimeId, dispatcher);
+         }
+         finally {
+            notes.addAll(ChartBindingMutator.drainNotes());
+         }
+      });
+
+      return withNotes(warnings, notes);
    }
 
    private static List<String> withNotes(List<String> warnings, List<String> notes) {

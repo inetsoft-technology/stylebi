@@ -126,7 +126,7 @@ public class ChartAestheticAgentService {
 
       requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
-      return sessions.mutate(sessionToken, user,
+      return ChartBindingService.mutateReportingNotes(sessions, sessionToken, user,
          ChartRenderCheck.checked(assemblyName, ChartBindingService.scriptExpressions(field),
             (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -861,8 +861,7 @@ public class ChartAestheticAgentService {
                       java.util.function.BiConsumer<ChartVSAssembly, ChartBindingModel> mutation)
       throws Exception
    {
-      List<String> notes = new ArrayList<>();
-      List<String> warnings = sessions.mutate(sessionToken, user,
+      return ChartBindingService.mutateReportingNotes(sessions, sessionToken, user,
          ChartRenderCheck.checked(assemblyName, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
@@ -877,9 +876,7 @@ public class ChartAestheticAgentService {
                ThreadContext.setContextPrincipal(user);
             }
 
-            ChartBindingMutator.drainNotes();
             mutation.accept(chart, model);
-            notes.addAll(ChartBindingMutator.drainNotes());
          }
          finally {
             if(switched) {
@@ -893,14 +890,6 @@ public class ChartAestheticAgentService {
          event.setModel(model);
          aestheticService.changeChartAesthetic(runtimeId, event, user, dispatcher, linkUri);
       }));
-
-      if(notes.isEmpty()) {
-         return warnings;
-      }
-
-      List<String> all = new ArrayList<>(warnings == null ? List.<String>of() : warnings);
-      all.addAll(notes);
-      return all;
    }
 
    private static ChartVSAssembly requireChart(RuntimeViewsheet rvs, String assemblyName) {
