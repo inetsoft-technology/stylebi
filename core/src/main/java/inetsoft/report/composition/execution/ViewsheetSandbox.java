@@ -9341,7 +9341,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       for(Assembly assembly : saved.getAssemblies()) {
-         if(!(assembly instanceof EmbeddedTableAssembly)) {
+         // snapshot tables share their data between the base and original worksheets
+         if(!(assembly instanceof EmbeddedTableAssembly) ||
+            assembly instanceof SnapshotEmbeddedTableAssembly)
+         {
             continue;
          }
 

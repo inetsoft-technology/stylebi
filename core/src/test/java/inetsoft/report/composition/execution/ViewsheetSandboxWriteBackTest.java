@@ -28,10 +28,9 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Regression for Bug #76799: writeBackFormDataDirectly() performed zero bounds
@@ -133,5 +132,49 @@ class ViewsheetSandboxWriteBackTest {
       assertEquals("80", base.getEmbeddedData().getObject(1, CUSTOMER_ID_COL));
       assertNotSame(base.getEmbeddedData(), writtenTable().getEmbeddedData());
       assertNotSame(baseDataBefore, base.getEmbeddedData());
+   }
+
+   /**
+    * Snapshot embedded tables share their data between the base and original worksheets, so a
+    * persisted write-back must leave the base snapshot table untouched (no clone, no dirty flag).
+    */
+   @Test
+   void persistedWriteBackLeavesSnapshotTablesUntouched() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly embedded = new EmbeddedTableAssembly(ws, TABLE);
+      embedded.setEmbeddedData(new XEmbeddedTable(
+         new String[]{ XSchema.STRING },
+         new Object[][] { { "customer_id" }, { "1001" } }));
+      ws.addAssembly(embedded);
+      SnapshotEmbeddedTableAssembly snapshot = new SnapshotEmbeddedTableAssembly(ws, "Snap1");
+      snapshot.setEmbeddedData(new XEmbeddedTable(
+         new String[]{ XSchema.STRING },
+         new Object[][] { { "c" }, { "x" } }));
+      ws.addAssembly(snapshot);
+
+      Viewsheet vs2 = new Viewsheet();
+      Method setBaseWorksheet = Viewsheet.class.getDeclaredMethod("setBaseWorksheet", Worksheet.class);
+      setBaseWorksheet.setAccessible(true);
+      setBaseWorksheet.invoke(vs2, ws);
+      vs2.setBaseEntry(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "test/ws", null,
+         OrganizationManager.getInstance().getCurrentOrgID()));
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "test/ViewsheetSandboxWriteBackTest2",
+         null, OrganizationManager.getInstance().getCurrentOrgID());
+      ViewsheetSandbox sandbox2 =
+         new ViewsheetSandbox(vs2, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry);
+
+      SnapshotEmbeddedTableAssembly baseSnap =
+         (SnapshotEmbeddedTableAssembly) vs2.getBaseWorksheet().getAssembly("Snap1");
+      Object tableBefore = baseSnap.getTable();
+      java.lang.reflect.Field dirty = SnapshotEmbeddedTableAssembly.class.getDeclaredField("fileDirty");
+      dirty.setAccessible(true);
+      dirty.setBoolean(baseSnap, false);
+
+      sandbox2.writeBackFormDataDirectly(mock(AssetRepository.class), TABLE, "customer_id", 1, "80");
+
+      assertSame(tableBefore, baseSnap.getTable());
+      assertFalse(dirty.getBoolean(baseSnap));
    }
 }
