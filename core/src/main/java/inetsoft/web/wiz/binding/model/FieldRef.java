@@ -82,15 +82,19 @@ import java.util.List;
  *                         percent, compound growth, or a custom expression), measures only —
  *                         mirrors the Composer binding pane's own Calculator button. An
  *                         <em>omitted</em> key leaves it unchanged; an <em>explicit JSON
- *                         {@code null}</em> clears it (bug #78865). Jackson maps both to a Java
+ *                         {@code null}</em> clears it (bug #78865). "Unchanged" holds while the
+ *                         measure's column and formula are unchanged: a shelf write identifies a
+ *                         measure by (column, formula), so a formula change builds a new measure,
+ *                         resets the calculator and says so in a {@code Binding reset:} note.
+ *                         Jackson maps both to a Java
  *                         {@code null} on a record component, so the explicit null is bound to a
  *                         private sentinel by {@link CalculateInfoDeserializer}, and
  *                         {@link #calculateInfo()} hides that sentinel (it reads {@code null})
- *                         while {@link #clearsCalculateInfo()} reports it. Changing
- *                         {@code aggregate} alone never clears one;
+ *                         while {@link #clearsCalculateInfo()} reports it. The model setters
  *                         {@code BAggregateRefModel.setFormula}/
  *                         {@code ChartAggregateRefModel.setFormula} only ever touch the formula
- *                         field, never {@code calculateInfo}.
+ *                         field, never {@code calculateInfo}; that is a property of the setter,
+ *                         not of a shelf write (see above).
  * @param label            this field's header alias, table/crosstab shelves only — {@code
  *                         set_column_labels}' read side. {@code null} means no label is set, not
  *                         that it is unknown; a crosstab whose label could not be resolved (no

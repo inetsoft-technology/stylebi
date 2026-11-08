@@ -1195,23 +1195,27 @@ public final class TableBindingMutator {
                                             List<BAggregateRefModel> previous,
                                             List<BAggregateRefModel> out)
    {
+      // The same pairing the carry loop used, so "vanished" and "fresh" cannot disagree with
+      // what was actually inherited when a (column, formula) is bound more than once (#80648).
+      int[] pairs = pairByOccurrence(previous, out);
+      boolean[] claimed = new boolean[previous.size()];
       List<Integer> fresh = new ArrayList<>();
 
       for(int i = 0; i < out.size(); i++) {
-         BAggregateRefModel agg = out.get(i);
          FieldRef field = fields.get(i);
 
-         if(field.calculateInfo() == null && !field.clearsCalculateInfo() &&
-            previous.stream().noneMatch(p -> sameAggregate(p, agg)))
-         {
+         if(pairs[i] >= 0) {
+            claimed[pairs[i]] = true;
+         }
+         else if(field.calculateInfo() == null && !field.clearsCalculateInfo()) {
             fresh.add(i);
          }
       }
 
-      for(BAggregateRefModel old : previous) {
-         if(old.getCalculateInfo() == null ||
-            out.stream().anyMatch(a -> sameAggregate(old, a)))
-         {
+      for(int p = 0; p < previous.size(); p++) {
+         BAggregateRefModel old = previous.get(p);
+
+         if(claimed[p] || old.getCalculateInfo() == null) {
             continue;
          }
 
@@ -1224,9 +1228,7 @@ public final class TableBindingMutator {
 
             fresh.remove(j);
             String raw = fields.get(at).aggregate();
-            String change = raw == null
-               ? "to the default formula, which this write did not name"
-               : "to " + raw;
+            String change = raw == null ? "to the default formula" : "to " + raw;
             notes().add(NOTE_PREFIX + "the calculator on '" + columnOf(old) + "' (" +
                calculatorName(old.getCalculateInfo()) + ") was removed, because its formula " +
                "changed from " + old.getFormula() + " " + change + " and this write did not " +
@@ -1331,6 +1333,30 @@ public final class TableBindingMutator {
                                                         List<BAggregateRefModel> incoming,
                                                         int index)
    {
+      int at = partnerIndex(previous, incoming, index);
+      return at < 0 ? null : previous.get(at);
+   }
+
+   /**
+    * For each incoming aggregate, the index of the previous aggregate it is the same occurrence
+    * of, or -1 when it has none. Stateless: the k-th incoming duplicate of a (column, formula)
+    * pairs with the k-th previous one, so carrying state and reporting a loss share one rule.
+    */
+   static int[] pairByOccurrence(List<BAggregateRefModel> previous,
+                                 List<BAggregateRefModel> incoming)
+   {
+      int[] pairs = new int[incoming.size()];
+
+      for(int i = 0; i < pairs.length; i++) {
+         pairs[i] = partnerIndex(previous, incoming, i);
+      }
+
+      return pairs;
+   }
+
+   private static int partnerIndex(List<BAggregateRefModel> previous,
+                                   List<BAggregateRefModel> incoming, int index)
+   {
       BAggregateRefModel field = incoming.get(index);
       int occurrence = 0;
 
@@ -1340,13 +1366,13 @@ public final class TableBindingMutator {
          }
       }
 
-      for(BAggregateRefModel candidate : previous) {
-         if(matches(candidate, field) && occurrence-- == 0) {
-            return candidate;
+      for(int p = 0; p < previous.size(); p++) {
+         if(matches(previous.get(p), field) && occurrence-- == 0) {
+            return p;
          }
       }
 
-      return null;
+      return -1;
    }
 
    private static boolean sameMeasure(BAggregateRefModel a, BAggregateRefModel b) {

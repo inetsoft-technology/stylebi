@@ -137,6 +137,10 @@ public final class ChartBindingMutator {
       // be circular here -- secondaryY is one of the fields this fix itself restores).
       List<ChartAggregateRefModel> unconsumedAggregates = new ArrayList<>();
 
+      // Incoming measures that inherited nothing and named no calculator: the only ones a
+      // vanished calculator can be reported against (bug #80648).
+      List<Object[]> freshAggregates = new ArrayList<>();
+
       // Same pool for dimensions, matched by identity (column + date level), not by index.
       List<ChartDimensionRefModel> unconsumedDimensions = new ArrayList<>();
 
@@ -200,10 +204,15 @@ public final class ChartBindingMutator {
                preserveAggregateState(previousAgg, aggregate, field);
                preserveAggregateFrames(previousAgg, aggregate);
             }
+            else if(field.calculateInfo() == null && !field.clearsCalculateInfo()) {
+               freshAggregates.add(new Object[] { field, aggregate });
+            }
          }
 
          refs.add(ref);
       }
+
+      noteResetCalculators(unconsumedAggregates, freshAggregates);
 
       // Only x/y ever carry a per-measure chartType (multi-style) -- group's aggregates have
       // none to lose, so this is skipped there rather than harmlessly doing nothing every call.
@@ -907,12 +916,81 @@ public final class ChartBindingMutator {
          preserveDimensionState(previousDim, dimension, field);
       }
       else if(ref instanceof ChartAggregateRefModel aggregate &&
-              previous instanceof ChartAggregateRefModel previousAgg &&
-              sameMeasure(previousAgg, aggregate))
+              previous instanceof ChartAggregateRefModel previousAgg)
       {
-         preserveAggregateState(previousAgg, aggregate, field);
-         preserveAggregateFrames(previousAgg, aggregate);
+         if(sameMeasure(previousAgg, aggregate)) {
+            preserveAggregateState(previousAgg, aggregate, field);
+            preserveAggregateFrames(previousAgg, aggregate);
+         }
+         else if(field.calculateInfo() == null && !field.clearsCalculateInfo() &&
+                 previousAgg.getCalculateInfo() != null &&
+                 columnOf(previousAgg).equalsIgnoreCase(columnOf(aggregate)))
+         {
+            noteReset(previousAgg, aggregate, field);
+         }
       }
+   }
+
+   /**
+    * A measure whose formula changes is a new measure, so the old one's calculator has nothing to
+    * land on and is reset. That is the same contract as a table, and like a table it must be
+    * said: a caller who changed Sum to Average would otherwise read plain averages as a
+    * percentage. Each vanished calculator is paired, per column and in order, with a fresh
+    * same-column measure that named no calculateInfo; a vanished one with no such partner (a
+    * removed measure) is not reported. Bug #80648.
+    */
+   private static void noteResetCalculators(List<ChartAggregateRefModel> vanished,
+                                            List<Object[]> fresh)
+   {
+      for(ChartAggregateRefModel old : vanished) {
+         if(old.getCalculateInfo() == null) {
+            continue;
+         }
+
+         for(int j = 0; j < fresh.size(); j++) {
+            ChartAggregateRefModel candidate = (ChartAggregateRefModel) fresh.get(j)[1];
+
+            if(columnOf(candidate).equalsIgnoreCase(columnOf(old))) {
+               noteReset(old, candidate, (FieldRef) fresh.get(j)[0]);
+               fresh.remove(j);
+               break;
+            }
+         }
+      }
+   }
+
+   private static void noteReset(ChartAggregateRefModel old, ChartAggregateRefModel replacement,
+                                 FieldRef field)
+   {
+      String change = field.aggregate() == null
+         ? "to the default formula" : "to " + field.aggregate();
+      String name = old.getCalculateInfo().getClass().getSimpleName();
+      name = name.endsWith("CalcInfo")
+         ? name.substring(0, name.length() - "CalcInfo".length()).toUpperCase() : name;
+      NOTES.get().add(NOTE_PREFIX + "the calculator on '" + columnOf(old) + "' (" + name +
+         ") was removed, because its formula changed from " + old.getFormula() + " " + change +
+         " and this write did not name calculateInfo. Send calculateInfo to set one.");
+   }
+
+   private static String columnOf(ChartAggregateRefModel agg) {
+      String column = agg.getColumnValue() != null ? agg.getColumnValue() : agg.getName();
+      return column == null ? "" : column;
+   }
+
+   /** Prefix of every message {@link #drainNotes} returns; the plugin splits on it. */
+   public static final String NOTE_PREFIX = TableBindingMutator.NOTE_PREFIX;
+
+   private static final ThreadLocal<List<String>> NOTES = ThreadLocal.withInitial(ArrayList::new);
+
+   /**
+    * The messages about state this thread's last chart shelf/aesthetic writes reset on their own
+    * (a calculator dropped by a formula change), cleared as they are read. The service relays
+    * them; call it once before a mutation to drop any left over.
+    */
+   public static List<String> drainNotes() {
+      List<String> out = new ArrayList<>(NOTES.get());
+      NOTES.get().clear();
+      return out;
    }
 
    /**

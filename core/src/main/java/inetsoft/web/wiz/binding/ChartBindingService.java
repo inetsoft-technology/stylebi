@@ -116,10 +116,12 @@ public class ChartBindingService {
          applySource(model, sourceTable);
          List<ChartHyperlinkCarry.Saved> links =
             ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
+         ChartBindingMutator.drainNotes();
          ChartBindingMutator.setShelf(
             model, shelf, fields, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
             chart.getVSChartInfo());
+         notes.addAll(ChartBindingMutator.drainNotes());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);
@@ -795,10 +797,12 @@ public class ChartBindingService {
          applySource(model, sourceTable);
          List<ChartHyperlinkCarry.Saved> links =
             ChartHyperlinkCarry.snapshot(chart.getVSChartInfo(), shelf);
+         ChartBindingMutator.drainNotes();
          ChartBindingMutator.setSingleShelf(
             model, shelf, field, rvs,
             BindingSources.effective(chart.getSourceInfo(), model.getSource()), refModelService,
             chart.getVSChartInfo());
+         notes.addAll(ChartBindingMutator.drainNotes());
 
          ChangeChartRefEvent event = new ChangeChartRefEvent();
          event.setName(assemblyName);

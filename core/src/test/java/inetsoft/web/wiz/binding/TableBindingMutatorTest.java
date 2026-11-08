@@ -2918,6 +2918,129 @@ class TableBindingMutatorTest {
                  notes.get(0).contains("calculateInfo"), notes.get(0));
    }
 
+   private static FieldRef percentOn(String column, String aggregate) {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null,
+                          new PercentCalcInfo(), null, null, null, null, null, null);
+   }
+
+   private static CrosstabBindingModel withAggregates(FieldRef... fields) {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates", List.of(fields));
+      TableBindingMutator.drainNotes();
+      return model;
+   }
+
+   @Test
+   void aMeasureBoundTwiceThatLosesItsCalculatorToAFormulaChangeSaysSo() {
+      // The reporter's shape (#80648): the vanished Sum+PERCENT has no Sum left, but the surviving
+      // Average already exists in the previous shelf, so the new second Average is unpaired.
+      CrosstabBindingModel model = withAggregates(
+         percentOn("Revenue", "Sum"), measure("Revenue", "Average"));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Revenue", "Average"), measure("Revenue", "Average")));
+
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+      assertNull(model.getAggregates().get(1).getCalculateInfo());
+      List<String> notes = resetNotes();
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).contains("'Revenue'") && notes.get(0).contains("PERCENT") &&
+                 notes.get(0).contains("Sum to Average"), notes.get(0));
+   }
+
+   @Test
+   void aSurvivingSameFormulaOccurrenceDoesNotHideAVanishedCalculator() {
+      // The calculator belonged to the second Sum, which pairs with nothing in the write.
+      CrosstabBindingModel model = withAggregates(
+         measure("Revenue", "Sum"), percentOn("Revenue", "Sum"));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Revenue", "Sum"), measure("Revenue", "Average")));
+
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+      assertNull(model.getAggregates().get(1).getCalculateInfo());
+      List<String> notes = resetNotes();
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).contains("Sum to Average"), notes.get(0));
+   }
+
+   @Test
+   void aCalculatorThatPairsWithTheFirstSameFormulaOccurrenceIsKeptWithNoResetNote() {
+      CrosstabBindingModel model = withAggregates(
+         percentOn("Revenue", "Sum"), measure("Revenue", "Sum"));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Revenue", "Average"), measure("Revenue", "Sum")));
+
+      assertNull(model.getAggregates().get(0).getCalculateInfo());
+      assertNotNull(model.getAggregates().get(1).getCalculateInfo());
+      List<String> notes = TableBindingMutator.drainNotes();
+      assertTrue(notes.stream().anyMatch(
+         n -> n.startsWith(TableBindingMutator.KEPT_NOTE_PREFIX)), notes.toString());
+      assertTrue(notes.stream().noneMatch(
+         n -> n.startsWith(TableBindingMutator.NOTE_PREFIX)), notes.toString());
+   }
+
+   @Test
+   void resendingTheSameDuplicateFormulasKeepsTheCalculatorAndRaisesNoResetNote() {
+      CrosstabBindingModel model = withAggregates(
+         percentOn("Revenue", "Sum"), measure("Revenue", "Sum"));
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Revenue", "Sum"), measure("Revenue", "Sum")));
+
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo());
+      assertNull(model.getAggregates().get(1).getCalculateInfo());
+      assertTrue(resetNotes().isEmpty());
+   }
+
+   @Test
+   void pairByOccurrencePairsTheKthIncomingDuplicateWithTheKthPreviousOne() {
+      List<BAggregateRefModel> previous = List.of(
+         ref("Revenue", "Sum"), ref("Revenue", "Sum"), ref("Revenue", "Average"));
+      List<BAggregateRefModel> incoming = List.of(
+         ref("Revenue", "Sum"), ref("Revenue", "Average"), ref("Revenue", "Sum"),
+         ref("Revenue", "Sum"), ref("Cost", "Sum"));
+
+      assertArrayEquals(new int[] { 0, 2, 1, -1, -1 },
+                        TableBindingMutator.pairByOccurrence(previous, incoming));
+   }
+
+   private static BAggregateRefModel ref(String column, String formula) {
+      BAggregateRefModel ref = new BAggregateRefModel();
+      ref.setName(column);
+      ref.setColumnValue(column);
+      ref.setFormula(formula);
+      return ref;
+   }
+
+   @Test
+   void theResetNoteNamesWhatTheWriteDidNotNameOnlyOnce() {
+      CrosstabBindingModel model = withAggregates(percentOn("Revenue", "Sum"));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Revenue", "Average")));
+      List<String> named = resetNotes();
+      assertEquals(1, named.size(), named.toString());
+      assertEquals(1, occurrences(named.get(0), "did not name"), named.get(0));
+
+      // Max is never the default formula, so omitting the aggregate is a formula change too.
+      model = withAggregates(percentOn("Revenue", "Max"));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Revenue", null)));
+      List<String> omitted = resetNotes();
+      assertEquals(1, omitted.size(), omitted.toString());
+      assertEquals(1, occurrences(omitted.get(0), "did not name"), omitted.get(0));
+      assertTrue(omitted.get(0).contains("default formula"), omitted.get(0));
+   }
+
+   private static int occurrences(String text, String needle) {
+      int count = 0;
+
+      for(int at = text.indexOf(needle); at >= 0; at = text.indexOf(needle, at + 1)) {
+         count++;
+      }
+
+      return count;
+   }
+
    @Test
    void aFormulaChangeToNthLargestOrFirstStillSaysSo() {
       for(String formula : List.of("First", "NthLargest")) {
