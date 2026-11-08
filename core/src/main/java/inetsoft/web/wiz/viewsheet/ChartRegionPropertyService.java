@@ -227,8 +227,52 @@ public class ChartRegionPropertyService {
          out.put("note", existing == null ? LEGEND_SHARED_NOTE : existing + " " + LEGEND_SHARED_NOTE);
       }
 
+      if("axis".equals(name) && axisLabelsHidden(sessionToken, user, assembly, key, field)) {
+         out.put("warning", ALIASES_HIDDEN_LABELS_WARNING);
+      }
+
       out.put("properties", properties);
       return out;
+   }
+
+   /**
+    * Bug #80746: the alias list is built from the labels the axis draws, so an axis whose labels
+    * are hidden reads an empty list even though its stored aliases still apply.
+    */
+   private static final String ALIASES_HIDDEN_LABELS_WARNING =
+      "Aliases cannot be listed or set while the axis labels are hidden (showAxisLabel is " +
+      "false) - stored aliases still apply; show the labels with set_chart_region_properties " +
+      "{showAxisLabel: true} to list or set them.";
+
+   /**
+    * True when the axis' labels are hidden in the current mode (the maximized flags when the
+    * chart is maximized, as {@link #requireDrawnAxis} reads them). A blank {@code field} means the
+    * first field the axis draws, as in requireDrawnAxis. Fails open (false) with no chart area.
+    */
+   private boolean axisLabelsHidden(String sessionToken, Principal user, String assembly,
+                                    String axisTarget, String field)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
+         VSChartInfo info = chart.getVSChartInfo();
+         String name = field;
+
+         if(name == null || name.isBlank()) {
+            ChartRef[] refs = axisCandidates(info, ChartRegionResolver.canonical(axisTarget));
+            name = refs.length > 0 ? refs[0].getFullName() : null;
+         }
+
+         if(name == null) {
+            return false;
+         }
+
+         AxisDescriptor desc = regionHandler.getAxisDescriptor(
+            info, name, axisType(axisTarget), new AtomicBoolean());
+         boolean max = rvs.getViewsheet().isMaxMode() && chart.getChartInfo() != null &&
+            chart.getChartInfo().getMaxSize() != null;
+         return desc != null && !(max ? desc.isMaxModeLabelVisible() : desc.isLabelVisible());
+      });
    }
 
    /**
@@ -369,7 +413,10 @@ public class ChartRegionPropertyService {
 
       if(aliasEntries != null) {
          Object current = PropertyPath.get(model, "aliasPaneModel.aliasList");
-         properties.put("aliases", toModelAliases(aliasEntries, (ModelAlias[]) current));
+         ModelAlias[] items = (ModelAlias[]) current;
+         boolean labelsHidden = "axis".equals(name) && (items == null || items.length == 0) &&
+            axisLabelsHidden(sessionToken, user, assembly, key, field);
+         properties.put("aliases", toModelAliases(aliasEntries, items, labelsHidden));
       }
 
       Map<String, String> aliases = aliasesFor(name);
@@ -1935,14 +1982,16 @@ public class ChartRegionPropertyService {
       return parsed;
    }
 
-   private static ModelAlias[] toModelAliases(List<Map<?, ?>> entries, ModelAlias[] current) {
+   private static ModelAlias[] toModelAliases(List<Map<?, ?>> entries, ModelAlias[] current,
+                                              boolean labelsHidden)
+   {
       ModelAlias[] result = new ModelAlias[entries.size()];
 
       for(int i = 0; i < entries.size(); i++) {
          Map<?, ?> map = entries.get(i);
          String suppliedValue = String.valueOf(map.get("value"));
          Object rawAlias = map.get("alias");
-         ModelAlias resolved = resolveAliasItem(suppliedValue, current, i);
+         ModelAlias resolved = resolveAliasItem(suppliedValue, current, i, labelsHidden);
          result[i] = new ModelAlias(resolved.getLabel(), resolved.getValue(),
                                     String.valueOf(rawAlias));
       }
@@ -1968,8 +2017,18 @@ public class ChartRegionPropertyService {
     * legitimately-unbound region a clear error instead of a silent no-op; the caller is guided to
     * check {@code list_chart_region_properties} first, which reads the same {@code current}.
     */
-   private static ModelAlias resolveAliasItem(String suppliedValue, ModelAlias[] current, int index) {
+   private static ModelAlias resolveAliasItem(String suppliedValue, ModelAlias[] current, int index,
+                                              boolean labelsHidden)
+   {
       if(current == null || current.length == 0) {
+         if(labelsHidden) {
+            throw new IllegalArgumentException(
+               "'aliases[" + index + "]' cannot be resolved: the axis labels are hidden " +
+               "(showAxisLabel is false), and aliases are matched against the labels the axis " +
+               "draws. Show them first with set_chart_region_properties {showAxisLabel: true}, " +
+               "then retry.");
+         }
+
          throw new IllegalArgumentException(
             "'aliases[" + index + "]' cannot be resolved: this region currently reports no " +
             "known values (list_chart_region_properties reports the same empty list). This " +

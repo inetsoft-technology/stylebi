@@ -100,6 +100,66 @@ class ChartRegionPropertyServiceHiddenAxisTest {
       assertNotNull(c.service.list("tok", principal(), CHART, "axis", "x", null));
    }
 
+   // ── bug #80746: aliases are unlistable while the labels are hidden ────────
+
+   private static void hideLabelsOnly(AxisDescriptor axis, Chart c) {
+      axis.setLabelVisible(false);
+      c.info.clearRuntime();
+      c.box.resetDataMap(CHART);
+      c.box.clearGraph(CHART);
+   }
+
+   private static String warningOf(Map<String, Object> read) {
+      return String.valueOf(read.get("warning"));
+   }
+
+   private static void assertAliasDisclosure(String text) {
+      assertTrue(text.matches("(?s).*\\bAliases\\b[^.]*\\bhidden\\b.*"), text);
+      assertTrue(text.contains("showAxisLabel: true"), text);
+   }
+
+   @Test
+   void labelHiddenXReadDisclosesAliasesWithOrWithoutField() throws Exception {
+      Chart c = chart(Mode.PLAIN);
+      assertNull(c.service.list("tok", principal(), CHART, "axis", "x", null).get("warning"));
+      hideLabelsOnly(c.dim.getAxisDescriptor(), c);
+
+      assertAliasDisclosure(warningOf(c.service.list("tok", principal(), CHART, "axis", "x", null)));
+      assertAliasDisclosure(warningOf(c.service.list("tok", principal(), CHART, "axis", "x", "type")));
+      assertNull(c.service.list("tok", principal(), CHART, "axis", "y", null).get("warning"));
+   }
+
+   @Test
+   void labelHiddenYReadDisclosesAliases() throws Exception {
+      Chart c = chart(Mode.PLAIN);
+      c.agg.getAxisDescriptor().setLabelVisible(false);
+      hideLabelsOnly(c.info.getAxisDescriptor(), c);
+
+      assertAliasDisclosure(warningOf(c.service.list("tok", principal(), CHART, "axis", "y", null)));
+   }
+
+   @Test
+   void restoredLabelsDropTheDisclosure() throws Exception {
+      Chart c = chart(Mode.PLAIN);
+      hideLabelsOnly(c.dim.getAxisDescriptor(), c);
+      show(c.dim.getAxisDescriptor(), c);
+
+      assertNull(c.service.list("tok", principal(), CHART, "axis", "x", null).get("warning"));
+   }
+
+   @Test
+   void aliasWriteOnLabelHiddenAxisNamesTheHiddenLabels() throws Exception {
+      Chart c = chart(Mode.PLAIN);
+      hideLabelsOnly(c.dim.getAxisDescriptor(), c);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> c.service.set("tok", principal(), CHART, "axis", "x", null,
+            Map.of("aliases", java.util.List.of(Map.of("value", "a", "alias", "A"))), ""));
+      assertTrue(e.getMessage().contains("labels are hidden"), e.getMessage());
+      assertTrue(e.getMessage().contains("showAxisLabel: true"), e.getMessage());
+      assertFalse(e.getMessage().contains("unbound"), e.getMessage());
+   }
+
    // ── hidden axis: list ────────────────────────────────────────────────────
 
    @Test
