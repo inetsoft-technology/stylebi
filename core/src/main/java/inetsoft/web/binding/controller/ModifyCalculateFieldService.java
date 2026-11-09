@@ -913,9 +913,24 @@ public class ModifyCalculateFieldService {
       return ref instanceof VSDimensionRef ? "dimension" : "measure";
    }
 
-   /** What identifies a field for the before/after comparison: its text and its kind. */
+   /**
+    * What identifies a field for the before/after comparison: what it would lose if replaced, i.e.
+    * its column, aggregate formula, second column and a dimension's ranking / sort-by measure. The
+    * dimension / measure kind is NOT part of it: the real flip re-types a plain bound field to the
+    * kind the user asked for, which is the requested change and loses nothing.
+    */
    private static String replacedKey(DataRef ref) {
-      return describeChartRef(ref) + "#" + kind(ref);
+      String key = describeChartRef(ref);
+
+      if(ref instanceof VSDimensionRef) {
+         VSDimensionRef dref = (VSDimensionRef) ref;
+         String rank = dref.getRankingColValue();
+         String sort = dref.getSortByColValue();
+         key += (rank == null || rank.isEmpty() ? "" : "|rank:" + rank) +
+            (sort == null || sort.isEmpty() ? "" : "|sort:" + sort);
+      }
+
+      return key;
    }
 
    private static List<DataRef> chartAxisFields(VSChartInfo info, String axis) {

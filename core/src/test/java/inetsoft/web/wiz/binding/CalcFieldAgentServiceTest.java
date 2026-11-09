@@ -1616,6 +1616,75 @@ class CalcFieldAgentServiceTest {
       assertTrue(warnings.stream().noneMatch(w -> w.contains("CorrFlip")), warnings.toString());
    }
 
+   private List<String> flipToDetail(Viewsheet vs, String name) throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, name, null,
+         "field['Total']", "double", false, true, false, false);
+      return serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+   }
+
+   /** A plain dimension column re-typed to a measure by the flip loses nothing: silent. */
+   @Test
+   void staysSilentWhenAFlipOnlyRetypesAPlainDimensionColumn() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("FlipB", "field['Total']", true));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "PlainDim");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSChartInfo info = new VSChartInfo();
+      VSChartDimensionRef own = new VSChartDimensionRef();
+      own.setGroupColumnValue("FlipB");
+      info.addXField(own);
+      chart.setVSChartInfo(info);
+      vs.addAssembly(chart);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("PlainDim")), warnings.toString());
+   }
+
+   /** The other direction: a plain measure re-typed to a dimension loses nothing: silent. */
+   @Test
+   void staysSilentWhenAFlipOnlyRetypesAPlainMeasureColumn() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("FlipA", "field['Sum(Total)']", false));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "PlainMeasure");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSChartInfo info = new VSChartInfo();
+      VSChartAggregateRef own = new VSChartAggregateRef();
+      own.setColumnValue("FlipA");
+      own.setFormulaValue("None");
+      info.addYField(own);
+      chart.setVSChartInfo(info);
+      vs.addAssembly(chart);
+
+      List<String> warnings = flipToDetail(vs, "FlipA");
+
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("PlainMeasure")), warnings.toString());
+   }
+
+   /** Aggregate to per-row: a Correlation that used the field as second column really loses it. */
+   @Test
+   void disclosesACorrelationAFlipToDetailReplaces() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("FlipA", "field['Sum(Total)']", false));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "CorrBack");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSChartInfo info = new VSChartInfo();
+      VSChartAggregateRef corr = new VSChartAggregateRef();
+      corr.setColumnValue("REVENUE");
+      corr.setFormulaValue("Correlation");
+      corr.setSecondaryColumnValue("FlipA");
+      info.addYField(corr);
+      chart.setVSChartInfo(info);
+      vs.addAssembly(chart);
+
+      List<String> warnings = flipToDetail(vs, "FlipA");
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrBack'") &&
+                 w.contains("Correlation(REVENUE, FlipA)") && w.contains("second column")),
+                 warnings.toString());
+   }
+
    /** A flip of a field no chart references as a secondary column stays silent. */
    @Test
    void staysSilentWhenTheFlippedFieldIsNotTheSecondColumn() throws Exception {
