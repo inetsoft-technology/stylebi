@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.event.ActionListener;
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -755,6 +756,17 @@ public class LibManager implements AutoCloseable {
       scripts.clear();
       styleFolders.clear();
       styles.clear();
+   }
+
+   /**
+    * Runs {@code action} while holding this manager's monitor, the one every reload
+    * ({@link #reloadLibrary()}, {@link #init()}) and {@link #save()} also take. A mutation,
+    * its {@link #save()} and a read-back done inside the action therefore cannot be wiped by a
+    * reload of the stored library: one already running finishes first, and one arriving later runs
+    * after the save and reads the saved state.
+    */
+   public synchronized <T> T runAtomically(Callable<T> action) throws Exception {
+      return action.call();
    }
 
    /**

@@ -153,6 +153,14 @@ class ScriptLibraryChangesetApplyServiceTest {
    }
 
    private void wireLibManagerFake() {
+      try {
+         lenient().when(lib.runAtomically(any())).thenAnswer(
+            inv -> ((java.util.concurrent.Callable<?>) inv.getArgument(0)).call());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
       lenient().when(lib.getScript(anyString())).thenAnswer(inv -> scripts.get(inv.getArgument(0)));
       lenient().when(lib.getScriptComment(anyString()))
          .thenAnswer(inv -> comments.get(inv.getArgument(0)));
