@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.FormTableLens;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -817,6 +818,20 @@ class FormTableRowServiceTest {
       when(info.isInsert()).thenReturn(insert);
       when(info.isDel()).thenReturn(del);
       when(info.isWriteBack()).thenReturn(writeBack);
+      // setCell also runs the column option's own validation, which reads the bound columns
+      when(assembly.getInfo()).thenReturn(info);
+      when(info.clone(anyBoolean())).thenReturn(info);
+      ColumnSelection columns = new ColumnSelection();
+
+      for(String name : new String[] { "c0", "c1" }) {
+         FormRef ref = new FormRef();
+         ref.setDataRef(new AttributeRef(null, name));
+         ref.setDataType("string");
+         ref.setOption(new TextColumnOption(null, "refused: {0}", true));
+         columns.addAttribute(ref);
+      }
+
+      when(info.getColumnSelection()).thenReturn(columns);
       return assembly;
    }
 
@@ -931,6 +946,7 @@ class FormTableRowServiceTest {
       when(lens.isEdit()).thenReturn(edit);
       when(lens.rows()).thenReturn(rows);
       when(lens.getRowCount()).thenReturn(rows.length);
+      when(lens.getColType(anyInt())).thenReturn((Class) String.class);
       ColumnSelection visible = mock(ColumnSelection.class);
       when(visible.getAttributeCount()).thenReturn(2);
       when(lens.getVisibleColumns()).thenReturn(visible);
