@@ -186,7 +186,8 @@ div.vs-pane .bl-selected {
   height: 100%;
 
   .search-input {
-    min-width: 60px;
+    // wide enough to show the whole "Search by name or title" placeholder
+    min-width: 180px;
   }
 }
 

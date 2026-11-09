@@ -186,7 +186,7 @@
         @let searchResultLabel = getSearchResultLabel();
         <div class="d-flex me-auto flex-grow-1 flex-nowrap align-items-center">
           <div class="p-1 d-flex align-items-center flex-grow-1">
-            <input class="form-control form-control-sm search-input" type="text" placeholder="_#(Search)" [title]="getSearchString()"
+            <input class="form-control form-control-sm search-input" type="text" placeholder="_#(Search by name or title)" [title]="getSearchString()"
               (input)="search($event.target.value)" (keyup)="searchInputKeyUp($event)">
             <span class="search-result-label"> {{searchResultLabel}} </span>
           </div>
