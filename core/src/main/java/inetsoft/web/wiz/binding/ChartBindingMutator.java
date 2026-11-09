@@ -166,6 +166,7 @@ public final class ChartBindingMutator {
             field, model, rvs, source, refModelService,
             FieldRefFactory.findExpertPlaceholder(field, oldRefs));
          requireDiscreteAllowed(model, name, field, ref);
+         requireDiscreteAllowedForCalcField(model, rvs, source, field, ref, oldRefs);
 
          if(ref instanceof ChartDimensionRefModel dimension) {
             ChartDimensionRefModel previous = null;
@@ -500,6 +501,46 @@ public final class ChartBindingMutator {
       }
    }
 
+   /**
+    * Refuses {@code discrete:true} on an aggregate calc field ({@code baseOnDetail} false) whatever
+    * its aggregate (bug #80504): the Composer disables Discrete for it (the discrete join cannot
+    * do the two-stage grouping), but only an omitted aggregate resolved to none was refused, so an
+    * explicit {@code Sum} was accepted. Skipped without {@code rvs}.
+    *
+    * <p>The write is a read-modify-write, so an untouched field is resent with the
+    * {@code discrete:true} it read back. A chart that already holds such a measure (written
+    * before this guard) must stay editable, so the refusal is skipped when {@code previousRefs}
+    * already holds that column as a discrete measure: it judges what a write <em>newly</em>
+    * turns on, not what was already stored.
+    *
+    * @param previousRefs what the slot held before this write (may contain nulls).
+    */
+   static void requireDiscreteAllowedForCalcField(ChartBindingModel model, RuntimeViewsheet rvs,
+                                                  SourceInfo source, FieldRef field,
+                                                  ChartRefModel ref,
+                                                  List<? extends ChartRefModel> previousRefs)
+   {
+      if(field == null || !Boolean.TRUE.equals(field.discrete()) ||
+         !(ref instanceof ChartAggregateRefModel) ||
+         FieldRefFactory.aggregateCalcField(model, rvs, source, field.column()) == null)
+      {
+         return;
+      }
+
+      for(ChartRefModel previous : previousRefs == null ? List.<ChartRefModel>of() : previousRefs) {
+         if(previous instanceof ChartAggregateRefModel aggregate && aggregate.isDiscrete() &&
+            equalsIgnoreCaseOrBothNull(aggregate.getColumnValue(), field.column()))
+         {
+            return;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "Measure '" + field.column() + "' cannot be discrete: it is an aggregate calc field " +
+         "(computed from other aggregates), and the Composer disables Discrete for it whatever " +
+         "its aggregate. Omit 'discrete' or set it to false.");
+   }
+
    private static boolean sameMeasure(ChartAggregateRefModel a, ChartAggregateRefModel b) {
       return equalsIgnoreCaseOrBothNull(a.getColumnValue(), b.getColumnValue()) &&
              equalsIgnoreCaseOrBothNull(a.getFormula(), b.getFormula());
@@ -796,6 +837,8 @@ public final class ChartBindingMutator {
             field, Collections.singletonList(readSingleShelf(model, name))));
 
       requireDiscreteAllowed(model, name, field, ref);
+      requireDiscreteAllowedForCalcField(
+         model, rvs, source, field, ref, Collections.singletonList(readSingleShelf(model, name)));
 
       // After toChartRef so a missing/invalid 'type' keeps the type error, and before
       // assignSingleShelf so a refusal leaves the shelf and any prior binding untouched.

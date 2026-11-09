@@ -156,6 +156,8 @@ public final class ChartAestheticMutator {
          FieldRefFactory.findExpertPlaceholder(
             field, Collections.singletonList(previousData)));
       ChartBindingMutator.requireDiscreteAllowed(model, name, field, dataInfo);
+      ChartBindingMutator.requireDiscreteAllowedForCalcField(
+         model, rvs, source, field, dataInfo, Collections.singletonList(previousData));
       info.setFullName(field.column());
       ChartBindingMutator.carryForwardSameField(previousData, dataInfo, field);
       info.setDataInfo(dataInfo);
