@@ -263,6 +263,82 @@ class FormatPainterServiceTest {
       verify(chartRegionHandler).getAxisColumnName(any(), any(), eq("right_y_axis"), anyInt());
    }
 
+   /**
+    * Bug #80849: a whole-region reset (no indexes, no format model) on a legend title used to be
+    * skipped silently, leaving the user-defined color in place.
+    */
+   @Test
+   void resetClearsTheLegendTitleUserFormatWhenNoIndexesAreGiven() throws Exception {
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+      CompositeTextFormat titleFormat = new CompositeTextFormat();
+      titleFormat.getUserDefinedFormat().setColor(Color.RED, true);
+      chart.getChartDescriptor().getLegendsDescriptor().setTitleTextFormat(titleFormat);
+
+      service.setFormat("Viewsheet1", wholeRegionEvent("legend_title", null, true), null,
+                        dispatcher, "");
+
+      CompositeTextFormat format =
+         chart.getChartDescriptor().getLegendsDescriptor().getTitleTextFormat();
+      assertFalse(format.getUserDefinedFormat().isColorDefined());
+      assertNotEquals(Color.RED, format.getColor());
+   }
+
+   /**
+    * Bug #80849: the same whole-region reset on an axis label region.
+    */
+   @Test
+   void resetClearsTheAxisLabelUserFormatWhenNoIndexesAreGiven() throws Exception {
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+      chart.getVSChartInfo().setSeparatedGraph(false);
+      AxisDescriptor axisDescriptor = new AxisDescriptor();
+      axisDescriptor.getAxisLabelTextFormat().getUserDefinedFormat().setColor(Color.RED, true);
+
+      doReturn(axisDescriptor).when(chartRegionHandler)
+         .getAxisDescriptor(nullable(VSChartInfo.class), nullable(ChartArea.class),
+                            nullable(String.class), anyInt(), nullable(String.class));
+
+      service.setFormat("Viewsheet1", wholeRegionEvent("left_y_axis", null, true), null,
+                        dispatcher, "");
+
+      CompositeTextFormat format = axisDescriptor.getAxisLabelTextFormat();
+      assertFalse(format.getUserDefinedFormat().isColorDefined());
+      assertNotEquals(Color.RED, format.getColor());
+   }
+
+   /**
+    * Bug #80849: a non-reset whole-region write still applies the given format.
+    */
+   @Test
+   void writeAppliesTheLegendTitleFormatWhenNoIndexesAreGiven() throws Exception {
+      when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      model.setColor("#ff0000");
+
+      service.setFormat("Viewsheet1", wholeRegionEvent("legend_title", model, false), null,
+                        dispatcher, "");
+
+      CompositeTextFormat format =
+         chart.getChartDescriptor().getLegendsDescriptor().getTitleTextFormat();
+      assertTrue(format.getUserDefinedFormat().isColorDefined());
+      assertEquals(Color.RED, format.getColor());
+   }
+
+   // the event shape ViewsheetFormatService builds for a whole axis/legend region
+   private static FormatVSObjectEvent wholeRegionEvent(String region,
+                                                       VSObjectFormatInfoModel format,
+                                                       boolean reset)
+   {
+      FormatVSObjectEvent event = new FormatVSObjectEvent();
+      event.setObjects(new String[0]);
+      event.setCharts(new String[]{ "Chart1" });
+      event.setRegions(new String[]{ region });
+      event.setColumnNames(new String[][]{ { "" } });
+      event.setIndexes(new int[1][]);
+      event.setFormat(format);
+      event.setReset(reset);
+      return event;
+   }
+
    @Captor ArgumentCaptor<SetCurrentFormatCommand> argCaptor;
    @Mock ViewsheetEngine viewsheetEngine;
    @Mock
