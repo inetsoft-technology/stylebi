@@ -23,6 +23,7 @@ import inetsoft.mv.trans.AbstractTransformer;
 import inetsoft.mv.trans.TransformationDescriptor;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.filter.Formula;
 import inetsoft.report.filter.NoneFormula;
 import inetsoft.report.internal.table.TableFormat;
@@ -567,6 +568,18 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
             tableAppliedSelections.values().removeIf(Collection::isEmpty);
          }
       }
+   }
+
+   /**
+    * Check if this refresh runs on the Use Metadata placeholder data of a design-time
+    * viewsheet. The data then holds placeholder rows instead of the real values, so it
+    * must only change what is displayed, never the persistent selection state: the state
+    * is also the input of the next refresh, and rebuilding it from placeholder rows would
+    * drop the user's selection for good once Use Metadata is turned off (Bug #80814).
+    */
+   protected boolean isMetadataDesignMode() {
+      return box.getMode() != RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE &&
+         getViewsheet().getViewsheetInfo().isMetadata();
    }
 
    /**

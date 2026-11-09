@@ -1417,7 +1417,12 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          // trivially satisfies pos == 0) from masquerading as a real recovered selection.
          if(!(unit == TimeInfo.NUMBER && priorTotalDegraded && hasRecoveredValue && pos >= 0)) {
             pos = 0;
-            tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
+            length = slist.getSelectionValueCount() - 1;
+
+            // in metadata mode slist is built from placeholder data, so keep the real length
+            if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
+               tinfo.setLengthValue(Math.max(1, length));
+            }
          }
       }
       else if((hint & FIRST_N) == FIRST_N) {
