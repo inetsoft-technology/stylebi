@@ -28,7 +28,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -97,8 +100,12 @@ public class SelfJoinTableLensCancelTest {
       assertTrue(join.isCancelled());
    }
 
-   // reads the join in another thread, cancels it 300 ms into the scan and waits for the read
+   // reads the join in another thread, cancels it once the scan is halfway through the base
+   // and waits for the read. a fixed sleep could cancel before the pass started, which the
+   // pass does not honour, and the join then ran to the end on a slow machine (bug #80877)
    private static long readCancelled(SelfJoinTableLens join) throws Exception {
+      GatedCrossJoin base = (GatedCrossJoin) join.getTable();
+      base.arm(base.getRowCount() / 2);
       AtomicInteger failed = new AtomicInteger();
       Thread reader = new Thread(() -> {
          try {
@@ -109,8 +116,15 @@ public class SelfJoinTableLensCancelTest {
          }
       });
       reader.start();
-      Thread.sleep(300);
-      join.cancel();
+
+      try {
+         assertTrue(base.awaitReached(), "the scan did not reach the middle of the base");
+         join.cancel();
+      }
+      finally {
+         base.release();
+      }
+
       reader.join(30000);
 
       assertFalse(reader.isAlive(), "the read did not end after the cancel");
@@ -124,7 +138,7 @@ public class SelfJoinTableLensCancelTest {
 
    // column 0 of the left table (i) OP column 1 (the right table's i), both bases complete
    private static SelfJoinTableLens join(int op) {
-      CrossJoinTableLens cross = new CrossJoinTableLens(table(), table());
+      CrossJoinTableLens cross = new GatedCrossJoin(table(), table());
       cross.moreRows(XTable.EOT);
       SelfJoinTableLens join = new SelfJoinTableLens(cross);
       join.addJoin(0, op, 1);
@@ -140,5 +154,57 @@ public class SelfJoinTableLensCancelTest {
       }
 
       return new DefaultTableLens(data);
+   }
+
+   /**
+    * A cross join that, once armed, holds the first reader of one row until released. The
+    * wait is outside the synchronized super.moreRows, so a cancel (which reaches this lens's
+    * monitor) is not blocked by the held reader.
+    */
+   private static final class GatedCrossJoin extends CrossJoinTableLens {
+      GatedCrossJoin(TableLens left, TableLens right) {
+         super(left, right);
+      }
+
+      void arm(int row) {
+         gateRow = row;
+         reached = new CountDownLatch(1);
+         open = new CountDownLatch(1);
+         gate.set(open);
+      }
+
+      boolean awaitReached() throws InterruptedException {
+         return reached.await(30, TimeUnit.SECONDS);
+      }
+
+      void release() {
+         gate.set(null);
+         open.countDown();
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row == gateRow) {
+            CountDownLatch held = gate.getAndSet(null);
+
+            if(held != null) {
+               reached.countDown();
+
+               try {
+                  held.await(30, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException ex) {
+                  Thread.currentThread().interrupt();
+               }
+            }
+         }
+
+         return super.moreRows(row);
+      }
+
+      private final AtomicReference<CountDownLatch> gate = new AtomicReference<>();
+      private volatile int gateRow = -1;
+      private volatile CountDownLatch reached;
+      private volatile CountDownLatch open;
    }
 }
