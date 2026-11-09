@@ -50,3 +50,30 @@
 a.dropdown-item:empty:before {
   content: "\200b"; /*unicode zero width space character*/
 }
+
+.css-picker__dropdown {
+  position: relative;
+
+  .css-picker__input {
+    border-top-right-radius: var(--bs-border-radius);
+    border-bottom-right-radius: var(--bs-border-radius);
+    padding-right: 2rem;
+  }
+
+  .values-caret {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .dropdown-caret {
+    position: static;
+    transform: none;
+  }
+}

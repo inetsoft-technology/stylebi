@@ -21,8 +21,20 @@
 }
 
 .custom-select-trigger {
+  position: relative;
+  width: 100%;
+  padding-right: 2rem;
+  background-image: none;
   min-height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
   height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
+}
+
+.dropdown-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .custom-select-menu {

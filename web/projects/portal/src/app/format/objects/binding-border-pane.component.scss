@@ -110,5 +110,9 @@ li.line-style {
 }
 
 .border-style-trigger__icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   pointer-events: none;
 }
