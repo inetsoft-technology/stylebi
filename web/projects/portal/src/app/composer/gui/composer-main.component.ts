@@ -1795,6 +1795,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
          if(command) {
             this.applyAgentActive(command);
+            this.applyCloseRuntimeOnTabClose(command);
          }
       };
       const keep = () => this.navigateToExisting(this.sheets.indexOf(sheet));
@@ -3029,6 +3030,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.composerRecentService.addRecentlyViewed(createAssetEntry(command.assetId));
                this.openViewsheet(command.assetId, false, command.runtimeId);
                this.applyAgentActive(command);
+               this.applyCloseRuntimeOnTabClose(command);
             }
             else if(command.wsWizard) {
                this.saveToFolderId = command.folderId;
@@ -3042,6 +3044,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.pendingAgentCommands.set(command.runtimeId, command);
                this.openWorksheet(command.assetId, false, command.runtimeId);
                this.applyAgentActive(command);
+               this.applyCloseRuntimeOnTabClose(command);
 
                // a tab that was not created in this tick (modified-tab Discard dialog) applies
                // it from attachAgentWorksheetRuntime once the tab exists
@@ -3075,6 +3078,24 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       if(sheet) {
          sheet.agentConnected = true;
          sheet.agentOwnerLabel = command.agentOwnerLabel;
+      }
+   }
+
+   /**
+    * A tab opened with a server-provided runtime id defaults to closeOnServer=false (the runtime
+    * is shared with an agent session). When the server created the runtime only for this tab
+    * (create_viewsheet/create_worksheet) it says so, and closing the tab must then close the
+    * runtime too. Independent of agentActive.
+    */
+   private applyCloseRuntimeOnTabClose(command: OpenComposerAssetCommand): void {
+      if(!command.closeRuntimeOnTabClose || !command.runtimeId) {
+         return;
+      }
+
+      const sheet = this.sheets.find((s) => s.runtimeId === command.runtimeId);
+
+      if(sheet) {
+         sheet.closeOnServer = true;
       }
    }
 

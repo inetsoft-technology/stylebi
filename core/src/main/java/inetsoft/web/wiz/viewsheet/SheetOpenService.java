@@ -369,6 +369,7 @@ public class SheetOpenService {
          .viewsheet(true)
          .runtimeId(runtimeId)
          .agentActive(true)
+         .closeRuntimeOnTabClose(true)
          .agentOwnerLabel(PairingUtil.label(vsSession.ownerIdentity()))
          .build();
 
@@ -502,6 +503,7 @@ public class SheetOpenService {
          .viewsheet(false)
          .runtimeId(runtimeId)
          .agentActive(true)
+         .closeRuntimeOnTabClose(true)
          .agentOwnerLabel(PairingUtil.label(wsSession.ownerIdentity()))
          .build();
 
