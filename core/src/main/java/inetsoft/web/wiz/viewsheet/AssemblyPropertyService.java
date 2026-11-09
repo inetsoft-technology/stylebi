@@ -500,7 +500,9 @@ public class AssemblyPropertyService {
                                         outputColumnBefore);
 
       if(PropertyAliases.isDataOutputType(type)) {
+         OutputFormulaGuard.requireBinding(formulaGuardBefore, model);
          OutputFormulaGuard.requireArity(formulaGuardBefore, model);
+         model = OutputFormulaGuard.clearStaleOperands(formulaGuardBefore, model);
          requireOutputAggregateFitsColumn(rvs, user, model, formulaGuardBefore,
                                           outputTableBefore, outputColumnBefore);
       }

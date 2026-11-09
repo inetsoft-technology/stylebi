@@ -170,6 +170,27 @@ class WizControllerErrorHandlerTest {
    }
 
    /**
+    * A body Jackson cannot bind must be refused naming the field by its path, with indexes, and
+    * without Java class names: Jackson's own first line names no field.
+    */
+   @Test
+   void anUnreadableBodyNamesTheOffendingFieldPath() throws Exception {
+      String nested = mvc.perform(get("/wiz-test/throw").param("type", "unreadable-nested"))
+         .andExpect(status().isBadRequest())
+         .andReturn().getResponse().getContentAsString();
+      assertTrue(nested.contains("'customLookups[0].jsonPath'"),
+                 "must name the nested field path, got: [" + nested + "]");
+      assertFalse(nested.contains("java.lang") || nested.contains("Cannot deserialize"),
+                  "must not leak Java class names, got: [" + nested + "]");
+
+      String element = mvc.perform(get("/wiz-test/throw").param("type", "unreadable-element"))
+         .andExpect(status().isBadRequest())
+         .andReturn().getResponse().getContentAsString();
+      assertTrue(element.contains("'lookup[0]'"),
+                 "must name the list element, got: [" + element + "]");
+   }
+
+   /**
     * The captured composer error must reach the caller. {@code CommandErrorException} extends
     * {@code Exception} and had no handler, so the mechanism this whole feature exists to add —
     * turning a silently-dispatched composer ERROR into something the caller can see — captured
@@ -343,6 +364,12 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("requires 'height'")));
    }
 
+   public record Spec(String url, String jsonPath, String key) {
+   }
+
+   public record Body(java.util.List<String> lookup, java.util.List<Spec> customLookups) {
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -378,6 +405,20 @@ class WizControllerErrorHandlerTest {
                   "Cannot construct instance of AlignmentInfo from String value 'center' " +
                   "(field \"align\")"),
                new org.springframework.mock.http.MockHttpInputMessage(new byte[0]));
+         }
+
+         if("unreadable-nested".equals(type) || "unreadable-element".equals(type)) {
+            String json = "unreadable-nested".equals(type) ?
+               "{\"customLookups\":[{\"jsonPath\":{}}]}" : "{\"lookup\":[{}]}";
+
+            try {
+               new com.fasterxml.jackson.databind.ObjectMapper().readValue(json, Body.class);
+            }
+            catch(com.fasterxml.jackson.databind.JsonMappingException ex) {
+               throw new org.springframework.http.converter.HttpMessageNotReadableException(
+                  "JSON parse error", ex,
+                  new org.springframework.mock.http.MockHttpInputMessage(new byte[0]));
+            }
          }
 
          if("unsupported-op".equals(type)) {

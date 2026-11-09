@@ -1223,7 +1223,9 @@ class WorksheetAgentControllerTest {
       // Wrong delimiter on the first add: the whole header is one column.
       assertEquals(1, liveAssembly.getColumnSelection(false).getAttributeCount());
 
-      runFileEdit("TOK-ET79598A", agent, Map.of("delimiter", ";"));
+      // queryParams restates the whole query: the header (this fake's stand-in for the file the
+      // columns are read from) is resent, since an omitted optional param is reset to its default.
+      runFileEdit("TOK-ET79598A", agent, Map.of("delimiter", ";", "header", "a;b;c"));
 
       ColumnSelection cols = liveAssembly.getColumnSelection(false);
       assertEquals(3, cols.getAttributeCount(), "columns must be rebuilt, not kept stale");

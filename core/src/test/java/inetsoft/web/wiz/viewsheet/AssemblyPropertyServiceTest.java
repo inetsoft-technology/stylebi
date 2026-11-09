@@ -2270,7 +2270,7 @@ class AssemblyPropertyServiceTest {
    // ── #78756: gauge/text/image output aggregate ──────────────────────────────
 
    private static GaugePropertyDialogModel boundGauge(String aggregate) {
-      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
       model.getDataOutputPaneModel().setAggregate(aggregate);
       return model;
    }
@@ -6876,6 +6876,8 @@ class AssemblyPropertyServiceTest {
          }
 
          TextPropertyDialogModel text = new TextPropertyDialogModel();
+         text.getDataOutputPaneModel().setTable("Table1");
+         text.getDataOutputPaneModel().setColumn("Total");
          pr3Output(text, mock(TextVSAssembly.class), "Table1", cols)
             .set("tok", principal(), "Text1", Map.of(key, "millions"), "");
          assertEquals(1000000, text.getDataOutputPaneModel().getMagnitude());
@@ -6996,5 +6998,122 @@ class AssemblyPropertyServiceTest {
       cal.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
          .setCalendar(true);
       setCombobox(cal, Map.of("minDate", "2024-01-01"));
+   }
+
+   // ── #80798: output formula writes need a bound table and a set aggregate ──
+
+   /** A Gauge, Text or Image with an empty Data pane, and the service that edits it. */
+   private AssemblyPropertyService unboundOutput(String type, Object[] modelOut) {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      switch(type) {
+      case "Text":
+         modelOut[0] = new TextPropertyDialogModel();
+         return pr3Output(modelOut[0], mock(TextVSAssembly.class), "Table1", cols);
+      case "Image":
+         modelOut[0] = ImagePropertyDialogModel.builder().build();
+         return serviceWithImage(mock(ImageVSAssembly.class), (ImagePropertyDialogModel) modelOut[0],
+                                 mock(ImagePropertyDialogService.class));
+      default:
+         modelOut[0] = new GaugePropertyDialogModel();
+         return pr3Output(modelOut[0], mock(GaugeVSAssembly.class), "Table1", cols);
+      }
+   }
+
+   @Test
+   void refusesAnOutputFormulaWriteWhenNoTableIsBound() {
+      Object[][] writes = {
+         { "aggregate", "Sum" }, { "dataOutputPaneModel.aggregate", "Sum" },
+         { "aggregate", "$(x)" }, { "with", "Cost" }, { "dataOutputPaneModel.with", "Cost" },
+         { "nthOperand", "3" }, { "dataOutputPaneModel.num", "3" },
+         { "magnitude", "thousands" }, { "magnitude", 1000 },
+         { "dataOutputPaneModel.magnitude", "millions" }
+      };
+
+      for(String type : new String[] { "Gauge", "Text", "Image" }) {
+         for(Object[] write : writes) {
+            Object[] model = new Object[1];
+            AssemblyPropertyService service = unboundOutput(type, model);
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> service.set("tok", principal(), type + "1",
+                                 Map.of((String) write[0], write[1]), ""),
+               type + " " + write[0] + "=" + write[1]);
+
+            assertTrue(e.getMessage().contains("not bound to a table"), e.getMessage());
+            assertTrue(e.getMessage().contains("Nothing was changed"), e.getMessage());
+         }
+      }
+   }
+
+   @Test
+   void acceptsTheDefaultOutputValuesWhenNoTableIsBound() throws Exception {
+      Object[] model = new Object[1];
+      AssemblyPropertyService service = unboundOutput("Gauge", model);
+
+      service.set("tok", principal(), "Gauge1",
+                  patchOf("aggregate", "none", "nthOperand", "1", "magnitude", 1), "");
+      service.set("tok", principal(), "Gauge1", Map.of("with", ""), "");
+   }
+
+   @Test
+   void acceptsATableColumnAndAggregateWrittenInOneCall() throws Exception {
+      Object[] model = new Object[1];
+      AssemblyPropertyService service = unboundOutput("Gauge", model);
+
+      service.set("tok", principal(), "Gauge1",
+                  patchOf("table", "Table1", "column", "Total", "aggregate", "Sum"), "");
+
+      assertEquals("Sum", ((GaugePropertyDialogModel) model[0]).getDataOutputPaneModel()
+         .getAggregate());
+   }
+
+   @Test
+   void refusesWithAndOperandOnABoundOutputWhoseAggregateIsUnset() {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      for(Object[] write : new Object[][] { { "with", "Cost" }, { "nthOperand", "3" } }) {
+         String msg = refusedOutput(
+            pr3Output(gaugeBoundTo("Table1", "Total"), mock(GaugeVSAssembly.class), "Table1",
+                      cols), "Gauge1", Map.of((String) write[0], write[1]));
+
+         assertTrue(msg.contains("no aggregate is set"), msg);
+      }
+   }
+
+   @Test
+   void clearsTheStaleWithAndOperandWhenTheAggregateChangesToOneThatIgnoresThem()
+      throws Exception
+   {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      GaugePropertyDialogModel first = gaugeBoundTo("Table1", "Total");
+      first.getDataOutputPaneModel().setAggregate("First");
+      first.getDataOutputPaneModel().setWith("Cost");
+      pr3Output(first, mock(GaugeVSAssembly.class), "Table1", cols)
+         .set("tok", principal(), "Gauge1", Map.of("aggregate", "Sum"), "");
+      assertEquals("Sum", first.getDataOutputPaneModel().getAggregate());
+      assertTrue(first.getDataOutputPaneModel().getWith() == null ||
+                 first.getDataOutputPaneModel().getWith().isEmpty());
+
+      GaugePropertyDialogModel nth = gaugeBoundTo("Table1", "Total");
+      nth.getDataOutputPaneModel().setAggregate("NthLargest");
+      nth.getDataOutputPaneModel().setNum("3");
+      pr3Output(nth, mock(GaugeVSAssembly.class), "Table1", cols)
+         .set("tok", principal(), "Gauge1", Map.of("aggregate", "Sum"), "");
+      assertEquals("1", nth.getDataOutputPaneModel().getNum());
+   }
+
+   @Test
+   void keepsTheWithWhenTheAggregateIsDynamicOrStillTwoColumn() throws Exception {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      for(String aggregate : new String[] { "$(agg)", "Last" }) {
+         GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
+         model.getDataOutputPaneModel().setAggregate("First");
+         model.getDataOutputPaneModel().setWith("Cost");
+         pr3Output(model, mock(GaugeVSAssembly.class), "Table1", cols)
+            .set("tok", principal(), "Gauge1", Map.of("aggregate", aggregate), "");
+         assertEquals("Cost", model.getDataOutputPaneModel().getWith(), aggregate);
+      }
    }
 }
