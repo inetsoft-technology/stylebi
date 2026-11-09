@@ -95,7 +95,7 @@ public final class ScheduleXmlProjection {
          result = p.matcher(result).replaceAll("$1=\"" + NORMALIZED_VALUE + "\"");
       }
 
-      return result;
+      return ScheduleVolatileFields.normalizeBalancerTimes(result);
    }
 
    /** The root {@code <Task ...>} opening tag, the only place {@link #EXCLUDED_ATTRIBUTES} apply. */
