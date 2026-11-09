@@ -19,21 +19,36 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.RegionTableLens;
+import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.filter.DefaultTableFilter;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.lens.ExportedColumnsTableLens;
 import inetsoft.report.lens.TextSizeLimitTableLens;
 import org.junit.jupiter.api.Tag;
+import inetsoft.test.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.Test;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Bug #79596: an export must say when max.cell.size cut a cell. */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class ExportCellCapScannerTest {
    private static TableLens capped(int cap, Object[][] data) {
@@ -148,6 +163,59 @@ class ExportCellCapScannerTest {
 
       assertEquals(warning.indexOf("BIG"), warning.lastIndexOf("BIG"), warning);
       assertTrue(!warning.contains("id"), warning);
+   }
+
+   /** Bug #80500: header rows are never cut, so a long header must not warn. */
+   @Test
+   void viewsheetTableLongHeaderOnlyYieldsNoWarning() {
+      TableLens lens = viewsheetLens(500, new Object[][] {
+         {"id", repeat(5000)}, {"1", "short"}});
+
+      assertTrue(ExportCellCapScanner.scanViewsheetTable("TV", lens, 500).isEmpty());
+   }
+
+   /** Bug #80500: a VSTableLens and a region lens over it keep the filter chain. */
+   @Test
+   void viewsheetTableBehindAVSTableLensAndRegionLensStillWarns() {
+      VSTableLens vs = new VSTableLens(viewsheetLens(500, new Object[][] {
+         {"id", "BIG"}, {"1", repeat(5000)}}));
+      TableLens region = new RegionTableLens(vs, 2, 2);
+
+      assertEquals(1, ExportCellCapScanner.scanViewsheetTable("TV", vs, 500).size());
+      assertEquals(1, ExportCellCapScanner.scanViewsheetTable("TV", region, 500).size());
+   }
+
+   @Test
+   void exportedColumnsLimitTheWarningToWrittenColumns() {
+      TableLens lens = viewsheetLens(500, new Object[][] {
+         {"id", "BIG", "HID"}, {"1", repeat(5000), repeat(5000)}});
+
+      List<String> warnings = ExportCellCapScanner.scanViewsheetTable("TV",
+         new ExportedColumnsTableLens(lens, Set.of("id", "BIG")), 500);
+
+      assertEquals(1, warnings.size());
+      assertTrue(warnings.get(0).contains("column(s) BIG of table"), warnings.get(0));
+      assertTrue(!warnings.get(0).contains("HID"), warnings.get(0));
+      assertTrue(ExportCellCapScanner.scanViewsheetTable("TV",
+         new ExportedColumnsTableLens(lens, Set.of("id")), 500).isEmpty());
+   }
+
+   @Test
+   void exportedHeadersThatMatchNoBaseColumnDoNotHideACut() {
+      TableLens lens = viewsheetLens(500, new Object[][] {{"id", "BIG"}, {"1", repeat(5000)}});
+
+      assertEquals(1, ExportCellCapScanner.scanViewsheetTable("TV",
+         new ExportedColumnsTableLens(lens, Set.of("Renamed 1", "Renamed 2")), 500).size());
+   }
+
+   @Test
+   void addDistinctKeepsEachWarningOnce() {
+      List<String> target = new ArrayList<>();
+
+      ExportCellCapScanner.addDistinct(target, List.of("a", "b"));
+      ExportCellCapScanner.addDistinct(target, List.of("b", "c"));
+
+      assertEquals(List.of("a", "b", "c"), target);
    }
 
    @Test

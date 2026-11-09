@@ -1739,17 +1739,20 @@ public class ViewsheetAssemblyAgentController {
          effectiveMatch = true;
       }
 
-      // Bug #80182: a table cell longer than max.cell.size is cut while it is written, so the
-      // CSV export reports it (column and cap) in the same header the worksheet export uses.
+      // Bug #80182, #80500: a table cell longer than max.cell.size is cut while it is written,
+      // so the export reports it (column and cap) in the same header the worksheet export uses.
+      // Registered for every format, not only CSV: an Excel request can be switched to CSV
+      // inside the export, and the other table formats are cut the same way. A format that
+      // never shows a table to the observer (snapshot) simply reports nothing.
       List<String> cellCapWarnings = new ArrayList<>();
       ExportResponse exportResponse = new ExportResponse(out);
 
-      if(formatType == FileFormatInfo.EXPORT_TYPE_CSV) {
-         // read the cap per table, inside the export, not when the request is set up
-         exportResponse.setTableObserver((name, lens) ->
-            cellCapWarnings.addAll(ExportCellCapScanner.scanViewsheetTable(name, lens,
+      // read the cap per table, inside the export, not when the request is set up; a table seen
+      // again (another bookmark) repeats its warning, so keep each one once
+      exportResponse.setTableObserver((name, lens) ->
+         ExportCellCapScanner.addDistinct(cellCapWarnings,
+            ExportCellCapScanner.scanViewsheetTable(name, lens,
                inetsoft.report.internal.Util.getOrganizationMaxCellSize())));
-      }
 
       try {
          exportService.exportViewsheet(rvs, formatType, effectiveMatch,

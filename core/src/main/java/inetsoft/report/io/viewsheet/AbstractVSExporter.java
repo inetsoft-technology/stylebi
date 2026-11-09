@@ -43,6 +43,7 @@ import inetsoft.report.internal.Common;
 import inetsoft.report.internal.ParameterTool;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
+import inetsoft.report.lens.ExportedColumnsTableLens;
 import inetsoft.report.io.excel.SheetMaxRowsException;
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.io.viewsheet.excel.ExcelVSUtil;
@@ -88,6 +89,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -1069,6 +1071,54 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Set the observer that is shown each table lens just before the table is written (Bug
+    * #80500), so a caller can tell when max.cell.size cut a cell.
+    */
+   public void setTableObserver(BiConsumer<String, TableLens> tableObserver) {
+      this.tableObserver = tableObserver;
+   }
+
+   /**
+    * Show a table to the table observer. Must be called on the lens returned by
+    * {@code getVSTableLens()}, before {@link #getRegionTableLens}: the region lens is not a
+    * table filter, so the cap layer can no longer be found through it.
+    */
+   protected void observeTable(TableDataVSAssembly assembly, VSTableLens lens) {
+      if(tableObserver == null || lens == null) {
+         return;
+      }
+
+      try {
+         TableLens observed = lens;
+
+         // a plain table's header row holds its column names; limit the report to the columns
+         // the export writes. A crosstab or calc table's columns do not map to the base table.
+         if(assembly instanceof TableVSAssembly) {
+            lens.initTableGrid(assembly.getVSAssemblyInfo());
+            int cols = Math.min(lens.getColCount(),
+                                needRegionLens() ? getRegionColCount(assembly, lens) :
+                                lens.getColCount());
+            int[] widths = lens.getColumnWidths();
+            Set<String> headers = new HashSet<>();
+
+            for(int col = 0; col < cols; col++) {
+               if(widths == null || col >= widths.length || widths[col] > 0) {
+                  headers.add(Tool.toString(lens.getObject(0, col)));
+               }
+            }
+
+            observed = new ExportedColumnsTableLens(lens, headers);
+         }
+
+         tableObserver.accept(assembly.getAbsoluteName(), observed);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to inspect table for the cell size cap: {}",
+                  assembly.getAbsoluteName(), e);
+      }
+   }
+
+   /**
     * Get the region table lens.
     * @param data the specified table lens.
     * @param table the specified table data assembly.
@@ -1622,6 +1672,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                   // which captures column count at construction time in its own ccount field,
                   // bypassing VSTableLens.maxCols. Same fix pattern as VsToReportConverter (Bug #74000).
                   applyMaxColsLimit(lens, assembly.getName());
+                  observeTable((TableDataVSAssembly) assembly, lens);
                   lens = getRegionTableLens(lens, (TableVSAssembly) assembly, box);
                   writeTable((TableVSAssembly) assembly, lens);
                   break;
@@ -1629,6 +1680,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                   lens = box.getVSTableLens(name, false, 1);
                   checkFailedQuery(assembly, lens);
                   applyMaxColsLimit(lens, assembly.getName());
+                  observeTable((TableDataVSAssembly) assembly, lens);
                   lens = getRegionTableLens(lens, (CrosstabVSAssembly) assembly, box);
                   writeCrosstab((CrosstabVSAssembly) assembly, lens);
                   break;
@@ -1636,6 +1688,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                   lens = box.getVSTableLens(name, false, 1);
                   checkFailedQuery(assembly, lens);
                   applyMaxColsLimit(lens, assembly.getName());
+                  observeTable((TableDataVSAssembly) assembly, lens);
                   lens = getRegionTableLens(lens, (CalcTableVSAssembly) assembly, box);
                   writeCalcTable((CalcTableVSAssembly) assembly, lens);
                   break;
@@ -4637,6 +4690,7 @@ public abstract class AbstractVSExporter implements VSExporter {
    protected ViewsheetSandbox box;
    protected RuntimeViewsheet rvs;
    private boolean match; // match layout flag
+   protected BiConsumer<String, TableLens> tableObserver;
    private boolean expandSelections; // expand selection list/tree
    protected boolean log = false; // should log execution
    private boolean logExport = false;
