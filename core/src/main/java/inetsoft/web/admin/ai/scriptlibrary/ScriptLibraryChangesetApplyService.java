@@ -220,16 +220,17 @@ public class ScriptLibraryChangesetApplyService {
       String description = original.getDescription() == null ? "" : original.getDescription();
       String text = original.getText() == null ? "" : original.getText();
       mutationEntered.set(true);
-      lib.setScript(name, text);
+      boolean verified = lib.runAtomically(() -> {
+         lib.setScript(name, text);
+
+         if(!description.isEmpty()) {
+            lib.setScriptComment(name, description);
+         }
+
+         lib.save();
+         return lib.getScript(name) != null;
+      });
       DependencyHandler.getInstance().updateScriptDependencies(null, text, scriptEntry(name));
-
-      if(!description.isEmpty()) {
-         lib.setScriptComment(name, description);
-      }
-
-      lib.save();
-
-      boolean verified = scriptLibraryService.exists(name, user);
       String after = verified ? ScriptLibraryChangePlanService.project(name, description, text) : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ScriptLibraryApplyOutcome(key, null, after, status,
@@ -269,8 +270,11 @@ public class ScriptLibraryChangesetApplyService {
       String newText = ScriptLibraryChangePlanService.renamedText(name, newName, oldText);
       boolean rewritten = !Objects.equals(oldText, newText);
       mutationEntered.set(true);
-      lib.renameScript(name, newName);
-      lib.save();
+      lib.runAtomically(() -> {
+         lib.renameScript(name, newName);
+         lib.save();
+         return null;
+      });
 
       if(permission != null) {
          scriptLibraryService.securityEngine.removePermission(ResourceType.SCRIPT, name);
@@ -308,10 +312,11 @@ public class ScriptLibraryChangesetApplyService {
       ScriptLibraryEntryDetail entry = scriptLibraryService.requireEntry(name, user);
       String before = ScriptLibraryChangePlanService.project(entry);
       mutationEntered.set(true);
-      lib.setScriptComment(name, original.getDescription());
-      lib.save();
-
-      boolean verified = Tool.equals(lib.getScriptComment(name), original.getDescription());
+      boolean verified = lib.runAtomically(() -> {
+         lib.setScriptComment(name, original.getDescription());
+         lib.save();
+         return Tool.equals(lib.getScriptComment(name), original.getDescription());
+      });
       String after = verified ?
          ScriptLibraryChangePlanService.project(name, original.getDescription(), entry.text()) : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
@@ -350,10 +355,11 @@ public class ScriptLibraryChangesetApplyService {
       mutationEntered.set(true);
       // drop the function's edges to its callees so they are not refused as "used by" a deleted one
       DependencyHandler.getInstance().updateScriptDependencies(entry.text(), null, scriptEntry(name));
-      lib.removeScript(name);
-      lib.save();
-
-      boolean verified = !scriptLibraryService.exists(name, user);
+      boolean verified = lib.runAtomically(() -> {
+         lib.removeScript(name);
+         lib.save();
+         return lib.getScript(name) == null;
+      });
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       String advisory = dependents.isEmpty() ? null :
          "still used by: " + String.join(", ", dependents) + " -- those will break while this " +
@@ -411,18 +417,23 @@ public class ScriptLibraryChangesetApplyService {
          case CREATE -> {
             DependencyHandler.getInstance().updateScriptDependencies(
                lib.getScript(undo.name), null, scriptEntry(undo.name));
-            lib.removeScript(undo.name);
-            lib.save();
-            verified = lib.getScript(undo.name) == null;
+            verified = lib.runAtomically(() -> {
+               lib.removeScript(undo.name);
+               lib.save();
+               return lib.getScript(undo.name) == null;
+            });
          }
          case RENAME -> {
-            lib.renameScript(undo.newName, undo.name);
+            verified = lib.runAtomically(() -> {
+               lib.renameScript(undo.newName, undo.name);
 
-            if(undo.text != null) {
-               lib.setScript(undo.name, undo.text);
-            }
+               if(undo.text != null) {
+                  lib.setScript(undo.name, undo.text);
+               }
 
-            lib.save();
+               lib.save();
+               return lib.getScript(undo.name) != null && lib.getScript(undo.newName) == null;
+            });
 
             if(undo.permission != null) {
                scriptLibraryService.securityEngine.removePermission(ResourceType.SCRIPT, undo.newName);
@@ -433,31 +444,32 @@ public class ScriptLibraryChangesetApplyService {
                scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.newName,
                   undo.displacedPermission);
             }
-
-            verified = lib.getScript(undo.name) != null && lib.getScript(undo.newName) == null;
          }
          case UPDATE -> {
-            lib.setScriptComment(undo.name, undo.description);
-            lib.save();
-            verified = Tool.equals(lib.getScriptComment(undo.name), undo.description);
+            verified = lib.runAtomically(() -> {
+               lib.setScriptComment(undo.name, undo.description);
+               lib.save();
+               return Tool.equals(lib.getScriptComment(undo.name), undo.description);
+            });
          }
          default -> {
-            lib.setScript(undo.name, undo.text);
             DependencyHandler.getInstance().updateScriptDependencies(
                null, undo.text, scriptEntry(undo.name));
+            verified = lib.runAtomically(() -> {
+               lib.setScript(undo.name, undo.text);
 
-            if(undo.description != null && !undo.description.isEmpty()) {
-               lib.setScriptComment(undo.name, undo.description);
-            }
+               if(undo.description != null && !undo.description.isEmpty()) {
+                  lib.setScriptComment(undo.name, undo.description);
+               }
 
-            lib.save();
+               lib.save();
+               return lib.getScript(undo.name) != null;
+            });
 
             if(undo.permission != null) {
                scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.name,
                   undo.permission);
             }
-
-            verified = lib.getScript(undo.name) != null;
          }
       }
 
