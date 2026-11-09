@@ -2883,8 +2883,14 @@ public class TablePaintable extends BasePaintable {
             isRepeat = (Boolean) res[1];
          }
 
-         lines = Common.processText(str, bounds, align, wrap, font, nbounds,
-                                    lineoff, elem.getSpacing(), fm, right);
+         // the text was completed on the previous pages of the span
+         if(str == null) {
+            lines = new Vector();
+         }
+         else {
+            lines = Common.processText(str, bounds, align, wrap, font, nbounds,
+                                       lineoff, elem.getSpacing(), fm, right);
+         }
       }
 
       // fixed nbounds, the Common.processText's problem, cause the nbounds
@@ -3276,6 +3282,8 @@ public class TablePaintable extends BasePaintable {
       String substr = str;
       boolean repeat = false;
       boolean isRepeat = false;
+      // the text continued from a remainder on a previous page (Bug #80840)
+      boolean flowed = false;
 
       // find span in each page from the span's first page
       // to current page painted data, if previous page not
@@ -3365,9 +3373,14 @@ public class TablePaintable extends BasePaintable {
                   max++;
                }
 
+               // a label that fits on each page of its span is repeated on every
+               // page. a text that flowed over pages is complete once it ends,
+               // repeating it would draw its start again on the remaining pages
+               // of the span (Bug #80840)
                substr = !isRepeat ? substr.substring(max) :
                                     // not repeat? complete
-                                    (!repeatCell ? null : str);
+                                    (!repeatCell || flowed ? null : str);
+               flowed = flowed || !isRepeat;
 
                // the line ends returned by processText exclude the blanks at
                // a wrap, so the remainder starts with them. processText drops

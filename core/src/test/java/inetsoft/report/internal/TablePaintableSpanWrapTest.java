@@ -151,12 +151,9 @@ class TablePaintableSpanWrapTest {
          }
       }
 
-      // every word whole, once, in order. when the measured height leaves page space
-      // after the last word (it does with the Linux font metrics), the span's remaining
-      // page repaints the start of the cell; that is a separate defect, so only the
-      // words up to the end of the text are checked
-      List<String> head = drawn.subList(0, Math.min(WORDS, drawn.size()));
-      assertEquals(expected, head, "colW=" + colW + " drawn lines: " + pages);
+      // every word whole, once, in order, and nothing after the last word (the span's
+      // pages after the text ended stay blank, Bug #80840)
+      assertEquals(expected, drawn, "colW=" + colW + " drawn lines: " + pages);
    }
 
    // the narrowest integer column width (pt) whose first page shows every word whole.
