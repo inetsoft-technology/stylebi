@@ -102,6 +102,40 @@ class BindingAgentControllerTest {
       verify(fields).list(eq("rt1"), any(), any(Principal.class));
    }
 
+   /** Bug #80810: set_table_source must refuse a table list_bindable_fields does not offer. */
+   @Test
+   void setTableSourceRefusesAnUnlistedTableAndNeverWritesIt() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.runtimeId(eq("tok"), any(Principal.class))).thenReturn("rt1");
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), eq("T1"), any(Principal.class))).thenReturn(List.of(
+         new inetsoft.web.wiz.binding.model.BindableTable("Order Model", false, List.of())));
+      TableBindingService tableService = mock(TableBindingService.class);
+      when(tableService.setSource(any(), any(), any(), any(), anyBoolean())).thenReturn(List.of());
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions,
+         fields, mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> controller.setTableSource(
+            "tok", new BindingAgentController.TableSourceRequest("T1", "Order Model_O", null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("Order Model_O"));
+      verify(tableService, never()).setSource(any(), any(), any(), any(), anyBoolean());
+
+      controller.setTableSource(
+         "tok", new BindingAgentController.TableSourceRequest("T1", "Order Model", null),
+         principal());
+      verify(tableService).setSource(eq("tok"), any(Principal.class), eq("T1"),
+                                     eq("Order Model"), eq(false));
+   }
+
    private static BindingAgentController controllerWith(SheetAgentFeature feature,
                                                         ViewsheetSessionService sessions,
                                                         BindableFieldsService fields)

@@ -280,6 +280,20 @@ class BindableColumnsTest {
       assertTrue(thrown.getMessage().contains("Query1"), "list what it can bind to");
    }
 
+   /** Bug #80810: set_table_source (table, crosstab, calc table) shares the bare-repoint check. */
+   @Test
+   void requireKnownTableRefusesAnUnlistedTableForTableCrosstabAndCalcTable() {
+      for(String assembly : List.of("Table1", "Crosstab1", "CalcTable1")) {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> BindableColumns.requireKnownTable(NO_SOURCE, assembly, "Query1_O"));
+         assertTrue(thrown.getMessage().contains("Query1_O"));
+         assertTrue(thrown.getMessage().contains("Query1"));
+         assertDoesNotThrow(
+            () -> BindableColumns.requireKnownTable(NO_SOURCE, assembly, "Query1"));
+      }
+   }
+
    @Test
    void requireKnownTableAcceptsAListedTableOrNoRequestAtAll() {
       assertDoesNotThrow(() -> BindableColumns.requireKnownTable(NO_SOURCE, "Chart1", "Query1"));
