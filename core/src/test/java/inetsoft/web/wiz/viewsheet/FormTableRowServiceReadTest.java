@@ -64,6 +64,7 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class FormTableRowServiceReadTest {
    private static final int ROWS = 150;
+   private CapturingCommandDispatcher readDispatcher;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -137,8 +138,10 @@ class FormTableRowServiceReadTest {
       }).when(sessions).mutate(anyString(), any(Principal.class), any());
       doAnswer(inv -> {
          ViewsheetSessionService.Read<?> read = inv.getArgument(2);
-         return CapturingCommandDispatcher.withCapturingDispatcher(user,
-            d -> read.run(rvs, "rt1", d));
+         return CapturingCommandDispatcher.withCapturingDispatcher(user, d -> {
+            readDispatcher = d;
+            return read.run(rvs, "rt1", d);
+         });
       }).when(sessions).read(anyString(), any(Principal.class), any());
 
       service = new FormTableRowService(sessions, forms);
@@ -376,6 +379,56 @@ class FormTableRowServiceReadTest {
       assertTrue(e.getMessage().contains("'Table1'"), e.getMessage());
       assertTrue(e.getMessage().contains("150 data row(s)"), e.getMessage());
       assertTrue(e.getMessage().contains("not currently rendered"), e.getMessage());
+   }
+
+   @Test
+   void aTimedOutLoadSurfacesTheDispatchedErrorNotTheTabExplanation() throws Exception {
+      inetsoft.report.lens.MaxRowsTableLens timedOut = mock(inetsoft.report.lens.MaxRowsTableLens.class);
+      when(timedOut.isTimeoutTable()).thenReturn(true);
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getTable()).thenReturn(timedOut);
+      when(rvs.getViewsheetSandbox().orElseThrow().getVSTableLens(eq("Table1"), anyBoolean()))
+         .thenReturn(lens);
+
+      Exception e = assertThrows(Exception.class,
+         () -> service.read("tok", user, "Table1", 0, 50, ""));
+
+      assertFalse(e instanceof IllegalArgumentException, e.toString());
+      assertTrue(e.getMessage().contains("timeout"), e.getMessage());
+      assertFalse(e.getMessage().contains("not currently rendered"), e.getMessage());
+   }
+
+   @Test
+   void aFailedLoadSurfacesTheDispatchedErrorNotTheTabExplanation() throws Exception {
+      when(rvs.getViewsheetSandbox().orElseThrow().getVSTableLens(eq("Table1"), anyBoolean()))
+         .thenThrow(new IllegalStateException("query exploded"));
+
+      Exception e = assertThrows(Exception.class,
+         () -> service.read("tok", user, "Table1", 0, 50, ""));
+
+      assertFalse(e instanceof IllegalArgumentException, e.toString());
+      assertTrue(e.getMessage().contains("query exploded"), e.getMessage());
+   }
+
+   @Test
+   void aScriptFailureIsAppendedToTheNotLoadedExplanation() throws Exception {
+      when(rvs.getViewsheetSandbox().orElseThrow().getVSTableLens(eq("Table1"), anyBoolean()))
+         .thenAnswer(inv -> {
+            inetsoft.web.viewsheet.command.MessageCommand info =
+               new inetsoft.web.viewsheet.command.MessageCommand();
+            info.setType(inetsoft.web.viewsheet.command.MessageCommand.Type.INFO);
+            info.setMessage(inetsoft.web.viewsheet.controller.table.BaseTableService
+                               .SCRIPT_FAILURE_PREFIX + "Table1\nScript failed:\nboom");
+            readDispatcher.sendCommand(info);
+            return null;
+         });
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.read("tok", user, "Table1", 0, 50, ""));
+
+      assertTrue(e.getMessage().contains("not currently rendered"), e.getMessage());
+      assertTrue(e.getMessage().contains("Script failed:"), e.getMessage());
+      assertTrue(e.getMessage().contains("boom"), e.getMessage());
    }
 
    @Test

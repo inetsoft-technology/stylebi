@@ -393,15 +393,23 @@ public class FormTableRowService {
 
          LoadTableDataCommand load = lastLoad(dispatcher, assemblyName);
 
-         if(inRange && load == null) {
+         if(inRange && load == null && dispatcher.getErrors().isEmpty()) {
             // loadTableData dispatches nothing for an assembly that is not rendered (a Form table
             // in a non-selected Tab) or has no table lens; an empty window next to a real
-            // rowCount would read as "more rows exist" and make a paging caller loop
-            throw new IllegalArgumentException(
+            // rowCount would read as "more rows exist" and make a paging caller loop. When it
+            // dispatched an ERROR instead (timeout, failed query), the post-check of
+            // withCapturingDispatcher reports that real message, so it is left to do so.
+            StringBuilder message = new StringBuilder(
                "'" + assemblyName + "' has " + dataRows + " data row(s) but its rows were not " +
                "loaded; it is probably not currently rendered (for example it sits in a Tab " +
                "whose selected tab is another one). Select that tab in the Preview and read " +
                "again.");
+
+            for(String warning : dispatcher.getWarnings()) {
+               message.append('\n').append(warning);
+            }
+
+            throw new IllegalArgumentException(message.toString());
          }
 
          Map<String, Object> result = new LinkedHashMap<>();
