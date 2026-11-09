@@ -574,7 +574,19 @@ public class GraphTarget implements Cloneable, Serializable, XMLSerializable {
     * @param form The form to populate.
     */
    public final TargetForm initializeForm(TargetForm form, DataSet data) {
-      form.setTextSpec(GraphUtil.getTextSpec(fmt, null, null));
+      return initializeForm(form, data, null);
+   }
+
+   /**
+    * Populate the graph form with the appropriate values which are common to
+    * all Graph Targets.
+    * @param form The form to populate.
+    * @param sourceFormat the measure's own format. When the target has no user defined format,
+    *                     the label uses this format object as is (like the axis does) instead of
+    *                     re-resolving its pattern in the session locale. Can be null.
+    */
+   public final TargetForm initializeForm(TargetForm form, DataSet data, Format sourceFormat) {
+      form.setTextSpec(GraphUtil.getTextSpec(fmt, sourceFormat, null));
       form.setFillAbove(fillAboveColor);
       form.setFillBelow(fillBelowColor);
       // a stored alpha is not range-checked when it is loaded, keep an out-of-range one from

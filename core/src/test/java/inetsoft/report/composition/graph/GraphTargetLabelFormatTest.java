@@ -23,10 +23,14 @@ import inetsoft.graph.element.IntervalElement;
 import inetsoft.graph.guide.form.TargetForm;
 import inetsoft.graph.visual.LabelFormVO;
 import inetsoft.test.*;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XFormatInfo;
+import inetsoft.uql.XPrincipal;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -34,6 +38,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.text.*;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -111,6 +116,62 @@ class GraphTargetLabelFormatTest {
       };
 
       assertEquals(List.of(expected), labels);
+   }
+
+   /**
+    * Bug #80624: the target label must keep the measure's own format object (as the axis does)
+    * instead of re-resolving its pattern in the session locale.
+    */
+   @Test
+   void labelKeepsSourceFormatInOtherSessionLocale() {
+      Format source = NumberFormat.getCurrencyInstance(Locale.US);
+      assertEquals("$450,000.00", source.format(450000));
+      assertEquals("$450,000.00", labelFormat(source, null, "zh_CN").format(450000));
+      assertEquals("$450,000.00", labelFormat(source, null, "de_DE").format(450000));
+   }
+
+   @Test
+   void userDefinedLabelFormatWinsOverSourceFormat() {
+      Format source = NumberFormat.getCurrencyInstance(Locale.US);
+      Format actual = labelFormat(source, new XFormatInfo("DecimalFormat", "#,##0.0"), "zh_CN");
+      assertEquals("450,000.0", actual.format(450000));
+   }
+
+   @Test
+   void noSourceFormatKeepsPreviousBehavior() {
+      Format actual = labelFormat(null, new XFormatInfo("DecimalFormat", "#,##0.0"), "zh_CN");
+      assertEquals("450,000.0", actual.format(450000));
+      assertNull(labelFormat(null, null, "zh_CN"));
+   }
+
+   private static Format labelFormat(Format source, XFormatInfo userFormat, String locale) {
+      java.security.Principal oldPrincipal = ThreadContext.getContextPrincipal();
+      XPrincipal principal = new XPrincipal(new IdentityID("tester", "host-org"));
+      principal.setProperty(XPrincipal.LOCALE, locale);
+      ThreadContext.setContextPrincipal(principal);
+
+      try {
+         GraphTarget target = new GraphTarget();
+         target.setField("y");
+         target.setStrategy(new DynamicLineWrapper("450000"));
+
+         if(source != null) {
+            // GraphGenerator.addTarget stores the source format the same way
+            target.getTextFormat().getDefaultFormat().setFormat(new XFormatInfo(source));
+         }
+
+         if(userFormat != null) {
+            target.getTextFormat().getUserDefinedFormat().setFormat(userFormat);
+         }
+
+         TargetForm form = new TargetForm();
+         target.initializeForm(form, new DefaultDataSet(new Object[][] { { "y" }, { 1 } }),
+                               source);
+         return form.getTextSpec().getFormat();
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
+      }
    }
 
    private static List<String> plot(String strategy, boolean valueFormat, String label) {
