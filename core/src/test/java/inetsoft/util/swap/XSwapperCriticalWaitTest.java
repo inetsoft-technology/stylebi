@@ -25,6 +25,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -65,5 +68,40 @@ class XSwapperCriticalWaitTest {
       assertTrue(elapsed[0] > 0, "waitForMemory() did not return within 30s");
       assertTrue(elapsed[0] >= 500L, "returned before the cap: " + elapsed[0] + "ms");
       assertTrue(elapsed[0] < 15000L, "cap was not honored: " + elapsed[0] + "ms");
+   }
+
+   /**
+    * An interrupt that reaches a thread while it waits for memory must end the wait and stay
+    * set when waitForMemory() returns. A script timeout or cancel is often delivered as a
+    * single Thread.interrupt() (Graal's Context.interrupt sends it once), so clearing it here
+    * means the runaway work is never stopped.
+    */
+   @Test
+   void interruptEndsTheWaitAndStaysSet() throws Exception {
+      final XSwapper swapper = spy(XSwapper.getSwapper());
+      // memory is critical and stays critical, and nothing is ever freed
+      doReturn(XSwapper.CRITICAL_MEM).when(swapper).getMemoryState();
+      swapper.setMaxCriticalWait(10000L);
+
+      final AtomicLong elapsed = new AtomicLong(-1L);
+      final AtomicBoolean interruptedAfter = new AtomicBoolean();
+      Thread caller = new Thread(() -> {
+         long start = System.currentTimeMillis();
+         swapper.waitForMemory();
+         elapsed.set(System.currentTimeMillis() - start);
+         interruptedAfter.set(Thread.currentThread().isInterrupted());
+      });
+
+      caller.setDaemon(true);
+      caller.start();
+      // let the caller reach the critical wait loop before interrupting it
+      Thread.sleep(300L);
+      caller.interrupt();
+      caller.join(30000L);
+
+      assertTrue(elapsed.get() >= 0, "waitForMemory() did not return within 30s");
+      assertTrue(elapsed.get() < 2000L,
+                 "the interrupt did not end the wait: returned after " + elapsed.get() + "ms");
+      assertTrue(interruptedAfter.get(), "the interrupt status was cleared by waitForMemory()");
    }
 }

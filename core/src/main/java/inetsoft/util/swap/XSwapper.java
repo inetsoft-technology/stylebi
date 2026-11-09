@@ -625,6 +625,7 @@ public final class XSwapper {
          final long maxWait = getMaxCriticalWait();
          final long deadline = System.currentTimeMillis() + maxWait;
          boolean timedOut = false;
+         boolean interrupted = false;
 
          final Thread curr = Thread.currentThread();
          // waiting for memory in swapper thread, could deadlock
@@ -700,7 +701,13 @@ public final class XSwapper {
                      waitCondition.await(200, TimeUnit.MILLISECONDS);
                   }
                }
-               catch(InterruptedException ignore) {
+               catch(InterruptedException ex) {
+                  // the caller is being stopped (e.g. a script timeout or cancel, which may be
+                  // sent only once): stop waiting and restore the status after the loop, so the
+                  // caller's next interruptible step sees it. restoring it here would make the
+                  // next wait throw at once and spin.
+                  interrupted = true;
+                  break;
                }
 
                if(deadlock) {
@@ -721,6 +728,10 @@ public final class XSwapper {
 
             if(!deadlock) {
                waitLock.unlock();
+            }
+
+            if(interrupted) {
+               curr.interrupt();
             }
          }
       }
