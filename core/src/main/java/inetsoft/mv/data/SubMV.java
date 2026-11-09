@@ -444,19 +444,36 @@ public class SubMV implements Cloneable {
 
          // Pass the IncludeNullCompare flag down to the XDimIndex
          rtdims[idx].setIncludeNullCompare(getIncludeNullCompare());
-         BitSet rows = rtdims[idx].getRows(op, getCondValue(val, rtdims[idx], cnull),
-                                           cond.isIsNot(), cnull);
+         long key = getCondValue(val, rtdims[idx], cnull);
+         BitSet rows = rtdims[idx].getRows(op, key, cond.isIsNot(), cnull);
 
          // 'not equal' is the two ranges around the value, which never contain null. A query
          // drops null for it (bug #79870), but the MV creation keeps only the rows where the
          // negated delete condition ('= value') is true, which never includes null, so the
-         // incremental delete must remove the null rows too (bug #80570).
-         if(delete && "=".equals(op) && cond.isIsNot() && val != null && !"".equals(val)) {
+         // incremental delete must remove the null rows too (bug #80570). Not for a null or
+         // empty value: the dictionary (MV.fixFilter) has already mapped it to the null key,
+         // creation keeps the null rows for it and they must stay.
+         if(delete && "=".equals(op) && cond.isIsNot() && val != null && !"".equals(val) &&
+            !isNullKey(rtdims[idx], key, cnull))
+         {
             rows = addDeleteNullRows(rtdims[idx], rows, cnull);
          }
 
          return rows;
       }
+   }
+
+   /**
+    * Check if a condition key is the key of null in the column index.
+    * @param cnull true if the dimension column contains null.
+    */
+   private static boolean isNullKey(XDimIndex dim, long key, boolean cnull) {
+      if(dim instanceof MVMeasureColumn) {
+         return key == Double.doubleToLongBits(Tool.NULL_DOUBLE);
+      }
+
+      // the dictionary maps null and '' to 0 when the column contains null (XDimDictionary)
+      return cnull && key == 0;
    }
 
    /**

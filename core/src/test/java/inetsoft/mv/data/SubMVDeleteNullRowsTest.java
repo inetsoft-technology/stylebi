@@ -28,6 +28,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -76,6 +77,30 @@ class SubMVDeleteNullRowsTest {
       // not equal to null deletes the non-null rows only, as a query returns them
       assertEquals(rows(1, 2, 4, 5), delete(measure(), "=", null, true));
       assertEquals(query(measure(), "=", null, true), delete(measure(), "=", null, true));
+   }
+
+   @Test
+   void notEqualToNullKeyDoesNotAddNullRows() throws Exception {
+      // MV.fixFilter maps a null or '' value to the null key 0 of a column containing null:
+      // the delete must not take the null rows too (creation keeps them for '= null')
+      assertEquals(rows(1, 2, 4, 5), delete(bitDim(), "=", "0", true));
+      assertEquals(rows(1, 2, 4, 5), delete(dictDim(), "=", "0", true));
+      assertEquals(query(bitDim(), "=", "0", true), delete(bitDim(), "=", "0", true));
+      assertEquals(query(dictDim(), "=", "0", true), delete(dictDim(), "=", "0", true));
+   }
+
+   @Test
+   void dictionaryFixedNullOrEmptyValueDeletesNoMoreThanAQuery() throws Exception {
+      String[] col = { null, "a", "b", "", "c", "a" };
+
+      for(String val : new String[] { "", null }) {
+         assertEquals(fixedRows(col, val, false), fixedRows(col, val, true), "value " + val);
+         assertEquals(rows(1, 2, 4, 5), fixedRows(col, val, true), "value " + val);
+      }
+
+      // a real value still deletes the null (and '') rows
+      assertEquals(rows(0, 1, 3, 4, 5), fixedRows(col, "b", true));
+      assertEquals(rows(1, 4, 5), fixedRows(col, "b", false));
    }
 
    @Test
@@ -142,6 +167,37 @@ class SubMVDeleteNullRowsTest {
       throws Exception
    {
       return sub(dim).getRows(cond(op, val, not, true));
+   }
+
+   /**
+    * Rows of 'col != val' on an index built through a dictionary, with the condition fixed by
+    * the dictionary as MV.fixFilter does on the delete and query paths.
+    */
+   private static BitSet fixedRows(String[] col, String val, boolean delete) throws Exception {
+      XDimDictionary dict = new XDimDictionary();
+      dict.setDataType(String.class);
+
+      for(String v : Arrays.stream(col).filter(v -> v != null && !v.isEmpty()).distinct().sorted()
+         .toList())
+      {
+         dict.addValue(v);
+      }
+
+      dict.addValue(null);
+      dict.complete();
+      BitDimIndex idx = new BitDimIndex();
+
+      for(int row = 0; row < col.length; row++) {
+         idx.addKey(dict.indexOf(col[row], row), row);
+      }
+
+      idx.complete();
+      XBinaryCondition cond =
+         new XBinaryCondition(new XExpression("col", XExpression.FIELD),
+                              new XExpression(val, XExpression.VALUE), "=");
+      cond.setIsNot(true);
+      dict.fixFilter(cond);
+      return sub(idx).getRows(cond, delete);
    }
 
    private static SubMV sub(XDimIndex dim) throws Exception {

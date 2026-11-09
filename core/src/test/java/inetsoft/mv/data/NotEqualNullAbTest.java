@@ -148,9 +148,7 @@ class NotEqualNullAbTest {
       Field f = SubMV.class.getDeclaredField("rtdims");
       f.setAccessible(true);
       f.set(sub, new XDimIndex[] { idx });
-      java.lang.reflect.Method m = SubMV.class.getDeclaredMethod("getRows", XBinaryCondition.class);
-      m.setAccessible(true);
-      return (BitSet) m.invoke(sub, cond);
+      return sub.getRows(cond);
    }
 
    private static BitSet sql(String[] col, String val) throws Exception {
