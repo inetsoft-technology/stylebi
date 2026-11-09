@@ -1350,8 +1350,11 @@ public class SelectionBindingService {
    {
       if(measure != null) {
          if(!measure.isBlank()) {
-            measurePane.setMeasure(resolveMeasure(
-               runtimeId, user, assemblyName, table, additionalTables, measure));
+            SelectionMeasureResolver.Resolved resolved = SelectionMeasureResolver.resolveTyped(
+               dataOutputService, runtimeId, user, assemblyName, table, additionalTables,
+               measure);
+            measurePane.setMeasure(resolved.name());
+            resetSumForNonNumericMeasure(measurePane, resolved, result);
             return;
          }
 
@@ -1386,6 +1389,31 @@ public class SelectionBindingService {
          measurePane.setMeasure(null);
          result.put("droppedMeasure", stored);
       }
+   }
+
+   /**
+    * The dialog's aggregate dropdown offers Sum only for a numeric measure and falls back to
+    * Count when the measure changes to a non-numeric one (selection-measure-pane
+    * {@code updateAggregate}). A stored Sum would otherwise outlive the measure change and leave
+    * the list showing placeholder values (bug #80836); the reset is named in
+    * {@code formulaReset}. An explicit Sum request for a text measure is refused by the later
+    * formula write ({@code AssemblyPropertyService}), not here.
+    */
+   private static void resetSumForNonNumericMeasure(
+      SelectionMeasurePaneModel measurePane, SelectionMeasureResolver.Resolved measure,
+      Map<String, Object> result)
+   {
+      String type = measure.type();
+
+      if(type == null || type.isBlank() || XSchema.isNumericType(type) ||
+         !SelectionFormulaResolver.isSum(measurePane.getFormula()))
+      {
+         return;
+      }
+
+      String count = "Count";
+      measurePane.setFormula(count);
+      result.put("formulaReset", count);
    }
 
    /** resolveMeasure's dynamic test: {@code $(…)} or {@code =…}. A bare {@code $Foo} is literal. */

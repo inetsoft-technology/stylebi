@@ -495,6 +495,8 @@ public class AssemblyPropertyService {
       model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
                                            measureBefore);
       model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
+      requireSelectionFormulaFitsMeasure(runtimeId, user, assemblyName, type, model,
+                                         measureBefore, formulaBefore);
       model = requireKnownOutputAggregate(assemblyName, type, model, outputAggregateBefore);
       model = requireKnownOutputBinding(rvs, user, type, model, outputTableBefore,
                                         outputColumnBefore);
@@ -1293,6 +1295,52 @@ public class AssemblyPropertyService {
 
       return resolved.equals(after) ? model :
          PropertyPath.set(model, pane + ".selectionMeasurePaneModel.formula", resolved);
+   }
+
+   /**
+    * Sum is offered only for a numeric measure (the dialog's aggregate dropdown); a Sum stored over
+    * a text measure left the list showing placeholder values (bug #80836). Judges the effective
+    * measure/formula pair when EITHER changed, so a measure change under a stored Sum is caught
+    * too, for the list and the tree, on the aliases and raw paths. A dynamic ({@code $()}/
+    * {@code =}) measure or formula, and a measure the dropdown reports no type for (calc-field
+    * and other unlisted columns), is not judged; neither is a legacy pair left untouched.
+    */
+   private void requireSelectionFormulaFitsMeasure(String runtimeId, Principal user,
+                                                   String assemblyName, String type, Object model,
+                                                   String measureBefore, String formulaBefore)
+      throws Exception
+   {
+      String pane = selectionPane(type);
+      String measure = selectionMeasure(type, model);
+      String formula = selectionFormula(type, model);
+
+      if(pane == null || measure == null || measure.isBlank() || formula == null ||
+         !SelectionFormulaResolver.isSum(formula) ||
+         (measure.equals(measureBefore) && formula.equals(formulaBefore)))
+      {
+         return;
+      }
+
+      String table = (String) PropertyPath.get(model, pane + ".selectedTable");
+      @SuppressWarnings("unchecked")
+      List<String> additional = (List<String>) PropertyPath.get(model, pane + ".additionalTables");
+      SelectionMeasureResolver.Resolved resolved;
+
+      try {
+         resolved = SelectionMeasureResolver.resolveTyped(
+            dataOutputService, runtimeId, user, assemblyName, table, additional, measure);
+      }
+      catch(IllegalArgumentException e) {
+         // A stored measure the dropdown no longer offers is not this patch's doing.
+         if(measure.equals(measureBefore)) {
+            return;
+         }
+
+         throw e;
+      }
+
+      SelectionFormulaResolver.requireFitsMeasure(
+         assemblyName, formula, resolved.name(), resolved.type());
    }
 
    private static String outputAggregate(String type, Object model) {

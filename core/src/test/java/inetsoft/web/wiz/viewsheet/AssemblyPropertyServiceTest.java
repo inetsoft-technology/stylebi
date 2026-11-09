@@ -2174,6 +2174,93 @@ class AssemblyPropertyServiceTest {
          .thenReturn(columns.toArray(new OutputColumnRefModel[0]));
    }
 
+   /** Like offerMeasures, but each entry is {@code name:type}, as the dropdown reports a type. */
+   private static void offerTypedMeasures(String... nameTypes) throws Exception {
+      List<OutputColumnRefModel> columns = new ArrayList<>();
+      columns.add(new OutputColumnRefModel());
+
+      for(String nameType : nameTypes) {
+         OutputColumnRefModel column = new OutputColumnRefModel();
+         column.setName(nameType.substring(0, nameType.indexOf(':')));
+         column.setDataType(nameType.substring(nameType.indexOf(':') + 1));
+         columns.add(column);
+      }
+
+      when(lastDataOutput.getOutputSelectionColumns(eq("rt1"), any(), any()))
+         .thenReturn(columns.toArray(new OutputColumnRefModel[0]));
+   }
+
+   private static void setTypedList(SelectionListPropertyDialogModel model,
+                                    Map<String, Object> patch) throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+      offerTypedMeasures("AMOUNT:double", "CITY:string");
+      service.set("tok", principal(), "List1", patch, "");
+   }
+
+   // -- #80836: Sum only for a numeric selection measure --
+
+   @Test
+   void refusesSumOnATextSelectionMeasureAndWritesNothing() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setTypedList(model, Map.of("measure", "CITY", "formula", "Sum")));
+
+      assertTrue(thrown.getMessage().contains("CITY"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("string"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Count, Max or Min"), thrown.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesAMeasureChangeToTextUnderAStoredSum() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setFormula("Sum");
+
+      assertThrows(IllegalArgumentException.class,
+         () -> setTypedList(model, Map.of("measure", "CITY")));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesSumOnATextMeasureOfASelectionTreeOnTheRawPath() throws Exception {
+      SelectionTreePropertyDialogModel model = boundTree();
+      model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().setMeasure("CITY");
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+      offerTypedMeasures("AMOUNT:double", "CITY:string");
+
+      assertThrows(IllegalArgumentException.class, () -> service.set("tok", principal(), "Tree1",
+         Map.of("selectionTreePaneModel.selectionMeasurePaneModel.formula", "Sum"), ""));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void acceptsCountMaxMinOnATextMeasureAndSumOnANumericOne() throws Exception {
+      for(String formula : new String[] {"Count", "Max", "Min"}) {
+         SelectionListPropertyDialogModel model = boundList();
+         setTypedList(model, Map.of("measure", "CITY", "formula", formula));
+         assertEquals(formula, listFormula(model));
+      }
+
+      SelectionListPropertyDialogModel numeric = boundList();
+      setTypedList(numeric, Map.of("measure", "AMOUNT", "formula", "Sum"));
+      assertEquals("Sum", listFormula(numeric));
+   }
+
+   @Test
+   void doesNotJudgeADynamicMeasureOrAnUntypedOneForSum() throws Exception {
+      SelectionListPropertyDialogModel dynamic = boundList();
+      setTypedList(dynamic, Map.of("measure", "$(m)", "formula", "Sum"));
+      assertEquals("Sum", listFormula(dynamic));
+
+      SelectionListPropertyDialogModel untyped = boundList();
+      setList(untyped, Map.of("measure", "AMOUNT", "formula", "Sum"));
+      assertEquals("Sum", listFormula(untyped));
+   }
+
    private static SelectionListPropertyDialogModel boundList() {
       SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
       model.getSelectionListPaneModel().setSelectedTable("ORDERS");
