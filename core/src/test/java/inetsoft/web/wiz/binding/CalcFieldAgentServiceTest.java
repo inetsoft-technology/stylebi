@@ -50,6 +50,7 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -1537,7 +1538,10 @@ class CalcFieldAgentServiceTest {
                  warnings.toString());
    }
 
-   /** A chart that binds the flipped field as its own measure gets no replacement disclosure. */
+   /**
+    * A chart that binds the flipped field as its own plain measure keeps an identical field after
+    * the real flip (plain FlipB, aggregate none), so there is nothing to disclose.
+    */
    @Test
    void staysSilentForAFlippedFieldBoundAsAChartsPrimaryMeasure() throws Exception {
       Viewsheet vs = vsWithCorrelationChart(false);
@@ -1548,8 +1552,68 @@ class CalcFieldAgentServiceTest {
       own.setFormulaValue("None");
       info.addYField(own);
 
-      assertTrue(flipFlipBToAggregate(vs).stream().noneMatch(w -> w.contains("secondary/ranking")),
-                 "primary binding is the existing, separately handled case");
+      List<String> warnings = flipFlipBToAggregate(vs);
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("CorrFlip")), warnings.toString());
+   }
+
+   /** A Correlation whose FIRST column is the flipped field is replaced too: formula and 2nd column lost. */
+   @Test
+   void disclosesACorrelationWhosePrimaryColumnIsTheFlippedField() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      info.removeYField(1);
+      VSChartAggregateRef corr = new VSChartAggregateRef();
+      corr.setColumnValue("FlipB");
+      corr.setFormulaValue("Correlation");
+      corr.setSecondaryColumnValue("QUANTITY");
+      info.addYField(corr);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrFlip'") &&
+                 w.contains("Correlation(FlipB, QUANTITY)") && w.contains("was its column") &&
+                 w.contains("became 'FlipB'")), warnings.toString());
+   }
+
+   /** A Correlation on the COLOR channel whose second column is the flipped field. */
+   @Test
+   void disclosesACorrelationOnAnAestheticChannelThatTheFlipReplaces() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      info.removeYField(1);
+      VSChartAggregateRef corr = new VSChartAggregateRef();
+      corr.setColumnValue("REVENUE");
+      corr.setFormulaValue("Correlation");
+      corr.setSecondaryColumnValue("FlipB");
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(corr);
+      info.setColorField(color);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrFlip'") &&
+                 w.contains("color channel field 'Correlation(REVENUE, FlipB)'") &&
+                 w.contains("second column") && w.contains("became 'FlipB'")),
+                 warnings.toString());
+   }
+
+   /** An aesthetic channel on a field that has nothing to do with the flipped one stays silent. */
+   @Test
+   void staysSilentForAnAestheticChannelOnAnUnrelatedField() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      info.removeYField(1);
+      VSChartAggregateRef other = new VSChartAggregateRef();
+      other.setColumnValue("REVENUE");
+      other.setFormulaValue("Correlation");
+      other.setSecondaryColumnValue("QUANTITY");
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(other);
+      info.setColorField(color);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("CorrFlip")), warnings.toString());
    }
 
    /** A flip of a field no chart references as a secondary column stays silent. */

@@ -777,14 +777,17 @@ public class ModifyCalculateFieldService {
 
    /**
     * The chart fields that a calc type flip of {@code refname} to {@code newRef} would replace
-    * although the field is bound to them only as an auxiliary column: the second column of a
-    * two-column aggregate such as Correlation, or the ranking / sort-by measure of a dimension.
-    * {@link ChartVSAssembly#changeCalcType} swaps the whole ref for a fresh one of the flipped
-    * field, and the per-binding count {@link #findBindingsLostOnCalcTypeChange} compares does not
-    * drop (the new ref still names the field), so nothing else reports it. Each entry reads
+    * with a different field although the per-binding count
+    * {@link #findBindingsLostOnCalcTypeChange} compares does not drop. {@link
+    * ChartVSAssembly#changeCalcType} swaps the WHOLE ref for a fresh one of the flipped field
+    * wherever the field is bound, including as the second column of a two-column aggregate
+    * (Correlation), as the first column of one (the formula and second column are lost), as a
+    * dimension's ranking / sort-by measure, and on the colour/shape/size/text (and relation node)
+    * channels, chart-wide or per measure on a multi-style chart. Each entry reads
     * {@code chart 'C' y field 'Correlation(A, F)' (F was its second column) became 'F'}, or
-    * {@code was removed} when no field takes its slot. The change is tried on a copy, as in
-    * {@link #syncAssemblies}.
+    * {@code was removed} when no field takes its slot. The real change is tried on a copy and the
+    * refs that used the field are compared before and after, so the answer is what
+    * {@link #syncAssemblies} will really do rather than a list of shelves.
     */
    public static List<String> findChartFieldsReplacedOnCalcTypeChange(Viewsheet vs, String tname,
                                                                       String refname,
@@ -811,19 +814,51 @@ public class ModifyCalculateFieldService {
 
                for(int i = 0; i < brefs.size(); i++) {
                   DataRef ref = brefs.get(i);
-                  String use = auxiliaryUse(ref, refname);
-                  String text = describeChartRef(ref);
+                  String key = replacedKey(ref);
 
-                  if(use == null || arefs.stream().anyMatch(a -> text.equals(describeChartRef(a)))) {
+                  if(fieldUse(ref, refname) == null ||
+                     arefs.stream().anyMatch(a -> key.equals(replacedKey(a))))
+                  {
                      continue;
                   }
 
-                  replaced.add("chart '" + bind.getName() + "' " + axis + " field '" + text +
-                               "' (" + refname + " was its " + use + ") " +
-                               (arefs.size() == brefs.size()
-                                  ? "became '" + describeChartRef(arefs.get(i)) + "'"
-                                  : "was removed"));
+                  replaced.add(replacedEntry(bind.getName(), axis + " field", ref, refname,
+                                             arefs.size() == brefs.size() ? arefs.get(i) : null));
                }
+            }
+
+            Map<String, DataRef> baes = aestheticFields(before, "");
+            Map<String, DataRef> aaes = aestheticFields(after, "");
+
+            if(before.isMultiStyles()) {
+               for(ChartRef measure : before.getBindingRefs(false)) {
+                  if(measure instanceof ChartAggregateRef) {
+                     baes.putAll(aestheticFields((ChartBindable) measure,
+                                                 replacedKey(measure)));
+                  }
+               }
+
+               for(ChartRef measure : after.getBindingRefs(false)) {
+                  if(measure instanceof ChartAggregateRef) {
+                     aaes.putAll(aestheticFields((ChartBindable) measure,
+                                                 replacedKey(measure)));
+                  }
+               }
+            }
+
+            for(Map.Entry<String, DataRef> e : baes.entrySet()) {
+               DataRef ref = e.getValue();
+               DataRef nref = aaes.get(e.getKey());
+
+               if(fieldUse(ref, refname) == null ||
+                  (nref != null && replacedKey(ref).equals(replacedKey(nref))))
+               {
+                  continue;
+               }
+
+               String channel = e.getKey().substring(e.getKey().indexOf('|') + 1);
+               replaced.add(replacedEntry(bind.getName(), channel + " channel field", ref,
+                                          refname, nref));
             }
          }
          catch(Exception e) {
@@ -833,6 +868,54 @@ public class ModifyCalculateFieldService {
       }
 
       return replaced;
+   }
+
+   private static String replacedEntry(String chart, String where, DataRef ref, String refname,
+                                       DataRef nref)
+   {
+      String text = describeChartRef(ref);
+      String entry = "chart '" + chart + "' " + where + " '" + text + "' (" + refname +
+         " was its " + fieldUse(ref, refname) + ") ";
+
+      if(nref == null) {
+         return entry + "was removed";
+      }
+
+      String ntext = describeChartRef(nref);
+      return entry + "became '" + ntext + "'" +
+         (ntext.equals(text) ? " (" + kind(nref) + ")" : "");
+   }
+
+   /** The colour/shape/size/text and relation node channel refs of {@code bindable}. */
+   private static Map<String, DataRef> aestheticFields(ChartBindable bindable, String owner) {
+      Map<String, DataRef> fields = new LinkedHashMap<>();
+      putAesthetic(fields, owner + "|color", bindable.getColorField());
+      putAesthetic(fields, owner + "|shape", bindable.getShapeField());
+      putAesthetic(fields, owner + "|size", bindable.getSizeField());
+      putAesthetic(fields, owner + "|text", bindable.getTextField());
+
+      if(bindable instanceof RelationChartInfo) {
+         RelationChartInfo rinfo = (RelationChartInfo) bindable;
+         putAesthetic(fields, owner + "|node color", rinfo.getNodeColorField());
+         putAesthetic(fields, owner + "|node size", rinfo.getNodeSizeField());
+      }
+
+      return fields;
+   }
+
+   private static void putAesthetic(Map<String, DataRef> fields, String key, Object aesthetic) {
+      if(aesthetic instanceof AestheticRef && ((AestheticRef) aesthetic).getDataRef() != null) {
+         fields.put(key, ((AestheticRef) aesthetic).getDataRef());
+      }
+   }
+
+   private static String kind(DataRef ref) {
+      return ref instanceof VSDimensionRef ? "dimension" : "measure";
+   }
+
+   /** What identifies a field for the before/after comparison: its text and its kind. */
+   private static String replacedKey(DataRef ref) {
+      return describeChartRef(ref) + "#" + kind(ref);
    }
 
    private static List<DataRef> chartAxisFields(VSChartInfo info, String axis) {
@@ -849,30 +932,37 @@ public class ModifyCalculateFieldService {
    }
 
    /**
-    * How {@code ref} uses {@code name} when it is not its own column, or null.
+    * How {@code ref} uses {@code name} (the way the real calc type change matches it), or null.
     */
-   private static String auxiliaryUse(DataRef ref, String name) {
+   private static String fieldUse(DataRef ref, String name) {
       if(ref instanceof VSAggregateRef) {
          VSAggregateRef aref = (VSAggregateRef) ref;
 
-         if(!VSUtil.matchRefName(aref.getColumnValue(), name) &&
-            VSUtil.matchRefName(aref.getSecondaryColumnValue(), name))
-         {
+         if(VSUtil.matchRefName(aref.getColumnValue(), name)) {
+            return "column";
+         }
+
+         if(VSUtil.matchRefName(aref.getSecondaryColumnValue(), name)) {
             return "second column";
          }
       }
       else if(ref instanceof VSDimensionRef) {
          VSDimensionRef dref = (VSDimensionRef) ref;
 
-         if(!VSUtil.matchRefName(dref.getGroupColumnValue(), name)) {
-            if(VSUtil.matchRefName(dref.getRankingColValue(), name)) {
-               return "ranking measure";
-            }
-
-            if(VSUtil.matchRefName(dref.getSortByColValue(), name)) {
-               return "sort-by measure";
-            }
+         if(VSUtil.matchRefName(dref.getGroupColumnValue(), name)) {
+            return "column";
          }
+
+         if(VSUtil.matchRefName(dref.getRankingColValue(), name)) {
+            return "ranking measure";
+         }
+
+         if(VSUtil.matchRefName(dref.getSortByColValue(), name)) {
+            return "sort-by measure";
+         }
+      }
+      else if(ref != null && VSUtil.matchRefName(ref.getName(), name)) {
+         return "column";
       }
 
       return null;
