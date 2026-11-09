@@ -3368,6 +3368,24 @@ public class TablePaintable extends BasePaintable {
                substr = !isRepeat ? substr.substring(max) :
                                     // not repeat? complete
                                     (!repeatCell ? null : str);
+
+               // the line ends returned by processText exclude the blanks at
+               // a wrap, so the remainder starts with them. processText drops
+               // such blanks after a wrap but never on the first line, so keep
+               // them and the next word may be broken on the next page, needing
+               // one more line than measured (lost at the end of the span).
+               // drop them here, same as processText does after a wrap
+               if(wrap && !isRepeat) {
+                  int skip = 0;
+
+                  while(skip < substr.length() && substr.charAt(skip) == ' ') {
+                     skip++;
+                  }
+
+                  if(skip < substr.length()) {
+                     substr = substr.substring(skip);
+                  }
+               }
             }
          }
 
