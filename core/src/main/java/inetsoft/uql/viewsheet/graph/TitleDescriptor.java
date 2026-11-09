@@ -461,6 +461,17 @@ public class TitleDescriptor implements AssetObject, ContentObject{
       return list;
    }
 
+   /**
+    * The tiered value behind one of the title's look properties, by field name: visible.
+    */
+   public CompositeValue<?> chromeValue(String field) {
+      if("visible".equals(field)) {
+         return visible;
+      }
+
+      throw new IllegalArgumentException("Not a title look property: " + field);
+   }
+
    public void resetCompositeValues(CompositeValue.Type type) {
       visible.resetValue(type);
       labelGap.resetValue(type);

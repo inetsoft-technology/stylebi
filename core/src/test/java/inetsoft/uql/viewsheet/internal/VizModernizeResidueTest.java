@@ -27,11 +27,19 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.TextFormat;
+import inetsoft.uql.viewsheet.graph.TitleDescriptor;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.util.DataSpace;
+import inetsoft.util.Tool;
 import inetsoft.util.css.CSSDictionary;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +50,9 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.Insets;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -424,6 +435,78 @@ class VizModernizeResidueTest {
    }
 
    @Test
+   void anOldFilesLineOffIsNotResidue() throws Exception {
+      Viewsheet saved = legacySheet();
+      ChartVSAssemblyInfo source = addChart(saved, "Chart1");
+      bindBar(source);
+      stateAxis(source).setLineVisible(false);
+      String xml = xml(source);
+      String old = xml.replaceAll("\\s+userLineVisible=\"[a-z]*\"", "");
+      assertNotEquals(xml, old, "premise: the line wrote its flag");
+
+      Viewsheet vs = legacySheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().parseXML(
+         Tool.parseXML(new StringReader(old)).getDocumentElement());
+      vs.addAssembly(chart);
+      ChartVSAssemblyInfo info = chart.getChartInfo();
+      assertNull(info.getVizMark(), "premise: a classic chart");
+      assertTrue(stateAxis(info).isUserLineVisible(), "premise: the parse took the off as set");
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertEquals(VizMark.MODERN_LIGHT, info.getVizMark());
+      assertFalse(stateAxis(info).isLineVisible());
+      assertTrue(stateAxis(info).isUserLineVisible());
+   }
+
+   @Test
+   void aShownTitleOnAClassicChartIsResidue() {
+      Viewsheet vs = legacySheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindBar(chart);
+      TitleDescriptor x = xTitle(chart);
+      x.setVisible(true);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertFalse(x.hasVisibleUserValue(), "a classic title shows anyway, so it is residue");
+      assertFalse(x.isVisible(), "the modern bar hides it");
+   }
+
+   @Test
+   void aHiddenTitleOnAClassicChartIsKept() {
+      Viewsheet vs = legacySheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindBar(chart);
+      TitleDescriptor x = xTitle(chart);
+      x.setVisible(false);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertTrue(x.hasVisibleUserValue());
+      assertFalse(x.isVisible());
+   }
+
+   @Test
+   void aShownValueLineOnAClassicChartIsResidue() {
+      Viewsheet vs = legacySheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindBar(chart);
+      AxisDescriptor value = chart.getVSChartInfo().getAxisDescriptor();
+      value.setAuthorLineVisible(true);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertFalse(value.isUserLineVisible(), "a classic line shows anyway, so it is residue");
+      assertFalse(value.isLineVisible(), "the modern bar drops it");
+   }
+
+   @Test
    void modernizeThenRevertResolvesLikeNeverModernized() {
       Viewsheet reverted = residueSheet();
       gateOn();
@@ -501,5 +584,35 @@ class VizModernizeResidueTest {
       }
 
       return copy;
+   }
+
+   // a state-by-measure bar
+   private static void bindBar(ChartVSAssemblyInfo chart) {
+      VSChartDimensionRef state = new VSChartDimensionRef(new AttributeRef(null, "state"));
+      state.setDataType(XSchema.STRING);
+      state.setGroupColumnValue("state");
+      VSChartAggregateRef v = new VSChartAggregateRef();
+      v.setDataRef(new AttributeRef(null, "v"));
+      v.setColumnValue("v");
+      v.setFormula(AggregateFormula.SUM);
+      chart.getVSChartInfo().addXField(state);
+      chart.getVSChartInfo().addYField(v);
+      chart.getVSChartInfo().setChartType(GraphTypes.CHART_BAR);
+   }
+
+   private static AxisDescriptor stateAxis(ChartVSAssemblyInfo chart) {
+      return chart.getVSChartInfo().getXField(0).getAxisDescriptor();
+   }
+
+   private static TitleDescriptor xTitle(ChartVSAssemblyInfo chart) {
+      return chart.getChartDescriptor().getTitlesDescriptor().getXTitleDescriptor();
+   }
+
+   private static String xml(VSAssemblyInfo info) {
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      info.writeXML(writer);
+      writer.flush();
+      return buf.toString();
    }
 }

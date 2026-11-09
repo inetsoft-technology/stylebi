@@ -424,6 +424,95 @@ class ChartChromeSlotsTest {
    }
 
    @Test
+   void authorTitleVisibilityAndLineFlagsClear() {
+      ChartVSAssemblyInfo info = chart();
+      TitlesDescriptor titles = info.getChartDescriptor().getTitlesDescriptor();
+      TitleDescriptor[] all = { titles.getXTitleDescriptor(), titles.getX2TitleDescriptor(),
+                                titles.getYTitleDescriptor(), titles.getY2TitleDescriptor() };
+
+      for(TitleDescriptor title : all) {
+         title.setVisible(true);
+      }
+
+      AxisDescriptor chartAxis = info.getVSChartInfo().getAxisDescriptor();
+      chartAxis.setAuthorLineVisible(true);
+      VSChartDimensionRef state = dimension("State");
+      state.getAxisDescriptor().setAuthorLineVisible(true);
+      info.getVSChartInfo().addXField(state);
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      for(TitleDescriptor title : all) {
+         assertFalse(title.hasVisibleUserValue());
+      }
+
+      assertFalse(chartAxis.isUserLineVisible(), "the chart's axis");
+      assertFalse(state.getAxisDescriptor().isUserLineVisible(), "the ref's axis");
+   }
+
+   @Test
+   void aTitleVisibilityAndALineFlagAreTieredSlots() {
+      ChartVSAssemblyInfo info = chart();
+      TitleDescriptor x = info.getChartDescriptor().getTitlesDescriptor().getXTitleDescriptor();
+      x.setVisible(false);
+      AxisDescriptor axis = info.getVSChartInfo().getAxisDescriptor();
+      axis.setAuthorLineVisible(false);
+
+      for(String key : new String[] { "chart:title:x:visible", "chart:axis:lineVisible" }) {
+         ChromeSlot slot = find(info, key);
+         assertTrue(slot.isAuthorSet(info), key);
+         assertFalse(slot.objectLevel(), key);
+         assertTrue(slot.residueEligible(), key);
+         assertEquals(false, slot.authorValue(info), key);
+         assertEquals(false, slot.resolvedValue(info), key);
+      }
+
+      find(info, "chart:axis:lineVisible").clearAuthor(info);
+      assertFalse(axis.isUserLineVisible());
+      assertFalse(axis.isLineVisible(), "the line is left to the next seed");
+      assertThrows(IllegalArgumentException.class, () -> x.chromeValue("labelGap"));
+   }
+
+   @Test
+   void onlyTheAxesTheLineSeedWritesHaveALineFlagSlot() {
+      ChartVSAssemblyInfo info = chart();
+      VSChartInfo cinfo = info.getVSChartInfo();
+      cinfo.addXField(dimension("State"));
+      cinfo.addYField(aggregate("Sales"));
+      cinfo.addGroupField(aggregate("Population"));
+      colorBinding(info, dimension("Region"), new CategoricalColorFrame());
+      ChartVSAssemblyInfo copy = (ChartVSAssemblyInfo) info.clone();
+      ChartVSAssemblyInfo radar = chart();
+      radar.setVSChartInfo(new RadarVSChartInfo());
+
+      List<String> seeded = List.of("chart:axis:", "chart:axis2:", "chart:x[", "chart:y[",
+                                    "chart:rt:x[", "chart:rt:y[");
+
+      for(ChartVSAssemblyInfo chart : List.of(info, copy, radar)) {
+         List<String> keys = chart.chromeSlots().stream().map(ChromeSlot::key).toList();
+
+         for(String key : keys) {
+            if(key.endsWith(":axis:line") || key.equals("chart:axis2:line") ||
+               key.equals("chart:radar:line"))
+            {
+               String flag = key + "Visible";
+               assertEquals(seeded.stream().anyMatch(key::startsWith), keys.contains(flag), flag);
+            }
+         }
+      }
+
+      List<String> keys = info.chromeSlots().stream().map(ChromeSlot::key).toList();
+      assertTrue(keys.stream().anyMatch(k -> k.startsWith("chart:group[") &&
+         k.endsWith(":axis:line")), "premise: the group axis is walked");
+      assertTrue(keys.stream().anyMatch(k -> k.startsWith("chart:aes[") &&
+         k.endsWith(":axis:line")), "premise: the colour field's axis is walked");
+      assertTrue(copy.chromeSlots().stream().anyMatch(s -> s.key().startsWith("chart:rt:y[") &&
+         s.key().endsWith(":lineVisible")), "premise: the clone's runtime refs are walked");
+      assertTrue(radar.chromeSlots().stream().anyMatch(s -> s.key().equals("chart:radar:line")),
+                 "premise: the radar label axis is walked");
+   }
+
+   @Test
    void anAuthorRampIsReplacedByTheMarksRamp() {
       ChartVSAssemblyInfo info = chart();
       colorBinding(info, aggregate("Sales"), new SpectralColorFrame());
