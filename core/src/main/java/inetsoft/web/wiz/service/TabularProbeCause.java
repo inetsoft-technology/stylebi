@@ -134,8 +134,12 @@ public final class TabularProbeCause {
    {
       Object shape = query.getResponseShape();
 
-      if(shape == null || loadError != null || cause.isTimeout()) {
+      if(loadError != null || cause.isTimeout()) {
          return null;
+      }
+
+      if(shape == null) {
+         return completedEmptyClause(query, cause);
       }
 
       String rowPath = effectiveRowPath(query);
@@ -151,6 +155,24 @@ public final class TabularProbeCause {
          hintClause + " This is not a connection or credentials problem — the request itself " +
          "succeeded. If this is unexpected, check the parameters (especially any date range or id " +
          "filter) against the endpoint's actual data.";
+   }
+
+   /**
+    * The connector-neutral zero-rows clause, for a connector that records no response shape (MongoDB,
+    * Elasticsearch, ...). Returned only when the runtime handed back a table ({@link
+    * TabularQuery#isRunCompleted}) and nothing else speaks: a connector that fails leaves a user
+    * message (and returns null), so a message here means failure, not an empty result. Deliberately
+    * names no credentials: the wording must not read as a credentials complaint to a caller that
+    * scans for one.
+    */
+   private static String completedEmptyClause(TabularQuery query, TabularProbeCause cause) {
+      if(!query.isRunCompleted() || !cause.detail().isEmpty()) {
+         return null;
+      }
+
+      return "completed without reporting an error but selected zero rows; columns are derived " +
+         "from the rows returned, so zero rows means zero columns. If this is unexpected, check " +
+         "the query (filter / match / pipeline / index) against the data.";
    }
 
    /**

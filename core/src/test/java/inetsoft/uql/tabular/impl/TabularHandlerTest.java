@@ -251,6 +251,53 @@ class TabularHandlerTest {
                    "a rerun that reports no timeout must clear the earlier run's value");
    }
 
+   @Test
+   void cloneDoesNotInheritTheOriginalsRunCompleted() {
+      TestTabularQuery original = new TestTabularQuery();
+      original.setRunCompleted(true);
+
+      assertFalse(original.clone().isRunCompleted());
+      assertTrue(original.isRunCompleted());
+   }
+
+   /**
+    * Bug #80830: a runtime that fails reports through a user message and returns null, while a
+    * request that ran and matched nothing returns an empty non-null table. {@code execute} must
+    * record that difference on the caller's query, and clear it on a rerun that returns null.
+    */
+   @Test
+   void executeRecordsWhetherTheRuntimeReturnedATableAndResetsItOnARerunThatReturnsNone()
+      throws Exception
+   {
+      XTableNode[] result = { mock(XTableNode.class) };
+      TabularHandler handler = new TabularHandler() {
+         @Override
+         public TabularRuntime getRuntime(String type) {
+            return new TabularRuntime() {
+               @Override
+               public XTableNode runQuery(TabularQuery query, VariableTable params) {
+                  return result[0];
+               }
+
+               @Override
+               public void testDataSource(TabularDataSource<?> ds, VariableTable params) {
+               }
+            };
+         }
+      };
+
+      TestTabularQuery original = newQuery();
+
+      handler.execute(original, newVars(), principal("admin", "orgA"), null);
+      assertTrue(original.isRunCompleted(),
+                 "an empty but non-null table means the request ran to completion");
+
+      result[0] = null;
+      handler.execute(original, newVars(), principal("admin", "orgA"), null);
+      assertFalse(original.isRunCompleted(),
+                  "a null table (the runtime reported a failure) must clear the earlier run's value");
+   }
+
    private static Principal principal(String name, String orgID) {
       return new SRPrincipal(
          new IdentityID(name, orgID), new IdentityID[0], new String[0], orgID, 0L);
