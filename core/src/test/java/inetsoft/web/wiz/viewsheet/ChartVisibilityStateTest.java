@@ -158,6 +158,145 @@ class ChartVisibilityStateTest {
          info, List.of("x"), false).get("x"));
    }
 
+   // ── relation charts (Bug #80822) ──────────────────────────────────────────
+
+   private static RelationVSChartInfo relation(boolean tree, boolean edgeSize,
+                                               boolean nodeSize)
+   {
+      RelationVSChartInfo info = new RelationVSChartInfo();
+
+      if(tree) {
+         info.setChartType(GraphTypes.CHART_TREE);
+      }
+
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(dimension("Edge"));
+      info.setColorField(color);
+      VSAestheticRef nodeColor = new VSAestheticRef();
+      nodeColor.setDataRef(dimension("Node"));
+      info.setNodeColorField(nodeColor);
+
+      if(edgeSize) {
+         VSAestheticRef size = new VSAestheticRef();
+         size.setDataRef(dimension("EdgeSz"));
+         info.setSizeField(size);
+      }
+
+      if(nodeSize) {
+         VSAestheticRef size = new VSAestheticRef();
+         size.setDataRef(dimension("NodeSz"));
+         info.setNodeSizeField(size);
+      }
+
+      return info;
+   }
+
+   private static List<ChartVisibilityState.HiddenLegend> hidden(RelationVSChartInfo info,
+                                                                  ChartDescriptor desc,
+                                                                  boolean maxMode)
+   {
+      return ChartVisibilityState.hiddenLegends(desc, info, maxMode).hidden();
+   }
+
+   @Test
+   void relationEdgeColorHiddenThroughItsOwnDescriptorIsReported() {
+      RelationVSChartInfo info = relation(false, false, false);
+      info.getColorField().getLegendDescriptor().setVisible(false);
+
+      ChartVisibilityState.HiddenLegends h =
+         ChartVisibilityState.hiddenLegends(new ChartDescriptor(), info, false);
+
+      assertTrue(h.any());
+      assertEquals(List.of(new ChartVisibilityState.HiddenLegend("color", "Edge")), h.hidden());
+   }
+
+   @Test
+   void relationHideAllReportsEdgeAndNode() {
+      RelationVSChartInfo info = relation(false, true, true);
+      ChartDescriptor desc = new ChartDescriptor();
+      desc.getLegendsDescriptor().getColorLegendDescriptor().setVisible(false);
+      desc.getLegendsDescriptor().getSizeLegendDescriptor().setVisible(false);
+      info.getColorField().getLegendDescriptor().setVisible(false);
+      info.getSizeField().getLegendDescriptor().setVisible(false);
+      info.getNodeColorField().getLegendDescriptor().setVisible(false);
+      info.getNodeSizeField().getLegendDescriptor().setVisible(false);
+
+      assertEquals(List.of(new ChartVisibilityState.HiddenLegend("color", "Edge"),
+                           new ChartVisibilityState.HiddenLegend("size", "EdgeSz"),
+                           new ChartVisibilityState.HiddenLegend("node-color", "Node"),
+                           new ChartVisibilityState.HiddenLegend("node-size", "NodeSz")),
+                   hidden(info, desc, false));
+   }
+
+   @Test
+   void relationShowAllReportsNothing() {
+      assertTrue(hidden(relation(false, true, true), new ChartDescriptor(), false).isEmpty());
+   }
+
+   @Test
+   void relationNodeColorHiddenOnlyReportsNodeColor() {
+      RelationVSChartInfo info = relation(false, false, false);
+      info.getNodeColorField().getLegendDescriptor().setVisible(false);
+
+      assertEquals(List.of(new ChartVisibilityState.HiddenLegend("node-color", "Node")),
+                   hidden(info, new ChartDescriptor(), false));
+   }
+
+   @Test
+   void relationEdgeSizeHiddenIsReported() {
+      RelationVSChartInfo info = relation(false, true, false);
+      info.getSizeField().getLegendDescriptor().setVisible(false);
+
+      assertEquals(List.of(new ChartVisibilityState.HiddenLegend("size", "EdgeSz")),
+                   hidden(info, new ChartDescriptor(), false));
+   }
+
+   @Test
+   void treeEdgeColorHiddenIsReported() {
+      RelationVSChartInfo info = relation(true, false, false);
+      info.getColorField().getLegendDescriptor().setVisible(false);
+
+      assertEquals(List.of(new ChartVisibilityState.HiddenLegend("color", "Edge")),
+                   hidden(info, new ChartDescriptor(), false));
+   }
+
+   @Test
+   void relationSharedOffOnlyDoesNotReportEdgeBecauseTheRendererDrawsIt() {
+      ChartDescriptor desc = new ChartDescriptor();
+      desc.getLegendsDescriptor().getColorLegendDescriptor().setVisible(false);
+
+      assertTrue(hidden(relation(false, false, false), desc, false).isEmpty());
+   }
+
+   @Test
+   void relationNoLegendLayoutReportsEveryBoundLegend() {
+      ChartDescriptor desc = new ChartDescriptor();
+      desc.getLegendsDescriptor().setLayout(LegendsDescriptor.NO_LEGEND);
+
+      assertEquals(2, hidden(relation(false, false, false), desc, false).size());
+   }
+
+   @Test
+   void relationMaxModeReadsTheOwnMaxModeFlag() {
+      RelationVSChartInfo info = relation(false, false, false);
+      info.getColorField().getLegendDescriptor().setMaxModeVisible(false);
+
+      assertTrue(hidden(info, new ChartDescriptor(), false).isEmpty());
+      assertEquals(List.of(new ChartVisibilityState.HiddenLegend("color", "Edge")),
+                   hidden(info, new ChartDescriptor(), true));
+   }
+
+   @Test
+   void regularChartStillReadsTheSharedDescriptor() {
+      ChartDescriptor desc = new ChartDescriptor();
+      desc.getLegendsDescriptor().getColorLegendDescriptor().setVisible(false);
+      VSChartInfo info = colorBound();
+      info.getColorField().getLegendDescriptor().setVisible(true);
+
+      assertEquals(List.of(new ChartVisibilityState.HiddenLegend("color", "Region")),
+                   ChartVisibilityState.hiddenLegends(desc, info, false).hidden());
+   }
+
    // ── helpers ───────────────────────────────────────────────────────────────
 
    private static VSChartInfo colorBound() {
