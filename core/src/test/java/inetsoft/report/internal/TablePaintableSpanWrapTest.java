@@ -90,27 +90,45 @@ class TablePaintableSpanWrapTest {
       field.set(null, savedArabic);
    }
 
-   // the column widths where the inner width is in [width("wNNx"), width(" wNNx")),
-   // plus one width outside that window as a control
+   // the bug shows when the inner width is in [width("wNNx"), width(" wNNx")). the font
+   // metrics differ per platform, so the column widths are derived at runtime.
+   // step = points added to the narrowest column width that fits every word: step 0 and
+   // 1 are inside the window, step -1 is a control above it (" " + word fits).
    // blanks = the number of blanks between two words
-   @ParameterizedTest(name = "pad={0} colW={1} blanks={2}")
+   @ParameterizedTest(name = "pad={0} step={1} blanks={2}")
    @CsvSource({
-      "0, 26, 1", "0, 27, 1", "0, 28, 1", "0, 29, 1",
-      "2, 30, 1", "2, 31, 1", "2, 32, 1",
-      "0, 27, 2", "2, 31, 2"
+      "0, 0, 1", "0, 1, 1", "0, -1, 1",
+      "2, 0, 1", "2, 1, 1",
+      "0, 0, 2", "2, 1, 2"
    })
-   void everyWordPrintedOnceAcrossPages(int pad, int colW, int blanks) throws Exception {
-      String sep = " ".repeat(blanks);
-      StringBuilder text = new StringBuilder();
+   void everyWordPrintedOnceAcrossPages(int pad, int step, int blanks) throws Exception {
       List<String> expected = new ArrayList<>();
 
       for(int i = 1; i <= WORDS; i++) {
-         String word = String.format("w%02dx", i);
-         text.append(i == 1 ? "" : sep).append(word);
-         expected.add(word);
+         expected.add(String.format("w%02dx", i));
       }
 
-      List<List<String>> pages = export(text.toString(), colW, pad);
+      FontMetrics fm = Common.getFractionalFontMetrics(FONT);
+      float maxWord = 0;
+      float minBlankWord = Float.MAX_VALUE;
+
+      for(String word : expected) {
+         maxWord = Math.max(maxWord, Common.stringWidth(word, FONT, fm));
+         minBlankWord = Math.min(minBlankWord, Common.stringWidth(" " + word, FONT, fm));
+      }
+
+      float gap = minBlankWord - maxWord;
+      // the window [width(word), width(" " + word)) must hold two integer widths
+      assertTrue(gap > 2, "blank too narrow for the test: width(word)=" + maxWord +
+         " width(' ' + word)=" + minBlankWord);
+
+      int fitW = narrowestFittingWidth(String.join(" ", expected), pad, (int) maxWord);
+      // fitW - overhead >= maxWord and fitW - 1 - overhead < maxWord, so fitW + 1 is
+      // still below width(" " + word) as the gap is > 2, and fitW + ceil(gap) is at
+      // or above it
+      int colW = step >= 0 ? fitW + step : fitW + (int) Math.ceil(gap);
+      String text = String.join(" ".repeat(blanks), expected);
+      List<List<String>> pages = export(text, colW, pad);
       assertTrue(pages.size() > 1, "the cell should be split across pages");
 
       List<String> drawn = new ArrayList<>();
@@ -130,7 +148,24 @@ class TablePaintableSpanWrapTest {
          }
       }
 
-      assertEquals(expected, drawn);
+      assertEquals(expected, drawn, "colW=" + colW + " drawn lines: " + pages);
+   }
+
+   // the narrowest integer column width (pt) whose first page shows every word whole.
+   // the first page is a fresh layout of the text, so it does not depend on the fix
+   private static int narrowestFittingWidth(String text, int pad, int from) throws Exception {
+      for(int colW = from; colW < from + 2 * pad + 20; colW++) {
+         List<List<String>> pages = export(text, colW, pad);
+
+         if(!pages.isEmpty() && !pages.get(0).isEmpty() &&
+            pages.get(0).stream().map(String::trim)
+               .allMatch(s -> s.isEmpty() || s.matches("w\\d\\dx")))
+         {
+            return colW;
+         }
+      }
+
+      throw new AssertionError("no column width fits a word, pad=" + pad);
    }
 
    // the drawn text strings (one per Tj/TJ) of each page
