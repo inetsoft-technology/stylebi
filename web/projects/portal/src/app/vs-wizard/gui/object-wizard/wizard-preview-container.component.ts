@@ -186,11 +186,22 @@ export class WizardPreviewContainer extends AbstractActionComponent implements A
             - this.wizardPreviewContainer.nativeElement.getBoundingClientRect().left;
       }
 
+      // right-align the toolbar to the object, like in the portal. The toolbar container is
+      // fit-content wide, so the left is computed from the actions width.
+      const width = this.vsObject?.objectFormat?.width;
+
+      if(!!width && !!this.actions?.showingActions) {
+         objectOffsetLeft += Math.max(0, this.miniToolbarService.getToolbarLeft(
+            width, { x: 0, y: 0, width: width, height: 0 }, 1, 0, false,
+            this.actions.showingActions));
+      }
+
       return objectOffsetLeft;
    }
 
    get miniToolbarTop(): number {
-      let objectOffsetTop = 0;
+      // keep a little room above the toolbar instead of sitting flush against the top edge
+      let objectOffsetTop = 5;
 
       // don't cover 'Show Legend'
       if(this.showLegendCheckbox) {

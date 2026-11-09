@@ -65,8 +65,8 @@
     }
     @if (model.objectType !== 'VSCalcTable') {
       <!-- inherits viz-modern/viz-dark from .vs-object-container above, a real ancestor here -->
-      <mini-toolbar [actions]="actions" [forceAbove]="true"
-        [top]="0" [left]="5"
+      <mini-toolbar [actions]="actions"
+        [top]="5" [left]="miniToolbarLeft"
         [width]="model.objectFormat.width" [assembly]="model?.absoluteName" [forceHide]="!showMiniToolbar()">
       </mini-toolbar>
     }

@@ -267,6 +267,22 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
       return !this.miniToolbarService?.isMiniToolbarHidden(this.model.absoluteName);
    }
 
+   /**
+    * Left of the mini toolbar so that it is right-aligned to the object, like in the portal.
+    * The toolbar container is fit-content wide, so the left is computed from the actions
+    * width, using the same clamp the viewer container relies on.
+    */
+   get miniToolbarLeft(): number {
+      const width = this.model?.objectFormat?.width;
+
+      if(!width || !this.actions?.showingActions) {
+         return 5;
+      }
+
+      return Math.max(5, this.miniToolbarService.getToolbarLeft(
+         width, { x: 0, y: 0, width: width, height: 0 }, 1, 0, false, this.actions.showingActions));
+   }
+
    onMouseEnter(event: any): void {
       this.miniToolbarService.handleMouseEnter(this.model?.absoluteName, event);
    }

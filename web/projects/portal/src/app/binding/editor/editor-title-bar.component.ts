@@ -40,8 +40,13 @@ export class EditorTitleBar implements OnChanges {
    }
 
    get elementName(): string {
-      return VSWizardUtil.isTempAssembly(this._elementName) ?
-         VSWizardConstants.TEMP_ASSEMBLY : this._elementName;
+      if(VSWizardUtil.isTempAssembly(this._elementName)) {
+         // the recommender's temporary assembly is being edited in the full editor
+         return this.objectType == "VSChart" ? "_#(js:Full chart editor)" :
+            VSWizardConstants.TEMP_ASSEMBLY;
+      }
+
+      return this._elementName;
    }
 
    @Input() sourceName: string;

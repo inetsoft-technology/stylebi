@@ -60,7 +60,8 @@
 .right-top-container {
   padding: 0;
   margin: 0;
-  width: 100%;
+  // same right inset as the object view below, so the drop zones end where the chart ends
+  width: calc(100% - 10px);
 }
 
 .right-bottom-container {
