@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.schema.XSchema;
 
 /**
  * Resolves a selection list/tree measure {@code formula} the way the property dialog's
@@ -71,6 +72,37 @@ public final class SelectionFormulaResolver {
       throw new IllegalArgumentException(
          "'" + formula + "' is not an aggregate '" + assemblyName + "' can use. Available: "
          + AVAILABLE + ".");
+   }
+
+   /**
+    * True for a static {@code Sum} (the canonical name, any case) -- the only one of
+    * Count/Sum/Max/Min the property dialog withholds from a non-numeric measure.
+    */
+   public static boolean isSum(String formula) {
+      // By name, not AggregateFormula.getFormula: the stored formula is already canonical here, and
+      // that class's static initialiser needs the server's Spring context.
+      return formula != null && "sum".equalsIgnoreCase(formula.trim());
+   }
+
+   /**
+    * The property dialog offers Sum only for a numeric measure (selection-measure-pane
+    * {@code aggregatesNonnumeric} is Count, Max, Min), but the rule lived only in that client:
+    * a Sum stored over a text measure left the list showing placeholder values (bug #80836).
+    * A null or blank type (dynamic or unknown measure) is not judged.
+    */
+   public static void requireFitsMeasure(String assemblyName, String formula, String measure,
+                                         String measureType)
+   {
+      if(measureType == null || measureType.isBlank() || !isSum(formula) ||
+         XSchema.isNumericType(measureType))
+      {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "'formula' Sum needs a numeric measure; '" + measure + "' is " + measureType +
+         " (on '" + assemblyName + "'). Use Count, Max or Min, or pick a numeric measure. " +
+         "Nothing was changed.");
    }
 
    private static final String AVAILABLE = "Count, Sum, Max, Min";

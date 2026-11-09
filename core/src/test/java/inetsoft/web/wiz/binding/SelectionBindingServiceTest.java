@@ -41,6 +41,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -1245,6 +1246,63 @@ class SelectionBindingServiceTest {
    @Test
    void storesAPaddedDynamicMeasureTrimmed() throws Exception {
       assertEquals("$(x)", boundMeasure(measures("AMOUNT"), null, " $(x)"));
+   }
+
+   // ── bug #80836: a stored Sum does not outlive a change to a text measure ───
+
+   private static DataOutputService typedMeasures(String name, String type) throws Exception {
+      OutputColumnRefModel column = new OutputColumnRefModel();
+      column.setName(name);
+      column.setDataType(type);
+      DataOutputService dataOutput = mock(DataOutputService.class);
+      when(dataOutput.getOutputSelectionColumns(eq("rt1"), any(), any()))
+         .thenReturn(new OutputColumnRefModel[] {new OutputColumnRefModel(), column});
+      return dataOutput;
+   }
+
+   private static SelectionMeasurePaneModel bindWithStoredSum(DataOutputService dataOutput,
+                                                              String measure,
+                                                              Map<String, Object> result)
+      throws Exception
+   {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setFormula("Sum");
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(model);
+
+      result.putAll(harness(assembly, listService, null, null, null, dataOutput)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null,
+                    measure, null, null, null, false, ""));
+
+      return model.getSelectionListPaneModel().getSelectionMeasurePaneModel();
+   }
+
+   @Test
+   void resetsAStoredSumToCountWhenTheMeasureBecomesText() throws Exception {
+      Map<String, Object> result = new HashMap<>();
+      SelectionMeasurePaneModel pane = bindWithStoredSum(typedMeasures("CITY", "string"), "CITY", result);
+
+      assertEquals("Count", pane.getFormula());
+      assertEquals("Count", result.get("formulaReset"));
+   }
+
+   @Test
+   void keepsAStoredSumForANumericMeasure() throws Exception {
+      Map<String, Object> result = new HashMap<>();
+      SelectionMeasurePaneModel pane = bindWithStoredSum(typedMeasures("AMOUNT", "double"), "AMOUNT", result);
+
+      assertEquals("Sum", pane.getFormula());
+      assertFalse(result.containsKey("formulaReset"));
+   }
+
+   @Test
+   void keepsAStoredSumWhenTheMeasureTypeIsUnknown() throws Exception {
+      Map<String, Object> result = new HashMap<>();
+      SelectionMeasurePaneModel pane = bindWithStoredSum(measures("CITY"), "CITY", result);
+
+      assertEquals("Sum", pane.getFormula());
    }
 
    // ── measure on a selection tree / refused elsewhere (Bug #78208) ───────────

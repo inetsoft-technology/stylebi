@@ -45,6 +45,24 @@ public final class SelectionMeasureResolver {
                                 List<String> additionalTables, String measure)
       throws Exception
    {
+      return resolveTyped(dataOutputService, runtimeId, user, assemblyName, table,
+                          additionalTables, measure).name();
+   }
+
+   /**
+    * A resolved measure and its data type as the dialog's measure dropdown reports it
+    * ({@code OutputColumnRefModel.getDataType}); {@code type} is null for a dynamic value or
+    * when the dropdown carries no type, which callers must treat as "not judged".
+    */
+   public record Resolved(String name, String type) {
+   }
+
+   /** Same as {@link #resolve}, from the same single dropdown lookup, plus the measure's type. */
+   public static Resolved resolveTyped(DataOutputService dataOutputService, String runtimeId,
+                                       Principal user, String assemblyName, String table,
+                                       List<String> additionalTables, String measure)
+      throws Exception
+   {
       String trimmed = measure.trim();
 
       if(trimmed.startsWith("=")) {
@@ -54,7 +72,7 @@ public final class SelectionMeasureResolver {
                + "such as \"=field['Total']\", a column name, or omit it.");
          }
 
-         return trimmed;
+         return new Resolved(trimmed, null);
       }
 
       if(trimmed.startsWith("$(") && trimmed.endsWith(")")) {
@@ -64,7 +82,7 @@ public final class SelectionMeasureResolver {
                + "e.g. \"$(Combo1)\".");
          }
 
-         return trimmed;
+         return new Resolved(trimmed, null);
       }
 
       if(table == null || table.isBlank()) {
@@ -87,7 +105,7 @@ public final class SelectionMeasureResolver {
          }
 
          if(candidate.getName().equalsIgnoreCase(trimmed)) {
-            return candidate.getName();
+            return new Resolved(candidate.getName(), candidate.getDataType());
          }
 
          available.add(candidate.getName());
