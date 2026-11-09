@@ -518,14 +518,19 @@ class SchedulePermissionSaveMatrixTest {
    private static final String DELETE_BY_OWNER = "schedule.options.deleteTaskOnlyByOwner";
 
    private static final List<Actor> ACTORS = List.of(
-      new Actor("siteAdmin", "sadm", ORG, Map.of("siteAdmin", true, "sameOrg", true)),
-      new Actor("orgAdmin", "oadmin", ORG, Map.of("orgAdmin", true, "sameOrg", true)),
-      new Actor("owner", "owner", ORG, Map.of("owner", true, "sameOrg", true)),
-      new Actor("ownerAdmin", "uadmin", ORG, Map.of("ownerAdmin", true, "sameOrg", true)),
-      new Actor("shareMember", "mate", ORG, Map.of("shareMember", true, "sameOrg", true)),
-      new Actor("grantHolder", "granted", ORG, Map.of("grantHolder", true, "sameOrg", true)),
-      new Actor("otherUser", "other", ORG, Map.of("sameOrg", true)),
-      new Actor("foreignUser", "foreign", ORG_B, Map.of()));
+      new Actor("siteAdmin", "sadm", ORG,
+                Map.of("scheduler", true, "siteAdmin", true, "sameOrg", true)),
+      new Actor("orgAdmin", "oadmin", ORG,
+                Map.of("scheduler", true, "orgAdmin", true, "sameOrg", true)),
+      new Actor("owner", "owner", ORG, Map.of("scheduler", true, "owner", true, "sameOrg", true)),
+      new Actor("ownerAdmin", "uadmin", ORG,
+                Map.of("scheduler", true, "ownerAdmin", true, "sameOrg", true)),
+      new Actor("shareMember", "mate", ORG,
+                Map.of("scheduler", true, "shareMember", true, "sameOrg", true)),
+      new Actor("grantHolder", "granted", ORG,
+                Map.of("scheduler", true, "grantHolder", true, "sameOrg", true)),
+      new Actor("otherUser", "other", ORG, Map.of("scheduler", true, "sameOrg", true)),
+      new Actor("foreignUser", "foreign", ORG_B, Map.of("scheduler", true)));
 
    private SecurityTestDataBuilder builder;
    private SchedulePermissionPolicy policy;
