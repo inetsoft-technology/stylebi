@@ -718,4 +718,26 @@ class TabularQueryContractSupportTest {
       assertTrue(query.isLookupTopLevelOnly());
       assertEquals("Repos", query.getEndpoint());
    }
+
+   @Test
+   void restatingReadsTheDefaultsThroughTheSameDataSourceAFreshAddWouldHave() throws Exception {
+      FakeTabularDataSource ds = new FakeTabularDataSource();
+      ds.setName("semi");
+      FakeDataSourceDefaultQuery query = new FakeDataSourceDefaultQuery();
+      query.setDataSource(ds);
+      apply(query, params("delimiter", "|", "header", "a|b"));
+
+      restate(query, params("header", "a|b"));
+
+      assertEquals(";", query.getDelimiter());
+   }
+
+   @Test
+   void restatingWithoutARequiredParamStillFailsLoudAtTheContract() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> restate(query, params("jsonPath", "$.x")));
+      assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
+   }
 }

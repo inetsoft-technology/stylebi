@@ -158,9 +158,10 @@ public final class TabularEndpointBindingSupport {
             .collect(Collectors.joining(", ")));
 
       paramProp.setValue(query, params);
-      setOrResetProperty(pmap, query, "jsonPath", jsonPath);
-      setOrResetProperty(pmap, query, "expanded", expanded);
-      setOrResetProperty(pmap, query, "expandedPath", expandedPath);
+      TabularQuery defaults = TabularQueryContractSupport.defaultsOf(query);
+      setOrResetProperty(pmap, query, defaults, "jsonPath", jsonPath);
+      setOrResetProperty(pmap, query, defaults, "expanded", expanded);
+      setOrResetProperty(pmap, query, defaults, "expandedPath", expandedPath);
 
       // The one end-to-end check, and the reason it is worth a line of its own: reading "suffix"
       // back invokes the connector's getSuffix(), which rebuilds the URL from the endpoint
@@ -208,7 +209,8 @@ public final class TabularEndpointBindingSupport {
             "endpoint and cannot be set directly.");
       }
 
-      setOrResetProperty(pmap, query, "jsonPath", jsonPath);
+      setOrResetProperty(pmap, query, TabularQueryContractSupport.defaultsOf(query),
+                         "jsonPath", jsonPath);
       return trimmedSuffix;
    }
 
@@ -333,6 +335,8 @@ public final class TabularEndpointBindingSupport {
             " entries; a chain can be at most 5 levels deep.");
       }
 
+      TabularQuery defaults = TabularQueryContractSupport.defaultsOf(query);
+
       for(int i = 0; i < customLookups.size(); i++) {
          WorksheetMutationSupport.CustomLookupSpec level = customLookups.get(i);
 
@@ -350,8 +354,8 @@ public final class TabularEndpointBindingSupport {
          }
 
          setRequiredProperty(pmap, query, "lookupUrl" + i, level.url(), dsName, i);
-         setOrResetProperty(pmap, query, "lookupJsonPath" + i, level.jsonPath());
-         setOrResetProperty(pmap, query, "lookupKey" + i, level.key());
+         setOrResetProperty(pmap, query, defaults, "lookupJsonPath" + i, level.jsonPath());
+         setOrResetProperty(pmap, query, defaults, "lookupKey" + i, level.key());
          setOptionalProperty(pmap, query, "lookupIgnoreBaseUrl" + i,
             level.ignoreBaseUrl() == null ? Boolean.FALSE : level.ignoreBaseUrl());
       }
@@ -459,10 +463,10 @@ public final class TabularEndpointBindingSupport {
     * earlier edit set.
     */
    private static void setOrResetProperty(Map<String, PropertyMeta> pmap, TabularQuery query,
-                                          String name, Object value)
+                                          TabularQuery defaults, String name, Object value)
    {
       if(value == null) {
-         TabularQueryContractSupport.resetToDefault(query, pmap, name);
+         TabularQueryContractSupport.resetToDefault(query, defaults, pmap, name);
       }
       else {
          setOptionalProperty(pmap, query, name, value);

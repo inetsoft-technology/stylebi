@@ -265,7 +265,7 @@ public final class TabularQueryContractSupport {
                                              Map<String, Object> queryParams)
       throws Exception
    {
-      TabularQuery fresh = freshInstanceOf(query);
+      TabularQuery fresh = defaultsOf(query);
 
       for(TabularQuerySchema.Param param : schema.getParams()) {
          PropertyMeta prop = pmap.get(param.getName());
@@ -291,13 +291,13 @@ public final class TabularQueryContractSupport {
     * {@code jsonPath}/{@code expanded}/{@code expandedPath} (and custom lookup levels'
     * {@code jsonPath}/{@code key}) were otherwise only written when supplied.
     */
-   public static void resetToDefault(TabularQuery query, Map<String, PropertyMeta> pmap,
-                                     String name)
+   public static void resetToDefault(TabularQuery query, TabularQuery defaults,
+                                     Map<String, PropertyMeta> pmap, String name)
    {
       PropertyMeta prop = pmap.get(name);
 
       if(prop != null && prop.getDescriptor().getWriteMethod() != null) {
-         resetToDefault(query, freshInstanceOf(query), prop);
+         resetToDefault(query, defaults, prop);
       }
    }
 
@@ -331,10 +331,17 @@ public final class TabularQueryContractSupport {
       invokeWriteMethod(prop, query, skeleton);
    }
 
-   /** A new query of {@code query}'s own class: what a fresh add starts from. */
-   private static TabularQuery freshInstanceOf(TabularQuery query) {
+   /**
+    * A new query of {@code query}'s own class bound to the same data source: what a fresh add
+    * starts from, built the way {@code TabularUtil.createQuery} builds one. A connector getter
+    * that derives its default from the data source reads the same one it would on a fresh add.
+    * Build it once per apply and pass it to {@link #resetToDefault}.
+    */
+   public static TabularQuery defaultsOf(TabularQuery query) {
       try {
-         return query.getClass().getDeclaredConstructor().newInstance();
+         TabularQuery fresh = query.getClass().getDeclaredConstructor().newInstance();
+         fresh.setDataSource(query.getDataSource());
+         return fresh;
       }
       catch(ReflectiveOperationException ex) {
          throw new IllegalStateException(
