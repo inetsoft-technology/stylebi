@@ -146,6 +146,14 @@ public class ChartRegionPropertyService {
          }
       }
 
+      List<String> sideMeasures = "axis".equals(name)
+         ? separatedMeasuresForBlankLabelSide(sessionToken, user, assembly, key, field) : List.of();
+
+      if(!sideMeasures.isEmpty()) {
+         inapplicable.putIfAbsent("labelOnSecondaryAxis",
+                                  blankLabelSideMessage(key, sideMeasures));
+      }
+
       String primary = time ? otherPrimaryGanttField(sessionToken, user, assembly, kind) : null;
       Map<String, String> aliases = aliasesFor(name);
       List<Map<String, Object>> properties = new ArrayList<>();
@@ -155,7 +163,9 @@ public class ChartRegionPropertyService {
          Object value = PropertyPath.get(model, alias.getValue());
          one.put("name", alias.getKey());
          one.put("path", alias.getValue());
-         one.put("value", value);
+         // The wrong measure's value must not be reported as this axis's (bug #80505 item 5).
+         one.put("value", !sideMeasures.isEmpty() && "labelOnSecondaryAxis".equals(alias.getKey())
+            ? null : value);
 
          // A time axis's range is epoch milliseconds (bug #78919); show the date it means too.
          if(time && ("minimum".equals(alias.getKey()) || "maximum".equals(alias.getKey())) &&
@@ -349,6 +359,15 @@ public class ChartRegionPropertyService {
                throw new IllegalArgumentException(
                   "'labelOnSecondaryAxis' does not apply to " + ignored + ", so it cannot take " +
                   "effect. Omit it. Nothing was changed.");
+            }
+         }
+
+         if(properties.containsKey("labelOnSecondaryAxis")) {
+            List<String> sideMeasures =
+               separatedMeasuresForBlankLabelSide(sessionToken, user, assembly, key, field);
+
+            if(!sideMeasures.isEmpty()) {
+               throw new IllegalArgumentException(blankLabelSideMessage(key, sideMeasures));
             }
          }
 
@@ -858,6 +877,44 @@ public class ChartRegionPropertyService {
             "one's axis is meant. Pass 'field' with the full name of one of them." +
             ganttTimeAxisHint(sessionToken, user, assembly));
       }
+   }
+
+   /**
+    * The measure names to choose from when a blank {@code field} would address a measure axis of a
+    * separated multi-measure y axis for {@code labelOnSecondaryAxis}, else empty (bug #80505 item
+    * 5). A separated graph gives every measure its own descriptor, and a blank field resolves to
+    * the first laid-out area, so once one measure's labels are moved to the opposite side the
+    * blank field reads and writes a different measure than before. A merged graph shares one
+    * descriptor and a single measure has no other to confuse, so neither is affected.
+    */
+   private List<String> separatedMeasuresForBlankLabelSide(String sessionToken, Principal user,
+                                                           String assembly, String axisTarget,
+                                                           String field)
+      throws Exception
+   {
+      if(field != null && !field.isBlank() || !"y".equals(ChartRegionResolver.canonical(axisTarget))) {
+         return List.of();
+      }
+
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+
+         if(!info.isSeparatedGraph()) {
+            return List.<String>of();
+         }
+
+         List<String> names = Arrays.stream(axisCandidates(info, "y"))
+            .filter(r -> r instanceof ChartAggregateRef).map(ChartRef::getFullName).toList();
+         return names.size() < 2 ? List.<String>of() : names;
+      });
+   }
+
+   private static String blankLabelSideMessage(String axisTarget, List<String> measures) {
+      return "'labelOnSecondaryAxis' on axis '" + axisTarget + "' is ambiguous: this chart draws " +
+         "one axis per measure (" + String.join(", ", measures) + ") and no 'field' was given, " +
+         "and which one a blank field means follows the on-screen axis order, which changes " +
+         "once any measure's labels are moved to the opposite side. Pass 'field' with the full " +
+         "name of one of them. Nothing was changed.";
    }
 
    /** The shelf refs that can render on the targeted axis: a measure on the other axis of this
