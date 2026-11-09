@@ -128,10 +128,76 @@ class TablePaintableSplitCellRepeatTest {
       }
    }
 
+   // a wrapped merged label after k filler rows, so with some k its span starts near
+   // the bottom of a page and the label flows to the next page. once it was shown
+   // whole, every later page of the span repeats it in full (the span's last page
+   // may be too short to hold it)
+   @Test
+   void mergedLabelRepeatedAfterFlowingOnce() throws Exception {
+      List<String> label = List.of("alpha", "bravo", "charlie");
+      boolean flowedOnce = false;
+
+      for(int k = 0; k <= 10; k++) {
+         int nrows = k + 40;
+         List<List<String>> pages = exportMergedAfter(k, 40, String.join(" ", label));
+         int last = -1;
+
+         for(int i = 0; i < pages.size(); i++) {
+            if(pages.get(i).contains(String.format("r%02d", nrows - 1))) {
+               last = i;
+            }
+         }
+
+         // pages before the label was drawn whole
+         int start = 0;
+         List<String> seen = new ArrayList<>();
+
+         while(start < pages.size() && !seen.containsAll(label)) {
+            List<String> drawn = drawnWords(List.of(pages.get(start++)),
+                                            Pattern.compile("alpha|bravo|charlie"));
+            flowedOnce |= !drawn.isEmpty() && !drawn.containsAll(label);
+            seen.addAll(drawn);
+         }
+
+         assertEquals(label, seen, "k=" + k + " the label should be drawn once: " + pages);
+         assertTrue(last >= 0, "k=" + k + " the span should end on a page: " + pages);
+
+         for(int i = start; i < last; i++) {
+            assertEquals(label, drawnWords(List.of(pages.get(i)),
+                                           Pattern.compile("alpha|bravo|charlie")),
+                         "k=" + k + " page " + (i + 1) + " should repeat the label: " + pages);
+         }
+      }
+
+      assertTrue(flowedOnce, "no k let the label start near the bottom of a page");
+   }
+
+   // one wrapped cell after k filler rows: when its row does not fit the rest of the
+   // page it is split across pages, and a later page of the span may hold the whole
+   // text. the text of one row is never repeated, whatever page it ends on
+   @Test
+   void splitCellAfterRowsPrintsEveryWordOnce() throws Exception {
+      for(int n = 14; n <= 60; n += 2) {
+         List<String> expected = words(n);
+
+         for(int k = 0; k <= 9; k++) {
+            for(int colW : new int[] { 52, 80 }) {
+               List<List<String>> pages = exportSplitAfter(k, String.join(" ", expected), colW);
+               assertEquals(expected, drawnWords(pages, Pattern.compile("w\\d\\dx")),
+                            "n=" + n + " k=" + k + " colW=" + colW + " drawn lines: " + pages);
+            }
+         }
+      }
+   }
+
    private static List<String> words() {
+      return words(WORDS);
+   }
+
+   private static List<String> words(int n) {
       List<String> words = new ArrayList<>();
 
-      for(int i = 1; i <= WORDS; i++) {
+      for(int i = 1; i <= n; i++) {
          words.add(String.format("w%02dx", i));
       }
 
@@ -192,6 +258,53 @@ class TablePaintableSplitCellRepeatTest {
       String id = report.addTable(0, 0, lens);
       TableElementDef table = (TableElementDef) report.getElement(id);
       table.setLayout(ReportSheet.TABLE_EQUAL_WIDTH);
+      return generate(report);
+   }
+
+   // k filler rows, then one wrapped cell holding text
+   private static List<List<String>> exportSplitAfter(int k, String text, int colW)
+      throws Exception
+   {
+      TabularSheet report = createReport();
+      DefaultTableLens lens = new DefaultTableLens(k + 1, 1);
+      lens.setHeaderRowCount(0);
+
+      for(int r = 0; r < k; r++) {
+         lens.setObject(r, 0, String.format("f%02d", r));
+         lens.setFont(r, 0, FONT);
+      }
+
+      lens.setObject(k, 0, text);
+      lens.setLineWrap(k, 0, true);
+      lens.setFont(k, 0, FONT);
+      report.setCurrentTableWidth(colW / 72.0);
+      String id = report.addTable(0, 0, lens);
+      ((TableElementDef) report.getElement(id)).setLayout(ReportSheet.TABLE_EQUAL_WIDTH);
+      return generate(report);
+   }
+
+   // k filler rows, then col 0 of the next span rows merged into one wrapped cell
+   // holding text, col 1 holds row labels
+   private static List<List<String>> exportMergedAfter(int k, int span, String text)
+      throws Exception
+   {
+      TabularSheet report = createReport();
+      int nrows = k + span;
+      DefaultTableLens lens = new DefaultTableLens(nrows, 2);
+      lens.setHeaderRowCount(0);
+
+      for(int r = 0; r < nrows; r++) {
+         lens.setObject(r, 0, r < k ? String.format("f%02d", r) : r == k ? text : null);
+         lens.setObject(r, 1, String.format("r%02d", r));
+         lens.setFont(r, 0, FONT);
+         lens.setFont(r, 1, FONT);
+         lens.setLineWrap(r, 0, true);
+      }
+
+      lens.setSpan(k, 0, new Dimension(1, span));
+      report.setCurrentTableWidth(80 / 72.0);
+      String id = report.addTable(0, 0, lens);
+      ((TableElementDef) report.getElement(id)).setLayout(ReportSheet.TABLE_EQUAL_WIDTH);
       return generate(report);
    }
 
