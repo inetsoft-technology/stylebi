@@ -17,6 +17,7 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -381,5 +382,59 @@ public class NthLargestFormulaTest {
       assertTrue(formula.isDefaultResult());
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // blank strings (Bug #80888)
+   // -----------------------------------------------------------------------
+
+   private static final String[][] BLANK_INPUTS = {
+      { "", "1", "3" }, { "1", "", "3" }, { "1", "3", "" },
+      { " ", "1", "3" }, { "1", " ", "3" }, { "1", "3", " " } };
+
+   @Test
+   void addValue_blankStringInAnyPosition_skipped() {
+      Object[] expected = { "3", "1", null };
+
+      for(String[] values : BLANK_INPUTS) {
+         for(int n = 1; n <= 3; n++) {
+            NthLargestFormula formula = new NthLargestFormula(n);
+
+            for(String value : values) {
+               formula.addValue(value);
+            }
+
+            assertEquals(expected[n - 1], formula.getResult(),
+                         "n=" + n + " " + String.join("|", values));
+         }
+      }
+   }
+
+   @Test
+   void addValue_onlyBlankStrings_isNull() {
+      NthLargestFormula formula = new NthLargestFormula(1);
+      formula.addValue("");
+      formula.addValue(" ");
+      assertTrue(formula.isNull());
+   }
+
+   @Test
+   void addValue_blankString_parseNumberOff_notSkipped() {
+      String old = SreeEnv.getProperty("formula.parse.number");
+
+      try {
+         SreeEnv.setProperty("formula.parse.number", "false");
+         NthLargestFormula formula = new NthLargestFormula(1);
+         formula.addValue("");
+         assertEquals("", formula.getResult());
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("formula.parse.number");
+         }
+         else {
+            SreeEnv.setProperty("formula.parse.number", old);
+         }
+      }
    }
 }

@@ -17,6 +17,7 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
 import inetsoft.test.BaseTestConfiguration;
@@ -345,5 +346,61 @@ public class NthSmallestFormulaTest {
       NthSmallestFormula formula = new NthSmallestFormula(0);
       formula.addValue(Double.valueOf(42.0));
       assertEquals(42.0, (Double) formula.getResult(), 1e-10);
+   }
+
+   // -----------------------------------------------------------------------
+   // blank strings (Bug #80888)
+   // -----------------------------------------------------------------------
+
+   @Test
+   void addValue_blankStringInAnyPosition_skipped() {
+      String[][] inputs = {
+         { "", "1", "3" }, { "1", "", "3" }, { "1", "3", "" },
+         { " ", "1", "3" }, { "1", " ", "3" }, { "1", "3", " " } };
+      Object[] expected = { "1", "3", null };
+
+      for(String[] values : inputs) {
+         for(int n = 1; n <= 3; n++) {
+            NthSmallestFormula formula = new NthSmallestFormula(n);
+
+            for(String value : values) {
+               formula.addValue(value);
+            }
+
+            assertEquals(expected[n - 1], formula.getResult(),
+                         "n=" + n + " " + String.join("|", values));
+         }
+      }
+   }
+
+   @Test
+   void addValue_textWithBlank_returnsFirstNonBlank() {
+      NthSmallestFormula formula = new NthSmallestFormula(1);
+      formula.addValue("Bob");
+      formula.addValue("");
+      formula.addValue("Alice");
+      assertEquals("Alice", formula.getResult());
+   }
+
+   @Test
+   void addValue_blankString_parseNumberOff_ranksSmallest() {
+      String old = SreeEnv.getProperty("formula.parse.number");
+
+      try {
+         SreeEnv.setProperty("formula.parse.number", "false");
+         NthSmallestFormula formula = new NthSmallestFormula(1);
+         formula.addValue("Bob");
+         formula.addValue("");
+         formula.addValue("Alice");
+         assertEquals("", formula.getResult());
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("formula.parse.number");
+         }
+         else {
+            SreeEnv.setProperty("formula.parse.number", old);
+         }
+      }
    }
 }
