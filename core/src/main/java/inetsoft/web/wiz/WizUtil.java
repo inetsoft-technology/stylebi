@@ -79,6 +79,18 @@ public class WizUtil {
    }
 
    /**
+    * The principal a Viewer toolbar action ({@code VIEWSHEET_TOOLBAR_ACTION}, e.g. Export) is
+    * permission-checked as, for Redmine #80497: {@link #saveCheckPrincipal} for a wiz principal,
+    * the principal itself otherwise. Unlike VIEWSHEET_ACTION, a toolbar action requires
+    * {@code SecurityEngine.isLogin}, so a bare {@link #nonWizCopy} would throw
+    * {@code security.login.error} for a plugin user whose session is not in the engine's
+    * logged-in map. Use it only for the permission check, never for the work itself.
+    */
+   public static Principal toolbarCheckPrincipal(Principal user) {
+      return user instanceof XPrincipal ? saveCheckPrincipal((XPrincipal) user) : user;
+   }
+
+   /**
     * Redmine #79530: refuses an agent save the real user could not make from the Composer. The
     * engine's own WRITE checks in {@code AbstractAssetEngine.setSheet} are approved for a wiz
     * principal, so this repeats them on {@link #saveCheckPrincipal}: WRITE on the target when it
