@@ -179,7 +179,7 @@ public class ChartRegionPropertyService {
                " (false is accepted to clear a stale value).");
          }
          else if("legend".equals(name) && "notShowNull".equals(alias.getKey()) &&
-                 !((LegendFormatDialogModel) model).isDimension())
+                 !notShowNullApplies((LegendFormatDialogModel) model))
          {
             one.put("applies", false);
             one.put("reason", "Only applies to a legend bound to a dimension (Ignore Null); " +
@@ -215,7 +215,7 @@ public class ChartRegionPropertyService {
             "refused here when set to true.");
       }
 
-      if("legend".equals(name) && !((LegendFormatDialogModel) model).isDimension()) {
+      if("legend".equals(name) && !notShowNullApplies((LegendFormatDialogModel) model)) {
          Object existing = out.get("note");
          String notShowNullNote = "notShowNull (marked applies:false) only applies to a legend " +
             "bound to a dimension and is refused here when set to true.";
@@ -1248,7 +1248,7 @@ public class ChartRegionPropertyService {
     * null when it can (bug #80354). The renderer never reads the opposite-side bit on a Pareto
     * measure axis, a radar or a Marimekko chart, and a 3D bar loses the axis when it is set
     * (#74007). The chart type is checked as the stored and the runtime type, as
-    * {@link #isMekkoChart} does.
+    * {@link #isMekkoChart} does. A y2/x2 target is refused too (bug #80505).
     *
     * @param linear whether the targeted axis is a measure axis, as {@link AxisKind#linear()}.
     */
@@ -1277,6 +1277,22 @@ public class ChartRegionPropertyService {
                return "the measure axis of a Pareto chart (the right side is the " +
                   "cumulative-percentage axis)";
             }
+         }
+
+         // A true secondary axis is drawn at a fixed position (RectCoord hard-wires the right y2
+         // and the top x2), which the opposite-side bit cannot move (bug #80505). Only the y2/x2
+         // targets: the primary y/x of a dual-axis chart do honour it, and a primary relocated
+         // by it is addressed as y/x, never y2/x2.
+         String canonical = ChartRegionResolver.canonical(axisTarget);
+
+         if("y2".equals(canonical)) {
+            return "the secondary y axis (it is drawn at a fixed position on the right and " +
+               "cannot be moved to the other side)";
+         }
+
+         if("x2".equals(canonical)) {
+            return "the secondary x axis (it is drawn at a fixed position at the top and " +
+               "cannot be moved to the other side)";
          }
 
          return null;
@@ -1879,7 +1895,8 @@ public class ChartRegionPropertyService {
    /**
     * Refuses a legend's notShowNull ("Ignore Null") when truthy on a legend not bound to a plain
     * dimension. The Composer's Legend Format dialog only shows this control when
-    * dimension && field != null (LegendFormatDialogModel), which is narrower than
+    * dimension && field != null (LegendFormatDialogModel; bug #80505 added the field != null
+    * half), which is narrower than
     * isCategoricalLegend (also true for a time-scale legend). On a measure legend the resulting
     * scale option (Scale.NO_NULL) is written to the frame regardless (GraphGenerator
     * .setLegendProperties), but LinearScale/LogScale/PowerScale never read it, so it is verified
@@ -1892,16 +1909,28 @@ public class ChartRegionPropertyService {
    private static void requireDimensionLegendForNotShowNull(
       LegendFormatDialogModel model, Map<String, Object> properties)
    {
-      if(model != null && model.isDimension()) {
+      if(notShowNullApplies(model)) {
          return;
       }
 
       if(properties.containsKey("notShowNull") && isTruthy(properties.get("notShowNull"))) {
          throw new IllegalArgumentException(
             "'notShowNull' only applies to a legend bound to a dimension (Ignore Null); this " +
-            "legend would store it and ignore it. Omit it, send false to clear a stale value, " +
-            "or bind a dimension to this channel.");
+            "legend has no dimension field bound (for example the automatic multi-measure " +
+            "'Measures' legend), so it would store it and ignore it. Omit it, send false to " +
+            "clear a stale value, or bind a dimension to this channel. Nothing was changed.");
       }
+   }
+
+   /**
+    * Whether the Legend Format dialog shows "Ignore Null" for this legend, read from the dialog
+    * model's own flag ({@code dimension && field != null}) so the guard, the list row and the
+    * list note cannot disagree. The automatic multi-measure legend is a dimension frame with no
+    * field, so {@link LegendFormatDialogModel#isDimension()} alone is true there (bug #80505).
+    */
+   private static boolean notShowNullApplies(LegendFormatDialogModel model) {
+      return model != null && model.getLegendFormatGeneralPaneModel() != null &&
+         model.getLegendFormatGeneralPaneModel().isNotShowNullVisible();
    }
 
    private static boolean isTruthy(Object value) {
