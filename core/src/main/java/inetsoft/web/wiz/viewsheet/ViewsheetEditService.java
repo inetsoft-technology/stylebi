@@ -1194,7 +1194,7 @@ public class ViewsheetEditService {
 
             try {
                if(box != null) {
-                  FormTableProtection.protectChangedFormTables(box, rvs.getViewsheet());
+                  FormTableProtection.protectBuiltChangedFormTables(box, rvs.getViewsheet());
                }
 
                refreshService.refreshViewsheet(

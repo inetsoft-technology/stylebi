@@ -34,6 +34,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -66,6 +67,7 @@ class FormTableProtectionTest {
          FormTableLens lens = mock(FormTableLens.class);
          when(lens.isChanged()).thenReturn(changed);
          when(box.getFormTableLens(name)).thenReturn(lens);
+         when(box.getCachedFormTableLens(name)).thenReturn(lens);
       }
    }
 
@@ -95,5 +97,45 @@ class FormTableProtectionTest {
 
       verify(box, never()).getFormTableLens(any());
       verify(box, never()).addScriptChangedForm(any());
+   }
+
+   @Test
+   void builtOnlyVariantProtectsAChangedBuiltLensWithoutBuildingAnything() throws Exception {
+      table("AdminTable", true, true);
+
+      FormTableProtection.protectBuiltChangedFormTables(box, vs);
+
+      verify(box).addScriptChangedForm("AdminTable");
+      verify(box, never()).getFormTableLens(any());
+   }
+
+   @Test
+   void builtOnlyVariantSkipsAFormTableThatWasNeverBuilt() throws Exception {
+      table("AdminTable", true, null);
+      when(box.getFormTableLens("AdminTable")).thenThrow(new IllegalStateException("query fails"));
+
+      assertDoesNotThrow(() -> FormTableProtection.protectBuiltChangedFormTables(box, vs));
+
+      verify(box, never()).getFormTableLens(any());
+      verify(box, never()).addScriptChangedForm(any());
+   }
+
+   @Test
+   void builtOnlyVariantLeavesAnUnchangedLensAlone() throws Exception {
+      table("AdminTable", true, false);
+
+      FormTableProtection.protectBuiltChangedFormTables(box, vs);
+
+      verify(box, never()).addScriptChangedForm(any());
+   }
+
+   @Test
+   void scriptVariantStillBuildsTheLens() throws Exception {
+      table("AdminTable", true, true);
+
+      FormTableProtection.protectChangedFormTables(box, vs);
+
+      verify(box).getFormTableLens("AdminTable");
+      verify(box, never()).getCachedFormTableLens(any());
    }
 }

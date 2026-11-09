@@ -46,6 +46,9 @@ import inetsoft.uql.viewsheet.RectangleVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.ShapeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.report.composition.FormTableLens;
 import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -2483,6 +2486,76 @@ class ViewsheetEditServiceTest {
 
       assertEquals(List.of("W1"), result.warnings());
       assertNull(result.assembly());
+   }
+
+   /** A sheet with one Form table whose already-built lens holds a pending edit. */
+   private static RuntimeViewsheet rvsWithPendingFormTable(ViewsheetSandbox box, boolean changed) {
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
+      when(info.isForm()).thenReturn(true);
+      doReturn(info).when(table).getInfo();
+      when(table.getAbsoluteName()).thenReturn("AdminTable");
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssemblies(true)).thenReturn(new inetsoft.uql.asset.Assembly[] { table });
+      FormTableLens lens = mock(FormTableLens.class);
+      when(lens.isChanged()).thenReturn(changed);
+      when(box.getCachedFormTableLens("AdminTable")).thenReturn(lens);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      return rvs;
+   }
+
+   /**
+    * Bug #80482: refresh_viewsheet protects a Form table's pending edits before the refresh runs
+    * and clears the protection afterwards (fails without either call in refreshWholeSheet).
+    */
+   @Test
+   void refreshViewsheetProtectsPendingFormEditsAroundTheRefresh() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvsWithPendingFormTable(box, true), mock(ViewsheetReadService.class), refreshService);
+
+      service.apply("tok", principal(), request("refresh_viewsheet", null), "");
+
+      InOrder order = inOrder(box, refreshService);
+      order.verify(box).addScriptChangedForm("AdminTable");
+      order.verify(refreshService).refreshViewsheet(eq("rt1"), any(VSRefreshEvent.class),
+                                                    any(Principal.class), any(), anyString());
+      order.verify(box).clearScriptChangedFormSet();
+      verify(box, never()).getFormTableLens(anyString());
+   }
+
+   @Test
+   void refreshViewsheetClearsTheProtectionWhenTheRefreshThrows() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      doThrow(new IllegalStateException("boom")).when(refreshService)
+         .refreshViewsheet(anyString(), any(VSRefreshEvent.class), any(Principal.class), any(),
+                           anyString());
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvsWithPendingFormTable(box, true), mock(ViewsheetReadService.class), refreshService);
+
+      assertThrows(Exception.class,
+                   () -> service.apply("tok", principal(), request("refresh_viewsheet", null), ""));
+
+      verify(box).addScriptChangedForm("AdminTable");
+      verify(box).clearScriptChangedFormSet();
+   }
+
+   @Test
+   void refreshViewsheetLeavesAFormTableWithoutPendingEditsUnprotected() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvsWithPendingFormTable(box, false), mock(ViewsheetReadService.class),
+         mock(VSRefreshService.class));
+
+      service.apply("tok", principal(), request("refresh_viewsheet", null), "");
+
+      verify(box, never()).addScriptChangedForm(anyString());
+      verify(box).clearScriptChangedFormSet();
    }
 
    @Test

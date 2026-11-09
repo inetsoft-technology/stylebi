@@ -40,8 +40,30 @@ public final class FormTableProtection {
     *
     * <p>The protected lens keeps its old base data, so a refresh that would have pulled fresh
     * worksheet rows leaves that Form table showing the rows it had.
+    *
+    * <p>This variant builds a table's lens (runs its query) when none is cached yet, which is the
+    * Bug #80034 script-run behaviour. A whole-sheet refresh must use
+    * {@link #protectBuiltChangedFormTables} instead.
     */
    public static void protectChangedFormTables(ViewsheetSandbox box, Viewsheet vs)
+      throws Exception
+   {
+      protect(box, vs, false);
+   }
+
+   /**
+    * Same as {@link #protectChangedFormTables}, but only looks at lenses that are already built.
+    * A Form table whose lens was never built holds no pending edits, so nothing is lost by
+    * skipping it, and a refresh neither runs an extra query nor fails because a Form table's
+    * source query currently fails.
+    */
+   public static void protectBuiltChangedFormTables(ViewsheetSandbox box, Viewsheet vs)
+      throws Exception
+   {
+      protect(box, vs, true);
+   }
+
+   private static void protect(ViewsheetSandbox box, Viewsheet vs, boolean builtOnly)
       throws Exception
    {
       for(Assembly assembly : vs.getAssemblies(true)) {
@@ -51,7 +73,8 @@ public final class FormTableProtection {
             continue;
          }
 
-         FormTableLens lens = box.getFormTableLens(table.getAbsoluteName());
+         FormTableLens lens = builtOnly ? box.getCachedFormTableLens(table.getAbsoluteName())
+            : box.getFormTableLens(table.getAbsoluteName());
 
          if(lens != null && lens.isChanged()) {
             box.addScriptChangedForm(table.getAbsoluteName());

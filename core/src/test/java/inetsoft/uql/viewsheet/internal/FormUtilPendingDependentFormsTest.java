@@ -136,4 +136,36 @@ class FormUtilPendingDependentFormsTest {
    void unknownSelectionNameYieldsNothing() {
       assertEquals(List.of(), FormUtil.pendingDependentForms(rvs, "Missing"));
    }
+
+   /**
+    * The real selection-to-Form dependency edge, with AssetUtil not mocked: both assemblies read
+    * the same worksheet table, which is what makes a selection change reload the Form table.
+    * The worksheet is placed on the viewsheet by reflection, because the only public way to set it
+    * (Viewsheet.update) needs an asset repository.
+    */
+   private List<String> realPending(String filterTable, String formTable) throws Exception {
+      inetsoft.uql.asset.Worksheet ws = new inetsoft.uql.asset.Worksheet();
+      ws.addAssembly(new inetsoft.uql.asset.BoundTableAssembly(ws, "T"));
+      java.lang.reflect.Field field = Viewsheet.class.getDeclaredField("ws");
+      field.setAccessible(true);
+      field.set(vs, ws);
+
+      filter.setTableName(filterTable);
+      ((TableVSAssemblyInfo) form.getInfo()).setSourceInfo(
+         new inetsoft.uql.asset.SourceInfo(inetsoft.uql.asset.SourceInfo.ASSET, null, formTable));
+      FormTableLens lens = lens(0, 1, 0);
+      when(box.getCachedFormTableLens("AdminTable")).thenReturn(lens);
+
+      return FormUtil.pendingDependentForms(rvs, "Filter");
+   }
+
+   @Test
+   void realDependencyNamesAFormOnTheSameWorksheetTable() throws Exception {
+      assertEquals(List.of("AdminTable"), realPending("T", "T"));
+   }
+
+   @Test
+   void realDependencyIgnoresAFormOnAnotherWorksheetTable() throws Exception {
+      assertEquals(List.of(), realPending("T", "Other"));
+   }
 }

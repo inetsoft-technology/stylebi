@@ -151,6 +151,16 @@ public class SelectionRuntimeService {
     * so it stays selected and is reported as {@code scopedBySearchRetained} (bug-78216).
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
+                                           List<List<String>> values, List<List<String>> deselect,
+                                           String sortOrder, Boolean singleSelect, Boolean additive,
+                                           String linkUri)
+      throws Exception
+   {
+      return setSelection(sessionToken, user, assemblyName, values, deselect, sortOrder,
+                          singleSelect, additive, null, linkUri);
+   }
+
+   public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
                                            List<List<String>> rawValues,
                                            List<List<String>> rawDeselect,
                                            String sortOrder, Boolean singleSelect, Boolean additive,
@@ -159,16 +169,6 @@ public class SelectionRuntimeService {
    {
       return setSelection(sessionToken, user, assemblyName, rawValues, rawDeselect, sortOrder,
                           singleSelect, additive, search, null, linkUri);
-   }
-
-   public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
-                                           List<List<String>> values, List<List<String>> deselect,
-                                           String sortOrder, Boolean singleSelect, Boolean additive,
-                                           String linkUri)
-      throws Exception
-   {
-      return setSelection(sessionToken, user, assemblyName, values, deselect, sortOrder,
-                          singleSelect, additive, null, linkUri);
    }
 
    /**
@@ -181,6 +181,8 @@ public class SelectionRuntimeService {
     *
     * @param search the search string to set before applying, or null to leave it as-is. Only valid
     *              on a selection list or tree — a range slider has no search box.
+    * @param discardPending true to apply even when that drops pending Form table edits; otherwise
+    *              such an apply is refused (Bug #80482).
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
                                            List<List<String>> rawValues,
@@ -1566,14 +1568,6 @@ public class SelectionRuntimeService {
    }
 
    /**
-    * Resolves and type-checks before any endpoint is touched, because the endpoints answer a bad
-    * name with silence, an NPE or a CCE depending on which one you call.
-    *
-    * <p>Public (reuse seam): {@code SelectionBindingService} type-checks the same four assembly
-    * classes before it can bind a column to any of them, so it shares this rather than keeping a
-    * second copy that could drift.
-    */
-   /**
     * Bug #80482: applying a selection that changes the condition resets every Form table built on
     * the selection's table, and a reset drops that table's pending (not yet applied) edits. The
     * Viewer asks first (/api/formDataCheck); this is the agent equivalent. Refuses, before anything
@@ -1607,7 +1601,7 @@ public class SelectionRuntimeService {
    }
 
    /** True when the selection currently narrows its table, i.e. clearing it changes the data. */
-   private static boolean isFiltering(SelectionVSAssembly assembly) {
+   static boolean isFiltering(SelectionVSAssembly assembly) {
       if(assembly instanceof CalendarVSAssembly) {
          String[] dates = ((CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo()).getDates();
          return dates != null && dates.length > 0;
@@ -1625,10 +1619,18 @@ public class SelectionRuntimeService {
       return !selectedPaths(assembly).isEmpty();
    }
 
-   private static boolean sameSelection(List<List<String>> requested, List<List<String>> current) {
+   static boolean sameSelection(List<List<String>> requested, List<List<String>> current) {
       return new HashSet<>(requested).equals(new HashSet<>(current));
    }
 
+   /**
+    * Resolves and type-checks before any endpoint is touched, because the endpoints answer a bad
+    * name with silence, an NPE or a CCE depending on which one you call.
+    *
+    * <p>Public (reuse seam): {@code SelectionBindingService} type-checks the same four assembly
+    * classes before it can bind a column to any of them, so it shares this rather than keeping a
+    * second copy that could drift.
+    */
    public static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName) {
       return requireSelection(rvs, assemblyName, false);
    }
