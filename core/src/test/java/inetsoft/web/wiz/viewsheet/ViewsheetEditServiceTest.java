@@ -2585,7 +2585,7 @@ class ViewsheetEditServiceTest {
       try {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(null, "rt1", null);
+            mutation.run(mock(RuntimeViewsheet.class), "rt1", null);
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
       }
@@ -2747,7 +2747,7 @@ class ViewsheetEditServiceTest {
       try {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(null, "rt1", null);
+            mutation.run(mock(RuntimeViewsheet.class), "rt1", null);
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
       }
@@ -2773,7 +2773,7 @@ class ViewsheetEditServiceTest {
       try {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(null, "rt1", null);
+            mutation.run(mock(RuntimeViewsheet.class), "rt1", null);
             return warnings;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
       }

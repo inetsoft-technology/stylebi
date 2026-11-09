@@ -1186,10 +1186,27 @@ public class ViewsheetEditService {
    {
       // assembly scripts that fail during the reset only land in ASSET_EXCEPTIONS (Bug #79623)
       return AssetScriptFailureWarnings.collect(() ->
-         sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
-            refreshService.refreshViewsheet(
-               runtimeId, VSRefreshEvent.builder().confirmed(false).build(), user, dispatcher,
-               linkUri)));
+         sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+            // Bug #80482: the refresh calls ViewsheetSandbox.syncFormData for every Form table,
+            // which drops each table's pending edits. Protect them the way Bug #80034 does for a
+            // script run; a refresh changes no data or condition, so keeping them is sound.
+            ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+            try {
+               if(box != null) {
+                  FormTableProtection.protectChangedFormTables(box, rvs.getViewsheet());
+               }
+
+               refreshService.refreshViewsheet(
+                  runtimeId, VSRefreshEvent.builder().confirmed(false).build(), user, dispatcher,
+                  linkUri);
+            }
+            finally {
+               if(box != null) {
+                  box.clearScriptChangedFormSet();
+               }
+            }
+         }));
    }
 
    private List<String> moveFromContainer(String sessionToken, Principal user, EditRequest request,

@@ -38,6 +38,7 @@ import java.security.Principal;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -150,6 +151,17 @@ public class SelectionRuntimeService {
     * so it stays selected and is reported as {@code scopedBySearchRetained} (bug-78216).
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
+                                           List<List<String>> rawValues,
+                                           List<List<String>> rawDeselect,
+                                           String sortOrder, Boolean singleSelect, Boolean additive,
+                                           String search, String linkUri)
+      throws Exception
+   {
+      return setSelection(sessionToken, user, assemblyName, rawValues, rawDeselect, sortOrder,
+                          singleSelect, additive, search, null, linkUri);
+   }
+
+   public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
                                            List<List<String>> values, List<List<String>> deselect,
                                            String sortOrder, Boolean singleSelect, Boolean additive,
                                            String linkUri)
@@ -174,7 +186,7 @@ public class SelectionRuntimeService {
                                            List<List<String>> rawValues,
                                            List<List<String>> rawDeselect,
                                            String sortOrder, Boolean singleSelect, Boolean additive,
-                                           String search, String linkUri)
+                                           String search, Boolean discardPending, String linkUri)
       throws Exception
    {
       requireName(assemblyName);
@@ -328,6 +340,21 @@ public class SelectionRuntimeService {
             // stays a legal no-op, while a fabricated or over-long path is refused by name instead
             // of silently touching nothing. Unscoped by search, like the deselect itself.
             requireResolvable(assemblyName, liveDomain, deselect, false, "deselecting");
+         }
+
+         // Bug #80482: an apply that changes the condition resets every Form table on this
+         // selection's table, dropping its pending edits. Refuse before the first write; an apply
+         // that re-sends the selection already held changes nothing and passes.
+         boolean changesCondition = values != null || hasDeselect ||
+            singleSelect != null && singleSelect != info.isSingleSelection();
+
+         if(changesCondition) {
+            refuseUnlessDiscardable(
+               rvs, discardPending, "this selection",
+               () -> !hasDeselect && singleSelect == null && values != null &&
+                  isPathDiffable(assembly) && !idMode &&
+                  sameSelection(values, selectedPaths(assembly)),
+               assemblyName);
          }
 
          // Search first, same reasoning as selection style below: it changes how a values apply
@@ -634,6 +661,14 @@ public class SelectionRuntimeService {
                                              String assemblyName, String linkUri)
       throws Exception
    {
+      return clearSelection(sessionToken, user, assemblyName, null, linkUri);
+   }
+
+   public Map<String, Object> clearSelection(String sessionToken, Principal user,
+                                             String assemblyName, Boolean discardPending,
+                                             String linkUri)
+      throws Exception
+   {
       requireName(assemblyName);
       final Map<String, Object> result = new LinkedHashMap<>();
 
@@ -641,13 +676,19 @@ public class SelectionRuntimeService {
          CurrentSelectionVSAssembly container = containerOf(rvs, assemblyName);
 
          if(container != null) {
-            clearContainer(rvs, runtimeId, dispatcher, user, linkUri, container, result);
+            clearContainer(rvs, runtimeId, dispatcher, user, linkUri, container, result,
+                           discardPending);
             return;
          }
 
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName, true);
          final Map<String, OtherSelection> othersBefore = snapshotOthers(rvs, assembly);
          requireBoundColumn(assembly, assemblyName);
+
+         // Bug #80482: clearing changes the condition and drops pending Form table edits (see
+         // setSelection). A selection that is not filtering leaves the condition as it is.
+         refuseUnlessDiscardable(rvs, discardPending, "clearing this selection",
+                                 () -> !isFiltering(assembly), assemblyName);
 
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
@@ -767,7 +808,7 @@ public class SelectionRuntimeService {
    private void clearContainer(RuntimeViewsheet rvs, String runtimeId,
                                CapturingCommandDispatcher dispatcher, Principal user,
                                String linkUri, CurrentSelectionVSAssembly container,
-                               Map<String, Object> result)
+                               Map<String, Object> result, Boolean discardPending)
       throws Exception
    {
       CurrentSelectionVSAssemblyInfo info =
@@ -814,6 +855,12 @@ public class SelectionRuntimeService {
          snapshotOthers(rvs, cleared, container.getAbsoluteName());
       Map<String, FilterState> before = new HashMap<>();
       filters.forEach((name, filter) -> before.put(name, readState(filter)));
+
+      // Bug #80482: see clearSelection. Only the filters that are filtering change a condition.
+      refuseUnlessDiscardable(
+         rvs, discardPending, "clearing these filters", null,
+         filters.values().stream().filter(SelectionRuntimeService::isFiltering)
+            .map(SelectionVSAssembly::getAbsoluteName).toArray(String[]::new));
 
       selections.unselectAll(runtimeId, container.getAbsoluteName(), user, dispatcher, linkUri);
 
@@ -1167,6 +1214,14 @@ public class SelectionRuntimeService {
                                             List<String> path, String mode, String linkUri)
       throws Exception
    {
+      return selectSubtree(sessionToken, user, assemblyName, path, mode, null, linkUri);
+   }
+
+   public Map<String, Object> selectSubtree(String sessionToken, Principal user, String assemblyName,
+                                            List<String> path, String mode, Boolean discardPending,
+                                            String linkUri)
+      throws Exception
+   {
       requireName(assemblyName);
 
       if(path == null || path.isEmpty()) {
@@ -1189,6 +1244,10 @@ public class SelectionRuntimeService {
          }
 
          requireBoundColumn(assembly, assemblyName);
+
+         // Bug #80482: a subtree select or clear changes the condition and drops pending Form
+         // table edits (see setSelection).
+         refuseUnlessDiscardable(rvs, discardPending, "this subtree change", null, assemblyName);
 
          SelectionTreeVSAssembly tree = (SelectionTreeVSAssembly) assembly;
 
@@ -1514,6 +1573,62 @@ public class SelectionRuntimeService {
     * classes before it can bind a column to any of them, so it shares this rather than keeping a
     * second copy that could drift.
     */
+   /**
+    * Bug #80482: applying a selection that changes the condition resets every Form table built on
+    * the selection's table, and a reset drops that table's pending (not yet applied) edits. The
+    * Viewer asks first (/api/formDataCheck); this is the agent equivalent. Refuses, before anything
+    * is written, unless the caller passed discardPending.
+    *
+    * @param action    what is about to happen, for the message.
+    * @param unchanged tells, only when something is pending, that the write leaves the condition
+    *                  as it is and so drops nothing; null when it always changes it.
+    * @param names     the selection assemblies the change applies to.
+    */
+   static void refuseUnlessDiscardable(RuntimeViewsheet rvs, Boolean discardPending, String action,
+                                       BooleanSupplier unchanged, String... names)
+   {
+      if(Boolean.TRUE.equals(discardPending)) {
+         return;
+      }
+
+      Set<String> pending = new LinkedHashSet<>();
+
+      for(String name : names) {
+         pending.addAll(FormUtil.pendingDependentForms(rvs, name));
+      }
+
+      if(!pending.isEmpty() && (unchanged == null || !unchanged.getAsBoolean())) {
+         throw new IllegalArgumentException(
+            "Applying " + action + " would discard the pending (not yet applied) row edits of " +
+            "Form table " + String.join(", ", pending) + ". Re-applying the filter reloads the " +
+            "table, and what is dropped cannot be recovered. Nothing was changed. Commit them " +
+            "first with form_table_apply, or pass discardPending: true to throw them away.");
+      }
+   }
+
+   /** True when the selection currently narrows its table, i.e. clearing it changes the data. */
+   private static boolean isFiltering(SelectionVSAssembly assembly) {
+      if(assembly instanceof CalendarVSAssembly) {
+         String[] dates = ((CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo()).getDates();
+         return dates != null && dates.length > 0;
+      }
+
+      if(assembly instanceof TimeSliderVSAssembly slider) {
+         return !isFullRangeSelected(bucketsOf(slider));
+      }
+
+      if(assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode()) {
+         // selectedPaths() under-reports an ID-mode tree; assume it is filtering
+         return true;
+      }
+
+      return !selectedPaths(assembly).isEmpty();
+   }
+
+   private static boolean sameSelection(List<List<String>> requested, List<List<String>> current) {
+      return new HashSet<>(requested).equals(new HashSet<>(current));
+   }
+
    public static SelectionVSAssembly requireSelection(RuntimeViewsheet rvs, String assemblyName) {
       return requireSelection(rvs, assemblyName, false);
    }

@@ -2234,7 +2234,7 @@ public class ViewsheetAssemblyAgentController {
       return selectionService.setSelection(sessionToken, user, request.assembly(), request.values(),
                                           request.deselect(), request.sortOrder(),
                                           request.singleSelect(), request.additive(),
-                                          request.search(), linkUri);
+                                          request.search(), request.discardPending(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/clear")
@@ -2246,7 +2246,8 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      return selectionService.clearSelection(sessionToken, user, request.assembly(), linkUri);
+      return selectionService.clearSelection(sessionToken, user, request.assembly(),
+                                            request.discardPending(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/subtree")
@@ -2259,12 +2260,13 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return selectionService.selectSubtree(sessionToken, user, request.assembly(), request.path(),
-                                           request.mode(), linkUri);
+                                           request.mode(), request.discardPending(), linkUri);
    }
 
    public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
                                   java.util.List<java.util.List<String>> deselect, String sortOrder,
-                                  Boolean singleSelect, Boolean additive, String search) {}
+                                  Boolean singleSelect, Boolean additive, String search,
+                                  Boolean discardPending) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/display")
    public Map<String, Object> setCalendarDisplay(@PathVariable String sessionToken,
@@ -2592,7 +2594,8 @@ public class ViewsheetAssemblyAgentController {
    public record FormTableSetCellRequest(String assembly, int row, int col, String value) {}
    public record FormTableApplyRequest(String assembly) {}
 
-   public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
+   public record SubtreeRequest(String assembly, java.util.List<String> path, String mode,
+                                Boolean discardPending) {}
 
    public record ConvertRequest(String assembly, String to) {}
 

@@ -17,19 +17,17 @@
  */
 package inetsoft.web.wiz.script;
 
-import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
-import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
+import inetsoft.web.wiz.viewsheet.FormTableProtection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -169,7 +167,7 @@ public class ScriptStateRefreshService {
          // mentions it, and let OnClickService's own finally-clearScriptChangedFormSet discipline
          // apply here too so the protection doesn't leak into some other, later refresh.
          if(box != null) {
-            protectChangedFormTables(box, rvs.getViewsheet());
+            FormTableProtection.protectChangedFormTables(box, rvs.getViewsheet());
          }
 
          CapturingCommandDispatcher.withCapturingDispatcher(user, dispatcher -> {
@@ -188,27 +186,6 @@ public class ScriptStateRefreshService {
 
          for(SelectionListVSAssembly list : applied) {
             list.setScriptSelectedValues(null);
-         }
-      }
-   }
-
-   /**
-    * Marks every Form table that already has an uncommitted edit (appended/changed/deleted row)
-    * as script-changed, so the refresh's own syncFormData call does not drop its cached
-    * FormTableLens and lose that edit (Bug #80034).
-    */
-   private static void protectChangedFormTables(ViewsheetSandbox box, Viewsheet vs) throws Exception {
-      for(Assembly assembly : vs.getAssemblies(true)) {
-         if(!(assembly instanceof TableVSAssembly table) ||
-            !(table.getInfo() instanceof TableVSAssemblyInfo info) || !info.isForm())
-         {
-            continue;
-         }
-
-         FormTableLens lens = box.getFormTableLens(table.getAbsoluteName());
-
-         if(lens != null && lens.isChanged()) {
-            box.addScriptChangedForm(table.getAbsoluteName());
          }
       }
    }
