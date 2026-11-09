@@ -236,6 +236,20 @@ class DashboardChangePlanServiceTest {
 
       assertEquals("low", plan.changes().get(0).risk());
       assertFalse(plan.requiresAgentSignoff());
+      // a create is not undone by rollback (it appends to the identity's dashboard list)
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void resolvePlanWithACreateKeepsTheStorageBackupEvenWithADelete() throws Exception {
+      lenient().when(globalRegistry.getDashboard(eq("Dashboard1__GLOBAL"))).thenReturn(null);
+      when(globalRegistry.getDashboard(eq("Dashboard2__GLOBAL"))).thenReturn(mock(Dashboard.class));
+      stubCurrentSettings("Dashboard2__GLOBAL", null, "Existing desc", vsAssetId(), true);
+      DashboardChangeRequest create = createDashboardChange("Dashboard1");
+      DashboardChangeRequest delete = deleteDashboardChange("Dashboard2__GLOBAL");
+
+      var plan = service.resolve(request("task", List.of(create, delete)), user);
+
+      assertTrue(plan.requiresStorageBackup());
    }
 
    @Test void resolveCreateThrowsOnDuplicateEntry() throws Exception {
@@ -412,6 +426,7 @@ class DashboardChangePlanServiceTest {
 
       assertEquals("low", plan.changes().get(0).risk());
       assertFalse(plan.requiresAgentSignoff());
+      assertFalse(plan.requiresStorageBackup());
    }
 
    @Test void resolveUpdateRenameIsClassifiedHighRisk() throws Exception {
@@ -570,6 +585,7 @@ class DashboardChangePlanServiceTest {
       assertEquals("high", plan.changes().get(0).risk());
       assertTrue(plan.requiresAgentSignoff());
       assertNull(plan.changes().get(0).proposedValue());
+      assertFalse(plan.requiresStorageBackup());
    }
 
    /** Regression coverage for the review finding this fix addresses: the delete plan's
