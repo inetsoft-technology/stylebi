@@ -90,6 +90,10 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
       })
    }
 
+   get modernizeHint(): boolean {
+      return !!this.viewsheet?.modernizable && !this.loadedVizModern;
+   }
+
    formValid = () => {
       return this.model && this.form && this.form.valid;
    };

@@ -33,6 +33,7 @@
  *   Group 10 — updateObjectList (private): appends new object; updates existing by name
  *   Group 11 — getNextObjectName (private): generates unique prefixed names
  *   Group 12 — processUpdateLayoutUndoStateCommand (private): emits when id matches runtimeId
+ *   Group 13 — dashboardActions: the canvas's dashboard-wide entries follow Print in the menu
  */
 
 import { LayoutPane } from "./layout-pane.component";
@@ -40,6 +41,7 @@ import { VSLayoutModel, PrintLayoutMeasures } from "../../../data/vs/vs-layout-m
 import { PrintLayoutSection } from "../../../../vsobjects/model/layout/print-layout-section";
 import { GuideBounds } from "../../../../vsobjects/model/layout/guide-bounds";
 import { AssemblyType } from "../assembly-type";
+import { AssemblyAction } from "../../../../common/action/assembly-action";
 import {
    makeComponent,
    makeLayoutObject,
@@ -389,5 +391,78 @@ describe("LayoutPane — processUpdateLayoutUndoStateCommand (private)", () => {
       (comp as any).processUpdateLayoutUndoStateCommand({ id: "other-id", undoEnabled: true });
 
       expect(spy).not.toHaveBeenCalled();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 13: dashboardActions [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("LayoutPane — dashboardActions", () => {
+   const entries = (comp: LayoutPane): AssemblyAction[] => comp.menuActions
+      .reduce((all, group) => all.concat(group.actions), [] as AssemblyAction[]);
+
+   const makeAction = (id: string, visible: boolean): AssemblyAction => ({
+      id: () => id,
+      label: () => id,
+      icon: () => "",
+      enabled: () => true,
+      visible: () => visible,
+      action: vi.fn()
+   });
+
+   it("offers only Print without dashboard actions", () => {
+      const { comp } = makeComponent();
+
+      expect(entries(comp).map(entry => entry.id())).toEqual(["composer viewsheet layout print"]);
+   });
+
+   it("offers the canvas's own entries after Print", () => {
+      const { comp } = makeComponent();
+      const modernize = makeAction("composer vspane modernize", true);
+      const revert = makeAction("composer vspane revert", true);
+
+      comp.dashboardActions = [modernize, revert];
+
+      const all = entries(comp);
+      expect(all.map(entry => entry.id())).toEqual(
+         ["composer viewsheet layout print", "composer vspane modernize", "composer vspane revert"]);
+      expect(all[1]).toBe(modernize);
+      expect(all[2]).toBe(revert);
+   });
+
+   it("shows a device layout's menu only while a dashboard entry is visible", () => {
+      const { comp, mocks } = makeComponent();
+      mocks.vsLayout.printLayout = false;
+      let visible = true;
+      const modernize = makeAction("composer vspane modernize", true);
+      modernize.visible = () => visible;
+
+      comp.dashboardActions = [modernize];
+
+      expect(comp.menuActions[0].visible).toBe(true);
+      visible = false;
+      expect(comp.menuActions[0].visible).toBe(false);
+   });
+
+   it("keeps Print for a print layout", () => {
+      const { comp, mocks } = makeComponent();
+      mocks.vsLayout.printLayout = true;
+
+      comp.dashboardActions = [makeAction("composer vspane modernize", false)];
+
+      const print = entries(comp)[0];
+      expect(print.id()).toBe("composer viewsheet layout print");
+      expect(print.visible()).toBe(true);
+   });
+
+   it("runs the canvas's own action", () => {
+      const { comp } = makeComponent();
+      const modernize = makeAction("composer vspane modernize", true);
+      comp.dashboardActions = [modernize];
+
+      entries(comp)[1].action(null);
+
+      expect(modernize.action).toHaveBeenCalled();
    });
 });

@@ -1868,6 +1868,33 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          java.util.Objects.equals(textLayout, desc.textLayout);
    }
 
+   /**
+    * The tiered value behind one of the plot's look properties, by field name: xGridColor,
+    * yGridColor, xGridStyle, yGridStyle, diagonalColor, quadrantColor, facetColor or bgColor.
+    */
+   public CompositeValue<?> chromeValue(String field) {
+      switch(field) {
+      case "xGridColor":
+         return xGridColor;
+      case "yGridColor":
+         return yGridColor;
+      case "xGridStyle":
+         return xGridStyle;
+      case "yGridStyle":
+         return yGridStyle;
+      case "diagonalColor":
+         return diagonalColor;
+      case "quadrantColor":
+         return quadrantColor;
+      case "facetColor":
+         return facetColor;
+      case "bgColor":
+         return bgColor;
+      default:
+         throw new IllegalArgumentException("Not a plot look property: " + field);
+      }
+   }
+
    public void resetCompositeValues(CompositeValue.Type type) {
       xGridColor.resetValue(type);
       xGridStyle.resetValue(type);

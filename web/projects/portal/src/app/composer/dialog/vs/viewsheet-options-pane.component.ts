@@ -57,6 +57,7 @@ export class ViewsheetOptionsPane implements OnInit, OnDestroy {
    @Input() defaultOrgAsset: boolean = false;
    @Input() runtimeId: string;
    @Input() showVizControls: boolean = true;
+   @Input() modernizeHint: boolean = false;
    @ViewChild("viewsheetParametersDialog") viewsheetParametersDialog: TemplateRef<any>;
    @ViewChild("selectDataSourceDialog") selectDataSourceDialog: TemplateRef<any>;
    viewsheetParametersModel: ViewsheetParametersDialogModel;

@@ -1483,6 +1483,54 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * The look slots Modernize reads and resets: every stored format path, plus the padding.
+    */
+   protected List<ChromeSlot> chromeSlots() {
+      List<ChromeSlot> slots = new ArrayList<>();
+
+      for(TableDataPath path : getFormatInfo().getPaths()) {
+         slots.addAll(FormatChromeSlots.forPath(path, prop -> true, resetsWholeFont(path)));
+      }
+
+      slots.add(paddingSlot());
+      return slots;
+   }
+
+   /**
+    * Whether the reset clears an author font at this path whole, rather than keeping its size and
+    * style. Titles do.
+    */
+   protected boolean resetsWholeFont(TableDataPath path) {
+      return TITLEPATH.equals(path);
+   }
+
+   static ChromeSlot paddingSlot() {
+      return paddingSlot(true);
+   }
+
+   static ChromeSlot paddingSlot(boolean residueEligible) {
+      return ChromeSlot.tiered("padding", false, residueEligible, VSAssemblyInfo::isUserPadding,
+                               info -> false, VSAssemblyInfo::getPadding,
+                               VSAssemblyInfo::getPadding,
+                               info -> info.setUserPadding(false),
+                               VSAssemblyInfo::resetPaddingSlot);
+   }
+
+   // the fresh padding, as some seeds write none
+   private static void resetPaddingSlot(VSAssemblyInfo info, VSAssemblyInfo fresh) {
+      info.setUserPadding(false);
+
+      if(fresh != null && fresh.getPadding() != null) {
+         info.setPadding((Insets) fresh.getPadding().clone());
+      }
+
+      // a format.css class or ID the fresh instance lacks still wins
+      if(info.isCssPaddingDefined()) {
+         info.resetPadding(VizContext.of(info));
+      }
+   }
+
+   /**
     * Get the padding space around the chart (between border and chart).
     */
    public Insets getPadding() {

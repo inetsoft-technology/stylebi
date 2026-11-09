@@ -881,7 +881,7 @@ the expected shape, not a sign of anything skipped); `portal` — 217 files, 132
 cross-module `./mvnw.cmd install -DskipTests "-Pcommunity,enterprise"` build — BUILD SUCCESS, 3:55 min, no
 reactor failures. **None of that is the same claim as "verified."** P6's ten manual checks — a marked
 dashboard in a gate-off org rendering fully modern including card radius and bar corners; Modernize-then-
-Revert byte-comparable with never-modernized; Undo after Revert; a mixed dashboard reverting only its marked
+Revert rendering identically to never-modernized; Undo after Revert; a mixed dashboard reverting only its marked
 assemblies; a host revert not touching an embedded sheet's own assemblies; Revert offered with the gate off
 and refused without write permission; export agreement across PDF/PNG/Excel for both a reverted and a
 gate-off-marked dashboard; density behaviour in a gate-off org including the anchored mini-toolbar and a
@@ -1301,9 +1301,11 @@ would send a P6 implementer in the opposite direction on density. Read the box, 
 that the box itself has since been corrected on one point, per the second item above.
 
 **And one prerequisite that is not code.** P6's headline verification — a modernized-then-reverted dashboard
-byte-comparable with one never modernized — is meaningless if it runs against a pre-mark-cohort asset, which
+that renders identically to one never modernized — is meaningless if it runs against a pre-mark-cohort asset, which
 carries seeded modern values with no mark. **P0's status is unverified**; use a freshly created dashboard, or
-confirm the pre-mark dev dashboards are gone, before reading that check as a pass.
+confirm the pre-mark dev dashboards are gone, before reading that check as a pass. The check is "renders
+identically", not byte-comparable, because Modernize's residue cleanup drops author values equal to the classic
+default, so the reverted asset no longer carries them.
 
 ### Test-coverage debt this phase created
 
@@ -1753,6 +1755,7 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
 - [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) — the seed mark,
   the four seeded values and the mechanism inventory. **Supersedes the roadmap's seed-mark analysis
   below**, which still lists version-blindness as the open question
+- [2026-11-04-modernize-dialog-design.md](./2026-11-04-modernize-dialog-design.md) — the Modernize dialog: keep my formatting with residue cleanup, or a reset modern copy (implemented)
 - [2026-09-11-chart-palette-retune-design.md](./2026-09-11-chart-palette-retune-design.md) —
   **implemented, in review.** The chart's categorical *series* palette, which nothing in this file
   covers: re-tunes the eight head colours of `Modern` and `Modern Dark`, adds `Contrast`, and gates the

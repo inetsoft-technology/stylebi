@@ -326,6 +326,14 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
    }
 
    /**
+    * Install the formats a new calendar of the show type has. A dropdown gets its prototype from
+    * the show-type swap in copyViewInfo, not from initDefaultFormat.
+    */
+   void installCreationFormats(int showType) {
+      setFormatInfo(seededPrototype(prototype(showType), VizContext.of(this)));
+   }
+
+   /**
     * Get the data ref.
     * @return the data ref.
     */
