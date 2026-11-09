@@ -909,7 +909,13 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          }
       }
       //by @nickgovus 2023-10-31, prevent position overwriting in metadata
-      if(assembly.getTotalLength() == 1 && total > 1 && curr == 0) {
+      // a date list left by a metadata placeholder refresh has no tick at all once the sheet
+      // is saved and read back, the saved state decides the position then too (Bug #80814)
+      SelectionList state = assembly.getStateSelectionList();
+      boolean stateOnly = assembly.getTotalLength() == 0 && state != null &&
+         state.getSelectionValueCount() > 0;
+
+      if((assembly.getTotalLength() == 1 || stateOnly) && total > 1 && curr == 0) {
          hint=NORMAL;
       }
 

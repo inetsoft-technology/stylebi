@@ -959,7 +959,11 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
 
       int length = getLengthValue();
       SelectionList vlist = getSelectionList();
-      boolean all = vlist == null || length >= vlist.getSelectionValueCount() - 1;
+      // in a Use Metadata sheet the view list may hold the placeholder ticks of the last
+      // design-time refresh, which a one-tick list makes look "full" for any length; it is
+      // only full if the view list holds the selected values (Bug #80814)
+      boolean all = vlist == null || length >= vlist.getSelectionValueCount() - 1 &&
+         (!isMetadataSheet() || containsState(vlist));
 
       writer.println("<state_length length=\"" + length +
                      "\" full=\"" + all + "\"/>");
@@ -1004,7 +1008,7 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
           // if the state is saved with the slider selecting the full range,
           // it's equivalent to no selection, so we restore to the same full
           // range state
-          if(all && getSelectionList() != null && isStateFromSelectionList()) {
+          if(all && getSelectionList() != null && !isPlaceholderSelectionList(length)) {
              length = getSelectionList().getSelectionValueCount() - 1;
              setStateSelectionList(getSelectionList());
           }
@@ -1014,26 +1018,40 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
    }
 
    /**
-    * Check if the current (view) selection list can stand for the full range of the parsed
-    * state. In a Use Metadata sheet the view list may still hold the placeholder ticks of the
-    * last design-time refresh (e.g. a sheet previewed or saved while Use Metadata is on); it
-    * doesn't hold the selected values then, and restoring the full range from it would
-    * replace the real state with the placeholder (Bug #80814). The saved length and state are
-    * kept instead and the next refresh rebuilds the full range from the real data.
+    * Check if the current (view) selection list can't stand for the full range of a state
+    * saved as full. A list that is too short for the saved length and doesn't hold the
+    * selected values is not the list the selection was made on: it is the placeholder of a
+    * Use Metadata design-time refresh, saved with the sheet or captured by Preview, and before
+    * writeStateContent checked the view list such a state was written as full for any length
+    * (Bug #80814). Restoring the full range from it would replace the real state with the
+    * placeholder, so the saved length and state are kept and the next refresh rebuilds the
+    * range from the real data. This can't depend on the Use Metadata flag, which is read after
+    * the assemblies when a sheet is loaded. A real list that changed with the data (e.g. a new
+    * tick step) is at least as long and restores the full range as before.
     */
-   private boolean isStateFromSelectionList() {
+   private boolean isPlaceholderSelectionList(int length) {
+      SelectionList vlist = getSelectionList();
+      return length > vlist.getSelectionValueCount() - 1 && !containsState(vlist);
+   }
+
+   private boolean isMetadataSheet() {
       Viewsheet vs = getViewsheet();
+      return vs != null && vs.getViewsheetInfo().isMetadata();
+   }
+
+   /**
+    * Check if the selection list holds every value of the state selection list.
+    */
+   private boolean containsState(SelectionList list) {
       SelectionList state = getStateSelectionList();
 
-      if(vs == null || !vs.getViewsheetInfo().isMetadata() ||
-         state == null || state.getSelectionValueCount() == 0)
-      {
+      if(state == null || state.getSelectionValueCount() == 0) {
          return true;
       }
 
       Set<String> values = new HashSet<>();
 
-      for(SelectionValue value : getSelectionList().getSelectionValues()) {
+      for(SelectionValue value : list.getSelectionValues()) {
          values.add(value.getValue());
       }
 

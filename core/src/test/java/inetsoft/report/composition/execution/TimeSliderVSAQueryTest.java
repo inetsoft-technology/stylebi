@@ -755,6 +755,144 @@ public class TimeSliderVSAQueryTest {
       private final Object[] yearPlaceholder = { 999, 999 };
 
       /**
+       * A viewer of a sheet saved with Use Metadata on goes to a full-range bookmark after the
+       * data domain of an auto-tick number slider grew so much that the nice tick step changed:
+       * the bookmark was written against a real list, so it must restore the full range of the
+       * current list, as for a sheet without Use Metadata.
+       */
+      @Test
+      void fullBookmarkRestoresFullRangeAfterTickStepChange() throws Exception {
+         useRuntimeBox();
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         setUpNumberSlider();
+         refresh(new Object[] { 0.0, 100.0 });
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+         assertSelected(0, ticks - 1);
+         String bookmark = writeBookmark();
+         List<String> oldTicks = getValues(assembly.getSelectionList());
+
+         Object[] grown = { 0.0, 2500.0 };
+         refresh(grown);
+         assertFalse(getValues(assembly.getSelectionList()).containsAll(oldTicks),
+            "test setup invariant: the tick step must change with the grown domain");
+
+         gotoBookmark(bookmark);
+         refresh(grown);
+
+         int ticks2 = assembly.getSelectionList().getSelectionValueCount();
+         assertEquals(ticks2 - 1, assembly.getTimeInfo().getLength());
+         assertSelected(0, ticks2 - 1);
+      }
+
+      /**
+       * A sheet saved (or previewed) with Use Metadata on before the fix wrote its partial
+       * selection as full="true" against the persisted one-tick placeholder list. Going to that
+       * state must keep the saved selection, not restore the placeholder as the full range.
+       */
+      @Test
+      void healsStateWrittenAsFullAgainstPlaceholder() throws Exception {
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(dateData);
+         selectRange(10, 5);
+         refresh(dateData);
+
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(datePlaceholder);
+         String bookmark = writeBookmark();
+         assertTrue(bookmark.contains("full=\"false\""),
+            "a partial selection over the placeholder list must not be written as full");
+
+         useRuntimeBox();
+         gotoBookmark(bookmark.replace("full=\"false\"", "full=\"true\""));
+         refresh(dateData);
+
+         assertEquals(5, assembly.getTimeInfo().getLength());
+         assertSelected(10, 5);
+      }
+
+      /**
+       * A partial slider saved while Use Metadata is on (view list = the placeholder) must come
+       * back partial when the sheet is opened again, in the viewer or in Composer. The year
+       * slider of Examples/Sales Summary narrowed to 2013..2015.
+       */
+      @Test
+      void partialYearSelectionSurvivesSaveWithMetadataOn() throws Exception {
+         setUpYearSlider();
+         String saved = saveWithMetadataOn(yearData, 0, 2, yearPlaceholder);
+         assertTrue(saved.contains("full=\"false\""),
+            "a partial selection over the placeholder list must not be written as full");
+
+         reloadAndRefreshInViewer(saved, yearData);
+
+         assertEquals(2, assembly.getTimeInfo().getLength());
+         assertSelected(0, 2);
+      }
+
+      @Test
+      void partialMonthSelectionSurvivesSaveWithMetadataOn() throws Exception {
+         setUpDateSlider(TimeInfo.MONTH);
+         String saved = saveWithMetadataOn(dateData, 10, 5, datePlaceholder);
+
+         reloadAndRefreshInViewer(saved, dateData);
+
+         assertEquals(5, assembly.getTimeInfo().getLength());
+         assertSelected(10, 5);
+      }
+
+      /**
+       * The same sheet saved before the fix, with full="true" written against the persisted
+       * placeholder view list: opening it must still give back the saved partial range.
+       */
+      @Test
+      void partialYearSelectionSavedAsFullWithMetadataOnIsHealed() throws Exception {
+         setUpYearSlider();
+         String saved = saveWithMetadataOn(yearData, 0, 2, yearPlaceholder)
+            .replace("full=\"false\"", "full=\"true\"");
+
+         reloadAndRefreshInViewer(saved, yearData);
+
+         assertEquals(2, assembly.getTimeInfo().getLength());
+         assertSelected(0, 2);
+      }
+
+      private String saveWithMetadataOn(Object[] data, int pos, int length, Object[] placeholder)
+         throws Exception
+      {
+         refresh(data);
+         selectRange(pos, length);
+         refresh(data);
+         assertSelected(pos, length);
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(placeholder);
+
+         java.io.StringWriter buf = new java.io.StringWriter();
+         java.io.PrintWriter writer = new java.io.PrintWriter(buf);
+         viewsheet.writeXML(writer);
+         writer.flush();
+         return buf.toString();
+      }
+
+      private void reloadAndRefreshInViewer(String saved, Object[] data) throws Exception {
+         Viewsheet reloaded = new Viewsheet();
+         reloaded.parseXML(Tool.parseXML(new java.io.StringReader(saved)).getDocumentElement());
+         assertTrue(reloaded.getViewsheetInfo().isMetadata());
+         viewsheet = reloaded;
+         assembly = (TimeSliderVSAssembly) reloaded.getAssembly(SLIDER);
+         useRuntimeBox();
+         refresh(data);
+      }
+
+      private List<String> getValues(SelectionList list) {
+         List<String> values = new ArrayList<>();
+
+         for(int i = 0; list != null && i < list.getSelectionValueCount(); i++) {
+            values.add(list.getSelectionValue(i).getValue());
+         }
+
+         return values;
+      }
+
+      /**
        * A viewer opening a sheet saved with Use Metadata on: the runtime box runs on real data
        * and must give the same slider as for the same sheet saved with Use Metadata off, also
        * when the data no longer holds the selected position (the pos < 0 fallback).
@@ -790,11 +928,19 @@ public class TimeSliderVSAQueryTest {
        */
       private void openPreview() throws Exception {
          useRuntimeBox();
+         gotoBookmark(writeBookmark());
+      }
+
+      private String writeBookmark() {
          java.io.StringWriter buf = new java.io.StringWriter();
          java.io.PrintWriter writer = new java.io.PrintWriter(buf);
          assembly.writeState(writer, true);
          writer.flush();
-         org.w3c.dom.Document doc = Tool.parseXML(new java.io.StringReader(buf.toString()));
+         return buf.toString();
+      }
+
+      private void gotoBookmark(String state) throws Exception {
+         org.w3c.dom.Document doc = Tool.parseXML(new java.io.StringReader(state));
          assembly.parseState(doc.getDocumentElement());
       }
 
