@@ -58,9 +58,9 @@ export class GuiTool {
    static readonly MINI_TOOLBAR_HEIGHT = 28;
 
    // Compact mini-toolbar footprint under the modern visualization gate. Coupled to
-   // --inet-control-height-sm, the height the pinned container in mini-toolbar.component.scss
-   // (:host-context(.viz-modern)) binds to; change both together.
-   static readonly MINI_TOOLBAR_HEIGHT_MODERN = 24;
+   // the 26px height the pinned container in mini-toolbar.component.scss
+   // (:host-context(.viz-modern)) sets; change both together.
+   static readonly MINI_TOOLBAR_HEIGHT_MODERN = 26;
 
    // Org-level shell state, for chrome that is not owned by any one assembly: surfaces appended to
    // body (tooltips) and full-container overlays (the pop-dim scrim). Assembly chrome must not use

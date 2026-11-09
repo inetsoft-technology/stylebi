@@ -253,8 +253,8 @@ describe("VSObjectContainer chrome on a shifted table card", () => {
       const comp = viewerComponent(obj);
 
       expect(comp.isToolbarAnchored(obj)).toBe(true);
-      // card top, then the lane's inset top and the centring (30 - 24) / 2
-      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 120 + 12 + 3);
+      // card top, then the lane's inset top and the centring (30 - 26) / 2
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 120 + 12 + 2);
    });
 
    it("keeps the strip on objectFormat.top when nothing or zero is published", () => {
@@ -262,7 +262,7 @@ describe("VSObjectContainer chrome on a shifted table card", () => {
          const obj = shiftedTable({ cardTopShift });
          const comp = viewerComponent(obj);
 
-         expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 3);
+         expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 2);
          expect(comp.getVsObjectPosition(obj, 0, true)).toBe(40);
       }
    });
@@ -319,7 +319,7 @@ describe("VSObjectContainer chrome on a shifted table card", () => {
       const obj = shiftedTable({ maxMode: true });
       const comp = viewerComponent(obj);
 
-      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 3);
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 2);
       expect(comp.getVsObjectPosition(obj, 0, true)).toBeNull();
    });
 

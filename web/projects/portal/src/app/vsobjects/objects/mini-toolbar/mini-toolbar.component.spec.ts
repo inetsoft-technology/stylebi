@@ -177,11 +177,11 @@ describe("MiniToolbar.topY", () => {
       expect(comp.topY).toBe(72); // 100 - 28 - 0
    });
 
-   it("positions the toolbar 24px above the object under the assembly's own vizModern", () => {
+   it("positions the toolbar 26px above the object under the assembly's own vizModern", () => {
       const comp = makeToolbar();
       comp.actions = { getModel: () => ({ vizModern: true }) } as any;
       comp.top = 100;
-      expect(comp.topY).toBe(76); // 100 - 24 - 0
+      expect(comp.topY).toBe(74); // 100 - 26 - 0
    });
 
    it("stops subtracting its own height when anchored", () => {

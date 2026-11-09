@@ -46,8 +46,8 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    more: AssemblyActionGroup[] = [];
    moreAction: AssemblyAction = null;
 
-   // Height bands for the anchored strip. Only ACTION_FLOOR is derived: a 24px control needs 4px of
-   // clearance above and below, so below 32px no control fits. ACTIONS_MIN (32 + 24) is judgement —
+   // Height bands for the anchored strip. Only ACTION_FLOOR is derived: a 26px control needs 4px of
+   // clearance above and below, so below 34px no control fits. ACTIONS_MIN (56) is judgement —
    // the height at which a strip stops feeling like it owns the card — and is the number in this
    // ladder most likely to be wrong. Validate against real dashboards before trusting it; a 56px card
    // is common in a KPI row.
@@ -240,7 +240,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
 
       const modern = this.resident;
 
-      // No chrome at all below the control floor — a 24px control with 4px clearance does not fit,
+      // No chrome at all below the control floor — a 26px control with 4px clearance does not fit,
       // and right-click becomes the only route. This is the one rung that removes the kebab.
       //
       // A lane too short to host the strip moves the kebab to the corner rather than drawing
