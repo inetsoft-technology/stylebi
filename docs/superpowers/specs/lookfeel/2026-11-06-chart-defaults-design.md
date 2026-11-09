@@ -125,6 +125,11 @@ Saving it would freeze the org's current value into every classic chart. A later
 Facts that make this safe:
 
 - **Older builds read it.** `CompositeValue.parse` reads the `^^DEF^^` prefix into the DEFAULT tier, whatever the reading build's `saveDefault` is (`:114-127`). This has been true since this repository's first commit (2024-07-12). The reviewer also confirmed it in the InetSoft 2023 `inetsoft-core.jar`.
+- **Older builds don't keep it (known limitation, ruled 2026-11-09).**
+  - An older build's `CompositeValue.toString` writes the DEFAULT tier only when `saveDefault` is set, and parsing never sets it. So the tier is gone the first time that build writes the asset.
+  - An EM import writes on the way in (`AbstractSheetAsset.parseContent` → `setSheet`). An imported asset therefore arrives without its seeded values. On a marked chart, that build's render-time CSS still colours the x, y and facet lines, but the diagonal and quadrant lines draw classic in the composer.
+  - Opening the stored file without a write, for example after a downgrade on the same storage, draws the saved values.
+  - Only the USER tier survives an older writer. Saving a seed there would make it the author's and break Revert, so this is not changed.
 - **Bug #55730.** The `readAsDefault` branch (`:129-136`) turns a bare string into DEFAULT only when the field saves defaults *and* the caller passes `readAsDefault=true`. No chart descriptor parse passes `true`. The only caller that does is `StaticSizeFrameWrapper:99`. So an author's bare value from an old file stays USER.
 - **Data-label ink already travels.** `CompositeTextFormat` writes its `<defaultFormat>` without any `saveDefault` gate (`CompositeTextFormat.writeContents`, DK §4).
 
@@ -212,7 +217,7 @@ There is no migration on load: the epic is unreleased.
 
 - Every export (PDF, PNG, SVG, Excel, PowerPoint) draws through `GraphGenerator`, so drawing rules apply there too. Excel keeps its opaque card (TC D16).
 - **In an older build:**
-  - V items arrive and draw.
+  - V items arrive and draw. Those saved as a DEFAULT tier (chart descriptor values) last only until that build writes the asset, and an import writes it (M3).
   - N items are ignored.
   - D items fall back to the old rule.
   - C items arrive as ordinary bindings.
