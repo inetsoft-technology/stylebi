@@ -21,6 +21,7 @@ import inetsoft.uql.rest.*;
 import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
 import inetsoft.uql.rest.pagination.PaginationSpec;
 import inetsoft.uql.rest.pagination.PaginationType;
+import inetsoft.util.CoreTool;
 
 import java.io.InputStream;
 import java.util.Collections;
@@ -112,6 +113,9 @@ public class JsonPagedPageCountIteratorStrategy extends HttpRestDataIteratorStra
          return parser.parseInt(spec.getTotalPagesParam(), json, response);
       }
       catch(Exception ex) {
+         CoreTool.addUserWarning(
+            "The page count (Total Pages parameter) could not be resolved from the first " +
+            "response, so only page 1 was read.");
          return 0;
       }
    }

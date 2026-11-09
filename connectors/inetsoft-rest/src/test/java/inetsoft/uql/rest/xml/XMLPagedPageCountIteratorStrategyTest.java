@@ -154,6 +154,27 @@ public class XMLPagedPageCountIteratorStrategyTest {
     }
 
     @Test
+    public void unmatchedXpathRaisesUserWarning() throws Exception {
+        inetsoft.util.CoreTool.clearUserMessage();
+        final String[] pages = { "<data pages=\"3\"><id>1</id></data>" };
+        assertEquals(Collections.singletonList(1),
+           run("/data/@other", "/data/id/text()", false, 1, pages));
+        final inetsoft.util.UserMessage msg = inetsoft.util.CoreTool.getUserMessage();
+        assertNotNull(msg);
+        assertEquals(inetsoft.uql.asset.ConfirmException.WARNING, msg.getLevel());
+        assertTrue(msg.getMessage().matches("(?is).*page.?count[^|]*matched nothing.*"));
+        assertTrue(msg.getMessage().contains("only page 1"));
+    }
+
+    @Test
+    public void matchedXpathRaisesNoUserWarning() throws Exception {
+        inetsoft.util.CoreTool.clearUserMessage();
+        final String[] pages = { "<data pages=\"1\"><id>1</id></data>" };
+        run("/data/@pages", "/data/id/text()", false, 1, pages);
+        assertNull(inetsoft.util.CoreTool.getUserMessage());
+    }
+
+    @Test
     public void multiMatchElementPageCountLastWins() throws Exception {
         final String[] pages = {
            "<data><n>1</n><n>2</n><id>1</id></data>",

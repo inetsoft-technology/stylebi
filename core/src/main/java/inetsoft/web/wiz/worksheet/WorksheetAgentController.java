@@ -526,7 +526,7 @@ public class WorksheetAgentController {
                "property map instead.");
          }
 
-         addQueryParamsTable(sessionToken, req, user, resolvedNameHolder);
+         addQueryParamsTable(sessionToken, req, user, resolvedNameHolder, refreshNoteHolder);
          return;
       }
 
@@ -565,7 +565,7 @@ public class WorksheetAgentController {
                " has no schema/catalog.");
          }
 
-         addTabularTable(sessionToken, req, user, resolvedNameHolder);
+         addTabularTable(sessionToken, req, user, resolvedNameHolder, refreshNoteHolder);
          return;
       }
 
@@ -1244,7 +1244,7 @@ public class WorksheetAgentController {
     * {@code TabularSource} request shape.</p>
     */
    private void addTabularTable(String sessionToken, EditRequest req, Principal user,
-                                String[] resolvedNameHolder)
+                                String[] resolvedNameHolder, String[] noteHolder)
       throws Exception
    {
       String dsName = req.datasource();
@@ -1405,6 +1405,7 @@ public class WorksheetAgentController {
          // WorksheetTableService.buildTabularTable both make; a tabular query has no columns
          // until one response has been parsed.
          TabularProbeCause.beginProbe();
+         CoreTool.clearUserMessage();
          assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
@@ -1429,6 +1430,12 @@ public class WorksheetAgentController {
 
          ws.addAssembly(assembly);
 
+         // A warning the probe raised (e.g. a paged source whose page count did not resolve, so
+         // only page 1 was read) is handed back to the caller instead of being dropped.
+         if(noteHolder != null) {
+            noteHolder[0] = takePendingWarning();
+         }
+
          return null;
       });
    }
@@ -1445,7 +1452,7 @@ public class WorksheetAgentController {
     * {@code endpoint}/{@code suffix} property on their query class.
     */
    private void addQueryParamsTable(String sessionToken, EditRequest req, Principal user,
-                                    String[] resolvedNameHolder)
+                                    String[] resolvedNameHolder, String[] noteHolder)
       throws Exception
    {
       String dsName = req.datasource();
@@ -1513,6 +1520,7 @@ public class WorksheetAgentController {
          // addTabularTable above both make; a tabular query has no columns until one response
          // has been parsed.
          TabularProbeCause.beginProbe();
+         CoreTool.clearUserMessage();
          assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
@@ -1532,6 +1540,12 @@ public class WorksheetAgentController {
          }
 
          ws.addAssembly(assembly);
+
+         // A warning the probe raised (e.g. a paged source whose page count did not resolve, so
+         // only page 1 was read) is handed back to the caller instead of being dropped.
+         if(noteHolder != null) {
+            noteHolder[0] = takePendingWarning();
+         }
 
          return null;
       });

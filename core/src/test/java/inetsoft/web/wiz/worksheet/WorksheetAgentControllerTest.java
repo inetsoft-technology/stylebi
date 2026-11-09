@@ -10986,6 +10986,73 @@ class WorksheetAgentControllerTest {
          "the response must report the ACTUAL resolved name, not the requested 'Products'");
    }
 
+   @Test
+   void addQueryParamsTableEditResponseCarriesProbeWarningAsNote() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery() {
+         @Override
+         public void loadOutputColumns(VariableTable vtable) throws Exception {
+            super.loadOutputColumns(vtable);
+            CoreTool.addUserWarning("The page count (Page Count XPath parameter) matched " +
+                                    "nothing on the first page, so only page 1 was read.");
+         }
+      };
+      query.setOutputColumns(new XTypeNode[] { new XTypeNode("id") });
+
+      EditRequest req = addQueryParamsTableRequest("Products", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new TabularTableAssembly(ws, "Products"));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-QP8N"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         response = ctrl.edit("TOK-QP8N", req, agent);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertNotNull(response.getBody());
+      assertNotNull(response.getBody().note(),
+         "a warning raised by the probe must be returned in EditResponse.note");
+      assertTrue(response.getBody().note().contains("only page 1 was read"));
+   }
+
    /**
     * Regression for round-1 review finding 2 on the row-cap PR: proves
     * {@code TabularEndpointBindingSupport.requireRowCapWhenPaged} is actually wired into
