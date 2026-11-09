@@ -243,7 +243,9 @@ final class ChartChromeSlots {
          if(item instanceof ChartRef) {
             Loc<ChartRef> ref = loc.then(r -> r instanceof ChartRef ? (ChartRef) r : null);
             text(key + ":text", ref.then(ChartRef::getTextFormat), false);
-            axis(key + ":axis", ref.then(ChartRef::getAxisDescriptor), lineSeeded);
+            // only a value axis; a category line stays the author's
+            axis(key + ":axis", ref.then(ChartRef::getAxisDescriptor),
+                 lineSeeded && ((ChartRef) item).isMeasure());
          }
 
          if(item instanceof ChartAggregateRef) {
@@ -274,7 +276,7 @@ final class ChartChromeSlots {
          }
       }
 
-      // lineSeeded: the line seed writes this axis
+      // lineSeeded: a value axis the line seed writes
       private void axis(String key, Loc<AxisDescriptor> loc, boolean lineSeeded) {
          AxisDescriptor axis = loc.apply(source);
 
@@ -331,6 +333,8 @@ final class ChartChromeSlots {
                // an axis the author hid stays hidden
                if(target != null && (target.isLineVisible() || target.isLabelVisible())) {
                   target.setUserLineVisible(false);
+                  // max mode then follows the seeded line
+                  target.setMaxModeLineVisible(true);
                }
             }));
       }

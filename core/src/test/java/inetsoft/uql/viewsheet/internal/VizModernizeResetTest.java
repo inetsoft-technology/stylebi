@@ -762,6 +762,77 @@ class VizModernizeResetTest {
       assertTrue(x.isMaxModeVisible(VizContext.of(chart)));
    }
 
+   @Test
+   void theResetCopyKeepsACategoryLineTheAuthorTurnedOff() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindBar(chart, aggregate("Sales"));
+      AxisDescriptor state = chart.getVSChartInfo().getXField(0).getAxisDescriptor();
+      state.setAuthorLineVisible(false);
+      assertTrue(state.isLabelVisible(), "premise: the axis still shows its labels");
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertFalse(state.isLineVisible());
+      assertTrue(state.isUserLineVisible());
+   }
+
+   @Test
+   void theResetCopyKeepsAValueAxisTheAuthorHid() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      AxisDescriptor axis = bindScatter(chart).getAxisDescriptor();
+      assertTrue(axis.isLineVisible(), "premise: a scatter's seed draws its value lines");
+      // as hiding the axis writes it
+      axis.setMaxModeLineVisible(false);
+      axis.setMaxModeLabelVisible(false);
+      axis.setAuthorLineVisible(false);
+      axis.setLabelVisible(false);
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertFalse(axis.isLineVisible());
+      assertTrue(axis.isUserLineVisible());
+      assertFalse(axis.isLabelVisible());
+      assertFalse(axis.isMaxModeLineVisible(VizContext.of(chart)));
+   }
+
+   @Test
+   void aValueLineHiddenInMaxModeFollowsTheSeedOnTheResetCopy() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      VSChartAggregateRef sales = bindScatter(chart);
+      List<AxisDescriptor> valueAxes =
+         List.of(chart.getVSChartInfo().getAxisDescriptor(), sales.getAxisDescriptor());
+
+      for(AxisDescriptor axis : valueAxes) {
+         assertTrue(axis.isLineVisible(), "premise: a scatter's seed draws its value lines");
+         // as the axis dialog writes an untick in modern max mode
+         axis.setMaxModeLineVisible(false);
+         assertFalse(axis.isMaxModeLineVisible(VizContext.of(chart)), "premise");
+      }
+
+      VizModernizeUtil.resetToModern(vs);
+
+      for(int i = 0; i < valueAxes.size(); i++) {
+         assertTrue(valueAxes.get(i).isLineVisible(), "axis " + i);
+         assertTrue(valueAxes.get(i).isMaxModeLineVisible(VizContext.of(chart)), "axis " + i);
+      }
+   }
+
+   // a Sales-by-Profit scatter, seeded under the chart's mark; returns the Y measure
+   private static VSChartAggregateRef bindScatter(ChartVSAssemblyInfo chart) {
+      VSChartAggregateRef sales = aggregate("Sales");
+      chart.getVSChartInfo().addXField(aggregate("Profit"));
+      chart.getVSChartInfo().addYField(sales);
+      chart.getVSChartInfo().setChartType(GraphTypes.CHART_POINT);
+      chart.seedChromeDefaults(VizContext.of(chart));
+      return sales;
+   }
+
    private static void bindBar(ChartVSAssemblyInfo chart, VSChartAggregateRef measure) {
       bind(chart, GraphTypes.CHART_BAR, measure);
    }

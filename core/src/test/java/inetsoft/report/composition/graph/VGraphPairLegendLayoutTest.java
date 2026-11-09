@@ -26,6 +26,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
+import inetsoft.uql.viewsheet.graph.LegendDescriptor;
 import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -38,7 +39,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
-import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -63,39 +63,73 @@ class VGraphPairLegendLayoutTest {
    }
 
    @Test
-   void aScriptMovingTheLegendInPlaceFillsThePerFieldLegend() throws Exception {
+   void aScriptMovingTheLegendInPlaceFillsThePerFieldLegend() {
       ChartVSAssemblyInfo info = darkChart();
       VSAestheticRef color = bindColor(info);
       runtimeLayout(info, LegendsDescriptor.IN_PLACE);
       assertEquals(LegendsDescriptor.RIGHT, designLegends(info).getLayout(), "premise");
 
-      fixChartFormat(info);
+      ChartFormatDefaults.fix(info);
 
       assertEquals(DARK_FILL, fill(color));
    }
 
    @Test
-   void aScriptMovingTheLegendOutClearsThePerFieldFill() throws Exception {
+   void aScriptMovingTheLegendOutClearsThePerFieldFill() {
       ChartVSAssemblyInfo info = darkChart();
       VSAestheticRef color = bindColor(info);
       designLegends(info).setLayout(LegendsDescriptor.IN_PLACE);
       runtimeLayout(info, LegendsDescriptor.RIGHT);
 
-      fixChartFormat(info);
+      ChartFormatDefaults.fix(info);
 
       assertNull(fill(color));
    }
 
    @Test
-   void withoutARuntimeCopyTheDesignLayoutDecides() throws Exception {
+   void withoutARuntimeCopyTheDesignLayoutDecides() {
       ChartVSAssemblyInfo info = darkChart();
       VSAestheticRef color = bindColor(info);
       designLegends(info).setLayout(LegendsDescriptor.IN_PLACE);
       assertNull(info.getRTChartDescriptor(), "premise");
 
-      fixChartFormat(info);
+      ChartFormatDefaults.fix(info);
 
       assertEquals(DARK_FILL, fill(color));
+   }
+
+   @Test
+   void eachDescriptorsOwnLegendsFollowItsLayout() {
+      ChartVSAssemblyInfo designInPlace = darkChart();
+      designLegends(designInPlace).setLayout(LegendsDescriptor.IN_PLACE);
+      runtimeLayout(designInPlace, LegendsDescriptor.RIGHT);
+      ChartVSAssemblyInfo runtimeInPlace = darkChart();
+      runtimeLayout(runtimeInPlace, LegendsDescriptor.IN_PLACE);
+      assertEquals(LegendsDescriptor.RIGHT, designLegends(runtimeInPlace).getLayout(), "premise");
+
+      ChartFormatDefaults.fix(designInPlace);
+      ChartFormatDefaults.fix(runtimeInPlace);
+
+      assertFills(DARK_FILL, designLegends(designInPlace), "design, in place");
+      assertFills(null, runtimeLegends(designInPlace), "runtime, right");
+      assertFills(null, designLegends(runtimeInPlace), "design, right");
+      assertFills(DARK_FILL, runtimeLegends(runtimeInPlace), "runtime, in place");
+   }
+
+   // the colour, shape and size legends of one legends descriptor
+   private static void assertFills(Color expected, LegendsDescriptor legends, String what) {
+      LegendDescriptor[] all = { legends.getColorLegendDescriptor(),
+                                 legends.getShapeLegendDescriptor(),
+                                 legends.getSizeLegendDescriptor() };
+
+      for(int i = 0; i < all.length; i++) {
+         assertEquals(expected, all[i].getContentTextFormat().getDefaultFormat().getBackground(),
+                      what + " " + i);
+      }
+   }
+
+   private static LegendsDescriptor runtimeLegends(ChartVSAssemblyInfo info) {
+      return info.getRTChartDescriptor().getLegendsDescriptor();
    }
 
    private static ChartVSAssemblyInfo darkChart() {
@@ -130,12 +164,5 @@ class VGraphPairLegendLayoutTest {
 
    private static Color fill(VSAestheticRef ref) {
       return ref.getLegendDescriptor().getContentTextFormat().getDefaultFormat().getBackground();
-   }
-
-   private static void fixChartFormat(ChartVSAssemblyInfo info) throws Exception {
-      Method method = VGraphPair.class.getDeclaredMethod("fixChartFormat",
-                                                         ChartVSAssemblyInfo.class);
-      method.setAccessible(true);
-      method.invoke(new VGraphPair(), info);
    }
 }

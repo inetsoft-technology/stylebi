@@ -436,9 +436,9 @@ class ChartChromeSlotsTest {
 
       AxisDescriptor chartAxis = info.getVSChartInfo().getAxisDescriptor();
       chartAxis.setAuthorLineVisible(true);
-      VSChartDimensionRef state = dimension("State");
-      state.getAxisDescriptor().setAuthorLineVisible(true);
-      info.getVSChartInfo().addXField(state);
+      VSChartAggregateRef sales = aggregate("Sales");
+      sales.getAxisDescriptor().setAuthorLineVisible(true);
+      info.getVSChartInfo().addYField(sales);
 
       resetAll(info, fresh(VizMark.MODERN_LIGHT));
 
@@ -447,7 +447,7 @@ class ChartChromeSlotsTest {
       }
 
       assertFalse(chartAxis.isUserLineVisible(), "the chart's axis");
-      assertFalse(state.getAxisDescriptor().isUserLineVisible(), "the ref's axis");
+      assertFalse(sales.getAxisDescriptor().isUserLineVisible(), "the measure's axis");
    }
 
    @Test
@@ -474,10 +474,11 @@ class ChartChromeSlotsTest {
    }
 
    @Test
-   void onlyTheAxesTheLineSeedWritesHaveALineFlagSlot() {
+   void onlyValueAxesHaveALineFlagSlot() {
       ChartVSAssemblyInfo info = chart();
       VSChartInfo cinfo = info.getVSChartInfo();
       cinfo.addXField(dimension("State"));
+      cinfo.addXField(aggregate("Profit"));
       cinfo.addYField(aggregate("Sales"));
       cinfo.addGroupField(aggregate("Population"));
       colorBinding(info, dimension("Region"), new CategoricalColorFrame());
@@ -485,8 +486,8 @@ class ChartChromeSlotsTest {
       ChartVSAssemblyInfo radar = chart();
       radar.setVSChartInfo(new RadarVSChartInfo());
 
-      List<String> seeded = List.of("chart:axis:", "chart:axis2:", "chart:x[", "chart:y[",
-                                    "chart:rt:x[", "chart:rt:y[");
+      List<String> chartAxes = List.of("chart:axis:", "chart:axis2:");
+      List<String> axisLists = List.of("chart:x[", "chart:y[", "chart:rt:x[", "chart:rt:y[");
 
       for(ChartVSAssemblyInfo chart : List.of(info, copy, radar)) {
          List<String> keys = chart.chromeSlots().stream().map(ChromeSlot::key).toList();
@@ -495,19 +496,30 @@ class ChartChromeSlotsTest {
             if(key.endsWith(":axis:line") || key.equals("chart:axis2:line") ||
                key.equals("chart:radar:line"))
             {
+               // State is the one dimension on X or Y
+               boolean measure = axisLists.stream().anyMatch(key::startsWith) &&
+                  !key.contains("=State:");
+               boolean expected = chartAxes.stream().anyMatch(key::startsWith) || measure;
                String flag = key + "Visible";
-               assertEquals(seeded.stream().anyMatch(key::startsWith), keys.contains(flag), flag);
+               assertEquals(expected, keys.contains(flag), flag);
             }
          }
       }
 
       List<String> keys = info.chromeSlots().stream().map(ChromeSlot::key).toList();
+      List<String> copyKeys = copy.chromeSlots().stream().map(ChromeSlot::key).toList();
+      assertTrue(keys.stream().anyMatch(k -> k.startsWith("chart:x[0]=State:") &&
+         k.endsWith(":axis:line")), "premise: the dimension's axis is walked");
+      assertTrue(keys.stream().anyMatch(k -> k.startsWith("chart:x[1]=") &&
+         k.endsWith(":axis:lineVisible")), "premise: a measure on X has the slot");
       assertTrue(keys.stream().anyMatch(k -> k.startsWith("chart:group[") &&
          k.endsWith(":axis:line")), "premise: the group axis is walked");
       assertTrue(keys.stream().anyMatch(k -> k.startsWith("chart:aes[") &&
          k.endsWith(":axis:line")), "premise: the colour field's axis is walked");
-      assertTrue(copy.chromeSlots().stream().anyMatch(s -> s.key().startsWith("chart:rt:y[") &&
-         s.key().endsWith(":lineVisible")), "premise: the clone's runtime refs are walked");
+      assertTrue(copyKeys.stream().anyMatch(k -> k.startsWith("chart:rt:x[0]=State:") &&
+         k.endsWith(":axis:line")), "premise: the clone's runtime dimension is walked");
+      assertTrue(copyKeys.stream().anyMatch(k -> k.startsWith("chart:rt:y[") &&
+         k.endsWith(":lineVisible")), "premise: the clone's runtime measure has the slot");
       assertTrue(radar.chromeSlots().stream().anyMatch(s -> s.key().equals("chart:radar:line")),
                  "premise: the radar label axis is walked");
    }
