@@ -358,6 +358,9 @@ public class DataSourceService {
          throw new UnauthorizedAccessException(folderPath);
       }
 
+      // Bug #80186, refused before any ancestor folder is created
+      checkFolderCreateTarget(folderPath, Collections.emptySet());
+
       IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
       int idx = folderPath.indexOf('/');
 
@@ -367,6 +370,35 @@ public class DataSourceService {
       }
 
       ensureDataSourceFolder(folderPath, pId);
+   }
+
+   /**
+    * Checks that a data source folder can be created at {@code folderPath}, the way EM's folder
+    * create does (Bug #80186): the path must not be a data source or a folder, and no parent
+    * segment may be a data source, its data sources would become additional connections of it.
+    * Shared by {@link #createDataSourceFolder} and the admin change planner so a preview refuses
+    * exactly what the apply would. Paths are compared exactly (case-sensitive), as in {@link
+    * #checkRenameTarget}.
+    *
+    * @param vacatedPaths paths that an earlier change of the same plan frees.
+    *
+    * @throws ResourceExistsException if the path, or a parent segment, is already a data source
+    *                                  (or the path is a data source folder).
+    */
+   public void checkFolderCreateTarget(String folderPath, Set<String> vacatedPaths)
+      throws ResourceExistsException
+   {
+      if(!vacatedPaths.contains(folderPath) &&
+         dataSourceRegistry.isDataSourcePathInUse(folderPath))
+      {
+         throw new ResourceExistsException(folderPath);
+      }
+
+      String dataSource = dataSourceRegistry.getDataSourceAncestor(folderPath);
+
+      if(dataSource != null && !vacatedPaths.contains(dataSource)) {
+         throw new ResourceExistsException(dataSource);
+      }
    }
 
    /**
