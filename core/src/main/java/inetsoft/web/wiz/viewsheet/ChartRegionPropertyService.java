@@ -699,11 +699,20 @@ public class ChartRegionPropertyService {
             return field;
          }
 
+         if("y".equals(canonical) && info instanceof GanttChartInfo gantt) {
+            ChartRef bare = ganttFieldByColumn(gantt, field);
+
+            if(bare != null) {
+               return bare.getFullName();
+            }
+         }
+
          throw new IllegalArgumentException(
             "Unknown field '" + field + "' on axis '" + axisTarget + "'. Fields on this axis: " +
             (candidates.length == 0 ? "(none)" : Arrays.stream(candidates)
                .map(ChartRef::getFullName).collect(Collectors.joining(", "))) +
-            ". Omit 'field' when the axis has only one.");
+            ". Omit 'field' when the axis has only one." +
+            ("y".equals(canonical) && info instanceof GanttChartInfo g ? ganttTimeAxisHint(g) : ""));
       });
    }
 
@@ -1412,12 +1421,48 @@ public class ChartRegionPropertyService {
    {
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
-         ChartRef primary = info instanceof GanttChartInfo gantt ? primaryGanttField(gantt) : null;
-
-         return primary == null ? "" :
-            " On a Gantt chart the date (time) axis, drawn along the bottom, is target 'y' with " +
-            "field '" + primary.getFullName() + "'.";
+         return info instanceof GanttChartInfo gantt ? ganttTimeAxisHint(gantt) : "";
       });
+   }
+
+   private static String ganttTimeAxisHint(GanttChartInfo gantt) {
+      ChartRef primary = primaryGanttField(gantt);
+
+      return primary == null ? "" :
+         " On a Gantt chart the date (time) axis, drawn along the bottom, is target 'y' with " +
+         "field '" + primary.getFullName() + "'.";
+   }
+
+   /**
+    * The Gantt start, end or milestone field bound to the bare column {@code name} (its
+    * {@code getName()}, or the attribute inside the aggregate, which differs on an entity column
+    * where {@code getName()} is {@code Orders.START_DATE}). When the same column is bound twice
+    * (say start and end) the primary field is returned, since all of them share one time axis.
+    */
+   private static ChartRef ganttFieldByColumn(GanttChartInfo gantt, String name) {
+      List<ChartRef> found = new ArrayList<>();
+
+      for(ChartRef ref : new ChartRef[] {
+         gantt.getStartField(), gantt.getEndField(), gantt.getMilestoneField() })
+      {
+         if(ref == null) {
+            continue;
+         }
+
+         String attr = ref instanceof ChartAggregateRef a && a.getDataRef() != null
+            ? a.getDataRef().getAttribute() : null;
+
+         if(name.equals(ref.getName()) || name.equals(attr)) {
+            found.add(ref);
+         }
+      }
+
+      if(found.isEmpty()) {
+         return null;
+      }
+
+      ChartRef primary = primaryGanttField(gantt);
+      return found.contains(primary) ? primary : found.get(0);
    }
 
    /**
