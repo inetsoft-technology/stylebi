@@ -609,10 +609,11 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
-    * Check if a table sorted on the sort columns keeps the rows that are equal on the
-    * distinct columns adjacent. That is only the case when the leading sort columns are
-    * exactly the distinct columns (in any order). A distinct column after another sort
-    * column (e.g. distinct on (a,c) of a table sorted on (a,b,c)) is not grouped.
+    * Check if a table sorted on the sort columns is already sorted on the distinct
+    * columns, i.e. the leading sort columns are the distinct columns in the same order.
+    * A distinct column after another sort column (e.g. distinct on (a,c) of a table sorted
+    * on (a,b,c)) is not grouped, and reordered columns (e.g. (b,a)) are not in the order a
+    * new sort on the distinct columns gives.
     * @param ocols the columns the table is sorted on.
     * @param dcols the distinct columns.
     */
@@ -621,19 +622,8 @@ public class DistinctTableLens extends AbstractTableLens
          ocols = new int[0];
       }
 
-      if(ocols.length < dcols.length) {
-         return false;
-      }
-
-      Set<Integer> prefix = new HashSet<>();
-      Set<Integer> distinct = new HashSet<>();
-
-      for(int i = 0; i < dcols.length; i++) {
-         prefix.add(ocols[i]);
-         distinct.add(dcols[i]);
-      }
-
-      return prefix.equals(distinct);
+      return ocols.length >= dcols.length &&
+         Arrays.equals(Arrays.copyOf(ocols, dcols.length), dcols);
    }
 
    /**
