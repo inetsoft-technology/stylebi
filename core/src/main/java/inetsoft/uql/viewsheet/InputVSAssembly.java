@@ -81,14 +81,8 @@ public abstract class InputVSAssembly extends AbstractVSAssembly implements Bind
             assembly.getAssemblyEntry())};
       }
 
-      if(isVariable() && table != null && ws != null) {
-         String name = table;
-
-         if(table.startsWith("$(")) {
-            name = table.substring(2, table.length() - 1);
-         }
-
-         assembly = ws.getAssembly(name);
+      if(isVariable() && !isUnbound() && ws != null) {
+         assembly = ws.getAssembly(getBindingTargetName());
 
          if(assembly instanceof VariableAssembly) {
             return new AssemblyRef[] {new AssemblyRef(AssemblyRef.OUTPUT_DATA,
@@ -97,7 +91,7 @@ public abstract class InputVSAssembly extends AbstractVSAssembly implements Bind
       }
       // if an input is not bound to anything, it is treated as a variable
       // with the input assembly name by default
-      else if(table == null && ws != null) {
+      else if(isUnbound() && ws != null) {
          List<AssemblyRef> condtbls = new ArrayList<>();
          String name = getName();
          Collection<Assembly> tables = getViewsheet().getTables(name);
@@ -238,17 +232,32 @@ public abstract class InputVSAssembly extends AbstractVSAssembly implements Bind
     * variable name; otherwise the raw table name is used as the key.
     */
    public String getVariableTableKey() {
-      if(!isVariable()) {
+      return isVariable() ? getBindingTargetName() : null;
+   }
+
+   /**
+    * Check if this input is bound to nothing. A missing binding is stored as {@code null} or,
+    * after the property dialog is applied, as an empty string. Both mean the input writes its
+    * value to the variable table under its own name.
+    */
+   public boolean isUnbound() {
+      String tname = getTableName();
+      return tname == null || tname.isEmpty();
+   }
+
+   /**
+    * Get the name this input writes its value to: the bare variable name for a
+    * {@code $(varname)} variable binding, otherwise the table name. Returns {@code null} if
+    * the input is unbound (see {@link #isUnbound()}).
+    */
+   public String getBindingTargetName() {
+      if(isUnbound()) {
          return null;
       }
 
       String tname = getTableName();
 
-      if(tname == null || tname.isEmpty()) {
-         return null;
-      }
-
-      if(tname.startsWith("$(")) {
+      if(isVariable() && tname.startsWith("$(")) {
          return tname.substring(2, tname.length() - 1);
       }
 

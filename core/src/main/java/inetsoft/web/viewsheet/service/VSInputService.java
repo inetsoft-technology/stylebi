@@ -4112,12 +4112,10 @@ public class VSInputService {
                                        assembly);
       }
 
-      String tname = iassembly.getTableName();
+      // an empty table name is unbound too (the property dialog stores "" for no binding),
+      // so its value must go under the input's own name like ViewsheetSandbox does
+      String tname = iassembly.getBindingTargetName();
       VariableTable vt = wbox.getVariableTable();
-
-      if(iassembly.isVariable() && tname != null && tname.contains("$(")) {
-         tname = tname.substring(2, tname.length() - 1);
-      }
 
       if(tname != null) {
          Assembly ass = ws.getAssembly(tname);

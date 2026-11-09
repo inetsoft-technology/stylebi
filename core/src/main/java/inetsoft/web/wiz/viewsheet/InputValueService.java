@@ -199,6 +199,8 @@ public class InputValueService {
          Object selected = multi
             ? values.toArray()
             : (values.isEmpty() ? null : values.get(0));
+         List<Object> beforeWrite = info0 instanceof InputVSAssemblyInfo held0
+            ? heldValues(held0) : List.of();
 
          inputs.singleApplySelection(runtimeId, assemblyName, selected, user, dispatcher, linkUri);
          commitIfNotSubmittedOnChange(rvs, assemblyName, info0, dispatcher, linkUri);
@@ -242,6 +244,13 @@ public class InputValueService {
             else {
                result.put("values", held);
             }
+
+            // whether the write itself left the input as it was: the value held right after it
+            // (before any onClick script) equals the one held before it. With a held value that
+            // differs from the request, this tells a write that did not take from a value the
+            // input converted, so a caller never reports the first as the second (Bug #80864).
+            List<Object> afterWrite = submit && beforeScript != null ? beforeScript : held;
+            result.put("sameAsBefore", sameValues(afterWrite, beforeWrite));
 
             if(submit && secret) {
                held.stream().filter(Objects::nonNull).map(String::valueOf).forEach(secrets::add);
