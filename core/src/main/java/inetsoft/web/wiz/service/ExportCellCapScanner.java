@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
+import inetsoft.report.lens.ExportedColumnsTableLens;
 import inetsoft.report.lens.TextSizeLimitTableLens;
 import inetsoft.util.Tool;
 
@@ -125,9 +126,14 @@ public final class ExportCellCapScanner {
       Set<String> columns = new LinkedHashSet<>();
       Set<TableLens> visited = Collections.newSetFromMap(new IdentityHashMap<>());
       TextSizeLimitTableLens deepest = null;
+      Set<String> exported = null;
       TableLens current = lens;
 
       while(current != null && visited.add(current)) {
+         if(current instanceof ExportedColumnsTableLens exportedLens) {
+            exported = exportedLens.getExportedHeaders();
+         }
+
          if(current instanceof TextSizeLimitTableLens limited && limited.getTable() != null) {
             deepest = limited;
          }
@@ -138,7 +144,7 @@ public final class ExportCellCapScanner {
       // only the deepest layer: reading through an outer layer would run its own cut (and its
       // user message) again, and the deepest layer is the one whose inner table is uncut
       if(deepest != null) {
-         collectCutColumns(deepest.getTable(), cap, columns);
+         collectCutColumns(deepest.getTable(), cap, columns, exported);
       }
 
       if(columns.isEmpty()) {
@@ -162,9 +168,37 @@ public final class ExportCellCapScanner {
          "max.cell.size is " + cap + "; raise max.cell.size to export it whole");
    }
 
-   private static void collectCutColumns(TableLens inner, int cap, Set<String> columns) {
+   /**
+    * Adds each warning to {@code target} unless it is already there. A table is shown to the
+    * export observer once per exported sheet, so another bookmark or an expanded copy of the same
+    * table repeats the same warning.
+    */
+   public static void addDistinct(List<String> target, List<String> warnings) {
+      for(String warning : warnings) {
+         if(!target.contains(warning)) {
+            target.add(warning);
+         }
+      }
+   }
+
+   private static void collectCutColumns(TableLens inner, int cap, Set<String> columns,
+                                         Set<String> exported)
+   {
       int headerRows = inner.getHeaderRowCount();
       int colCount = inner.getColCount();
+
+      // Bug #80500: the scan reads the uncut base table, so it can find a column the export does
+      // not write (hidden, or clipped by the layout). Skip such a column, but only when the
+      // exported headers match some base column, which shows the names line up; otherwise
+      // (renamed headers) keep every column rather than hide a cut.
+      boolean filter = false;
+
+      if(exported != null && headerRows > 0) {
+         for(int col = 0; col < colCount && !filter; col++) {
+            filter = exported.contains(Tool.toString(inner.getObject(0, col)));
+         }
+      }
+
       Set<Integer> cutColumns = new TreeSet<>();
 
       for(int row = headerRows; inner.moreRows(row); row++) {
@@ -178,6 +212,10 @@ public final class ExportCellCapScanner {
       }
 
       for(int col : cutColumns) {
+         if(filter && !exported.contains(Tool.toString(inner.getObject(0, col)))) {
+            continue;
+         }
+
          columns.add(columnName(inner, headerRows, col));
       }
    }
