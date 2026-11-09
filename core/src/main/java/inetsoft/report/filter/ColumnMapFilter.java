@@ -151,24 +151,43 @@ public class ColumnMapFilter extends AbstractTableLens
    }
 
    /**
-    * Get the columns that the table is sorted on.
+    * Get the columns that the table is sorted on. The base sort columns are mapped to
+    * the columns of this filter. If a base sort column is not mapped (hidden), the rows
+    * are only ordered on the following sort columns within equal values of the hidden
+    * column, so only the mapped sort columns before the first hidden one are returned.
     * @return sort columns.
     */
    @Override
    public int[] getSortCols() {
       if(table instanceof SortedTable) {
-         int[] sc = ((SortedTable) table).getSortCols().clone();
+         int[] bcols = ((SortedTable) table).getSortCols();
 
-         for(int i = 0; i < sc.length; i++) {
+         if(bcols == null) {
+            return new int[0];
+         }
+
+         int[] sc = new int[bcols.length];
+         int n = 0;
+
+         for(; n < bcols.length; n++) {
+            int col = -1;
+
             for(int j = 0; j < map.length; j++) {
-               if(map[j] == sc[i]) {
-                  sc[i] = j;
+               if(map[j] == bcols[n]) {
+                  col = j;
                   break;
                }
             }
+
+            // a hidden sort column ends the sorted prefix
+            if(col < 0) {
+               break;
+            }
+
+            sc[n] = col;
          }
 
-         return sc;
+         return n == sc.length ? sc : Arrays.copyOf(sc, n);
       }
 
       return new int[0];
