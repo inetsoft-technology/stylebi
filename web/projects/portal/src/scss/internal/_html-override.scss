@@ -19,6 +19,15 @@ body {
   overflow: hidden; /* prevent scrollbars in FF */
 }
 
+// Thin, flat scrollbars everywhere. Both properties inherit, so setting them on the root covers
+// every scrolling element. In Chrome this also removes the arrow buttons. Do not add
+// ::-webkit-scrollbar rules: Chrome ignores them once scrollbar-color/width are set.
+html {
+  scrollbar-width: thin;
+  // same grey family as the icons, softened so a thin thumb doesn't look heavy
+  scrollbar-color: color-mix(in srgb, var(--inet-text-muted-color) 55%, transparent) transparent;
+}
+
 // seems to be a chrome bug that font changes to serif after first selection
 option {
   font-family: var(--inet-font-family);
