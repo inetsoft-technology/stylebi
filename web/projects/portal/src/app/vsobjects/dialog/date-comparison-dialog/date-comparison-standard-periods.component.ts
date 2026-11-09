@@ -262,16 +262,17 @@ export class DateComparisonStandardPeriodsComponent implements OnChanges {
    }
 
    isValid(): boolean {
-      return !this.isInvalidStandardPeriodPreCount() && this.isValidStandardPeriodEndDay();
+      return DateComparisonUtil.isValidStandardPeriod(this.standardPeriodPaneModel,
+                                                      this.dateComparisonService);
    }
 
    isInvalidStandardPeriodPreCount(): boolean {
-      return parseInt(this.standardPeriodPaneModel.preCount.value, 10) < 0 &&
-         !Tool.isDynamic(this.standardPeriodPaneModel.preCount.value);
+      return DateComparisonUtil.isInvalidStandardPeriodPreCount(this.standardPeriodPaneModel);
    }
 
    isValidStandardPeriodEndDay(): boolean {
-      return this.standardPeriodPaneModel.toDayAsEndDay || this.verifyEndDate();
+      return DateComparisonUtil.isValidStandardPeriodEndDay(this.standardPeriodPaneModel,
+                                                            this.dateComparisonService);
    }
 
    verifyEndDate(): boolean {

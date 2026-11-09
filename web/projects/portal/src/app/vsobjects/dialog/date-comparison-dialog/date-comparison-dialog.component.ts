@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
 import { ModelService } from "../../../widget/services/model.service";
 import { DateComparisonPaneModel } from "../../model/date-comparison-pane-model";
@@ -31,6 +31,7 @@ import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.com
 import { DateComparisonSharePaneComponent } from "./date-comparison-share-pane.component";
 
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+import { DateComparisonUtil } from "./date-comparison-utill";
 
 const DATE_COMPARISON_URI: string = "composer/vs/date-comparison-model";
 
@@ -51,7 +52,6 @@ export class DateComparisonDialog implements OnInit {
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @Output() onApply = new EventEmitter<{collapse: boolean, result: any}>();
    @Output() onClear = new EventEmitter<any>();
-   @ViewChild(DateComparisonPaneComponent) dateComparisonPane: DateComparisonPaneComponent;
 
    isShareDateComparison: boolean;
    shareAssemblyType: number;
@@ -179,7 +179,11 @@ export class DateComparisonDialog implements OnInit {
          return !!this.dateComparisonDialogModel.shareFromAssembly;
       }
 
-      return !!this.dateComparisonPane && this.dateComparisonPane.isValidDateComparison;
+      // Bug #80818: derive validity from the model instead of the pane's view state. The
+      // footer is checked before the panes are created/updated in the same change detection
+      // pass, so a view-derived value changed after it was checked (NG0100).
+      return DateComparisonUtil.isValidDateComparison(
+         this.dateComparisonDialogModel.dateComparisonPaneModel, this.dateComparisonService);
    }
 
    clearDateComparison() {

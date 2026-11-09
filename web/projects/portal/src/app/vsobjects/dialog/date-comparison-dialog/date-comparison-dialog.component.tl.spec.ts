@@ -517,17 +517,28 @@ describe("DateComparisonDialog — isValid", () => {
       expect(comp.isValid()).toBe(false);
    });
 
-   it("should defer to the date-comparison pane's own validity outside share mode", () => {
+   // Bug #80818: outside share mode validity is derived from the model, not from the
+   // rendered pane, so it is already known before the pane exists.
+   it("should be valid outside share mode for a valid model before the pane is rendered", () => {
       const { comp } = createComponent();
       comp.isShareDateComparison = false;
-      (comp as any).dateComparisonPane = { isValidDateComparison: true };
       expect(comp.isValid()).toBe(true);
    });
 
-   it("should be invalid outside share mode when the pane hasn't been rendered yet", () => {
+   it("should be invalid outside share mode for a negative standard period count", () => {
       const { comp } = createComponent();
       comp.isShareDateComparison = false;
-      (comp as any).dateComparisonPane = undefined;
+      comp.dateComparisonDialogModel.dateComparisonPaneModel.periodPaneModel
+         .standardPeriodPaneModel.preCount.value = "-1";
+      expect(comp.isValid()).toBe(false);
+   });
+
+   it("should be invalid outside share mode for custom periods that were not created yet", () => {
+      const { comp } = createComponent();
+      comp.isShareDateComparison = false;
+      const periodPaneModel = comp.dateComparisonDialogModel.dateComparisonPaneModel.periodPaneModel;
+      periodPaneModel.custom = true;
+      periodPaneModel.customPeriodPaneModel = { datePeriods: [] };
       expect(comp.isValid()).toBe(false);
    });
 });
