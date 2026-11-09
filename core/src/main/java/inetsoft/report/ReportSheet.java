@@ -2569,11 +2569,10 @@ public abstract class ReportSheet extends StyleCore {
                         }
                      }
                      // if left wrapping only, stretch the size so the right
-                     // side is taken up
+                     // side is taken up. Keep looping: the elements after the
+                     // painter still have to be added to elems (Bug #80713)
                      else if(pe.getWrapping() == WRAP_LEFT) {
                         area.width = printBox.x + printBox.width - area.x;
-                        // force loop to terminate after add, don't break here
-                        i = endpar;
                      }
 
                      if(area != null) {
