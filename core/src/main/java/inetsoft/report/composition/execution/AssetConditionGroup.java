@@ -120,6 +120,8 @@ public class AssetConditionGroup extends ConditionGroup {
          }
       }
 
+      // data conditions: a null value is not "not equal to" a value, as in the pushed-down SQL
+      setNullNotEqualDropped(true);
       sarr = new AssetCondition[sconds.size()];
       sconds.toArray(sarr);
    }

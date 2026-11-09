@@ -63,13 +63,22 @@ class SampleVarianceDb2SqlTest {
       };
    }
 
+   private static final String NUM =
+      "((0.0+SUM((0.0+T.C) * (0.0+T.C))) * COUNT(T.C) - ((0.0 + SUM(T.C)) * SUM(T.C) ))/";
+
+   // DB2 types 0.0 as DECIMAL(2,1), so only the divisor starts from the DOUBLE literal 0.0E0
+   private static final String DB2_SAMPLE =
+      NUM + "NULLIF(((0.0E0 + COUNT(T.C)) * (COUNT(T.C) - 1)), 0)";
+
    @Test
    void db2VarianceUsesPortableSampleFormula() {
       String v = AggregateFormula.VARIANCE.getExpression("T.C", null, helper("db2"));
       assertFalse(v.toLowerCase().contains("variance("), v);
       assertFalse(v.toLowerCase().contains("_samp"), v);
-      // n - 1 denominator (sample), not n
-      assertTrue(v.contains("- 1)"), v);
+      // n - 1 divisor in DOUBLE, guarded by NULLIF for a single-row group
+      assertEquals(DB2_SAMPLE, v);
+      // the numerator stays exact DECIMAL: identical values give exactly 0, never negative
+      assertFalse(v.substring(0, NUM.length()).contains("0.0E0"), v);
    }
 
    @Test
@@ -77,8 +86,16 @@ class SampleVarianceDb2SqlTest {
       String s = AggregateFormula.STANDARD_DEVIATION.getExpression("T.C", null, helper("db2"));
       assertFalse(s.toLowerCase().contains("stddev("), s);
       assertFalse(s.toLowerCase().contains("_samp"), s);
-      assertTrue(s.startsWith("SQRT("), s);
-      assertTrue(s.contains("- 1)"), s);
+      assertEquals("SQRT(" + DB2_SAMPLE + ")", s);
+   }
+
+   @Test
+   void nonDb2SampleSqlIsUnchanged() {
+      String expected = NUM + "NULLIF(((0.0 + COUNT(T.C)) * (COUNT(T.C) - 1)), 0)";
+
+      assertEquals(expected, AggregateFormula.VARIANCE.getExpression("T.C", null, null));
+      assertEquals("SQRT(" + expected + ")",
+                   AggregateFormula.STANDARD_DEVIATION.getExpression("T.C", null, null));
    }
 
    @Test

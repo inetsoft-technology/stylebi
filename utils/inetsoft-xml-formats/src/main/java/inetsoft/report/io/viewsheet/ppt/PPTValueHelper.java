@@ -209,6 +209,20 @@ public class PPTValueHelper {
                                    (float) bounds.getWidth(),
                                    (float) bounds.getHeight());
 
+      // bug #78672, the padding is written as the insets of the text box below, so the
+      // text must wrap and be cut off inside the padded area, not the full bounds. use the
+      // same scale as the insets so the area matches what ppt lays out.
+      double padWidth = 0;
+      double cutoffHeight = bounds.getHeight();
+
+      if(padding != null) {
+         padWidth = (padding.left + padding.right) * paddingScale;
+         double padHeight = (padding.top + padding.bottom) * paddingScale;
+         inBounds.width -= (float) padWidth;
+         // padding larger than the box leaves no height, but the first line is always written
+         cutoffHeight = Math.max(0, cutoffHeight - padHeight);
+      }
+
       if(!format.isWrapping()) {
          inBounds.width -= 2; // must consider margin for ppt!
 
@@ -230,6 +244,11 @@ public class PPTValueHelper {
          if(isTableCell) {
             inBounds.width -= WRAP_GAP;
          }
+      }
+
+      if(padWidth > 0) {
+         // padding larger than the box, keep room for at least a character
+         inBounds.width = Math.max(inBounds.width, fontH);
       }
 
       Bounds outBounds = new Bounds();
@@ -259,7 +278,7 @@ public class PPTValueHelper {
 
          // if the next line is outside of printable area,
          // ignore the line, otherwise it overlaps with line below
-         if(y + fontH >= bounds.getHeight()) {
+         if(y + fontH >= cutoffHeight) {
             break;
          }
       }

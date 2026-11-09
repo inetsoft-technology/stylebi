@@ -83,6 +83,10 @@ class EMScheduleTaskFolderControllerMoveNameTest {
       lenient().when(scheduleManager.getScheduleTask(VICTIM_TASK_ID)).thenReturn(victimTask);
       lenient().when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
                                                     any(ResourceAction.class))).thenReturn(false);
+      // Bug #79866, the move also needs READ on the folder the task is taken from
+      lenient().when(securityEngine.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK_FOLDER),
+                                                    anyString(), eq(ResourceAction.READ)))
+         .thenReturn(true);
       lenient().when(scheduleTaskService.canDeleteTask(legacyOwnTask, principal)).thenReturn(true);
 
       ScheduleTaskModel model = ScheduleTaskModel.builder()

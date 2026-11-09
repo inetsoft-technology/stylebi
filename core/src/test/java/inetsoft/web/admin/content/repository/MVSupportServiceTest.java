@@ -128,6 +128,39 @@ class MVSupportServiceTest {
       assertEquals(List.of("deleteClusterMV", "remove"), calls);
    }
 
+   @Test
+   void setDataCycleWithOrgIdWritesDefinitionToThatOrg() {
+      MVDef ownDef = def(OWN_MV);
+      when(mvManager.get(OWN_MV, "orgx")).thenReturn(ownDef);
+
+      service.setDataCycle(new String[] { OWN_MV }, "cycle", "orgx");
+
+      verify(mvManager).add(ownDef, false, "orgx");
+      verify(mvManager, never()).add(any(MVDef.class), anyBoolean());
+      verify(mvManager).fireEvent(anyString(), anyString(), any(), any(), eq("orgx"));
+   }
+
+   @Test
+   void setDataCycleForPendingViewsWithOrgIdWritesDefinitionToThatOrg() {
+      MVDef pending = def(OWN_MV);
+      when(pending.getName()).thenReturn(OWN_MV);
+      MVSupportService.MVStatus mvStatus = mock(MVSupportService.MVStatus.class);
+      when(mvStatus.getDefinition()).thenReturn(pending);
+      MVSupportService.AnalysisResult result = mock(MVSupportService.AnalysisResult.class);
+      when(result.getStatus()).thenReturn(List.of(mvStatus));
+      when(result.getId()).thenReturn("a1");
+
+      try {
+         service.setDataCycle(List.of(OWN_MV), result, "cycle", "orgx");
+      }
+      catch(RuntimeException ignore) {
+         // the trailing analysis-status bookkeeping is not under test
+      }
+
+      verify(mvManager).add(pending, false, "orgx");
+      verify(mvManager, never()).add(any(MVDef.class), anyBoolean());
+   }
+
    private static MVDef def(String name) {
       MVDef def = mock(MVDef.class);
       when(def.getMVName()).thenReturn(name);

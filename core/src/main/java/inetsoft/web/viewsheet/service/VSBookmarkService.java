@@ -93,7 +93,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    /**
     * The kind of access a bookmark request needs on the bookmark it names.
     */
-   enum BookmarkAccess {
+   public enum BookmarkAccess {
       /** Load or reference the bookmark: own, or shared with the caller. */
       READ,
       /** Overwrite the bookmark: own, or shared with the caller and not read-only. */
@@ -125,7 +125,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
     * @param sameGroup tells whether caller and owner share a group.
     * @param access    the access needed.
     */
-   static boolean isBookmarkAccessAllowed(IdentityID caller, IdentityID owner,
+   public static boolean isBookmarkAccessAllowed(IdentityID caller, IdentityID owner,
                                           VSBookmarkInfo info, BooleanSupplier sameGroup,
                                           BookmarkAccess access)
    {
@@ -846,10 +846,24 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
 
       vs.getRuntimeEntry().setProperty("keepAnnoVis", "true");
-      rvs.addBookmark(bookmarkName, type,
-                      principal.getName() == null ? new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()) :
-                      IdentityID.getIdentityIDFromKey(principal.getName()), readOnly);
-      vs.getRuntimeEntry().setProperty("keepAnnoVis", null);
+
+      try {
+         rvs.addBookmark(bookmarkName, type,
+                         principal.getName() == null ? new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()) :
+                         IdentityID.getIdentityIDFromKey(principal.getName()), readOnly);
+      }
+      catch(RuntimeViewsheet.BookmarkNotWritableException e) {
+         // the owner changed the bookmark after this session loaded it (Bug #79737)
+         LOG.warn("Rejected overwrite of bookmark: {}", e.getMessage());
+         MessageCommand notWritable = new MessageCommand();
+         notWritable.setMessage(catalog.getString("viewer.viewsheet.bookmark.notWritable"));
+         notWritable.setType(MessageCommand.Type.ERROR);
+         return notWritable;
+      }
+      finally {
+         vs.getRuntimeEntry().setProperty("keepAnnoVis", null);
+      }
+
       return messageCommand;
    }
 

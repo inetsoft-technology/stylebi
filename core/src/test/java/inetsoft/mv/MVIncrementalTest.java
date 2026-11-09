@@ -20,6 +20,7 @@ package inetsoft.mv;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVConditionListHandler;
 import inetsoft.mv.data.MVStorage;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -133,6 +134,190 @@ class MVIncrementalTest {
       AssetCondition cond = (AssetCondition) pre.getConditionItem(0).getXCondition();
       assertInstanceOf(ExpressionValue.class, cond.getValue(0));
       assertEquals("new Date(2020, 0, 1)", ((ExpressionValue) cond.getValue(0)).getExpression());
+   }
+
+   /**
+    * Bug #79854: the stamp that becomes MV.LastUpdateTime of the next update is the time the
+    * update started reading, not the time it ended, so a row inserted while it ran is selected.
+    */
+   @Test
+   void refreshStampsTheUpdateStartNotTheEnd() throws Exception {
+      long start = System.currentTimeMillis() - 60_000L;
+      MVDef def = new MVDef();
+      def.container = new MVDef.MVContainer(new ArrayList<>(), null);
+      MV mv = Mockito.mock(MV.class);
+      Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));
+      MVStorage storage = Mockito.mock(MVStorage.class);
+      Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+      MVManager manager = Mockito.mock(MVManager.class);
+
+      try(MockedStatic<MVStorage> storageStatics = Mockito.mockStatic(MVStorage.class);
+          MockedStatic<MVManager> managerStatics = Mockito.mockStatic(MVManager.class);
+          MockedStatic<AssetDataCache> cacheStatics = Mockito.mockStatic(AssetDataCache.class))
+      {
+         cacheStatics.when(AssetDataCache::getCache).thenReturn(Mockito.mock(AssetDataCache.class));
+         storageStatics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         storageStatics.when(MVStorage::getInstance).thenReturn(storage);
+         managerStatics.when(MVManager::getManager).thenReturn(manager);
+         TestIncremental incremental = new TestIncremental(def);
+         incremental.updateStart = start;
+
+         incremental.refresh();
+
+         // the update "ran" for a minute; the stamp is the start of it
+         assertEquals(start, def.getLastUpdateTime());
+         Mockito.verify(mv).updateLastModifiedTime(start);
+         Mockito.verify(manager).add(def);
+      }
+   }
+
+   @Test
+   void updateLastUpdateTimeStoresTheGivenTime() {
+      MVDef def = new MVDef();
+      def.updateLastUpdateTime(12345L);
+      assertEquals(12345L, def.getLastUpdateTime());
+
+      long before = System.currentTimeMillis();
+      def.updateLastUpdateTime();
+      assertTrue(def.getLastUpdateTime() >= before);
+   }
+
+   /**
+    * Bug #79854: the start is recorded by getData(), right before the source is read, so it is
+    * not later than the read and does not include the lock wait and delete pass before it.
+    */
+   @Test
+   void getDataRecordsTheStartOfTheRead() throws Exception {
+      MVDef def = new MVDef();
+      def.container = new MVDef.MVContainer(new ArrayList<>(), null);
+      MV mv = Mockito.mock(MV.class);
+      Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));
+      MVStorage storage = Mockito.mock(MVStorage.class);
+      Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+      AssetDataCache cache = Mockito.mock(AssetDataCache.class);
+      long[] readAt = new long[1];
+      long[] cacheTs = new long[1];
+      Mockito.when(cache.getData(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
+                                 Mockito.anyInt(), Mockito.anyBoolean(), Mockito.anyLong(),
+                                 Mockito.any()))
+         .thenAnswer(inv -> {
+            readAt[0] = System.currentTimeMillis();
+            cacheTs[0] = inv.getArgument(6);
+            return null;
+         });
+      Worksheet ws = new Worksheet();
+      TableAssembly table = table(ws, "T");
+
+      try(MockedStatic<MVStorage> storageStatics = Mockito.mockStatic(MVStorage.class);
+          MockedStatic<AssetDataCache> cacheStatics = Mockito.mockStatic(AssetDataCache.class))
+      {
+         storageStatics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         storageStatics.when(MVStorage::getInstance).thenReturn(storage);
+         cacheStatics.when(AssetDataCache::getCache).thenReturn(cache);
+         TestIncremental incremental = new TestIncremental(def);
+         assertEquals(0L, incremental.updateStart);
+         long before = System.currentTimeMillis();
+
+         incremental.getData(ws, table, new VariableTable());
+
+         assertTrue(incremental.updateStart >= before);
+         assertTrue(incremental.updateStart <= readAt[0]);
+         assertEquals(incremental.updateStart, cacheTs[0]);
+      }
+   }
+
+   /**
+    * Bug #79854: after a create, an incremental update's stored stamp is kept, the stamp never
+    * goes backwards, and anything else (a full build) keeps the end stamp.
+    */
+   @Test
+   void stampAfterCreateKeepsTheStoredStartAndNeverGoesBackwards() throws Exception {
+      long previous = System.currentTimeMillis() - 600_000L;
+      long stored = previous + 100_000L;
+
+      assertEquals(stored, afterCreate(stored, previous, previous));
+      // a concurrent update stored a newer stamp in the manager: not lowered
+      assertEquals(stored + 5_000L, afterCreate(stored, previous, stored + 5_000L));
+      // a full build leaves the stored stamp at the old value: end stamp as before
+      long before = System.currentTimeMillis();
+      assertTrue(afterCreate(previous, previous, previous) >= before);
+      // unreadable file: end stamp as before
+      assertTrue(afterCreate(-1L, previous, previous) >= before);
+   }
+
+   /**
+    * Bug #79854: an update whose query returned no rows does not reach refresh(), but the read
+    * start is stored, so the next update selects a row inserted while this one ran.
+    */
+   @Test
+   void updateWithoutRowsStoresTheReadStart() throws Exception {
+      long previous = System.currentTimeMillis() - 600_000L;
+      long start = previous + 100_000L;
+
+      // read happened: stored in the file def and the def
+      MV mv = storeStart(previous, start);
+      Mockito.verify(mv).updateLastModifiedTime(start);
+
+      // no read (delete-only update): nothing stored
+      mv = storeStart(previous, 0L);
+      Mockito.verify(mv, Mockito.never()).updateLastModifiedTime(Mockito.anyLong());
+
+      // never backwards
+      mv = storeStart(previous, previous - 1L);
+      Mockito.verify(mv, Mockito.never()).updateLastModifiedTime(Mockito.anyLong());
+   }
+
+   private static MV storeStart(long previous, long start) throws Exception {
+      MVDef def = new MVDef();
+      def.container = new MVDef.MVContainer(new ArrayList<>(), null);
+      ThreadContext.setSessionInfo("data.cache.ts", previous);
+      MV mv = Mockito.mock(MV.class);
+      Mockito.when(mv.getDef()).thenReturn(Mockito.mock(MVDef.class));
+      MVStorage storage = Mockito.mock(MVStorage.class);
+      Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+
+      try(MockedStatic<MVStorage> statics = Mockito.mockStatic(MVStorage.class)) {
+         statics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         statics.when(MVStorage::getInstance).thenReturn(storage);
+         TestIncremental incremental = new TestIncremental(def);
+         def.updateLastUpdateTime(); // data.cache.ts pins it to previous
+         ThreadContext.setSessionInfo("data.cache.ts", null);
+         incremental.updateStart = start;
+
+         incremental.storeUpdateStart();
+
+         assertEquals(start > previous ? start : previous, def.getLastUpdateTime());
+      }
+
+      return mv;
+   }
+
+   private static long afterCreate(long storedStamp, long previous, long current)
+      throws Exception
+   {
+      MVDef def = new MVDef();
+      def.setMVName("m");
+      MVStorage storage = Mockito.mock(MVStorage.class);
+
+      try(MockedStatic<MVStorage> statics = Mockito.mockStatic(MVStorage.class)) {
+         statics.when(() -> MVStorage.getFile(Mockito.any())).thenReturn("f");
+         statics.when(MVStorage::getInstance).thenReturn(storage);
+
+         if(storedStamp < 0) {
+            Mockito.when(storage.get(Mockito.anyString())).thenThrow(new RuntimeException());
+         }
+         else {
+            MV mv = Mockito.mock(MV.class);
+            MVDef stored = new MVDef();
+            stored.updateLastUpdateTime(storedStamp);
+            Mockito.when(mv.getDef()).thenReturn(stored);
+            Mockito.when(storage.get(Mockito.anyString())).thenReturn(mv);
+         }
+
+         def.updateLastUpdateTimeAfterCreate(previous, current);
+      }
+
+      return def.getLastUpdateTime();
    }
 
    private static void merge(MVDef def, TableAssembly table) throws Exception {

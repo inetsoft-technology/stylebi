@@ -99,6 +99,22 @@ public class XConditionGroup implements Cloneable, Serializable {
    }
 
    /**
+    * Set whether a negated single-value equal-to ("not equal to") condition of this group is
+    * false for a null (or empty string) value, as it is in SQL and as every other negated
+    * operator is. Set by the groups that filter data (worksheet/viewsheet conditions) so that
+    * an in-memory filter returns the same rows as the pushed-down SQL and as an MV, which stores
+    * null and empty string as the same value. Highlight and chart color groups leave it off and
+    * keep matching null.
+    */
+   public void setNullNotEqualDropped(boolean dropped) {
+      for(HierarchyItem item : list) {
+         if(item instanceof CondItem) {
+            ((CondItem) item).nullNotEqualDropped = dropped;
+         }
+      }
+   }
+
+   /**
     * Clear all conditions from this selection.
     */
    public void clear() {
@@ -388,7 +404,32 @@ public class XConditionGroup implements Cloneable, Serializable {
             return condition.evaluate(((DCMergeCell) obj).getOriginalData());
          }
 
+         if(nullNotEqualDropped && isNullNotEqual(obj)) {
+            return false;
+         }
+
          return condition.evaluate(obj);
+      }
+
+      /**
+       * Check if this is a "not equal to" a non-null value that is evaluated on a null or empty
+       * value, which SQL evaluates as unknown (false).
+       */
+      private boolean isNullNotEqual(Object obj) {
+         if(obj != null && !"".equals(obj) || !(condition instanceof Condition)) {
+            return false;
+         }
+
+         Condition cond = (Condition) condition;
+
+         if(cond.getOperation() != XCondition.EQUAL_TO || !cond.isNegated() || cond.isIgnored() ||
+            cond.getValueCount() == 0)
+         {
+            return false;
+         }
+
+         Object val = cond.getValue(0);
+         return val != null && !"".equals(val);
       }
 
       @Override
@@ -409,6 +450,7 @@ public class XConditionGroup implements Cloneable, Serializable {
       public XCondition condition;
       public int col;
       public String subCol;
+      private boolean nullNotEqualDropped;
    }
 
    /**

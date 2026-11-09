@@ -22,6 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrgIdChangeGuard;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
@@ -746,6 +747,9 @@ public class RepletRegistry implements Serializable {
     * Save the registry to a registry file.
     */
    public synchronized void save() throws Exception {
+      // Bug #79856, a save during or just after an id change of the organization would recreate
+      // the registry file that the change moved away, and be lost
+      OrgIdChangeGuard.checkWritable(orgID);
       DataSpace space = DataSpace.getDataSpace();
       String repfile = getRegistryPath();
       // Bug #76977, each cluster node keeps its own copy and writes the whole file, so saves of

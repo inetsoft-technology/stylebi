@@ -203,6 +203,8 @@ class EMScheduleTaskFolderControllerTest {
       when(firstTask.getTaskId()).thenReturn("firstTask");
       when(deniedTask.getTaskId()).thenReturn("deniedTask");
       when(deniedTask.getName()).thenReturn("deniedTask");
+      lenient().when(scheduleTaskFolderService.checkFolderPermission(
+         anyString(), eq(principal), eq(ResourceAction.READ))).thenReturn(true);
       when(securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, "firstTask", ResourceAction.WRITE))
          .thenReturn(true);
@@ -233,6 +235,8 @@ class EMScheduleTaskFolderControllerTest {
       when(securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, "myTask", ResourceAction.WRITE))
          .thenReturn(true);
+      when(scheduleTaskFolderService.checkFolderPermission(
+         anyString(), eq(principal), eq(ResourceAction.READ))).thenReturn(true);
 
       controller.moveFolder(request, principal);
 

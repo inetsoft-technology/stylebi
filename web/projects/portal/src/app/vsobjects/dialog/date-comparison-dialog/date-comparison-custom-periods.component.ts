@@ -53,11 +53,11 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
 
    ngOnInit(): void {
       this.initCustomPeriodModel();
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 
    ngOnChanges(): void {
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 
    initCustomPeriodModel() {
@@ -92,7 +92,7 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
 
    delDatePeriod(index: number): void {
       this.customPeriodPaneModel.datePeriods.splice(index, 1);
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 
    get isRemoveDisable(): boolean {
@@ -116,7 +116,16 @@ export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
       return !dynamicValue.some(value => !this.dateComparisonService.isValidDate(value.value));
    }
 
+   get isOverlapping(): boolean {
+      return this.dateComparisonService.hasOverlappingFixedPeriods(
+         this.customPeriodPaneModel.datePeriods);
+   }
+
+   private isValidAndNotOverlapping(): boolean {
+      return this.isValidCustomPeriod() && !this.isOverlapping;
+   }
+
    onValueChange(): void {
-      this.validChange.emit(this.isValidCustomPeriod());
+      this.validChange.emit(this.isValidAndNotOverlapping());
    }
 }

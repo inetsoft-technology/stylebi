@@ -68,6 +68,11 @@ public class LocalMVIncremental extends MVIncremental {
       if(update0()) {
          refresh();
       }
+      else {
+         // Bug #79854, the query returned no rows (or only the dictionary ranges changed), but
+         // a row inserted while it ran must still be selected by the next update
+         storeUpdateStart();
+      }
    }
 
    private boolean update0() throws Exception {

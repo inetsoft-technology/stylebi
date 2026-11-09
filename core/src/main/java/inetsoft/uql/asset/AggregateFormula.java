@@ -1634,7 +1634,10 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
          return "((0.0+" + SUMSQ.getExpression(column, null, helper) + ") * " +
             COUNT_ALL.getExpression(column, null, helper) + " - ((0.0 + " +
             SUM.getExpression(column, null, helper) + ") * " +
-            SUM.getExpression(column, null, helper) + " ))/NULLIF(((0.0 + " +
+            SUM.getExpression(column, null, helper) + " ))/NULLIF(((" +
+            // DB2 types 0.0 as DECIMAL(2,1), which truncates the quotient to one digit,
+            // so only the divisor starts from a DOUBLE zero (Bug #79477)
+            PopulationVariance.getDenominatorZeroLiteral(helper) + " + " +
             COUNT_ALL.getExpression(column, null, helper) + ") * (" +
             COUNT_ALL.getExpression(column, null, helper) + " - 1)), 0)";
       }

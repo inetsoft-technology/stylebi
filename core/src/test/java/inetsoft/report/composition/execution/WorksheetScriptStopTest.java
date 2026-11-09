@@ -24,6 +24,15 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.web.binding.VSScriptableController;
 import inetsoft.web.composer.model.ws.ExpressionDialogModel;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
+
+import inetsoft.web.composer.ws.WSLoadTableDataService;
+import inetsoft.web.composer.ws.assembly.*;
+import inetsoft.web.composer.ws.command.WSLoadTableDataCommand;
+
+import inetsoft.web.composer.ws.event.*;
+import inetsoft.web.viewsheet.command.ViewsheetCommand;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import org.mockito.ArgumentCaptor;
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
@@ -59,7 +68,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -394,6 +405,97 @@ class WorksheetScriptStopTest {
       }
 
       return ws;
+   }
+
+   /**
+    * Bug #78379: the model of the table in the worksheet keeps the columns of a stopped table,
+    * so that its headers and the editor of its expression column are there, and does not read
+    * the table again. The columns of a table with an expression error are those of its data.
+    * The axis: stop or ordinary error, in the table model, load and count commands.
+    */
+   @Test
+   void stoppedTableModelKeepsItsColumns() throws Exception {
+      Worksheet ws = ws(20, 12, true, false, false);
+      TableAssembly table = (TableAssembly) ws.getAssembly("S");
+      table.getTableInfo().setLiveData(true);
+      TableAssemblyModel model = TableAssemblyModelFactory.createModelFrom(
+         (AbstractTableAssembly) table, rws(ws, box(ws)), null);
+
+      assertEquals(1, model.getColInfos().size(), "the visible column of the table");
+      assertEquals("out", model.getColInfos().get(0).getName());
+      assertEquals("out", model.getColInfos().get(0).getHeader());
+      assertEquals(0, model.getTotalRows());
+
+      // the stop is not kept: the same sandbox reads the data with a larger timeout
+      ScriptStopTestSupport.setTimeout("10");
+      TableAssemblyModel after = TableAssemblyModelFactory.createModelFrom(
+         (AbstractTableAssembly) table, rws(ws, box(ws)), null);
+      assertEquals(1, after.getColInfos().size());
+      assertEquals(20, after.getTotalRows());
+   }
+
+   @Test
+   void tableModelOfExpressionErrorIsUnchanged() throws Exception {
+      Worksheet ws = ws(20, 12, false, false, false);
+      EmbeddedTableAssembly s = (EmbeddedTableAssembly) ws.getAssembly("S");
+      ColumnRef out = (ColumnRef) s.getColumnSelection(false).getAttribute("out");
+      ((ExpressionRef) out.getDataRef()).setExpression(
+         "if(field['id'] == 12) { throw new Error('bad row'); } field['id']");
+      s.getTableInfo().setLiveData(true);
+      TableAssemblyModel model = TableAssemblyModelFactory.createModelFrom(
+         s, rws(ws, box(ws)), null);
+
+      // the design table: every column, from the lens
+      assertEquals(4, model.getColInfos().size());
+      assertEquals(List.of("id", "a", "b", "out"),
+                   model.getColInfos().stream().map(ColumnInfoModel::getName).toList());
+   }
+
+   /**
+    * Bug #78379: the load and the count of the stopped table answer, so that the table does not
+    * wait for them, and still fail with the stop.
+    */
+   @Test
+   void loadAndCountOfStoppedTableAnswerThenFail() throws Exception {
+      Worksheet ws = ws(20, 12, true, false, false);
+      TableAssembly table = (TableAssembly) ws.getAssembly("S");
+      table.getTableInfo().setLiveData(true);
+      AssetQuerySandbox box = box(ws);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      RuntimeWorksheet rws = rws(ws, box);
+      when(engine.getWorksheet("rid", null)).thenReturn(rws);
+      WSLoadTableDataService service = new WSLoadTableDataService(engine, mock(DataSourceRegistry.class));
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      WSAssemblyEvent assemblyEvent = mock(WSAssemblyEvent.class);
+      when(assemblyEvent.getAssemblyName()).thenReturn("S");
+
+      WSLoadTableDataEvent event = ImmutableWSLoadTableDataEvent.builder()
+         .start(0).blockSize(100).continuation(false).firstChange(false).requestId(7).build();
+      ExpressionFailedException stop = assertThrows(
+         ExpressionFailedException.class,
+         () -> service.loadWSTableData("rid", "S", event, null, dispatcher));
+      assertTrue(ScriptTimeoutGuard.isStop(stop));
+      ArgumentCaptor<WSLoadTableDataCommand> load = ArgumentCaptor.forClass(WSLoadTableDataCommand.class);
+      verify(dispatcher).sendCommand(eq("S"), load.capture());
+      assertEquals(7, load.getValue().getRequestId());
+      assertTrue(load.getValue().getTableData().completed());
+      assertEquals(0, load.getValue().getTableData().loadedRows().length);
+
+      CommandDispatcher countDispatcher = mock(CommandDispatcher.class);
+      assertThrows(ExpressionFailedException.class,
+                   () -> service.loadTableDataCount("rid", assemblyEvent, null, countDispatcher));
+      ArgumentCaptor<ViewsheetCommand> count = ArgumentCaptor.forClass(ViewsheetCommand.class);
+      verify(countDispatcher).sendCommand(count.capture());
+      String countCommand = count.getValue().toString();
+      assertTrue(countCommand.contains("count=0"), countCommand);
+      assertTrue(countCommand.contains("completed=true"), countCommand);
+   }
+
+   private static RuntimeWorksheet rws(Worksheet ws, AssetQuerySandbox box) {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      return rws;
    }
 
    private static List<Object> ids(int rows) {

@@ -333,4 +333,97 @@ public class ConcatFormulaTest {
    void getDoubleResult_throwsRuntimeException() {
       assertThrows(RuntimeException.class, () -> formula.getDoubleResult());
    }
+
+   // -----------------------------------------------------------------------
+   // Bug #80737: an empty string is a value and gets a separator like any other
+   // -----------------------------------------------------------------------
+
+   @Test
+   void addValue_leadingEmptyString_keepsSeparator() {
+      formula.addValue("");
+      formula.addValue("a");
+      assertEquals(",a", formula.getResult());
+   }
+
+   @Test
+   void addValue_leadingEmptyStringThenSeveral_keepsEverySeparator() {
+      formula.addValue("");
+      formula.addValue("a");
+      formula.addValue("b");
+      assertEquals(",a,b", formula.getResult());
+   }
+
+   @Test
+   void addValue_twoLeadingEmptyStrings_keepsBothSeparators() {
+      formula.addValue("");
+      formula.addValue("");
+      formula.addValue("a");
+      assertEquals(",,a", formula.getResult());
+   }
+
+   @Test
+   void addValue_emptyStringInMiddle_keepsSeparators() {
+      formula.addValue("a");
+      formula.addValue("");
+      formula.addValue("b");
+      assertEquals("a,,b", formula.getResult());
+   }
+
+   @Test
+   void addValue_trailingEmptyString_keepsSeparator() {
+      formula.addValue("a");
+      formula.addValue("");
+      assertEquals("a,", formula.getResult());
+   }
+
+   @Test
+   void addValue_onlyEmptyString_resultIsEmptyButNotNull() {
+      formula.setDefaultResult(true);
+      formula.addValue("");
+      assertFalse(formula.isNull());
+      assertEquals("", formula.getResult());
+   }
+
+   @Test
+   void addValue_nullBeforeLeadingEmptyString_nullStillSkipped() {
+      formula.addValue((Object) null);
+      formula.addValue("");
+      formula.addValue((Object) null);
+      formula.addValue("a");
+      assertEquals(",a", formula.getResult());
+   }
+
+   @Test
+   void addValue_leadingEmptyStringThenPrimitiveOverloads_keepSeparators() {
+      formula.addValue("");
+      formula.addValue(1.5d);
+      formula.addValue(new double[] { 2.5d });
+      formula.addValue(3.5f);
+      formula.addValue(4L);
+      formula.addValue(5);
+      formula.addValue((short) 6);
+      assertEquals(",1.5,2.5,3.5,4,5,6", formula.getResult());
+   }
+
+   @Test
+   void addValue_leadingEmptyStringThenNullSentinels_sentinelsSkipped() {
+      formula.addValue("");
+      formula.addValue(Tool.NULL_DOUBLE);
+      formula.addValue(new double[] { Tool.NULL_DOUBLE });
+      formula.addValue(Tool.NULL_FLOAT);
+      formula.addValue(Tool.NULL_LONG);
+      formula.addValue(Tool.NULL_INTEGER);
+      formula.addValue(Tool.NULL_SHORT);
+      formula.addValue("a");
+      assertEquals(",a", formula.getResult());
+   }
+
+   @Test
+   void reset_afterLeadingEmptyString_startsWithoutSeparator() {
+      formula.addValue("");
+      formula.addValue("a");
+      formula.reset();
+      formula.addValue("b");
+      assertEquals("b", formula.getResult());
+   }
 }

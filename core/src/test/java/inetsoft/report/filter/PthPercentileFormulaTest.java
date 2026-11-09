@@ -21,6 +21,10 @@ import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.util.Date;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -392,6 +396,77 @@ public class PthPercentileFormulaTest {
       formula.addValue(1.0d);
       formula.addValue(2.0d);
       assertEquals(1.0, (Double) formula.getResult(), 1e-10);
+   }
+
+   // -----------------------------------------------------------------------
+   // getResult() — date values (Bug #80583)
+   // -----------------------------------------------------------------------
+
+   private static Object percentileOf(int p, Object... values) {
+      PthPercentileFormula formula = new PthPercentileFormula(p);
+
+      for(Object v : values) {
+         formula.addValue(v);
+      }
+
+      return formula.getResult();
+   }
+
+   @Test
+   void getResult_sqlDatesOutOfOrder_picksByTime() {
+      java.sql.Date jan = java.sql.Date.valueOf("2024-01-01");
+      java.sql.Date feb = java.sql.Date.valueOf("2024-02-01");
+      java.sql.Date mar = java.sql.Date.valueOf("2024-03-01");
+
+      assertEquals(mar, percentileOf(100, feb, mar, jan));
+      assertEquals(jan, percentileOf(0, mar, jan, feb));
+      assertEquals(feb, percentileOf(50, mar, jan, feb));
+   }
+
+   @Test
+   void getResult_utilDatesOutOfOrder_picksByTime() {
+      Date d1 = new Date(1_000_000L);
+      Date d2 = new Date(2_000_000L);
+      Date d3 = new Date(3_000_000L);
+
+      assertEquals(d3, percentileOf(100, d2, d3, d1));
+      assertEquals(d1, percentileOf(0, d3, d1, d2));
+      assertEquals(d2, percentileOf(50, d3, d1, d2));
+   }
+
+   @Test
+   void getResult_timestampsOutOfOrder_picksByTime() {
+      Timestamp t1 = Timestamp.valueOf("2024-01-01 08:00:00");
+      Timestamp t2 = Timestamp.valueOf("2024-01-01 09:00:00");
+      Timestamp t3 = Timestamp.valueOf("2024-01-01 10:00:00");
+
+      assertEquals(t3, percentileOf(100, t2, t3, t1));
+      assertEquals(t1, percentileOf(0, t3, t1, t2));
+      assertEquals(t2, percentileOf(50, t3, t1, t2));
+   }
+
+   @Test
+   void getResult_timesOutOfOrder_picksByTime() {
+      Time t1 = Time.valueOf("08:00:00");
+      Time t2 = Time.valueOf("09:00:00");
+      Time t3 = Time.valueOf("10:00:00");
+
+      assertEquals(t3, percentileOf(100, t2, t3, t1));
+      assertEquals(t1, percentileOf(0, t3, t1, t2));
+      assertEquals(t2, percentileOf(50, t3, t1, t2));
+   }
+
+   @Test
+   void getResult_manyDatesInReverseOrder_picksByTime() {
+      // 40 values so the sort goes past TimSort's binary-insertion threshold
+      Object[] values = new Object[40];
+
+      for(int i = 0; i < values.length; i++) {
+         values[i] = new java.sql.Date((values.length - i) * 86_400_000L);
+      }
+
+      assertEquals(new java.sql.Date(86_400_000L), percentileOf(0, values));
+      assertEquals(new java.sql.Date(40 * 86_400_000L), percentileOf(100, values));
    }
 
    // -----------------------------------------------------------------------

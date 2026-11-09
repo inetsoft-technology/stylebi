@@ -1714,6 +1714,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    private void fixCellContent(Sheet newSheet, VSTableLens table, XSSFCellStyle style) {
       int rowCount = table != null ? table.getRowCount() : 0;
       int colCount = table != null ? table.getColCount() : 0;
+      int headerRows = table != null ? table.getHeaderRowCount() : 0;
+      int headerCols = table != null ? table.getHeaderColCount() : 0;
+      Map<String, CellStyle> numberStyles = new HashMap<>();
 
       for(int r = 0; r < rowCount; r++) {
          Row row = newSheet.createRow(r);
@@ -1721,26 +1724,162 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          for(int c = 0; c < colCount; c++) {
             Cell cell = row.createCell(c);
             Object obj = table.getObject(r, c);
+            boolean mergeDates = obj instanceof DCMergeDatesCell;
 
-            if(obj instanceof DCMergeDatesCell) {
+            if(mergeDates) {
                obj = ((DCMergeDatesCell) obj).getFormatedOriginalDate();
             }
 
-            if(obj != null) {
-               // this is the limit by excel
-               final int MAXLEN = 32767;
-               String text = obj.toString();
+            CellStyle cellStyle = style;
 
-               if(text.length() > MAXLEN) {
-                  text = text.substring(0, MAXLEN);
+            if(obj != null) {
+               // headers stay text, so numeric labels (e.g. year headers) keep their form
+               boolean header = r < headerRows || c < headerCols;
+               // the table is wrapped by VSFormatTableLens, which turns a formatted number or
+               // date into its display text. Get the raw value and the Excel pattern like the
+               // main sheet does so that the cell is typed and shows the same text.
+               String pattern = null;
+               Object value = obj;
+
+               if(!header && !mergeDates) {
+                  try {
+                     pattern = ExportUtil.getCellFormat(table, r, c, isMatchLayout(), false);
+                     Object raw = ExportUtil.getObject(table, r, c, pattern, true);
+
+                     // no pattern, or a text pattern (e.g. MessageFormat on a number), means
+                     // the display text is the value; never write the raw number instead
+                     if(pattern != null && !"@".equals(pattern) &&
+                        (raw instanceof Number || raw instanceof java.util.Date))
+                     {
+                        value = raw;
+                     }
+                  }
+                  catch(Exception ex) {
+                     LOG.debug("Failed to get the raw value of data tab cell ({}, {})", r, c, ex);
+                     pattern = null;
+                     value = obj;
+                  }
                }
 
-               cell.setCellValue(text);
+               boolean general = pattern == null || "General".equals(pattern);
+
+               if(!header && value instanceof Number && isExactNumber((Number) value)) {
+                  double number = ((Number) value).doubleValue();
+                  cell.setCellValue(number);
+
+                  if(!general) {
+                     cellStyle = getDataTabStyle(numberStyles, pattern, style);
+                  }
+                  else if(Math.abs(number) >= 1E11 && Math.abs(number) < 1E15 &&
+                     number == Math.rint(number))
+                  {
+                     // General format shows 12+ digit integers in scientific notation
+                     cellStyle = getDataTabStyle(numberStyles, "0", style);
+                  }
+               }
+               else if(!header && value instanceof Boolean) {
+                  cell.setCellValue((Boolean) value);
+               }
+               else if(!header && value instanceof java.util.Date &&
+                       PoiExcelVSUtil.setDateCellValue(cell, (java.util.Date) value))
+               {
+                  cellStyle = getDataTabStyle(
+                     numberStyles, general ? getDataTabDateFormat((java.util.Date) value) : pattern,
+                     style);
+               }
+               else {
+                  // this is the limit by excel
+                  final int MAXLEN = 32767;
+                  // a date earlier than 1900 can't be a date cell, write the text
+                  String text = obj instanceof java.util.Date ?
+                     getDataTabDateText((java.util.Date) obj) : obj.toString();
+
+                  if(text.length() > MAXLEN) {
+                     text = text.substring(0, MAXLEN);
+                  }
+
+                  cell.setCellValue(text);
+               }
             }
 
-            cell.setCellStyle(style);
+            cell.setCellStyle(cellStyle);
          }
       }
+   }
+
+   /**
+    * Get the (cached) cell style with the data format, cloned from the data tab base style.
+    */
+   private CellStyle getDataTabStyle(Map<String, CellStyle> styles, String format,
+                                     CellStyle style)
+   {
+      return styles.computeIfAbsent(format, f -> {
+         CellStyle dataStyle = book.createCellStyle();
+         dataStyle.cloneStyleFrom(style);
+
+         try {
+            dataStyle.setDataFormat(book.createDataFormat().getFormat(f));
+         }
+         catch(Exception ex) {
+            LOG.debug("Invalid data tab cell format: {}", f, ex);
+         }
+
+         return dataStyle;
+      });
+   }
+
+   private static String getDataTabDateText(java.util.Date date) {
+      // use the local fields of the date, not SimpleDateFormat (calendar of the default locale)
+      if(date instanceof java.sql.Timestamp) {
+         return java.time.format.DateTimeFormatter.ofPattern(
+            "yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT)
+            .format(((java.sql.Timestamp) date).toLocalDateTime());
+      }
+      else if(date instanceof java.sql.Date) {
+         return ((java.sql.Date) date).toLocalDate().toString();
+      }
+      else if(date instanceof java.sql.Time) {
+         return java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss", java.util.Locale.ROOT)
+            .format(((java.sql.Time) date).toLocalTime());
+      }
+
+      return java.time.format.DateTimeFormatter.ofPattern(
+         "yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT)
+         .format(java.time.Instant.ofEpochMilli(date.getTime())
+                    .atZone(java.time.ZoneId.systemDefault()));
+   }
+
+   /**
+    * Whether the number can be stored in a numeric cell without losing digits. NaN and
+    * infinity cannot, and a Long, BigInteger or BigDecimal of more than 15 significant digits
+    * does not fit an Excel double, so those stay text.
+    */
+   private static boolean isExactNumber(Number num) {
+      if(num instanceof Long) {
+         long value = num.longValue();
+         return value > -1000000000000000L && value < 1000000000000000L;
+      }
+      else if(num instanceof java.math.BigInteger) {
+         return ((java.math.BigInteger) num).abs().compareTo(
+            java.math.BigInteger.valueOf(1000000000000000L)) < 0;
+      }
+      else if(num instanceof java.math.BigDecimal) {
+         return ((java.math.BigDecimal) num).precision() <= 15;
+      }
+
+      double value = num.doubleValue();
+      return !Double.isNaN(value) && !Double.isInfinite(value);
+   }
+
+   private static String getDataTabDateFormat(java.util.Date date) {
+      if(date instanceof java.sql.Time) {
+         return "hh:mm:ss";
+      }
+      else if(date instanceof java.sql.Date) {
+         return "yyyy-mm-dd";
+      }
+
+      return "yyyy-mm-dd hh:mm:ss";
    }
 
    /**

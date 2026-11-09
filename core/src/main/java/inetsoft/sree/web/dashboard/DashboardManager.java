@@ -928,6 +928,7 @@ public class DashboardManager implements AutoCloseable {
                                           Boolean userChanged)
    {
       init();
+      checkWritable();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
       Lock storeLock = getStoreLock();
       storeLock.lock();
@@ -977,6 +978,7 @@ public class DashboardManager implements AutoCloseable {
 
    public synchronized void removeDashboards(Identity identity) {
       init();
+      checkWritable();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
 
       if(identity.getName() != null) {
@@ -1005,6 +1007,7 @@ public class DashboardManager implements AutoCloseable {
     */
    public synchronized void setDeselectedDashboards(Identity identity, String[] dashboards) {
       init();
+      checkWritable();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
       Lock storeLock = getStoreLock();
       storeLock.lock();
@@ -1057,6 +1060,7 @@ public class DashboardManager implements AutoCloseable {
       }
 
       init();
+      checkWritable();
       Lock storeLock = getStoreLock();
       storeLock.lock();
 
@@ -1137,6 +1141,7 @@ public class DashboardManager implements AutoCloseable {
       }
 
       init();
+      checkWritable();
       Lock storeLock = getStoreLock();
       storeLock.lock();
 
@@ -1173,6 +1178,7 @@ public class DashboardManager implements AutoCloseable {
       }
 
       init();
+      checkWritable();
       Lock storeLock = getStoreLock();
       storeLock.lock();
 
@@ -1216,6 +1222,11 @@ public class DashboardManager implements AutoCloseable {
       catch(InterruptedException | TimeoutException | ExecutionException e) {
          throw new RuntimeException(e);
       }
+   }
+
+   // Bug #79856, refuses a write while the current organization's id is being changed
+   private void checkWritable() {
+      OrgIdChangeGuard.checkWritable(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    private KeyValueStorage<DashboardData> getDashboardStorage() {

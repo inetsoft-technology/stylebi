@@ -2134,7 +2134,8 @@ public class CoreTool {
          }
       }
       else {
-         return null;
+         java.sql.Timestamp ts = getTemporalTimestamp(val);
+         return ts == null ? null : getDateData(ts);
       }
    }
 
@@ -2167,8 +2168,44 @@ public class CoreTool {
          }
       }
       else {
-         return null;
+         return getTemporalTimestamp(val);
       }
+   }
+
+   /**
+    * Convert a JDBC/driver date-time object that is not a java.util.Date (for example
+    * java.time.OffsetDateTime from a TIMESTAMP WITH TIME ZONE column, or SQL Server's
+    * microsoft.sql.DateTimeOffset) to a timestamp. The value is converted to the instant it
+    * denotes; the original UTC offset is not kept. A LocalDateTime has no zone and is read in
+    * the JVM default zone, as java.sql.Timestamp.valueOf does.
+    *
+    * @return the timestamp, or null if the value is not a supported temporal type.
+    */
+   private static java.sql.Timestamp getTemporalTimestamp(Object val) {
+      try {
+         if(val instanceof java.time.OffsetDateTime) {
+            return java.sql.Timestamp.from(((java.time.OffsetDateTime) val).toInstant());
+         }
+         else if(val instanceof java.time.ZonedDateTime) {
+            return java.sql.Timestamp.from(((java.time.ZonedDateTime) val).toInstant());
+         }
+         else if(val instanceof java.time.Instant) {
+            return java.sql.Timestamp.from((java.time.Instant) val);
+         }
+         else if(val instanceof java.time.LocalDateTime) {
+            return java.sql.Timestamp.valueOf((java.time.LocalDateTime) val);
+         }
+         else if("microsoft.sql.DateTimeOffset".equals(val.getClass().getName())) {
+            // avoid a compile-time dependency on the SQL Server driver
+            Object odt = val.getClass().getMethod("getOffsetDateTime").invoke(val);
+            return odt instanceof java.time.OffsetDateTime ? getTemporalTimestamp(odt) : null;
+         }
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to convert temporal value: {}", val, ex);
+      }
+
+      return null;
    }
 
    /**
@@ -2200,7 +2237,8 @@ public class CoreTool {
          return new java.sql.Time(((Number) val).longValue());
       }
       else {
-         return null;
+         java.sql.Timestamp ts = getTemporalTimestamp(val);
+         return ts == null ? null : new java.sql.Time(ts.getTime());
       }
    }
 

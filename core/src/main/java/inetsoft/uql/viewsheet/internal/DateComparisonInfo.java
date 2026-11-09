@@ -1568,33 +1568,17 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
    {
       int contextCalendarLevel = getCalendarLevel(contextLevel);
       boolean contextLevelIsQuarter = contextLevel ==  XConstants.QUARTER_DATE_GROUP;
-      Calendar rangeStartYearCal = getCalendar();
 
       while(rangeStartCal.before(rangeEndCal) || rangeStartCal.equals(rangeEndCal)) {
-         int contextYear = rangeEndCal.get(Calendar.YEAR);
-
-         // rangeEndCal is the first day of the context week; a week can straddle New Year, and
-         // the days of it after Dec 31 still belong to this context week, so compare against
-         // the year of the week's last day. (#79061)
-         if(contextLevel == XConstants.WEEK_DATE_GROUP) {
-            Calendar weekEndCal = (Calendar) rangeEndCal.clone();
-            weekEndCal.add(Calendar.DATE, 6);
-            contextYear = weekEndCal.get(Calendar.YEAR);
-         }
-
          Date[] range = getIntervalDateRange(contextLevel, dcInterval.getLevel(),
             dcInterval.getGranularity(), rangeEndCal.getTime(), toDate);
          setToNextIntervalStart(rangeEndCal, contextCalendarLevel, contextLevelIsQuarter, false, alignWeek());
 
-         // Skip conditions whose range start overflows into a later year than the context month.
-         // e.g. "week 5 of December 2020" starts Jan 2021 — that overflow causes spurious labels.
+         // A range may start in the next calendar year than the context unit (e.g. "week 5 of
+         // December 2020" starts Jan 3 2021). It is kept: the chart's own date grouping puts
+         // those days in December of the earlier period, and the same roll-over is kept for
+         // every other month. (#79149)
          if(range == null || range[0] == null) {
-            continue;
-         }
-
-         rangeStartYearCal.setTime(range[0]);
-
-         if(rangeStartYearCal.get(Calendar.YEAR) > contextYear) {
             continue;
          }
 

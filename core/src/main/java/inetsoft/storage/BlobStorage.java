@@ -20,6 +20,7 @@ package inetsoft.storage;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedLong;
+import inetsoft.sree.security.OrgIdChangeGuard;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -257,6 +258,24 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    }
 
    /**
+    * Refuses a write to an organization whose id is being changed (Bug #79856). The blob stores
+    * of an organization are named {@code <org id>__<name>}, and the data space is one store with
+    * the organization's paths in it.
+    */
+   final void checkWritable(String path) {
+      if(DATA_SPACE_ID.equals(id)) {
+         OrgIdChangeGuard.checkWritablePath(path);
+      }
+      else {
+         int index = id.indexOf("__");
+
+         if(index > 0) {
+            OrgIdChangeGuard.checkWritable(id.substring(0, index));
+         }
+      }
+   }
+
+   /**
     * Copies an existing blob to a temporary file.
     *
     * @param blob the blob to copy.
@@ -276,6 +295,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws IOException if an I/O error occurs.
     */
    public final void createDirectory(String path, T metadata) throws IOException {
+      checkWritable(path);
       Blob<T> blob = new Blob<>(path, null, 0L, Instant.now(), metadata);
 
       try {
@@ -334,6 +354,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws IOException if an I/O error occurs.
     */
    public final void delete(String path) throws IOException {
+      checkWritable(path);
       BlobLock lock;
 
       try {
@@ -380,6 +401,10 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
          return;
       }
 
+      for(String path : paths) {
+         checkWritable(path);
+      }
+
       try {
          Set<String> digestsToDelete = cluster.submit(
             id, new DeleteAllBlobTask<T>(id, paths)).get(60L, TimeUnit.SECONDS);
@@ -402,6 +427,8 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws IOException if an I/O error occurs.
     */
    public final void rename(String oldPath, String newPath) throws IOException {
+      checkWritable(oldPath);
+      checkWritable(newPath);
       try {
          cluster.submit(id, new RenameBlobTask<>(id, oldPath, newPath)).get(10L, TimeUnit.SECONDS);
       }
@@ -429,6 +456,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws IOException if an I/O error occurs.
     */
    public final void copy(String oldPath, String newPath) throws IOException {
+      checkWritable(newPath);
       try {
          cluster.submit(id, new CopyBlobTask<>(id, oldPath, newPath)).get(10L, TimeUnit.SECONDS);
       }
@@ -787,6 +815,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    // the event executors of the closed storages that may still be running queued events
    private static final Set<ThreadPoolExecutor> CLOSED_EVENT_EXECUTORS =
       ConcurrentHashMap.newKeySet();
+   private static final String DATA_SPACE_ID = "dataSpace";
    private static final Logger LOG = LoggerFactory.getLogger(BlobStorage.class);
 
    private final KeyValueStorage.Listener<Blob<T>> listener = new KeyValueStorage.Listener<>() {
