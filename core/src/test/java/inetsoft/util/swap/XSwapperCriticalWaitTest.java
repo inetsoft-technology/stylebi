@@ -25,9 +25,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -83,25 +85,41 @@ class XSwapperCriticalWaitTest {
       doReturn(XSwapper.CRITICAL_MEM).when(swapper).getMemoryState();
       swapper.setMaxCriticalWait(10000L);
 
-      final AtomicLong elapsed = new AtomicLong(-1L);
+      final AtomicLong returnedAt = new AtomicLong(-1L);
       final AtomicBoolean interruptedAfter = new AtomicBoolean();
       Thread caller = new Thread(() -> {
-         long start = System.currentTimeMillis();
          swapper.waitForMemory();
-         elapsed.set(System.currentTimeMillis() - start);
+         returnedAt.set(System.nanoTime());
          interruptedAfter.set(Thread.currentThread().isInterrupted());
       });
 
       caller.setDaemon(true);
       caller.start();
-      // let the caller reach the critical wait loop before interrupting it
-      Thread.sleep(300L);
+
+      // wait until the caller is parked in the critical wait (the timed Condition.await), so
+      // the bound below measures only the response to the interrupt and not the first-pass
+      // full GC, which can be slow on a busy runner with a large heap
+      final long reachDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30L);
+
+      while(caller.getState() != Thread.State.TIMED_WAITING && caller.isAlive() &&
+         System.nanoTime() < reachDeadline)
+      {
+         Thread.sleep(5L);
+      }
+
+      assertSame(Thread.State.TIMED_WAITING, caller.getState(),
+                 "the caller never reached the critical wait");
+
+      final long interruptedAt = System.nanoTime();
       caller.interrupt();
       caller.join(30000L);
 
-      assertTrue(elapsed.get() >= 0, "waitForMemory() did not return within 30s");
-      assertTrue(elapsed.get() < 2000L,
-                 "the interrupt did not end the wait: returned after " + elapsed.get() + "ms");
+      assertTrue(returnedAt.get() != -1L, "waitForMemory() did not return within 30s");
+      final long sinceInterrupt = TimeUnit.NANOSECONDS.toMillis(returnedAt.get() - interruptedAt);
+      // without the fix the interrupt is swallowed and the wait runs to the 10s cap
+      assertTrue(sinceInterrupt < 5000L,
+                 "the interrupt did not end the wait: returned " + sinceInterrupt +
+                 "ms after the interrupt");
       assertTrue(interruptedAfter.get(), "the interrupt status was cleared by waitForMemory()");
    }
 }

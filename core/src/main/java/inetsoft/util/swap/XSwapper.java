@@ -588,6 +588,9 @@ public final class XSwapper {
     * Wait for swapper to swap out objects if memory is low. This should
     * be called when there is a surge of memory request to avoid running
     * out of memory before swapping could be performed.
+    * <p>
+    * An interrupt ends the wait and the interrupt status is kept set on return. A caller
+    * that is already interrupted when it enters returns after one pass of the wait loop.
     */
    public void waitForMemory() {
       waitingThreadCount.incrementAndGet();
