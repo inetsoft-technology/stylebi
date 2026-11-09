@@ -6606,6 +6606,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Drop the cached list data of a Form table column's combo box option. {@code executeView}
+    * restores a runtime option's list from this entry, and no reset of the assembly's own data
+    * clears it, so a column option that was rewritten would otherwise get its old list back.
+    * @param name the specified Form table name.
+    * @param index the column's index in the table's full column selection.
+    */
+   public void resetFormOptionData(String name, int index) {
+      resetDataMap(name + "^" + index + "^" + FORM_OPTION);
+   }
+
+   /**
     * Reset the data map.
     * @param name the specified assembly name.
     * @param type result type defined in DataMap.
