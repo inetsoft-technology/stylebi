@@ -29,7 +29,6 @@ import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -50,7 +49,6 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(
    classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
    initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class SelectionMetadataStateTest {
@@ -133,6 +131,25 @@ class SelectionMetadataStateTest {
       refresh(query, list, realData());
 
       // metadata off: an empty result still clears the state, as before
+      refresh(query, list, new DefaultTableLens(new Object[][] { { COL } }));
+      assertEquals(Set.of(), getSelected(list));
+   }
+
+   @Test
+   void runtimeBoxOverMetadataSheetStillFollowsTheData() throws Exception {
+      // Preview / viewer of a Use Metadata sheet: the runtime box runs on real data and must
+      // behave as if metadata were off, so an empty result still clears the state
+      when(box.getMode()).thenReturn(RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE);
+      when(box.isRuntime()).thenReturn(true);
+      viewsheet.getViewsheetInfo().setMetadata(true);
+      SelectionListVSAssembly list = createList(false);
+      AbstractSelectionVSAQuery query = new SelectionListVSAQuery(box, NAME);
+
+      refresh(query, list, realData());
+      clickList(list, GOLF);
+      refresh(query, list, realData());
+      assertEquals(Set.of(GOLF), getSelected(list));
+
       refresh(query, list, new DefaultTableLens(new Object[][] { { COL } }));
       assertEquals(Set.of(), getSelected(list));
    }

@@ -658,6 +658,166 @@ public class TimeSliderVSAQueryTest {
          assertSelected(10, 5);
       }
 
+      /**
+       * Bug #80814: Preview while Use Metadata is still on runs a runtime box with real data
+       * over a metadata sheet whose slider was last refreshed on the one-tick placeholder.
+       * The runtime box must behave as if metadata were off and keep the full range.
+       */
+      @Test
+      void previewWhileMetadataOnKeepsFullRangeMonthSlider() throws Exception {
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(dateData);
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(datePlaceholder);
+         openPreview();
+         refresh(dateData);
+
+         assertEquals(ticks - 1, assembly.getTimeInfo().getLength());
+         assertSelected(0, ticks - 1);
+      }
+
+      @Test
+      void previewWhileMetadataOnKeepsFullRangeNumberSlider() throws Exception {
+         setUpNumberSlider();
+         refresh(numberData);
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(numberPlaceholder);
+         openPreview();
+         refresh(numberData);
+
+         assertEquals(ticks - 1, assembly.getTimeInfo().getLength());
+         assertSelected(0, ticks - 1);
+      }
+
+      @Test
+      void previewWhileMetadataOnKeepsPartialMonthSelection() throws Exception {
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(dateData);
+         selectRange(10, 5);
+         refresh(dateData);
+
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(datePlaceholder);
+         openPreview();
+         refresh(dateData);
+
+         assertEquals(5, assembly.getTimeInfo().getLength());
+         assertSelected(10, 5);
+      }
+
+      /**
+       * The year slider of Examples/Sales Summary: a NUMBER slider on an integer Year column
+       * with range size 1 over 2013..2016, whose metadata placeholder is 999..999.
+       */
+      @Test
+      void previewWhileMetadataOnKeepsFullRangeYearSlider() throws Exception {
+         setUpYearSlider();
+         refresh(yearData);
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+         assertSelected(0, ticks - 1);
+
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(yearPlaceholder);
+         openPreview();
+         refresh(yearData);
+
+         assertEquals(ticks - 1, assembly.getTimeInfo().getLength());
+         assertSelected(0, ticks - 1);
+      }
+
+      @Test
+      void metadataToggleKeepsFullRangeYearSlider() throws Exception {
+         setUpYearSlider();
+         refresh(yearData);
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+
+         toggleMetadata(yearPlaceholder, yearData);
+
+         assertEquals(ticks - 1, assembly.getTimeInfo().getLength());
+         assertSelected(0, ticks - 1);
+      }
+
+      private void setUpYearSlider() {
+         SingleTimeInfo tinfo = new SingleTimeInfo();
+         tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+         tinfo.setRangeSizeValue(1.0);
+         ColumnRef ref = createRef(MEASURE);
+         ref.setDataType(XSchema.INTEGER);
+         tinfo.setDataRef(ref);
+         assembly.setTimeInfo(tinfo);
+      }
+
+      private final Object[] yearData = { 2013, 2016 };
+      private final Object[] yearPlaceholder = { 999, 999 };
+
+      /**
+       * A viewer opening a sheet saved with Use Metadata on: the runtime box runs on real data
+       * and must give the same slider as for the same sheet saved with Use Metadata off, also
+       * when the data no longer holds the selected position (the pos < 0 fallback).
+       */
+      @Test
+      void runtimeBoxIgnoresMetadataFlag() throws Exception {
+         List<Object> expected = runRuntimeScenario(false);
+         setUp();
+         setUpDesignMode();
+
+         assertEquals(expected, runRuntimeScenario(true));
+      }
+
+      private List<Object> runRuntimeScenario(boolean metadata) throws Exception {
+         useRuntimeBox();
+         viewsheet.getViewsheetInfo().setMetadata(metadata);
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(dateData);
+         int full = assembly.getTimeInfo().getLength();
+         selectRange(10, 5);
+         refresh(dateData);
+         List<String> partial = getStateValues();
+         // the selected months are gone from the data
+         refresh(new Object[] { date(2024, 6, 1), date(2025, 12, 28), date(2025, 12, 28) });
+
+         return List.of(full, partial, assembly.getTimeInfo().getLength(), getStateValues());
+      }
+
+      /**
+       * What Composer Preview does to the slider before its first runtime refresh: a runtime
+       * box, and the initial/home bookmark captured from the composer sheet and applied
+       * again (RuntimeViewsheet constructor -> refresh() -> default bookmark).
+       */
+      private void openPreview() throws Exception {
+         useRuntimeBox();
+         java.io.StringWriter buf = new java.io.StringWriter();
+         java.io.PrintWriter writer = new java.io.PrintWriter(buf);
+         assembly.writeState(writer, true);
+         writer.flush();
+         org.w3c.dom.Document doc = Tool.parseXML(new java.io.StringReader(buf.toString()));
+         assembly.parseState(doc.getDocumentElement());
+      }
+
+      private void useRuntimeBox() {
+         ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+         when(box.getID()).thenReturn("vs1");
+         when(box.getViewsheet()).thenReturn(viewsheet);
+         when(box.getMode()).thenReturn(RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE);
+         when(box.isRuntime()).thenReturn(true);
+         query = new TimeSliderVSAQuery(box, SLIDER);
+      }
+
+      private List<String> getStateValues() {
+         SelectionList state = assembly.getStateSelectionList();
+         List<String> values = new ArrayList<>();
+
+         for(int i = 0; state != null && i < state.getSelectionValueCount(); i++) {
+            values.add(state.getSelectionValue(i).getValue());
+         }
+
+         return values;
+      }
+
       private void toggleMetadata(Object[] placeholder, Object[] data) throws Exception {
          viewsheet.getViewsheetInfo().setMetadata(true);
          refresh(placeholder);

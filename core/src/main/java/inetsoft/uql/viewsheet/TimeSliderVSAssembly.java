@@ -1004,13 +1004,46 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
           // if the state is saved with the slider selecting the full range,
           // it's equivalent to no selection, so we restore to the same full
           // range state
-          if(all && getSelectionList() != null) {
+          if(all && getSelectionList() != null && isStateFromSelectionList()) {
              length = getSelectionList().getSelectionValueCount() - 1;
              setStateSelectionList(getSelectionList());
           }
 
           setLengthValue(length);
       }
+   }
+
+   /**
+    * Check if the current (view) selection list can stand for the full range of the parsed
+    * state. In a Use Metadata sheet the view list may still hold the placeholder ticks of the
+    * last design-time refresh (e.g. a sheet previewed or saved while Use Metadata is on); it
+    * doesn't hold the selected values then, and restoring the full range from it would
+    * replace the real state with the placeholder (Bug #80814). The saved length and state are
+    * kept instead and the next refresh rebuilds the full range from the real data.
+    */
+   private boolean isStateFromSelectionList() {
+      Viewsheet vs = getViewsheet();
+      SelectionList state = getStateSelectionList();
+
+      if(vs == null || !vs.getViewsheetInfo().isMetadata() ||
+         state == null || state.getSelectionValueCount() == 0)
+      {
+         return true;
+      }
+
+      Set<String> values = new HashSet<>();
+
+      for(SelectionValue value : getSelectionList().getSelectionValues()) {
+         values.add(value.getValue());
+      }
+
+      for(SelectionValue value : state.getSelectionValues()) {
+         if(!values.contains(value.getValue())) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
