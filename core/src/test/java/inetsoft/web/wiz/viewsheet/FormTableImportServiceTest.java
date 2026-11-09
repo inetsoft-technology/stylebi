@@ -459,6 +459,31 @@ class FormTableImportServiceTest {
    }
 
    @Test
+   void theImportedSnapshotCarriesFormChanged() throws Exception {
+      stubImport(imported("Orders"));
+      inetsoft.web.viewsheet.command.LoadTableDataCommand load =
+         mock(inetsoft.web.viewsheet.command.LoadTableDataCommand.class);
+      when(load.formChanged()).thenReturn(true);
+      CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
+      when(dispatcher.getCapturedCommands()).thenReturn(List.of(
+         new CapturingCommandDispatcher.Command("Orders", "LoadTableDataCommand", load)));
+      when(sessions.mutate(anyString(), any(Principal.class),
+                           any(ViewsheetSessionService.Mutation.class)))
+         .thenAnswer(inv -> {
+            inv.<ViewsheetSessionService.Mutation>getArgument(2).run(rvs, "rid", dispatcher);
+            return List.of();
+         });
+
+      Map<String, Object> result = run(false);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> snapshots = (Map<String, Object>) result.get("snapshots");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> orders = (Map<String, Object>) snapshots.get("Orders");
+      assertEquals(true, orders.get("formChanged"));
+   }
+
+   @Test
    void everyTableSkippedForRangeFailsLoudAndNamesTheTables() throws Exception {
       stubImport(new ImportXLSResult(
          List.of(TableResult.of("Orders", Outcome.NOT_IN_RANGE)), List.of(), Set.of("Orders")));

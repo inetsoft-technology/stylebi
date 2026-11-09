@@ -372,7 +372,8 @@ public class FormTableRowService {
          ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
 
          int header = lens.getHeaderRowCount();
-         int dataRows = dataRowCount(lens);
+         // a lens whose rows were never initialised reports a negative count; it has no data rows
+         int dataRows = Math.max(0, dataRowCount(lens));
          boolean inRange = offset < dataRows;
 
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
@@ -391,6 +392,18 @@ public class FormTableRowService {
          }
 
          LoadTableDataCommand load = lastLoad(dispatcher, assemblyName);
+
+         if(inRange && load == null) {
+            // loadTableData dispatches nothing for an assembly that is not rendered (a Form table
+            // in a non-selected Tab) or has no table lens; an empty window next to a real
+            // rowCount would read as "more rows exist" and make a paging caller loop
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' has " + dataRows + " data row(s) but its rows were not " +
+               "loaded; it is probably not currently rendered (for example it sits in a Tab " +
+               "whose selected tab is another one). Select that tab in the Preview and read " +
+               "again.");
+         }
+
          Map<String, Object> result = new LinkedHashMap<>();
          result.put("assembly", assemblyName);
          result.put("offset", offset);

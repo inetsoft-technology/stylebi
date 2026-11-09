@@ -339,6 +339,57 @@ class FormTableRowServiceReadTest {
    }
 
    @Test
+   void deleteSnapshotCarriesFormChanged() throws Exception {
+      Map<String, Object> afterDelete = service.deleteRows("tok", user, "Table1", List.of(0), "");
+
+      assertEquals(true, afterDelete.get("formChanged"));
+   }
+
+   @Test
+   void applySnapshotCarriesFormChanged() throws Exception {
+      ((TableVSAssemblyInfo) table.getVSAssemblyInfo()).setWriteBack(true);
+      VSFormTableService applier = mock(VSFormTableService.class);
+      doAnswer(inv -> {
+         LoadTableDataCommand load = mock(LoadTableDataCommand.class);
+         when(load.formChanged()).thenReturn(true);
+         CapturingCommandDispatcher d = inv.getArgument(3);
+         d.sendCommand("Table1", load);
+         return null;
+      }).when(applier).applyChanges(anyString(), any(), anyString(), any(), any());
+
+      Map<String, Object> afterApply =
+         new FormTableRowService(sessions, applier).apply("tok", user, "Table1", "");
+
+      assertEquals(true, afterApply.get("formChanged"));
+   }
+
+   // ── a read that loaded nothing must not look like a table with more rows ──
+
+   @Test
+   void aTableThatWasNotRenderedFailsLoudInsteadOfAnEmptyWindowWithMoreRows() throws Exception {
+      when(rvs.getViewsheetSandbox().orElseThrow().getVSTableLens(eq("Table1"), anyBoolean()))
+         .thenReturn(null);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> service.read("tok", user, "Table1", 0, 50, ""));
+
+      assertTrue(e.getMessage().contains("'Table1'"), e.getMessage());
+      assertTrue(e.getMessage().contains("150 data row(s)"), e.getMessage());
+      assertTrue(e.getMessage().contains("not currently rendered"), e.getMessage());
+   }
+
+   @Test
+   void anEmptyOrPastTheEndWindowOfAnUnrenderedTableStillAnswersNormally() throws Exception {
+      when(rvs.getViewsheetSandbox().orElseThrow().getVSTableLens(eq("Table1"), anyBoolean()))
+         .thenReturn(null);
+
+      Map<String, Object> past = service.read("tok", user, "Table1", ROWS, 50, "");
+
+      assertEquals(List.of(), past.get("rows"));
+      assertEquals(false, past.get("hasMore"));
+   }
+
+   @Test
    void populateSnapshotReportsFormChangedFalseForACleanTable() {
       LoadTableDataCommand load = mock(LoadTableDataCommand.class);
       when(load.runtimeDataRowCount()).thenReturn(0);
