@@ -1696,6 +1696,10 @@ public class WorksheetAgentController {
          if(hasQueryParams) {
             TabularQuerySchema schema =
                new TabularSchemaExtractor().extract(scratchQuery, dataSource.getType());
+            // queryParams restates the whole query: an optional param it omits goes back to the
+            // connector default rather than keeping what an earlier call set on the live query.
+            TabularQueryContractSupport.resetOmittedToDefaults(
+               scratchQuery, pmap, schema, req.queryParams());
             applied = TabularQueryContractSupport.applyQueryContract(
                scratchQuery, pmap, schema, req.queryParams(), dsName);
             target = dsName;

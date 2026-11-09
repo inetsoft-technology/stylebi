@@ -247,6 +247,103 @@ public final class TabularQueryContractSupport {
    }
 
    /**
+    * Put every settable top-level param of the connector that {@code queryParams} does not name
+    * back to the connector's default, so a request that restates the whole query (edit_table's
+    * {@code queryParams} form, run against a clone of the LIVE query) does not keep a value an
+    * earlier call set. Run it before {@link #applyQueryContract}; on a freshly created query every
+    * value already is the default and nothing is written.
+    *
+    * <p>The default is read off a fresh instance of the same query class, the way a fresh add
+    * would see it -- never a blind {@code null}, which is wrong for a primitive or a non-null
+    * default. A composite (Kind A) param keeps its skeleton, which the connector derives from
+    * other params, and only has its element values cleared, in the omitted composite and in the
+    * omitted elements of a supplied one alike, matching what {@code applyEndpointContract} does
+    * for an endpoint's parameters.
+    */
+   public static void resetOmittedToDefaults(TabularQuery query, Map<String, PropertyMeta> pmap,
+                                             TabularQuerySchema schema,
+                                             Map<String, Object> queryParams)
+      throws Exception
+   {
+      TabularQuery fresh = freshInstanceOf(query);
+
+      for(TabularQuerySchema.Param param : schema.getParams()) {
+         PropertyMeta prop = pmap.get(param.getName());
+
+         if(prop == null || prop.getDescriptor().getWriteMethod() == null) {
+            continue;
+         }
+
+         Class<?> type = prop.getDescriptor().getPropertyType();
+
+         if(TabularSchemaExtractor.isCompositeType(type) && type != File.class) {
+            clearCompositeValues(query, prop);
+         }
+         else if(!queryParams.containsKey(param.getName())) {
+            resetToDefault(query, fresh, prop);
+         }
+      }
+   }
+
+   /**
+    * Put one named top-level property back to the connector's default; a property the connector
+    * does not expose is left alone. For the endpoint and suffix forms, whose optional
+    * {@code jsonPath}/{@code expanded}/{@code expandedPath} (and custom lookup levels'
+    * {@code jsonPath}/{@code key}) were otherwise only written when supplied.
+    */
+   public static void resetToDefault(TabularQuery query, Map<String, PropertyMeta> pmap,
+                                     String name)
+   {
+      PropertyMeta prop = pmap.get(name);
+
+      if(prop != null && prop.getDescriptor().getWriteMethod() != null) {
+         resetToDefault(query, freshInstanceOf(query), prop);
+      }
+   }
+
+   private static void resetToDefault(TabularQuery query, TabularQuery fresh, PropertyMeta prop) {
+      Object current = prop.getValue(query);
+      Object dflt = prop.getValue(fresh);
+
+      if(!Objects.equals(text(current), text(dflt))) {
+         prop.setValue(query, dflt);
+      }
+   }
+
+   private static void clearCompositeValues(TabularQuery query, PropertyMeta prop)
+      throws Exception
+   {
+      Object skeleton = prop.getValue(query);
+      List<Object> elements = TabularUtil.compositeElementsOf(skeleton);
+      boolean namesOk = elements != null && !elements.isEmpty() &&
+         elements.stream().allMatch(e -> TabularUtil.compositeElementName(e) != null);
+
+      if(!namesOk ||
+         elements.stream().allMatch(e -> TabularUtil.compositeElementValue(e) == null))
+      {
+         return;
+      }
+
+      for(Object element : elements) {
+         TabularUtil.compositeElementSetValue(element, null);
+      }
+
+      invokeWriteMethod(prop, query, skeleton);
+   }
+
+   /** A new query of {@code query}'s own class: what a fresh add starts from. */
+   private static TabularQuery freshInstanceOf(TabularQuery query) {
+      try {
+         return query.getClass().getDeclaredConstructor().newInstance();
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new IllegalStateException(
+            "Cannot read the defaults of " + query.getClass().getSimpleName() + ": it has no " +
+            "accessible no-argument constructor.", ex);
+      }
+   }
+
+   /**
     * Order {@code names} so that every param whose {@code dependsOn} names another param IN
     * THIS SAME SET is written after it -- a deterministic Kahn's-algorithm topological sort,
     * seeded by the connector's own {@code @View} declaration order ({@code schema.getParams()})

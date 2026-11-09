@@ -158,9 +158,9 @@ public final class TabularEndpointBindingSupport {
             .collect(Collectors.joining(", ")));
 
       paramProp.setValue(query, params);
-      setOptionalProperty(pmap, query, "jsonPath", jsonPath);
-      setOptionalProperty(pmap, query, "expanded", expanded);
-      setOptionalProperty(pmap, query, "expandedPath", expandedPath);
+      setOrResetProperty(pmap, query, "jsonPath", jsonPath);
+      setOrResetProperty(pmap, query, "expanded", expanded);
+      setOrResetProperty(pmap, query, "expandedPath", expandedPath);
 
       // The one end-to-end check, and the reason it is worth a line of its own: reading "suffix"
       // back invokes the connector's getSuffix(), which rebuilds the URL from the endpoint
@@ -208,7 +208,7 @@ public final class TabularEndpointBindingSupport {
             "endpoint and cannot be set directly.");
       }
 
-      setOptionalProperty(pmap, query, "jsonPath", jsonPath);
+      setOrResetProperty(pmap, query, "jsonPath", jsonPath);
       return trimmedSuffix;
    }
 
@@ -350,8 +350,8 @@ public final class TabularEndpointBindingSupport {
          }
 
          setRequiredProperty(pmap, query, "lookupUrl" + i, level.url(), dsName, i);
-         setOptionalProperty(pmap, query, "lookupJsonPath" + i, level.jsonPath());
-         setOptionalProperty(pmap, query, "lookupKey" + i, level.key());
+         setOrResetProperty(pmap, query, "lookupJsonPath" + i, level.jsonPath());
+         setOrResetProperty(pmap, query, "lookupKey" + i, level.key());
          setOptionalProperty(pmap, query, "lookupIgnoreBaseUrl" + i,
             level.ignoreBaseUrl() == null ? Boolean.FALSE : level.ignoreBaseUrl());
       }
@@ -450,6 +450,22 @@ public final class TabularEndpointBindingSupport {
 
       if(prop != null) {
          prop.setValue(query, value);
+      }
+   }
+
+   /**
+    * Set a property to the supplied value, or back to the connector's default when none was
+    * supplied: the request restates the whole query, so an omitted optional must not keep what an
+    * earlier edit set.
+    */
+   private static void setOrResetProperty(Map<String, PropertyMeta> pmap, TabularQuery query,
+                                          String name, Object value)
+   {
+      if(value == null) {
+         TabularQueryContractSupport.resetToDefault(query, pmap, name);
+      }
+      else {
+         setOptionalProperty(pmap, query, name, value);
       }
    }
 
