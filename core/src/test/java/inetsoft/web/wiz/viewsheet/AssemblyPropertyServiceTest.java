@@ -40,6 +40,7 @@ import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartLinePaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel;
+import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -1508,9 +1509,10 @@ class AssemblyPropertyServiceTest {
    //
    // labels/values have no short name (still raw-path-only), but VSInputService.setListValues
    // always writes them while sourceType (which gates whether they are ever read back) is
-   // derived from embedded/query alone, defaulting to NONE_SOURCE. Writing labels/values with no
-   // query/table/column in the same patch has unambiguous static-list intent, so embedded is
-   // implied true; a caller who also sets query/table/column, or embedded itself, is left alone.
+   // derived from embedded/query alone, defaulting to NONE_SOURCE. The items are only read when
+   // embedded is on, so writing labels/values implies embedded true whatever the same patch writes
+   // to query/table/column (query off: the items are the list; query on: MERGE_SOURCE). Only a
+   // caller who sets embedded itself is left alone (Redmine #80863).
 
    private static final String CHECKBOX_LABELS =
       "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
@@ -1542,13 +1544,11 @@ class AssemblyPropertyServiceTest {
    }
 
    /**
-    * A patch that ALSO sets {@code table}/{@code column} alongside the static labels/values
-    * intends a real, distinct configuration ({@code embedded=false, query=true} ==
-    * {@code BOUND_SOURCE}) -- embedded must not be silently forced true, which would reclassify
-    * it into {@code MERGE_SOURCE} instead.
+    * A {@code table}/{@code column} written with query off is not a list source, so the items
+    * are the only source and embedded is implied true; a NONE_SOURCE list would show nothing.
     */
    @Test
-   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCheckbox() throws Exception {
+   void impliesEmbeddedWhenTableAndColumnAreAlsoSetForCheckbox() throws Exception {
       CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
       AssemblyPropertyService service =
          serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
@@ -1560,20 +1560,19 @@ class AssemblyPropertyServiceTest {
 
       service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
 
-      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
-                     .getComboBoxEditorModel().isEmbedded(),
-                  "a query/table/column binding in the same patch must not be reclassified " +
-                  "into MERGE_SOURCE by forcing embedded true");
+      ComboBoxEditorModel editor = model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel();
+      assertTrue(editor.isEmbedded(),
+                 "with query off the static items are the only source, so embedded is implied");
+      assertFalse(editor.isQuery());
    }
 
    /**
-    * Same guard, exercised via {@code query} alone (no {@code table}/{@code column}) --
-    * {@code embedded=false, query=true} is itself a complete, real {@code BOUND_SOURCE}
-    * configuration, so this disjunct of the guard must trip on {@code query} by itself, not only
-    * when {@code table}/{@code column} are also present.
+    * {@code query:true} written with the items gives a merged list (MERGE_SOURCE), the same
+    * result as writing the items alone on a list whose query is already on.
     */
    @Test
-   void leavesEmbeddedAloneWhenQueryAloneIsAlsoSetForCheckbox() throws Exception {
+   void impliesEmbeddedForAMergedListWhenQueryIsAlsoSetForCheckbox() throws Exception {
       CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
       AssemblyPropertyService service =
          serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
@@ -1584,10 +1583,10 @@ class AssemblyPropertyServiceTest {
 
       service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
 
-      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
-                     .getComboBoxEditorModel().isEmbedded(),
-                  "query set alone in the same patch must not be reclassified into " +
-                  "MERGE_SOURCE by forcing embedded true");
+      ComboBoxEditorModel editor = model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel();
+      assertTrue(editor.isEmbedded(), "static items with query on must give a merged list");
+      assertTrue(editor.isQuery());
    }
 
    /** A caller who sets {@code embedded} explicitly is never overridden, even to {@code false}. */
@@ -1632,11 +1631,7 @@ class AssemblyPropertyServiceTest {
     * Same shape, ComboBox -- confirms the derivation is not CheckBox/RadioButton-only either.
     * ComboBox's registration ({@code register(registry, "combobox", ..., listInput(...))}) goes
     * through the identical {@code listInput()} helper as the other two, with no separate
-    * {@code dataInput()} merge -- {@code comboboxTableAliasIsTheListValuesQueryNotTheWriteBackTarget}
-    * in {@code PropertyAliasesTest} already pins that ComboBox's short {@code table} alias
-    * resolves to the list-values query path, not the unrelated {@code dataInputPaneModel.table}
-    * row/column write-back target -- so the guard's {@code table}/{@code column} disjunct is
-    * reachable via ComboBox's own short aliases too, not raw-path-only.
+    * {@code dataInput()} merge.
     */
    @Test
    void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCombobox() throws Exception {
@@ -1655,13 +1650,9 @@ class AssemblyPropertyServiceTest {
                  "as CheckBox/RadioButton");
    }
 
-   /**
-    * The guard case for ComboBox, using its own short {@code table}/{@code column} aliases (not
-    * a raw path) -- proves the guard's table/column disjunct is actually reachable for ComboBox
-    * through the vocabulary a caller would really use, not just in theory.
-    */
+   /** ComboBox's own short {@code table}/{@code column} aliases, with query off. */
    @Test
-   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCombobox() throws Exception {
+   void impliesEmbeddedWhenTableAndColumnAreAlsoSetForCombobox() throws Exception {
       ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
       AssemblyPropertyService service =
          serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
@@ -1673,10 +1664,146 @@ class AssemblyPropertyServiceTest {
 
       service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
 
-      assertFalse(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
-                     .getComboBoxEditorModel().isEmbedded(),
-                  "ComboBox's own short table/column aliases must trip the guard just like the " +
-                  "raw path would, not be silently unreachable");
+      ComboBoxEditorModel editor = model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel();
+      assertTrue(editor.isEmbedded(),
+                 "with query off the static items are the only source, so embedded is implied");
+      assertFalse(editor.isQuery());
+   }
+
+   /** One list input type with its model, a service over it and its list-values editor. */
+   private record StaticListCase(String name, AssemblyPropertyService service,
+                                 java.util.function.Supplier<ComboBoxEditorModel> editor)
+   {
+   }
+
+   /**
+    * CheckBox, RadioButton and ComboBox, each over a column handler that resolves
+    * {@code CUSTOMERS.COMPANY_NAME}, optionally with a stored {@code query:true} source.
+    */
+   private static List<StaticListCase> staticListCases(boolean storedQuery) {
+      CheckboxPropertyDialogModel checkbox = new CheckboxPropertyDialogModel();
+      RadioButtonPropertyDialogModel radio = new RadioButtonPropertyDialogModel();
+      ComboboxPropertyDialogModel combobox = new ComboboxPropertyDialogModel();
+      List<StaticListCase> cases = List.of(
+         new StaticListCase("CheckBox",
+            listInputServiceWithColumns(mock(CheckBoxVSAssembly.class), checkbox),
+            () -> checkbox.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+               .getComboBoxEditorModel()),
+         new StaticListCase("RadioButton",
+            listInputServiceWithColumns(mock(RadioButtonVSAssembly.class), radio),
+            () -> radio.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+               .getComboBoxEditorModel()),
+         new StaticListCase("ComboBox",
+            listInputServiceWithColumns(mock(ComboBoxVSAssembly.class), combobox),
+            () -> combobox.getComboboxGeneralPaneModel().getListValuesPaneModel()
+               .getComboBoxEditorModel()));
+
+      if(storedQuery) {
+         for(StaticListCase c : cases) {
+            ComboBoxEditorModel editor = c.editor().get();
+            editor.setQuery(true);
+            editor.getSelectionListDialogModel().getSelectionListEditorModel()
+               .setTable("CUSTOMERS");
+            editor.getSelectionListDialogModel().getSelectionListEditorModel()
+               .setColumn("COMPANY_NAME");
+            editor.getSelectionListDialogModel().getSelectionListEditorModel()
+               .setValue("COMPANY_NAME");
+         }
+      }
+
+      return cases;
+   }
+
+   /** The bug's patch: query switched off and the static items written, in either key order. */
+   @Test
+   void impliesEmbeddedWhenQueryFalseIsWrittenWithTheItemsInEitherOrder() {
+      for(boolean queryFirst : new boolean[] { true, false }) {
+         for(StaticListCase c : staticListCases(true)) {
+            Map<String, Object> patch = new LinkedHashMap<>();
+
+            if(queryFirst) {
+               patch.put("query", false);
+            }
+
+            patch.put("staticLabels", List.of("East Coast", "West Coast"));
+            patch.put("staticValues", List.of("USA East", "USA West"));
+
+            if(!queryFirst) {
+               patch.put("query", false);
+            }
+
+            setList(c.service(), patch);
+
+            String where = c.name() + (queryFirst ? ", query first" : ", query last");
+            assertTrue(c.editor().get().isEmbedded(), where + ": embedded must be implied");
+            assertFalse(c.editor().get().isQuery(), where);
+            assertEquals(List.of("USA East", "USA West"),
+                         List.of(c.editor().get().getVariableListDialogModel().getValues()),
+                         where);
+         }
+      }
+   }
+
+   /** query:true with a table/column and the items in one patch gives a merged list. */
+   @Test
+   void impliesEmbeddedForAMergedListWhenAQuerySourceIsWrittenWithTheItems() {
+      for(StaticListCase c : staticListCases(false)) {
+         Map<String, Object> patch = new LinkedHashMap<>();
+         patch.put("query", true);
+         patch.put("table", "CUSTOMERS");
+         patch.put("column", "COMPANY_NAME");
+         patch.put("staticLabels", List.of("Other"));
+         patch.put("staticValues", List.of("Other"));
+
+         setList(c.service(), patch);
+
+         assertTrue(c.editor().get().isEmbedded(), c.name() + ": embedded must be implied");
+         assertTrue(c.editor().get().isQuery(), c.name());
+      }
+   }
+
+   /** The items written alone over a stored query source also give a merged list. */
+   @Test
+   void impliesEmbeddedForAMergedListWhenTheItemsAreWrittenOverAStoredQuery() {
+      for(StaticListCase c : staticListCases(true)) {
+         setList(c.service(), Map.of("staticLabels", List.of("Other"),
+                                     "staticValues", List.of("Other")));
+
+         assertTrue(c.editor().get().isEmbedded(), c.name() + ": embedded must be implied");
+         assertTrue(c.editor().get().isQuery(), c.name());
+      }
+   }
+
+   /** An explicit embedded:false is kept even with query off; the items are still stored. */
+   @Test
+   void keepsAnExplicitEmbeddedFalseWrittenWithTheItems() {
+      for(StaticListCase c : staticListCases(true)) {
+         Map<String, Object> patch = new LinkedHashMap<>();
+         patch.put("query", false);
+         patch.put("embedded", false);
+         patch.put("staticLabels", List.of("East Coast"));
+         patch.put("staticValues", List.of("USA East"));
+
+         setList(c.service(), patch);
+
+         assertFalse(c.editor().get().isEmbedded(), c.name() + ": explicit embedded wins");
+         assertEquals(List.of("USA East"),
+                      List.of(c.editor().get().getVariableListDialogModel().getValues()),
+                      c.name());
+      }
+   }
+
+   /** The items alone on a fresh list: embedded implied, query left off. */
+   @Test
+   void impliesEmbeddedWhenTheItemsAreWrittenAloneOnEveryListInputType() {
+      for(StaticListCase c : staticListCases(false)) {
+         setList(c.service(), Map.of("staticLabels", List.of("East Coast"),
+                                     "staticValues", List.of("USA East")));
+
+         assertTrue(c.editor().get().isEmbedded(), c.name() + ": embedded must be implied");
+         assertFalse(c.editor().get().isQuery(), c.name());
+      }
    }
 
    /**
