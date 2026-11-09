@@ -21,14 +21,20 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.CompositeSelectionValue;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
+import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
+import inetsoft.web.composer.vs.dialog.CalendarPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.RangeSliderPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionTreePropertyDialogService;
 import org.junit.jupiter.api.Tag;
@@ -47,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -281,6 +288,80 @@ class SelectionBindingServiceDroppedSelectionTest {
    void idModeStaysSilentWhenOnlyTheLabelsChange() throws Exception {
       Map<String, Object> result = rebindTree(
          idTreeAssembly(idTree("", "2", "4"), idTree("-new", "2", "4")), true);
+
+      assertFalse(result.containsKey("droppedSelection"));
+   }
+
+   // ── range slider / calendar (bug-80495) ─────────────────────────────────────
+
+   /** Month buckets 2024-01..2024-05; {@code from..to} (inclusive indexes) are selected. */
+   private static SelectionList months(int from, int to) {
+      SelectionList list = new SelectionList();
+      String[] names = { "2024-01", "2024-02", "2024-03", "2024-04", "2024-05" };
+
+      for(int i = 0; i < names.length; i++) {
+         SelectionValue value = new SelectionValue(names[i], names[i]);
+         value.setSelected(i >= from && i <= to);
+         list.addSelectionValue(value);
+      }
+
+      return list;
+   }
+
+   /**
+    * A real slider holding {@code held}; the mocked dialog service replaces its buckets with
+    * {@code afterApply} the way a time-info change does (ORDER_DATE to AMOUNT, a different column type).
+    */
+   private static Map<String, Object> rebindSlider(SelectionList held, SelectionList afterApply,
+                                                   String column) throws Exception
+   {
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly();
+      slider.setSelectionList(held);
+      RangeSliderPropertyDialogService sliderService =
+         mock(RangeSliderPropertyDialogService.class);
+      when(sliderService.getRangeSliderPropertyModel(eq("rt1"), eq("Slider1"), any()))
+         .thenReturn(new RangeSliderPropertyDialogModel());
+      doAnswer(invocation -> {
+         slider.setSelectionList(afterApply);
+         return null;
+      }).when(sliderService).setRangeSliderPropertyModel(
+         eq("rt1"), eq("Slider1"), any(), any(), any(), any());
+
+      return harness(slider, null, null, sliderService, null)
+         .setSource("tok", principal(), "Slider1", "ORDERS", List.of(column), null, null, null,
+                   null, null, false, "");
+   }
+
+   @Test
+   void disclosesTheRangeAColumnChangeResets() throws Exception {
+      Map<String, Object> result = rebindSlider(months(0, 3), months(0, 4), "AMOUNT");
+      assertEquals(List.of("2024-01 .. 2024-04"), result.get("droppedSelection"));
+   }
+
+   @Test
+   void staysSilentWhenTheSliderKeepsItsHeldRange() throws Exception {
+      Map<String, Object> result = rebindSlider(months(1, 3), months(1, 3), "ORDER_DATE");
+
+      assertFalse(result.containsKey("droppedSelection"));
+   }
+
+   @Test
+   void staysSilentWhenTheHeldRangeIsTheFullRange() throws Exception {
+      Map<String, Object> result = rebindSlider(months(0, 4), months(1, 2), "AMOUNT");
+
+      assertFalse(result.containsKey("droppedSelection"));
+   }
+
+   @Test
+   void aCalendarRebindThatKeepsItsModeReportsNoDrop() throws Exception {
+      CalendarVSAssembly calendar = mock(CalendarVSAssembly.class);
+      CalendarPropertyDialogService calendarService = mock(CalendarPropertyDialogService.class);
+      when(calendarService.getCalendarPropertyModel(eq("rt1"), eq("Cal1"), any()))
+         .thenReturn(new CalendarPropertyDialogModel());
+
+      Map<String, Object> result = harness(calendar, null, null, null, calendarService)
+         .setSource("tok", principal(), "Cal1", "ORDERS", List.of("ORDER_DATE"), null, null,
+                   null, null, null, false, "");
 
       assertFalse(result.containsKey("droppedSelection"));
    }
