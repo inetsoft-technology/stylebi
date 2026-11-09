@@ -302,4 +302,31 @@ public class MinFormulaTest {
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
    }
+
+   // -----------------------------------------------------------------------
+   // blank strings (Bug #80888) - Min is unchanged
+   // -----------------------------------------------------------------------
+
+   @Test
+   void addValue_blankStringInAnyPosition_returnsSmallestNumber() {
+      String[][] inputs = { { "", "1", "3" }, { "1", "", "3" }, { "1", "3", "" } };
+
+      for(String[] values : inputs) {
+         MinFormula min = new MinFormula();
+
+         for(String value : values) {
+            min.addValue(value);
+         }
+
+         assertEquals("1", min.getResult(), String.join("|", values));
+      }
+   }
+
+   @Test
+   void addValue_textWithBlank_returnsBlank() {
+      formula.addValue("Bob");
+      formula.addValue("");
+      formula.addValue("Alice");
+      assertEquals("", formula.getResult());
+   }
 }

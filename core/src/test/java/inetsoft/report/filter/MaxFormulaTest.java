@@ -17,6 +17,7 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -307,5 +308,62 @@ public class MaxFormulaTest {
       assertTrue(formula.isDefaultResult());
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // blank strings (Bug #80888)
+   // -----------------------------------------------------------------------
+
+   @Test
+   void addValue_blankStringInAnyPosition_skipped() {
+      String[][] inputs = {
+         { "", "1", "3" }, { "1", "", "3" }, { "1", "3", "" },
+         { " ", "1", "3" }, { "1", " ", "3" }, { "1", "3", " " } };
+
+      for(String[] values : inputs) {
+         MaxFormula max = new MaxFormula();
+
+         for(String value : values) {
+            max.addValue(value);
+         }
+
+         assertEquals("3", max.getResult(), String.join("|", values));
+      }
+   }
+
+   @Test
+   void addValue_onlyBlankStrings_isNull() {
+      formula.addValue("");
+      formula.addValue(" ");
+      assertTrue(formula.isNull());
+      assertNull(formula.getResult());
+   }
+
+   @Test
+   void addValue_textWithBlank_returnsLexicographicMax() {
+      formula.addValue("Bob");
+      formula.addValue("");
+      formula.addValue("Alice");
+      assertEquals("Bob", formula.getResult());
+   }
+
+   @Test
+   void addValue_blankString_parseNumberOff_notSkipped() {
+      String old = SreeEnv.getProperty("formula.parse.number");
+
+      try {
+         SreeEnv.setProperty("formula.parse.number", "false");
+         MaxFormula max = new MaxFormula();
+         max.addValue("");
+         assertEquals("", max.getResult());
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("formula.parse.number");
+         }
+         else {
+            SreeEnv.setProperty("formula.parse.number", old);
+         }
+      }
    }
 }
