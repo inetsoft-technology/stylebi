@@ -578,4 +578,73 @@ class TabularEndpointBindingSupportTest {
          () -> TabularEndpointBindingSupport.applyCustomLookupChain(query, pmap, tooMany, "myds"));
       assertNull(query.getLookupUrl0(), "must refuse before writing anything");
    }
+
+   // ─── omitted optional properties go back to the default ───────────────────
+
+   @Test
+   void applyEndpointContractOmittedJsonPathAndExpandedPathResetToDefault() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      query.setJsonPath("$.old");
+      query.setExpandedPath("$.oldExpanded");
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", null, null, null, null, "myds");
+
+      assertEquals(new FakeLegacyEndpointQuery().getJsonPath(), query.getJsonPath());
+      assertEquals(new FakeLegacyEndpointQuery().getExpandedPath(), query.getExpandedPath());
+   }
+
+   @Test
+   void applyEndpointContractSuppliedJsonPathStillApplies() throws Exception {
+      FakeLegacyEndpointQuery query = new FakeLegacyEndpointQuery();
+      query.setJsonPath("$.old");
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      TabularEndpointBindingSupport.applyEndpointContract(
+         query, pmap, "Repos", null, "$.new", null, null, "myds");
+
+      assertEquals("$.new", query.getJsonPath());
+   }
+
+   @Test
+   void applyCustomSuffixOmittedJsonPathResetsToDefault() {
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+      query.setJsonPath("$.old");
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      TabularEndpointBindingSupport.applyCustomSuffix(query, pmap, "/v1/widgets", null, "myds");
+
+      assertEquals(new FakeCustomRestQuery().getJsonPath(), query.getJsonPath());
+   }
+
+   @Test
+   void applyCustomSuffixSuppliedJsonPathStillApplies() {
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+      query.setJsonPath("$.old");
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+
+      TabularEndpointBindingSupport.applyCustomSuffix(
+         query, pmap, "/v1/widgets", "$.new", "myds");
+
+      assertEquals("$.new", query.getJsonPath());
+   }
+
+   @Test
+   void applyCustomLookupChainOmittedJsonPathAndKeyResetToDefault() {
+      FakeCustomRestQuery query = new FakeCustomRestQuery();
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularEndpointBindingSupport.applyCustomLookupChain(query, pmap, List.of(
+         new WorksheetMutationSupport.CustomLookupSpec(
+            "/v1/repos/{param1}/issues", "$.data[*]", "id", null)
+      ), "myds");
+
+      TabularEndpointBindingSupport.applyCustomLookupChain(query, pmap, List.of(
+         new WorksheetMutationSupport.CustomLookupSpec(
+            "/v1/repos/{param1}/issues", null, null, null)
+      ), "myds");
+
+      assertEquals(new FakeCustomRestQuery().getLookupJsonPath0(), query.getLookupJsonPath0());
+      assertEquals(new FakeCustomRestQuery().getLookupKey0(), query.getLookupKey0());
+   }
 }
