@@ -44,6 +44,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.sql.Time;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -152,10 +153,7 @@ public class VSFormTableService {
       int row = event.row();
       VSAssembly assembly = viewsheet.getAssembly(event.getAssemblyName());
       TableVSAssemblyInfo info = (TableVSAssemblyInfo) VSEventUtil.getAssemblyInfo(rvs, assembly);
-      ColumnSelection cols = info.getColumnSelection();
-
-      int cindex = ComposerVSTableController.getActualColIndex(cols, col);
-      DataRef ref = cols.getAttribute(cindex);
+      DataRef ref = getFormColumnRef(info, col);
       String dtype = ref.getDataType();
       String data = event.data();
 
@@ -169,13 +167,54 @@ public class VSFormTableService {
          dispatcher.sendCommand(command);
       }
 
+      FormCellInput input = convertCellInput(ref, form, col, data);
+      Object val = input.value();
+      String label = input.label();
+      String error = input.error();
+
+      if(error != null) {
+         this.coreLifecycleService.sendMessage(error, MessageCommand.Type.ERROR, dispatcher);
+      }
+      else {
+         form.setObject(row, col, val);
+         form.setLabel(row, col, label);
+
+         TableScriptEvent scriptEvent = new TableScriptEvent(event.getAssemblyName(), row, col);
+         coreLifecycleService.dispatchEvent(scriptEvent, dispatcher, rvs);
+      }
+
+      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.get().getMode(),
+                                        event.start(), 100, linkUri, dispatcher);
+      return null;
+   }
+
+   /**
+    * Resolves the column {@code col} of a form table to its bound reference, the same way a cell
+    * edit does.
+    */
+   public static DataRef getFormColumnRef(TableVSAssemblyInfo info, int col) {
+      ColumnSelection cols = info.getColumnSelection();
+      return cols.getAttribute(ComposerVSTableController.getActualColIndex(cols, col));
+   }
+
+   /**
+    * Converts the text typed into a form cell to the value stored in the table and validates it
+    * against the column option, without writing anything or sending any message.
+    *
+    * @return the converted value, the combo box label (null for other options) and the
+    *         configured error message when the value is refused (null when it is accepted).
+    */
+   public static FormCellInput convertCellInput(DataRef ref, FormTableLens form, int col,
+                                                String data) throws ParseException
+   {
+      String dtype = ref.getDataType();
       FormRef formRef = (FormRef) ref;
       ColumnOption option = formRef.getOption();
       boolean comboBoxOption = ColumnOption.COMBOBOX.equals(option.getType());
       String label = comboBoxOption ? data : null;
       boolean valid = true;
       String error = null;
-      Class cls = form.getColType(col);
+      Class<?> cls = form.getColType(col);
       Object val = data;
 
       if(comboBoxOption && option instanceof ComboBoxColumnOption) {
@@ -260,23 +299,16 @@ public class VSFormTableService {
          error = valid ? null : option.getErrorMessage(val);
       }
 
-      if(error != null) {
-         this.coreLifecycleService.sendMessage(error, MessageCommand.Type.ERROR, dispatcher);
-      }
-      else {
-         form.setObject(row, col, val);
-         form.setLabel(row, col, label);
-
-         TableScriptEvent scriptEvent = new TableScriptEvent(event.getAssemblyName(), row, col);
-         coreLifecycleService.dispatchEvent(scriptEvent, dispatcher, rvs);
-      }
-
-      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.get().getMode(),
-                                        event.start(), 100, linkUri, dispatcher);
-      return null;
+      return new FormCellInput(val, label, error);
    }
 
-   private Object getComboBoxValue(Object val, @NonNull ComboBoxColumnOption refOption) {
+   /**
+    * Result of {@link #convertCellInput}.
+    */
+   public record FormCellInput(Object value, String label, String error) {
+   }
+
+   private static Object getComboBoxValue(Object val, @NonNull ComboBoxColumnOption refOption) {
       ListData listData = refOption.getListData();
 
       if(listData != null && listData.getLabels() != null) {
