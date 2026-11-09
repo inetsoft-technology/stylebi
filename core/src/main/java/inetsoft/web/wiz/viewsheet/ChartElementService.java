@@ -157,8 +157,16 @@ public class ChartElementService {
       // partially apply before it ERRORs. Nothing is applied when the resolution itself refuses,
       // so refusing inside the mutation would spend an undo step and a Composer refresh on a call
       // that changed nothing.
-      VSChartLegendsVisibilityEvent legendEvent = "legend".equals(kind)
+      LegendHide legendHide = "legend".equals(kind)
          ? legendEvent(sessionToken, user, assemblyName, target0, visible) : null;
+
+      // The named legend is already hidden (bug #80505 item 4): the state asked for is the state
+      // it is in, so nothing is written - no undo step, no refresh - and the caller is told so.
+      if(legendHide != null && legendHide.alreadyHidden() != null) {
+         return List.of(legendHide.alreadyHidden());
+      }
+
+      VSChartLegendsVisibilityEvent legendEvent = legendHide == null ? null : legendHide.event();
 
       // The axis counterpart of the legend resolution above, read the same way so a refusal costs
       // no undo step. Without it an unresolved name was not an inert no-op: on a merged layout
@@ -814,9 +822,9 @@ public class ChartElementService {
     * broadcasts even when it throws, on purpose, and a resolution that refuses has applied
     * nothing for that undo step to cover.
     */
-   private VSChartLegendsVisibilityEvent legendEvent(String sessionToken, Principal user,
-                                                     String assemblyName, String target,
-                                                     boolean visible)
+   private LegendHide legendEvent(String sessionToken, Principal user,
+                                  String assemblyName, String target,
+                                  boolean visible)
       throws Exception
    {
       // No target is the one case where hide-all is what was asked for, and showing is always all
@@ -826,18 +834,66 @@ public class ChartElementService {
          Map<String, Object> fields = new LinkedHashMap<>();
          fields.put("chartName", assemblyName);
          fields.put("hide", !visible);
-         return convert(fields, VSChartLegendsVisibilityEvent.class);
+         return new LegendHide(convert(fields, VSChartLegendsVisibilityEvent.class), null);
       }
 
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartRegionResolver.Legends legends = ChartRegionResolver.legends(rvs, chart);
+         ChartVisibilityState.HiddenLegends hidden = ChartVisibilityState.hiddenLegends(
+            ChartVisibilityState.descriptor(chart), chart.getVSChartInfo(),
+            ChartVisibilityState.maxMode(rvs, chart));
+         String already = alreadyHidden(legends, hidden, target);
 
-         return convert(
-            legendFields(assemblyName, visible,
-                         ChartRegionResolver.requireLegendField(legends, target), legends),
-            VSChartLegendsVisibilityEvent.class);
+         if(already != null) {
+            return new LegendHide(null, already);
+         }
+
+         return new LegendHide(
+            convert(legendFields(assemblyName, visible,
+                                 ChartRegionResolver.requireLegendField(legends, target), legends),
+                    VSChartLegendsVisibilityEvent.class),
+            null);
       });
+   }
+
+   /**
+    * @param event          the event for hiding the named legend, null when nothing is to be sent
+    * @param alreadyHidden  the note to return instead of writing, when the named legend is
+    *                       already hidden
+    */
+   private record LegendHide(VSChartLegendsVisibilityEvent event, String alreadyHidden) {
+   }
+
+   /**
+    * The note for a legend the caller named that is already hidden, or null when the name is a
+    * drawn legend or matches no legend at all (both left to {@code requireLegendField}).
+    *
+    * <p>A hidden legend is not built into the laid-out graph, so {@code requireLegendField} alone
+    * called it "no such legend" (bug #80505 item 4, the by-name sibling of #80331's index path).
+    * A name that is a drawn legend always wins, so with one of two legends hidden naming the
+    * visible one still resolves normally. Only a bound legend whose descriptor says hidden counts,
+    * the same evidence {@code requireLegend} uses for the index path.
+    */
+   static String alreadyHidden(ChartRegionResolver.Legends legends,
+                               ChartVisibilityState.HiddenLegends hidden, String target)
+   {
+      try {
+         ChartRegionResolver.requireLegendField(legends, target);
+         return null;
+      }
+      catch(IllegalArgumentException e) {
+         ChartVisibilityState.HiddenLegend legend = hidden.find(target);
+
+         if(legend == null) {
+            return null;
+         }
+
+         return "The '" + target.trim() + "' legend (" + legend.channel() + " [" + legend.field() +
+            "]) is already hidden, so nothing was changed. Show the legends with " +
+            "set_chart_element_visibility {element: 'legend', visible: true} (no target) if " +
+            "you want it back.";
+      }
    }
 
    /**
