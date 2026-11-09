@@ -25,6 +25,7 @@ import inetsoft.report.lens.TextSizeLimitTableLens;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.web.wiz.service.ExportCellCapScanner;
 import org.junit.jupiter.api.Tag;
 import inetsoft.test.*;
@@ -134,5 +135,27 @@ class AbstractVSExporterTableObserverTest {
       });
 
       assertDoesNotThrow(() -> failing.observeTable(table(), lens));
+   }
+
+   @Test
+   void csvIsObservedOnlyByItsOwnWriterWithHiddenColumnsIncluded() {
+      List<String> warnings = new ArrayList<>();
+      List<String> csvOnly = new ArrayList<>();
+      CSVVSExporter csv = mock(CSVVSExporter.class, CALLS_REAL_METHODS);
+      csv.setTableObserver((name, l) -> ExportCellCapScanner.addDistinct(
+         warnings, ExportCellCapScanner.scanViewsheetTable(name, l, 500)));
+      VSTableLens lens = lens(new int[] {100, 100, 0}, new Object[][] {
+         {"id", "BIG", "H"}, {"1", "x".repeat(5000), "y".repeat(5000)}});
+
+      // the shared export loop hook, then CSVVSExporter's own observer call on the raw lens
+      csv.observeTable(table(), lens);
+      assertTrue(warnings.isEmpty(), warnings.toString());
+      ExportCellCapScanner.addDistinct(
+         csvOnly, ExportCellCapScanner.scanViewsheetTable("TV", lens, 500));
+      csv.tableObserver.accept("TV", lens);
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertEquals(csvOnly, warnings);
+      assertTrue(warnings.get(0).contains("column(s) BIG, H of table TV"), warnings.get(0));
    }
 }

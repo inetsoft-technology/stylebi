@@ -1079,12 +1079,21 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Whether the writer shows each table to the table observer itself, with its own column
+    * set. Such an exporter (CSV) must not also be observed by the shared export loop, or one
+    * table would be reported twice with different column sets.
+    */
+   protected boolean observesTablesInWriter() {
+      return false;
+   }
+
+   /**
     * Show a table to the table observer. Must be called on the lens returned by
     * {@code getVSTableLens()}, before {@link #getRegionTableLens}: the region lens is not a
     * table filter, so the cap layer can no longer be found through it.
     */
    protected void observeTable(TableDataVSAssembly assembly, VSTableLens lens) {
-      if(tableObserver == null || lens == null) {
+      if(tableObserver == null || lens == null || observesTablesInWriter()) {
          return;
       }
 

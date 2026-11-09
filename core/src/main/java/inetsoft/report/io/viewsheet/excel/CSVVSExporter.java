@@ -187,6 +187,14 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
    }
 
    /**
+    * CSV observes each table in {@link #writeTableDataAssembly}, over every column it writes.
+    */
+   @Override
+   protected boolean observesTablesInWriter() {
+      return true;
+   }
+
+   /**
     * Write a table data assembly to a csv file.
     * @param assembly table data assembly.
     * @param table table lens of table data assembly.
