@@ -188,16 +188,15 @@ public class CalendarDisplayService {
          if(navigation != null || plan.setYearView()) {
             CalendarVSAssemblyInfo shown = (CalendarVSAssemblyInfo)
                requireCalendar(rvs, assemblyName).getVSAssemblyInfo();
-            Map<String, Object> displayed = new LinkedHashMap<>();
-            displayed.put("month", displayMonth(shown.getCurrentDate1(), shown.isYearView()));
+            Map<String, Object> displayed = displayed(
+               shown.getCurrentDate1(), shown.getCurrentDate2(), shown.isYearView(),
+               shown.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE,
+               navigation != null);
 
-            if(shown.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE) {
-               displayed.put("secondMonth",
-                             displayMonth(shown.getCurrentDate2(), shown.isYearView()));
+            if(displayed != null) {
+               result.put("displayed", displayed);
+               result.put("persistsOnSave", true);
             }
-
-            result.put("displayed", displayed);
-            result.put("persistsOnSave", true);
          }
       });
 
@@ -526,6 +525,32 @@ public class CalendarDisplayService {
    static String displayMonth(String stored, boolean yearView) {
       int[] value = parseStored(stored, yearView);
       return value == null ? null : iso(value, yearView);
+   }
+
+   /**
+    * What the calendar shows after setDisplay, as returned in {@code displayed}. For an explicit
+    * month/secondMonth both entries are always given (secondMonth on a double calendar). For a
+    * view toggle alone only a calendar with a stored position is reported: one with none shows
+    * today, and there is no position to tell the caller about.
+    *
+    * @return null when a toggle alone leaves no calendar with a position.
+    */
+   static Map<String, Object> displayed(String current1, String current2, boolean yearView,
+                                        boolean dual, boolean explicitMonth)
+   {
+      Map<String, Object> displayed = new LinkedHashMap<>();
+      String first = displayMonth(current1, yearView);
+      String second = dual ? displayMonth(current2, yearView) : null;
+
+      if(explicitMonth || first != null) {
+         displayed.put("month", first);
+      }
+
+      if(dual && (explicitMonth || second != null)) {
+         displayed.put("secondMonth", second);
+      }
+
+      return displayed.isEmpty() ? null : displayed;
    }
 
    private static boolean isBlank(String value) {

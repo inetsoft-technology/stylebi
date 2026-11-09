@@ -243,6 +243,33 @@ class CalendarNavigationTest {
    }
 
    @Test
+   void aToggleReportsOnlyTheCalendarsThatHaveAPosition() {
+      assertNull(CalendarDisplayService.displayed("", null, false, false, false));
+      assertNull(CalendarDisplayService.displayed(null, "", false, true, false));
+      assertEquals(java.util.Map.of("month", "2025-01"),
+                   CalendarDisplayService.displayed("2025-0", null, false, false, false));
+      assertEquals(java.util.Map.of("month", "2023-01"),
+                   CalendarDisplayService.displayed("2023-0", "", false, true, false));
+      assertEquals(java.util.Map.of("secondMonth", "2024"),
+                   CalendarDisplayService.displayed("", "2024", true, true, false));
+      assertEquals(java.util.Map.of("month", "2023", "secondMonth", "2024"),
+                   CalendarDisplayService.displayed("2023-0", "2024-11", true, true, false));
+   }
+
+   @Test
+   void anExplicitMonthAlwaysReportsBothEntries() {
+      java.util.Map<String, Object> shown =
+         CalendarDisplayService.displayed("2024-2", "", false, true, true);
+      assertEquals(2, shown.size(), shown.toString());
+      assertEquals("2024-03", shown.get("month"));
+      assertTrue(shown.containsKey("secondMonth"));
+      assertNull(shown.get("secondMonth"));
+
+      assertEquals(java.util.Map.of("month", "2024-03"),
+                   CalendarDisplayService.displayed("2024-2", "2024-5", false, false, true));
+   }
+
+   @Test
    void leavingYearViewChecksTheMonthAgainstTheConvertedSecondCalendar() {
       // double calendar in year view, both on 2024; the toggle and a later month in one call
       String cur1 = toView("2024", false, OPEN, false);
