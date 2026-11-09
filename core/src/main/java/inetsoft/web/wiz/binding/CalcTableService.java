@@ -2156,6 +2156,72 @@ public class CalcTableService {
    }
 
    /**
+    * Bug #80501: {@code set_calc_cell_format} {@code reset:true} clears a cell's own format, after
+    * which the cell inherits the whole-table format. Under a whole-table date/time format a
+    * numeric cell whose own (non-date) format is cleared would render as 1970-01-01, the same
+    * hazard {@link #refuseNumericCellUnderObjectDateFormat} guards at binding time. A reset of a
+    * cell with no own format value is a no-op and is left alone, as is a cell whose own format is
+    * itself a date format (the date format it inherits is the same kind).
+    *
+    * <p>A cell whose output is KNOWN numeric ({@link #cellOutputType}) is refused. A formula
+    * cell's result type is unknowable, so it is allowed and disclosed instead.
+    *
+    * @return a disclosure for a formula cell, or null when there is nothing to say.
+    * @throws IllegalArgumentException for a known numeric cell.
+    */
+   public String checkResetUnderObjectDateFormat(RuntimeViewsheet rvs, String assemblyName,
+                                                 int row, int col)
+   {
+      CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      String objectFormat = WizDateFormatOverNumeric.objectDateFormat(info);
+
+      if(objectFormat == null) {
+         return null;
+      }
+
+      FormatInfo formatInfo = info.getFormatInfo();
+      VSCompositeFormat own =
+         formatInfo == null ? null : formatInfo.getFormat(info.getCellDataPath(row, col));
+      VSFormat user = own == null ? null : own.getUserDefinedFormat();
+
+      if(user == null || !user.isFormatValueDefined() || isDateLikeFormat(user.getFormat())) {
+         return null;
+      }
+
+      TableLayout layout = layoutOf(assembly);
+      requireInGrid(layout, row, col);
+      TableCellBinding cell =
+         layout.getCellBinding(row, col) instanceof TableCellBinding c ? c : null;
+
+      if(cell != null && cell.getType() == CellBinding.BIND_FORMULA) {
+         return "Cell [" + row + "," + col + "] of '" + assemblyName + "' is a formula with its " +
+            "own " + user.getFormat() + " and the table has a whole-table " + objectFormat +
+            ", so resetting the cell makes it inherit that date format and if the formula " +
+            "returns a number it will render as a 1970-01-01 date; give the cell a numeric " +
+            "format again with set_calc_cell_format if it does.";
+      }
+
+      String type = outputTypeOf(rvs, assembly, assemblyName, row, col, cell);
+
+      if(!(XSchema.isNumericType(type) || XSchema.DECIMAL.equals(type))) {
+         return null;
+      }
+
+      String bound = describeCellBinding(rvs, assemblyName, row, col);
+
+      throw new IllegalArgumentException(
+         "set_calc_cell_format: cell [" + row + "," + col + "] of '" + assemblyName + "'" +
+         (bound == null ? "" : " (" + bound + ")") + " has its own " + user.getFormat() +
+         ", and '" + assemblyName + "' has a whole-table " + objectFormat +
+         " (set_format target:\"object\"), so resetting the cell would make it inherit that " +
+         "date format and render its numeric value as a 1970-01-01 date. The request was not " +
+         "applied. Keep the numeric format (or set another numeric format such as " +
+         "DecimalFormat or CurrencyFormat instead of resetting), or change the whole-table " +
+         "format first with set_format target:\"object\" (reset:true, or a non-date format).");
+   }
+
+   /**
     * Whether {@code format} is a date/time format.
     */
    public static boolean isDateLikeFormat(String format) {
