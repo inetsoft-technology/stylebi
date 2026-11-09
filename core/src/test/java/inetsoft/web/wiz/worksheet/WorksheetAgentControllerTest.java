@@ -10704,6 +10704,14 @@ class WorksheetAgentControllerTest {
                                          List<String> referenced, VariableTable sandbox)
       throws Exception
    {
+      return addTableRefusalMessage(token, req, shape, referenced, sandbox, false);
+   }
+
+   private String addTableRefusalMessage(String token, EditRequest req, Object shape,
+                                         List<String> referenced, VariableTable sandbox,
+                                         boolean runCompleted)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
@@ -10725,6 +10733,8 @@ class WorksheetAgentControllerTest {
       if(shape != null) {
          query.reportResponseShape(shape, false);
       }
+
+      query.setRunCompleted(runCompleted);
 
       Worksheet ws = new Worksheet();
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
@@ -10812,6 +10822,24 @@ class WorksheetAgentControllerTest {
       assertZeroRowsRefusal(message);
       assertTrue(message.contains("The request to 'MyDatasource'"), message);
       assertTrue(message.contains("Properties sent:"), message);
+   }
+
+   /**
+    * Bug #80830: a connector that records no response shape (MongoDB, Elasticsearch, ...) but whose
+    * runtime returned a table with nothing else reported must not be sent to the credentials.
+    */
+   @Test
+   void addQueryParamsTableReportsZeroRowsWhenTheRunCompletedWithoutAShape() throws Exception {
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      String message = addTableRefusalMessage("TOK-ZR7", req, null, null, null, true);
+
+      assertTrue(message.contains("returned no columns"), message);
+      assertTrue(message.contains("zero rows"), message);
+      assertFalse(message.contains("datasource credentials"), message);
+      assertFalse(message.contains("JSON REST endpoint"), message);
+      assertTrue(message.contains("The request to 'MyDatasource'"), message);
    }
 
    @Test
@@ -15360,6 +15388,24 @@ class WorksheetAgentControllerTest {
 
       assertTrue(message.contains("timed out after 30 s"), message);
       assertFalse(message.contains("probeName"), message);
+   }
+
+   @Test
+   void aCompletedRunWithNoOtherSignalReportsZeroRowsNotCredentials() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.setRunCompleted(true);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      AssetQuerySandbox box = sandboxWith(new VariableTable());
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         stubReferencedVariables(tabularUtil, List.of());
+         String message = WorksheetAgentController.emptyColumnsRefusal(
+            query, rws, null, TabularProbeCause.read(query, null), "LEAD", ". ECHO");
+
+         assertTrue(message.contains("zero rows"), message);
+         assertFalse(message.contains("datasource credentials"), message);
+      }
    }
 
    @Test

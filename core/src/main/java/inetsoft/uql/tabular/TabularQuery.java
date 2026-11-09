@@ -390,6 +390,27 @@ public abstract class TabularQuery extends XQuery {
    }
 
    /**
+    * Whether the connector's runtime handed back a table (possibly empty) on this query's last
+    * execution, rather than null. A runtime that fails (connect, authentication, parse) reports it
+    * through a thread-local user message and returns null; a request that ran and matched nothing
+    * returns an empty, non-null table. That is the only success signal available for connectors
+    * that record no response shape, so it is the one a refusal can use to say "ran, selected zero
+    * rows" instead of blaming credentials.
+    *
+    * <p>The same kind of slot as {@link #getResponseShape}, on the same terms: it describes ONE
+    * EXECUTION, so {@link #clone()} clears it, {@code TabularHandler.execute} copies it back across
+    * the clone, and it is never written to XML. It is not proof of success by itself: a caller must
+    * also see no load error, no connector message and no timeout.</p>
+    */
+   public boolean isRunCompleted() {
+      return runCompleted;
+   }
+
+   public void setRunCompleted(boolean runCompleted) {
+      this.runCompleted = runCompleted;
+   }
+
+   /**
     * Whether {@link #getResponseShape} was cut off by a cap rather than completed.
     */
    public boolean isResponseShapeTruncated() {
@@ -491,6 +512,7 @@ public abstract class TabularQuery extends XQuery {
       copy.sampleRows = null;
       copy.sampleRowsTruncated = false;
       copy.timedOutSeconds = 0;
+      copy.runCompleted = false;
 
       return copy;
    }
@@ -515,6 +537,8 @@ public abstract class TabularQuery extends XQuery {
    private boolean sampleRowsTruncated;
    /** See {@link #getTimedOutSeconds}. Cleared by {@link #clone()}. */
    private int timedOutSeconds;
+   /** See {@link #isRunCompleted}. Cleared by {@link #clone()}. */
+   private boolean runCompleted;
    /**
     * See {@link #getSampleRowLimit}. Deliberately NOT cleared by {@link #clone()} — it is the
     * caller's request rather than an execution's result, and the clone is what executes.
