@@ -200,11 +200,12 @@ class ScriptLibraryChangesetApplyClusterReloadTest {
       mutated.countDown();
       dependencyStatic.close();
 
-      for(String n : List.of("fn80832A", "fn80832B")) {
-         lib.removeScript(n);
-      }
-
-      lib.save();
+      lib.runAtomically(() -> {
+         lib.removeScript("fn80832A");
+         lib.removeScript("fn80832B");
+         lib.save();
+         return null;
+      });
       Thread.sleep(1500L);
       delivery.shutdownNow();
       lib.close();
@@ -247,14 +248,17 @@ class ScriptLibraryChangesetApplyClusterReloadTest {
    }
 
    @Test
-   void twentyTwoPlanRunsAllApply() throws Exception {
+   void twentyTwoCreatePlansAllApply() throws Exception {
       for(int i = 0; i < 20; i++) {
          ScriptLibraryApplyResult result = apply(create("fn80832A"), create("fn80832B"));
          assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status(),
                       "run " + i + ": " + result);
-         lib.removeScript("fn80832A");
-         lib.removeScript("fn80832B");
-         lib.save();
+         lib.runAtomically(() -> {
+            lib.removeScript("fn80832A");
+            lib.removeScript("fn80832B");
+            lib.save();
+            return null;
+         });
          Thread.sleep(50L);
       }
    }

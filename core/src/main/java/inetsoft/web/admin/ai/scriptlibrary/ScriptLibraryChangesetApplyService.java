@@ -228,7 +228,7 @@ public class ScriptLibraryChangesetApplyService {
          }
 
          lib.save();
-         return scriptLibraryService.exists(name, user);
+         return lib.getScript(name) != null;
       });
       DependencyHandler.getInstance().updateScriptDependencies(null, text, scriptEntry(name));
       String after = verified ? ScriptLibraryChangePlanService.project(name, description, text) : null;
@@ -358,7 +358,7 @@ public class ScriptLibraryChangesetApplyService {
       boolean verified = lib.runAtomically(() -> {
          lib.removeScript(name);
          lib.save();
-         return !scriptLibraryService.exists(name, user);
+         return lib.getScript(name) == null;
       });
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       String advisory = dependents.isEmpty() ? null :
