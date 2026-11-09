@@ -1,5 +1,8 @@
 # StyleBI Visualization — Phase 9B (Dark Mode) — Implementation Plan
 
+> **Historical.** Written before implementation, and the code deviates from it in places. For the
+> current design and decisions see [dark-mode.md](dark-mode.md).
+>
 > Status: **NOT STARTED — planning only.** This document schedules the dark-mode work that every
 > prior server/CSS phase deferred to "the initiative's dark pass." No code has been written.
 
