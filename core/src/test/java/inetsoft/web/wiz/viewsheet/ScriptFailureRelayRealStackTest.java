@@ -31,6 +31,7 @@ import inetsoft.uql.ConditionList;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetCondition;
+import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.asset.ColumnRef;
@@ -64,6 +65,9 @@ import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.report.composition.WorksheetService;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -282,6 +286,159 @@ class ScriptFailureRelayRealStackTest {
       }
    }
 
+   /**
+    * Bug #80820: an assembly script on a table that depends on the filter being written. An
+    * undefined name is wrapped as ScriptException(UndefinedNameException), which the table path
+    * used to unwrap past, so the write threw "Error loading data" instead of returning a warning.
+    */
+   @Test
+   void calendarDatesWithAnUndefinedNameScriptReturnsAWarning() throws Exception {
+      assertDatesWarn(UNDEFINED_NAME_SCRIPT, "ReferenceError");
+   }
+
+   @Test
+   void calendarDatesWithATypeErrorScriptReturnsAWarning() throws Exception {
+      assertDatesWarn(TYPE_ERROR_SCRIPT, "TypeError");
+   }
+
+   @Test
+   void calendarClearWithAnUndefinedNameScriptReturnsAWarning() throws Exception {
+      assertClearWarns(UNDEFINED_NAME_SCRIPT, "ReferenceError");
+   }
+
+   @Test
+   void calendarClearWithATypeErrorScriptReturnsAWarning() throws Exception {
+      assertClearWarns(TYPE_ERROR_SCRIPT, "TypeError");
+   }
+
+   @Test
+   void calendarYearViewWithAnUndefinedNameScriptReturnsOneWarning() throws Exception {
+      assertYearViewWarns(UNDEFINED_NAME_SCRIPT, "ReferenceError");
+   }
+
+   @Test
+   void calendarYearViewWithATypeErrorScriptReturnsOneWarning() throws Exception {
+      assertYearViewWarns(TYPE_ERROR_SCRIPT, "TypeError");
+   }
+
+   @Test
+   void calendarYearViewWithAThrowScriptReturnsOneWarning() throws Exception {
+      assertYearViewWarns("throw 'boom';", "boom");
+   }
+
+   @Test
+   void setSelectionWithAnUndefinedNameScriptReturnsAWarning() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+      String value = firstValue(rvs);
+      setTableScript(rvs, UNDEFINED_NAME_SCRIPT);
+      SelectionRuntimeService service = new SelectionRuntimeService(
+         seam(rvs), selections, new VSCalendarService(
+            coreLifecycleService, objectPropertyService(), viewsheetService));
+
+      Map<String, Object> result = service.setSelection(
+         "tok", principal(), SELECTION, List.of(List.of(value)), null, null, null, null, "");
+
+      assertScriptWarning(warningsOf(result), "ReferenceError");
+   }
+
+   /** Not a calendar: any wiz write that drains the sandbox's script failures is downgraded. */
+   @Test
+   void setAssemblyPropertiesWithAScriptThatThrowsReturnsAWarning() throws Exception {
+      RuntimeViewsheet rvs = open();
+      setTableScript(rvs, TYPE_ERROR_SCRIPT);
+
+      List<String> warnings = assemblyPropertyService(rvs)
+         .set("tok", principal(), TABLE, Map.of("title", "relay probe"), "");
+
+      assertScriptWarning(warnings, "TypeError");
+   }
+
+   @Test
+   void setAssemblyPropertiesWithAnUndefinedNameScriptReturnsOneWarning() throws Exception {
+      RuntimeViewsheet rvs = open();
+      setTableScript(rvs, UNDEFINED_NAME_SCRIPT);
+
+      List<String> warnings = assemblyPropertyService(rvs)
+         .set("tok", principal(), TABLE, Map.of("title", "relay probe"), "");
+
+      assertScriptWarning(warnings, "ReferenceError");
+   }
+
+   private void assertDatesWarn(String script, String error) throws Exception {
+      RuntimeViewsheet rvs = open();
+      addCalendar(rvs);
+      setTableScript(rvs, script);
+
+      Map<String, Object> result =
+         calendarService(rvs).setDates("tok", principal(), CALENDAR, List.of("y2000"), "");
+
+      assertScriptWarning(warningsOf(result), error);
+   }
+
+   private void assertClearWarns(String script, String error) throws Exception {
+      RuntimeViewsheet rvs = open();
+      addCalendar(rvs);
+      setTableScript(rvs, script);
+
+      assertScriptWarning(
+         warningsOf(calendarService(rvs).clear("tok", principal(), CALENDAR, "")), error);
+   }
+
+   private void assertYearViewWarns(String script, String error) throws Exception {
+      RuntimeViewsheet rvs = open();
+      addCalendar(rvs);
+      setTableScript(rvs, script);
+
+      Map<String, Object> result = calendarService(rvs)
+         .setDisplay("tok", principal(), CALENDAR, null, true, null, null, null, "");
+
+      assertScriptWarning(warningsOf(result), error);
+   }
+
+   /** Exactly one warning for the table, carrying the engine's own error text. */
+   private static void assertScriptWarning(List<String> warnings, String error) {
+      assertEquals(1, warnings.size(), warnings.toString());
+      String warning = warnings.get(0);
+      assertTrue(warning.startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX + TABLE), warning);
+      assertTrue(warning.contains(error), warning);
+      assertEquals(warning.indexOf("Script failed:"), warning.lastIndexOf("Script failed:"),
+                   "the script failure must not be wrapped inside itself: " + warning);
+   }
+
+   /** A value the selection list really holds, read before any script is installed. */
+   private static String firstValue(RuntimeViewsheet rvs) throws Exception {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      box.lockWrite();
+
+      try {
+         box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
+      }
+      finally {
+         box.unlockWrite();
+      }
+
+      SelectionListVSAssembly list = (SelectionListVSAssembly) vs.getAssembly(SELECTION);
+      return list.getSelectionList().getSelectionValues()[0].getValue();
+   }
+
+   /** Installs an assembly script on the table and drops what an earlier call left behind. */
+   private static void setTableScript(RuntimeViewsheet rvs, String script) {
+      WorksheetService.ASSET_EXCEPTIONS.remove();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      TableVSAssembly table = (TableVSAssembly) box.getViewsheet().getAssembly(TABLE);
+      VSAssemblyInfo info = table.getVSAssemblyInfo();
+      info.setScriptEnabled(true);
+      info.setScript(script);
+      box.resetDataMap(TABLE);
+   }
+
+   @AfterEach
+   void clearAssetExceptions() {
+      WorksheetService.ASSET_EXCEPTIONS.remove();
+   }
+
    @SuppressWarnings("unchecked")
    private static List<String> warningsOf(Map<String, Object> result) {
       Object warnings = result.get("warnings");
@@ -483,10 +640,13 @@ class ScriptFailureRelayRealStackTest {
    @Autowired SharedFilterService sharedFilterService;
    @Autowired DataSourceRegistry dataSourceRegistry;
    @Autowired VSObjectModelFactoryService objectModelFactoryService;
+   @Autowired VSSelectionService selections;
 
    private Principal user;
    private static final String TABLE = "TableView1";
    private static final String CALENDAR = "Calendar1";
    private static final String SELECTION = "SelectionList1";
+   private static final String UNDEFINED_NAME_SCRIPT = "TableView1.title = undefinedFunctionXYZ('test');";
+   private static final String TYPE_ERROR_SCRIPT = "var x = null; x.foo();";
    private static final String BOOKMARK = "relay78406";
 }
