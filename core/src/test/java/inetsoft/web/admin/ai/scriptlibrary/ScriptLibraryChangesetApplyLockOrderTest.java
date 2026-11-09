@@ -29,6 +29,7 @@ import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.DependencyHandler;
+import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -80,19 +81,25 @@ class ScriptLibraryChangesetApplyLockOrderTest {
 
    private final CountDownLatch saveEntered = new CountDownLatch(1);
    private MockedStatic<DependencyHandler> dependencyStatic;
+   private MockedStatic<DependencyTransformer> transformerStatic;
    private LibManager lib;
    private volatile boolean stuck;
+   private volatile boolean slowSave;
 
    @BeforeEach
    void setUp() {
       dependencyStatic = mockStatic(DependencyHandler.class);
       dependencyStatic.when(DependencyHandler::getInstance)
          .thenReturn(mock(DependencyHandler.class));
+      transformerStatic = mockStatic(DependencyTransformer.class);
+      transformerStatic.when(() -> DependencyTransformer.getDependencies(anyString()))
+         .thenReturn(List.of());
    }
 
    @AfterEach
    void tearDown() throws Exception {
       dependencyStatic.close();
+      transformerStatic.close();
 
       // a deadlocked manager can never be cleaned up; do not hang the build on it
       if(lib != null && !stuck) {
@@ -107,8 +114,17 @@ class ScriptLibraryChangesetApplyLockOrderTest {
    }
 
    @Test
+   void createDoesNotDeadlockWithAConcurrentGetManager() throws Exception {
+      applyWithConcurrentGetManager(false);
+   }
+
+   @Test
+   void deleteDoesNotDeadlockWithAConcurrentGetManager() throws Exception {
+      applyWithConcurrentGetManager(true);
+   }
+
    @SuppressWarnings("unchecked")
-   void applyDoesNotDeadlockWithAConcurrentGetManager() throws Exception {
+   private void applyWithConcurrentGetManager(boolean delete) throws Exception {
       Cluster cluster = mock(Cluster.class);
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       LibManagerProvider provider =
@@ -128,12 +144,27 @@ class ScriptLibraryChangesetApplyLockOrderTest {
       lib = new LibManager(new NoopLibrarySecurity(), orgID, cluster, blobStorageManager) {
          @Override
          public synchronized void save() throws Exception {
-            saveEntered.countDown();
-            Thread.sleep(500L);
+            if(slowSave) {
+               saveEntered.countDown();
+               Thread.sleep(500L);
+            }
+
             super.save();
          }
       };
       managers.put(orgID, lib);
+
+      // storage outlives a test, so start from a known state
+      lib.removeScript("fn80832L");
+
+      if(delete) {
+         lib.setScript("fn80832L", "function fn80832L() { return 1; }");
+      }
+
+      lib.save();
+      Thread.sleep(1500L);
+
+      slowSave = true;
 
       ScriptLibraryService libraryService = new ScriptLibraryService(provider, securityEngine);
       ScriptLibraryChangePlanService planService = new ScriptLibraryChangePlanService(libraryService);
@@ -142,9 +173,13 @@ class ScriptLibraryChangesetApplyLockOrderTest {
          planService, libraryService, provider, mock(AdminBackupService.class));
 
       ScriptLibraryChangeRequest c = new ScriptLibraryChangeRequest();
-      c.setVerb(ScriptLibraryChangeRequest.VERB_CREATE);
+      c.setVerb(delete ? ScriptLibraryChangeRequest.VERB_DELETE : ScriptLibraryChangeRequest.VERB_CREATE);
       c.setName("fn80832L");
-      c.setText("function fn80832L() { return 1; }");
+
+      if(!delete) {
+         c.setText("function fn80832L() { return 1; }");
+      }
+
       ScriptLibraryChangePlanRequest plan = new ScriptLibraryChangePlanRequest();
       plan.setTask("test");
       plan.setChanges(List.of(c));
@@ -153,10 +188,17 @@ class ScriptLibraryChangesetApplyLockOrderTest {
       req.setChanges(List.of(c));
       req.setPlanHash(planService.resolve(plan, user).planHash());
       req.setReviewOutcome("ok");
+      req.setAcknowledgeIrreversibleDelete(delete ? Boolean.TRUE : null);
 
       AtomicReference<ScriptLibraryApplyResult> result = new AtomicReference<>();
       Thread applier = new Thread(() -> {
-         try {
+         // static mocks are thread-local, so this thread needs its own
+         try(MockedStatic<DependencyHandler> dh = mockStatic(DependencyHandler.class);
+             MockedStatic<DependencyTransformer> dt = mockStatic(DependencyTransformer.class))
+         {
+            dh.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
+            dt.when(() -> DependencyTransformer.getDependencies(anyString()))
+               .thenReturn(List.of());
             result.set(service.apply(req, user));
          }
          catch(Exception e) {
@@ -182,7 +224,9 @@ class ScriptLibraryChangesetApplyLockOrderTest {
       stuck = deadlocked != null || applier.isAlive() || other.isAlive();
       assertNull(deadlocked, "deadlocked threads: " + (deadlocked == null ? 0 : deadlocked.length));
       assertFalse(applier.isAlive(), "apply did not finish");
+      assertNotNull(result.get(), "apply threw");
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.get().status(),
+                   String.valueOf(result.get()));
       assertFalse(other.isAlive(), "getManager did not finish");
-      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.get().status());
    }
 }
