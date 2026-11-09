@@ -625,6 +625,7 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
+      requireKnownTable(sessionToken, user, request.assembly(), request.table());
       return ViewsheetSessionService.warningsBody(
          tableService.setSource(sessionToken, user, request.assembly(), request.table(),
                              Boolean.TRUE.equals(request.force())));
