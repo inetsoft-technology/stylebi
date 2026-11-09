@@ -1833,7 +1833,15 @@ public class VSInputService {
                ListData listData = new ListData();
                listData.setDataType(variableListDialogModel.getDataType());
                listData.setDataType(dtype);
-               listData.setLabels(variableListDialogModel.getLabels());
+               String[] labels = variableListDialogModel.getLabels();
+
+               // a list given as values only is still a closed list: the labels default to the
+               // typed values, the same as a list the dialog sends with one label per value
+               if(labels.length == 0 && values.size() > 0) {
+                  labels = variableListDialogModel.getValues().clone();
+               }
+
+               listData.setLabels(labels);
                listData.setValues(values.toArray());
                comboBoxColumnOption.setListData(listData);
             }
@@ -1859,6 +1867,11 @@ public class VSInputService {
       }
 
       cols.setAttribute(col, formRef);
+
+      // a runtime execute restores a combo box list from the cached entry of the previous one
+      final int optionCol = col;
+      rvs.getViewsheetSandbox().ifPresent(
+         box -> box.resetFormOptionData(assembly.getAbsoluteName(), optionCol));
 
       int hint = VSAssembly.OUTPUT_DATA_CHANGED;
       this.coreLifecycleService
