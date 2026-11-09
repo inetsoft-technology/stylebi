@@ -195,4 +195,74 @@ class CalendarNavigationTest {
    void monthViewDisplayMonthWithAYearOnlyValueIsNull() {
       assertNull(CalendarDisplayService.displayMonth("2024", false));
    }
+
+   // Bug #80851: toggling yearView stores the position it is given, so it is converted to the
+   // shape of the target view first.
+
+   private static String toView(String stored, boolean yearView, String[] range, boolean second) {
+      return CalendarDisplayService.positionForView(stored, yearView, range, second);
+   }
+
+   @Test
+   void leavingYearViewGivesABareYearAMonthOfThatYear() {
+      assertEquals("2025-0", toView("2025", false, OPEN, false));
+      assertEquals("2025-11", toView("2025", false, OPEN, true));
+      assertEquals("2025-0", toView("2025", false, null, false));
+      assertEquals("2025-01", CalendarDisplayService.displayMonth(toView("2025", false, OPEN, false), false));
+   }
+
+   @Test
+   void leavingYearViewAtTheRangeEndsUsesTheRangesFirstAndLastMonth() {
+      String[] range = { "2024-3-1", "2025-8-31" };
+
+      assertEquals("2024-3", toView("2024", false, range, false));
+      assertEquals("2025-0", toView("2025", false, range, false));
+      assertEquals("2025-8", toView("2025", false, range, true));
+      assertEquals("2024-11", toView("2024", false, range, true));
+   }
+
+   @Test
+   void enteringYearViewKeepsOnlyTheYear() {
+      assertEquals("2024", toView("2024-2", true, OPEN, false));
+      assertEquals("2024", toView("2024-11", true, OPEN, true));
+      assertEquals("2024", toView("2024", true, OPEN, false));
+   }
+
+   @Test
+   void aPositionAlreadyInTheTargetShapeIsKept() {
+      assertEquals("2024-2", toView("2024-2", false, OPEN, false));
+      assertEquals("2024-2", toView("2024-2", false, new String[] { "2024-5-1", null }, false));
+   }
+
+   @Test
+   void aBlankOrUnreadablePositionIsLeftAsItIs() {
+      assertNull(toView(null, false, OPEN, false));
+      assertNull(toView(null, true, OPEN, true));
+      assertEquals("", toView("", false, OPEN, false));
+      assertEquals("garbage", toView("garbage", true, OPEN, false));
+   }
+
+   @Test
+   void leavingYearViewChecksTheMonthAgainstTheConvertedSecondCalendar() {
+      // double calendar in year view, both on 2024; the toggle and a later month in one call
+      String cur1 = toView("2024", false, OPEN, false);
+      String cur2 = toView("2024", false, OPEN, true);
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> resolve("2025-03", null, true, false, false, OPEN, cur1, cur2));
+      assertTrue(e.getMessage().contains("before"), e.getMessage());
+
+      // a second month after the converted first calendar is accepted
+      String first = toView("2025", false, OPEN, false);
+      String second = toView("2025", false, OPEN, true);
+      CalendarDisplayService.Navigation nav =
+         resolve(null, "2025-03", true, false, false, OPEN, first, second);
+      assertEquals("2025-2", nav.date2());
+
+      // ... and one before it is refused
+      String[] range = { "2024-0-1", null };
+      String late = toView("2025", false, new String[] { "2025-5-1", null }, false);
+      e = assertThrows(IllegalArgumentException.class,
+         () -> resolve(null, "2025-03", true, false, false, range, late, "2025-11"));
+      assertTrue(e.getMessage().contains("before"), e.getMessage());
+   }
 }
