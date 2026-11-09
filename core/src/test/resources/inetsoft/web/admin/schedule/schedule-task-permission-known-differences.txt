@@ -1,0 +1,17 @@
+# Where the schedule task permission helpers differ from schedule-task-permission-policy.json
+# (Testing #79042). SchedulePermissionHelperMatrixTest fails when a difference is not listed here
+# and when a listed one is no longer seen. Format:
+#   <helper> <actor> <shareTaskInGroup>/<deleteTaskOnlyByOwner> <actual answer> : <reason>
+#
+# An explicit SCHEDULE_TASK grant on a user task comes only from the EM Content > Repository
+# permission editor, which Bug #79853 removes, so the policy gives it nothing. Two helpers still
+# accept it: RepletEngine.hasTaskPermission (the EM task list shows the task) and
+# removeScheduleTask (reached only after the delete gate, which refuses the grant holder).
+MAY_SEE grantHolder true/true allows : #79853, RepletEngine.hasTaskPermission accepts explicit grants
+MAY_SEE grantHolder true/false allows : #79853, RepletEngine.hasTaskPermission accepts explicit grants
+MAY_SEE grantHolder false/true allows : #79853, RepletEngine.hasTaskPermission accepts explicit grants
+MAY_SEE grantHolder false/false allows : #79853, RepletEngine.hasTaskPermission accepts explicit grants
+REMOVE grantHolder true/true allows : #79853, removeScheduleTask accepts explicit grants
+REMOVE grantHolder true/false allows : #79853, removeScheduleTask accepts explicit grants
+REMOVE grantHolder false/true allows : #79853, removeScheduleTask accepts explicit grants
+REMOVE grantHolder false/false allows : #79853, removeScheduleTask accepts explicit grants
