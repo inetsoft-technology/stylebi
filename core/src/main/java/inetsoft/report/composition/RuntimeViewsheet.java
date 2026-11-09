@@ -473,16 +473,24 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       if(defBookmark != null && isViewer() && SecurityEngine.getSecurity().isSecurityEnabled()) {
          try {
-            if(getDefaultContainer(defBookmark) != null) {
-               VSBookmark cbookmark = getDefaultContainer(defBookmark);
+            VSBookmark cbookmark = getDefaultContainer(defBookmark);
+
+            if(cbookmark == null) {
+               // the default bookmark had been removed
+               setDefaultBookmark(null);
+            }
+            else if(isDefaultBookmarkVisible(defBookmark, cbookmark)) {
                vs = VSUtil.vsGotoBookmark(vs, cbookmark, defBookmark.getName(), rep, null);
                userDefined = true;
                VSBookmarkInfo dInfo = cbookmark.getBookmarkInfo(defBookmark.getName());
                setOpenedBookmark(dInfo);
             }
             else {
-               // the default bookmark had been removed
-               setDefaultBookmark(null);
+               // Bug #80642: the owner no longer shares the bookmark with this user. Open the
+               // home state instead, but keep the stored default because the owner may share
+               // the bookmark again (or the user may rejoin the owner's group).
+               LOG.debug("Default bookmark {} of user {} is not visible to {}, ignored",
+                         defBookmark.getName(), defBookmark.getOwner(), getUserName());
             }
          }
          catch(Exception ex) {
@@ -1509,7 +1517,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
          return;
       }
 
-      if(getDefaultContainer(defBookmark) != null) {
+      VSBookmark container = getDefaultContainer(defBookmark);
+
+      if(container != null && isDefaultBookmarkVisible(defBookmark, container)) {
          try {
             lockBookmark(defBookmark.getName(), defBookmark.getOwner());
          }
@@ -1551,6 +1561,37 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       return null;
+   }
+
+   /**
+    * Check if the user may still see the default bookmark found in the specified container.
+    * The default only stores the bookmark name and owner, so the owner may have made another
+    * user's default private, or moved it to a group the user is not in, since it was set
+    * (Bug #80642). Uses the same rule as the bookmark list.
+    *
+    * @param def       the user defined default bookmark.
+    * @param container the container returned by getDefaultContainer.
+    */
+   private boolean isDefaultBookmarkVisible(DefaultBookmark def, VSBookmark container) {
+      IdentityID pId = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
+      IdentityID defOwner = def.getOwner();
+      String defName = def.getName();
+
+      // the user's own default is always visible, whatever its type
+      if(pId != null && pId.equals(defOwner)) {
+         return true;
+      }
+
+      // another user's bookmark is only listed on a global viewsheet, and never their (Home)
+      if(entry == null || entry.getScope() != AssetRepository.GLOBAL_SCOPE ||
+         VSBookmark.HOME_BOOKMARK.equals(defName))
+      {
+         return false;
+      }
+
+      return VSBookmarkService.isBookmarkAccessAllowed(
+         pId, defOwner, container.getBookmarkInfo(defName), () -> isSameGroup(defOwner, pId),
+         VSBookmarkService.BookmarkAccess.READ);
    }
 
    /**
