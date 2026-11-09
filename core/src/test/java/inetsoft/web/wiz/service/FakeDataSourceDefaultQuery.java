@@ -23,8 +23,12 @@ import inetsoft.uql.tabular.View1;
 
 /**
  * A connector whose {@code delimiter} default is derived from its data source, the way a real
- * connector's getter may read the data source's own settings: {@code ";"} when the data source is
- * named {@code "semi"}, {@code ","} otherwise, and a failure when there is no data source at all.
+ * connector's getter may read the data source's own settings: the default is
+ * {@code "default-of-<data source name>"}, and reading it with no data source at all fails.
+ *
+ * <p>The failing read matters: {@code PropertyMeta.getValue} swallows it and answers {@code null},
+ * so a defaults instance built without the data source yields {@code null}, never the value
+ * asserted for a correctly built one.
  */
 @View(vertical = true, value = {
    @View1("delimiter"),
@@ -39,7 +43,6 @@ public class FakeDataSourceDefaultQuery extends FakeDelimitedFileQuery {
       }
 
       String value = super.getDelimiter();
-      return value == null || value.equals(",") && "semi".equals(getDataSource().getName())
-         ? ";" : value;
+      return ",".equals(value) ? "default-of-" + getDataSource().getName() : value;
    }
 }

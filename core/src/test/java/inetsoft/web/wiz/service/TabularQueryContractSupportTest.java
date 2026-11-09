@@ -729,7 +729,7 @@ class TabularQueryContractSupportTest {
 
       restate(query, params("header", "a|b"));
 
-      assertEquals(";", query.getDelimiter());
+      assertEquals("default-of-semi", query.getDelimiter());
    }
 
    @Test
