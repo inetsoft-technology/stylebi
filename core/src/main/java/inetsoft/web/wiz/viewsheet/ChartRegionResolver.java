@@ -33,6 +33,7 @@ import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -41,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Which axes a chart actually has, and which legends it actually renders.
@@ -541,7 +543,7 @@ final class ChartRegionResolver {
          present.add("x");
       }
 
-      if(y != null && y.length > 0) {
+      if(y != null && y.length > 0 || candlePriceRefs(info).length > 0) {
          present.add("y");
       }
 
@@ -555,6 +557,26 @@ final class ChartRegionResolver {
       }
 
       return present;
+   }
+
+   /**
+    * The open/high/low/close fields of a candle or stock chart, in that order, skipping unbound
+    * ones and de-duplicating by full name (Min(TOTAL) bound as both open and low is one axis
+    * field, and a name matching twice would be refused as ambiguous); empty for every other chart. Their prices are on no y-shelf field, yet {@code
+    * CandleGraphGenerator} draws and scales one price axis for them from the shared axis
+    * descriptor (bug #80505), so they stand in for the y shelf when it is empty.
+    */
+   static ChartRef[] candlePriceRefs(VSChartInfo info) {
+      if(!(info instanceof CandleChartInfo candle)) {
+         return new ChartRef[0];
+      }
+
+      return Stream.of(candle.getOpenField(), candle.getHighField(), candle.getLowField(),
+                       candle.getCloseField())
+         .filter(Objects::nonNull)
+         .collect(Collectors.toMap(ChartRef::getFullName, r -> r, (a, b) -> a,
+                                   LinkedHashMap::new))
+         .values().toArray(new ChartRef[0]);
    }
 
    private static boolean hasSecondaryMeasure(ChartRef[] refs) {
