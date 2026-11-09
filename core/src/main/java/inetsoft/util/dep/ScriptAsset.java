@@ -27,6 +27,7 @@ import inetsoft.uql.asset.internal.FunctionIterator;
 import inetsoft.uql.asset.internal.ScriptIterator.ScriptListener;
 import inetsoft.uql.asset.internal.ScriptIterator.Token;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.ai.scriptlibrary.ScriptLibraryValidator;
 import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -263,6 +264,19 @@ public class ScriptAsset extends AbstractXAsset {
 
       if(manager.findScriptName(script) != null && !overwriting) {
          return;
+      }
+
+      // the import is the one writer that takes the entry name from untrusted input; an invalid
+      // name would be stored but its function declaration is not valid JavaScript, so it would be
+      // dropped at load. Refusing here puts the entry in the import's failed list by name while the
+      // rest of the package still imports.
+      try {
+         ScriptLibraryValidator.requireValidName("Script Library entry", script);
+      }
+      catch(IllegalArgumentException e) {
+         throw new IllegalArgumentException(
+            e.getMessage().replace(" Nothing was saved.", "") + " The entry was not imported; " +
+            "rename it to a valid function name in the source and export it again.", e);
       }
 
       BufferedReader reader = new BufferedReader(new InputStreamReader(input));
