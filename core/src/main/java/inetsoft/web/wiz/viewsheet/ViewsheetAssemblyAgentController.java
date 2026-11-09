@@ -1479,10 +1479,18 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
 
-      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export",
-                                         ResourceAction.READ))
+      // Redmine #80497: the wiz principal is approved for everything, so the Export and
+      // ExportExpandComponents toolbar actions are evaluated on a copy without the wiz tag (and
+      // without the login check, which a toolbar action would otherwise fail). The copy is only
+      // used for these checks; the export itself keeps running as the wiz principal.
+      Principal permissionUser = WizUtil.toolbarCheckPrincipal(user);
+
+      if(!securityEngine.checkPermission(permissionUser, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+                                         "Export", ResourceAction.READ))
       {
-         throw new SecurityException("No permission for viewsheet export.");
+         throw new IllegalArgumentException(
+            "export_viewsheet: you do not have the Export permission (Dashboard Toolbar > " +
+            "Export), so the viewsheet cannot be exported.");
       }
 
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
@@ -1718,6 +1726,16 @@ public class ViewsheetAssemblyAgentController {
       // WizExportController's own "always expand tables when export to csv" convention.
       boolean effectiveMatch = formatType == FileFormatInfo.EXPORT_TYPE_CSV ?
          false : match == null || match;
+
+      // Redmine #80497: same rule as VSExportService.exportViewsheet, which the wiz principal
+      // always passes. Applied after the CSV override, as in the Viewer (ExportController sets
+      // match=false for CSV, then the service turns it back on for a user without the permission).
+      if(!effectiveMatch &&
+         !securityEngine.checkPermission(permissionUser, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+                                         "ExportExpandComponents", ResourceAction.READ))
+      {
+         effectiveMatch = true;
+      }
 
       // Bug #80182: a table cell longer than max.cell.size is cut while it is written, so the
       // CSV export reports it (column and cap) in the same header the worksheet export uses.
