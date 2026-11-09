@@ -27,12 +27,14 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.ComboBoxColumnOption;
 import inetsoft.uql.viewsheet.ListData;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.filereader.TextUtil;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.controller.table.VSFormTableService;
 import inetsoft.web.viewsheet.event.table.*;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
@@ -324,6 +326,143 @@ public class FormTableRowService {
       result.put("applied", true);
       putWarnings(result, warnings);
       return result;
+   }
+
+   /**
+    * A checkpoint-free paged read of a Form table's displayed rows, with each row's state and the
+    * table's pending-edit flag. The mutators only ever return the first window of rows; this is
+    * how to see (and verify) rows past it.
+    *
+    * <p>{@code offset} is a 0-based DATA row, the same index space {@code form_table_set_cell}
+    * and the other mutators take, so a row found here can be edited at the same index. The window
+    * is {@code [offset, offset + limit)} clamped to the table; a {@code limit} above
+    * {@link #MAX_READ_LIMIT} is clamped with a warning, and an {@code offset} at or past the end
+    * returns no rows with a warning (not an error). Deleted rows are not in the displayed rows, so
+    * they are reported only as {@code pendingCounts.deleted}.
+    *
+    * <p>Row state is read with {@code lens.getRowState(absoluteRow)}, which maps through the
+    * lens's own sort order; {@code lens.rows()[r]} is the unsorted base order and would report
+    * another row's state under a column sort.
+    */
+   public Map<String, Object> read(String sessionToken, Principal user, String assemblyName,
+                                   int offset, int limit, String linkUri) throws Exception
+   {
+      if(offset < 0) {
+         throw new IllegalArgumentException("'offset' must be 0 or greater, got " + offset + ".");
+      }
+
+      if(limit < 1) {
+         throw new IllegalArgumentException("'limit' must be 1 or greater, got " + limit + ".");
+      }
+
+      List<String> notes = new ArrayList<>();
+      int appliedLimit = limit;
+
+      if(limit > MAX_READ_LIMIT) {
+         appliedLimit = MAX_READ_LIMIT;
+         notes.add("limit " + limit + " is above the maximum of " + MAX_READ_LIMIT +
+                   "; at most " + MAX_READ_LIMIT + " rows are returned per call.");
+      }
+
+      final int windowSize = appliedLimit;
+
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireForm(rvs, assemblyName);
+         FormTableLens lens = requireFormLens(rvs, assemblyName);
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+
+         int header = lens.getHeaderRowCount();
+         int dataRows = dataRowCount(lens);
+         boolean inRange = offset < dataRows;
+
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+         int lastStart = assembly instanceof TableDataVSAssembly tda ? tda.getLastStartRow() : 0;
+
+         try {
+            BaseTableService.loadTableData(rvs, assemblyName, box.getMode(), header + offset,
+                                           windowSize, linkUri, dispatcher);
+         }
+         finally {
+            // loadTableData records the window as the Viewer's scroll position; a read must not
+            // move it
+            if(assembly instanceof TableDataVSAssembly tda) {
+               tda.setLastStartRow(lastStart);
+            }
+         }
+
+         LoadTableDataCommand load = lastLoad(dispatcher, assemblyName);
+         Map<String, Object> result = new LinkedHashMap<>();
+         result.put("assembly", assemblyName);
+         result.put("offset", offset);
+         result.put("limit", windowSize);
+         result.put("rowCount", dataRows);
+
+         List<List<Object>> rows = new ArrayList<>();
+         List<String> states = new ArrayList<>();
+         BaseTableCellModel[][] cells = load == null ? null : load.tableCells();
+         BaseTableCellModel[][] headerCells = load == null ? null : load.tableHeaderCells();
+
+         if(inRange && cells != null) {
+            // loadTableData may return more rows than asked for (it fills the assembly's pixel
+            // height), so the window is trimmed here
+            int n = Math.min(Math.min(windowSize, dataRows - offset), cells.length);
+
+            for(int i = 0; i < n; i++) {
+               rows.add(toRow(cells[i]));
+               states.add(stateName(lens.getRowState(header + offset + i)));
+            }
+         }
+
+         result.put("columns", headerCells != null && headerCells.length > 0 ?
+            toRow(headerCells[Math.min(Math.max(header, 1), headerCells.length) - 1]) : List.of());
+         result.put("rows", rows);
+         result.put("rowStates", states);
+         result.put("hasMore", offset + rows.size() < dataRows);
+         result.put("formChanged", lens.isChanged());
+
+         Map<String, Object> pending = new LinkedHashMap<>();
+         pending.put("changed", lens.rows(FormTableRow.CHANGED).length);
+         pending.put("added", lens.rows(FormTableRow.ADDED).length);
+         pending.put("deleted", lens.rows(FormTableRow.DELETED).length);
+         result.put("pendingCounts", pending);
+
+         List<String> warnings = new ArrayList<>(notes);
+
+         if(!inRange && offset > 0) {
+            warnings.add("offset " + offset + " is at or past the end of '" + assemblyName +
+                         "', which has " + dataRows + " data row(s); no rows returned.");
+         }
+
+         warnings.addAll(dispatcher.getWarnings());
+         putWarnings(result, warnings);
+         return result;
+      });
+   }
+
+   private static String stateName(int state) {
+      return switch(state) {
+         case FormTableRow.OLD -> "old";
+         case FormTableRow.CHANGED -> "changed";
+         case FormTableRow.ADDED -> "added";
+         case FormTableRow.DELETED -> "deleted";
+         default -> "unknown";
+      };
+   }
+
+   private static LoadTableDataCommand lastLoad(CapturingCommandDispatcher dispatcher,
+                                                String assemblyName)
+   {
+      LoadTableDataCommand load = null;
+
+      for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+         if(Objects.equals(command.getAssembly(), assemblyName) &&
+            command.getCommand() instanceof LoadTableDataCommand cmd)
+         {
+            load = cmd;
+         }
+      }
+
+      return load;
    }
 
    private static TableVSAssemblyInfo requireForm(RuntimeViewsheet rvs, String assemblyName) {
@@ -904,6 +1043,7 @@ public class FormTableRowService {
          Math.min(cells.length, Math.max(0, load.headerRowCount() - load.start()));
 
       result.put("rowCount", load.runtimeDataRowCount());
+      result.put("formChanged", load.formChanged());
       result.put("columns", headerRows > 0 ? toRow(cells[headerRows - 1]) : List.of());
       result.put("rows", toRows(cells, headerRows));
    }
@@ -933,6 +1073,9 @@ public class FormTableRowService {
 
       return row;
    }
+
+   /** Most rows one {@link #read} call returns. */
+   static final int MAX_READ_LIMIT = 200;
 
    private final ViewsheetSessionService sessions;
    private final VSFormTableService formTableService;
