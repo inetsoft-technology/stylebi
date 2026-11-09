@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
+import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.graph.handler.ChartRegionHandler;
@@ -63,6 +64,10 @@ public class SyncChartHandler extends SyncAssemblyHandler {
          // sync plot properties
          syncPlotProperties(fromDescriptor, targetDescriptor);
 
+         // the flags guarding the copied plot's values, which the re-seed below would replace
+         targetAssemblyInfo.setUserSmoothLines(fromAssemblyInfo.isUserSmoothLines());
+         targetAssemblyInfo.setUserBarCornerRadius(fromAssemblyInfo.isUserBarCornerRadius());
+
          // sync legend properties
          if(syncLegend) {
             syncLegendsProperties(fromChart, targetChart);
@@ -84,6 +89,11 @@ public class SyncChartHandler extends SyncAssemblyHandler {
 
          // sync highlight
          syncHighlight(fromChart, targetChart);
+
+         // the copied plot and formats hold the source's defaults; a marked chart saves its own
+         if(targetAssemblyInfo.getVizMark() != null) {
+            VizModernizeUtil.reseedAfterRestore(targetAssemblyInfo);
+         }
       }
       catch (Exception e) {
          LOGGER.info("Sync chart information failed.");
@@ -126,6 +136,8 @@ public class SyncChartHandler extends SyncAssemblyHandler {
 
       //padding
       targetAssemblyInfo.setPadding(fromAssemblyInfo.getPadding());
+      // with its flag, which keeps the seed off it
+      targetAssemblyInfo.setUserPadding(fromAssemblyInfo.isUserPadding());
 
       // Layout: processed
 
