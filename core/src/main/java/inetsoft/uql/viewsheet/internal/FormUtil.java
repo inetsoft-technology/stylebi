@@ -27,6 +27,8 @@ import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -70,6 +72,40 @@ public final class FormUtil {
       }
 
       return false;
+   }
+
+   /**
+    * Names the Form tables that depend on the named assembly and hold pending (not yet applied)
+    * edits, i.e. the tables whose cached lens a change to that assembly would drop. Same
+    * dependency test as {@link #checkFormData}, but returns the names, and only looks at lenses
+    * that are already built: a Form table that was never built has no edits, so this never runs
+    * a query.
+    *
+    * @return the absolute names of the dependent Form tables with pending edits, in sheet order;
+    *         empty when there are none.
+    */
+   public static List<String> pendingDependentForms(RuntimeViewsheet rvs, String name) {
+      List<String> pending = new ArrayList<>();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(box.isEmpty() || name == null || vs == null || vs.getAssembly(name) == null) {
+         return pending;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly.getInfo() instanceof TableVSAssemblyInfo info) || !info.isForm()) {
+            continue;
+         }
+
+         FormTableLens lens = box.get().getCachedFormTableLens(assembly.getAbsoluteName());
+
+         if(formDataChanged(lens) && isDepended(vs, assembly, name)) {
+            pending.add(assembly.getAbsoluteName());
+         }
+      }
+
+      return pending;
    }
 
    /**
