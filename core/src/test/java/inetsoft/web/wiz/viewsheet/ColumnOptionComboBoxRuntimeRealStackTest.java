@@ -154,6 +154,17 @@ class ColumnOptionComboBoxRuntimeRealStackTest {
    }
 
    @Test
+   void theNullSentinelDefaultsToANullLabel() throws Exception {
+      RuntimeViewsheet rvs = open();
+      makeFormWithFormRefs(rvs);
+      ColumnOptionService service = service(rvs);
+
+      setCombo(service, "string", new String[] { "x", "__null__" }, new String[0]);
+
+      assertArrayEquals(new String[] { "x", null }, readList(service).getLabels());
+   }
+
+   @Test
    void explicitLabelsAreKept() throws Exception {
       RuntimeViewsheet rvs = open();
       makeFormWithFormRefs(rvs);

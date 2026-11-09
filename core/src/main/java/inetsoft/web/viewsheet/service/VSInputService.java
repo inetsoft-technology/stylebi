@@ -1838,7 +1838,12 @@ public class VSInputService {
                // a list given as values only is still a closed list: the labels default to the
                // typed values, the same as a list the dialog sends with one label per value
                if(labels.length == 0 && values.size() > 0) {
-                  labels = variableListDialogModel.getValues().clone();
+                  labels = new String[values.size()];
+
+                  for(int i = 0; i < labels.length; i++) {
+                     String text = variableListDialogModel.getValues()[i];
+                     labels[i] = "__null__".equals(text) ? null : text;
+                  }
                }
 
                listData.setLabels(labels);
