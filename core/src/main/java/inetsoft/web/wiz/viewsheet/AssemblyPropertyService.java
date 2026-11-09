@@ -1808,17 +1808,17 @@ public class AssemblyPropertyService {
     * static {@code variableListDialogModel.labels}/{@code .values} to the assembly, but only
     * <i>uses</i> them at render/bind time when {@code comboBoxEditorModel.embedded} (or
     * {@code .query}) is set -- with both false (the default), {@code sourceType} stays
-    * {@code NONE_SOURCE} and the write is silently inert (Redmine #76699/VFO-016). A patch that
-    * sets {@code labels}/{@code values} with no {@code query}/{@code table}/{@code column} in
-    * the same call has unambiguous static-list intent, so {@code embedded} is implied true for
+    * {@code NONE_SOURCE} and the write is silently inert (Redmine #76699/VFO-016). The items are
+    * only ever read when {@code embedded} is on, so a patch that writes {@code labels}/
+    * {@code values} has unambiguous embedded-list intent and {@code embedded} is implied true for
     * it, the same "forgiving where intent is unambiguous" shape {@link #impliedSibling} already
     * covers for the Tip panes.
     *
-    * <p>A patch that ALSO sets {@code query}/{@code table}/{@code column} is left alone --
-    * {@code embedded=false, query=true} is a real, distinct configuration ({@code BOUND_SOURCE},
-    * driven purely by the query binding); silently forcing {@code embedded=true} there would
-    * reclassify it into {@code MERGE_SOURCE} instead, a different, surprising outcome. A caller
-    * who sets {@code embedded} explicitly (either value) is likewise always left alone.
+    * <p>This holds whatever the same patch writes to {@code query}/{@code table}/{@code column}:
+    * with query off the items are the only source, and with query on the list merges the query
+    * values with the items ({@code MERGE_SOURCE}), the same result as writing the items alone on
+    * a list whose query is already on. Only a caller who sets {@code embedded} explicitly (either
+    * value) is left alone.
     */
    private static Object deriveEmbeddedFromStaticList(Object model,
                                                        Collection<String> resolvedPaths)
@@ -1840,18 +1840,6 @@ public class AssemblyPropertyService {
          String embeddedPath = editorPrefix + ".embedded";
 
          if(resolvedPaths.contains(embeddedPath)) {
-            continue;
-         }
-
-         String queryPath = editorPrefix + ".query";
-         String tablePath =
-            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.table";
-         String columnPath =
-            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.column";
-
-         if(resolvedPaths.contains(queryPath) || resolvedPaths.contains(tablePath) ||
-            resolvedPaths.contains(columnPath))
-         {
             continue;
          }
 
