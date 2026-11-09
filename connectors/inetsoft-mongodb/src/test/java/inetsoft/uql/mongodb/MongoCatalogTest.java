@@ -238,7 +238,6 @@ class MongoCatalogTest {
          .append("aBool", new BsonBoolean(true))
          .append("aDate", new BsonDateTime(0L))
          .append("aDecimal", new BsonDecimal128(new Decimal128(42)))
-         .append("aNestedDoc", new BsonDocument("k", new BsonString("v")))
          .append("anArray", new BsonArray(List.of(new BsonInt32(1))))
          .append("aBinary", new BsonBinary(new byte[] {1, 2, 3}));
       stubSample(db, "t", List.of(doc));
@@ -257,7 +256,6 @@ class MongoCatalogTest {
       assertEquals(XSchema.DECIMAL, types.get("aDecimal"));
       // Compound/opaque shapes have no XSchema equivalent -- coarsened to STRING, the same
       // treatment Cassandra/Hive's own uncovered types already receive in this codebase.
-      assertEquals(XSchema.STRING, types.get("aNestedDoc"));
       assertEquals(XSchema.STRING, types.get("anArray"));
       assertEquals(XSchema.STRING, types.get("aBinary"));
    }
@@ -333,5 +331,51 @@ class MongoCatalogTest {
          .filter(c -> c.name().equals("alwaysNull")).findFirst().orElseThrow().type();
 
       assertEquals(XSchema.STRING, type);
+   }
+
+   // ----- describeDataset: embedded documents (Bug #80829) -----
+
+   @Test
+   void describeDataset_flattensEmbeddedDocumentsToDottedLeaves() throws Exception {
+      MongoDatabase db = fakeDb();
+      BsonDocument doc = new BsonDocument()
+         .append("_id", new BsonObjectId(new ObjectId()))
+         .append("name", new BsonString("a"))
+         .append("address", new BsonDocument()
+            .append("city", new BsonString("x"))
+            .append("zip", new BsonInt32(1))
+            .append("geo", new BsonDocument("lat", new BsonDouble(1.5)))
+            .append("empty", new BsonDocument())
+            .append("tags", new BsonArray(List.of(new BsonInt32(1))))
+            .append("note", new BsonNull()));
+      stubSample(db, "t", List.of(doc));
+
+      TabularDatasetSchema schema = MongoCatalog.describeDataset(db, "t");
+      Map<String, String> types = new LinkedHashMap<>();
+      schema.columns().forEach(c -> types.put(c.name(), c.type()));
+
+      assertEquals(List.of("_id", "name", "address.city", "address.zip", "address.geo.lat",
+                           "address.tags", "address.note"),
+                   List.copyOf(types.keySet()));
+      assertEquals(XSchema.STRING, types.get("address.city"));
+      assertEquals(XSchema.INTEGER, types.get("address.zip"));
+      assertEquals(XSchema.DOUBLE, types.get("address.geo.lat"));
+      assertEquals(XSchema.STRING, types.get("address.tags"));
+      assertEquals(XSchema.STRING, types.get("address.note"));
+      assertEquals(List.of("_id"), schema.keyColumns());
+   }
+
+   @Test
+   void describeDataset_widensEmbeddedLeafAcrossDocuments() throws Exception {
+      MongoDatabase db = fakeDb();
+      stubSample(db, "t", List.of(
+         new BsonDocument("a", new BsonDocument("n", new BsonInt32(1))),
+         new BsonDocument("a", new BsonDocument("n", new BsonDouble(2.5)))));
+
+      TabularDatasetSchema schema = MongoCatalog.describeDataset(db, "t");
+
+      assertEquals(1, schema.columns().size());
+      assertEquals("a.n", schema.columns().get(0).name());
+      assertEquals(XSchema.DOUBLE, schema.columns().get(0).type());
    }
 }
