@@ -390,8 +390,16 @@ public class SelectionBindingService {
                   .setRangeType(inferRangeType(resolvedColumns.get(0).dataType()));
             }
 
+            String rangeBefore = heldRange((TimeSliderVSAssembly) assembly);
             rangeSliderService.setRangeSliderPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
+            // A time-info change (column, single/composite, range type) resets the held range
+            // upstream, so the range comes from a fresh lookup of the replaced assembly.
+            discloseDroppedRange(
+               rangeBefore,
+               heldRange((TimeSliderVSAssembly) SelectionRuntimeService.requireSelection(
+                  rvs, assemblyName)),
+               result);
             result.put("composite", composite);
          }
          else if(assembly instanceof CalendarVSAssembly) {
@@ -1230,6 +1238,55 @@ public class SelectionBindingService {
 
       if(!dropped.isEmpty()) {
          result.put("droppedSelection", dropped);
+      }
+   }
+
+   /**
+    * The range a range slider currently holds as "first .. last" selected bucket label, or null
+    * when it filters nothing: every bucket selected is the slider's own "full range", and a
+    * slider that has not rendered yet has no buckets (its applied state list is the fallback).
+    */
+   private static String heldRange(TimeSliderVSAssembly slider) {
+      SelectionList display = slider.getSelectionList();
+      List<SelectionValue> selected = new ArrayList<>();
+      boolean fullRange = false;
+
+      if(display != null && display.getSelectionValues() != null) {
+         fullRange = true;
+
+         for(SelectionValue value : display.getSelectionValues()) {
+            if(value != null && value.isSelected()) {
+               selected.add(value);
+            }
+            else {
+               fullRange = false;
+            }
+         }
+      }
+      else if(slider.getStateSelectionList() != null &&
+         slider.getStateSelectionList().getSelectionValues() != null)
+      {
+         selected.addAll(Arrays.asList(slider.getStateSelectionList().getSelectionValues()));
+      }
+
+      if(selected.isEmpty() || fullRange) {
+         return null;
+      }
+
+      return rangeLabel(selected.get(0)) + " .. " + rangeLabel(selected.get(selected.size() - 1));
+   }
+
+   private static String rangeLabel(SelectionValue value) {
+      return value.getLabel() == null || value.getLabel().isEmpty()
+         ? value.getValue() : value.getLabel();
+   }
+
+   /** Range counterpart of discloseDroppedSelection: one entry naming the range that was lost. */
+   private static void discloseDroppedRange(String before, String after,
+                                            Map<String, Object> result)
+   {
+      if(before != null && !before.equals(after)) {
+         result.put("droppedSelection", List.of(before));
       }
    }
 
