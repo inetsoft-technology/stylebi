@@ -148,6 +148,7 @@ public class ViewsheetAssemblyAgentController {
                                    SelectionLayoutService selectionLayoutService,
                                    FormTableRowService formTableRowService,
                                    FormTableImportService formTableImportService,
+                                   EmbeddedTableCellService embeddedTableCellService,
                                    ColumnOptionService columnOptionService,
                                    ParameterCollectionService parameterCollectionService,
                                    ParameterValueService parameterValueService,
@@ -192,6 +193,7 @@ public class ViewsheetAssemblyAgentController {
       this.selectionLayoutService = selectionLayoutService;
       this.formTableRowService = formTableRowService;
       this.formTableImportService = formTableImportService;
+      this.embeddedTableCellService = embeddedTableCellService;
       this.columnOptionService = columnOptionService;
       this.parameterCollectionService = parameterCollectionService;
       this.parameterValueService = parameterValueService;
@@ -2492,6 +2494,24 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * {@code embedded_table_set_cells}: a batch of cell edits to a plain (non-Form) Embedded Table,
+    * the Viewer's {@code changeCellText}. Everything is validated before anything is written; see
+    * {@link EmbeddedTableCellService}.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/embedded-table/set-cells")
+   public Map<String, Object> embeddedTableSetCells(@PathVariable String sessionToken,
+                                                    @RequestBody EmbeddedTableSetCellsRequest request,
+                                                    @RequestParam(required = false, defaultValue = "")
+                                                    String linkUri,
+                                                    Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return embeddedTableCellService.setCells(sessionToken, user, request.assembly(),
+                                               request.changes(), linkUri);
+   }
+
+   /**
     * {@code form_table_import_excel}: the Viewer's Import Excel for an offline-edited export of
     * the paired dashboard. Replaces the pending rows of the Form tables the file has named ranges
     * for; nothing is committed until {@code form_table_apply}. See {@link FormTableImportService}
@@ -2609,6 +2629,8 @@ public class ViewsheetAssemblyAgentController {
    public record FormTableDeleteRowsRequest(String assembly, java.util.List<Integer> rows) {}
    public record FormTableSetCellRequest(String assembly, int row, int col, String value) {}
    public record FormTableApplyRequest(String assembly) {}
+   public record EmbeddedTableSetCellsRequest(
+      String assembly, java.util.List<EmbeddedTableCellService.CellChange> changes) {}
 
    public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
 
@@ -4316,6 +4338,7 @@ public class ViewsheetAssemblyAgentController {
    private final SelectionLayoutService selectionLayoutService;
    private final FormTableRowService formTableRowService;
    private final FormTableImportService formTableImportService;
+   private final EmbeddedTableCellService embeddedTableCellService;
    private final ColumnOptionService columnOptionService;
    private final ParameterCollectionService parameterCollectionService;
    private final ParameterValueService parameterValueService;
