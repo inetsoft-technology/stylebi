@@ -120,8 +120,10 @@ class MVSupportServiceCreateRegistrationTest {
       // the pool thread is still blocked in its own add, so this can only come from the caller
       assertTrue(service.existsInOrg(a.name, ORG));
       assertEquals(callerThread.getName(), addThreads.get(a.name));
-      verify(a.def).setSuccess(false);
-      verify(a.def, never()).setSuccess(true);
+      // the pool thread may also have called setSuccess(false) by now, so only the caller's
+      // own call is asserted, not the total count
+      assertTrue(a.successCalls.contains(callerThread.getName() + ":false"));
+      assertFalse(a.successCallValues().contains(true));
    }
 
    @Test
@@ -132,7 +134,7 @@ class MVSupportServiceCreateRegistrationTest {
 
       assertTrue(service.existsInOrg(a.name, ORG));
       assertEquals(callerThread.getName(), addThreads.get(a.name));
-      verify(a.def, never()).setSuccess(anyBoolean());
+      assertTrue(a.successCalls.isEmpty());
    }
 
    @Test
@@ -143,7 +145,7 @@ class MVSupportServiceCreateRegistrationTest {
 
       assertTrue(service.existsInOrg(a.name, ORG));
       assertEquals(callerThread.getName(), addThreads.get(a.name));
-      verify(a.def).setSuccess(false);
+      assertEquals(List.of(callerThread.getName() + ":false"), new ArrayList<>(a.successCalls));
    }
 
    @Test
@@ -169,7 +171,7 @@ class MVSupportServiceCreateRegistrationTest {
       // generation on the mock definition cannot succeed: the definition must stay registered
       // and flagged unsuccessful (needs regeneration), never removed and never marked successful
       assertTrue(service.existsInOrg(a.name, ORG));
-      verify(a.def, never()).setSuccess(true);
+      assertFalse(a.successCallValues().contains(true));
       verify(mvManager, never()).remove(any(MVDef.class), anyBoolean(), anyString());
    }
 
@@ -179,10 +181,25 @@ class MVSupportServiceCreateRegistrationTest {
          def = mock(MVDef.class);
          when(def.getName()).thenReturn(name);
          when(def.getMVName()).thenReturn(name);
+         doAnswer(inv -> {
+            successCalls.add(Thread.currentThread().getName() + ":" + inv.getArgument(0));
+            return null;
+         }).when(def).setSuccess(anyBoolean());
          status = mock(MVSupportService.MVStatus.class);
          when(status.getDefinition()).thenReturn(def);
       }
 
+      List<Boolean> successCallValues() {
+         List<Boolean> values = new ArrayList<>();
+
+         for(String call : successCalls) {
+            values.add(Boolean.parseBoolean(call.substring(call.lastIndexOf(':') + 1)));
+         }
+
+         return values;
+      }
+
+      final Queue<String> successCalls = new ConcurrentLinkedQueue<>();
       final String name;
       final MVDef def;
       final MVSupportService.MVStatus status;
