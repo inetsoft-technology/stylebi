@@ -163,6 +163,7 @@ public class SelectionBindingService {
       Map<String, Object> result = new LinkedHashMap<>();
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         int mark = dispatcher == null ? 0 : dispatcher.capturedCount();
          SelectionVSAssembly assembly = SelectionRuntimeService.requireSelection(rvs, assemblyName);
 
          // Unscoped, not scoped to assemblyName: VSBindingTreeService.getBinding only builds a
@@ -433,6 +434,11 @@ public class SelectionBindingService {
          }
 
          result.put("columns", columnNames);
+         // The rebind refreshes the dependents; a script that throws there is reported as an ERROR
+         // after the edit was stored. Relay it as a warning instead of failing a landed write.
+         if(dispatcher != null) {
+            dispatcher.demoteScriptFailureErrorsSince(mark);
+         }
       });
       ViewsheetSessionService.relayWarnings(result, warnings);
 

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.dispatch;
 
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
@@ -208,7 +209,17 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
     */
    public List<String> getWarnings() {
       List<String> warnings = messagesOfType(MessageCommand.Type.WARNING);
-      warnings.addAll(getScriptFailures());
+      List<String> failures = getScriptFailures();
+      warnings.addAll(failures);
+
+      for(String demoted : demotedScriptErrors) {
+         // The table INFO for the same failure carries the same first line and the
+         // "may show no data" note, so it wins and the demoted copy is dropped.
+         if(!containsFirstLine(failures, demoted) && !warnings.contains(demoted)) {
+            warnings.add(demoted);
+         }
+      }
+
       return warnings;
    }
 
@@ -235,6 +246,23 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       }
 
       return messages;
+   }
+
+   private static boolean containsFirstLine(List<String> messages, String text) {
+      String head = firstLine(text);
+
+      for(String message : messages) {
+         if(firstLine(message).equals(head)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static String firstLine(String text) {
+      int index = text.indexOf('\n');
+      return (index < 0 ? text : text.substring(0, index)).trim();
    }
 
    private static final String SCRIPT_FAILURE_NOTE =
@@ -335,6 +363,48 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       return messages;
    }
 
+   /**
+    * Turns the script-failure {@code Type.ERROR}s dispatched after {@code mark} into warnings, so
+    * the call does not fail on them.
+    *
+    * <p>{@code VSObjectPropertyService.editObjectProperty} reports a script that threw while the
+    * write refreshed its dependents (a table whose query script fails, say) as an ERROR whose
+    * text is the catalog's "Script failed" word followed by the script error, after the edit was
+    * stored. Failing the whole call on it hides a write that landed, so a caller that has made
+    * such a write takes the failure here instead. Only that producer's text is matched; any other
+    * ERROR stays for the post-check in {@link #withCapturingDispatcher}. The relayed text starts
+    * at the script error itself and is returned by {@link #getWarnings}.
+    *
+    * @param mark a value from {@link #capturedCount}, taken before the write.
+    */
+   public void demoteScriptFailureErrorsSince(int mark) {
+      String prefix = Catalog.getCatalog().getString("Script failed");
+
+      for(int i = Math.max(mark, 0); i < captured.size(); ) {
+         if(captured.get(i).getCommand() instanceof MessageCommand message &&
+            message.getType() == MessageCommand.Type.ERROR && message.getMessage() != null &&
+            message.getMessage().startsWith(prefix))
+         {
+            String text = message.getMessage().substring(prefix.length());
+
+            if(text.startsWith(":")) {
+               text = text.substring(1);
+            }
+
+            text = CommandErrorException.messageOf(text.strip());
+
+            if(!demotedScriptErrors.contains(text)) {
+               demotedScriptErrors.add(text);
+            }
+
+            captured.remove(i);
+         }
+         else {
+            i++;
+         }
+      }
+   }
+
    /** Every command the wrapped call dispatched, in order. */
    public List<Command> getCapturedCommands() {
       return Collections.unmodifiableList(captured);
@@ -370,4 +440,5 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
    }
 
    private final List<Command> captured = new ArrayList<>();
+   private final List<String> demotedScriptErrors = new ArrayList<>();
 }

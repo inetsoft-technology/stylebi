@@ -20,9 +20,11 @@ package inetsoft.web.wiz.dispatch;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
 import inetsoft.util.MessageException;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -228,6 +230,74 @@ class CapturingCommandDispatcherTest {
       assertFalse(thrown.getErrors().isEmpty());
       assertTrue(thrown.getErrors().stream().allMatch(m -> m != null && !m.isBlank()));
    }
+
+   /** Bug #80835: the producer's "Script failed" ERROR becomes a warning that starts at the error. */
+   @Test
+   void scriptFailureErrorIsDemotedToAWarningWithNormalizedText() throws Exception {
+      List<List<String>> out =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            int mark = dispatcher.capturedCount();
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, scriptFailed(FAILURE)));
+            dispatcher.demoteScriptFailureErrorsSince(mark);
+            return List.of(dispatcher.getErrors(), dispatcher.getWarnings());
+         });
+
+      assertEquals(List.of(), out.get(0));
+      assertEquals(List.of(FAILURE), out.get(1));
+      assertTrue(out.get(1).get(0).startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX));
+   }
+
+   @Test
+   void nonScriptErrorStillFailsTheCall() {
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            int mark = dispatcher.capturedCount();
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, scriptFailed(FAILURE)));
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "Cycle in rename"));
+            dispatcher.demoteScriptFailureErrorsSince(mark);
+            return null;
+         }));
+
+      assertEquals(List.of("Cycle in rename"), thrown.getErrors());
+   }
+
+   /** A text that merely contains the failure prefix, or is a script error before the mark, is kept. */
+   @Test
+   void errorsThatDoNotMatchOrPredateTheMarkAreLeftAlone() {
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, scriptFailed("early")));
+            int mark = dispatcher.capturedCount();
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, FAILURE));
+            dispatcher.demoteScriptFailureErrorsSince(mark);
+            return null;
+         }));
+
+      assertEquals(2, thrown.getErrors().size(), thrown.getErrors().toString());
+   }
+
+   /** The table INFO for the same failure wins; the demoted ERROR is not reported twice. */
+   @Test
+   void demotedErrorIsDedupedAgainstTheTableInfo() throws Exception {
+      List<String> warnings =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            int mark = dispatcher.capturedCount();
+            dispatcher.sendCommand(message(MessageCommand.Type.INFO, FAILURE));
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, scriptFailed(FAILURE)));
+            dispatcher.demoteScriptFailureErrorsSince(mark);
+            return dispatcher.getWarnings();
+         });
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).endsWith("the failure can predate this call."), warnings.get(0));
+   }
+
+   private static String scriptFailed(String text) {
+      return Catalog.getCatalog().getString("Script failed") + text;
+   }
+
+   private static final String FAILURE =
+      BaseTableService.SCRIPT_FAILURE_PREFIX + "OrdersTbl\nReferenceError: x is not defined";
 
    private static MessageCommand message(MessageCommand.Type type, String text) {
       MessageCommand command = new MessageCommand();

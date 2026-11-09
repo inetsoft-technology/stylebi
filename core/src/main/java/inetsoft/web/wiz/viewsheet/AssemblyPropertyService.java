@@ -346,6 +346,7 @@ public class AssemblyPropertyService {
       }
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         int mark = dispatcher == null ? 0 : dispatcher.capturedCount();
          String type = typeOf(rvs, assemblyName);
          Object model = readModel(rvs, type, assemblyName, user);
          String measureBefore = selectionMeasure(type, model);
@@ -576,6 +577,10 @@ public class AssemblyPropertyService {
                filterNote.setMessage(note);
                dispatcher.sendCommand(assemblyName, filterNote);
             }
+
+            // A dependent's script that throws while the write refreshes it is reported as an
+            // ERROR after the edit was stored; relay it as a warning instead of failing the call.
+            dispatcher.demoteScriptFailureErrorsSince(mark);
          }
       });
    }
