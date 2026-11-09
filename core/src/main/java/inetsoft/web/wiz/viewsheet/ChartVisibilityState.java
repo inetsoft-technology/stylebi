@@ -123,12 +123,16 @@ final class ChartVisibilityState {
          }
       }
       else {
+         // a relation chart's edge color/size are drawn and hidden through their own descriptor
+         boolean relationChart = info instanceof RelationChartInfo;
          collect(found, "color", info.getColorField(),
-                 legendsDesc.getColorLegendDescriptor(), noLegend, maxMode);
+                 relationChart ? null : legendsDesc.getColorLegendDescriptor(), noLegend,
+                 maxMode);
          collect(found, "shape", info.getShapeField(),
                  legendsDesc.getShapeLegendDescriptor(), noLegend, maxMode);
          collect(found, "size", info.getSizeField(),
-                 legendsDesc.getSizeLegendDescriptor(), noLegend, maxMode);
+                 relationChart ? null : legendsDesc.getSizeLegendDescriptor(), noLegend,
+                 maxMode);
 
          if(info instanceof RelationChartInfo relation) {
             collect(found, "node-color", relation.getNodeColorField(), null, noLegend, maxMode);
