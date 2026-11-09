@@ -2883,8 +2883,14 @@ public class TablePaintable extends BasePaintable {
             isRepeat = (Boolean) res[1];
          }
 
-         lines = Common.processText(str, bounds, align, wrap, font, nbounds,
-                                    lineoff, elem.getSpacing(), fm, right);
+         // the text was completed on the previous pages of the span
+         if(str == null) {
+            lines = new Vector();
+         }
+         else {
+            lines = Common.processText(str, bounds, align, wrap, font, nbounds,
+                                       lineoff, elem.getSpacing(), fm, right);
+         }
       }
 
       // fixed nbounds, the Common.processText's problem, cause the nbounds
@@ -3276,16 +3282,28 @@ public class TablePaintable extends BasePaintable {
       String substr = str;
       boolean repeat = false;
       boolean isRepeat = false;
+      // the text continued from a remainder on a previous page (Bug #80840)
+      boolean flowed = false;
+      // the text flowed over the previous pages and ended there, the current
+      // page repeats it only if the whole text fits in it (Bug #80840)
+      boolean complete = false;
+      // the span is one tall row split across pages, its text is never repeated
+      boolean splitSpan = repeatCell && isSplitSpan(startR, startC);
 
       // find span in each page from the span's first page
       // to current page painted data, if previous page not
       // complete paint the data, then the next page will
       // continue the cut data, otherwise will be repeat the
-      // full data
-      for(int i = pgindex; i < size; i++) {
+      // full data. index size is the current page, only laid out
+      // to check if a completed text fits in it
+      for(int i = pgindex; i <= size; i++) {
+         if(i == size && !complete) {
+            break;
+         }
+
          // page size
          Bounds fbox = new Bounds(0, 0, 0, 0);
-         Rectangle reg = pgregs.get(i);
+         Rectangle reg = i == size ? this.reg : pgregs.get(i);
          int r1 = reg.y == headerR && startR < headerR ? startR : reg.y;
          int crow = Math.max(r1, startR);
          int c1 = reg.x == headerC && startC < headerC ? startC : reg.x;
@@ -3339,17 +3357,18 @@ public class TablePaintable extends BasePaintable {
                                lens.getFont(startR, startC);
          fn = fn == null ? elem.getFont() : fn;
          FontMetrics fm = Common.getFractionalFontMetrics(fn);
-         CellText tinfo = getCellText(crow, ccol, substr, cclip,
+         CellText tinfo = getCellText(crow, ccol, complete ? str : substr, cclip,
             align, wrap, fn, fm, span, cclip, xadj, yadj, false);
 
-         if(tinfo != null) {
-            int max = -1;
-            Vector lines = tinfo.lines;
+         if(complete) {
+            // repeat the whole text on the current page if it fits, otherwise the
+            // current page of the span is blank
+            substr = tinfo != null && getMaxLineEnd(tinfo.lines) >= str.length() ? str : null;
+            break;
+         }
 
-            for(int k = 0; k < lines.size(); k++) {
-               int[] offs = (int[]) lines.get(k);
-               max = Math.max(max, offs[1]);
-            }
+         if(tinfo != null) {
+            int max = getMaxLineEnd(tinfo.lines);
 
             if(max >= 0) {
                isRepeat = max >= substr.length();
@@ -3365,9 +3384,22 @@ public class TablePaintable extends BasePaintable {
                   max++;
                }
 
+               // a merged label that fits on each page of its span is repeated on
+               // every page. the text of a tall row split across pages is complete
+               // once it ends. a merged text that flowed over pages is repeated on
+               // a later page only if the whole text fits there, otherwise its
+               // start would be drawn again cut at the page end (Bug #80840)
                substr = !isRepeat ? substr.substring(max) :
                                     // not repeat? complete
-                                    (!repeatCell ? null : str);
+                                    (!repeatCell || splitSpan ? null : str);
+
+               if(isRepeat && repeatCell && !splitSpan && flowed) {
+                  complete = true;
+                  // check the current page next
+                  i = size - 1;
+               }
+
+               flowed = flowed || !isRepeat;
 
                // the line ends returned by processText exclude the blanks at
                // a wrap, so the remainder starts with them. processText drops
@@ -3401,6 +3433,40 @@ public class TablePaintable extends BasePaintable {
       Object[] vals = new Object[] {substr, repeat};
       remaindercache.put(ocell, vals);
       return vals;
+   }
+
+   /**
+    * Check if the span starting at the cell was created by splitting one tall
+    * row across pages (TableElementDef), instead of being a span (merged cell)
+    * of the table. False if it can't be told, e.g. a deserialized paintable.
+    */
+   private boolean isSplitSpan(int row, int col) {
+      TableLens tbl = lens instanceof PerPageTableLens ?
+         ((PerPageTableLens) lens).getTable() : lens;
+
+      if(!(tbl instanceof SpanTableLens)) {
+         return false;
+      }
+
+      SpanTableLens spanLens = (SpanTableLens) tbl;
+      int base = spanLens.getBaseRowIndex(row);
+
+      return base >= 0 && spanLens.getSpan(row, col) != null &&
+         spanLens.getTable().getSpan(base, col) == null;
+   }
+
+   /**
+    * Get the end offset of the last laid out text line, -1 if no line.
+    */
+   private static int getMaxLineEnd(Vector lines) {
+      int max = -1;
+
+      for(int k = 0; k < lines.size(); k++) {
+         int[] offs = (int[]) lines.get(k);
+         max = Math.max(max, offs[1]);
+      }
+
+      return max;
    }
 
    private void readObject(java.io.ObjectInputStream s)
