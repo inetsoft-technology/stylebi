@@ -2399,6 +2399,15 @@ public class TableElementDef extends BaseElement
       while(odx >= 0) {
          line = (idx >= 0) ? str.substring(odx, idx) : str.substring(odx);
 
+         // Common.processText drops the leading spaces of every wrapped line after
+         // the first one, including a line that starts after a hard newline, so
+         // measure it the same way or the row is reserved more lines than painted
+         if(wrap && odx > 0) {
+            while(line.length() > 0 && line.charAt(0) == ' ') {
+               line = line.substring(1);
+            }
+         }
+
          while(line != null) {
             h += fontH + getSpacing();
 
