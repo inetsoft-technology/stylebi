@@ -337,6 +337,13 @@ public class MVSupportService {
             createMVBackground(views, principal);
          }
          else {
+            // Bug #80511, register the definitions before handing off to the pool so a caller
+            // that reads back right after this method returns already sees them; otherwise the
+            // registration races with that read when no scheduler is running
+            for(MVStatus status : views) {
+               registerDefinition(status, noData);
+            }
+
             remoteCreatePool.submit(() -> {
                try {
                   createMVForeground(views, noData, principal);
@@ -378,6 +385,18 @@ public class MVSupportService {
    }
 
    /**
+    * Registers the definition of a materialized view with the manager. When data is to be
+    * generated the definition is marked unsuccessful until the generation completes.
+    */
+   private void registerDefinition(MVStatus status, boolean noData) {
+      if(!noData) {
+         status.getDefinition().setSuccess(false);
+      }
+
+      mvManager.add(status.getDefinition(), false);
+   }
+
+   /**
     * Creates a set of materialized views.
     *
     * @param views     the materialized views being created.
@@ -394,15 +413,11 @@ public class MVSupportService {
          prefix + MV_TASK_PREFIX + UUID.randomUUID().toString(), ScheduleTask.Type.MV_TASK);
 
       for(MVStatus status : views) {
-         if(noData) {
-            mvManager.add(status.getDefinition(), false);
+         if(!noData) {
+            task.addAction(new MVAction(status.getDefinition()));
          }
-         else {
-            MVAction action = new MVAction(status.getDefinition());
-            task.addAction(action);
-            status.getDefinition().setSuccess(false);
-            mvManager.add(status.getDefinition(), false);
-         }
+
+         registerDefinition(status, noData);
       }
 
       try {

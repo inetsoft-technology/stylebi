@@ -2702,4 +2702,122 @@ class CalcTableServiceTest {
 
       assertNull(formatNotes(bindFormulaUnderObjectDateFormat(decimal)));
    }
+
+   // ── reset of a cell's own format under a whole-object date format (bug 80501) ─────
+
+   private static final java.util.regex.Pattern DATE_ON_NUMBER_80501 =
+      java.util.regex.Pattern.compile(
+         "\\b(date|time)\\b[^.|]*\\b(numeric|number|numbers|1970)\\b|" +
+         "\\b(numeric|number|numbers|1970)\\b[^.|]*\\b(date|time)\\b",
+         java.util.regex.Pattern.CASE_INSENSITIVE);
+
+   /**
+    * A real calc table [S1 | Max(Order:Date) | Sum(Product:Total) | formula 1234] with a real
+    * layout and real format info: an object DateFormat (when {@code objectDate}) and the own
+    * format {@code own} on each of cells [0,1], [0,2], [0,3] (null for none).
+    */
+   private static Harness resetFixture(boolean objectDate, VSCompositeFormat own)
+      throws Exception
+   {
+      inetsoft.report.lens.DefaultTableLens data =
+         new inetsoft.report.lens.DefaultTableLens(new Object[][] { { "a", "b", "c", "d" } });
+      TableLayout layout = new TableLayout();
+      layout.setColCount(4);
+      inetsoft.report.BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(data.getDescriptor().getRowDataPath(0), region);
+
+      layout.setCellBinding(0, 0, new TableCellBinding(CellBinding.BIND_TEXT, "S1"));
+      layout.setCellBinding(0, 1, summary("Order:Date", "Max"));
+      layout.setCellBinding(0, 2, summary("Product:Total", "Sum"));
+      layout.setCellBinding(0, 3, new TableCellBinding(CellBinding.BIND_FORMULA, "1234"));
+
+      CalcTableVSAssembly assembly = new CalcTableVSAssembly(new Viewsheet(), "Calc1");
+      assembly.setTableLayout(layout);
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      FormatInfo formatInfo = info.getFormatInfo();
+
+      if(objectDate) {
+         formatInfo.setFormat(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.OBJECTPATH,
+                              dateFormat());
+      }
+
+      if(own != null) {
+         for(int col = 1; col <= 3; col++) {
+            formatInfo.setFormat(info.getCellDataPath(0, col), own);
+         }
+      }
+
+      Harness h = harnessFor(assembly, info, 1, 4);
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(typedColumn("Order:Date", XSchema.DATE));
+      cols.addAttribute(typedColumn("Product:Total", XSchema.DOUBLE));
+      when(h.columnsHandler().getColumnSelection(any(), any(), any(), any(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean(), anyBoolean(),
+                                                 anyBoolean(), anyBoolean())).thenReturn(cols);
+      return h;
+   }
+
+   private static String resetCheck(Harness h, int col) throws Exception {
+      return h.service.checkResetUnderObjectDateFormat(
+         h.sessions.resolve("tok", principal()), "Calc1", 0, col);
+   }
+
+   private static VSCompositeFormat decimalFormat() {
+      VSCompositeFormat decimal = new VSCompositeFormat();
+      decimal.getUserDefinedFormat().setFormatValue(XConstants.DECIMAL_FORMAT);
+      return decimal;
+   }
+
+   @Test
+   void resetOfAKnownNumericCellUnderAnObjectDateFormatIsRefused() throws Exception {
+      Harness h = resetFixture(true, decimalFormat());
+
+      IllegalArgumentException thrown =
+         assertThrows(IllegalArgumentException.class, () -> resetCheck(h, 2));
+
+      String message = thrown.getMessage();
+      assertTrue(DATE_ON_NUMBER_80501.matcher(message).find(), message);
+      assertTrue(message.contains("[0,2]") && message.contains("'Calc1'") &&
+                 message.contains("Sum(Product:Total)") &&
+                 message.contains(XConstants.DECIMAL_FORMAT), message);
+      assertTrue(message.contains("not applied"), message);
+   }
+
+   @Test
+   void resetOfAFormulaCellUnderAnObjectDateFormatIsDisclosedNotRefused() throws Exception {
+      Harness h = resetFixture(true, decimalFormat());
+
+      String note = resetCheck(h, 3);
+
+      assertNotNull(note);
+      assertTrue(DATE_ON_NUMBER_80501.matcher(note).find(), note);
+      assertTrue(note.contains("[0,3]") && note.contains("1970"), note);
+   }
+
+   @Test
+   void resetOfADateCellUnderAnObjectDateFormatIsAcceptedWithoutANote() throws Exception {
+      assertNull(resetCheck(resetFixture(true, null), 1));
+      assertNull(resetCheck(resetFixture(true, decimalFormat()), 1));
+   }
+
+   @Test
+   void resetOfACellWithoutItsOwnFormatOrWithADateFormatOfItsOwnIsAcceptedWithoutANote()
+      throws Exception
+   {
+      Harness none = resetFixture(true, null);
+      assertNull(resetCheck(none, 2));
+      assertNull(resetCheck(none, 3));
+      Harness ownDate = resetFixture(true, dateFormat());
+      assertNull(resetCheck(ownDate, 2));
+      assertNull(resetCheck(ownDate, 3));
+   }
+
+   @Test
+   void resetWithoutAnObjectDateFormatIsAcceptedWithoutANote() throws Exception {
+      Harness h = resetFixture(false, decimalFormat());
+
+      assertNull(resetCheck(h, 2));
+      assertNull(resetCheck(h, 3));
+   }
 }

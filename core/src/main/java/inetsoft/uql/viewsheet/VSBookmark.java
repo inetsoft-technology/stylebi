@@ -295,6 +295,14 @@ public class VSBookmark implements XMLSerializable {
    /**
     * Blank the selected value of every password text input in the state bytes of a bookmark,
     * the same way a Snapshot export leaves it out of the viewsheet itself.
+    * <p>
+    * The state of an assembly inside an embedded viewsheet is written under the embedded
+    * viewsheet's own element and carries only its local name, so the absolute name used to
+    * look the assembly up is rebuilt from the enclosing embedded viewsheet names. Only the
+    * selected value span of a password input is rewritten; every other byte is kept.
+    * <p>
+    * Fails closed: if the assembly nesting of the state cannot be followed, the selected value
+    * of every text input in it is blanked rather than returning the original bytes.
     */
    static byte[] removePasswordState(byte[] bytes, Viewsheet vs) {
       if(bytes == null) {
@@ -302,33 +310,108 @@ public class VSBookmark implements XMLSerializable {
       }
 
       String xml = new String(bytes, StandardCharsets.UTF_8);
-      Matcher matcher = TEXT_INPUT_STATE.matcher(xml);
+      String blank = "<state_selectedObject><![CDATA[" + Tool.getDataString(null) +
+         "]]></state_selectedObject>";
+      String textInputClass = TextInputVSAssembly.class.getName();
+      String viewsheetClass = Viewsheet.class.getName();
+      Matcher matcher = ASSEMBLY_TOKEN.matcher(xml);
+      List<AssemblyFrame> stack = new ArrayList<>();
       StringBuilder buf = new StringBuilder();
+      int copied = 0;
       boolean changed = false;
+      boolean balanced = true;
 
       while(matcher.find()) {
-         String body = matcher.group(3);
-         VSAssembly assembly = vs.getAssembly(matcher.group(2));
+         String token = matcher.group();
+
+         if(token.startsWith("<![CDATA[")) {
+            continue;
+         }
+
+         if(!token.startsWith("</")) {
+            AssemblyFrame frame = new AssemblyFrame();
+            Matcher cmatcher = CLASS_ATTR.matcher(token);
+            frame.cls = cmatcher.find() ? cmatcher.group(1) : null;
+            frame.bodyStart = matcher.end();
+
+            if(xml.startsWith(NAME_OPEN, frame.bodyStart)) {
+               int nend = xml.indexOf(NAME_CLOSE, frame.bodyStart + NAME_OPEN.length());
+
+               if(nend > 0) {
+                  frame.name = xml.substring(frame.bodyStart + NAME_OPEN.length(), nend);
+                  frame.bodyStart = nend + NAME_CLOSE.length();
+               }
+            }
+
+            stack.add(frame);
+            continue;
+         }
+
+         if(stack.isEmpty()) {
+            balanced = false;
+            break;
+         }
+
+         AssemblyFrame frame = stack.remove(stack.size() - 1);
+
+         if(!textInputClass.equals(frame.cls) || frame.name == null) {
+            continue;
+         }
+
+         StringBuilder absName = new StringBuilder();
+
+         for(AssemblyFrame parent : stack) {
+            if(viewsheetClass.equals(parent.cls) && parent.name != null) {
+               absName.append(parent.name).append('.');
+            }
+         }
+
+         absName.append(frame.name);
+         VSAssembly assembly = vs.getAssembly(absName.toString());
 
          if(assembly instanceof TextInputVSAssembly &&
             ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).isPassword())
          {
-            body = SELECTED_OBJECT_STATE.matcher(body).replaceAll(Matcher.quoteReplacement(
-               "<state_selectedObject><![CDATA[" + Tool.getDataString(null) +
-               "]]></state_selectedObject>"));
+            String body = xml.substring(frame.bodyStart, matcher.start());
+            buf.append(xml, copied, frame.bodyStart);
+            buf.append(SELECTED_OBJECT_STATE.matcher(body).replaceAll(
+               Matcher.quoteReplacement(blank)));
+            copied = matcher.start();
             changed = true;
          }
+      }
 
-         matcher.appendReplacement(
-            buf, Matcher.quoteReplacement(matcher.group(1) + body + "</assembly>"));
+      if(!balanced || !stack.isEmpty()) {
+         return blankAllTextInputState(xml, blank).getBytes(StandardCharsets.UTF_8);
       }
 
       if(!changed) {
          return bytes;
       }
 
-      matcher.appendTail(buf);
+      buf.append(xml, copied, xml.length());
       return buf.toString().getBytes(StandardCharsets.UTF_8);
+   }
+
+   private static String blankAllTextInputState(String xml, String blank) {
+      Matcher matcher = TEXT_INPUT_STATE.matcher(xml);
+      StringBuilder buf = new StringBuilder();
+
+      while(matcher.find()) {
+         String body = SELECTED_OBJECT_STATE.matcher(matcher.group(3)).replaceAll(
+            Matcher.quoteReplacement(blank));
+         matcher.appendReplacement(
+            buf, Matcher.quoteReplacement(matcher.group(1) + body + "</assembly>"));
+      }
+
+      matcher.appendTail(buf);
+      return buf.toString();
+   }
+
+   private static final class AssemblyFrame {
+      private String cls;
+      private String name;
+      private int bodyStart;
    }
 
    /**
@@ -679,6 +762,11 @@ public class VSBookmark implements XMLSerializable {
    private static final Pattern TEXT_INPUT_STATE = Pattern.compile(
       "(<assembly class=\"" + Pattern.quote(TextInputVSAssembly.class.getName()) +
       "\"><name><!\\[CDATA\\[(.*?)\\]\\]></name>)(.*?)</assembly>", Pattern.DOTALL);
+   private static final Pattern ASSEMBLY_TOKEN = Pattern.compile(
+      "<!\\[CDATA\\[.*?\\]\\]>|<assembly(?=[\\s>])[^>]*>|</assembly>", Pattern.DOTALL);
+   private static final Pattern CLASS_ATTR = Pattern.compile("\\sclass=\"([^\"]*)\"");
+   private static final String NAME_OPEN = "<name><![CDATA[";
+   private static final String NAME_CLOSE = "]]></name>";
    private static final Pattern SELECTED_OBJECT_STATE = Pattern.compile(
       "<state_selectedObject[^>]*>.*?</state_selectedObject>", Pattern.DOTALL);
    private Map<String, Object> bmap; // bookmark map

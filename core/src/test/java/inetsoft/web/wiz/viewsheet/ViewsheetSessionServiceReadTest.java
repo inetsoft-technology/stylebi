@@ -54,7 +54,7 @@ class ViewsheetSessionServiceReadTest {
       assertEquals("read-result", seen, "the value the read produced must come back");
       verify(h.rvs, never()).addCheckpoint(any());
       verify(h.broadcast, never()).broadcastRefresh(any(), any(), anyString(),
-                                                    any(Principal.class));
+                                                    any(Principal.class), any());
    }
 
    @Test
@@ -89,7 +89,8 @@ class ViewsheetSessionServiceReadTest {
             dispatcher.sendCommand(errorCommand())));
 
       verify(h.rvs).addCheckpoint(any());
-      verify(h.broadcast).broadcastRefresh(any(), any(), anyString(), any(Principal.class));
+      verify(h.broadcast).broadcastRefresh(any(), any(), anyString(), any(Principal.class),
+                                           any());
    }
 
    /** The message must say the edit may be half-applied, since the caller cannot tell. */

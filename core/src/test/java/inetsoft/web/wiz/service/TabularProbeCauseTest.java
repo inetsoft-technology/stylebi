@@ -160,6 +160,56 @@ class TabularProbeCauseTest {
       assertNull(TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null)));
    }
 
+   @Test
+   void completedEmptyClauseIsReturnedWhenTheRunCompletedAndNothingElseSpeaks() {
+      TabularQuery query = completedQuery(0);
+
+      String clause = TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null));
+
+      assertNotNull(clause);
+      assertTrue(clause.startsWith("completed without reporting an error"), clause);
+      assertTrue(clause.contains("zero rows"), clause);
+      assertFalse(java.util.regex.Pattern.compile("credential|password|authenticat",
+                                                  java.util.regex.Pattern.CASE_INSENSITIVE)
+                     .matcher(clause).find(), clause);
+   }
+
+   @Test
+   void completedEmptyClauseIsNullWhenTheRunDidNotComplete() {
+      TabularQuery query = query(0);
+
+      assertNull(TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null)));
+   }
+
+   @Test
+   void completedEmptyClauseIsNullWhenThereIsALoadError() {
+      TabularQuery query = completedQuery(0);
+
+      assertNull(TabularProbeCause.zeroRowsClause(
+         query, "connection refused", TabularProbeCause.read(query, "connection refused")));
+   }
+
+   @Test
+   void completedEmptyClauseIsNullWhenTheConnectorLeftAMessage() {
+      TabularQuery query = completedQuery(0);
+      CoreTool.addUserMessage("Failed to execute MongoDB query: auth failed");
+
+      assertNull(TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null)));
+   }
+
+   @Test
+   void completedEmptyClauseIsNullOnATimeout() {
+      TabularQuery query = completedQuery(3);
+
+      assertNull(TabularProbeCause.zeroRowsClause(query, null, TabularProbeCause.read(query, null)));
+   }
+
+   private static TabularQuery completedQuery(int timedOutSeconds) {
+      TabularQuery query = query(timedOutSeconds);
+      when(query.isRunCompleted()).thenReturn(true);
+      return query;
+   }
+
    private static TabularQuery queryWithShape(int timedOutSeconds, Object shape) {
       TabularQuery query = query(timedOutSeconds);
       when(query.getResponseShape()).thenReturn(shape);

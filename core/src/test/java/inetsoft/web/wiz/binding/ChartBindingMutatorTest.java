@@ -48,6 +48,7 @@ import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartGeoRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticLineModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticShapeModel;
@@ -1849,6 +1850,111 @@ class ChartBindingMutatorTest {
       assertNull(((ChartAggregateRefModel) model.getYFields().get(0)).getColorField());
    }
 
+   // ── per-measure aesthetic fields survive a same-measure resend (#80669) ────
+
+   private static ChartAggregateRefModel withAllAestheticFields(ChartAggregateRefModel ref) {
+      ref.setColorField(aestheticOn("PHASE"));
+      ref.setShapeField(aestheticOn("REGION"));
+      ref.setSizeField(aestheticOn("OWNER"));
+      ref.setTextField(aestheticOn("TASK"));
+      return ref;
+   }
+
+   private static ChartAggregateRefModel agg(ChartBindingModel model, String shelf, int i) {
+      List<ChartRefModel> refs = "x".equals(shelf) ? model.getXFields() : model.getYFields();
+      return (ChartAggregateRefModel) refs.get(i);
+   }
+
+   @Test
+   void sameMeasureYResendKeepsPerMeasureAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+      ChartAggregateRefModel before = withAllAestheticFields(agg(model, "y", 0));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+
+      ChartAggregateRefModel after = agg(model, "y", 0);
+      assertNotSame(before, after);
+      assertEquals("PHASE", after.getColorField().getFullName());
+      assertEquals("REGION", after.getShapeField().getFullName());
+      assertEquals("OWNER", after.getSizeField().getFullName());
+      assertEquals("TASK", after.getTextField().getFullName());
+   }
+
+   @Test
+   void carriedAestheticFieldIsACopyNotTheSharedInstance() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+      ChartAggregateRefModel before = withAllAestheticFields(agg(model, "y", 0));
+      AestheticInfo oldColor = before.getColorField();
+
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+
+      assertNotNull(agg(model, "y", 0).getColorField());
+      assertNotSame(oldColor, agg(model, "y", 0).getColorField());
+   }
+
+   @Test
+   void sameMeasureXResendKeepsPerMeasureAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "x", List.of(sales));
+      withAllAestheticFields(agg(model, "x", 0));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(sales));
+
+      assertEquals("TASK", agg(model, "x", 0).getTextField().getFullName());
+      assertEquals("PHASE", agg(model, "x", 0).getColorField().getFullName());
+   }
+
+   @Test
+   void twoMeasuresKeepTheirOwnAestheticFieldsInOrder() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      FieldRef qty = new FieldRef("Qty", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales, qty));
+      agg(model, "y", 0).setColorField(aestheticOn("A"));
+      agg(model, "y", 1).setTextField(aestheticOn("B"));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(sales, qty));
+
+      assertEquals("A", agg(model, "y", 0).getColorField().getFullName());
+      assertNull(agg(model, "y", 0).getTextField());
+      assertNull(agg(model, "y", 1).getColorField());
+      assertEquals("B", agg(model, "y", 1).getTextField().getFullName());
+   }
+
+   @Test
+   void insertingADimensionAheadOfAMeasureKeepsItsAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef sales = new FieldRef("Sales", "measure", "Sum", null, null);
+      ChartBindingMutator.setShelf(model, "y", List.of(sales));
+      withAllAestheticFields(agg(model, "y", 0));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(dimension("Region"), sales));
+
+      ChartAggregateRefModel after = agg(model, "y", 1);
+      assertEquals("PHASE", after.getColorField().getFullName());
+      assertEquals("TASK", after.getTextField().getFullName());
+   }
+
+   @Test
+   void changingTheFormulaOnTheSameColumnStartsFreshOnAestheticFields() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      withAllAestheticFields(agg(model, "y", 0));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Average", null, null)));
+
+      ChartAggregateRefModel after = agg(model, "y", 0);
+      assertNull(after.getColorField());
+      assertNull(after.getTextField());
+   }
+
    // ── single shelf field kind (#78360) ──────────────────────────────────────
 
    private static FieldRef dimension(String col) {
@@ -3250,5 +3356,145 @@ class ChartBindingMutatorTest {
       ChartBindingModel model = monthOnX();
       assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
          List.of(runningMeasure(false, "Order Date"))));
+   }
+
+   // ── a formula change resets the calculator and says so (bug #80648) ────────────────────
+
+   private static FieldRef calcOn(String column, String aggregate) {
+      return measureWithCalc(column, aggregate, runningTotal(aggregate));
+   }
+
+   private static FieldRef plain(String column, String aggregate) {
+      return new FieldRef(column, "measure", aggregate, null, null);
+   }
+
+   private static ChartBindingModel yWith(FieldRef... fields) {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(fields));
+      ChartBindingMutator.drainNotes();
+      return model;
+   }
+
+   private static ChartAggregateRefModel y(ChartBindingModel model, int index) {
+      return (ChartAggregateRefModel) model.getYFields().get(index);
+   }
+
+   private static void assertOneResetNote(List<String> notes, String column, String change) {
+      assertEquals(1, notes.size(), notes.toString());
+      assertTrue(notes.get(0).startsWith(ChartBindingMutator.NOTE_PREFIX), notes.get(0));
+      assertTrue(notes.get(0).startsWith("Binding reset: "), notes.get(0));
+      assertTrue(notes.get(0).contains("'" + column + "'") &&
+                 notes.get(0).contains("RUNNINGTOTAL") && notes.get(0).contains(change) &&
+                 notes.get(0).contains("calculateInfo"), notes.get(0));
+      assertEquals(1, notes.get(0).split("did not name", -1).length - 1, notes.get(0));
+   }
+
+   @Test
+   void aChartFormulaChangeThatDropsACalculatorSaysSo() {
+      ChartBindingModel model = yWith(calcOn("Sales", "Sum"));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(plain("Sales", "Average")));
+
+      assertNull(y(model, 0).getCalculateInfo());
+      assertOneResetNote(ChartBindingMutator.drainNotes(), "Sales", "Sum to Average");
+   }
+
+   @Test
+   void aChartMeasureBoundTwiceThatLosesItsCalculatorSaysSo() {
+      ChartBindingModel model = yWith(calcOn("Sales", "Sum"), plain("Sales", "Average"));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(plain("Sales", "Average"), plain("Sales", "Average")));
+      assertNull(y(model, 0).getCalculateInfo());
+      assertNull(y(model, 1).getCalculateInfo());
+      assertOneResetNote(ChartBindingMutator.drainNotes(), "Sales", "Sum to Average");
+
+      model = yWith(plain("Sales", "Sum"), calcOn("Sales", "Sum"));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(plain("Sales", "Sum"), plain("Sales", "Average")));
+      assertNull(y(model, 1).getCalculateInfo());
+      assertOneResetNote(ChartBindingMutator.drainNotes(), "Sales", "Sum to Average");
+   }
+
+   @Test
+   void aChartCalculatorThatPairsWithASurvivingMeasureIsKeptWithNoNote() {
+      ChartBindingModel model = yWith(calcOn("Sales", "Sum"), plain("Sales", "Sum"));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(plain("Sales", "Average"), plain("Sales", "Sum")));
+
+      assertNull(y(model, 0).getCalculateInfo());
+      assertNotNull(y(model, 1).getCalculateInfo());
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty());
+   }
+
+   @Test
+   void aChartResendWithTheSameFormulaOrAnExplicitCalculateInfoRaisesNoResetNote()
+      throws Exception
+   {
+      ChartBindingModel model = yWith(calcOn("Sales", "Sum"));
+      ChartBindingMutator.setShelf(model, "y", List.of(plain("Sales", "Sum")));
+      assertNotNull(y(model, 0).getCalculateInfo());
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty());
+
+      ChartBindingMutator.setShelf(model, "y", List.of(calcOn("Sales", "Average")));
+      assertNotNull(y(model, 0).getCalculateInfo());
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty());
+
+      model = yWith(calcOn("Sales", "Sum"));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+            "{\"column\":\"Sales\",\"type\":\"measure\",\"aggregate\":\"Average\"," +
+            "\"calculateInfo\":null}", FieldRef.class)));
+      assertNull(y(model, 0).getCalculateInfo());
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty());
+   }
+
+   @Test
+   void aRemovedChartMeasureIsNotReportedAsAFormulaChange() {
+      ChartBindingModel model = yWith(calcOn("Sales", "Sum"), plain("Cost", "Sum"));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(plain("Cost", "Sum")));
+
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty());
+   }
+
+   @Test
+   void aSingleShelfFormulaChangeThatDropsACalculatorSaysSo() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(model, "close", calcOn("Price", "Sum"));
+      ChartBindingMutator.drainNotes();
+
+      ChartBindingMutator.setSingleShelf(model, "close", plain("Price", "Average"));
+
+      assertNull(((ChartAggregateRefModel)
+         ChartBindingMutator.readSingleShelf(model, "close")).getCalculateInfo());
+      assertOneResetNote(ChartBindingMutator.drainNotes(), "Price", "Sum to Average");
+   }
+
+   @Test
+   void anAestheticCarryOfAChangedFormulaSaysSoAndASameFormulaDoesNot() {
+      ChartAggregateRefModel previous = new ChartAggregateRefModel();
+      previous.setColumnValue("Sales");
+      previous.setFormula("Sum");
+      previous.setCalculateInfo(runningTotal("Sum"));
+      ChartAggregateRefModel same = new ChartAggregateRefModel();
+      same.setColumnValue("Sales");
+      same.setFormula("Sum");
+      ChartAggregateRefModel changed = new ChartAggregateRefModel();
+      changed.setColumnValue("Sales");
+      changed.setFormula("Average");
+      ChartAggregateRefModel otherColumn = new ChartAggregateRefModel();
+      otherColumn.setColumnValue("Cost");
+      otherColumn.setFormula("Average");
+      ChartBindingMutator.drainNotes();
+
+      ChartBindingMutator.carryForwardSameField(previous, same, plain("Sales", "Sum"));
+      ChartBindingMutator.carryForwardSameField(previous, otherColumn, plain("Cost", "Average"));
+      assertNotNull(same.getCalculateInfo());
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty());
+
+      ChartBindingMutator.carryForwardSameField(previous, changed, plain("Sales", "Average"));
+      assertNull(changed.getCalculateInfo());
+      assertOneResetNote(ChartBindingMutator.drainNotes(), "Sales", "Sum to Average");
    }
 }

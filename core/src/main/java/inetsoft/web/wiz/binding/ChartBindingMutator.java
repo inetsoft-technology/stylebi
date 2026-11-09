@@ -137,6 +137,10 @@ public final class ChartBindingMutator {
       // be circular here -- secondaryY is one of the fields this fix itself restores).
       List<ChartAggregateRefModel> unconsumedAggregates = new ArrayList<>();
 
+      // Incoming measures that inherited nothing and named no calculator: the only ones a
+      // vanished calculator can be reported against (bug #80648).
+      List<Object[]> freshAggregates = new ArrayList<>();
+
       // Same pool for dimensions, matched by identity (column + date level), not by index.
       List<ChartDimensionRefModel> unconsumedDimensions = new ArrayList<>();
 
@@ -162,6 +166,7 @@ public final class ChartBindingMutator {
             field, model, rvs, source, refModelService,
             FieldRefFactory.findExpertPlaceholder(field, oldRefs));
          requireDiscreteAllowed(model, name, field, ref);
+         requireDiscreteAllowedForCalcField(model, rvs, source, field, ref, oldRefs);
 
          if(ref instanceof ChartDimensionRefModel dimension) {
             ChartDimensionRefModel previous = null;
@@ -199,11 +204,21 @@ public final class ChartBindingMutator {
                unconsumedAggregates.remove(previousAgg);
                preserveAggregateState(previousAgg, aggregate, field);
                preserveAggregateFrames(previousAgg, aggregate);
+               // Bug #80669: a multi-style chart's per-measure colour/shape/size/text fields
+               // live on the measure ref, which toChartRef rebuilds, so a same-measure resend
+               // used to drop them. Same-measure only (column + formula): a different measure,
+               // or Sum -> Average on one column, starts fresh like the frames above.
+               copyAggregateAestheticFields(previousAgg, aggregate);
+            }
+            else if(field.calculateInfo() == null && !field.clearsCalculateInfo()) {
+               freshAggregates.add(new Object[] { field, aggregate });
             }
          }
 
          refs.add(ref);
       }
+
+      noteResetCalculators(unconsumedAggregates, freshAggregates);
 
       // Only x/y ever carry a per-measure chartType (multi-style) -- group's aggregates have
       // none to lose, so this is skipped there rather than harmlessly doing nothing every call.
@@ -486,6 +501,46 @@ public final class ChartBindingMutator {
       }
    }
 
+   /**
+    * Refuses {@code discrete:true} on an aggregate calc field ({@code baseOnDetail} false) whatever
+    * its aggregate (bug #80504): the Composer disables Discrete for it (the discrete join cannot
+    * do the two-stage grouping), but only an omitted aggregate resolved to none was refused, so an
+    * explicit {@code Sum} was accepted. Skipped without {@code rvs}.
+    *
+    * <p>The write is a read-modify-write, so an untouched field is resent with the
+    * {@code discrete:true} it read back. A chart that already holds such a measure (written
+    * before this guard) must stay editable, so the refusal is skipped when {@code previousRefs}
+    * already holds that column as a discrete measure: it judges what a write <em>newly</em>
+    * turns on, not what was already stored.
+    *
+    * @param previousRefs what the slot held before this write (may contain nulls).
+    */
+   static void requireDiscreteAllowedForCalcField(ChartBindingModel model, RuntimeViewsheet rvs,
+                                                  SourceInfo source, FieldRef field,
+                                                  ChartRefModel ref,
+                                                  List<? extends ChartRefModel> previousRefs)
+   {
+      if(field == null || !Boolean.TRUE.equals(field.discrete()) ||
+         !(ref instanceof ChartAggregateRefModel) ||
+         FieldRefFactory.aggregateCalcField(model, rvs, source, field.column()) == null)
+      {
+         return;
+      }
+
+      for(ChartRefModel previous : previousRefs == null ? List.<ChartRefModel>of() : previousRefs) {
+         if(previous instanceof ChartAggregateRefModel aggregate && aggregate.isDiscrete() &&
+            equalsIgnoreCaseOrBothNull(aggregate.getColumnValue(), field.column()))
+         {
+            return;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "Measure '" + field.column() + "' cannot be discrete: it is an aggregate calc field " +
+         "(computed from other aggregates), and the Composer disables Discrete for it whatever " +
+         "its aggregate. Omit 'discrete' or set it to false.");
+   }
+
    private static boolean sameMeasure(ChartAggregateRefModel a, ChartAggregateRefModel b) {
       return equalsIgnoreCaseOrBothNull(a.getColumnValue(), b.getColumnValue()) &&
              equalsIgnoreCaseOrBothNull(a.getFormula(), b.getFormula());
@@ -583,6 +638,33 @@ public final class ChartBindingMutator {
       aggregate.setShapeField(previous.getShapeField());
       aggregate.setSizeField(previous.getSizeField());
       aggregate.setTextField(previous.getTextField());
+   }
+
+   /**
+    * Same-measure counterpart of {@link #preserveAggregateAestheticFields} for the x/y/group
+    * shelf rewrite: each carried {@code AestheticInfo} is copied, not shared, because the
+    * previous ref stays referenced by the pre-write model until the caller replaces the shelf.
+    * The frame and data ref are shared, as {@link #preserveAggregateFrames} already does.
+    */
+   private static void copyAggregateAestheticFields(ChartAggregateRefModel previous,
+                                                     ChartAggregateRefModel aggregate)
+   {
+      aggregate.setColorField(copyOf(previous.getColorField()));
+      aggregate.setShapeField(copyOf(previous.getShapeField()));
+      aggregate.setSizeField(copyOf(previous.getSizeField()));
+      aggregate.setTextField(copyOf(previous.getTextField()));
+   }
+
+   private static AestheticInfo copyOf(AestheticInfo info) {
+      if(info == null) {
+         return null;
+      }
+
+      AestheticInfo copy = new AestheticInfo();
+      copy.setFullName(info.getFullName());
+      copy.setDataInfo(info.getDataInfo());
+      copy.setFrame(info.getFrame());
+      return copy;
    }
 
    /**
@@ -755,6 +837,8 @@ public final class ChartBindingMutator {
             field, Collections.singletonList(readSingleShelf(model, name))));
 
       requireDiscreteAllowed(model, name, field, ref);
+      requireDiscreteAllowedForCalcField(
+         model, rvs, source, field, ref, Collections.singletonList(readSingleShelf(model, name)));
 
       // After toChartRef so a missing/invalid 'type' keeps the type error, and before
       // assignSingleShelf so a refusal leaves the shelf and any prior binding untouched.
@@ -907,12 +991,81 @@ public final class ChartBindingMutator {
          preserveDimensionState(previousDim, dimension, field);
       }
       else if(ref instanceof ChartAggregateRefModel aggregate &&
-              previous instanceof ChartAggregateRefModel previousAgg &&
-              sameMeasure(previousAgg, aggregate))
+              previous instanceof ChartAggregateRefModel previousAgg)
       {
-         preserveAggregateState(previousAgg, aggregate, field);
-         preserveAggregateFrames(previousAgg, aggregate);
+         if(sameMeasure(previousAgg, aggregate)) {
+            preserveAggregateState(previousAgg, aggregate, field);
+            preserveAggregateFrames(previousAgg, aggregate);
+         }
+         else if(field.calculateInfo() == null && !field.clearsCalculateInfo() &&
+                 previousAgg.getCalculateInfo() != null &&
+                 columnOf(previousAgg).equalsIgnoreCase(columnOf(aggregate)))
+         {
+            noteReset(previousAgg, aggregate, field);
+         }
       }
+   }
+
+   /**
+    * A measure whose formula changes is a new measure, so the old one's calculator has nothing to
+    * land on and is reset. That is the same contract as a table, and like a table it must be
+    * said: a caller who changed Sum to Average would otherwise read plain averages as a
+    * percentage. Each vanished calculator is paired, per column and in order, with a fresh
+    * same-column measure that named no calculateInfo; a vanished one with no such partner (a
+    * removed measure) is not reported. Bug #80648.
+    */
+   private static void noteResetCalculators(List<ChartAggregateRefModel> vanished,
+                                            List<Object[]> fresh)
+   {
+      for(ChartAggregateRefModel old : vanished) {
+         if(old.getCalculateInfo() == null) {
+            continue;
+         }
+
+         for(int j = 0; j < fresh.size(); j++) {
+            ChartAggregateRefModel candidate = (ChartAggregateRefModel) fresh.get(j)[1];
+
+            if(columnOf(candidate).equalsIgnoreCase(columnOf(old))) {
+               noteReset(old, candidate, (FieldRef) fresh.get(j)[0]);
+               fresh.remove(j);
+               break;
+            }
+         }
+      }
+   }
+
+   private static void noteReset(ChartAggregateRefModel old, ChartAggregateRefModel replacement,
+                                 FieldRef field)
+   {
+      String change = field.aggregate() == null
+         ? "to the default formula" : "to " + field.aggregate();
+      String name = old.getCalculateInfo().getClass().getSimpleName();
+      name = name.endsWith("CalcInfo")
+         ? name.substring(0, name.length() - "CalcInfo".length()).toUpperCase() : name;
+      NOTES.get().add(NOTE_PREFIX + "the calculator on '" + columnOf(old) + "' (" + name +
+         ") was removed, because its formula changed from " + old.getFormula() + " " + change +
+         " and this write did not name calculateInfo. Send calculateInfo to set one.");
+   }
+
+   private static String columnOf(ChartAggregateRefModel agg) {
+      String column = agg.getColumnValue() != null ? agg.getColumnValue() : agg.getName();
+      return column == null ? "" : column;
+   }
+
+   /** Prefix of every message {@link #drainNotes} returns; the plugin splits on it. */
+   public static final String NOTE_PREFIX = TableBindingMutator.NOTE_PREFIX;
+
+   private static final ThreadLocal<List<String>> NOTES = ThreadLocal.withInitial(ArrayList::new);
+
+   /**
+    * The messages about state this thread's last chart shelf/aesthetic writes reset on their own
+    * (a calculator dropped by a formula change), cleared as they are read. The service relays
+    * them; call it once before a mutation to drop any left over.
+    */
+   public static List<String> drainNotes() {
+      List<String> out = new ArrayList<>(NOTES.get());
+      NOTES.get().clear();
+      return out;
    }
 
    /**

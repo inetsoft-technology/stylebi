@@ -3193,6 +3193,40 @@ class ChartAestheticMutatorTest {
       assertNull(profit.calculateInfo());
    }
 
+   /** Bug #80669: a text field bound on one measure only must read back, not report null. */
+   @Test
+   @SuppressWarnings("unchecked")
+   void multiAestheticDescribeReadsATextFieldBoundOnOneMeasureOnly() {
+      ChartBindingModel model = multiStyleModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Qty", "Sum")));
+      ChartBindingModel scratch = new ChartBindingModel();
+      ChartAestheticMutator.setField(scratch, "text", dimension("Qty"));
+      y(model, 1).setTextField(scratch.getTextField());
+
+      Map<String, Object> view = (Map<String, Object>) ChartAestheticMutator
+         .describe(model, false, ALL_PER_MEASURE, true, true, true, true).get("text");
+
+      assertEquals("Qty", view.get("field"));
+      assertNull(view.get("fieldRef"));
+      assertNull(view.get("frame"), "text has no frame");
+      assertEquals(Boolean.FALSE, view.get("acceptsField"));
+      Map<String, Object> refs = (Map<String, Object>) view.get("fieldRefsByMeasure");
+      assertNotNull(refs);
+      assertEquals(java.util.Set.of("Qty"), refs.keySet());
+   }
+
+   @Test
+   void singleStyleDescribeOfTextHasNoFieldRefsByMeasure() {
+      ChartBindingModel model = multiStyleModel();
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> text = (Map<String, Object>) ChartAestheticMutator
+         .describe(model, false, ALL_PER_MEASURE, true, true, true, false).get("text");
+
+      assertFalse(text.containsKey("fieldRefsByMeasure"));
+   }
+
    @Test
    void singleStyleDescribeHasNoFieldRefsByMeasure() {
       ChartBindingModel model = multiStyleModel();

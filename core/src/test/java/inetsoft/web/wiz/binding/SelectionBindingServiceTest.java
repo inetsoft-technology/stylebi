@@ -84,7 +84,9 @@ class SelectionBindingServiceTest {
          Catalog.getCatalog().getString("Script failed") + failure, null);
 
       assertEquals("ORDERS", result.get("table"));
-      assertEquals(List.of(failure), result.get("warnings"));
+      List<?> warnings = (List<?>) result.get("warnings");
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(((String) warnings.get(0)).startsWith(failure), warnings.toString());
    }
 
    @Test

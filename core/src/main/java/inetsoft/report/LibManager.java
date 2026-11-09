@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.event.ActionListener;
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -755,6 +756,24 @@ public class LibManager implements AutoCloseable {
       scripts.clear();
       styleFolders.clear();
       styles.clear();
+   }
+
+   /**
+    * Runs {@code action} while holding this manager's monitor, the one every reload
+    * ({@link #reloadLibrary()}, {@link #init()}) and {@link #save()} also take. A mutation,
+    * its {@link #save()} and a read-back done inside the action therefore cannot be wiped by a
+    * reload of the stored library: one already running finishes first, and one arriving later runs
+    * after the save and reads the saved state.
+    *
+    * <p>The action must only touch this manager. It must never reach {@code LibManagerProvider}
+    * (directly, or through a service such as {@code ScriptLibraryService.exists}) or take any
+    * other outer lock: {@code LibManagerProvider.getManager} takes its own lock and then this
+    * monitor, so taking them in the opposite order inside the action can deadlock. Keep
+    * dependency, permission, audit and cluster calls outside. Note that {@link #renameScript}
+    * queues a (non-waiting) rename transform task while this monitor is held.
+    */
+   public synchronized <T> T runAtomically(Callable<T> action) throws Exception {
+      return action.call();
    }
 
    /**

@@ -175,7 +175,8 @@ class WorksheetMutationSupportRenamedSqlColumnTypeTest {
 
       assertEquals(List.of(),
                    WorksheetMutationSupport.applySqlResultTypes(columns, query, sql, null));
-      verifyNoInteractions(query);
+      // Bug #80785: the resolvability probe may read the query, but no result metadata is fetched
+      verify(query, never()).getOutputTypeForNonParseableSQL(any(), any(), any());
    }
 
    /** Columns of a derived table s, each typed with the string default as the parser does. */

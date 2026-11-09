@@ -341,7 +341,8 @@ class ScheduleChangePlanServiceTest {
       assertTrue(change.proposedValue().contains("t1"));
       assertEquals("high", change.risk());
       assertEquals("storage", change.snapshotScope());
-      assertTrue(plan.requiresStorageBackup());
+      // Bug #80650: a create-only plan makes a new object with a live undo -- no snapshot needed.
+      assertFalse(plan.requiresStorageBackup());
       assertTrue(plan.requiresAgentSignoff());
       assertNotNull(plan.planHash());
    }
@@ -420,6 +421,23 @@ class ScheduleChangePlanServiceTest {
       assertEquals("t1", change.property());
       assertNotNull(change.currentValue());
       assertNull(change.proposedValue());
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveMixedCreateAndDeleteKeepsStorageBackup() throws Exception {
+      CreateScheduleTaskRequest spec = createSpec("t1", "admin");
+      String newId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
+      when(scheduleManager.getScheduleTask(newId)).thenReturn(null);
+      when(scheduleGateway.hasDeletePermission(newId, user)).thenReturn(true);
+      when(scheduleManager.getScheduleTask("t2")).thenReturn(sreeTask("t2", "admin"));
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      ScheduleChangePlanRequest req =
+         request("mixed", List.of(createChange(spec), deleteChange("t2")));
+
+      ResolvedPlan plan = service.resolve(req, user);
+
+      assertEquals(2, plan.changes().size());
+      assertTrue(plan.requiresStorageBackup());
    }
 
    // -------------------------------------------------------------------------

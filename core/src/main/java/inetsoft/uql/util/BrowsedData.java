@@ -165,7 +165,18 @@ public class BrowsedData {
    }
 
    public String[][] getBrowsedData(Function<Object, String> lbFunc, int option, boolean ignoreEmpty) {
+      return getBrowsedData(lbFunc, option, ignoreEmpty, false).data();
+   }
+
+   /**
+    * Get browse data, optionally dropping null values and reporting whether any were dropped.
+    * Opt-in so that existing callers keep their behavior.
+    */
+   public ColumnCache.FormatResult getBrowsedData(Function<Object, String> lbFunc, int option,
+                                                  boolean ignoreEmpty, boolean dropNull)
+   {
       String[][] data = null;
+      boolean nullExcluded = false;
       user = user == null ? ThreadContext.getContextPrincipal() : user;
 
       if(!applyVPM) {
@@ -176,20 +187,26 @@ public class BrowsedData {
          ColumnCache cache = ColumnCache.getColumnCache();
 
          if(asset != null) {
-            data = cache.getColumnDataString(wsproc, asset, field, type, user,
-               vars, quotes, lbFunc, option, ignoreEmpty);
+            ColumnCache.FormatResult result = cache.getColumnDataString(wsproc, asset, field,
+               type, user, vars, quotes, lbFunc, option, ignoreEmpty, dropNull);
+            data = result.data();
+            nullExcluded = result.nullExcluded();
          }
          else if(sqlAvailable) {
-            data = cache.getColumnDataString(qrep, query, field, type, user,
-               vars, quotes, lbFunc, option);
+            ColumnCache.FormatResult result = cache.getColumnDataString(qrep, query, field,
+               type, user, vars, quotes, lbFunc, option, dropNull);
+            data = result.data();
+            nullExcluded = result.nullExcluded();
          }
          else {
             // there are two cases that table name doesn't exist in
             // SQLDefinition of the query. One is new query of Qeury Wizard.
             // Another is adding tables on JDBCTableGraph. They all need
             // compose sql string to get browse data
-            data = cache.getColumnDataString(xquery, table, field, type,
-               user, vars, quotes, lbFunc, option);
+            ColumnCache.FormatResult result = cache.getColumnDataString(xquery, table, field,
+               type, user, vars, quotes, lbFunc, option, dropNull);
+            data = result.data();
+            nullExcluded = result.nullExcluded();
 
             if(fixLiterals) {
                SQLHelper helper = SQLHelper.getSQLHelper(xquery.getDataSource(), user);
@@ -205,7 +222,7 @@ public class BrowsedData {
          LOG.debug("Failed to get browse data", ex);
       }
 
-      return data != null ? data : new String[2][0];
+      return new ColumnCache.FormatResult(data != null ? data : new String[2][0], nullExcluded);
    }
 
    /**

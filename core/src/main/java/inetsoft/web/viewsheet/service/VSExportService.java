@@ -753,8 +753,8 @@ public class VSExportService {
             ((CSVVSExporter) exporter).setExcelFile(excelFile);
          }
 
-         if(tableObserver != null && exporter instanceof CSVVSExporter) {
-            ((CSVVSExporter) exporter).setTableObserver(tableObserver);
+         if(tableObserver != null && exporter instanceof AbstractVSExporter) {
+            ((AbstractVSExporter) exporter).setTableObserver(tableObserver);
          }
 
          writeViewsheetExport(rvs, exporter, principal, match, expandSelections, current, bookmarks,

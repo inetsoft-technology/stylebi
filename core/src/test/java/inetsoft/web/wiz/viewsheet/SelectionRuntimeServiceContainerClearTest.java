@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
+import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -450,5 +451,59 @@ class SelectionRuntimeServiceContainerClearTest {
          "tok", SelectionRuntimeServiceTest.principal(), "Nope", ""));
 
       assertTrue(e.getMessage().contains("Unknown assembly 'Nope'"), e.getMessage());
+   }
+
+   // -- Bug #80482: pending Form table edits ---------------------------------------------------
+
+   private static MockedStatic<FormUtil> pendingFormOn(String... asked) {
+      MockedStatic<FormUtil> util = mockStatic(FormUtil.class);
+      util.when(() -> FormUtil.pendingDependentForms(any(RuntimeViewsheet.class), anyString()))
+         .thenReturn(List.of("AdminTable"));
+      return util;
+   }
+
+   /** The refusal comes before unselectAll, and asks only about the filters that are filtering. */
+   @Test
+   void refusesBeforeUnselectAllWhenAFilteringChildHasADependentFormWithPendingEdits()
+      throws Exception
+   {
+      Fixture f = new Fixture(false, "SL1", "SL2");
+      f.add(filter("SL1", false, null, "a")).add(filter("SL2", false, null));
+
+      try(MockedStatic<FormUtil> util = pendingFormOn()) {
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, f::clear);
+
+         assertTrue(e.getMessage().contains("Form table AdminTable"), e.getMessage());
+         verifyNoInteractions(f.selections);
+         util.verify(() -> FormUtil.pendingDependentForms(any(RuntimeViewsheet.class), eq("SL1")));
+         util.verify(() -> FormUtil.pendingDependentForms(any(RuntimeViewsheet.class), eq("SL2")),
+                     never());
+      }
+   }
+
+   @Test
+   void discardPendingLetsAContainerClearThrough() throws Exception {
+      Fixture f = new Fixture(false, "SL1");
+      f.add(filter("SL1", false, null, "a"));
+
+      try(MockedStatic<FormUtil> util = pendingFormOn()) {
+         f.service.clearSelection("tok", SelectionRuntimeServiceTest.principal(),
+                                  "CurrentSelection1", true, "");
+
+         verify(f.selections).unselectAll(eq("rt1"), eq("CurrentSelection1"), any(Principal.class),
+                                          any(), eq(""));
+         util.verifyNoInteractions();
+      }
+   }
+
+   @Test
+   void aContainerWithNothingFilteringIsNotRefused() throws Exception {
+      Fixture f = new Fixture(false, "SL1");
+      f.add(filter("SL1", false, null));
+
+      try(MockedStatic<FormUtil> util = pendingFormOn()) {
+         assertDoesNotThrow(f::clear);
+         util.verifyNoInteractions();
+      }
    }
 }

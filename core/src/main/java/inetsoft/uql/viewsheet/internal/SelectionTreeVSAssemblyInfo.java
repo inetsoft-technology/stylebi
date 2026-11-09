@@ -656,12 +656,24 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
          hint |= VSAssembly.INPUT_DATA_CHANGED;
       }
 
-      if(!Tool.equals(expandAll, sinfo.expandAll)) {
+      return hint;
+   }
+
+   /**
+    * Copy the view part assembly info. Expand-all only controls how the tree is displayed, so it
+    * is a view change and must not reset the selection.
+    */
+   @Override
+   protected boolean copyViewInfo(VSAssemblyInfo info, boolean deep) {
+      boolean result = super.copyViewInfo(info, deep);
+      SelectionTreeVSAssemblyInfo sinfo = (SelectionTreeVSAssemblyInfo) info;
+
+      if(expandAll != sinfo.expandAll) {
          expandAll = sinfo.expandAll;
-         hint |= VSAssembly.INPUT_DATA_CHANGED;
+         result = true;
       }
 
-      return hint;
+      return result;
    }
 
    /**

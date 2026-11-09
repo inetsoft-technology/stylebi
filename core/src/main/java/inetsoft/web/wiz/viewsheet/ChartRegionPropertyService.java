@@ -146,6 +146,14 @@ public class ChartRegionPropertyService {
          }
       }
 
+      List<String> sideMeasures = "axis".equals(name)
+         ? separatedMeasuresForBlankLabelSide(sessionToken, user, assembly, key, field) : List.of();
+
+      if(!sideMeasures.isEmpty()) {
+         inapplicable.putIfAbsent("labelOnSecondaryAxis",
+                                  blankLabelSideMessage(key, sideMeasures));
+      }
+
       String primary = time ? otherPrimaryGanttField(sessionToken, user, assembly, kind) : null;
       Map<String, String> aliases = aliasesFor(name);
       List<Map<String, Object>> properties = new ArrayList<>();
@@ -155,7 +163,9 @@ public class ChartRegionPropertyService {
          Object value = PropertyPath.get(model, alias.getValue());
          one.put("name", alias.getKey());
          one.put("path", alias.getValue());
-         one.put("value", value);
+         // The wrong measure's value must not be reported as this axis's (bug #80505 item 5).
+         one.put("value", !sideMeasures.isEmpty() && "labelOnSecondaryAxis".equals(alias.getKey())
+            ? null : value);
 
          // A time axis's range is epoch milliseconds (bug #78919); show the date it means too.
          if(time && ("minimum".equals(alias.getKey()) || "maximum".equals(alias.getKey())) &&
@@ -179,7 +189,7 @@ public class ChartRegionPropertyService {
                " (false is accepted to clear a stale value).");
          }
          else if("legend".equals(name) && "notShowNull".equals(alias.getKey()) &&
-                 !((LegendFormatDialogModel) model).isDimension())
+                 !notShowNullApplies((LegendFormatDialogModel) model))
          {
             one.put("applies", false);
             one.put("reason", "Only applies to a legend bound to a dimension (Ignore Null); " +
@@ -215,7 +225,7 @@ public class ChartRegionPropertyService {
             "refused here when set to true.");
       }
 
-      if("legend".equals(name) && !((LegendFormatDialogModel) model).isDimension()) {
+      if("legend".equals(name) && !notShowNullApplies((LegendFormatDialogModel) model)) {
          Object existing = out.get("note");
          String notShowNullNote = "notShowNull (marked applies:false) only applies to a legend " +
             "bound to a dimension and is refused here when set to true.";
@@ -227,8 +237,52 @@ public class ChartRegionPropertyService {
          out.put("note", existing == null ? LEGEND_SHARED_NOTE : existing + " " + LEGEND_SHARED_NOTE);
       }
 
+      if("axis".equals(name) && axisLabelsHidden(sessionToken, user, assembly, key, field)) {
+         out.put("warning", ALIASES_HIDDEN_LABELS_WARNING);
+      }
+
       out.put("properties", properties);
       return out;
+   }
+
+   /**
+    * Bug #80746: the alias list is built from the labels the axis draws, so an axis whose labels
+    * are hidden reads an empty list even though its stored aliases still apply.
+    */
+   private static final String ALIASES_HIDDEN_LABELS_WARNING =
+      "Aliases cannot be listed or set while the axis labels are hidden (showAxisLabel is " +
+      "false) - stored aliases still apply; show the labels with set_chart_region_properties " +
+      "{showAxisLabel: true} to list or set them.";
+
+   /**
+    * True when the axis' labels are hidden in the current mode (the maximized flags when the
+    * chart is maximized, as {@link #requireDrawnAxis} reads them). A blank {@code field} means the
+    * first field the axis draws, as in requireDrawnAxis. Fails open (false) with no chart area.
+    */
+   private boolean axisLabelsHidden(String sessionToken, Principal user, String assembly,
+                                    String axisTarget, String field)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
+         VSChartInfo info = chart.getVSChartInfo();
+         String name = field;
+
+         if(name == null || name.isBlank()) {
+            ChartRef[] refs = axisCandidates(info, ChartRegionResolver.canonical(axisTarget));
+            name = refs.length > 0 ? refs[0].getFullName() : null;
+         }
+
+         if(name == null) {
+            return false;
+         }
+
+         AxisDescriptor desc = regionHandler.getAxisDescriptor(
+            info, name, axisType(axisTarget), new AtomicBoolean());
+         boolean max = rvs.getViewsheet().isMaxMode() && chart.getChartInfo() != null &&
+            chart.getChartInfo().getMaxSize() != null;
+         return desc != null && !(max ? desc.isMaxModeLabelVisible() : desc.isLabelVisible());
+      });
    }
 
    /**
@@ -308,6 +362,15 @@ public class ChartRegionPropertyService {
             }
          }
 
+         if(properties.containsKey("labelOnSecondaryAxis")) {
+            List<String> sideMeasures =
+               separatedMeasuresForBlankLabelSide(sessionToken, user, assembly, key, field);
+
+            if(!sideMeasures.isEmpty()) {
+               throw new IllegalArgumentException(blankLabelSideMessage(key, sideMeasures));
+            }
+         }
+
          // Whether the axis takes the key at all comes before whether its value parses, so a
          // non-numeric value on an axis that refuses the key gets that reason rather than a
          // "must be a number" that steers the caller into the refusal (bug #79294).
@@ -369,7 +432,10 @@ public class ChartRegionPropertyService {
 
       if(aliasEntries != null) {
          Object current = PropertyPath.get(model, "aliasPaneModel.aliasList");
-         properties.put("aliases", toModelAliases(aliasEntries, (ModelAlias[]) current));
+         ModelAlias[] items = (ModelAlias[]) current;
+         boolean labelsHidden = "axis".equals(name) && (items == null || items.length == 0) &&
+            axisLabelsHidden(sessionToken, user, assembly, key, field);
+         properties.put("aliases", toModelAliases(aliasEntries, items, labelsHidden));
       }
 
       Map<String, String> aliases = aliasesFor(name);
@@ -652,11 +718,20 @@ public class ChartRegionPropertyService {
             return field;
          }
 
+         if("y".equals(canonical) && info instanceof GanttChartInfo gantt) {
+            ChartRef bare = ganttFieldByColumn(gantt, field);
+
+            if(bare != null) {
+               return bare.getFullName();
+            }
+         }
+
          throw new IllegalArgumentException(
             "Unknown field '" + field + "' on axis '" + axisTarget + "'. Fields on this axis: " +
             (candidates.length == 0 ? "(none)" : Arrays.stream(candidates)
                .map(ChartRef::getFullName).collect(Collectors.joining(", "))) +
-            ". Omit 'field' when the axis has only one.");
+            ". Omit 'field' when the axis has only one." +
+            ("y".equals(canonical) && info instanceof GanttChartInfo g ? ganttTimeAxisHint(g) : ""));
       });
    }
 
@@ -804,6 +879,44 @@ public class ChartRegionPropertyService {
       }
    }
 
+   /**
+    * The measure names to choose from when a blank {@code field} would address a measure axis of a
+    * separated multi-measure y axis for {@code labelOnSecondaryAxis}, else empty (bug #80505 item
+    * 5). A separated graph gives every measure its own descriptor, and a blank field resolves to
+    * the first laid-out area, so once one measure's labels are moved to the opposite side the
+    * blank field reads and writes a different measure than before. A merged graph shares one
+    * descriptor and a single measure has no other to confuse, so neither is affected.
+    */
+   private List<String> separatedMeasuresForBlankLabelSide(String sessionToken, Principal user,
+                                                           String assembly, String axisTarget,
+                                                           String field)
+      throws Exception
+   {
+      if(field != null && !field.isBlank() || !"y".equals(ChartRegionResolver.canonical(axisTarget))) {
+         return List.of();
+      }
+
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+
+         if(!info.isSeparatedGraph()) {
+            return List.<String>of();
+         }
+
+         List<String> names = Arrays.stream(axisCandidates(info, "y"))
+            .filter(r -> r instanceof ChartAggregateRef).map(ChartRef::getFullName).toList();
+         return names.size() < 2 ? List.<String>of() : names;
+      });
+   }
+
+   private static String blankLabelSideMessage(String axisTarget, List<String> measures) {
+      return "'labelOnSecondaryAxis' on axis '" + axisTarget + "' is ambiguous: this chart draws " +
+         "one axis per measure (" + String.join(", ", measures) + ") and no 'field' was given, " +
+         "and which one a blank field means follows the on-screen axis order, which changes " +
+         "once any measure's labels are moved to the opposite side. Pass 'field' with the full " +
+         "name of one of them. Nothing was changed.";
+   }
+
    /** The shelf refs that can render on the targeted axis: a measure on the other axis of this
     * type is not on it, and dimensions never render on a secondary axis. Shared by the ambiguity
     * guard and {@link #computeTrueAxisKind} so "one candidate" means the same in both. */
@@ -811,10 +924,20 @@ public class ChartRegionPropertyService {
       boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
       boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
       ChartRef[] shelf = onYShelf ? info.getYFields() : info.getXFields();
-      return Arrays.stream(shelf)
+      ChartRef[] refs = Arrays.stream(shelf)
          .filter(r -> r instanceof ChartAggregateRef a ? a.isSecondaryY() == secondary
             : !secondary)
          .toArray(ChartRef[]::new);
+
+      // A candle or stock chart keeps its prices in open/high/low/close, not on the y shelf, but
+      // draws one price axis for them (bug #80505), the way a Gantt's start/end do.
+      if(refs.length == 0 && "y".equals(canonical)) {
+         return Arrays.stream(ChartRegionResolver.candlePriceRefs(info))
+            .filter(r -> !(r instanceof ChartAggregateRef a) || !a.isSecondaryY())
+            .toArray(ChartRef[]::new);
+      }
+
+      return refs;
    }
 
    /**
@@ -1192,7 +1315,7 @@ public class ChartRegionPropertyService {
     * null when it can (bug #80354). The renderer never reads the opposite-side bit on a Pareto
     * measure axis, a radar or a Marimekko chart, and a 3D bar loses the axis when it is set
     * (#74007). The chart type is checked as the stored and the runtime type, as
-    * {@link #isMekkoChart} does.
+    * {@link #isMekkoChart} does. A y2/x2 target is refused too (bug #80505).
     *
     * @param linear whether the targeted axis is a measure axis, as {@link AxisKind#linear()}.
     */
@@ -1221,6 +1344,22 @@ public class ChartRegionPropertyService {
                return "the measure axis of a Pareto chart (the right side is the " +
                   "cumulative-percentage axis)";
             }
+         }
+
+         // A true secondary axis is drawn at a fixed position (RectCoord hard-wires the right y2
+         // and the top x2), which the opposite-side bit cannot move (bug #80505). Only the y2/x2
+         // targets: the primary y/x of a dual-axis chart do honour it, and a primary relocated
+         // by it is addressed as y/x, never y2/x2.
+         String canonical = ChartRegionResolver.canonical(axisTarget);
+
+         if("y2".equals(canonical)) {
+            return "the secondary y axis (it is drawn at a fixed position on the right and " +
+               "cannot be moved to the other side)";
+         }
+
+         if("x2".equals(canonical)) {
+            return "the secondary x axis (it is drawn at a fixed position at the top and " +
+               "cannot be moved to the other side)";
          }
 
          return null;
@@ -1365,12 +1504,48 @@ public class ChartRegionPropertyService {
    {
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
-         ChartRef primary = info instanceof GanttChartInfo gantt ? primaryGanttField(gantt) : null;
-
-         return primary == null ? "" :
-            " On a Gantt chart the date (time) axis, drawn along the bottom, is target 'y' with " +
-            "field '" + primary.getFullName() + "'.";
+         return info instanceof GanttChartInfo gantt ? ganttTimeAxisHint(gantt) : "";
       });
+   }
+
+   private static String ganttTimeAxisHint(GanttChartInfo gantt) {
+      ChartRef primary = primaryGanttField(gantt);
+
+      return primary == null ? "" :
+         " On a Gantt chart the date (time) axis, drawn along the bottom, is target 'y' with " +
+         "field '" + primary.getFullName() + "'.";
+   }
+
+   /**
+    * The Gantt start, end or milestone field bound to the bare column {@code name} (its
+    * {@code getName()}, or the attribute inside the aggregate, which differs on an entity column
+    * where {@code getName()} is {@code Orders.START_DATE}). When the same column is bound twice
+    * (say start and end) the primary field is returned, since all of them share one time axis.
+    */
+   private static ChartRef ganttFieldByColumn(GanttChartInfo gantt, String name) {
+      List<ChartRef> found = new ArrayList<>();
+
+      for(ChartRef ref : new ChartRef[] {
+         gantt.getStartField(), gantt.getEndField(), gantt.getMilestoneField() })
+      {
+         if(ref == null) {
+            continue;
+         }
+
+         String attr = ref instanceof ChartAggregateRef a && a.getDataRef() != null
+            ? a.getDataRef().getAttribute() : null;
+
+         if(name.equals(ref.getName()) || name.equals(attr)) {
+            found.add(ref);
+         }
+      }
+
+      if(found.isEmpty()) {
+         return null;
+      }
+
+      ChartRef primary = primaryGanttField(gantt);
+      return found.contains(primary) ? primary : found.get(0);
    }
 
    /**
@@ -1787,7 +1962,8 @@ public class ChartRegionPropertyService {
    /**
     * Refuses a legend's notShowNull ("Ignore Null") when truthy on a legend not bound to a plain
     * dimension. The Composer's Legend Format dialog only shows this control when
-    * dimension && field != null (LegendFormatDialogModel), which is narrower than
+    * dimension && field != null (LegendFormatDialogModel; bug #80505 added the field != null
+    * half), which is narrower than
     * isCategoricalLegend (also true for a time-scale legend). On a measure legend the resulting
     * scale option (Scale.NO_NULL) is written to the frame regardless (GraphGenerator
     * .setLegendProperties), but LinearScale/LogScale/PowerScale never read it, so it is verified
@@ -1800,16 +1976,28 @@ public class ChartRegionPropertyService {
    private static void requireDimensionLegendForNotShowNull(
       LegendFormatDialogModel model, Map<String, Object> properties)
    {
-      if(model != null && model.isDimension()) {
+      if(notShowNullApplies(model)) {
          return;
       }
 
       if(properties.containsKey("notShowNull") && isTruthy(properties.get("notShowNull"))) {
          throw new IllegalArgumentException(
             "'notShowNull' only applies to a legend bound to a dimension (Ignore Null); this " +
-            "legend would store it and ignore it. Omit it, send false to clear a stale value, " +
-            "or bind a dimension to this channel.");
+            "legend has no dimension field bound (for example the automatic multi-measure " +
+            "'Measures' legend), so it would store it and ignore it. Omit it, send false to " +
+            "clear a stale value, or bind a dimension to this channel. Nothing was changed.");
       }
+   }
+
+   /**
+    * Whether the Legend Format dialog shows "Ignore Null" for this legend, read from the dialog
+    * model's own flag ({@code dimension && field != null}) so the guard, the list row and the
+    * list note cannot disagree. The automatic multi-measure legend is a dimension frame with no
+    * field, so {@link LegendFormatDialogModel#isDimension()} alone is true there (bug #80505).
+    */
+   private static boolean notShowNullApplies(LegendFormatDialogModel model) {
+      return model != null && model.getLegendFormatGeneralPaneModel() != null &&
+         model.getLegendFormatGeneralPaneModel().isNotShowNullVisible();
    }
 
    private static boolean isTruthy(Object value) {
@@ -1935,14 +2123,16 @@ public class ChartRegionPropertyService {
       return parsed;
    }
 
-   private static ModelAlias[] toModelAliases(List<Map<?, ?>> entries, ModelAlias[] current) {
+   private static ModelAlias[] toModelAliases(List<Map<?, ?>> entries, ModelAlias[] current,
+                                              boolean labelsHidden)
+   {
       ModelAlias[] result = new ModelAlias[entries.size()];
 
       for(int i = 0; i < entries.size(); i++) {
          Map<?, ?> map = entries.get(i);
          String suppliedValue = String.valueOf(map.get("value"));
          Object rawAlias = map.get("alias");
-         ModelAlias resolved = resolveAliasItem(suppliedValue, current, i);
+         ModelAlias resolved = resolveAliasItem(suppliedValue, current, i, labelsHidden);
          result[i] = new ModelAlias(resolved.getLabel(), resolved.getValue(),
                                     String.valueOf(rawAlias));
       }
@@ -1968,8 +2158,18 @@ public class ChartRegionPropertyService {
     * legitimately-unbound region a clear error instead of a silent no-op; the caller is guided to
     * check {@code list_chart_region_properties} first, which reads the same {@code current}.
     */
-   private static ModelAlias resolveAliasItem(String suppliedValue, ModelAlias[] current, int index) {
+   private static ModelAlias resolveAliasItem(String suppliedValue, ModelAlias[] current, int index,
+                                              boolean labelsHidden)
+   {
       if(current == null || current.length == 0) {
+         if(labelsHidden) {
+            throw new IllegalArgumentException(
+               "'aliases[" + index + "]' cannot be resolved: the axis labels are hidden " +
+               "(showAxisLabel is false), and aliases are matched against the labels the axis " +
+               "draws. Show them first with set_chart_region_properties {showAxisLabel: true}, " +
+               "then retry.");
+         }
+
          throw new IllegalArgumentException(
             "'aliases[" + index + "]' cannot be resolved: this region currently reports no " +
             "known values (list_chart_region_properties reports the same empty list). This " +

@@ -1910,6 +1910,55 @@ class ChartBindingServiceTest {
             new FieldRef("Sales", "measure", "=b", null, null))));
       assertTrue(ChartBindingService.scriptExpressions((FieldRef) null).isEmpty());
    }
+   private static FieldRef measureWithRunningTotal(String column, String aggregate) {
+      inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo();
+      calc.setAggregate(aggregate);
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, calc);
+   }
+
+   private static ChartBindingService noteHarness(ChartBindingModel model) {
+      return harness(model, mock(ChangeChartRefService.class), mock(ChangeChartTypeService.class),
+                     mock(SwapXYBindingService.class), mock(ChangeSeparateStatusService.class));
+   }
+
+   /** Bug #80648: the public shelf entries return the reset note the mutator raised. */
+   @Test
+   void setShelfReturnsTheResetNoteWhenAFormulaChangeDropsACalculator() throws Exception {
+      ChartBindingModel existing = new ChartBindingModel();
+      ChartBindingMutator.setShelf(existing, "y", List.of(measureWithRunningTotal("Revenue", "Sum")));
+      ChartBindingMutator.drainNotes();
+      ChartBindingService service = noteHarness(existing);
+
+      List<String> returned = service.setShelf("tok", principal(), "Chart1", "y",
+         List.of(new FieldRef("Revenue", "measure", "Average", null, null)), null, "");
+
+      assertEquals(1, returned.stream().filter(n -> n.startsWith("Binding reset: ")).count(),
+                   returned.toString());
+
+      ChartBindingModel again = new ChartBindingModel();
+      ChartBindingMutator.setShelf(again, "y", List.of(measureWithRunningTotal("Revenue", "Sum")));
+      ChartBindingMutator.drainNotes();
+      List<String> same = noteHarness(again).setShelf("tok", principal(), "Chart1", "y",
+         List.of(new FieldRef("Revenue", "measure", "Sum", null, null)), null, "");
+      assertTrue(same.stream().noneMatch(n -> n.startsWith("Binding reset: ")), same.toString());
+      assertTrue(ChartBindingMutator.drainNotes().isEmpty());
+   }
+
+   @Test
+   void setSingleShelfReturnsTheResetNoteWhenAFormulaChangeDropsACalculator() throws Exception {
+      ChartBindingModel existing = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(existing, "close", measureWithRunningTotal("Price", "Sum"));
+      ChartBindingMutator.drainNotes();
+
+      List<String> returned = noteHarness(existing).setSingleShelf(
+         "tok", principal(), "Chart1", "close",
+         new FieldRef("Price", "measure", "Average", null, null), null, "");
+
+      assertEquals(1, returned.stream().filter(n -> n.startsWith("Binding reset: ")).count(),
+                   returned.toString());
+   }
+
    private static ChartBindingService harness(BindingModel model,
                                               ChangeChartRefService refs,
                                               ChangeChartTypeService types,

@@ -59,6 +59,42 @@ final class ChartVisibilityState {
          return !hidden.isEmpty();
       }
 
+      /**
+       * The hidden legend a caller named, matched like {@code ChartRegionResolver.requireLegendField}
+       * matches a drawn one: by field (exact, then ignoring case and surrounding space), else by
+       * channel when exactly one hidden legend is on it. Null when the name matches none.
+       */
+      HiddenLegend find(String target) {
+         String wanted = target == null ? "" : target.trim();
+
+         for(HiddenLegend legend : hidden) {
+            if(legend.field().equals(wanted)) {
+               return legend;
+            }
+         }
+
+         for(HiddenLegend legend : hidden) {
+            if(legend.field().equalsIgnoreCase(wanted)) {
+               return legend;
+            }
+         }
+
+         String channel = channelFamily(wanted);
+         List<HiddenLegend> byChannel = hidden.stream()
+            .filter(legend -> channelFamily(legend.channel()).equals(channel)).toList();
+
+         return byChannel.size() == 1 ? byChannel.get(0) : null;
+      }
+
+      private static String channelFamily(String channel) {
+         String name = channel == null ? "" : channel.trim().toLowerCase();
+
+         return switch(name) {
+            case "line", "texture" -> "shape";
+            default -> name;
+         };
+      }
+
       /** For a message: {@code color [Customer:Region], size [Total]}. */
       String describe() {
          StringBuilder sb = new StringBuilder();
@@ -123,12 +159,16 @@ final class ChartVisibilityState {
          }
       }
       else {
+         // a relation chart's edge color/size are drawn and hidden through their own descriptor
+         boolean relationChart = info instanceof RelationChartInfo;
          collect(found, "color", info.getColorField(),
-                 legendsDesc.getColorLegendDescriptor(), noLegend, maxMode);
+                 relationChart ? null : legendsDesc.getColorLegendDescriptor(), noLegend,
+                 maxMode);
          collect(found, "shape", info.getShapeField(),
                  legendsDesc.getShapeLegendDescriptor(), noLegend, maxMode);
          collect(found, "size", info.getSizeField(),
-                 legendsDesc.getSizeLegendDescriptor(), noLegend, maxMode);
+                 relationChart ? null : legendsDesc.getSizeLegendDescriptor(), noLegend,
+                 maxMode);
 
          if(info instanceof RelationChartInfo relation) {
             collect(found, "node-color", relation.getNodeColorField(), null, noLegend, maxMode);

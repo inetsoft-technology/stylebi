@@ -1223,7 +1223,9 @@ class WorksheetAgentControllerTest {
       // Wrong delimiter on the first add: the whole header is one column.
       assertEquals(1, liveAssembly.getColumnSelection(false).getAttributeCount());
 
-      runFileEdit("TOK-ET79598A", agent, Map.of("delimiter", ";"));
+      // queryParams restates the whole query: the header (this fake's stand-in for the file the
+      // columns are read from) is resent, since an omitted optional param is reset to its default.
+      runFileEdit("TOK-ET79598A", agent, Map.of("delimiter", ";", "header", "a;b;c"));
 
       ColumnSelection cols = liveAssembly.getColumnSelection(false);
       assertEquals(3, cols.getAttributeCount(), "columns must be rebuilt, not kept stale");
@@ -10704,6 +10706,14 @@ class WorksheetAgentControllerTest {
                                          List<String> referenced, VariableTable sandbox)
       throws Exception
    {
+      return addTableRefusalMessage(token, req, shape, referenced, sandbox, false);
+   }
+
+   private String addTableRefusalMessage(String token, EditRequest req, Object shape,
+                                         List<String> referenced, VariableTable sandbox,
+                                         boolean runCompleted)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
       DataSourceService dataSourceService = mock(DataSourceService.class);
@@ -10725,6 +10735,8 @@ class WorksheetAgentControllerTest {
       if(shape != null) {
          query.reportResponseShape(shape, false);
       }
+
+      query.setRunCompleted(runCompleted);
 
       Worksheet ws = new Worksheet();
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
@@ -10812,6 +10824,24 @@ class WorksheetAgentControllerTest {
       assertZeroRowsRefusal(message);
       assertTrue(message.contains("The request to 'MyDatasource'"), message);
       assertTrue(message.contains("Properties sent:"), message);
+   }
+
+   /**
+    * Bug #80830: a connector that records no response shape (MongoDB, Elasticsearch, ...) but whose
+    * runtime returned a table with nothing else reported must not be sent to the credentials.
+    */
+   @Test
+   void addQueryParamsTableReportsZeroRowsWhenTheRunCompletedWithoutAShape() throws Exception {
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      String message = addTableRefusalMessage("TOK-ZR7", req, null, null, null, true);
+
+      assertTrue(message.contains("returned no columns"), message);
+      assertTrue(message.contains("zero rows"), message);
+      assertFalse(message.contains("datasource credentials"), message);
+      assertFalse(message.contains("JSON REST endpoint"), message);
+      assertTrue(message.contains("The request to 'MyDatasource'"), message);
    }
 
    @Test
@@ -10982,6 +11012,73 @@ class WorksheetAgentControllerTest {
          "add_table's response must disclose the resolved assembly name");
       assertEquals("Products1", response.getBody().assemblyName(),
          "the response must report the ACTUAL resolved name, not the requested 'Products'");
+   }
+
+   @Test
+   void addQueryParamsTableEditResponseCarriesProbeWarningAsNote() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery() {
+         @Override
+         public void loadOutputColumns(VariableTable vtable) throws Exception {
+            super.loadOutputColumns(vtable);
+            CoreTool.addUserWarning("The page count (Page Count XPath parameter) matched " +
+                                    "nothing on the first page, so only page 1 was read.");
+         }
+      };
+      query.setOutputColumns(new XTypeNode[] { new XTypeNode("id") });
+
+      EditRequest req = addQueryParamsTableRequest("Products", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new TabularTableAssembly(ws, "Products"));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-QP8N"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         response = ctrl.edit("TOK-QP8N", req, agent);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertNotNull(response.getBody());
+      assertNotNull(response.getBody().note(),
+         "a warning raised by the probe must be returned in EditResponse.note");
+      assertTrue(response.getBody().note().contains("only page 1 was read"));
    }
 
    /**
@@ -15360,6 +15457,24 @@ class WorksheetAgentControllerTest {
 
       assertTrue(message.contains("timed out after 30 s"), message);
       assertFalse(message.contains("probeName"), message);
+   }
+
+   @Test
+   void aCompletedRunWithNoOtherSignalReportsZeroRowsNotCredentials() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.setRunCompleted(true);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      AssetQuerySandbox box = sandboxWith(new VariableTable());
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         stubReferencedVariables(tabularUtil, List.of());
+         String message = WorksheetAgentController.emptyColumnsRefusal(
+            query, rws, null, TabularProbeCause.read(query, null), "LEAD", ". ECHO");
+
+         assertTrue(message.contains("zero rows"), message);
+         assertFalse(message.contains("datasource credentials"), message);
+      }
    }
 
    @Test

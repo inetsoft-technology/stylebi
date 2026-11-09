@@ -1353,6 +1353,35 @@ class DataSourceChangePlanServiceTest {
       assertEquals("low", plan.changes().get(0).risk());
    }
 
+   @Test void resolveFolderCreateOnlyPlanSkipsStorageBackup() throws Exception {
+      DataSourceChangeRequest change = folderCreateChange("Examples/NewFolder");
+
+      var plan = service.resolve(request("task", List.of(change)), user);
+
+      // Bug #80650: a bare, previously absent folder has a live undo; the snapshot adds nothing.
+      assertFalse(plan.requiresStorageBackup());
+      assertTrue(plan.requiresAgentSignoff());
+   }
+
+   @Test void resolveFolderCreatePlusDeleteKeepsStorageBackup() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+
+      var plan = service.resolve(request("task", List.of(
+         folderCreateChange("Examples/NewFolder"), deleteChange("Orders"))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveUpdateKeepsStorageBackup() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "Orders2"));
+      change.setConfirmRename(true);
+
+      assertTrue(service.resolve(request("task", List.of(change)), user).requiresStorageBackup());
+   }
+
    @Test void resolveFolderCreateThrowsWhenFolderPathMissing() {
       DataSourceChangeRequest change = new DataSourceChangeRequest();
       change.setVerb(DataSourceChangeRequest.VERB_CREATE);

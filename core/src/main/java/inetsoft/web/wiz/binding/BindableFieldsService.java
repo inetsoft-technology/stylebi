@@ -31,6 +31,8 @@ import inetsoft.uql.viewsheet.ListInputVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -46,6 +48,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -87,6 +90,8 @@ public class BindableFieldsService {
       boolean rangeSlider = false;
       String modelName = null;
       String treeScope = assembly;
+      boolean authorBaseTables = false;
+      boolean withCubes = false;
 
       if(assembly != null) {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
@@ -132,6 +137,19 @@ public class BindableFieldsService {
             treeScope = null;
             modelName = null;
          }
+         // Bug #80823: in a runtime-mode viewsheet (a Composer Preview) the assembly-scoped tree
+         // follows the Viewer rule -- CubeTreeModelBuilder.getModel skips addBaseQueryNodes, so
+         // it holds only the current source, and nothing but model-level calc fields for an
+         // unbound assembly. The agent tools act as an author, whose rule is the design-mode
+         // tree: every visible base table. That set is what the worksheet-wide tree lists, so it
+         // is merged in below; the design-mode tree already holds it and is left alone.
+         else if(rvs.isRuntime()) {
+            authorBaseTables = true;
+            // The design tree offers cubes to every Data assembly but a table or calc table
+            // (CubeTreeModelBuilder.getCubeTreeModel).
+            withCubes = !(target.getVSAssemblyInfo() instanceof TableVSAssemblyInfo) &&
+               !(target.getVSAssemblyInfo() instanceof CalcTableVSAssemblyInfo);
+         }
       }
 
       // Bug #78640: components left out of the tree (script failure / no runtime columns) arrive
@@ -142,6 +160,17 @@ public class BindableFieldsService {
 
       if(root != null) {
          collect(root, tables, null, modelName);
+      }
+
+      if(authorBaseTables) {
+         TreeNodeModel baseRoot = tree.getBinding(runtimeId, null, false, user, skipped::put);
+         List<BindableTable> base = new ArrayList<>();
+
+         if(baseRoot != null) {
+            collectSources(baseRoot, base, withCubes);
+         }
+
+         mergeFields(tables, base);
       }
 
       addSkipped(tables, skipped);
@@ -352,6 +381,66 @@ public class BindableFieldsService {
       }
 
       tables.add(new BindableTable(model, null, fields));
+   }
+
+   /**
+    * The source tables of the worksheet-wide tree, read the way {@link #collect} reads a table
+    * node. Only table nodes count: a group of column-like nodes with no table above it (the
+    * Variables folder) is not a source the design-mode tree offers. A cube (its entry carries
+    * {@code CUBE_TABLE}) is kept only when {@code withCubes}.
+    */
+   private void collectSources(TreeNodeModel node, List<BindableTable> tables, boolean withCubes) {
+      if(isTable(node)) {
+         if(withCubes || !(node.data() instanceof AssetEntry entry) ||
+            !"true".equals(entry.getProperty("CUBE_TABLE")))
+         {
+            collect(node, tables, null, null);
+         }
+
+         return;
+      }
+
+      for(TreeNodeModel child : node.children()) {
+         collectSources(child, tables, withCubes);
+      }
+   }
+
+   /**
+    * Adds the {@code base} tables to {@code tables} field by field: a table already listed keeps
+    * its own fields and gains the base's columns it lacks, any other base table is appended. A
+    * table can be listed with only part of its columns -- a runtime-mode tree lists only the
+    * model-level calc fields of a model the assembly is not bound to yet -- so a table-level
+    * "is it there" test would keep the partial list.
+    */
+   private static void mergeFields(List<BindableTable> tables, List<BindableTable> base) {
+      for(BindableTable extra : base) {
+         String key = BindableColumns.keyOf(extra);
+         int index = -1;
+
+         for(int i = 0; i < tables.size(); i++) {
+            if(key.equals(BindableColumns.keyOf(tables.get(i)))) {
+               index = i;
+               break;
+            }
+         }
+
+         if(index < 0) {
+            tables.add(extra);
+            continue;
+         }
+
+         BindableTable seen = tables.get(index);
+         List<BindableField> fields = new ArrayList<>(seen.fields());
+
+         for(BindableField field : extra.fields()) {
+            if(fields.stream().noneMatch(f -> Objects.equals(f.column(), field.column()))) {
+               fields.add(field);
+            }
+         }
+
+         tables.set(index, new BindableTable(seen.name(), seen.current(), fields, seen.warnings(),
+                                             seen.sourceType()));
+      }
    }
 
 

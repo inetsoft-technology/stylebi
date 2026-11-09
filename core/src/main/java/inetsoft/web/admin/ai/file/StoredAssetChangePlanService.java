@@ -23,6 +23,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -82,8 +83,16 @@ public class StoredAssetChangePlanService {
       String planHash = hash(immutableChanges, hiddenInputs(resolved));
       boolean signoff = resolved.stream()
          .anyMatch(r -> AdminChangeRecord.RISK_HIGH.equals(r.planChange().risk()));
-      return new ResolvedPlan(task, immutableChanges, true, signoff, planHash,
+      return new ResolvedPlan(task, immutableChanges, requiresBackup(resolved), signoff, planHash,
                               TaskAuditToken.issue(planHash, task));
+   }
+
+   /** Bug #80650: the whole-storage snapshot is only needed when some entry can overwrite, rename
+    * or delete something that already exists. A new folder or a write to a path that does not
+    * exist yet is a pure create whose undo deletes it. Shared with {@link
+    * StoredAssetChangesetApplyService} so the apply gates its snapshot on the same decision. */
+   static boolean requiresBackup(List<ResolvedChange> resolved) {
+      return StorageBackupPolicy.requiresBackup(resolved, ResolvedChange::pureCreate);
    }
 
    /** Package-visible so {@link StoredAssetChangesetApplyService} can re-resolve the SAME way, at
@@ -160,7 +169,8 @@ public class StoredAssetChangePlanService {
          "exists=true (folder)", AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
          "create folder \"" + path + "\"");
       return new ResolvedChange(StoredAssetChangeRequest.UNIT_FOLDER,
-         StoredAssetChangeRequest.VERB_CREATE, path, null, null, true, null, planChange, Map.of());
+         StoredAssetChangeRequest.VERB_CREATE, path, null, null, true, null, planChange, Map.of(),
+         true);
    }
 
    private ResolvedChange resolveWrite(String label, String path, StoredAssetChangeRequest raw) {
@@ -213,7 +223,7 @@ public class StoredAssetChangePlanService {
          !exists ? PlanHashInputs.digest(WRITE_DOMAIN, null)
             : currentBytes == null ? UNREADABLE_MARKER : sha256Hex(currentBytes));
       return new ResolvedChange(StoredAssetChangeRequest.UNIT_FILE, StoredAssetChangeRequest.VERB_WRITE,
-         path, null, content, compensable, priorText, planChange, hidden);
+         path, null, content, compensable, priorText, planChange, hidden, !exists);
    }
 
    private ResolvedChange resolveRename(String label, String unitType, String path,
@@ -248,7 +258,7 @@ public class StoredAssetChangePlanService {
               "this one name)"
             : ""));
       return new ResolvedChange(unitType, StoredAssetChangeRequest.VERB_RENAME, path, newPath, null,
-         true, null, planChange, Map.of());
+         true, null, planChange, Map.of(), false);
    }
 
    /**
@@ -300,7 +310,7 @@ public class StoredAssetChangePlanService {
       PlanChange planChange = new PlanChange(path, currentOrgId(), "exists=true", "exists=false",
          AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true, description);
       return new ResolvedChange(unitType, StoredAssetChangeRequest.VERB_DELETE, path, null, null,
-         compensable, priorText, planChange, Map.of());
+         compensable, priorText, planChange, Map.of(), false);
    }
 
    // ---------------------------------------------------------------- validation helpers
@@ -470,10 +480,11 @@ public class StoredAssetChangePlanService {
    /** One resolved change: everything {@link StoredAssetChangesetApplyService} needs to actually
     * execute the verb, plus the {@link PlanChange} record describing it. {@code compensable} and
     * {@code priorText} together determine whether a live rollback exists for this entry (see
-    * 01-design.md section 6.3's per-verb rollback table). */
+    * 01-design.md section 6.3's per-verb rollback table). {@code pureCreate} is true for a new
+    * folder or a write to a path that did not exist (Bug #80650). */
    record ResolvedChange(String unitType, String verb, String path, String newPath, String content,
                         boolean compensable, String priorText, PlanChange planChange,
-                        Map<String, String> hidden)
+                        Map<String, String> hidden, boolean pureCreate)
    {
    }
 }

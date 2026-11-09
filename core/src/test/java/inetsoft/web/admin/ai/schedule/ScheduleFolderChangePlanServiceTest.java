@@ -197,7 +197,8 @@ class ScheduleFolderChangePlanServiceTest {
       assertNotNull(change.proposedValue());
       assertEquals("low", change.risk());
       assertEquals("storage", change.snapshotScope());
-      assertTrue(plan.requiresStorageBackup());
+      // Bug #80650: a create-only plan makes a new folder with a live undo -- no snapshot needed.
+      assertFalse(plan.requiresStorageBackup());
       // Unconditional for the whole area (design §4), independent of this entry's own low risk.
       assertTrue(plan.requiresAgentSignoff());
       assertNotNull(plan.planHash());
@@ -575,6 +576,21 @@ class ScheduleFolderChangePlanServiceTest {
       ResolvedPlan plan = service.resolve(req, user);
 
       assertEquals("low", plan.changes().get(0).risk());
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveMixedCreateAndDeleteKeepsStorageBackup() throws Exception {
+      when(folderGateway.folderExists("NewFolder")).thenReturn(false);
+      when(folderGateway.resolveInheritedOwner("/")).thenReturn(null);
+      when(folderGateway.findFolder("A")).thenReturn(new AssetFolder());
+      when(folderGateway.countContainedTasks("A")).thenReturn(0);
+      ScheduleFolderChangePlanRequest req = request(
+         "mixed", List.of(createChange(null, "NewFolder"), deleteChange("A")));
+
+      ResolvedPlan plan = service.resolve(req, user);
+
+      assertEquals(2, plan.changes().size());
+      assertTrue(plan.requiresStorageBackup());
    }
 
    // -------------------------------------------------------------------------

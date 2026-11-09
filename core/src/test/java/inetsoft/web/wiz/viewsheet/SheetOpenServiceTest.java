@@ -290,6 +290,18 @@ class SheetOpenServiceTest {
       assertEquals(PairingUtil.label(opened.ownerIdentity()), sent.agentOwnerLabel());
    }
 
+   /** Bug #80383: the base worksheet is linked to a viewsheet sandbox; its tab must not own it. */
+   @Test
+   void openBaseWorksheetCommandDoesNotCloseTheRuntimeOnTabClose() throws Exception {
+      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
+
+      service.openBaseWorksheet("tok-vs", principal());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      assertFalse(((OpenComposerAssetCommand) command.getValue()).closeRuntimeOnTabClose());
+   }
+
    /**
     * Which STOMP destination the command lands on -- the assertion whose absence let this ship
     * broken.
@@ -498,6 +510,21 @@ class SheetOpenServiceTest {
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertTrue(sent.agentActive());
       assertEquals(PairingUtil.label(created.ownerIdentity()), sent.agentOwnerLabel());
+   }
+
+   /** Bug #80383: an agent-created viewsheet's tab owns its runtime, so closing it closes it. */
+   @Test
+   void createViewsheetCommandClosesTheRuntimeOnTabClose() throws Exception {
+      AssetEntry wsEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+         "Sample Queries/customers", null);
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, wsEntry, true);
+
+      service.createViewsheet("tok-acting", principal(), null);
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      assertTrue(((OpenComposerAssetCommand) command.getValue()).closeRuntimeOnTabClose());
    }
 
    @Test
@@ -868,6 +895,18 @@ class SheetOpenServiceTest {
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertTrue(sent.agentActive());
       assertEquals(PairingUtil.label(created.ownerIdentity()), sent.agentOwnerLabel());
+   }
+
+   /** Bug #80383: an agent-created worksheet's tab owns its runtime, so closing it closes it. */
+   @Test
+   void createWorksheetCommandClosesTheRuntimeOnTabClose() throws Exception {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+
+      service.createWorksheet("tok-acting", principal());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      assertTrue(((OpenComposerAssetCommand) command.getValue()).closeRuntimeOnTabClose());
    }
 
    @Test

@@ -164,7 +164,8 @@ class ScheduleCycleChangePlanServiceTest {
       assertNotNull(result.proposedValue());
       assertEquals(AdminChangeRecord.RISK_HIGH, result.risk());
       assertTrue(plan.requiresAgentSignoff());
-      assertTrue(plan.requiresStorageBackup());
+      // Bug #80650: a create-only plan makes a new cycle with a live undo -- no snapshot needed.
+      assertFalse(plan.requiresStorageBackup());
       assertNotNull(plan.planHash());
       assertNotNull(plan.taskToken());
    }
@@ -242,6 +243,8 @@ class ScheduleCycleChangePlanServiceTest {
 
       assertEquals(1, plan.changes().size());
       verify(cycleGateway, never()).dependentMvNames(anyString());
+      // Bug #80650: an update alters an existing cycle, so the snapshot stays required.
+      assertTrue(plan.requiresStorageBackup());
    }
 
    /** Bug #79358: a rename preview's proposedValue must carry the new name inside the CycleInfo
@@ -328,6 +331,21 @@ class ScheduleCycleChangePlanServiceTest {
       assertNotNull(result.currentValue());
       assertNull(result.proposedValue());
       assertEquals(AdminChangeRecord.RISK_HIGH, result.risk());
+      assertTrue(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveMixedCreateAndDeleteKeepsStorageBackup() throws Exception {
+      when(cycleGateway.cycleExists("NewCycle", user)).thenReturn(false);
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.dependentMvNames("Cycle1")).thenReturn(List.of());
+      when(cycleGateway.currentAsset("Cycle1", "host-org")).thenReturn(asset("Cycle1"));
+      ScheduleCycleChangePlanRequest req = request("task", List.of(
+         createChange("NewCycle", List.of(everyDay())), deleteChange("Cycle1")));
+
+      ResolvedPlan plan = service.resolve(req, user);
+
+      assertEquals(2, plan.changes().size());
+      assertTrue(plan.requiresStorageBackup());
    }
 
    // -------------------------------------------------------------------------

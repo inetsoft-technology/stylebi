@@ -209,17 +209,7 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
     */
    public List<String> getWarnings() {
       List<String> warnings = messagesOfType(MessageCommand.Type.WARNING);
-      List<String> failures = getScriptFailures();
-      warnings.addAll(failures);
-
-      for(String demoted : demotedScriptErrors) {
-         // The table INFO for the same failure carries the same first line and the
-         // "may show no data" note, so it wins and the demoted copy is dropped.
-         if(!containsFirstLine(failures, demoted) && !warnings.contains(demoted)) {
-            warnings.add(demoted);
-         }
-      }
-
+      warnings.addAll(getScriptFailures());
       return warnings;
    }
 
@@ -231,16 +221,17 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
     */
    public List<String> getScriptFailures() {
       List<String> messages = new ArrayList<>();
+      java.util.Set<String> seen = new java.util.HashSet<>();
 
       for(Command command : captured) {
          if(command.getCommand() instanceof MessageCommand message &&
             message.getType() == MessageCommand.Type.INFO && message.getMessage() != null &&
             message.getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX))
          {
-            String text = CommandErrorException.messageOf(message.getMessage()) + SCRIPT_FAILURE_NOTE;
+            String text = CommandErrorException.messageOf(message.getMessage());
 
-            if(!messages.contains(text)) {
-               messages.add(text);
+            if(seen.add(failureKey(text))) {
+               messages.add(text + SCRIPT_FAILURE_NOTE);
             }
          }
       }
@@ -248,22 +239,41 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       return messages;
    }
 
-   private static boolean containsFirstLine(List<String> messages, String text) {
-      String head = firstLine(text);
+   /**
+    * The same failure reaches the dispatcher from the table path (with a "To fix" hint) and from
+    * the property path (without one), so two reports are one failure when they name the same
+    * assembly and carry the same engine error. The key is the first line plus the text after the
+    * last "Script failed:" line, which ignores only the hint.
+    */
+   private static String failureKey(String text) {
+      int nl = text.indexOf('\n');
+      String head = nl < 0 ? text : text.substring(0, nl);
+      int body = text.lastIndexOf(SCRIPT_FAILED_MARKER);
+      return head + '\n' + (body < 0 ? "" : text.substring(body + SCRIPT_FAILED_MARKER.length()));
+   }
 
-      for(String message : messages) {
-         if(firstLine(message).equals(head)) {
-            return true;
-         }
+   /**
+    * Length of the localized "Script failed" label that {@code VSObjectPropertyService} puts in
+    * front of an assembly-script failure, or -1 if the message is not one.
+    */
+   private static int scriptFailedLabelLength(String message) {
+      String label = Catalog.getCatalog().getString("Script failed");
+
+      if(message.startsWith(label + BaseTableService.SCRIPT_FAILURE_PREFIX)) {
+         return label.length();
       }
 
-      return false;
+      // The catalog is read on this thread; a message produced under another locale carries the
+      // English label.
+      if(message.startsWith(ENGLISH_LABEL + BaseTableService.SCRIPT_FAILURE_PREFIX)) {
+         return ENGLISH_LABEL.length();
+      }
+
+      return -1;
    }
 
-   private static String firstLine(String text) {
-      int index = text.indexOf('\n');
-      return (index < 0 ? text : text.substring(0, index)).trim();
-   }
+   private static final String ENGLISH_LABEL = "Script failed:";
+   private static final String SCRIPT_FAILED_MARKER = "Script failed:\n";
 
    private static final String SCRIPT_FAILURE_NOTE =
       "\nThe table may show no data; the failure can predate this call.";
@@ -281,12 +291,49 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
    }
 
    /**
+    * Bug #80820: reclassifies the ERROR {@code VSObjectPropertyService.editObjectProperty} sends
+    * for a failing assembly script ({@code "Script failed:" + "Script execution error in
+    * assembly: ..."}) as the INFO the table path already uses, so {@link #getScriptFailures}
+    * reports it as a warning instead of {@link #getErrors} failing the write. This is the #78378
+    * contract: the failure comes from a script the change merely re-ran and may predate it.
+    *
+    * <p>The seam is here, not in {@code VSObjectPropertyService}, because the Composer UI shares
+    * that service and must keep its error dialog. The effect reaches every wiz write that goes
+    * through it: set_calendar_display, set_assembly_properties, /edit (rename, paste, cut),
+    * set_selection_layout and set_chart_element_visibility now return ok plus a warning where
+    * they used to throw. Only messages that start with the exact label and assembly-script prefix
+    * are touched; any other ERROR still fails the call.
+    *
+    * <p>Caveats: the label is localized through the Catalog of the sending thread, so an ERROR
+    * produced under another locale is matched by its English label only. The match is on text, so a
+    * script failure whose cause is a {@code TableLoadException} (Bug #78071) is downgraded too,
+    * although {@code BaseTableService} still reports that one as an error.
+    */
+   private static ViewsheetCommand downgradeScriptFailure(ViewsheetCommand command) {
+      if(command instanceof MessageCommand m && m.getType() == MessageCommand.Type.ERROR &&
+         m.getMessage() != null)
+      {
+         int label = scriptFailedLabelLength(m.getMessage());
+
+         if(label >= 0) {
+            MessageCommand info = new MessageCommand();
+            info.setMessage(m.getMessage().substring(label));
+            info.setType(MessageCommand.Type.INFO);
+            return info;
+         }
+      }
+
+      return command;
+   }
+
+   /**
     * Captures the command rather than transmitting it. Deliberately does not call
     * {@code super}, which would engage the debounce/flush machinery that needs a real STOMP
     * session.
     */
    @Override
    public void sendCommand(String assemblyName, ViewsheetCommand command) {
+      command = downgradeScriptFailure(command);
       captured.add(new Command(assemblyName, commandTypeOf(command), command));
    }
 
@@ -363,48 +410,6 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
       return messages;
    }
 
-   /**
-    * Turns the script-failure {@code Type.ERROR}s dispatched after {@code mark} into warnings, so
-    * the call does not fail on them.
-    *
-    * <p>{@code VSObjectPropertyService.editObjectProperty} reports a script that threw while the
-    * write refreshed its dependents (a table whose query script fails, say) as an ERROR whose
-    * text is the catalog's "Script failed" word followed by the script error, after the edit was
-    * stored. Failing the whole call on it hides a write that landed, so a caller that has made
-    * such a write takes the failure here instead. Only that producer's text is matched; any other
-    * ERROR stays for the post-check in {@link #withCapturingDispatcher}. The relayed text starts
-    * at the script error itself and is returned by {@link #getWarnings}.
-    *
-    * @param mark a value from {@link #capturedCount}, taken before the write.
-    */
-   public void demoteScriptFailureErrorsSince(int mark) {
-      String prefix = Catalog.getCatalog().getString("Script failed");
-
-      for(int i = Math.max(mark, 0); i < captured.size(); ) {
-         if(captured.get(i).getCommand() instanceof MessageCommand message &&
-            message.getType() == MessageCommand.Type.ERROR && message.getMessage() != null &&
-            message.getMessage().startsWith(prefix))
-         {
-            String text = message.getMessage().substring(prefix.length());
-
-            if(text.startsWith(":")) {
-               text = text.substring(1);
-            }
-
-            text = CommandErrorException.messageOf(text.strip());
-
-            if(!demotedScriptErrors.contains(text)) {
-               demotedScriptErrors.add(text);
-            }
-
-            captured.remove(i);
-         }
-         else {
-            i++;
-         }
-      }
-   }
-
    /** Every command the wrapped call dispatched, in order. */
    public List<Command> getCapturedCommands() {
       return Collections.unmodifiableList(captured);
@@ -440,5 +445,4 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
    }
 
    private final List<Command> captured = new ArrayList<>();
-   private final List<String> demotedScriptErrors = new ArrayList<>();
 }

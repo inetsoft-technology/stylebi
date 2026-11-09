@@ -291,10 +291,9 @@ public class CassandraTable extends XTableNode {
             LOG.debug("Failed to decode blob as image: (" + col + ")", ex);
          }
 
-         return Bytes.toHexString(buf);
+         return blobText(buf);
       case ProtocolConstants.DataType.INET:
-         InetAddress inet = curr.getInetAddress(col);
-         return inet == null ? null : inet.getHostAddress();
+         return inetText(curr.getInetAddress(col));
       case ProtocolConstants.DataType.TUPLE:
          TupleValue tuple = curr.getTupleValue(col);
          return tuple == null ? null : tuple.getFormattedContents();
@@ -336,6 +335,10 @@ public class CassandraTable extends XTableNode {
          return new Date(((Instant) value).toEpochMilli());
       case ProtocolConstants.DataType.DURATION:
          return value.toString();
+      case ProtocolConstants.DataType.BLOB:
+         return blobText((ByteBuffer) value);
+      case ProtocolConstants.DataType.INET:
+         return inetText((InetAddress) value);
       case ProtocolConstants.DataType.UDT:
          return ((UdtValue) value).getFormattedContents();
       case ProtocolConstants.DataType.TUPLE:
@@ -371,6 +374,20 @@ public class CassandraTable extends XTableNode {
       default:
          return value;
       }
+   }
+
+   /**
+    * Text for non-image blob bytes, shared by top-level columns and collection elements.
+    */
+   private static String blobText(ByteBuffer buf) {
+      return buf == null ? null : Bytes.toHexString(buf);
+   }
+
+   /**
+    * Plain host address (no leading slash), shared by top-level columns and collection elements.
+    */
+   private static String inetText(InetAddress inet) {
+      return inet == null ? null : inet.getHostAddress();
    }
 
    @Override

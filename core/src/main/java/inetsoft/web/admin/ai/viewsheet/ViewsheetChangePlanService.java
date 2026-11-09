@@ -36,6 +36,7 @@ import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.sree.security.ResourceAction;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,12 +73,17 @@ import java.util.*;
  * live in the separate namespace and are not moved (they keep their old path), as
  * {@link #resolveFolderRename resolveFolderRename}'s own {@code PlanChange} description discloses,
  * though it is not yet force-gated the way delete now is (a known, separate gap, not fixed here).
+ * Folder create/rename destinations are probed with the same predicates the service refuses on
+ * ({@link #requireFolderCreateTargetFree}/{@link #requireFolderRenameTargetFree}, bug #80190), and
+ * apply re-runs them before entering the mutating call.
  * No {@code RISK_MEDIUM} constant exists on {@link AdminChangeRecord} (only {@code RISK_LOW}/{@code
  * RISK_HIGH}) -- folder create and an empty-folder delete use {@code RISK_LOW}, the closest existing
  * constant for a genuinely metadata-only change; a non-empty-folder delete uses {@code RISK_HIGH},
  * matching viewsheet delete's own classification for the same reason (a real, irreversible
- * AssetRepository deletion). {@code requiresStorageBackup} is {@code true} unconditionally for every
- * verb regardless of risk (snapshotScope is independent of risk, AREA-SPEC-GUIDE.md section 2.3).
+ * AssetRepository deletion). {@code requiresStorageBackup} is {@code true} for every verb except a
+ * pure folder create (a new registry label with a live undo); a plan skips the snapshot only when
+ * every change is one (Bug #80650, see {@link StorageBackupPolicy}). snapshotScope is independent of
+ * risk (AREA-SPEC-GUIDE.md section 2.3).
  *
  * <p>Delete's own dependency preflight (section 0.2) reads {@code
  * DependencyTool.getDependencies}, the canonical reverse-dependency index, rather than {@code
@@ -134,8 +140,18 @@ public class ViewsheetChangePlanService {
       boolean requiresAgentSignoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
       String planHash = hash(changes, auxProjections);
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true,
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         req.getChanges(), ViewsheetChangePlanService::isPureFolderCreate);
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup,
                               requiresAgentSignoff, planHash, TaskAuditToken.issue(planHash, task));
+   }
+
+   /** Only a folder create is a pure create here: resolveFolderCreate refuses an existing folder,
+    * and viewsheet/worksheet units have no create verb. Re-normalized with the same helpers
+    * resolveOne used, since the raw request accepts case/alias variants. */
+   private static boolean isPureFolderCreate(ViewsheetChangeRequest change) {
+      return ViewsheetChangeRequest.UNIT_FOLDER.equals(requireUnitType("", change.getUnitType())) &&
+         ViewsheetChangeRequest.VERB_CREATE.equals(requireFolderVerb("", change.getVerb()));
    }
 
    private PlanChange resolveOne(String label, ViewsheetChangeRequest change, Principal user,
@@ -283,6 +299,39 @@ public class ViewsheetChangePlanService {
             label + ".newPath: duplicate entry for \"" + newPath + "\"; another " + unit +
             " rename in this submission already targets it -- a path may appear once per " +
             "submission, counting a rename's target");
+      }
+   }
+
+   /**
+    * Bug #80190: refuses a folder rename whose destination is occupied by a folder or a
+    * viewsheet, using the same predicate {@code renameFolder} refuses on. Package-visible so apply
+    * re-checks before entering the mutating call (a refusal after that point is reported as
+    * rollback-failed). A worksheet at the path is not a collision: worksheets live in a separate
+    * namespace that the folder rename never touches.
+    */
+   void requireFolderRenameTargetFree(String label, String normalizedNew, IdentityID owner)
+      throws Exception
+   {
+      if(folderService.getFolder(normalizedNew, owner).found() ||
+         viewsheetApiService.isFolderRenameTargetTaken(normalizedNew, owner))
+      {
+         throw new IllegalArgumentException(
+            label + ".newPath: \"" + normalizedNew + "\" already exists as a folder or " +
+            "viewsheet in this scope; the rename would collide with it -- choose a free path " +
+            "or delete the destination first");
+      }
+   }
+
+   /** Bug #80190: folder-create twin of {@link #requireFolderRenameTargetFree}. */
+   void requireFolderCreateTargetFree(String label, String fullPath, IdentityID owner)
+      throws Exception
+   {
+      if(folderService.getFolder(fullPath, owner).found() ||
+         viewsheetApiService.isFolderCreateTargetTaken(fullPath, owner))
+      {
+         throw new IllegalArgumentException(
+            label + ": \"" + fullPath + "\" already exists as a folder or viewsheet in this " +
+            "scope -- choose a free path");
       }
    }
 
@@ -782,9 +831,7 @@ public class ViewsheetChangePlanService {
 
       GetViewsheetFolderResult current = folderService.getFolder(fullPath, owner);
 
-      if(current.found()) {
-         throw new IllegalArgumentException(label + ": folder \"" + fullPath + "\" already exists");
-      }
+      requireFolderCreateTargetFree(label, fullPath, owner);
 
       // Track B/Redmine #76604 Gap5: RepletRegistryService.addRepositoryFolder already accepts
       // alias/description at creation time -- these are optional, may be null/omitted.
@@ -1108,10 +1155,7 @@ public class ViewsheetChangePlanService {
       // Bug #80355: the rename's landing path is claimed like an entry's own path, and an
       // already-existing destination is refused (renameFolder has no apply-side guard).
       if(!normalizedNew.equals(normalizedOld)) {
-         if(folderService.getFolder(normalizedNew, owner).found()) {
-            throw new IllegalArgumentException(
-               label + ".newPath: a folder already exists at \"" + normalizedNew + "\"");
-         }
+         requireFolderRenameTargetFree(label, normalizedNew, owner);
 
          if(!seenKeys.add(folderKey(normalizedNew, owner))) {
             throw new IllegalArgumentException(

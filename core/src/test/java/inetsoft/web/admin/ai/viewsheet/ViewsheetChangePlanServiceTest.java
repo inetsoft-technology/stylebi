@@ -479,6 +479,38 @@ class ViewsheetChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("already exists"));
    }
 
+   @Test void resolveFolderCreateOnlyPlanSkipsStorageBackup() throws Exception {
+      stubFolder("Examples/New Folder", null, false);
+      ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
+
+      var plan = service.resolve(request("task", List.of(change)), user);
+
+      // Bug #80650: a brand-new registry folder has a live undo; the snapshot adds nothing.
+      assertFalse(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveFolderCreateWithAliasVerbAndUpperCaseUnitStillSkipsStorageBackup()
+      throws Exception
+   {
+      stubFolder("Examples/New Folder", null, false);
+      ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
+      change.setUnitType("FOLDER");
+      change.setVerb("add");
+
+      assertFalse(service.resolve(request("task", List.of(change)), user).requiresStorageBackup());
+   }
+
+   @Test void resolveFolderCreatePlusViewsheetDeleteKeepsStorageBackup() throws Exception {
+      stubFolder("Examples/New Folder", null, false);
+      stubViewsheetList(VS_ASSET_ID, "Examples/Census", true, null);
+
+      var plan = service.resolve(request("task", List.of(
+         createFolderChange("Examples", "New Folder", null),
+         deleteViewsheetChange(VS_ASSET_ID))), user);
+
+      assertTrue(plan.requiresStorageBackup());
+   }
+
    @Test void resolveFolderCreateAcceptsAddAlias() throws Exception {
       stubFolder("Examples/New Folder", null, false);
       ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
@@ -787,6 +819,33 @@ class ViewsheetChangePlanServiceTest {
          renameFolderChange("Examples/Old Folder", "Examples/New Folder", null);
 
       assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+   }
+
+   // Bug #80190: renameFolder also refuses a destination occupied by a VIEWSHEET (not a folder);
+   // preview must refuse it too, naming the taken path.
+   @Test void resolveFolderRenameRefusesDestinationOccupiedByAViewsheet() throws Exception {
+      stubFolder("Examples/Old Folder", null, true);
+      stubFolder("Examples/New Folder", null, false);
+      when(viewsheetApiService.isFolderRenameTargetTaken(eq("Examples/New Folder"), any()))
+         .thenReturn(true);
+      ViewsheetChangeRequest change =
+         renameFolderChange("Examples/Old Folder", "Examples/New Folder", null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("\"Examples/New Folder\" already exists"), ex.getMessage());
+   }
+
+   // Bug #80190: same for folder create -- addFolder refuses a viewsheet / case-variant folder.
+   @Test void resolveFolderCreateRefusesPathOccupiedByAViewsheet() throws Exception {
+      stubFolder("Examples/New Folder", null, false);
+      when(viewsheetApiService.isFolderCreateTargetTaken(eq("Examples/New Folder"), any()))
+         .thenReturn(true);
+      ViewsheetChangeRequest change = createFolderChange("Examples", "New Folder", null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("\"Examples/New Folder\" already exists"), ex.getMessage());
    }
 
    // Bug #79896: StyleBI re-points schedule-task actions on rename, so the plan text must not

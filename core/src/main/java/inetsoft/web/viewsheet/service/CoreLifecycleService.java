@@ -1024,12 +1024,9 @@ public class CoreLifecycleService {
          InputVSAssembly input = (InputVSAssembly) vsassembly;
 
          if(input.getRow() >= 0 && input.getColumn() != null) {
-            Object value = new InputVSAQuery(box, assembly.getAbsoluteName()).getData();
-
-            if(value instanceof ListData) {
-               Object[] values = ((ListData) value).getValues();
-               value = values == null || values.length == 0 ? null : values[0];
-            }
+            // read the bound cell (not getData(), which returns the item list for list inputs
+            // and would reset a ComboBox/RadioButton to its first item)
+            Object value = new InputVSAQuery(box, assembly.getAbsoluteName()).getCellValue();
 
             if(value != null) {
                ((SingleInputVSAssembly) vsassembly).setSelectedObject(value);

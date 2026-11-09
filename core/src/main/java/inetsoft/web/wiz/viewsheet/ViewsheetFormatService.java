@@ -3508,21 +3508,24 @@ public class ViewsheetFormatService {
     * a numeric column that really holds epoch milliseconds: such a cell is refused too, and a
     * caller who wants a date there should bind the cell to a date field.
     */
-   private void refuseDateFormatOnNumericCell(String sessionToken, Principal user,
-                                              CellFormatRequest request)
+   private String refuseDateFormatOnNumericCell(String sessionToken, Principal user,
+                                                CellFormatRequest request)
       throws Exception
    {
-      if(request.reset() || request.format() == null ||
-         request.format().getFormat() == null ||
+      if(request.reset()) {
+         return refuseResetUnderObjectDateFormat(sessionToken, user, request);
+      }
+
+      if(request.format() == null || request.format().getFormat() == null ||
          !CalcTableService.isDateLikeFormat(request.format().getFormat()))
       {
-         return;
+         return null;
       }
 
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
 
       if(rvs == null) {
-         return;
+         return null;
       }
 
       calcService.cellFormatPath(rvs, request.assembly(), request.row(), request.col());
@@ -3531,7 +3534,7 @@ public class ViewsheetFormatService {
                                                request.col());
 
       if(!CalcTableService.isDateFormatOnNumericOutput(request.format().getFormat(), type)) {
-         return;
+         return null;
       }
 
       String bound = calcService.describeCellBinding(rvs, request.assembly(), request.row(),
@@ -3545,6 +3548,28 @@ public class ViewsheetFormatService {
          "milliseconds). The request was not applied. Use a numeric format such as " +
          "DecimalFormat or CurrencyFormat for numbers, or bind the cell to a date field " +
          "(for example Max or Min of a date column) to format it as a date.");
+   }
+
+   /**
+    * Bug #80501: a reset clears the cell's own format, so under a whole-table date format a
+    * numeric cell would then inherit it and render as 1970-01-01. Refuses a cell known to be
+    * numeric and returns a disclosure for a formula cell, whose type is unknown
+    * ({@link CalcTableService#checkResetUnderObjectDateFormat}). Read-only, before the write.
+    */
+   private String refuseResetUnderObjectDateFormat(String sessionToken, Principal user,
+                                                   CellFormatRequest request)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+
+      if(rvs == null) {
+         return null;
+      }
+
+      calcService.cellFormatPath(rvs, request.assembly(), request.row(), request.col());
+      calcService.requireNotMerged(rvs, request.assembly(), request.row(), request.col());
+      return calcService.checkResetUnderObjectDateFormat(rvs, request.assembly(), request.row(),
+                                                         request.col());
    }
 
    /**
@@ -3575,7 +3600,7 @@ public class ViewsheetFormatService {
 
       requireKnownAssemblies(sessionToken, user, List.of(request.assembly()));
 
-      refuseDateFormatOnNumericCell(sessionToken, user, request);
+      String resetNote = refuseDateFormatOnNumericCell(sessionToken, user, request);
 
       List<String> borderWarnings = new ArrayList<>();
 
@@ -3608,6 +3633,10 @@ public class ViewsheetFormatService {
 
       if(sessionWarnings != null) {
          borderWarnings.addAll(sessionWarnings);
+      }
+
+      if(resetNote != null) {
+         borderWarnings.add(resetNote);
       }
 
       return borderWarnings;

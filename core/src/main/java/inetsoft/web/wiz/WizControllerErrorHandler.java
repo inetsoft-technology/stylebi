@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
 import inetsoft.web.viewsheet.service.ExportInProgressException;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -284,9 +286,11 @@ public class WizControllerErrorHandler {
     * which is indistinguishable from a broken tool, and sends an investigation looking at the
     * server rather than at the request.
     *
-    * <p>Jackson's own text is verbose and names internal classes, so only its first line is
-    * passed on: it is the line that names the offending field, which is the part a caller can act
-    * on.
+    * <p>Jackson's own text is verbose and names internal classes, and its first line does not
+    * name the field: the reference chain sits after the first newline. When Jackson reports where
+    * it failed, the response therefore names that location itself, as {@code customLookups[0].key}
+    * (field names and indexes only, never Java class names). Without a location the first line is
+    * passed on.
     */
    @ExceptionHandler(HttpMessageNotReadableException.class)
    public ResponseEntity<Map<String, String>> handleUnreadableBody(
@@ -297,12 +301,43 @@ public class WizControllerErrorHandler {
       Throwable cause = e.getMostSpecificCause();
       String detail = cause == null || cause.getMessage() == null ? "" : cause.getMessage();
       int newline = detail.indexOf('\n');
+      detail = newline < 0 ? detail : detail.substring(0, newline);
+
+      if(cause instanceof JsonMappingException) {
+         String location = formatJsonPath(((JsonMappingException) cause).getPath());
+
+         if(!location.isEmpty()) {
+            detail = "'" + location +
+               "' is missing, has the wrong type, or has an unsupported value";
+         }
+      }
 
       Map<String, String> payload = new HashMap<>();
-      payload.put("error",
-                  "The request body could not be read: " +
-                  (newline < 0 ? detail : detail.substring(0, newline)));
+      payload.put("error", "The request body could not be read: " + detail);
       return new ResponseEntity<>(payload, null, HttpStatus.BAD_REQUEST);
+   }
+
+   /**
+    * Formats a Jackson reference path as {@code customLookups[0].key}: field names joined by dots,
+    * list indexes in brackets, nothing else.
+    */
+   private static String formatJsonPath(List<JsonMappingException.Reference> path) {
+      StringBuilder buf = new StringBuilder();
+
+      for(JsonMappingException.Reference ref : path) {
+         if(ref.getIndex() >= 0) {
+            buf.append('[').append(ref.getIndex()).append(']');
+         }
+         else if(ref.getFieldName() != null) {
+            if(buf.length() > 0) {
+               buf.append('.');
+            }
+
+            buf.append(ref.getFieldName());
+         }
+      }
+
+      return buf.toString();
    }
 
    /**

@@ -262,7 +262,7 @@ class ShapeChangePlanServiceTest {
    // plan-level shape: always high risk / signoff / backup
    // -------------------------------------------------------------------------
 
-   @Test void resolveAlwaysRequiresSignoffAndBackup() throws Exception {
+   @Test void resolveAlwaysRequiresSignoffButSkipsBackupForANewUpload() throws Exception {
       when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(false);
       ShapeChangeRequest c = change(ShapeChangeRequest.VERB_UPLOAD, "global", "a.svg");
       c.setContent(base64("<svg/>"));
@@ -270,9 +270,53 @@ class ShapeChangePlanServiceTest {
       ResolvedPlan plan = service.resolve(request(c), principal);
 
       assertTrue(plan.requiresAgentSignoff(), "every custom-shape change is high risk");
-      assertTrue(plan.requiresStorageBackup());
+      // Bug #80650: an upload to a new name makes a new file whose undo deletes it.
+      assertFalse(plan.requiresStorageBackup());
       assertNotNull(plan.planHash());
       assertNotNull(plan.taskToken());
+   }
+
+   @Test void resolveOverwriteKeepsStorageBackup() throws Exception {
+      when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
+      when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
+         .thenAnswer(inv -> new ByteArrayInputStream("<old/>".getBytes(StandardCharsets.UTF_8)));
+      ShapeChangeRequest c = change(ShapeChangeRequest.VERB_UPLOAD, "global", "a.svg");
+      c.setContent(base64("<svg/>"));
+
+      assertTrue(service.resolve(request(c), principal).requiresStorageBackup());
+   }
+
+   @Test void resolveOverwriteOfAnEmptyShapeKeepsStorageBackup() throws Exception {
+      when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
+      when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
+         .thenAnswer(inv -> new ByteArrayInputStream(new byte[0]));
+      ShapeChangeRequest c = change(ShapeChangeRequest.VERB_UPLOAD, "global", "a.svg");
+      c.setContent(base64("<svg/>"));
+
+      assertTrue(service.resolve(request(c), principal).requiresStorageBackup());
+   }
+
+   @Test void resolveDeleteKeepsStorageBackup() throws Exception {
+      when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
+      when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
+         .thenAnswer(inv -> new ByteArrayInputStream("<svg/>".getBytes(StandardCharsets.UTF_8)));
+
+      assertTrue(service.resolve(
+         request(change(ShapeChangeRequest.VERB_DELETE, "global", "a.svg")), principal)
+         .requiresStorageBackup());
+   }
+
+   @Test void resolveMixedNewUploadAndDeleteKeepsStorageBackup() throws Exception {
+      when(dataSpace.exists(null, GLOBAL_DIR + "/new.svg")).thenReturn(false);
+      when(dataSpace.exists(null, GLOBAL_DIR + "/a.svg")).thenReturn(true);
+      when(dataSpace.getInputStream(null, GLOBAL_DIR + "/a.svg"))
+         .thenAnswer(inv -> new ByteArrayInputStream("<svg/>".getBytes(StandardCharsets.UTF_8)));
+      ShapeChangeRequest upload = change(ShapeChangeRequest.VERB_UPLOAD, "global", "new.svg");
+      upload.setContent(base64("<svg/>"));
+
+      assertTrue(service.resolve(
+         request(upload, change(ShapeChangeRequest.VERB_DELETE, "global", "a.svg")), principal)
+         .requiresStorageBackup());
    }
 
    @Test void hashIsStableForTheSameCanonicalInputAndChangesWhenAPathDiffers() throws Exception {

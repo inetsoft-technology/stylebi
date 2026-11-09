@@ -379,6 +379,33 @@ class ChartAestheticGanttFieldTest {
       return aggregate;
    }
 
+   private static FieldRef withResetCalc(String column, String agg) {
+      inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo();
+      calc.setAggregate(agg);
+      return new FieldRef(column, "measure", agg, null, null, null, null, null, calc);
+   }
+
+   private static List<String> resetNotes(List<String> returned) {
+      return returned.stream().filter(n -> n.startsWith("Binding reset: ")).toList();
+   }
+
+   /** Bug #80648: the Gantt route into bindField reports the reset too. */
+   @Test
+   void aGanttFormulaChangeThatDropsACalculatorReturnsTheResetNote() throws Exception {
+      Pipeline gantt = pipeline(true);
+      gantt.service.setField("tok", principal(), "Chart1", "color", withResetCalc("START", "Sum"),
+                             null, "");
+      ChartBindingMutator.drainNotes();
+
+      List<String> returned = gantt.service.setField(
+         "tok", principal(), "Chart1", "color",
+         new FieldRef("START", "measure", "Average", null, null), null, "");
+
+      assertFalse(resetNotes(returned).isEmpty(), returned.toString());
+      assertTrue(resetNotes(returned).get(0).contains("Sum to Average"), returned.toString());
+   }
+
    private static Principal principal() {
       return () -> "admin";
    }

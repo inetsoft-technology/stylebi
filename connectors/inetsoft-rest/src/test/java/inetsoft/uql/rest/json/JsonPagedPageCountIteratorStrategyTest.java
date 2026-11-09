@@ -77,4 +77,57 @@ public class JsonPagedPageCountIteratorStrategyTest {
 
         assertEquals(3, count);
     }
+
+    @Test
+    public void unreadableTotalPagesRaisesUserWarning() throws Exception {
+        inetsoft.util.CoreTool.clearUserMessage();
+        assertEquals(1, runSinglePage("{\"items\": [1]}"));
+        final inetsoft.util.UserMessage msg = inetsoft.util.CoreTool.getUserMessage();
+        assertNotNull(msg);
+        assertEquals(inetsoft.uql.asset.ConfirmException.WARNING, msg.getLevel());
+        assertTrue(msg.getMessage().matches("(?is).*page.?count[^|]*could not be resolved.*"));
+        assertTrue(msg.getMessage().contains("only page 1"));
+    }
+
+    @Test
+    public void longTypedTotalPagesRaisesUserWarning() throws Exception {
+        inetsoft.util.CoreTool.clearUserMessage();
+        assertEquals(1, runSinglePage("{\"totalPages\": 5000000000}"));
+        assertNotNull(inetsoft.util.CoreTool.getUserMessage());
+    }
+
+    @Test
+    public void genuineZeroTotalPagesRaisesNoUserWarning() throws Exception {
+        inetsoft.util.CoreTool.clearUserMessage();
+        assertEquals(1, runSinglePage("{\"totalPages\": 0}"));
+        assertNull(inetsoft.util.CoreTool.getUserMessage());
+    }
+
+    private int runSinglePage(String page1) throws Exception {
+        final RestJsonQuery query = new RestJsonQuery();
+        final RestJsonDataSource datasource = new RestJsonDataSource();
+        datasource.setURL("http://host");
+        query.setDataSource(datasource);
+        final PaginationSpec spec = query.getPaginationSpec();
+        spec.setType(PaginationType.PAGE_COUNT);
+        spec.setTotalPagesParam(new PaginationParameter("$.totalPages", PaginationParamType.JSON_PATH));
+        spec.setPageNumberParamToWrite(new PaginationParameter("pageNumber", PaginationParamType.QUERY));
+        spec.setZeroBasedPageIndex(false);
+
+        final List<RequestResponse> requestResponses = new ArrayList<>();
+        requestResponses.add(new RequestResponse(RestRequest.builder().query(query).build(),
+           new TestHttpResponse(page1)));
+        final JsonTransformer transformer = new JsonTransformer();
+        final JsonPagedPageCountIteratorStrategy strategy = new JsonPagedPageCountIteratorStrategy(
+           query, transformer, new TestHttpHandler(requestResponses), new RestErrorHandler(),
+           new HttpResponseParameterParser(transformer));
+        int count = 0;
+
+        while(strategy.hasNext()) {
+            strategy.next();
+            count++;
+        }
+
+        return count;
+    }
 }

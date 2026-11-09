@@ -120,14 +120,16 @@ class ScheduleChangesetApplyServiceTest {
          .thenReturn(null)              // re-resolve inside apply()
          .thenReturn(sreeTask("t1", "admin")); // apply-time verify, after addScheduleTask
       when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ScheduleApplyRequest req = applyRequest("create a task", createChange(spec));
 
       ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      assertEquals("snap-ref", result.backupRef());
+      // Bug #80650: a create-only plan takes no whole-storage snapshot.
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
       assertNull(result.rollbackFailures());
       verify(scheduleGateway).addScheduleTask(any(), eq(true), anyBoolean(), anyLong(), anyLong(),
          any(), any(), any(), any(), any(), any(), any(), eq(user));
@@ -149,6 +151,8 @@ class ScheduleChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user, null);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("snap-ref", result.backupRef());
+      verify(backupService, times(1)).backup(anyString());
       verify(scheduleGateway).removeScheduleTask(eq("t1"), any(), eq(user));
    }
 
@@ -163,7 +167,7 @@ class ScheduleChangesetApplyServiceTest {
          .thenReturn(null)
          .thenReturn(sreeTask("t1", "admin"));
       when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ScheduleApplyRequest req = requestWithDivergentApplyTask(
          "reviewed: create t1", "totally different apply-time text", createChange(spec));
@@ -299,7 +303,7 @@ class ScheduleChangesetApplyServiceTest {
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
       when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
       when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
       doThrow(new IllegalStateException("boom")).when(scheduleGateway)
          .addScheduleTask(any(), anyBoolean(), anyBoolean(), anyLong(), anyLong(), any(), any(),
                           any(), any(), any(), any(), any(), eq(user));
@@ -323,7 +327,7 @@ class ScheduleChangesetApplyServiceTest {
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
       when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
       when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
       // the plan (which apply re-resolves) passes no link, so only the apply-time preflight throws
       lenient().doThrow(new inetsoft.web.security.auth.UnauthorizedAccessException(
          "Unauthorized access to viewsheet X"))
@@ -344,7 +348,7 @@ class ScheduleChangesetApplyServiceTest {
       String taskId = ScheduleManager.getTaskId(spec.getOwner().convertToKey(), spec.getName());
       when(scheduleManager.getScheduleTask(taskId)).thenReturn(null);
       when(scheduleGateway.hasDeletePermission(taskId, user)).thenReturn(true);
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
       doThrow(new MessageException("The execute-as user nouser does not exist"))
          .when(scheduleGateway).checkAddScheduleTaskAllowed(any(), any(), eq(user));
 

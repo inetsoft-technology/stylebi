@@ -173,6 +173,38 @@ public class InputVSAQuery extends VSAQuery {
    }
 
    /**
+    * Get the value stored in the embedded table cell this input is bound to.
+    * @return the cell value, or null if the input has no (valid) cell target.
+    */
+   public Object getCellValue() throws Exception {
+      InputVSAssembly assembly = (InputVSAssembly) getAssembly();
+      AssetQuerySandbox wbox = getAssetQuerySandbox();
+      String tname = assembly.getTableName();
+      Object def = null;
+
+      if(wbox != null && tname != null) {
+         Worksheet ws = getWorksheet();
+         EmbeddedTableAssembly eassembly = (EmbeddedTableAssembly) ws.getAssembly(tname);
+
+         if(eassembly != null) {
+            DataRef column = assembly.getColumn();
+            int row = assembly.getRow();
+
+            if(column != null && row > 0) {
+               XEmbeddedTable edata = eassembly.getEmbeddedData();
+               int col = AssetUtil.findColumn(edata, column);
+
+               if(col >= 0 && row < edata.getRowCount()) {
+                  def = edata.getObject(row, col);
+               }
+            }
+         }
+      }
+
+      return def;
+   }
+
+   /**
     * Get the data of an input viewsheet assembly.
     * @return the data of the query.
     */
@@ -183,30 +215,7 @@ public class InputVSAQuery extends VSAQuery {
 
       // scalar input viewsheet assembly? fetch default value if any
       if(!(assembly instanceof ListInputVSAssembly)) {
-         String tname = assembly.getTableName();
-         Object def = null;
-
-         if(wbox != null && tname != null) {
-            Worksheet ws = getWorksheet();
-            EmbeddedTableAssembly eassembly =
-               (EmbeddedTableAssembly) ws.getAssembly(tname);
-
-            if(eassembly != null) {
-               DataRef column = assembly.getColumn();
-               int row = assembly.getRow();
-
-               if(column != null && row > 0) {
-                  XEmbeddedTable edata = eassembly.getEmbeddedData();
-                  int col = AssetUtil.findColumn(edata, column);
-
-                  if(col >= 0 && row < edata.getRowCount()) {
-                     def = edata.getObject(row, col);
-                  }
-               }
-            }
-         }
-
-         return def;
+         return getCellValue();
       }
 
       ListInputVSAssembly lassembly = (ListInputVSAssembly) assembly;

@@ -836,6 +836,124 @@ class ChartElementServiceTest {
       assertTrue(thrown.getMessage().contains("Text1"));
    }
 
+   // ── bug #80505 item 4: hiding a legend that is already hidden ─────────────
+
+   /** The real server binds a logical-model column with the entity inside the attribute name. */
+   private static VSChartDimensionRef qualified(String entity, String name) {
+      return new VSChartDimensionRef(
+         new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, entity + ":" + name)));
+   }
+
+   /** Colour = Customer:Region (entity-qualified, as the real server binds it), optional shape. */
+   private static VSChartInfo boundInfo(boolean withShape) {
+      VSChartInfo info = new DefaultVSChartInfo();
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(qualified("Customer", "Region"));
+      info.setColorField(color);
+
+      if(withShape) {
+         VSAestheticRef shape = new VSAestheticRef();
+         shape.setDataRef(qualified("Customer", "Reseller"));
+         info.setShapeField(shape);
+      }
+
+      return info;
+   }
+
+   private static ChartVisibilityState.HiddenLegends hiddenOf(VSChartInfo info, boolean color,
+                                                              boolean shape)
+   {
+      ChartDescriptor desc = new ChartDescriptor();
+      desc.getLegendsDescriptor().getColorLegendDescriptor().setVisible(!color);
+      desc.getLegendsDescriptor().getShapeLegendDescriptor().setVisible(!shape);
+      return ChartVisibilityState.hiddenLegends(desc, info, false);
+   }
+
+   private static final ChartRegionResolver.Legends NO_DRAWN_LEGENDS =
+      new ChartRegionResolver.Legends(java.util.List.of(), true);
+
+   @Test
+   void hideAllThenHidingTheBoundLegendByNameIsAlreadyHiddenNotNoSuchLegend() {
+      ChartVisibilityState.HiddenLegends hidden = hiddenOf(boundInfo(false), true, true);
+      String note = ChartElementService.alreadyHidden(NO_DRAWN_LEGENDS, hidden, "Customer:Region");
+
+      assertNotNull(note);
+      assertTrue(note.contains("already hidden") && note.contains("Customer:Region"), note);
+      assertNotNull(ChartElementService.alreadyHidden(NO_DRAWN_LEGENDS, hidden, " customer:region "),
+                    "forgiving about case and space, like a drawn legend");
+      assertNotNull(ChartElementService.alreadyHidden(NO_DRAWN_LEGENDS, hidden, "color"),
+                    "the channel names the one hidden colour legend");
+   }
+
+   @Test
+   void withOneOfTwoLegendsHiddenTheHiddenOneIsAlreadyHiddenAndTheDrawnOneResolves() {
+      VSChartInfo info = boundInfo(true);
+      ChartVisibilityState.HiddenLegends hidden = hiddenOf(info, false, true);
+      ChartRegionResolver.Legends drawn = new ChartRegionResolver.Legends(
+         java.util.List.of(new ChartRegionResolver.LegendTarget(
+            "Customer:Region", "Color", java.util.List.of(), false)), true);
+
+      assertNotNull(ChartElementService.alreadyHidden(drawn, hidden, "Customer:Reseller"));
+      assertNull(ChartElementService.alreadyHidden(drawn, hidden, "Customer:Region"),
+                 "a drawn legend is left to the normal path");
+      assertDoesNotThrow(() -> ChartRegionResolver.requireLegendField(drawn, "Customer:Region"));
+   }
+
+   @Test
+   void aNameThatMatchesNoLegendAtAllIsStillRefused() {
+      ChartVisibilityState.HiddenLegends hidden = hiddenOf(boundInfo(false), true, true);
+
+      assertNull(ChartElementService.alreadyHidden(NO_DRAWN_LEGENDS, hidden, "Customer:Typo"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartRegionResolver.requireLegendField(NO_DRAWN_LEGENDS, "Customer:Typo"));
+      assertNull(ChartElementService.alreadyHidden(NO_DRAWN_LEGENDS,
+                                                   ChartVisibilityState.HiddenLegends.NONE,
+                                                   "Customer:Region"),
+                 "control: nothing hidden, so a missing legend stays 'no such legend'");
+   }
+
+   @Test
+   void serviceWritesNothingAndReportsAlreadyHiddenForAHiddenBoundLegend() throws Exception {
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      ChartDescriptor desc = new ChartDescriptor();
+      desc.getLegendsDescriptor().getColorLegendDescriptor().setVisible(false);
+      VSChartInfo info = boundInfo(false);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      when(chart.getChartDescriptor()).thenReturn(desc);
+      Harness h = harness(chart);
+
+      List<String> out = h.service.setVisibility(
+         "tok", principal(), "Chart1", "legend", "Customer:Region", false, false, "");
+
+      assertEquals(1, out.size());
+      assertTrue(out.get(0).contains("already hidden"), out.get(0));
+      verifyNoInteractions(h.legends);
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void serviceStillRefusesATypoNameWhenTheRealLegendIsHidden() {
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      ChartDescriptor desc = new ChartDescriptor();
+      desc.getLegendsDescriptor().getColorLegendDescriptor().setVisible(false);
+      when(chart.getVSChartInfo()).thenReturn(boundInfo(false));
+      when(chart.getChartDescriptor()).thenReturn(desc);
+      Harness h = harness(chart);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service.setVisibility(
+         "tok", principal(), "Chart1", "legend", "Customer:Typo", false, false, ""));
+      verifyNoInteractions(h.legends);
+   }
+
+   @Test
+   void showingWithATargetIsStillRefusedSoThereIsNoVisibleTrueGap() {
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      Harness h = harness(chart);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service.setVisibility(
+         "tok", principal(), "Chart1", "legend", "Customer:Region", true, false, ""));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(ChartElementService service, ViewsheetSessionService sessions,

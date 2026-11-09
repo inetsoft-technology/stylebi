@@ -170,6 +170,34 @@ class ScriptLibraryChangePlanServiceTest {
       assertNull(pc.currentValue());
       assertEquals(inetsoft.util.audit.AdminChangeRecord.RISK_LOW, pc.risk());
       assertFalse(plan.requiresAgentSignoff());
+      // Bug #80650: a create-only plan makes a new script with a live undo -- no snapshot needed.
+      assertFalse(plan.requiresStorageBackup());
+   }
+
+   @Test void resolveCreateVerbIsMatchedCaseInsensitively() throws Exception {
+      when(lib.getScript("newScript")).thenReturn(null);
+      ScriptLibraryChangeRequest c = change("CREATE", "newScript");
+      c.setText("return 1;");
+
+      assertFalse(service.resolve(request(c), user).requiresStorageBackup());
+   }
+
+   @Test void resolveMixedCreateAndDeleteKeepsStorageBackup() throws Exception {
+      when(lib.getScript("newScript")).thenReturn(null);
+      when(lib.getScript("a")).thenReturn("return 1;");
+      when(lib.getScriptComment("a")).thenReturn("desc");
+      ScriptLibraryChangeRequest create = change(ScriptLibraryChangeRequest.VERB_CREATE, "newScript");
+      create.setText("return 1;");
+      ScriptLibraryChangeRequest delete = change(ScriptLibraryChangeRequest.VERB_DELETE, "a");
+
+      try(MockedStatic<DependencyTransformer> dep = mockStatic(DependencyTransformer.class)) {
+         dep.when(() -> DependencyTransformer.getDependencies(anyString())).thenReturn(List.of());
+
+         ResolvedPlan plan = service.resolve(request(create, delete), user);
+
+         assertEquals(2, plan.changes().size());
+         assertTrue(plan.requiresStorageBackup());
+      }
    }
 
    @Test void resolveCreateRefusesACollidingName() {
@@ -255,6 +283,7 @@ class ScriptLibraryChangePlanServiceTest {
       PlanChange pc = plan.changes().get(0);
       assertEquals(inetsoft.util.audit.AdminChangeRecord.RISK_LOW, pc.risk());
       assertTrue(pc.proposedValue().contains("new desc"));
+      assertTrue(plan.requiresStorageBackup());
    }
 
    @Test void resolveUpdateRequiresADescription() {
@@ -285,6 +314,7 @@ class ScriptLibraryChangePlanServiceTest {
          assertEquals(inetsoft.util.audit.AdminChangeRecord.RISK_HIGH, pc.risk());
          assertTrue(plan.requiresAgentSignoff());
          assertNull(pc.proposedValue());
+         assertTrue(plan.requiresStorageBackup());
       }
    }
 

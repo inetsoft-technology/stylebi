@@ -23,6 +23,7 @@ import inetsoft.uql.rest.RestRequest;
 import inetsoft.uql.rest.json.HttpRestDataIteratorStrategy;
 import inetsoft.uql.rest.pagination.PaginationSpec;
 import inetsoft.uql.rest.pagination.PaginationType;
+import inetsoft.util.CoreTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,6 +83,9 @@ class XMLPagedPageCountIteratorStrategy extends HttpRestDataIteratorStrategy<Res
             LOG.warn("Page count xpath {} matched nothing on the first page; " +
                      "returning a single page",
                      query.getPaginationSpec().getPageCountXpath().getValue());
+            CoreTool.addUserWarning(
+               "The page count (Page Count XPath parameter) matched nothing on the first " +
+               "page, so only page 1 was read.");
          }
 
          return result;

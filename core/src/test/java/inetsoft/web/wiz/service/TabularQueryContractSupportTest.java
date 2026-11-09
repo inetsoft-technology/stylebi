@@ -626,4 +626,118 @@ class TabularQueryContractSupportTest {
 
       assertDoesNotThrow(() -> apply(query, params("fileFolder", "sales.xlsx")));
    }
+
+   // ─── restating the query on edit: omitted optional params reset (#80649) ──
+
+   /** What edit_table's queryParams form does to the clone of the live query. */
+   private static String restate(TabularQuery query, Map<String, Object> queryParams)
+      throws Exception
+   {
+      Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(query.getClass());
+      TabularQuerySchema schema = schemaFor(query);
+      TabularQueryContractSupport.resetOmittedToDefaults(query, pmap, schema, queryParams);
+      return TabularQueryContractSupport.applyQueryContract(
+         query, pmap, schema, queryParams, "myds");
+   }
+
+   @Test
+   void restatingWithoutAnOptionalScalarResetsItToItsDefault() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      apply(query, params("endpoint", "Repos", "jsonPath", "$.data[*]",
+                          "expandedPath", "$.items", "expanded", Boolean.TRUE));
+
+      restate(query, params("endpoint", "Repos"));
+
+      FakeNamedConnectorQuery fresh = new FakeNamedConnectorQuery();
+      assertEquals(fresh.getJsonPath(), query.getJsonPath());
+      assertEquals(fresh.getExpandedPath(), query.getExpandedPath());
+      assertEquals(fresh.getExpanded(), query.getExpanded());
+   }
+
+   @Test
+   void restatingResetsEveryOmittedScalarOnAnotherConnectorType() throws Exception {
+      FakeDelimitedFileQuery query = new FakeDelimitedFileQuery();
+      apply(query, params("delimiter", "|", "header", "a|b"));
+
+      restate(query, params("header", "a|b"));
+
+      assertEquals(",", query.getDelimiter());
+      assertEquals("a|b", query.getHeader());
+
+      FakeCustomRestQuery rest = new FakeCustomRestQuery();
+      apply(rest, params("suffix", "/v1/widgets", "jsonPath", "$.data[*]",
+                         "paginationMode", "page"));
+
+      restate(rest, params("suffix", "/v1/widgets"));
+
+      assertEquals("/v1/widgets", rest.getSuffix());
+      assertEquals(new FakeCustomRestQuery().getJsonPath(), rest.getJsonPath());
+      assertEquals(new FakeCustomRestQuery().getPaginationMode(), rest.getPaginationMode());
+   }
+
+   @Test
+   void restatingStillAppliesAnExplicitlySuppliedValue() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      apply(query, params("endpoint", "Repos", "jsonPath", "$.old", "expandedPath", "$.items"));
+
+      restate(query, params("endpoint", "Repos", "jsonPath", "$.new"));
+
+      assertEquals("$.new", query.getJsonPath());
+      assertEquals(new FakeNamedConnectorQuery().getExpandedPath(), query.getExpandedPath());
+   }
+
+   @Test
+   void restatingWithoutTheCompositeClearsItsElementValuesButKeepsTheSkeleton() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      apply(query, params("endpoint", "Repos", "parameters", Map.of("id", "42")));
+      assertEquals("42", query.getParameters().findParameter("id").getValue());
+
+      restate(query, params("endpoint", "Repos"));
+
+      assertNotNull(query.getParameters().findParameter("id"));
+      assertNull(query.getParameters().findParameter("id").getValue());
+   }
+
+   @Test
+   void restatingASuppliedCompositeSetsItsSuppliedElements() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      apply(query, params("endpoint", "Repos", "parameters", Map.of("id", "42")));
+
+      restate(query, params("endpoint", "Repos", "parameters", Map.of("id", "7")));
+
+      assertEquals("7", query.getParameters().findParameter("id").getValue());
+   }
+
+   @Test
+   void resettingAFreshQueryChangesNothing() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      restate(query, params("endpoint", "Repos"));
+
+      assertTrue(query.isLookupExpanded());
+      assertTrue(query.isLookupTopLevelOnly());
+      assertEquals("Repos", query.getEndpoint());
+   }
+
+   @Test
+   void restatingReadsTheDefaultsThroughTheSameDataSourceAFreshAddWouldHave() throws Exception {
+      FakeTabularDataSource ds = new FakeTabularDataSource();
+      ds.setName("semi");
+      FakeDataSourceDefaultQuery query = new FakeDataSourceDefaultQuery();
+      query.setDataSource(ds);
+      apply(query, params("delimiter", "|", "header", "a|b"));
+
+      restate(query, params("header", "a|b"));
+
+      assertEquals("default-of-semi", query.getDelimiter());
+   }
+
+   @Test
+   void restatingWithoutARequiredParamStillFailsLoudAtTheContract() {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> restate(query, params("jsonPath", "$.x")));
+      assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
+   }
 }
