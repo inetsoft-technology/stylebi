@@ -776,6 +776,129 @@ public class ModifyCalculateFieldService {
    }
 
    /**
+    * The chart fields that a calc type flip of {@code refname} to {@code newRef} would replace
+    * although the field is bound to them only as an auxiliary column: the second column of a
+    * two-column aggregate such as Correlation, or the ranking / sort-by measure of a dimension.
+    * {@link ChartVSAssembly#changeCalcType} swaps the whole ref for a fresh one of the flipped
+    * field, and the per-binding count {@link #findBindingsLostOnCalcTypeChange} compares does not
+    * drop (the new ref still names the field), so nothing else reports it. Each entry reads
+    * {@code chart 'C' y field 'Correlation(A, F)' (F was its second column) became 'F'}, or
+    * {@code was removed} when no field takes its slot. The change is tried on a copy, as in
+    * {@link #syncAssemblies}.
+    */
+   public static List<String> findChartFieldsReplacedOnCalcTypeChange(Viewsheet vs, String tname,
+                                                                      String refname,
+                                                                      CalculateRef newRef)
+   {
+      List<String> replaced = new ArrayList<>();
+
+      for(BindableVSAssembly bind : getBoundAssemblies(vs, tname)) {
+         if(!(bind instanceof ChartVSAssembly) ||
+            ((ChartVSAssembly) bind).getVSChartInfo() == null)
+         {
+            continue;
+         }
+
+         try {
+            ChartVSAssembly copy = (ChartVSAssembly) bind.clone();
+            copy.changeCalcType(refname, newRef);
+            VSChartInfo before = ((ChartVSAssembly) bind).getVSChartInfo();
+            VSChartInfo after = copy.getVSChartInfo();
+
+            for(String axis : new String[] { "x", "y", "group" }) {
+               List<DataRef> brefs = chartAxisFields(before, axis);
+               List<DataRef> arefs = chartAxisFields(after, axis);
+
+               for(int i = 0; i < brefs.size(); i++) {
+                  DataRef ref = brefs.get(i);
+                  String use = auxiliaryUse(ref, refname);
+                  String text = describeChartRef(ref);
+
+                  if(use == null || arefs.stream().anyMatch(a -> text.equals(describeChartRef(a)))) {
+                     continue;
+                  }
+
+                  replaced.add("chart '" + bind.getName() + "' " + axis + " field '" + text +
+                               "' (" + refname + " was its " + use + ") " +
+                               (arefs.size() == brefs.size()
+                                  ? "became '" + describeChartRef(arefs.get(i)) + "'"
+                                  : "was removed"));
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Could not simulate the calc type change of \"{}\" on chart \"{}\"",
+                     refname, bind.getName(), e);
+         }
+      }
+
+      return replaced;
+   }
+
+   private static List<DataRef> chartAxisFields(VSChartInfo info, String axis) {
+      List<DataRef> refs = new ArrayList<>();
+      int count = "x".equals(axis) ? info.getXFieldCount()
+         : "y".equals(axis) ? info.getYFieldCount() : info.getGroupFieldCount();
+
+      for(int i = 0; i < count; i++) {
+         refs.add("x".equals(axis) ? info.getXField(i)
+                     : "y".equals(axis) ? info.getYField(i) : info.getGroupField(i));
+      }
+
+      return refs;
+   }
+
+   /**
+    * How {@code ref} uses {@code name} when it is not its own column, or null.
+    */
+   private static String auxiliaryUse(DataRef ref, String name) {
+      if(ref instanceof VSAggregateRef) {
+         VSAggregateRef aref = (VSAggregateRef) ref;
+
+         if(!VSUtil.matchRefName(aref.getColumnValue(), name) &&
+            VSUtil.matchRefName(aref.getSecondaryColumnValue(), name))
+         {
+            return "second column";
+         }
+      }
+      else if(ref instanceof VSDimensionRef) {
+         VSDimensionRef dref = (VSDimensionRef) ref;
+
+         if(!VSUtil.matchRefName(dref.getGroupColumnValue(), name)) {
+            if(VSUtil.matchRefName(dref.getRankingColValue(), name)) {
+               return "ranking measure";
+            }
+
+            if(VSUtil.matchRefName(dref.getSortByColValue(), name)) {
+               return "sort-by measure";
+            }
+         }
+      }
+
+      return null;
+   }
+
+   private static String describeChartRef(DataRef ref) {
+      if(ref instanceof VSAggregateRef) {
+         VSAggregateRef aref = (VSAggregateRef) ref;
+         String formula = aref.getFormulaValue();
+         String second = aref.getSecondaryColumnValue();
+
+         if(formula == null || formula.isEmpty() || "none".equalsIgnoreCase(formula)) {
+            return aref.getColumnValue();
+         }
+
+         return formula + "(" + aref.getColumnValue() +
+            (second == null || second.isEmpty() ? "" : ", " + second) + ")";
+      }
+      else if(ref instanceof VSDimensionRef) {
+         return ((VSDimensionRef) ref).getGroupColumnValue();
+      }
+
+      return ref.getName();
+   }
+
+   /**
     * How many of the assembly's bound refs use {@code name}, counted where a calc type change
     * removes them: a crosstab's and a chart's design-time shelves. The refs
     * {@code getAllBindingRefs} reports for those are their runtime ones, which a design-time

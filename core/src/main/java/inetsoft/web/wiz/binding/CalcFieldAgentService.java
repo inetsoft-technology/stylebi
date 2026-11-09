@@ -303,6 +303,22 @@ public class CalcFieldAgentService {
                      "the binding of " + quoteAll(lost) + ". Bind '" + newName + "' again there " +
                      "if you still want it (set_table_fields / set_chart_shelf).");
                }
+
+               // Bug #80504 (item 2): a chart field that used the flipped field only as its second
+               // column (Correlation) or as a ranking / sort-by measure is replaced wholesale by a
+               // plain measure of the flipped field, without lowering the count above.
+               List<String> replaced = ModifyCalculateFieldService
+                  .findChartFieldsReplacedOnCalcTypeChange(
+                     rvs.getViewsheet(), tableName, req.name(), (CalculateRef) model.createDataRef());
+
+               if(!replaced.isEmpty()) {
+                  aggregateWarnings.add(
+                     "Calc field '" + req.name() + "' was flipped, and the native chart rebinding " +
+                     "REPLACED the whole field that referenced it as a secondary/ranking/sort " +
+                     "column: " + String.join("; ", replaced) + ". The replacement is a plain " +
+                     "measure of '" + newName + "' (aggregate none), so the original aggregate is " +
+                     "gone; re-bind it (set_chart_shelf) if you still want it.");
+               }
             }
             if(existing != null && !newName.equals(req.name())) {
                rewrittenDependents.addAll(
