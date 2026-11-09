@@ -18,9 +18,17 @@
 package inetsoft.uql.viewsheet;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.internal.TextInputVSAssemblyInfo;
+import inetsoft.util.Encoder;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Dimension;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -225,5 +233,162 @@ class VSBookmarkTest {
 
       assertTrue(result.isParseError());
       assertFalse(result.isEmpty());
+   }
+
+   // ---- Bug #80536: password state of a text input inside an embedded viewsheet ----
+
+   private static final String SECRET = "Zq7secretVXP080536";
+   private static final String VISIBLE = "Zq7visibleVXP080536";
+
+   private static TextInputVSAssembly addInput(Viewsheet vs, String name, boolean password,
+                                               String value)
+   {
+      TextInputVSAssembly assembly = new TextInputVSAssembly(vs, name);
+      TextInputVSAssemblyInfo info = (TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      info.setColumnOption(password ? new PasswordColumnOption() : new TextColumnOption());
+      info.setDataType(XSchema.STRING);
+      info.setPixelSize(new Dimension(100, 20));
+      assembly.setSelectedObject(value);
+      vs.addAssembly(assembly);
+      return assembly;
+   }
+
+   private static Viewsheet addEmbedded(Viewsheet parent, String name) {
+      Viewsheet child = new Viewsheet();
+      child.setViewsheet(parent);
+      child.getVSAssemblyInfo().setName(name);
+      parent.addAssembly(child);
+      return child;
+   }
+
+   private static byte[] stateBytes(Viewsheet vs) {
+      StringWriter out = new StringWriter();
+      PrintWriter writer = new PrintWriter(out);
+      vs.writeState(writer, false);
+      writer.flush();
+      return out.toString().getBytes(StandardCharsets.UTF_8);
+   }
+
+   private static String scrub(Viewsheet vs) {
+      byte[] bytes = stateBytes(vs);
+      return new String(VSBookmark.removePasswordState(bytes, vs), StandardCharsets.UTF_8);
+   }
+
+   @Test
+   void removePasswordState_embeddedPasswordIsBlankedAndSiblingsKept() {
+      Viewsheet root = new Viewsheet();
+      addInput(root, "HostPwd", true, SECRET + "host");
+      Viewsheet child = addEmbedded(root, "Viewsheet1");
+      addInput(child, "ChildPwd", true, SECRET + "child");
+      addInput(child, "ChildPlain", false, VISIBLE);
+
+      String xml = scrub(root);
+
+      assertFalse(xml.contains(SECRET), xml);
+      assertTrue(xml.contains(VISIBLE), xml);
+   }
+
+   @Test
+   void removePasswordState_rootPasswordAndEmbeddedTextShareName_embeddedTextKept() {
+      Viewsheet root = new Viewsheet();
+      addInput(root, "Shared", true, SECRET);
+      Viewsheet child = addEmbedded(root, "Viewsheet1");
+      addInput(child, "Shared", false, VISIBLE);
+
+      String xml = scrub(root);
+
+      assertFalse(xml.contains(SECRET), xml);
+      assertTrue(xml.contains(VISIBLE), xml);
+   }
+
+   @Test
+   void removePasswordState_rootTextAndEmbeddedPasswordShareName_embeddedPasswordBlanked() {
+      Viewsheet root = new Viewsheet();
+      addInput(root, "Shared", false, VISIBLE);
+      Viewsheet child = addEmbedded(root, "Viewsheet1");
+      addInput(child, "Shared", true, SECRET);
+
+      String xml = scrub(root);
+
+      assertFalse(xml.contains(SECRET), xml);
+      assertTrue(xml.contains(VISIBLE), xml);
+   }
+
+   @Test
+   void removePasswordState_twoLevelsOfEmbedding() {
+      Viewsheet root = new Viewsheet();
+      Viewsheet outer = addEmbedded(root, "Viewsheet1");
+      Viewsheet inner = addEmbedded(outer, "Viewsheet2");
+      addInput(outer, "OuterPwd", true, SECRET + "outer");
+      addInput(inner, "InnerPwd", true, SECRET + "inner");
+      addInput(inner, "InnerPlain", false, VISIBLE);
+
+      String xml = scrub(root);
+
+      assertFalse(xml.contains(SECRET), xml);
+      assertTrue(xml.contains(VISIBLE), xml);
+   }
+
+   @Test
+   void removePasswordState_sameChildNameInTwoEmbeddedViewsheets() {
+      Viewsheet root = new Viewsheet();
+      Viewsheet first = addEmbedded(root, "Viewsheet1");
+      Viewsheet second = addEmbedded(root, "Viewsheet2");
+      addInput(first, "Input", true, SECRET);
+      addInput(second, "Input", false, VISIBLE);
+
+      String xml = scrub(root);
+
+      assertFalse(xml.contains(SECRET), xml);
+      assertTrue(xml.contains(VISIBLE), xml);
+   }
+
+   @Test
+   void removePasswordState_noPasswordReturnsSameBytes() {
+      Viewsheet root = new Viewsheet();
+      Viewsheet child = addEmbedded(root, "Viewsheet1");
+      addInput(root, "Plain", false, VISIBLE);
+      addInput(child, "ChildPlain", false, VISIBLE);
+      byte[] bytes = stateBytes(root);
+
+      assertSame(bytes, VSBookmark.removePasswordState(bytes, root));
+   }
+
+   @Test
+   void removePasswordState_unbalancedStateFailsClosed() {
+      Viewsheet root = new Viewsheet();
+      addInput(root, "Pwd", true, SECRET);
+      String xml = new String(stateBytes(root), StandardCharsets.UTF_8) + "</assembly>";
+
+      String out = new String(
+         VSBookmark.removePasswordState(xml.getBytes(StandardCharsets.UTF_8), root),
+         StandardCharsets.UTF_8);
+
+      assertFalse(out.contains(SECRET), out);
+   }
+
+   @Test
+   void writeXML_snapshotScrubsEmbeddedPasswordFromBookmark() {
+      Viewsheet root = new Viewsheet();
+      Viewsheet child = addEmbedded(root, "Viewsheet1");
+      addInput(child, "ChildPwd", true, SECRET);
+      addInput(child, "ChildPlain", false, VISIBLE);
+      VSBookmark bookmark = new VSBookmark();
+      bookmark.addBookmark("b1", root, VSBookmarkInfo.PRIVATE, false, false);
+      StringWriter out = new StringWriter();
+      PrintWriter writer = new PrintWriter(out);
+      bookmark.writeXML(writer, root);
+      writer.flush();
+      Matcher matcher = Pattern.compile("<value><!\\[CDATA\\[([0-9a-fA-F]*)\\]\\]></value>")
+         .matcher(out.toString());
+      StringBuilder decoded = new StringBuilder();
+
+      while(matcher.find()) {
+         decoded.append(new String(Encoder.decodeAsciiHex(matcher.group(1)),
+                                   StandardCharsets.UTF_8));
+      }
+
+      assertFalse(decoded.toString().contains(SECRET), decoded.toString());
+      assertTrue(decoded.toString().contains(VISIBLE), decoded.toString());
    }
 }
