@@ -20,14 +20,19 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.CalendarPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.DataOutputService;
 import inetsoft.web.composer.vs.dialog.RangeSliderPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionTreePropertyDialogService;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -65,6 +70,66 @@ class SelectionBindingServiceTest {
       assertEquals("STATE", pane.getSelectedColumn().getAttribute());
       assertEquals("ORDERS", result.get("table"));
       assertEquals(List.of("STATE"), result.get("columns"));
+   }
+
+   /**
+    * Bug #80835: a dependent table's script that throws while the rebind refreshes it is dispatched
+    * as an ERROR after the rebind was stored; the call must still answer with its normal result
+    * plus a warning, while any other ERROR keeps failing it.
+    */
+   @Test
+   void aDependentScriptFailureIsRelayedAsAWarningNotAFailure() throws Exception {
+      String failure = BaseTableService.SCRIPT_FAILURE_PREFIX + "OrdersTbl\nReferenceError: x";
+      Map<String, Object> result = bindListWithError(
+         Catalog.getCatalog().getString("Script failed") + failure, null);
+
+      assertEquals("ORDERS", result.get("table"));
+      List<?> warnings = (List<?>) result.get("warnings");
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(((String) warnings.get(0)).startsWith(failure), warnings.toString());
+   }
+
+   @Test
+   void aNonScriptErrorStillFailsTheRebind() {
+      assertThrows(CommandErrorException.class, () -> bindListWithError("Cycle in rename", null));
+   }
+
+   private static Map<String, Object> bindListWithError(String error, Object unused)
+      throws Exception
+   {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(new SelectionListPropertyDialogModel());
+      doAnswer(invocation -> {
+         MessageCommand command = new MessageCommand();
+         command.setType(MessageCommand.Type.ERROR);
+         command.setMessage(error);
+         ((CapturingCommandDispatcher) invocation.getArgument(5)).sendCommand("List1", command);
+         return null;
+      }).when(listService).setSelectionListPropertyModel(
+         eq("rt1"), eq("List1"), any(), any(), any(), any());
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         return CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            mutation.run(rvsFor(assembly), "rt1", dispatcher);
+            return dispatcher.getWarnings();
+         });
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      return harness(assembly, listService, null, null, null, null, sessions)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, false, "");
+   }
+
+   private static RuntimeViewsheet rvsFor(VSAssembly assembly) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
    }
 
    @Test
@@ -2066,6 +2131,19 @@ class SelectionBindingServiceTest {
                                                    DataOutputService dataOutputService)
       throws Exception
    {
+      return harness(assembly, listService, treeService, sliderService, calendarService,
+                     dataOutputService, sessionsFor(assembly));
+   }
+
+   private static SelectionBindingService harness(VSAssembly assembly,
+                                                   SelectionListPropertyDialogService listService,
+                                                   SelectionTreePropertyDialogService treeService,
+                                                   RangeSliderPropertyDialogService sliderService,
+                                                   CalendarPropertyDialogService calendarService,
+                                                   DataOutputService dataOutputService,
+                                                   ViewsheetSessionService sessions)
+      throws Exception
+   {
       BindableTable orders = new BindableTable("ORDERS", null, List.of(
          new BindableField("STATE", "string", "dimension"),
          new BindableField("CITY", "string", "dimension"),
@@ -2114,7 +2192,7 @@ class SelectionBindingServiceTest {
                              warehouses, mixed));
 
       return new SelectionBindingService(
-         sessionsFor(assembly), fieldsService,
+         sessions, fieldsService,
          listService == null ? mock(SelectionListPropertyDialogService.class) : listService,
          treeService == null ? mock(SelectionTreePropertyDialogService.class) : treeService,
          sliderService == null ? mock(RangeSliderPropertyDialogService.class) : sliderService,
