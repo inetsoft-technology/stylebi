@@ -22,4 +22,22 @@
 
 .top-pane {
   margin-left: 0;
+  padding-top: var(--inet-space-6, 1.75rem);
+  padding-bottom: var(--inet-space-3, 0.75rem);
+
+  // bootstrap .row pulls rows up by the gutter; keep the fields evenly spaced
+  .row {
+    --bs-gutter-y: 0;
+    margin-top: 0;
+  }
+
+  .shell-form-row--field {
+    margin-bottom: 1.25rem;
+  }
+
+  // keep the Horizontal / Vertical radios from running together
+  .form-check + .form-check,
+  .col-auto .form-check {
+    margin-right: var(--inet-space-3, 0.75rem);
+  }
 }
