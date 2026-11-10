@@ -478,13 +478,18 @@ final class GraphQLCatalog {
       // isn't there: a wrong paginationVariable would make every query built off this catalog
       // entry fail at bind time, which is worse than omitting pagination. See design doc §7.2 /
       // charter G21.
-      if(connectionShaped) {
+      // Cursor pagination is offered only when the connection exposes a cursor to continue from
+      // (pageInfo.endCursor, else the last edge's cursor); a connection with neither falls through
+      // to the offset check below, then to no pagination.
+      String cursorPathSuffix = index.datasetCursorPathSuffix.get(datasetId);
+
+      if(connectionShaped && cursorPathSuffix != null) {
          for(String argName : argNames) {
             if(CURSOR_ARG_PATTERN.matcher(argName).matches()) {
                usePagination = true;
                cursorPagination = true;
                paginationVariable = argName;
-               paginationCountPath = "$.data." + datasetId + ".pageInfo.endCursor";
+               paginationCountPath = "$.data." + datasetId + cursorPathSuffix;
                break;
             }
          }
@@ -604,13 +609,26 @@ final class GraphQLCatalog {
       return new Unwrapped(null, null, isList);
    }
 
-   private record ConnectionInfo(String nodeTypeName) {}
+   /**
+    * @param cursorPathSuffix the JSONPath tail (appended to {@code $.data.<field>}) that yields the
+    *                         cursor of the page just fetched, or null when this connection exposes
+    *                         no cursor to continue from.
+    */
+   private record ConnectionInfo(String nodeTypeName, String cursorPathSuffix) {}
+
+   private static final String PAGE_INFO_CURSOR_PATH = ".pageInfo.endCursor";
+   // A definite path (never a slice such as [-1:]): the cursor iterator accepts only a String or
+   // an array result, and a slice resolves to a List.
+   private static final String LAST_EDGE_CURSOR_PATH = ".edges[-1].cursor";
 
    /**
     * Structural (never name-based) test for "is {@code objectTypeName} a Relay-style connection":
     * does it have an {@code edges} field whose item type has a {@code node} field. {@code
     * pageInfo} is corroborating when present, never required -- requiring it would exclude a
-    * connection-shaped-but-not-strictly-Relay-compliant field for no contract reason.
+    * connection-shaped-but-not-strictly-Relay-compliant field for no contract reason. What the
+    * connection exposes to continue a cursor walk is reported separately as {@link
+    * ConnectionInfo#cursorPathSuffix}: {@code pageInfo.endCursor} when the connection declares it,
+    * otherwise the last edge's {@code cursor}, otherwise none.
     */
    private static ConnectionInfo detectConnectionShape(String objectTypeName,
                                                          Map<String, JsonNode> typesByName)
@@ -651,7 +669,26 @@ final class GraphQLCatalog {
          return null;
       }
 
-      return new ConnectionInfo(nodeUnwrapped.name());
+      return new ConnectionInfo(nodeUnwrapped.name(),
+         cursorPathSuffix(typeNode, edgeType, typesByName));
+   }
+
+   private static String cursorPathSuffix(JsonNode connectionType, JsonNode edgeType,
+                                          Map<String, JsonNode> typesByName)
+   {
+      JsonNode pageInfoField = findField(connectionType, "pageInfo");
+
+      if(pageInfoField != null) {
+         Unwrapped pageInfo = unwrap(pageInfoField.path("type"));
+
+         if("OBJECT".equals(pageInfo.kind()) && pageInfo.name() != null &&
+            findField(typesByName.get(pageInfo.name()), "endCursor") != null)
+         {
+            return PAGE_INFO_CURSOR_PATH;
+         }
+      }
+
+      return findField(edgeType, "cursor") != null ? LAST_EDGE_CURSOR_PATH : null;
    }
 
    private static JsonNode findField(JsonNode typeNode, String name) {
@@ -704,12 +741,14 @@ final class GraphQLCatalog {
       final Map<String, String> datasetNodeType;
       final Map<String, JsonNode> datasetQueryField;
       final Map<String, Boolean> datasetIsConnection;
+      final Map<String, String> datasetCursorPathSuffix;
       final Map<String, List<String>> nodeTypeToDatasetIds;
 
       private SchemaIndex(Map<String, JsonNode> typesByName, List<String> datasetOrder,
                            Map<String, String> datasetNodeType,
                            Map<String, JsonNode> datasetQueryField,
                            Map<String, Boolean> datasetIsConnection,
+                           Map<String, String> datasetCursorPathSuffix,
                            Map<String, List<String>> nodeTypeToDatasetIds)
       {
          this.typesByName = typesByName;
@@ -717,6 +756,7 @@ final class GraphQLCatalog {
          this.datasetNodeType = datasetNodeType;
          this.datasetQueryField = datasetQueryField;
          this.datasetIsConnection = datasetIsConnection;
+         this.datasetCursorPathSuffix = datasetCursorPathSuffix;
          this.nodeTypeToDatasetIds = nodeTypeToDatasetIds;
       }
 
@@ -764,6 +804,7 @@ final class GraphQLCatalog {
          Map<String, String> datasetNodeType = new LinkedHashMap<>();
          Map<String, JsonNode> datasetQueryField = new LinkedHashMap<>();
          Map<String, Boolean> datasetIsConnection = new LinkedHashMap<>();
+         Map<String, String> datasetCursorPathSuffix = new LinkedHashMap<>();
 
          // Field-declaration order is preserved (LinkedHashMap + a straight iteration) so
          // TabularCatalog.datasets() comes back in the source's own order, per the SPI contract --
@@ -784,6 +825,7 @@ final class GraphQLCatalog {
 
             String nodeTypeName;
             boolean isConnection;
+            String cursorPathSuffix = null;
 
             if(u.isList()) {
                nodeTypeName = u.name();
@@ -798,12 +840,17 @@ final class GraphQLCatalog {
 
                nodeTypeName = connection.nodeTypeName();
                isConnection = true;
+               cursorPathSuffix = connection.cursorPathSuffix();
             }
 
             datasetOrder.add(fieldName);
             datasetNodeType.put(fieldName, nodeTypeName);
             datasetQueryField.put(fieldName, field);
             datasetIsConnection.put(fieldName, isConnection);
+
+            if(cursorPathSuffix != null) {
+               datasetCursorPathSuffix.put(fieldName, cursorPathSuffix);
+            }
          }
 
          Map<String, List<String>> nodeTypeToDatasetIds = new LinkedHashMap<>();
@@ -814,7 +861,7 @@ final class GraphQLCatalog {
          }
 
          return new SchemaIndex(typesByName, List.copyOf(datasetOrder), datasetNodeType,
-            datasetQueryField, datasetIsConnection, nodeTypeToDatasetIds);
+            datasetQueryField, datasetIsConnection, datasetCursorPathSuffix, nodeTypeToDatasetIds);
       }
    }
 

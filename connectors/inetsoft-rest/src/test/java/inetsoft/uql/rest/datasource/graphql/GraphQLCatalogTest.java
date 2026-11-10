@@ -277,6 +277,73 @@ class GraphQLCatalogTest {
       assertTrue(params.containsKey("usePagination"), "the choice must be explicit, not omitted");
    }
 
+   // A one-root-field schema: items(first, after) -> ItemConnection { edges { node } [pageInfo]
+   // [edge cursor] }, so each test varies exactly what the connection exposes to continue a walk.
+   private JsonNode itemsSchema(boolean connectionHasPageInfo, boolean edgeHasCursor)
+      throws Exception
+   {
+      String scalar = "{\"kind\":\"SCALAR\",\"name\":\"String\",\"ofType\":null}";
+      String idType = "{\"kind\":\"SCALAR\",\"name\":\"ID\",\"ofType\":null}";
+      String itemConn = "{\"kind\":\"OBJECT\",\"name\":\"ItemConnection\",\"ofType\":null}";
+      String edgeList = "{\"kind\":\"LIST\",\"name\":null,\"ofType\":" +
+         "{\"kind\":\"OBJECT\",\"name\":\"ItemEdge\",\"ofType\":null}}";
+      String item = "{\"kind\":\"OBJECT\",\"name\":\"Item\",\"ofType\":null}";
+      String pageInfo = "{\"kind\":\"OBJECT\",\"name\":\"PageInfo\",\"ofType\":null}";
+      String intType = "{\"kind\":\"SCALAR\",\"name\":\"Int\",\"ofType\":null}";
+
+      String json = "{\"queryType\":{\"name\":\"Query\"},\"types\":[" +
+         "{\"kind\":\"OBJECT\",\"name\":\"Query\",\"fields\":[{\"name\":\"items\",\"args\":[" +
+         "{\"name\":\"first\",\"type\":" + intType + "},{\"name\":\"after\",\"type\":" + scalar +
+         "}],\"type\":" + itemConn + "}]}," +
+         "{\"kind\":\"OBJECT\",\"name\":\"ItemConnection\",\"fields\":[" +
+         "{\"name\":\"edges\",\"args\":[],\"type\":" + edgeList + "}" +
+         (connectionHasPageInfo ? ",{\"name\":\"pageInfo\",\"args\":[],\"type\":" + pageInfo + "}" : "") +
+         "]}," +
+         "{\"kind\":\"OBJECT\",\"name\":\"ItemEdge\",\"fields\":[" +
+         "{\"name\":\"node\",\"args\":[],\"type\":" + item + "}" +
+         (edgeHasCursor ? ",{\"name\":\"cursor\",\"args\":[],\"type\":" + scalar + "}" : "") +
+         "]}," +
+         "{\"kind\":\"OBJECT\",\"name\":\"PageInfo\",\"fields\":[" +
+         "{\"name\":\"endCursor\",\"args\":[],\"type\":" + scalar + "}]}," +
+         "{\"kind\":\"OBJECT\",\"name\":\"Item\",\"fields\":[" +
+         "{\"name\":\"id\",\"args\":[],\"type\":" + idType + "}]}" +
+         "]}";
+      return new ObjectMapper().readTree(json);
+   }
+
+   @Test
+   void cursorPaginationUsesPageInfoEndCursorWhenTheConnectionDeclaresIt() throws Exception {
+      Map<String, String> params =
+         GraphQLCatalog.describeDataset(itemsSchema(true, true), "items").params();
+
+      assertEquals("true", params.get("cursorPagination"));
+      assertEquals("after", params.get("paginationVariable"));
+      assertEquals("$.data.items.pageInfo.endCursor", params.get("paginationCountPath"));
+   }
+
+   @Test
+   void cursorPaginationUsesTheLastEdgeCursorWhenTheConnectionHasNoPageInfo() throws Exception {
+      Map<String, String> params =
+         GraphQLCatalog.describeDataset(itemsSchema(false, true), "items").params();
+
+      assertEquals("true", params.get("usePagination"));
+      assertEquals("true", params.get("cursorPagination"));
+      assertEquals("after", params.get("paginationVariable"));
+      // A definite path: the cursor iterator accepts a String or an array, never a slice's List.
+      assertEquals("$.data.items.edges[-1].cursor", params.get("paginationCountPath"));
+   }
+
+   @Test
+   void noCursorPaginationWhenTheConnectionExposesNoCursorAtAll() throws Exception {
+      Map<String, String> params =
+         GraphQLCatalog.describeDataset(itemsSchema(false, false), "items").params();
+
+      assertEquals("false", params.get("usePagination"));
+      assertEquals("false", params.get("cursorPagination"));
+      assertEquals("", params.get("paginationVariable"));
+      assertEquals("", params.get("paginationCountPath"));
+   }
+
    @Test
    void paginationHeuristicFallsThroughSafelyWhenArgsMatchNeitherPattern() throws Exception {
       // "logs" is connection-shaped but its only arg is "batchToken" -- matches neither the
