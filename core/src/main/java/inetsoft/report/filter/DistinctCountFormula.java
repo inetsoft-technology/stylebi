@@ -149,8 +149,8 @@ public class DistinctCountFormula implements PercentageFormula {
    public Object getResult() {
       int douResult = set.size();
 
-      if(percentageType != 0 && total instanceof Integer) {
-         double totalNum = (Integer) total;
+      if(percentageType != 0 && total instanceof Number) {
+         double totalNum = ((Number) total).doubleValue();
 
          if(totalNum == 0) {
             return def ? (double) 0 : null;
@@ -169,8 +169,8 @@ public class DistinctCountFormula implements PercentageFormula {
    public double getDoubleResult() {
       double douResult = set.size();
 
-      if((percentageType != 0) && (total instanceof Integer)) {
-         double totalNum = (Integer) total;
+      if((percentageType != 0) && (total instanceof Number)) {
+         double totalNum = ((Number) total).doubleValue();
 
          if(totalNum == 0) {
             return 0;
