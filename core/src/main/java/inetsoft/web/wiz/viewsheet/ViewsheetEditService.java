@@ -1118,17 +1118,47 @@ public class ViewsheetEditService {
       // out to avoid a graph build per layout call.
       requireAssembly(request);
 
-      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> keptForms = new ArrayList<>();
+
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
          discardCachedSourceData(rvs, request.assembly());
          RefreshVSAssemblyEvent event = RefreshVSAssemblyEvent.builder()
             .vsRuntimeId(runtimeId)
             .assemblyName(request.assembly())
             .build();
-         ChartRenderCheck.guarded(
-            rvs, request.assembly(), dispatcher,
-            () -> refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri, user));
+         // Bug #80876: the re-execution calls ViewsheetSandbox.syncFormData for the assembly and
+         // everything that depends on it, which drops a Form table's pending edits. Protect them
+         // as refreshWholeSheet does (Bug #80482); a refresh changes no data or condition.
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+         try {
+            if(box != null) {
+               keptForms.addAll(
+                  FormTableProtection.protectBuiltChangedFormTables(box, rvs.getViewsheet()));
+            }
+
+            ChartRenderCheck.guarded(
+               rvs, request.assembly(), dispatcher,
+               () -> refreshService.refreshVsAssembly(runtimeId, event, dispatcher, linkUri,
+                                                      user));
+         }
+         finally {
+            if(box != null) {
+               box.clearScriptChangedFormSet();
+            }
+         }
       });
+
+      if(keptForms.isEmpty()) {
+         return warnings;
+      }
+
+      List<String> result = new ArrayList<>(warnings == null ? List.of() : warnings);
+      result.add("Form table " + String.join(", ", keptForms) + " has pending (not yet applied) " +
+                 "row edits, which were kept, so it was NOT reloaded from its source by this " +
+                 "refresh. Commit the edits with form_table_apply and refresh again to reload it.");
+      return result;
    }
 
    /**

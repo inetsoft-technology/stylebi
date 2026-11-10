@@ -18,14 +18,19 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.FormTableLens;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * Keeps a Form table's pending edits alive across a whole-sheet refresh (Bugs #80034, #80482).
+ * Keeps a Form table's pending edits alive across a refresh (Bugs #80034, #80482, #80876), and
+ * refuses a write that would reset the whole sheet while edits are pending (Bug #80876).
  */
 public final class FormTableProtection {
    private FormTableProtection() {
@@ -56,17 +61,81 @@ public final class FormTableProtection {
     * A Form table whose lens was never built holds no pending edits, so nothing is lost by
     * skipping it, and a refresh neither runs an extra query nor fails because a Form table's
     * source query currently fails.
+    *
+    * @return the absolute names of the Form tables that were protected, in sheet order.
     */
-   public static void protectBuiltChangedFormTables(ViewsheetSandbox box, Viewsheet vs)
+   public static List<String> protectBuiltChangedFormTables(ViewsheetSandbox box, Viewsheet vs)
       throws Exception
    {
-      protect(box, vs, true);
+      return protect(box, vs, true);
    }
 
-   private static void protect(ViewsheetSandbox box, Viewsheet vs, boolean builtOnly)
+   /**
+    * Bug #80876: names every Form table of the sheet whose already-built lens holds pending (not
+    * yet applied) edits. Unlike {@code FormUtil.pendingDependentForms} this is not scoped to the
+    * dependents of one assembly, because a bookmark can change any assembly. It never builds a
+    * lens, so it runs no query.
+    */
+   public static List<String> pendingBuiltForms(RuntimeViewsheet rvs) {
+      List<String> pending = new ArrayList<>();
+      ViewsheetSandbox box = rvs == null ? null : rvs.getViewsheetSandbox().orElse(null);
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+      if(box == null || vs == null) {
+         return pending;
+      }
+
+      for(Assembly assembly : vs.getAssemblies(true)) {
+         if(assembly instanceof TableVSAssembly table &&
+            table.getInfo() instanceof TableVSAssemblyInfo info && info.isForm())
+         {
+            FormTableLens lens = box.getCachedFormTableLens(table.getAbsoluteName());
+
+            if(lens != null && lens.isChanged()) {
+               pending.add(table.getAbsoluteName());
+            }
+         }
+      }
+
+      return pending;
+   }
+
+   /**
+    * Bug #80876: refuses, before anything is written, an action that resets the whole sheet while
+    * a Form table holds pending edits, unless the caller passed discardPending. The Viewer asks
+    * first; this is the agent equivalent (see Bug #80482 for the selection writes).
+    *
+    * @param action what is about to happen, for the message.
+    */
+   public static void refuseUnlessDiscardable(RuntimeViewsheet rvs, Boolean discardPending,
+                                              String action)
+   {
+      if(Boolean.TRUE.equals(discardPending)) {
+         return;
+      }
+
+      List<String> pending = pendingBuiltForms(rvs);
+
+      if(!pending.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Applying " + action + " would discard the pending (not yet applied) row edits of " +
+            "Form table " + String.join(", ", pending) + ". It resets the whole sheet, and what " +
+            "is dropped cannot be recovered. Nothing was changed. Commit them first with " +
+            "form_table_apply, or pass discardPending: true to throw them away.");
+      }
+   }
+
+   private static List<String> protect(ViewsheetSandbox box, Viewsheet vs, boolean builtOnly)
       throws Exception
    {
-      for(Assembly assembly : vs.getAssemblies(true)) {
+      List<String> protectedNames = new ArrayList<>();
+      Assembly[] assemblies = vs == null ? null : vs.getAssemblies(true);
+
+      if(assemblies == null) {
+         return protectedNames;
+      }
+
+      for(Assembly assembly : assemblies) {
          if(!(assembly instanceof TableVSAssembly table) ||
             !(table.getInfo() instanceof TableVSAssemblyInfo info) || !info.isForm())
          {
@@ -78,7 +147,10 @@ public final class FormTableProtection {
 
          if(lens != null && lens.isChanged()) {
             box.addScriptChangedForm(table.getAbsoluteName());
+            protectedNames.add(table.getAbsoluteName());
          }
       }
+
+      return protectedNames;
    }
 }

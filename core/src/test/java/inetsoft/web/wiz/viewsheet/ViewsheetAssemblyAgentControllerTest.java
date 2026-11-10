@@ -5007,6 +5007,99 @@ class ViewsheetAssemblyAgentControllerTest {
          any(Principal.class), any(), eq(""));
    }
 
+   /** A runtime whose sheet has one Form table with an already-built lens (pending or not). */
+   private static RuntimeViewsheet rvsWithFormTable(boolean pending) {
+      inetsoft.uql.viewsheet.TableVSAssembly table = mock(inetsoft.uql.viewsheet.TableVSAssembly.class);
+      inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo.class);
+      when(info.isForm()).thenReturn(true);
+      doReturn(info).when(table).getInfo();
+      when(table.getAbsoluteName()).thenReturn("AdminTable");
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssemblies(true)).thenReturn(new inetsoft.uql.asset.Assembly[] { table });
+      inetsoft.report.composition.FormTableLens lens =
+         mock(inetsoft.report.composition.FormTableLens.class);
+      when(lens.isChanged()).thenReturn(pending);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getCachedFormTableLens("AdminTable")).thenReturn(lens);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.containsBookmark(anyString(), any(IdentityID.class))).thenReturn(true);
+      return rvs;
+   }
+
+   /**
+    * Bug #80876: goto_bookmark resets the whole sheet, dropping a Form table's pending edits. It
+    * is refused before the runtime is touched, naming the table, for an ordinary bookmark and for
+    * (Home).
+    */
+   @org.junit.jupiter.params.ParameterizedTest
+   @org.junit.jupiter.params.provider.ValueSource(strings = { "Q1 Report", "(Home)" })
+   void gotoBookmark_isRefusedWhileAFormTableHasPendingEdits(String bookmark) throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = rvsWithFormTable(true);
+      wireMutate(sessions, rvs);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.gotoBookmark("tok",
+            new ViewsheetAssemblyAgentController.GotoBookmarkRequest(bookmark, null), "",
+            principal()));
+
+      assertTrue(thrown.getMessage().contains("AdminTable"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("pending (not yet applied) row edits"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("discardPending: true"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Nothing was changed"), thrown.getMessage());
+      verify(vsBookmarkService, never()).gotoBookmark(any(), any(), any(), any(), any());
+      verify(rvs, never()).resetUserBookmark(any());
+      verify(rvs, never()).gotoBookmark(any(), any(), any());
+   }
+
+   @Test
+   void gotoBookmark_proceedsWithDiscardPending() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      wireMutate(sessions, rvsWithFormTable(true));
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      controller.gotoBookmark("tok",
+         new ViewsheetAssemblyAgentController.GotoBookmarkRequest("Q1 Report", null, true), "",
+         principal());
+
+      verify(vsBookmarkService).gotoBookmark(eq("runtime-1"), any(VSEditBookmarkEvent.class),
+         any(Principal.class), any(), eq(""));
+   }
+
+   @Test
+   void gotoBookmark_proceedsWhenNoFormTableHasPendingEdits() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      wireMutate(sessions, rvsWithFormTable(false));
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      controller.gotoBookmark("tok",
+         new ViewsheetAssemblyAgentController.GotoBookmarkRequest("Q1 Report", null), "",
+         principal());
+
+      verify(vsBookmarkService).gotoBookmark(eq("runtime-1"), any(VSEditBookmarkEvent.class),
+         any(Principal.class), any(), eq(""));
+   }
+
+   @Test
+   void gotoBookmarkRequest_absentDiscardPendingDeserializesToNull() throws Exception {
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new com.fasterxml.jackson.databind.ObjectMapper();
+
+      assertNull(mapper.readValue("{\"name\":\"b\"}",
+         ViewsheetAssemblyAgentController.GotoBookmarkRequest.class).discardPending());
+      assertEquals(Boolean.TRUE, mapper.readValue("{\"name\":\"b\",\"discardPending\":true}",
+         ViewsheetAssemblyAgentController.GotoBookmarkRequest.class).discardPending());
+   }
+
    // ---------------------------------------------------------------------------
    // rename_bookmark -- bug #76827. Preserves the bookmark's own saved state (unlike
    // update_bookmark, which always recaptures the current runtime), via
