@@ -232,6 +232,54 @@ class ScheduleXmlProjectionTest {
          () -> ScheduleXmlProjection.normalize("<Other path=\"/\"/>"));
    }
 
+   // Bug #80838: TaskBalancer rewrites hour/minute/second of a range-bound condition from the wall
+   // clock, so those values must not reach the plan hash; the range binding itself must.
+   @Test void rangeBoundConditionsDifferingOnlyInTimeProjectEqual() {
+      ScheduleTask a = task("t", "admin");
+      a.addCondition(rangeCondition("Night", 1, 2, 37));
+      ScheduleTask b = task("t", "admin");
+      b.addCondition(rangeCondition("Night", 3, 4, 5));
+
+      assertEquals(ScheduleXmlProjection.project(a), ScheduleXmlProjection.project(b));
+      assertTrue(ScheduleXmlProjection.project(a).contains("<timeRange"));
+   }
+
+   @Test void rangeBoundConditionsWithDifferentRangeProjectDifferent() {
+      ScheduleTask a = task("t", "admin");
+      a.addCondition(rangeCondition("Night", 1, 2, 3));
+      ScheduleTask b = task("t", "admin");
+      b.addCondition(rangeCondition("Morning", 1, 2, 3));
+
+      assertNotEquals(ScheduleXmlProjection.project(a), ScheduleXmlProjection.project(b));
+   }
+
+   @Test void conditionsWithoutRangeKeepTheirHourInTheHash() {
+      ScheduleTask a = task("t", "admin");
+      a.addCondition(timeCondition(1, 0));
+      ScheduleTask b = task("t", "admin");
+      b.addCondition(timeCondition(2, 0));
+
+      assertNotEquals(ScheduleXmlProjection.project(a), ScheduleXmlProjection.project(b));
+   }
+
+   @Test void onlyTheRangeBoundConditionIsNormalizedInAMixedTask() {
+      ScheduleTask a = task("t", "admin");
+      a.addCondition(rangeCondition("Night", 1, 2, 3));
+      a.addCondition(timeCondition(9, 0));
+      ScheduleTask b = task("t", "admin");
+      b.addCondition(rangeCondition("Night", 5, 6, 7));
+      b.addCondition(timeCondition(10, 0));
+
+      assertNotEquals(ScheduleXmlProjection.project(a), ScheduleXmlProjection.project(b));
+   }
+
+   private static TimeCondition rangeCondition(String range, int h, int m, int s) {
+      TimeCondition condition = timeCondition(h, m);
+      condition.setSecond(s);
+      condition.setTimeRange(new inetsoft.sree.schedule.TimeRange(range, "01:00", "05:00", false));
+      return condition;
+   }
+
    private static ViewsheetAction viewsheetActionWithSavePath(String path) {
       ViewsheetAction action = new ViewsheetAction();
       action.setViewsheet("vs1");

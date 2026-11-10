@@ -66,6 +66,6 @@ public final class ScheduleFolderXmlProjection {
          folder.writeXML(pw);
       }
 
-      return sw.toString();
+      return ScheduleVolatileFields.stripEntryStamps(sw.toString());
    }
 }

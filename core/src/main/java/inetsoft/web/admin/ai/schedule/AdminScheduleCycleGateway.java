@@ -275,7 +275,8 @@ public class AdminScheduleCycleGateway {
          asset.writeXML(pw);
       }
 
-      return sw.toString();
+      return ScheduleVolatileFields.normalizeBalancerTimes(
+         ScheduleVolatileFields.stripCycleInfoStamps(sw.toString()));
    }
 
    /** Every cycle currently assigned to at least one materialized view, mapped to the names of
