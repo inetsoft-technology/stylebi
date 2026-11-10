@@ -260,6 +260,30 @@ class ChartColorTypeSeedTest {
       assertEquals(Color.RED, info.getChartDescriptor().getPlotDescriptor().getAuthoredEmptyColor());
    }
 
+   @Test
+   void theParetoLineColourTravelsAndReverts() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      modernize(info);
+      CompositeValue<?> line = info.getChartDescriptor().getPlotDescriptor()
+         .chromeValue("paretoLineColor");
+      assertEquals(MODERN_2, line.get(CompositeValue.Type.DEFAULT));
+      assertTrue(writeXml(info).contains(Integer.toString(MODERN_2.getRGB())),
+                 "the default tier is saved");
+      revert(info);
+      assertEquals(LEGACY_1, line.get(CompositeValue.Type.DEFAULT));
+      assertFalse(writeXml(info).contains(Integer.toString(MODERN_2.getRGB())));
+   }
+
+   @Test
+   void aClassicChartSavesNoParetoLineColour() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      String before = writeXml(info);
+      seed(info);
+      assertEquals(before, writeXml(info));
+   }
+
    private static CompositeValue<?> emptyColor(ChartVSAssemblyInfo info) {
       return info.getChartDescriptor().getPlotDescriptor().chromeValue("emptyColor");
    }

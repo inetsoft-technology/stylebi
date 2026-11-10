@@ -76,7 +76,7 @@ final class ChartChromeSlots {
    private static final Loc<PlotDescriptor> PLOT = DESC.then(ChartDescriptor::getPlotDescriptor);
    private static final String[] PLOT_VALUES = {
       "xGridColor", "yGridColor", "xGridStyle", "yGridStyle", "diagonalColor", "quadrantColor",
-      "facetColor", "bgColor", "emptyColor"
+      "facetColor", "bgColor", "emptyColor", "paretoLineColor"
    };
    private static final String[] LEGENDS_VALUES = { "borderColor", "border", "gap", "padding" };
 

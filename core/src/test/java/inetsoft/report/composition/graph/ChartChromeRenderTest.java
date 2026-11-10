@@ -20,6 +20,8 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.AxisSpec;
+import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DefaultDataSet;
@@ -174,6 +176,55 @@ class ChartChromeRenderTest {
       AxisSpec percent = ((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec();
       assertTrue(percent.isTickVisible());
       assertTrue(percent.isLineVisible());
+   }
+
+   @Test
+   void aModernParetoLineTakesSlotTwo() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false);
+      assertEquals(new Color(0xFF5A35),
+                   ((StaticColorFrame) paretoLine(g).getColorFrame()).getColor());
+   }
+
+   @Test
+   void aModernParetoLineIsOneAndAHalfPixels() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false);
+      SizeFrame size = paretoLine(g).getSizeFrame();
+      assertInstanceOf(StaticSizeFrame.class, size);
+      assertEquals(2, ((StaticSizeFrame) size).getSize(), 1e-9);
+   }
+
+   @Test
+   void aModernPercentAxisTakesTheLineColour() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false);
+      assertEquals(new Color(0xFF5A35), percentLabelColor(g));
+   }
+
+   @Test
+   void anAuthorLineColourWins() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false, Color.RED);
+      assertEquals(Color.RED, ((StaticColorFrame) paretoLine(g).getColorFrame()).getColor());
+      assertEquals(Color.RED, percentLabelColor(g));
+   }
+
+   @Test
+   void aClassicParetoLineStillCopiesTheBar() {
+      EGraph g = paretoGraph(null, false);
+      GraphElement line = paretoLine(g);
+      GraphElement bar = null;
+
+      for(int i = 0; i < g.getElementCount(); i++) {
+         if(g.getElement(i) != line) {
+            bar = g.getElement(i);
+         }
+      }
+
+      assertNotNull(bar);
+      assertEquals(((MultiMeasureColorFrame) bar.getColorFrame()).getColor(bar.getVar(0)),
+                   ((StaticColorFrame) line.getColorFrame()).getColor());
+      assertNull(line.getSizeFrame());
+      assertEquals(
+         ((RectCoord) g.getCoordinate()).getYScale().getAxisSpec().getTextSpec().getColor(),
+         percentLabelColor(g));
    }
 
    @AfterEach
@@ -361,6 +412,10 @@ class ChartChromeRenderTest {
    }
 
    private static EGraph paretoGraph(VizMark mark, boolean ticks) {
+      return paretoGraph(mark, ticks, null);
+   }
+
+   private static EGraph paretoGraph(VizMark mark, boolean ticks, Color authorLine) {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Sum(Total)" };
 
@@ -392,9 +447,28 @@ class ChartChromeRenderTest {
       // the seed a chart is created with
       VizModernizeUtil.reseedAfterRestore(assemblyInfo);
 
+      if(authorLine != null) {
+         assemblyInfo.getChartDescriptor().getPlotDescriptor()
+            .setParetoLineColor(authorLine, CompositeValue.Type.USER);
+      }
+
       return GraphGenerator.getGenerator(
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
          XSourceInfo.NONE, null).createEGraph();
+   }
+
+   private static GraphElement paretoLine(EGraph g) {
+      for(int i = 0; i < g.getElementCount(); i++) {
+         if("true".equals(g.getElement(i).getHint("_pareto_"))) {
+            return g.getElement(i);
+         }
+      }
+
+      throw new AssertionError("no pareto line");
+   }
+
+   private static Color percentLabelColor(EGraph g) {
+      return ((RectCoord) g.getCoordinate()).getYScale2().getAxisSpec().getTextSpec().getColor();
    }
 
    private static int outerXGridStyle(VizMark mark, boolean lineVisible, boolean author) {

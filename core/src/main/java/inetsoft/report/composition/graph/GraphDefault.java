@@ -94,6 +94,8 @@ public class GraphDefault {
             percentScale.getAxisSpec().setTickVisible(yaxis.isTickVisible());
             percentScale.getAxisSpec().setLineVisible(yaxis.isLineVisible());
             percentScale.getAxisSpec().setLabelVisible(yaxis.isLabelVisible());
+            percentScale.getAxisSpec().getTextSpec().setColor(
+               gen.desc.getPlotDescriptor().getParetoLineColor());
          }
 
          if(yscale instanceof LinearScale) {
