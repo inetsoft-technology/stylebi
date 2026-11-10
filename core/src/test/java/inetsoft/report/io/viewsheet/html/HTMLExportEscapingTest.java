@@ -33,6 +33,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.Font;
 import java.awt.geom.Rectangle2D;
 import java.io.*;
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,9 +41,11 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #79693: the HTML viewsheet export wrote cell, label and title text without escaping, so
- * text such as {@code a<b} was swallowed by the browser's HTML parser. The output is parsed with
- * jsoup (an HTML5 parser) and the text a browser would show is compared with the input.
+ * Bug #79693: the HTML viewsheet export wrote cell and label text without escaping, so text
+ * such as {@code a<b} was swallowed by the browser's HTML parser. Bug #80924: Text assembly
+ * text and titles are author-written markup, as in the viewer, and are not escaped. The output
+ * is parsed with jsoup (an HTML5 parser) and the text a browser would show is compared with
+ * the input.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -101,7 +104,7 @@ class HTMLExportEscapingTest {
    }
 
    @Test
-   void tableTitleShowsTextAsWritten() {
+   void tableTitleRendersMarkup() {
       assertTitle(this::writeTable);
    }
 
@@ -112,46 +115,55 @@ class HTMLExportEscapingTest {
    }
 
    @Test
-   void containerTitleShowsTextAsWritten() {
+   void containerTitleRendersMarkup() {
       assertTitle(title -> {
          SelectionListVSAssembly sel = new SelectionListVSAssembly(vs, "SLC");
          vs.addAssembly(sel);
          SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) sel.getVSAssemblyInfo();
-         info.setTitleValue("plain");
+         info.setTitleValue(title);
          StringBuffer buf = new StringBuffer();
-         coord.appendContainerTitle(buf, info, 20, 0.5, title);
+         coord.appendContainerTitle(buf, info, 20, 0.5, "plain");
          return Jsoup.parse(buf.toString());
       });
    }
 
    @Test
-   void radioTitleShowsTextAsWritten() {
+   void radioTitleRendersMarkup() {
       assertTitle(this::writeRadio);
    }
 
    @Test
-   void titleHelperHasNoRawForm() {
+   void titleHelperKeepsEscapeFormForValues() {
       assertEquals("&lt;html&gt;&lt;b&gt;Sales&lt;/b&gt;&lt;/html&gt;",
                    HTMLEscape.text("<html><b>Sales</b></html>"));
       assertEquals("&lt;none&gt;", HTMLEscape.text("<none>"));
    }
 
    /**
-    * Check one title site: every title of the value matrix shows as written, and an html
-    * wrapped title or a markup payload never produces an element.
+    * Check one title site (Bug #80924): a title is author-written text that the viewer renders
+    * as markup, so an html wrapped title shows its markup without the html tags, plain text
+    * is kept, and a newline becomes a line break unless the title is html wrapped.
     */
    static void assertTitle(java.util.function.Function<String, Document> site) {
-      for(String value : MATRIX) {
-         String text = site.apply(value).text();
-         String shown = value.replace('\n', ' ');
-         assertTrue(text.contains(shown), value + " -> " + text);
-      }
+      Document doc = site.apply("<html><b>Sales</b></html>");
+      assertEquals(1, doc.select("b").size(), doc.html());
+      assertEquals("Sales", doc.select("b").text());
+      assertFalse(doc.text().contains("<"), doc.text());
 
-      for(String payload : PAYLOADS) {
-         Document doc = site.apply(payload);
-         assertTrue(doc.text().contains(payload), payload + " -> " + doc.text());
-         assertEquals(0, doc.select("b, i, img").size(), payload + " -> " + doc.html());
-      }
+      doc = site.apply("<b>x</b>");
+      assertEquals("x", doc.select("b").text(), doc.html());
+
+      assertTrue(site.apply("Plain 12345").text().contains("Plain 12345"));
+
+      doc = site.apply("<html><i>a\nb</i></html>");
+      assertEquals(1, doc.select("i").size(), doc.html());
+      assertEquals(0, doc.select("i br").size(), doc.html());
+
+      doc = site.apply("a\nb");
+      assertEquals(1, doc.select("br").size(), doc.html());
+
+      // a null title writes nothing and must not fail
+      site.apply(null);
    }
 
    static final String[] MATRIX = {
@@ -236,7 +248,7 @@ class HTMLExportEscapingTest {
       list.addSelectionValue(selValue("<i>it</i>"));
       list.addSelectionValue(selValue("<none>"));
       sel.setSelectionList(list);
-      ((SelectionListVSAssemblyInfo) sel.getVSAssemblyInfo()).setTitleValue("T<t & 'x'");
+      ((SelectionListVSAssemblyInfo) sel.getVSAssemblyInfo()).setTitleValue("<u>T</u>");
       StringWriter sw = new StringWriter();
       new HTMLSelectionListHelper(coord, vs, sel).write(new PrintWriter(sw), sel);
       Document doc = Jsoup.parse(sw.toString());
@@ -244,7 +256,7 @@ class HTMLExportEscapingTest {
       assertTrue(text.contains("a<b"), text);
       assertTrue(text.contains("O'Brien"), text);
       assertTrue(text.contains("Smith & Sons"), text);
-      assertTrue(text.contains("T<t & 'x'"), text);
+      assertEquals("T", doc.select("u").text());
       assertTrue(text.contains("<i>it</i>"), text);
       assertTrue(text.contains("<none>"), text);
       assertEquals(0, doc.select("i").size());
@@ -274,23 +286,87 @@ class HTMLExportEscapingTest {
    // ---- coordinate helper ----
 
    @Test
-   void textAssemblyKeepsTextAndNeverBecomesMarkup() {
-      assertEquals("a<b", textOf("a<b"));
-      assertEquals("x<y and y>z", textOf("x<y and y>z"));
-      assertEquals("<none>", textOf("<none>"));
-      assertEquals("Smith & Sons <NY>", textOf("Smith & Sons <NY>"));
-      assertEquals("Smith & Sons", textOf("Smith & Sons"));
-      assertEquals("A&B Corp", textOf("A&B Corp"));
-      assertEquals("l1 l2", textOf("l1\nl2"));
-      Document doc = writeText("<b>bold</b><br>x");
-      assertEquals(0, doc.select("b").size());
-      assertEquals("<b>bold</b><br>x", doc.body().text());
+   void textAssemblyRendersMarkup() {
+      Document doc = writeMarkupText("<b>Total</b>");
+      assertEquals(1, doc.select("b").size(), doc.html());
+      assertEquals("Total", doc.select("b").text());
+
+      doc = writeMarkupText("<html><b>Total</b></html>");
+      assertEquals("Total", doc.select("b").text(), doc.html());
+      assertFalse(doc.body().text().contains("<"), doc.body().text());
+
+      assertEquals("l1 l2", writeMarkupText("l1\nl2").body().text());
+      assertEquals(1, writeMarkupText("l1\nl2").select("br").size());
    }
 
    @Test
-   void labelTextIsAlwaysEscaped() {
+   void textAssemblyHtmlWrappedKeepsNewlineAsIs() {
+      Document doc = writeMarkupText("<html><b>a\nb</b></html>");
+      assertEquals(1, doc.select("b").size(), doc.html());
+      assertEquals(0, doc.select("br").size(), doc.html());
+   }
+
+   @Test
+   void textAssemblyNullAndEmptyWriteNothing() {
+      assertEquals("", writeMarkupText(null).body().text());
+      assertEquals("", writeMarkupText("").body().text());
+   }
+
+   @Test
+   void chartTitleSyntheticTextIsMarkup() throws Exception {
+      TextVSAssembly title = new TextVSAssembly(vs, "ChartTitle");
+      vs.addAssembly(title);
+      HTMLVSExporter exporter = new HTMLVSExporter(new ByteArrayOutputStream());
+      StringWriter sw = new StringWriter();
+      setField(exporter, "writer", new PrintWriter(sw));
+      setField(exporter, "helper", coord);
+      exporter.writeText(title, "<html><b>Sales</b></html>");
+      Document doc = Jsoup.parse(sw.toString());
+      assertEquals("Sales", doc.select("b").text(), doc.html());
+   }
+
+   @Test
+   void labelCalendarAndSpinnerValuesAreAlwaysEscaped() {
+      // input label, calendar value and spinner value use the escaping writeText
       assertEquals("<b>bold</b>", textOf("<b>bold</b>"));
       assertEquals("a<b", textOf("a<b"));
+      assertEquals("<html><b>x</b></html>", textOf("<html><b>x</b></html>"));
+      assertEquals(0, writeText("<b>x</b>").select("b").size());
+      assertEquals("l1 l2", textOf("l1\nl2"));
+   }
+
+   @Test
+   void currentSelectionValuesStayEscapedWhileTitlesAreMarkup() {
+      CurrentSelectionVSAssembly cs = new CurrentSelectionVSAssembly(vs, "CS");
+      vs.addAssembly(cs);
+      CurrentSelectionVSAssemblyInfo info =
+         (CurrentSelectionVSAssemblyInfo) cs.getVSAssemblyInfo();
+      info.setTitleValue("<html><b>CT</b></html>");
+      info.setTitleVisibleValue(true);
+      info.setShowCurrentSelection(true);
+      info.setOutSelectionValue("n1", "<html><i>ot</i></html>", "<b>v</b> <none>");
+      StringWriter sw = new StringWriter();
+      coord.writeCurrentSelection(sw, info, vs);
+      Document doc = Jsoup.parse(sw.toString());
+      assertEquals("CT", doc.select("b").text(), doc.html());
+      assertEquals(1, doc.select("b").size(), doc.html());
+      assertEquals("ot", doc.select("i").text(), doc.html());
+      assertTrue(doc.text().contains("<b>v</b> <none>"), doc.text());
+   }
+
+   @Test
+   void containerValueStaysEscapedWhileTitleIsMarkup() {
+      SelectionListVSAssembly sel = new SelectionListVSAssembly(vs, "SLC2");
+      vs.addAssembly(sel);
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) sel.getVSAssemblyInfo();
+      info.setTitleValue("<html><b>T</b></html>");
+      StringBuffer buf = new StringBuffer();
+      // the last argument is the container's selected value, not a title
+      coord.appendContainerTitle(buf, info, 20, 0.5, "<b>x</b>");
+      Document doc = Jsoup.parse(buf.toString());
+      assertEquals("T", doc.select("b").text(), doc.html());
+      assertEquals(1, doc.select("b").size(), doc.html());
+      assertTrue(doc.text().contains("<b>x</b>"), doc.text());
    }
 
    @Test
@@ -339,6 +415,24 @@ class HTMLExportEscapingTest {
       assertEquals("&lt;b&gt;x&lt;/b&gt;", HTMLEscape.text("<b>x</b>"));
       assertEquals("Smith &amp; Sons &lt;NY&gt;", HTMLEscape.text("Smith & Sons <NY>"));
       assertEquals("1234", HTMLEscape.text(1234));
+   }
+
+   @Test
+   void markupRulesMirrorViewerGetHtmlText() {
+      assertEquals("", HTMLEscape.markup(null));
+      assertEquals("", HTMLEscape.markup(""));
+      // html wrapped: unwrap only, no newline conversion, no whitespace handling
+      assertEquals("<b>Sales</b>", HTMLEscape.markup("<html><b>Sales</b></html>"));
+      assertEquals("<b>a\n  b</b>", HTMLEscape.markup("<html><b>a\n  b</b></html>"));
+      // only one of the two tags is not html wrapped
+      assertEquals("<html>x", HTMLEscape.markup("<html>x"));
+      // other text: trimEnd, newline to br, leading and double spaces to nbsp
+      assertEquals("a<br>b", HTMLEscape.markup("a\nb  \n "));
+      assertEquals("&nbsp;&nbsp;a", HTMLEscape.markup("  a"));
+      assertEquals("a &nbsp;b", HTMLEscape.markup("a  b"));
+      assertEquals("a &nbsp; b", HTMLEscape.markup("a   b"));
+      assertEquals("<b>x</b>", HTMLEscape.markup("<b>x</b>"));
+      assertEquals("12", HTMLEscape.markup(12));
    }
 
    // ---- helpers ----
@@ -460,6 +554,32 @@ class HTMLExportEscapingTest {
       coord.writeText(sw, new Rectangle2D.Double(0, 0, 100, 20), new VSCompositeFormat(), txt,
                       null, false, null, false, 1);
       return Jsoup.parse(sw.toString());
+   }
+
+   private Document writeMarkupText(String txt) {
+      StringWriter sw = new StringWriter();
+      coord.writeMarkupText(sw, new Rectangle2D.Double(0, 0, 100, 20), new VSCompositeFormat(),
+                            txt, null, false, null, false, 1);
+      return Jsoup.parse(sw.toString());
+   }
+
+   private static void setField(Object target, String name, Object value) throws Exception {
+      Field field = findField(target.getClass(), name);
+      field.setAccessible(true);
+      field.set(target, value);
+   }
+
+   private static Field findField(Class<?> cls, String name) throws NoSuchFieldException {
+      while(cls != null) {
+         try {
+            return cls.getDeclaredField(name);
+         }
+         catch(NoSuchFieldException e) {
+            cls = cls.getSuperclass();
+         }
+      }
+
+      throw new NoSuchFieldException(name);
    }
 
    private String textOf(String txt) {

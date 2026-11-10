@@ -209,11 +209,30 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
    }
 
    /**
-    * Write text. The text is always escaped.
+    * Write a data or value string (input label, spinner value, calendar value). The text is
+    * always escaped.
     */
    public void writeText(Writer writer, Rectangle2D bounds, VSCompositeFormat format,
                          String dispText, Hyperlink.Ref ref, boolean autoSize, Insets padding,
                          boolean shadow, int zIndex)
+   {
+      writeText(writer, bounds, format, dispText, ref, autoSize, padding, shadow, zIndex, false);
+   }
+
+   /**
+    * Write author-written text (Text assembly, chart title, warning text). Like the viewer,
+    * the text is treated as markup, see {@link HTMLEscape#markup}.
+    */
+   public void writeMarkupText(Writer writer, Rectangle2D bounds, VSCompositeFormat format,
+                               String dispText, Hyperlink.Ref ref, boolean autoSize,
+                               Insets padding, boolean shadow, int zIndex)
+   {
+      writeText(writer, bounds, format, dispText, ref, autoSize, padding, shadow, zIndex, true);
+   }
+
+   private void writeText(Writer writer, Rectangle2D bounds, VSCompositeFormat format,
+                          String dispText, Hyperlink.Ref ref, boolean autoSize, Insets padding,
+                          boolean shadow, int zIndex, boolean markup)
    {
       StringBuffer buf = new StringBuffer();
       buf.append("<div style='position:absolute;overflow:hidden;z-index:");
@@ -277,7 +296,8 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       buf.append("'>");
 
       if(dispText != null) {
-         buf.append(HTMLEscape.text(dispText).replaceAll("\n", "<br>"));
+         buf.append(markup ? HTMLEscape.markup(dispText) :
+                       HTMLEscape.text(dispText).replaceAll("\n", "<br>"));
       }
 
       buf.append("</div></div></div>");
@@ -940,7 +960,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       slist.append("'>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio1 +
                       ";white-space:nowrap'>");
-      slist.append(HTMLEscape.text(title));
+      slist.append(HTMLEscape.markup(title));
       slist.append("  </div>");
       slist.append("  <div style='display:inline-block;overflow:hidden;width:" + ratio2 +
          ";white-space:nowrap'>");
@@ -1005,7 +1025,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(HTMLEscape.text(title));
+            titleStr.append(HTMLEscape.markup(title));
          }
 
          titleStr.append("</span></div>");
@@ -1026,7 +1046,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          titleStr.append("'>");
 
          if(title != null) {
-            titleStr.append(HTMLEscape.text(title));
+            titleStr.append(HTMLEscape.markup(title));
          }
 
          titleStr.append("</span></div>");
@@ -1130,7 +1150,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
          }
 
          slist.append("'>");
-         slist.append(HTMLEscape.text(title));
+         slist.append(HTMLEscape.markup(title));
          slist.append("</span>");
       }
 
