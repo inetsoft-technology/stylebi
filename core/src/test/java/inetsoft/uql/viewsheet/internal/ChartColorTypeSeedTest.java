@@ -17,8 +17,11 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.GShape;
+import inetsoft.graph.aesthetic.SpectralColorFrame;
 import inetsoft.graph.aesthetic.StaticShapeFrame;
+import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -32,7 +35,10 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.BluesColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.SpectralColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.TealColorFrameWrapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -282,6 +288,51 @@ class ChartColorTypeSeedTest {
       String before = writeXml(info);
       seed(info);
       assertEquals(before, writeXml(info));
+   }
+
+   @Test
+   void modernizeTurnsAContoursBluesTeal() {
+      ChartVSAssemblyInfo info = newChart();
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_SCATTER_CONTOUR);
+      info.getVSChartInfo().setColorFrameWrapper(new BluesColorFrameWrapper());
+
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+
+      assertInstanceOf(TealColorFrame.class, info.getVSChartInfo().getColorFrame());
+   }
+
+   @Test
+   void revertTurnsItBack() {
+      ChartVSAssemblyInfo info = newChart();
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_SCATTER_CONTOUR);
+      info.getVSChartInfo().setColorFrameWrapper(new TealColorFrameWrapper());
+
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+
+      assertInstanceOf(BluesColorFrame.class, info.getVSChartInfo().getColorFrame());
+   }
+
+   @Test
+   void anAuthorsSpectralContourIsKept() {
+      ChartVSAssemblyInfo info = newChart();
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_SCATTER_CONTOUR);
+      info.getVSChartInfo().setColorFrameWrapper(new SpectralColorFrameWrapper());
+
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+
+      assertInstanceOf(SpectralColorFrame.class, info.getVSChartInfo().getColorFrame());
+   }
+
+   @Test
+   void aRestoreNeverReplacesAContoursRamp() {
+      ChartVSAssemblyInfo info = newChart();
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_SCATTER_CONTOUR);
+      info.getVSChartInfo().setColorFrameWrapper(new BluesColorFrameWrapper());
+      info.setVizMark(VizMark.MODERN_LIGHT);
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertInstanceOf(BluesColorFrame.class, info.getVSChartInfo().getColorFrame());
    }
 
    private static CompositeValue<?> emptyColor(ChartVSAssemblyInfo info) {

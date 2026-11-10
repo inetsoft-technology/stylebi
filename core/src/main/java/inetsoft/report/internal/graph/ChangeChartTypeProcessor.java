@@ -1630,7 +1630,8 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             info.setColorFrameWrapper(oinfo.getColorFrameWrapper());
          }
          else {
-            info.setColorFrameWrapper(new BluesColorFrameWrapper());
+            info.setColorFrameWrapper(vizContext.modern ? new TealColorFrameWrapper()
+                                      : new BluesColorFrameWrapper());
          }
       }
 

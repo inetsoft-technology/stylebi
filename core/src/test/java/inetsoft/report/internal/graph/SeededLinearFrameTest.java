@@ -24,6 +24,7 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
@@ -81,6 +82,34 @@ class SeededLinearFrameTest {
    @Test
    void anUnmarkedAssemblyIsBornOnBlues() {
       assertInstanceOf(BluesColorFrame.class, seedThroughProcessor(null));
+   }
+
+   @Test
+   void aModernBarChangedToScatterContourIsTeal() {
+      assertInstanceOf(TealColorFrameWrapper.class, toContour(VizContext.of(VizMark.MODERN_LIGHT)));
+   }
+
+   @Test
+   void aClassicOneIsBlues() {
+      assertInstanceOf(BluesColorFrameWrapper.class, toContour(VizContext.LEGACY));
+   }
+
+   private ColorFrameWrapper toContour(VizContext ctx) {
+      VSChartInfo cinfo = new VSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      cinfo.addXField(dimensionField());
+      cinfo.addYField(measureField());
+
+      ChartInfo processed = new ChangeChartTypeProcessor(
+         GraphTypes.CHART_BAR, GraphTypes.CHART_SCATTER_CONTOUR, null, cinfo, ctx).process();
+
+      return processed.getColorFrameWrapper();
+   }
+
+   private VSChartDimensionRef dimensionField() {
+      VSChartDimensionRef dim = new VSChartDimensionRef();
+      dim.setGroupColumnValue("Category");
+      return dim;
    }
 
    /** Runs the whole chain the way a real chart-type change does. */
