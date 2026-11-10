@@ -472,10 +472,26 @@ public class RepositoryObjectService {
                }
 
                libManagerProvider.getManager().save();
+               // Bug #80960, the style is already deleted, its permission must not be inherited
+               // by a style created later with the same name. A failed permission write must not
+               // stop the delete of the other selected nodes.
+               AbstractAssetEngine.removePermissionBestEffort(
+                  securityProvider, ResourceType.TABLE_STYLE, node.path());
                break;
             case RepositoryEntry.TABLE_STYLE | RepositoryEntry.FOLDER:
+               // the folder removal is recursive, so the permissions of the folder and of every
+               // style and folder under it have to be collected before they are removed
+               List<String> removedStyleResources =
+                  getTableStyleFolderResources(node.path(), libManagerProvider.getManager());
                AssetEventUtil.removeStyleFolder(node.path(), libManagerProvider.getManager());
                libManagerProvider.getManager().save();
+
+               // Bug #80960
+               for(String resource : removedStyleResources) {
+                  AbstractAssetEngine.removePermissionBestEffort(
+                     securityProvider, ResourceType.TABLE_STYLE, resource);
+               }
+
                break;
             case RepositoryEntry.FOLDER:
             case RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER:
@@ -1047,6 +1063,30 @@ public class RepositoryObjectService {
       }
       catch(Exception ex) {
          LOG.error("Failed to remove worksheet folder " + folder + " for user " + owner, ex);
+      }
+   }
+
+   /**
+    * Gets the TABLE_STYLE resource names of a table style folder, of the styles in it and of all
+    * its subfolders and their styles.
+    */
+   private List<String> getTableStyleFolderResources(String folder, LibManager manager) {
+      List<String> resources = new ArrayList<>();
+      collectTableStyleFolderResources(folder, manager, resources);
+      return resources;
+   }
+
+   private void collectTableStyleFolderResources(String folder, LibManager manager,
+                                                 List<String> resources)
+   {
+      resources.add(folder);
+
+      for(XTableStyle style : manager.getTableStyles(folder)) {
+         resources.add(style.getName());
+      }
+
+      for(String subfolder : manager.getTableStyleFolders(folder)) {
+         collectTableStyleFolderResources(subfolder, manager, resources);
       }
    }
 
