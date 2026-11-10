@@ -61,7 +61,7 @@ Where this plan and the spec differ, this plan wins (see Corrections). S2-6, S2-
 | C2 | S2-1: "Candle (`Color.gray`)" | `CandleGraphGenerator:217-224` is the placeholder for an incomplete binding. Candle, stock, radar, relation and map draw the chart-level frame (`AbstractChartInfo.cFrame`, `MergedVSChartInfo.supportsColorFieldFrame:264`), darkened by 0.75 for candle, stock and radar. | S2a seeds the chart-level frame per resolved type (Task 6). S2b replaces the candle and stock colour. |
 | C3 | S2-2: "use slot 2 when no author colour is set" | The line copies the bar colour unless a colour field is bound (`getParetoColorFrame:3383-3413`). `paretoLineColor` is not in `savedDefaults()`. The line has no size frame (`GraphTypeUtil.supportsFrame:1087`), so it draws 1px. The percent axis copies the y-axis text colour (`GraphDefault:86`). | Colour is V. Width and percent labels are D (Task 8). |
 | C4 | S2-3: "the edge element's static frame" | The edges draw the chart-level frame (`RelationEdgeVO:85`), which root nodes also read when a node colour field is bound (`RelationGeometry.getColor:59-91`). A type change keeps the frame (`ChangeChartTypeProcessor.fixColorFrame:198-200`). | Per-type seed (Task 6); roots go grey (O2). |
-| C5 | S2-4: one region colour, written by `fixMapColorFrame` | A polygon-only map stores the region colour in the chart-level frame. A map with points, and a contour map, read `getMapDefaultColor()` at render (`MapGenerator:489-492`), so it is D there. `getMapEmptyColor:330-353` lets any stored tier beat `map.empty.color`. | Task 6 seeds the polygon-only colour and draws the D case. Task 7 seeds the no-data colour and reorders the lookup so the property beats the seed (O4). |
+| C5 | S2-4: one region colour, written by `fixMapColorFrame`, whose palette check (`ChangeChartProcessor:917`) becomes mark-aware | A polygon-only map stores the region colour in the chart-level frame. A map with points, and a contour map, read `getMapDefaultColor()` at render (`MapGenerator:489-492`), so it is D there. `getMapEmptyColor:330-353` lets any stored tier beat `map.empty.color`. `fixMapColorFrame:906-930` writes only over legacy slot 1, or when `map.default.color` is set. | Task 6 seeds the polygon-only colour per type and draws the D case. `fixMapColorFrame` stays as it is: it never overwrites a modern value except under O4, which is the ruling. Task 7 seeds the no-data colour and reorders the lookup so the property beats the seed (O4). |
 | C6 | S2-5: "New modern charts are already teal" | Only through the wizard. The type picker calls `copyToContour:1628-1635` before `fixColorFrame`, and it installs `BluesColorFrameWrapper` with no context. | Fix the picker (kind C) and seed the chart-level ramp on a mark transition (Task 9). |
 | C7 | M5: the legacy pass writes the classic value | Static frames save their DEFAULT on classic charts too (`StaticColorFrameWrapper:96-110`). | The legacy pass of the chart-level frame writes only over a value a modern seed writes, so classic XML stays byte-identical. Measure colours need no guard: position mapping leaves legacy colours where they are. |
 | C8 | S2-8: one symbol-colour property | `SizeLegendItem.paintSymbol:67` always draws the box in `SYMBOL_BORDER`. | Two `LegendSpec` properties: fill fallback and border (Task 10). |
@@ -72,6 +72,7 @@ Where this plan and the spec differ, this plan wins (see Corrections). S2-6, S2-
 - **Darkening.** Lines, points and radar keep the 0.75 darkening, so slot 1 draws darker there. This is the same as the shipped modern categorical palette on lines.
 - **An org that edits its Modern `ChartPalette` between Modernize and Revert.** A seeded colour that is no longer in either palette stays as it is.
 - **A relation or radar whose classic chart-level colour was not legacy slot 1.** It comes back as slot 1 after Modernize then Revert.
+- **A modern map while `map.empty.color` is set.** The plot dialog shows the seeded grid colour while the property's colour draws.
 
 ## Global Constraints
 
@@ -272,7 +273,7 @@ Expected: compile failure (no 4-arg `fixStaticColorFrame`).
 
 - [ ] **Step 4: Run to verify they pass**
 
-Run: the Step 2 class plus `ChartDndHandlerTest,VSChartBindingHandlerTest,ChangeChartTypeProcessorTest,ChangeChartRefServiceTest,WizardSeededLinearFrameTest`, using whichever of these exist (`find core/src/test -name '<Class>.java'`).
+Run: the Step 2 class plus `ChangeChartTypeCombinedTooltipTest,ChangeChartTypeProcessorMapTitleTest,SeededLinearFrameTest,ResolvedTypeReseedTest,VSChartBindingColorPalettesTest,WizardSeededLinearFrameTest`. No test class exists for `ChartDndHandler`, `VSChartBindingHandler` or `ChangeChartRefService`, and none is added: the picks are pinned through `GraphUtil`.
 Expected: all pass.
 
 - [ ] **Step 5: Commit**: `Chart defaults S2a, pick a dropped measure's colour from the chart's own palette`.
@@ -298,16 +299,16 @@ S2-1, C1, Review Focus 2.
   - `GraphGenerator:330` passes `vizContext`, and `:483` (the legacy constructor) passes `VizContext.LEGACY`.
   - `VSFrameVisitor:198` passes the strategy's context.
   - `isApplyColor` compares with `staticPalette(vizContext)` at `[0]` and `[measureIdx % length]`.
-  - `fixColorChanged(ChartBindingModel model)` compares with `staticPalette(getVizContext())`. It becomes an instance method, because `getVizContext()` is.
+  - `static void fixColorChanged(ChartBindingModel model, VizContext ctx)` (package-private) compares with `staticPalette(ctx)`. `createChartBinding` passes `getVizContext()`.
 
 - [ ] **Step 1: Write the failing tests**
 - In `StaticColorPickTest`:
   - `aRenderDoesNotRepickAModernColour`: two measures at `#0490FF` and `#FF5A35`; `createCombinedFrame` with a MODERN_LIGHT strategy keeps both.
   - `aRenderRepicksAModernDuplicateFromTheModernPalette`: both measures at `#0490FF` give `#0490FF` and `#FF5A35`.
-- `ChartInfoModelBuilderColorChangedTest`, using `VSChartInfoModelBuilder` with a marked assembly as in its existing tests:
-  - `aSeededModernColourIsNotChanged`
-  - `anOffPaletteColourIsChanged`
-  - `aClassicLegacyColourIsNotChanged`
+- `ChartInfoModelBuilderColorChangedTest` (no Spring context beyond the palette lookup), calling `fixColorChanged` on a hand-built `ChartBindingModel` with `StaticColorModel`s:
+  - `aSeededModernColourIsNotChanged`: `#0490FF` and `#FF5A35` under MODERN_LIGHT stay unchanged.
+  - `anOffPaletteColourIsChanged`: `#123456` under MODERN_LIGHT is changed.
+  - `aClassicLegacyColourIsNotChanged`: `#518DB9` under LEGACY stays unchanged.
 - In `ChartChromeRenderTest`, a guard that passes before and after:
   - `aModernLineChartStillDarkensItsSeededColour`: a marked LINE with one measure. The element colour is `#0490FF` at brightness 0.75.
 
@@ -329,7 +330,7 @@ Expected: all pass.
 O1, Review Focus 3.
 
 **Decision.**
-- **The server rule.** A static colour model that is not `changed` and whose `color` equals the colour the frame shows without an author colour (`cssColor`, else `defaultColor`) clears the user tier.
+- **The server rule.** A static colour model that is not `changed` clears the user tier when its `color` equals the colour the frame shows without an author colour. That colour is the model's own `cssColor` when set, else its `defaultColor`, which are the values the server sent and the client sends back. The frame's default tier is left as the server holds it.
 - **Why the rule needs both checks.**
   - A pick in the combined pane sets only `color` and never `changed`, so `changed` alone cannot mark a reset.
   - An author who picks exactly the default colour loses nothing that draws. 80398's residue rule treats that value the same way.
@@ -344,8 +345,9 @@ O1, Review Focus 3.
 
 **Interfaces:**
 - Produces: `StaticColorFrameFactory.updateVisualFrameWrapper0`:
-  - When `!model.isChanged()` and `color` equals `css != null ? css : default`, it calls `nwrapper.setUserColor(null)` and `setChanged(false)`.
+  - When `!model.isChanged()` and `color` equals the model's non-empty `cssColor`, else its `defaultColor`, it calls `nwrapper.setUserColor(null)` and `setChanged(false)`. It does not write the default tier.
   - Otherwise it does what it does today.
+  - The test follows the setup of `CategoricalColorFactoryResolvedDefaultGuardTest` in the same package.
 
 - [ ] **Step 1: Write the failing tests**
 - `StaticColorFrameFactoryTest`:
@@ -441,10 +443,11 @@ S2-4 (unmatched), C5, O4, Review Focus 5.
 **Interfaces:**
 - Produces:
   - `CompositeValue.hasCssValue()`: returns `cssDefined`.
-  - `PlotDescriptor.hasAuthoredEmptyColor()`: `emptyColor.hasUserValue() || emptyColor.hasCssValue()`.
+  - `PlotDescriptor.getAuthoredEmptyColor()`: `emptyColor.get(USER)` when `hasUserValue()` and it is non-null, else `emptyColor.get(CSS)` when `hasCssValue()` and it is non-null, else null. A user tier set to null counts as unset, as `get()` treats it today.
+  - `PlotDescriptor.getEmptyColor(CompositeValue.Type type)`: `emptyColor.get(type)`.
   - `"emptyColor"` in `chromeValue` and `PLOT_VALUES`; `emptyColor` in `savedDefaults()`.
   - The seed writes `setEmptyColor(gridlineColor(ctx), DEFAULT)` when modern and `setEmptyColor(null, DEFAULT)` on every legacy pass. Null is the constructor value, so the property lookup runs again at render.
-  - `GraphUtil.getMapEmptyColor(PlotDescriptor)` reads in this order: the author or CSS value, then the `map.empty.color` property, then the DEFAULT tier, then `MAP_EMPTY_DATA_COLOR`. A classic chart's DEFAULT is null, so its order is today's.
+  - `GraphUtil.getMapEmptyColor(PlotDescriptor)` reads in this order: `getAuthoredEmptyColor()`, then the `map.empty.color` property, then `emptyColor.get(DEFAULT)`, then `MAP_EMPTY_DATA_COLOR`. A classic chart's DEFAULT is null, so its order is today's.
 
 - [ ] **Step 1: Write the failing tests**
 - `aModernMapsNoDataColourIsTheGridColour`: the DEFAULT tier is `#D6D2C8`, `#4A484F` dark.
@@ -478,9 +481,9 @@ S2-2, C3, O3.
 - **Seed and registration.**
   - Modern writes `setParetoLineColor(activePalette(ctx)[1], DEFAULT)`. Legacy writes `CategoricalColorFrame.COLOR_PALETTE.get(0)`, the constructor value.
   - `"paretoLineColor"` joins `chromeValue` and `PLOT_VALUES`, and `paretoLineColor` joins `savedDefaults()`.
-- **The line colour (`getParetoColorFrame`).** When `vizContext.modern` and the frame is not a brushing source or target, the `StaticColorFrame` and `MultiMeasureColorFrame` branches return `getParetoLineColor()`. The resolved colour is kept in a new package-private field `Color paretoLineColor` on `GraphGenerator`.
+- **The line colour (`getParetoColorFrame`).** When `vizContext.modern` and the frame is not a brushing source or target, the `StaticColorFrame` and `MultiMeasureColorFrame` branches return `desc.getPlotDescriptor().getParetoLineColor()`.
 - **The line width.** When `vizContext.modern`: `line.setSizeFrame(new StaticSizeFrame(2))`, which draws 1.5px through `LineVO.getLineSize:1014-1016`.
-- **The percent labels.** In `GraphDefault`, when `gen.vizContext.modern && gen.paretoLineColor != null`: `percentScale.getAxisSpec().getTextSpec().setColor(gen.paretoLineColor)`.
+- **The percent labels.** In `GraphDefault.setScaleOptions`, when `gen.vizContext.modern`: `percentScale.getAxisSpec().getTextSpec().setColor(gen.desc.getPlotDescriptor().getParetoLineColor())`. This reads the descriptor rather than the built line, so it does not depend on whether the elements exist yet. `desc` is `protected` and in the same package.
 - **The picker.** `ChartPlotOptionsPaneModel(ChartInfo, PlotDescriptor, VizContext)` and `isParetoLineColorVisible(ChartInfo, VizContext)` return `isPareto && (colorField != null || ctx.modern)`. The two-arg forms use `LEGACY`. `ChartAdvancedPaneModel` passes `VizContext.of(chartAssemblyInfo)`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -514,7 +517,7 @@ S2-5, C6.
 - Test: `core/src/test/java/inetsoft/report/internal/graph/SeededLinearFrameTest.java`, `ChartColorTypeSeedTest`
 
 **Interfaces:**
-- **The type picker.** `copyToContour` installs `VisualFrameWrapper.wrap(VSChartPaletteDefaults.defaultLinearFrame(vizContext))` in place of `new BluesColorFrameWrapper()`. The branch that keeps an existing linear wrapper is unchanged.
+- **The type picker.** `copyToContour` installs `vizContext.modern ? new TealColorFrameWrapper() : new BluesColorFrameWrapper()`, the wrapper of `defaultLinearFrame(vizContext)`. The branch that keeps an existing linear wrapper is unchanged.
 - **The transition seed.** `seedColorPalette` calls `seedColorFrame`'s linear branch on the chart-level frame too. On `ctx.transition && isOtherMarkSeededLinearFrame(info.getColorFrame(), ctx)` it calls `info.setColorFrame(defaultLinearFrame(ctx))`.
 
 - [ ] **Step 1: Write the failing tests**
