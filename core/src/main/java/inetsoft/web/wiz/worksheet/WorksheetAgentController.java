@@ -427,6 +427,13 @@ public class WorksheetAgentController {
       editOp(sessionToken, req, user, null, null, null, null);
    }
 
+   /** Aggregate-dialog parity for the warn-only trap check (Bug #80958). */
+   private static final String AGGREGATE_TRAP_OP = "set_group_aggregate";
+
+   /** Condition-dialog parity for the warn-only trap check (Bug #80958). */
+   private static final Set<String> CONDITION_TRAP_OPS =
+      Set.of("add_filter", "edit_condition", "set_conditions");
+
    /**
     * Same as {@link #editOp(String, EditRequest, Principal)}, plus an optional out-param that
     * {@code add_table}'s branches fill with the resolved assembly name (see {@link EditResponse}).
@@ -779,7 +786,21 @@ public class WorksheetAgentController {
       RuntimeWorksheet before = editService.resolve(sessionToken, user);
       java.util.Set<String> declaredBefore =
          declaredVariableNames(before == null ? null : before.getWorksheet());
-      editService.apply(sessionToken, user, editor -> dispatch(editor, req, resolvedNameHolder));
+      editService.apply(sessionToken, user, editor -> {
+         // Bug #80958: warn-only data-model trap check. It must run here, inside the mutation,
+         // before apply() refreshes the assemblies; the write itself is never blocked.
+         String trapOp = req.op();
+         boolean trapCheck = refreshNoteHolder != null && trapOp != null &&
+            (AGGREGATE_TRAP_OP.equals(trapOp) || CONDITION_TRAP_OPS.contains(trapOp));
+         TableAssembly trapBefore = trapCheck ? editor.trapSnapshot(req.table()) : null;
+         dispatch(editor, req, resolvedNameHolder);
+
+         if(trapBefore != null) {
+            refreshNoteHolder[0] = WorksheetTrapCheck.newTrap(
+               trapBefore, editor.trapTable(req.table()), AGGREGATE_TRAP_OP.equals(trapOp), user)
+               .orElse(null);
+         }
+      });
       purgeValuesOfRemovedVariables(sessionToken, user, declaredBefore);
    }
 
