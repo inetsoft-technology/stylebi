@@ -900,10 +900,10 @@ public class TimeSliderVSAQueryTest {
       /**
        * Review r3 minor-1: a date slider of a sheet without Use Metadata whose data had a single
        * value is saved with a list that reads back without ticks. Opened after the data grew,
-       * it selects the full range as before.
+       * it gives the same result as main: the first two months (length 1), not the full range.
        */
       @Test
-      void singleValueDateSliderWithoutMetadataCoversGrownData() throws Exception {
+      void singleValueDateSliderWithoutMetadataKeepsFirstTwoMonthsAsMain() throws Exception {
          useRuntimeBox();
          setUpDateSlider(TimeInfo.MONTH);
          refresh(datePlaceholder);
@@ -990,6 +990,106 @@ public class TimeSliderVSAQueryTest {
          assertEquals(List.of("2014", "2015"), getStateValues());
       }
 
+      /**
+       * Review r4 minor-1: a composite (Year + Month) slider goes through refreshDimensionsValue,
+       * which has its own ALL branch and placeholder switch. A full range survives Use Metadata
+       * on and off.
+       */
+      @Test
+      void fullRangeCompositeSliderSurvivesMetadataToggle() throws Exception {
+         setUpCompositeSlider();
+         selectFullComposite(compositeData(2013, 2016));
+
+         toggleMetadata(compositePlaceholder(), compositeData(2013, 2016));
+
+         assertFullRange();
+      }
+
+      @Test
+      void partialCompositeSelectionSurvivesSaveWithMetadataOn() throws Exception {
+         setUpCompositeSlider();
+         String saved = saveWithMetadataOn(compositeData(2013, 2016), 2, 5,
+                                           compositePlaceholder());
+         assertTrue(saved.contains("full=\"false\" placeholder=\"true\""));
+
+         reloadAndRefreshInViewer(saved, compositeData(2013, 2016));
+
+         assertEquals(5, assembly.getTimeInfo().getLength());
+         assertSelected(2, 5);
+      }
+
+      @Test
+      void fullCompositeSliderSavedWithMetadataOnCoversGrownData() throws Exception {
+         setUpCompositeSlider();
+         selectFullComposite(compositeData(2013, 2016));
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(compositePlaceholder());
+         String saved = writeSheet();
+         assertTrue(saved.contains("full=\"true\" placeholder=\"true\""));
+
+         reloadAndRefreshInViewer(saved, compositeData(2013, 2017));
+
+         assertFullRange();
+         assertEquals("2017::10", getStateValues().get(getStateValues().size() - 1));
+      }
+
+      /**
+       * Without Use Metadata a full composite bookmark applied where the list starts earlier
+       * and is shorter selects the full range, as on main.
+       */
+      @Test
+      void fullCompositeBookmarkOnEarlierShorterListStaysFull() throws Exception {
+         useRuntimeBox();
+         setUpCompositeSlider();
+         selectFullComposite(compositeData(2013, 2016));
+         String bookmark = writeBookmark();
+         assertTrue(bookmark.contains("full=\"true\"/>"));
+
+         XTable earlier = compositeData(2012, 2014);
+         refresh(earlier);
+         gotoBookmark(bookmark);
+         refresh(earlier);
+
+         assertFullRange();
+         assertEquals("2012::1", getStateValues().get(0));
+      }
+
+      private void setUpCompositeSlider() {
+         CompositeTimeInfo tinfo = new CompositeTimeInfo();
+         ColumnRef year = createRef(MEASURE);
+         year.setDataType(XSchema.INTEGER);
+         ColumnRef month = createRef(OTHER);
+         month.setDataType(XSchema.INTEGER);
+         tinfo.setDataRefs(new DataRef[] { year, month });
+         assembly.setTimeInfo(tinfo);
+         ((TimeSliderVSAssemblyInfo) assembly.getVSAssemblyInfo()).setComposite(true);
+      }
+
+      private void selectFullComposite(XTable data) throws Exception {
+         refresh(data);
+         selectRange(0, assembly.getSelectionList().getSelectionValueCount() - 1);
+         refresh(data);
+         assertFullRange();
+      }
+
+      // one row per quarter: year, month 1/4/7/10
+      private XTable compositeData(int from, int to) {
+         List<Object[]> rows = new ArrayList<>();
+         rows.add(new Object[] { MEASURE, OTHER });
+
+         for(int y = from; y <= to; y++) {
+            for(int m = 1; m <= 10; m += 3) {
+               rows.add(new Object[] { y, m });
+            }
+         }
+
+         return createTable(rows.toArray(new Object[0][]));
+      }
+
+      private XTable compositePlaceholder() {
+         return createTable(new Object[][] { { MEASURE, OTHER }, { 999, 999 } });
+      }
+
       @Test
       void cloneKeepsCarriedFullness() throws Exception {
          setUpYearSlider();
@@ -1001,7 +1101,7 @@ public class TimeSliderVSAQueryTest {
          assertEquals(Boolean.TRUE, assembly.clone().getPlaceholderFull());
       }
 
-      private String saveWithMetadataOn(Object[] data, int pos, int length, Object[] placeholder)
+      private String saveWithMetadataOn(Object data, int pos, int length, Object placeholder)
          throws Exception
       {
          refresh(data);
@@ -1032,7 +1132,7 @@ public class TimeSliderVSAQueryTest {
        * Open a saved sheet in the viewer: a runtime box, the initial bookmark taken from the
        * opened sheet and applied again (RuntimeViewsheet), then the first refresh.
        */
-      private void reloadAndRefreshInViewer(String saved, Object[] data) throws Exception {
+      private void reloadAndRefreshInViewer(String saved, Object data) throws Exception {
          reload(saved);
          assertTrue(viewsheet.getViewsheetInfo().isMetadata());
          useRuntimeBox();
@@ -1130,7 +1230,7 @@ public class TimeSliderVSAQueryTest {
          return values;
       }
 
-      private void toggleMetadata(Object[] placeholder, Object[] data) throws Exception {
+      private void toggleMetadata(Object placeholder, Object data) throws Exception {
          viewsheet.getViewsheetInfo().setMetadata(true);
          refresh(placeholder);
          assertEquals(1, assembly.getSelectionList().getSelectionValueCount(),
@@ -1188,7 +1288,7 @@ public class TimeSliderVSAQueryTest {
                       state.getSelectionValue(length).getValue());
       }
 
-      private void refresh(Object[] data) throws Exception {
+      private void refresh(Object data) throws Exception {
          Method m = TimeSliderVSAQuery.class.getDeclaredMethod(
             "refreshSelectionValue0", Object.class);
          m.setAccessible(true);
