@@ -2558,6 +2558,82 @@ class ViewsheetEditServiceTest {
       verify(box).clearScriptChangedFormSet();
    }
 
+   /**
+    * Bug #80876: the per-assembly refresh also re-executes (and so drops) a Form table's pending
+    * edits; it protects them before the refresh and clears the protection afterwards.
+    */
+   @Test
+   void refreshProtectsPendingFormEditsAroundTheAssemblyRefresh() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvsWithPendingFormTable(box, true),
+         readerReturning(new AssemblyNode("AdminTable", "Table", 0, 0, 400, 300, 0, null, true)),
+         refreshService);
+
+      service.apply("tok", principal(), request("refresh", "AdminTable"), "");
+
+      InOrder order = inOrder(box, refreshService);
+      order.verify(box).addScriptChangedForm("AdminTable");
+      order.verify(refreshService).refreshVsAssembly(eq("rt1"), any(RefreshVSAssemblyEvent.class),
+                                                     any(), anyString(), any(Principal.class));
+      order.verify(box).clearScriptChangedFormSet();
+      verify(box, never()).getFormTableLens(anyString());
+   }
+
+   @Test
+   void refreshClearsTheProtectionWhenTheAssemblyRefreshThrows() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      VSRefreshService refreshService = mock(VSRefreshService.class);
+      doThrow(new IllegalStateException("boom")).when(refreshService)
+         .refreshVsAssembly(anyString(), any(RefreshVSAssemblyEvent.class), any(), anyString(),
+                            any(Principal.class));
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvsWithPendingFormTable(box, true),
+         readerReturning(new AssemblyNode("AdminTable", "Table", 0, 0, 400, 300, 0, null, true)),
+         refreshService);
+
+      assertThrows(Exception.class,
+                   () -> service.apply("tok", principal(), request("refresh", "AdminTable"), ""));
+
+      verify(box).addScriptChangedForm("AdminTable");
+      verify(box).clearScriptChangedFormSet();
+   }
+
+   /** A protected Form table is not reloaded, so the result must say so (no silent ok). */
+   @Test
+   void refreshWarnsThatAProtectedFormTableWasNotReloaded() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvsWithPendingFormTable(box, true),
+         readerReturning(new AssemblyNode("AdminTable", "Table", 0, 0, 400, 300, 0, null, true)),
+         mock(VSRefreshService.class));
+
+      List<String> warnings =
+         service.apply("tok", principal(), request("refresh", "AdminTable"), "").warnings();
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("AdminTable"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("pending (not yet applied) row edits"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("NOT reloaded"), warnings.get(0));
+   }
+
+   @Test
+   void refreshWithNoPendingFormEditsAddsNoWarningAndProtectsNothing() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      ViewsheetEditService service = serviceWithRuntimeAndRefresh(
+         rvsWithPendingFormTable(box, false),
+         readerReturning(new AssemblyNode("AdminTable", "Table", 0, 0, 400, 300, 0, null, true)),
+         mock(VSRefreshService.class));
+
+      List<String> warnings =
+         service.apply("tok", principal(), request("refresh", "AdminTable"), "").warnings();
+
+      assertTrue(warnings.isEmpty(), warnings.toString());
+      verify(box, never()).addScriptChangedForm(anyString());
+      verify(box).clearScriptChangedFormSet();
+   }
+
    @Test
    void refreshViewsheetReturnsTheWarningsMutateReturned() throws Exception {
       ViewsheetEditService service = serviceWarning(

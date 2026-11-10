@@ -494,7 +494,16 @@ public class ViewsheetAssemblyAgentController {
 
    public record BookmarkNameRequest(String name) {}
 
-   public record GotoBookmarkRequest(String name, String owner) {}
+   /**
+    * @param discardPending Bug #80876: true to go to the bookmark even though a Form table holds
+    *                       pending (not yet applied) edits, which the bookmark's reset drops.
+    *                       Null (absent) when the caller does not pass it, as older plugins do.
+    */
+   public record GotoBookmarkRequest(String name, String owner, Boolean discardPending) {
+      public GotoBookmarkRequest(String name, String owner) {
+         this(name, owner, null);
+      }
+   }
 
    public record RenameBookmarkRequest(String name, String newName, String type, Boolean readOnly,
                                         Boolean confirmed) {}
@@ -1056,6 +1065,13 @@ public class ViewsheetAssemblyAgentController {
       try {
          warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
             IdentityID owner = resolveVisibleBookmarkOwner(rvs, name, request.owner(), user);
+
+            // Bug #80876: the bookmark replaces selections, conditions and inputs and then
+            // resets the whole sheet (the '(Home)' bookmark too), which drops every Form table's
+            // pending edits. Refuse before the runtime is touched, and here rather than in
+            // VSBookmarkService, which the Viewer shares.
+            FormTableProtection.refuseUnlessDiscardable(
+               rvs, request.discardPending(), "bookmark '" + name + "'");
 
             VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
                .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(owner).build())

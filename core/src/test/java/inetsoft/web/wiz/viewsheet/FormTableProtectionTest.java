@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.FormTableLens;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -34,7 +35,13 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -137,5 +144,59 @@ class FormTableProtectionTest {
 
       verify(box).getFormTableLens("AdminTable");
       verify(box, never()).getCachedFormTableLens(any());
+   }
+
+   private RuntimeViewsheet runtime() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      return rvs;
+   }
+
+   @Test
+   void protectBuiltReturnsTheProtectedNames() throws Exception {
+      table("A", true, true);
+      table("B", true, false);
+
+      assertEquals(List.of("A"), FormTableProtection.protectBuiltChangedFormTables(box, vs));
+   }
+
+   @Test
+   void pendingBuiltFormsListsOnlyBuiltChangedFormTables() throws Exception {
+      table("A", true, true);
+      table("B", true, false);
+      table("C", true, null);
+      table("Plain", false, null);
+
+      assertEquals(List.of("A"), FormTableProtection.pendingBuiltForms(runtime()));
+      verify(box, never()).getFormTableLens(any());
+   }
+
+   @Test
+   void refuseUnlessDiscardableThrowsNamingTheTableAndChangesNothing() throws Exception {
+      table("AdminTable", true, true);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> FormTableProtection.refuseUnlessDiscardable(runtime(), null, "bookmark 'B'"));
+
+      assertTrue(e.getMessage().contains("AdminTable"), e.getMessage());
+      assertTrue(e.getMessage().contains("bookmark 'B'"), e.getMessage());
+      assertTrue(e.getMessage().contains("pending (not yet applied) row edits"), e.getMessage());
+      assertTrue(e.getMessage().contains("form_table_apply"), e.getMessage());
+      assertTrue(e.getMessage().contains("discardPending: true"), e.getMessage());
+      verify(box, never()).addScriptChangedForm(any());
+   }
+
+   @Test
+   void refuseUnlessDiscardablePassesWithDiscardPendingOrNothingPending() throws Exception {
+      table("AdminTable", true, true);
+      assertDoesNotThrow(
+         () -> FormTableProtection.refuseUnlessDiscardable(runtime(), Boolean.TRUE, "x"));
+      assertThrows(IllegalArgumentException.class,
+         () -> FormTableProtection.refuseUnlessDiscardable(runtime(), Boolean.FALSE, "x"));
+
+      RuntimeViewsheet none = mock(RuntimeViewsheet.class);
+      when(none.getViewsheetSandbox()).thenReturn(Optional.empty());
+      assertDoesNotThrow(() -> FormTableProtection.refuseUnlessDiscardable(none, null, "x"));
    }
 }
