@@ -53,22 +53,59 @@ public class ParameterTool {
       }
 
       int start = text.indexOf(TEXT_PARAMETER_PREFIX);
-      int end = text.indexOf(TEXT_PARAMETER_END);
+      int end = text.indexOf(TEXT_PARAMETER_END, start);
 
       return end > start + 10;
    }
 
    /**
-    *  Parse parameter to right values.
+    *  Parse parameter to right values. The original text is scanned once from left
+    *  to right; the inserted values are never scanned again, so a value that contains
+    *  a placeholder (or is itself the placeholder) is inserted literally.
     */
    public String parseParameters(VariableTable table, String text) {
-      String ntext = text;
-
-      while(containsParameter(ntext)) {
-         ntext = parseParameter(table, ntext);
+      if(!containsParameter(text)) {
+         return text;
       }
 
-      return ntext;
+      StringBuilder buffer = new StringBuilder();
+      int pos = 0;
+
+      while(pos < text.length()) {
+         int start = text.indexOf(TEXT_PARAMETER_PREFIX, pos);
+
+         if(start < 0) {
+            break;
+         }
+
+         int end = text.indexOf(TEXT_PARAMETER_END, start);
+
+         if(end < 0) {
+            break;
+         }
+
+         int specIndex = text.indexOf("'", start);
+
+         // For example, if like this: {parameter.var, text, '{0}_aa'}.
+         if(specIndex > start && specIndex < end) {
+            int specEnd = text.indexOf("'}", start);
+
+            // unterminated quote, fall back to the first '}'
+            if(specEnd >= 0) {
+               end = specEnd + 1;
+            }
+         }
+
+         buffer.append(text, pos, start);
+         buffer.append(getParameterString(table, text.substring(start + 1, end)));
+         pos = end + 1;
+      }
+
+      if(pos < text.length()) {
+         buffer.append(text, pos, text.length());
+      }
+
+      return buffer.toString();
    }
 
    public List<String> getParameters(RuntimeViewsheet rvs) {
@@ -131,37 +168,6 @@ public class ParameterTool {
       return params;
    }
 
-   private String parseParameter(VariableTable table, String text) {
-      StringBuilder buffer = new StringBuilder();
-      int start = text.indexOf(TEXT_PARAMETER_PREFIX);
-
-      if(start < 0) {
-         return text;
-      }
-
-      buffer.append(text.substring(0, start));
-
-      int end = text.indexOf("}");
-      int specIndex = text.indexOf("'");
-
-      // For example, if like this: {parameter.var, text, '{0}_aa'}.
-      if(specIndex > start && specIndex < end) {
-         end = text.indexOf("'}") + 1;
-      }
-
-      if(end == -1) {
-         return text;
-      }
-
-      buffer.append(getParameterString(table, text.substring(start + 1, end)));
-
-      if(end < text.length() - 1) {
-         buffer.append(text.substring(end + 1));
-      }
-
-      return buffer.toString();
-   }
-
    private String getParameterString(VariableTable table, String text) {
       if(text == null || text.length() == 0) {
          return text;
@@ -216,7 +222,7 @@ public class ParameterTool {
          buffer.append("[");
 
          for(int i = 0; i < values.length; i++) {
-            String val = values[i].toString();
+            String val = String.valueOf(values[i]);
 
             try {
                val = fmt == null ? val :
