@@ -4324,6 +4324,112 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(engine, never()).getLockOwner(any());
    }
 
+   /** Bug #80165: (Home) is written into the dashboard asset, after every refusal check. */
+   @Test
+   void updateBookmark_homeWritesTheAssetBetweenTheChecksAndTheOwnStoreWrite() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(engine.getLockOwner(any())).thenReturn(null);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+
+      updateHome(homeEntry(), engine, vsBookmarkService);
+
+      InOrder order = org.mockito.Mockito.inOrder(vsBookmarkService);
+      order.verify(vsBookmarkService).checkAddBookmark(any(), eq("(Home)"), eq(true),
+         any(Principal.class), any(Principal.class));
+      order.verify(vsBookmarkService).saveHomeBookmarkAsset(any(), any(), any(), any(), any());
+      order.verify(vsBookmarkService).addBookmarkToViewSheet(any(), eq("(Home)"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_homeRefusedByLockWritesNothing() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(engine.getLockOwner(any())).thenReturn(new IdentityID("first", "host-org").convertToKey());
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> updateHome(homeEntry(), engine, vsBookmarkService));
+
+      verify(vsBookmarkService, never()).saveHomeBookmarkAsset(any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void updateBookmark_homeWithoutWritePermissionIsRefusedAndNothingIsWritten() throws Exception {
+      try(org.mockito.MockedStatic<XSessionService> sessionService =
+             mockStatic(XSessionService.class))
+      {
+         sessionService.when(XSessionService::getService).thenReturn(new XSessionService());
+         homeWithoutWritePermission();
+      }
+   }
+
+   private void homeWithoutWritePermission() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      AssetRepository repo = mock(AssetRepository.class);
+      when(engine.getAssetRepository()).thenReturn(repo);
+      when(engine.getLockOwner(any())).thenReturn(null);
+      when(repo.containsEntry(any())).thenReturn(true);
+      org.mockito.Mockito.doThrow(new MessageException("Write access denied")).when(repo)
+         .checkAssetPermission(any(), any(), eq(ResourceAction.WRITE));
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      IdentityID id = IdentityID.getIdentityIDFromKey("admin");
+      SRPrincipal wiz = new SRPrincipal(id, new IdentityID[0], new String[0], id.orgID, 1L);
+      wiz.setProperty("wiz", "true");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> updateHome(homeEntry(), engine, vsBookmarkService, wiz));
+
+      assertTrue(ex.getMessage().contains("(Home)"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Write access denied"), ex.getMessage());
+      verify(vsBookmarkService, never()).saveHomeBookmarkAsset(any(), any(), any(), any(), any());
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(any(), any(), anyInt(),
+         anyBoolean(), anyBoolean(), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_homeEngineRefusalIsReportedByNameAndOwnStoreIsNotWritten() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(engine.getLockOwner(any())).thenReturn(null);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.saveHomeBookmarkAsset(any(), any(), any(), any(), any()))
+         .thenThrow(new MessageException("Asset is locked"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> updateHome(homeEntry(), engine, vsBookmarkService, principal(), false));
+
+      assertTrue(ex.getMessage().contains("(Home)"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Asset is locked"), ex.getMessage());
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(any(), any(), anyInt(),
+         anyBoolean(), anyBoolean(), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_nonHomeNeverWritesTheAsset() throws Exception {
+      inetsoft.analytic.composition.ViewsheetService engine =
+         mock(inetsoft.analytic.composition.ViewsheetService.class);
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEntry()).thenReturn(homeEntry());
+      when(rvs.checkBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(any(), any(), anyInt(), anyBoolean(),
+         anyBoolean(), any(Principal.class), any(Principal.class))).thenReturn(ok);
+
+      controllerForBookmarks(sessions, vsBookmarkService, permissionDenied(), engine).updateBookmark(
+         "tok", new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+         principal());
+
+      verify(vsBookmarkService, never()).saveHomeBookmarkAsset(any(), any(), any(), any(), any());
+   }
+
    private static inetsoft.uql.asset.AssetEntry homeEntry() {
       return new inetsoft.uql.asset.AssetEntry(inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
          inetsoft.uql.asset.AssetEntry.Type.VIEWSHEET, "Dash", null, "host-org");
@@ -4337,6 +4443,22 @@ class ViewsheetAssemblyAgentControllerTest {
                                   inetsoft.analytic.composition.ViewsheetService engine,
                                   VSBookmarkService vsBookmarkService) throws Exception
    {
+      updateHome(entry, engine, vsBookmarkService, principal(), true);
+   }
+
+   private static void updateHome(inetsoft.uql.asset.AssetEntry entry,
+                                  inetsoft.analytic.composition.ViewsheetService engine,
+                                  VSBookmarkService vsBookmarkService, Principal caller)
+      throws Exception
+   {
+      updateHome(entry, engine, vsBookmarkService, caller, true);
+   }
+
+   private static void updateHome(inetsoft.uql.asset.AssetEntry entry,
+                                  inetsoft.analytic.composition.ViewsheetService engine,
+                                  VSBookmarkService vsBookmarkService, Principal caller,
+                                  boolean stubSave) throws Exception
+   {
       ViewsheetSessionService sessions = realMutatingSessions();
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getEntry()).thenReturn(entry);
@@ -4348,10 +4470,17 @@ class ViewsheetAssemblyAgentControllerTest {
       ok.setType(MessageCommand.Type.OK);
       when(vsBookmarkService.addBookmarkToViewSheet(any(), any(), anyInt(), anyBoolean(),
          anyBoolean(), any(Principal.class), any(Principal.class))).thenReturn(ok);
+      when(vsBookmarkService.checkAddBookmark(any(), any(), anyBoolean(), any(Principal.class),
+         any(Principal.class))).thenReturn(ok);
+
+      if(stubSave) {
+         when(vsBookmarkService.saveHomeBookmarkAsset(any(), any(), any(), any(), any()))
+            .thenReturn(true);
+      }
 
       controllerForBookmarks(sessions, vsBookmarkService, permissionDenied(), engine).updateBookmark(
          "tok", new ViewsheetAssemblyAgentController.SaveBookmarkRequest("(Home)", null, null),
-         principal());
+         caller);
    }
 
    @Test
@@ -4658,6 +4787,10 @@ class ViewsheetAssemblyAgentControllerTest {
       when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq(VSBookmark.HOME_BOOKMARK),
          anyInt(), anyBoolean(), eq(true), any(Principal.class), any(Principal.class)))
          .thenReturn(ok);
+      when(vsBookmarkService.checkAddBookmark(any(), any(), anyBoolean(), any(Principal.class),
+         any(Principal.class))).thenReturn(ok);
+      when(vsBookmarkService.saveHomeBookmarkAsset(any(), any(), any(), any(), any()))
+         .thenReturn(true);
 
       ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
       controller.updateBookmark("tok",
