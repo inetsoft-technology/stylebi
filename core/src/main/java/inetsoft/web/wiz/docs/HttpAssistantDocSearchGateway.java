@@ -39,7 +39,8 @@ import java.time.Duration;
 @Component
 public class HttpAssistantDocSearchGateway implements AssistantDocSearchGateway {
    @Override
-   public Response post(String baseUrl, String path, String body, String authorization)
+   public Response post(String baseUrl, String path, String body, String authorization,
+                        boolean assistantTls)
       throws IOException, InterruptedException
    {
       String url = baseUrl.endsWith("/")
@@ -57,32 +58,46 @@ public class HttpAssistantDocSearchGateway implements AssistantDocSearchGateway 
       }
 
       HttpResponse<String> response =
-         client().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+         client(assistantTls).send(builder.build(), HttpResponse.BodyHandlers.ofString());
 
       return new Response(response.statusCode(),
          response.body() == null ? "" : response.body());
    }
 
-   private synchronized HttpClient client() {
-      if(cachedClient == null) {
-         HttpClient.Builder builder = HttpClient.newBuilder()
-            .connectTimeout(CONNECT_TIMEOUT);
-         AIAssistantController.applyAssistantTls(builder, "doc search");
-         cachedClient = builder.build();
+   private synchronized HttpClient client(boolean assistantTls) {
+      if(assistantTls) {
+         if(assistantClient == null) {
+            HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT);
+            AIAssistantController.applyAssistantTls(builder, "doc search");
+            assistantClient = builder.build();
+         }
+
+         return assistantClient;
       }
 
-      return cachedClient;
+      if(verifiedClient == null) {
+         verifiedClient = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+      }
+
+      return verifiedClient;
    }
 
    @PreDestroy
    public void closeClient() {
-      if(cachedClient != null) {
-         cachedClient.close();
+      if(assistantClient != null) {
+         assistantClient.close();
+      }
+
+      if(verifiedClient != null) {
+         verifiedClient.close();
       }
    }
 
-   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-   private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(20);
+   // Documentation search is optional help for an agent, so a slow or dead host must cost it
+   // seconds, not the 20 s an assistant answer can take.
+   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+   private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(5);
 
-   private volatile HttpClient cachedClient;
+   private HttpClient assistantClient;
+   private HttpClient verifiedClient;
 }

@@ -107,7 +107,7 @@ class WizDocSearchControllerRequestBindingTest {
 
    @Test
    void bindsAJsonPostBodyAndRelaysTheGatewaysStatus() throws Exception {
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{\"matches\":[]}"));
 
       mvc.perform(post("/api/wiz/v1/docs/search")
@@ -117,7 +117,7 @@ class WizDocSearchControllerRequestBindingTest {
 
       // The request must reach the gateway with the body intact — proof that binding, not just
       // routing, succeeded.
-      verify(gateway).post(any(), any(), eq("{\"query\":\"q\"}"), any());
+      verify(gateway).post(any(), any(), eq("{\"query\":\"q\"}"), any(), anyBoolean());
    }
 
    /**
@@ -132,7 +132,7 @@ class WizDocSearchControllerRequestBindingTest {
     */
    @Test
    void relaysTheResponseBodyAsRealJsonRatherThanADoubleEncodedString() throws Exception {
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{\"matches\":[]}"));
 
       MvcResult result = mvc.perform(post("/api/wiz/v1/docs/search")

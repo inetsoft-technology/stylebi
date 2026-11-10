@@ -80,7 +80,7 @@ class WizDocSearchControllerTest {
    @Test
    void relaysASuccessfulResponseVerbatim() throws Exception {
       setBody(request, "{\"query\":\"q\"}");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{\"matches\":[]}"));
 
       controller.search(request, response);
@@ -93,19 +93,19 @@ class WizDocSearchControllerTest {
    @Test
    void forwardsTheCallersBearerTokenAndBody() throws Exception {
       setBody(request, "{\"query\":\"q\"}");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
       controller.search(request, response);
 
       verify(gateway).post("https://assistant.example.com", "/api/doc-search",
-                           "{\"query\":\"q\"}", "Bearer operator-token");
+                           "{\"query\":\"q\"}", "Bearer operator-token", true);
    }
 
    @Test
    void requiresABearerAuthenticatedRequest() throws Exception {
       setBody(request, "{\"query\":\"q\"}");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
       controller.search(request, response);
@@ -129,7 +129,7 @@ class WizDocSearchControllerTest {
    @Test
    void relaysAValidationErrorVerbatimSoTheAgentSeesTheNamedField() throws Exception {
       setBody(request, "{}");
-      when(gateway.post(any(), any(), any(), any())).thenReturn(
+      when(gateway.post(any(), any(), any(), any(), anyBoolean())).thenReturn(
          new AssistantDocSearchGateway.Response(400, "{\"error\":\"modules[0]: unknown module\"}"));
 
       controller.search(request, response);
@@ -141,7 +141,7 @@ class WizDocSearchControllerTest {
    @Test
    void relaysAnAssistantServerErrorVerbatim() throws Exception {
       setBody(request, "{}");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(500, "{\"error\":\"Document search failed\"}"));
 
       controller.search(request, response);
@@ -182,19 +182,19 @@ class WizDocSearchControllerTest {
       sreeEnv.when(() -> SreeEnv.getProperty("chat.app.internal.url")).thenReturn("");
       sreeEnv.when(() -> SreeEnv.getProperty("chat.app.server.url"))
          .thenReturn("https://direct.example.com");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
       controller.search(request, response);
 
-      verify(gateway).post(eq("https://direct.example.com"), any(), any(), any());
+      verify(gateway).post(eq("https://direct.example.com"), any(), any(), any(), anyBoolean());
    }
 
    // A bare 404 would read as "no such StyleBI route" and send the operator to the wrong layer.
    @Test
    void mapsAssistant404ToAnUpgradeMessage() throws Exception {
       setBody(request, "{\"query\":\"q\"}");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(404, "Cannot POST /api/doc-search"));
 
       controller.search(request, response);
@@ -204,10 +204,26 @@ class WizDocSearchControllerTest {
       assertFalse(response.getContentAsString().contains("Cannot POST"));
    }
 
+   // Relayed as-is, a 401 would make the plugin report an expired StyleBI login.
+   @Test
+   void mapsAnUpstreamAuthRejectionTo502NotToALoginFailure() throws Exception {
+      for(int status : new int[] { 401, 403 }) {
+         MockHttpServletResponse r = new MockHttpServletResponse();
+         setBody(request, "{\"query\":\"q\"}");
+         when(gateway.post(any(), any(), any(), any(), anyBoolean()))
+            .thenReturn(new AssistantDocSearchGateway.Response(status, "{\"error\":\"no\"}"));
+
+         controller.search(request, r);
+
+         assertEquals(502, r.getStatus());
+         assertTrue(r.getContentAsString().contains("requires authentication"));
+      }
+   }
+
    @Test
    void returns502WhenTheAssistantDoesNotRespond() throws Exception {
       setBody(request, "{\"query\":\"q\"}");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenThrow(new IOException("Connection refused"));
 
       controller.search(request, response);
@@ -220,11 +236,54 @@ class WizDocSearchControllerTest {
    void toleratesAMissingAuthorizationHeader() throws Exception {
       MockHttpServletRequest anonymous = new MockHttpServletRequest();
       setBody(anonymous, "{\"query\":\"q\"}");
-      when(gateway.post(any(), any(), any(), any()))
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
          .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
 
       controller.search(anonymous, response);
 
-      verify(gateway).post(any(), any(), any(), isNull());
+      verify(gateway).post(any(), any(), any(), isNull(), anyBoolean());
+   }
+
+   private void configureDocsUrl(String url) {
+      sreeEnv.when(() -> SreeEnv.getProperty("assistant.docs.url")).thenReturn(url);
+   }
+
+   // The StyleBI bearer token belongs to the operator's own assistant. A separately configured
+   // documentation host is a different party and must not receive it.
+   @Test
+   void sendsNoCallerTokenAndVerifiesTlsForTheDocsUrl() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
+      configureDocsUrl("https://docs.example.com");
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
+         .thenReturn(new AssistantDocSearchGateway.Response(200, "{}"));
+
+      controller.search(request, response);
+
+      verify(gateway).post("https://docs.example.com", "/api/doc-search",
+                           "{\"query\":\"q\"}", null, false);
+   }
+
+   @Test
+   void aBlankDocsUrlDisablesDocSearchEvenWhenAnAssistantIsConfigured() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
+      configureDocsUrl("");
+
+      controller.search(request, response);
+
+      assertEquals(503, response.getStatus());
+      verifyNoInteractions(gateway);
+   }
+
+   // No silent fall-through to another host: the failure names the URL that was tried.
+   @Test
+   void doesNotRetryAnotherHostWhenTheConfiguredOneFails() throws Exception {
+      setBody(request, "{\"query\":\"q\"}");
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
+         .thenThrow(new IOException("timed out"));
+
+      controller.search(request, response);
+
+      assertEquals(502, response.getStatus());
+      verify(gateway, times(1)).post(any(), any(), any(), any(), anyBoolean());
    }
 }

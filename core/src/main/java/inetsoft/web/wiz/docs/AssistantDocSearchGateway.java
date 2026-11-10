@@ -31,10 +31,14 @@ public interface AssistantDocSearchGateway {
    record Response(int status, String body) {}
 
    /**
-    * @param authorization the caller's Authorization header, forwarded verbatim; may be null.
+    * @param authorization the Authorization header to send verbatim; null or empty sends none.
+    * @param assistantTls true to trust certificates the way the deployment's own assistant
+    *                     connection does ({@code chat.app.server.ssl.verify}); false to always
+    *                     verify them, as for any other third-party host.
     * @throws IOException when the assistant produced no response at all (refused connection,
     *                     DNS failure, timeout) — as opposed to responding with an error status.
     */
-   Response post(String baseUrl, String path, String body, String authorization)
+   Response post(String baseUrl, String path, String body, String authorization,
+                 boolean assistantTls)
       throws IOException, InterruptedException;
 }
