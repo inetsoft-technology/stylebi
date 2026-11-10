@@ -1441,6 +1441,14 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
       }
 
       /**
+       * Whether a flag value means true. Script values arrive as Boolean, while
+       * values from other sources are the string "true".
+       */
+      public static boolean isTrue(Object data) {
+         return Boolean.TRUE.equals(data) || "true".equals(data);
+      }
+
+      /**
        * Set internal parameters if the parameter name matches
        * internal parameter name.
        */
@@ -1460,13 +1468,13 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
             }
          }
          else if("sendReportParameters".equals(name)) {
-            setSendReportParameters("true".equals(data));
+            setSendReportParameters(isTrue(data));
          }
          else if("sendSelectionParameters".equals(name)) {
-            setSendSelectionParameters("true".equals(data));
+            setSendSelectionParameters(isTrue(data));
          }
          else if("disableParameterSheet".equals(name)) {
-            setDisablePrompting("true".equals(data));
+            setDisablePrompting(isTrue(data));
          }
          else {
             return false;

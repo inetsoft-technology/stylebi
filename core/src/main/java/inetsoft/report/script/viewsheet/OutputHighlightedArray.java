@@ -17,7 +17,6 @@
  */
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.util.script.ArrayObject;
@@ -55,10 +54,9 @@ public class OutputHighlightedArray implements ArrayObject, ScriptArrayScope {
       init();
 
       if(hlnames.contains(id)) {
-	 HighlightGroup highlights = assembly.getHighlightGroup();
-	 Highlight hl = highlights.findGroup(assembly.getValue());
-
-	 return hl != null && hl.getName().equals(id);
+         // findGroup merges several matches into a name-less highlight, so ask per name
+         HighlightGroup highlights = assembly.getHighlightGroup();
+         return highlights.isMatched(id, assembly.getValue());
       }
 
       return members.get(id);
