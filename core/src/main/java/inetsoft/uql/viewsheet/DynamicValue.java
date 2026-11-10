@@ -162,7 +162,7 @@ public class DynamicValue implements Serializable, Cloneable, FullHashObject {
 
       DynamicValue dval2 = (DynamicValue) obj;
 
-      return Tool.equals(dval2.rvalue, dval2.rvalue);
+      return Tool.equals(rvalue, dval2.rvalue);
    }
 
    /**
