@@ -68,6 +68,11 @@ public class AverageFormula implements PercentageFormula {
          }
          else {
             dval = NumberParser.getDouble(v.toString());
+
+            // a blank string parses to NaN without throwing, skip it like Sum
+            if(Double.isNaN(dval)) {
+               return;
+            }
          }
 
          sum += dval;

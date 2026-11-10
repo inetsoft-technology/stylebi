@@ -142,6 +142,13 @@ public class WeightedAverageFormula implements Formula2, java.io.Serializable {
          Number yV = (pair[1] instanceof Number) ? (Number) pair[1]
             : NumberParserWrapper.getDouble(pair[1] + "");
 
+         // a blank string parses to NaN without throwing, skip the pair
+         if((!(pair[0] instanceof Number) && Double.isNaN(xV.doubleValue())) ||
+            (!(pair[1] instanceof Number) && Double.isNaN(yV.doubleValue())))
+         {
+            return;
+         }
+
          cnt++;
          n += yV.doubleValue();
          total += xV.doubleValue() * yV.doubleValue();

@@ -162,6 +162,11 @@ public class PthPercentileFormula implements Formula, java.io.Serializable {
          return;
       }
 
+      // a blank string cannot be ranked numerically, skip it like null
+      if(v instanceof String && ((String) v).trim().isEmpty()) {
+         return;
+      }
+
       if(vs == null) {
          vs = new Vector<>();
       }
