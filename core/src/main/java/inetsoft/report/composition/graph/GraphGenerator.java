@@ -1873,6 +1873,11 @@ public abstract class GraphGenerator {
             legends.getGap(), legends.hasGapValue(), vizContext));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
+
+         if(vizContext.modern) {
+            legend.setSymbolFallbackColor(VSChartChromeDefaults.labelColor(vizContext));
+            legend.setSymbolBorderColor(VSChartChromeDefaults.gridlineColor(vizContext));
+         }
       }
    }
 

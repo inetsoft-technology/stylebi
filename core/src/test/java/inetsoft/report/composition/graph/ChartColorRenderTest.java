@@ -18,9 +18,12 @@
 package inetsoft.report.composition.graph;
 
 import inetsoft.graph.EGraph;
+import inetsoft.graph.LegendSpec;
+import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.PolygonElement;
+import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -32,6 +35,8 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
@@ -108,6 +113,66 @@ class ChartColorRenderTest {
 
       SreeEnv.setProperty("map.empty.color", "#123456");
       assertEquals(new Color(0x123456), GraphUtil.getMapEmptyColor(plot));
+   }
+
+   @Test
+   void aModernSizeLegendNextToAColourFieldUsesTheLabelGrey() {
+      LegendSpec spec = sizeLegendSpec(VizMark.MODERN_LIGHT);
+      assertEquals(new Color(0x6A685F), spec.getSymbolFallbackColor());
+      assertEquals(new Color(0xD6D2C8), spec.getSymbolBorderColor());
+   }
+
+   @Test
+   void aClassicOneIsUnset() {
+      LegendSpec spec = sizeLegendSpec(null);
+      assertNull(spec.getSymbolFallbackColor());
+      assertNull(spec.getSymbolBorderColor());
+   }
+
+   // the size frame's legend spec of a point chart with a colour field and a size measure
+   private static LegendSpec sizeLegendSpec(VizMark mark) {
+      Object[][] rows = {
+         { "State", "Region", "Sum(Total)", "Sum(Qty)" },
+         { "CA", "West", 100.0, 5.0 },
+         { "NY", "East", 200.0, 9.0 },
+         { "TX", "South", 300.0, 2.0 },
+      };
+
+      VSChartAggregateRef total = new VSChartAggregateRef();
+      total.setDataRef(new BaseField("Total"));
+      total.setFormulaValue("Sum");
+      VSChartAggregateRef qty = new VSChartAggregateRef();
+      qty.setDataRef(new BaseField("Qty"));
+      qty.setFormulaValue("Sum");
+
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(new VSChartDimensionRef(new BaseField("Region")));
+      color.setVisualFrameWrapper(new CategoricalColorFrameWrapper());
+      VSAestheticRef size = new VSAestheticRef();
+      size.setDataRef(qty);
+      size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_POINT);
+      cinfo.setRTChartType(GraphTypes.CHART_POINT);
+      cinfo.addXField(new VSChartDimensionRef(new BaseField("State")));
+      cinfo.addYField(total);
+      cinfo.setColorField(color);
+      cinfo.setSizeField(size);
+      cinfo.updateChartType(false);
+
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(new ChartDescriptor());
+      assemblyInfo.setVizMark(mark);
+      VizModernizeUtil.reseedAfterRestore(assemblyInfo);
+
+      EGraph graph = GraphGenerator.getGenerator(
+         assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
+         XSourceInfo.NONE, null).createEGraph();
+      SizeFrame frame = graph.getElement(0).getSizeFrame();
+      assertNotNull(frame, "premise: the point draws a size frame");
+      return frame.getLegendSpec();
    }
 
    private static PlotDescriptor plot(VizMark mark) {

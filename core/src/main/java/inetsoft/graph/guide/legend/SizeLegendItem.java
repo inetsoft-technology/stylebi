@@ -64,7 +64,8 @@ public class SizeLegendItem extends LegendItem {
       // skip rounding the inner bar when it's narrower than the corner arc
       double minRoundWidth = symbolSz * SYMBOL_CORNER_RADIUS_RATIO * 2;
       g2.fill(createSymbolRect(x0, y, r, symbolSz, r >= minRoundWidth));
-      g2.setColor(SYMBOL_BORDER);
+      Color border = frame.getLegendSpec().getSymbolBorderColor();
+      g2.setColor(border != null ? border : SYMBOL_BORDER);
 
       if(!GTool.isVectorGraphics(g2) && !frame.getLegendSpec().isSymbolRoundCorners()) {
          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);

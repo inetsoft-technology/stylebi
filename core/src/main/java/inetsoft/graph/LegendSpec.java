@@ -213,6 +213,28 @@ public class LegendSpec implements Cloneable, Serializable {
    }
 
    /**
+    * Get the symbol fill used when the element supplies no colour, or null for the item default.
+    */
+   public Color getSymbolFallbackColor() {
+      return symbolFallbackColor;
+   }
+
+   public void setSymbolFallbackColor(Color symbolFallbackColor) {
+      this.symbolFallbackColor = symbolFallbackColor;
+   }
+
+   /**
+    * Get the colour of the symbol's border box, or null for the item default.
+    */
+   public Color getSymbolBorderColor() {
+      return symbolBorderColor;
+   }
+
+   public void setSymbolBorderColor(Color symbolBorderColor) {
+      this.symbolBorderColor = symbolBorderColor;
+   }
+
+   /**
     * Get the legend title text attributes.
     */
    @TernMethod
@@ -398,6 +420,8 @@ public class LegendSpec implements Cloneable, Serializable {
          titleVisible == that.titleVisible && partial == that.partial && topY == that.topY &&
          gap == that.gap && symbolSize == that.symbolSize && roundCorners == that.roundCorners &&
          symbolRoundCorners == that.symbolRoundCorners &&
+         Objects.equals(symbolFallbackColor, that.symbolFallbackColor) &&
+         Objects.equals(symbolBorderColor, that.symbolBorderColor) &&
          Objects.equals(borderColor, that.borderColor) &&
          Objects.equals(bg, that.bg) && Objects.equals(title, that.title) &&
          Objects.equals(titleSpec, that.titleSpec) && Objects.equals(textFrame, that.textFrame) &&
@@ -410,7 +434,8 @@ public class LegendSpec implements Cloneable, Serializable {
    public int hashCode() {
       return Objects.hash(visible, border, borderColor, bg, title, titleVisible, titleSpec,
                           textFrame, textSpec, partial, position, epos, preferredSize, topY, gap,
-                          padding, hiddenItems, symbolSize, roundCorners, symbolRoundCorners);
+                          padding, hiddenItems, symbolSize, roundCorners, symbolRoundCorners,
+                          symbolFallbackColor, symbolBorderColor);
    }
 
    private int border = GraphConstants.THIN_LINE;
@@ -432,6 +457,8 @@ public class LegendSpec implements Cloneable, Serializable {
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
    private boolean roundCorners = false;
    private boolean symbolRoundCorners = false;
+   private Color symbolFallbackColor;
+   private Color symbolBorderColor;
 
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(LegendSpec.class);
