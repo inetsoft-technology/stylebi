@@ -334,6 +334,7 @@ public class VGraph extends BoundedContainer {
          xTitle.setInsets(VLabel.getTransformedInsets(
             new Insets(xTitleSpec.getLabelGap(), 0, 0, 0),
             xTitleSpec.getTextSpec().getRotation()));
+         xTitle.setLimitInsets(true);
       }
 
       if(x2TitleSpec != null && x2TitleSpec.getLabel() != null) {
@@ -341,6 +342,7 @@ public class VGraph extends BoundedContainer {
          x2Title.setInsets(VLabel.getTransformedInsets(
             new Insets(0, 0, x2TitleSpec.getLabelGap(), 0),
             x2TitleSpec.getTextSpec().getRotation()));
+         x2Title.setLimitInsets(true);
       }
 
       if(yTitleSpec != null && yTitleSpec.getLabel() != null) {
@@ -348,6 +350,7 @@ public class VGraph extends BoundedContainer {
          yTitle.setInsets(VLabel.getTransformedInsets(
             new Insets(0, 0, 0, yTitleSpec.getLabelGap()),
             yTitleSpec.getTextSpec().getRotation()));
+         yTitle.setLimitInsets(true);
       }
 
       if(y2TitleSpec != null && y2TitleSpec.getLabel() != null) {
@@ -355,6 +358,7 @@ public class VGraph extends BoundedContainer {
          y2Title.setInsets(VLabel.getTransformedInsets(
             new Insets(0, y2TitleSpec.getLabelGap(), 0, 0),
             y2TitleSpec.getTextSpec().getRotation()));
+         y2Title.setLimitInsets(true);
       }
    }
 
