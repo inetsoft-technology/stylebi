@@ -52,6 +52,7 @@ import static org.mockito.Mockito.*;
 class AssemblyHyperlinkServiceReadGateRealEngineTest {
    private static final String ORG = Organization.getDefaultOrganizationID();
    private static final String PATH = "vs80639";
+   private static final String GLOBAL_PATH = "vs80639global";
 
    @BeforeEach
    void setUp() throws Exception {
@@ -132,12 +133,85 @@ class AssemblyHyperlinkServiceReadGateRealEngineTest {
       assertEquals(aliceEntry.toIdentifier(), captured(links).getAssetLinkId());
    }
 
-   /** A system administrator holds READ on every user's private entry by product design. */
+   /**
+    * A system administrator holds READ on every user's private entry by product design, but
+    * another user's private dashboard is never a link target: list_hyperlink_targets does not offer
+    * it to anyone but its owner, so the write path refuses it too, with the missing-target text.
+    */
    @Test
-   void aSystemAdministratorPassesTheReadGate() throws Exception {
-      HyperlinkDialogService links = set(admin, PATH, aliceEntry.toIdentifier());
+   void aSystemAdministratorCannotLinkToAnotherUsersPrivateDashboardById() throws Exception {
+      String id = aliceEntry.toIdentifier();
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> set(admin, PATH, id));
+
+      assertEquals(missingIdMessage(admin, id), e.getMessage());
+   }
+
+   /** The same id carrying another organization's id (the cross-org branch of the id check). */
+   @Test
+   void aSystemAdministratorCannotLinkToAPrivateDashboardOfAnotherOrgById() throws Exception {
+      AssetEntry foreign = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, PATH,
+         new IdentityID("alice", "other-org"), "other-org");
+      String id = foreign.toIdentifier();
+
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> set(admin, PATH, id));
+
+      assertEquals(missingIdMessage(admin, id), e.getMessage());
+   }
+
+   /**
+    * The path branches resolve a user-scope target only in the caller's own scope, so another
+    * user's private dashboard is unreachable by path for an Administrator as well, with or
+    * without the My Dashboards prefix.
+    */
+   @Test
+   void aSystemAdministratorCannotLinkToAnotherUsersPrivateDashboardByPath() throws Exception {
+      for(String path : new String[] { PATH, "My Dashboards/" + PATH }) {
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class, () -> set(admin, path, null));
+
+         assertTrue(e.getMessage().startsWith("No viewsheet at '" + path + "'"), e.getMessage());
+      }
+   }
+
+   @Test
+   void theOwnerCanLinkToTheirOwnPrivateDashboardByMyDashboardsPath() throws Exception {
+      HyperlinkDialogService links = set(alice, "My Dashboards/" + PATH, null);
 
       assertEquals(aliceEntry.toIdentifier(), captured(links).getAssetLinkId());
+   }
+
+   /** The rule is about user scope only: a global dashboard the caller can read still links. */
+   @Test
+   void aGlobalDashboardStillLinksForAnAdministrator() throws Exception {
+      AssetEntry global = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                         GLOBAL_PATH, null, ORG);
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         repository.setSheet(global, new Viewsheet(), admin, true);
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
+
+      try {
+         assertEquals(global.toIdentifier(),
+                      captured(set(admin, GLOBAL_PATH, global.toIdentifier())).getAssetLinkId());
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.set(true);
+
+         try {
+            repository.removeSheet(global, null, true);
+         }
+         finally {
+            AssetRepository.IGNORE_PERM.remove();
+         }
+      }
    }
 
    private HyperlinkDialogService set(Principal user, String path, String id) throws Exception {
@@ -162,17 +236,25 @@ class AssemblyHyperlinkServiceReadGateRealEngineTest {
       Map<String, Object> link = new LinkedHashMap<>();
       link.put("linkType", "viewsheet");
       link.put("assetLinkPath", path);
-      link.put("assetLinkId", id);
+
+      if(id != null) {
+         link.put("assetLinkId", id);
+      }
+
       new AssemblyHyperlinkService(sessions, links).set("tok", user, "Chart1", null, link, "");
       return links;
    }
 
-   /** The text the same call gets for an id that does not exist at all. */
+   /**
+    * The text the same call gets for an id that does not exist at all: a global ghost, which no
+    * ownership rule touches, with its id swapped for {@code existingId}.
+    */
    private String missingIdMessage(Principal user, String existingId) {
-      String ghostId = existingId.replace(PATH, PATH + "ghost");
+      String ghostId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                      PATH + "ghost", null, ORG).toIdentifier();
       return assertThrows(IllegalArgumentException.class,
                           () -> set(user, PATH + "ghost", ghostId))
-         .getMessage().replace(PATH + "ghost", PATH);
+         .getMessage().replace(ghostId, existingId);
    }
 
    private static HyperlinkDialogModel captured(HyperlinkDialogService links) throws Exception {
