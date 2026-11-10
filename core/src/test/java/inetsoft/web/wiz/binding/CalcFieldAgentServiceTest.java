@@ -50,6 +50,8 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
@@ -1466,6 +1468,237 @@ class CalcFieldAgentServiceTest {
       assertTrue(warnings.stream().anyMatch(w -> w.contains("'AovCat'") && w.contains("REMOVED")),
                  warnings.toString());
    }
+   // Bug #80504 (item 2): a flip of a calc field that a chart references only as the second column
+   // of a Correlation (or as a ranking / sort-by measure) used to replace the whole chart field
+   // with a plain measure of the flipped field, and nothing said so.
+
+   /** Chart "CorrFlip": REGION on x, Sum(REVENUE) and Correlation(REVENUE, FlipB) on y. */
+   private static Viewsheet vsWithCorrelationChart(boolean rankedDimension) {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("FlipB", "field['Total']", true));
+
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "CorrFlip");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSChartInfo info = new VSChartInfo();
+      VSChartDimensionRef region = new VSChartDimensionRef();
+      region.setGroupColumnValue("REGION");
+
+      if(rankedDimension) {
+         region.setRankingOptionValue(String.valueOf(XCondition.TOP_N));
+         region.setRankingNValue("3");
+         region.setRankingColValue("Sum(FlipB)");
+      }
+
+      VSChartAggregateRef sum = new VSChartAggregateRef();
+      sum.setColumnValue("REVENUE");
+      sum.setFormulaValue("Sum");
+      VSChartAggregateRef corr = new VSChartAggregateRef();
+      corr.setColumnValue("REVENUE");
+      corr.setFormulaValue("Correlation");
+      corr.setSecondaryColumnValue("FlipB");
+      info.addXField(region);
+      info.addYField(sum);
+
+      if(!rankedDimension) {
+         info.addYField(corr);
+      }
+
+      chart.setVSChartInfo(info);
+      vs.addAssembly(chart);
+      return vs;
+   }
+
+   private List<String> flipFlipBToAggregate(Viewsheet vs) throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "FlipB", null,
+         "field['Sum(Total)'] / field['Sum(Discount)']", "double", false, false, false, false);
+      return serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+   }
+
+   @Test
+   void disclosesTheCorrelationAFlipReplacesInAChart() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrFlip'") &&
+                 w.contains("Correlation(REVENUE, FlipB)") && w.contains("second column") &&
+                 w.contains("became 'FlipB'")), warnings.toString());
+      // the dry run must not have touched the real chart
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      assertEquals(2, info.getYFieldCount());
+      assertEquals("Correlation", ((VSChartAggregateRef) info.getYField(1)).getFormulaValue());
+   }
+
+   @Test
+   void disclosesTheDimensionAFlipReplacesBecauseItIsRankedByTheField() throws Exception {
+      List<String> warnings = flipFlipBToAggregate(vsWithCorrelationChart(true));
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrFlip'") &&
+                 w.contains("x field 'REGION'") && w.contains("ranking measure")),
+                 warnings.toString());
+   }
+
+   /**
+    * A chart that binds the flipped field as its own plain measure keeps an identical field after
+    * the real flip (plain FlipB, aggregate none), so there is nothing to disclose.
+    */
+   @Test
+   void staysSilentForAFlippedFieldBoundAsAChartsPrimaryMeasure() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      info.removeYField(1);
+      VSChartAggregateRef own = new VSChartAggregateRef();
+      own.setColumnValue("FlipB");
+      own.setFormulaValue("None");
+      info.addYField(own);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("CorrFlip")), warnings.toString());
+   }
+
+   /** A Correlation whose FIRST column is the flipped field is replaced too: formula and 2nd column lost. */
+   @Test
+   void disclosesACorrelationWhosePrimaryColumnIsTheFlippedField() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      info.removeYField(1);
+      VSChartAggregateRef corr = new VSChartAggregateRef();
+      corr.setColumnValue("FlipB");
+      corr.setFormulaValue("Correlation");
+      corr.setSecondaryColumnValue("QUANTITY");
+      info.addYField(corr);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrFlip'") &&
+                 w.contains("Correlation(FlipB, QUANTITY)") && w.contains("was its column") &&
+                 w.contains("became 'FlipB'")), warnings.toString());
+   }
+
+   /** A Correlation on the COLOR channel whose second column is the flipped field. */
+   @Test
+   void disclosesACorrelationOnAnAestheticChannelThatTheFlipReplaces() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      info.removeYField(1);
+      VSChartAggregateRef corr = new VSChartAggregateRef();
+      corr.setColumnValue("REVENUE");
+      corr.setFormulaValue("Correlation");
+      corr.setSecondaryColumnValue("FlipB");
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(corr);
+      info.setColorField(color);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrFlip'") &&
+                 w.contains("color channel field 'Correlation(REVENUE, FlipB)'") &&
+                 w.contains("second column") && w.contains("became 'FlipB'")),
+                 warnings.toString());
+   }
+
+   /** An aesthetic channel on a field that has nothing to do with the flipped one stays silent. */
+   @Test
+   void staysSilentForAnAestheticChannelOnAnUnrelatedField() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("CorrFlip")).getVSChartInfo();
+      info.removeYField(1);
+      VSChartAggregateRef other = new VSChartAggregateRef();
+      other.setColumnValue("REVENUE");
+      other.setFormulaValue("Correlation");
+      other.setSecondaryColumnValue("QUANTITY");
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(other);
+      info.setColorField(color);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("CorrFlip")), warnings.toString());
+   }
+
+   private List<String> flipToDetail(Viewsheet vs, String name) throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, name, null,
+         "field['Total']", "double", false, true, false, false);
+      return serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+   }
+
+   /** A plain dimension column re-typed to a measure by the flip loses nothing: silent. */
+   @Test
+   void staysSilentWhenAFlipOnlyRetypesAPlainDimensionColumn() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("FlipB", "field['Total']", true));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "PlainDim");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSChartInfo info = new VSChartInfo();
+      VSChartDimensionRef own = new VSChartDimensionRef();
+      own.setGroupColumnValue("FlipB");
+      info.addXField(own);
+      chart.setVSChartInfo(info);
+      vs.addAssembly(chart);
+
+      List<String> warnings = flipFlipBToAggregate(vs);
+
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("PlainDim")), warnings.toString());
+   }
+
+   /** The other direction: a plain measure re-typed to a dimension loses nothing: silent. */
+   @Test
+   void staysSilentWhenAFlipOnlyRetypesAPlainMeasureColumn() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("FlipA", "field['Sum(Total)']", false));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "PlainMeasure");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSChartInfo info = new VSChartInfo();
+      VSChartAggregateRef own = new VSChartAggregateRef();
+      own.setColumnValue("FlipA");
+      own.setFormulaValue("None");
+      info.addYField(own);
+      chart.setVSChartInfo(info);
+      vs.addAssembly(chart);
+
+      List<String> warnings = flipToDetail(vs, "FlipA");
+
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("PlainMeasure")), warnings.toString());
+   }
+
+   /** Aggregate to per-row: a Correlation that used the field as second column really loses it. */
+   @Test
+   void disclosesACorrelationAFlipToDetailReplaces() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("ORDERS", scriptCalc("FlipA", "field['Sum(Total)']", false));
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "CorrBack");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "ORDERS"));
+      VSChartInfo info = new VSChartInfo();
+      VSChartAggregateRef corr = new VSChartAggregateRef();
+      corr.setColumnValue("REVENUE");
+      corr.setFormulaValue("Correlation");
+      corr.setSecondaryColumnValue("FlipA");
+      info.addYField(corr);
+      chart.setVSChartInfo(info);
+      vs.addAssembly(chart);
+
+      List<String> warnings = flipToDetail(vs, "FlipA");
+
+      assertTrue(warnings.stream().anyMatch(w -> w.contains("'CorrBack'") &&
+                 w.contains("Correlation(REVENUE, FlipA)") && w.contains("second column")),
+                 warnings.toString());
+   }
+
+   /** A flip of a field no chart references as a secondary column stays silent. */
+   @Test
+   void staysSilentWhenTheFlippedFieldIsNotTheSecondColumn() throws Exception {
+      Viewsheet vs = vsWithCorrelationChart(false);
+      vs.addCalcField("ORDERS", scriptCalc("Other", "field['Total']", true));
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Other", null,
+         "field['Sum(Total)'] / field['Sum(Discount)']", "double", false, false, false, false);
+
+      List<String> warnings = serviceOver(vs, proxy).modify("tok", principal(), req, "").warnings();
+
+      assertTrue(warnings.stream().noneMatch(w -> w.contains("CorrFlip")), warnings.toString());
+   }
+
    /** A flip is only a problem for a field something is bound to. */
    @Test
    void allowsTheFlipOfAFieldNothingIsBoundTo() throws Exception {
