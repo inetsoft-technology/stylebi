@@ -1047,12 +1047,21 @@ public class GraphUtil {
     * @param ref the object which should be fixed.
     */
    public static void fixStaticColorFrame(Object ref, ChartInfo info, ChartAggregateRef movedRef) {
+      fixStaticColorFrame(ref, info, movedRef, VizContext.LEGACY);
+   }
+
+   /**
+    * Fix the static color frame, picking from the context's static palette.
+    */
+   public static void fixStaticColorFrame(Object ref, ChartInfo info, ChartAggregateRef movedRef,
+                                          VizContext ctx)
+   {
       StaticColorFrameWrapper temp;
 
       if(ref instanceof List<?>) {
          List<?> vref = (List<?>) ref;
          Set<Color> usedColors = new HashSet<>();
-         Color[] clrs = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
+         Color[] clrs = VSChartPaletteDefaults.staticPalette(ctx);
 
          for(int i = 0; i < vref.size(); i++) {
             if(GraphUtil.isDimension((DataRef) vref.get(i))) {
@@ -1067,16 +1076,23 @@ public class GraphUtil {
       }
       else if(ref instanceof ChartAggregateRef) {
          fixDuplicateColor((ChartAggregateRef) ref, info != null ? info.getModelRefs(false) : null,
-                           movedRef, false);
+                           movedRef, false, ctx);
       }
    }
 
    public static void fixDuplicateColor(ChartAggregateRef ref, ChartRef[] arefs,
                                         ChartAggregateRef movedRef, boolean runtimeUpdate)
    {
+      fixDuplicateColor(ref, arefs, movedRef, runtimeUpdate, VizContext.LEGACY);
+   }
+
+   public static void fixDuplicateColor(ChartAggregateRef ref, ChartRef[] arefs,
+                                        ChartAggregateRef movedRef, boolean runtimeUpdate,
+                                        VizContext ctx)
+   {
       StaticColorFrameWrapper frame;
       Set<Color> usedColors = new HashSet<>();
-      Color[] clrs = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
+      Color[] clrs = VSChartPaletteDefaults.staticPalette(ctx);
       int aggrIdx = 0;
 
       if(arefs != null) {

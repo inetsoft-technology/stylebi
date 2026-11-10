@@ -1031,7 +1031,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             ninfo.addXField(aref);
          }
 
-         GraphUtil.fixStaticColorFrame(aref, ninfo, (ChartAggregateRef) aref);
+         GraphUtil.fixStaticColorFrame(aref, ninfo, (ChartAggregateRef) aref, vizContext);
       }
    }
 

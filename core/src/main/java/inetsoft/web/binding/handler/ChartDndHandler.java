@@ -137,6 +137,13 @@ public final class ChartDndHandler {
    public List<ChartRef> dropToXY(List<ChartRef> refs, ChartInfo cinfo,
                                   ChartTransfer transfer, BindingDropTarget target)
    {
+      return dropToXY(refs, cinfo, transfer, target, VizContext.LEGACY);
+   }
+
+   public List<ChartRef> dropToXY(List<ChartRef> refs, ChartInfo cinfo,
+                                  ChartTransfer transfer, BindingDropTarget target,
+                                  VizContext ctx)
+   {
       List<ChartRef> removeRefs = new ArrayList<>();
       Integer dragType = transfer == null ? null : Integer.parseInt(transfer.getDragType());
       refs = getFixedXYRef(cinfo, refs, target.getDropType(),
@@ -224,14 +231,14 @@ public final class ChartDndHandler {
             ChartRef chartRef = refs.get(i);
 
             if(target.getReplace() && i == 0 && orefs.length > 0) {
-               removeRefs.add(replaceChartRef(dropType, dropIndex, chartRef, cinfo));
+               removeRefs.add(replaceChartRef(dropType, dropIndex, chartRef, cinfo, ctx));
             }
             else {
                if(multiChartType != null && (chartRef instanceof ChartAggregateRef)) {
                   ((ChartAggregateRef) chartRef).setChartType(multiChartType);
                }
 
-               addChartRef(dropType, dropIndex + i, chartRef, cinfo);
+               addChartRef(dropType, dropIndex + i, chartRef, cinfo, ctx);
             }
          }
       }
@@ -401,7 +408,7 @@ public final class ChartDndHandler {
          for(int i = 0; i < refs.length; i++) {
             if(refs[i] instanceof ChartAggregateRef) {
                if(((ChartAggregateRef) refs[i]).isSecondaryY() == y2) {
-                  replaceChartRef(dropType, i, aggr, cinfo);
+                  replaceChartRef(dropType, i, aggr, cinfo, ctx);
                   found = true;
                   break;
                }
@@ -409,45 +416,45 @@ public final class ChartDndHandler {
          }
 
          if(!found) {
-            addChartRef(dropType, -1, aggr, cinfo);
+            addChartRef(dropType, -1, aggr, cinfo, ctx);
          }
       }
       else if(refs.length == 0) {
-         addChartRef(dropType, -1, ref, cinfo);
+         addChartRef(dropType, -1, ref, cinfo, ctx);
       }
       // dimension to Y
       else if(dropType == ChartConstants.DROP_REGION_Y) {
          // replace or insert at the top
          if(refs[0] instanceof ChartDimensionRef) {
-            removeRef = replaceChartRef(dropType, 0, ref, cinfo);
+            removeRef = replaceChartRef(dropType, 0, ref, cinfo, ctx);
          }
          else {
-            addChartRef(dropType, -1, ref, cinfo);
+            addChartRef(dropType, -1, ref, cinfo, ctx);
          }
       }
       // secondary always append to end, primary replace 1st
       else if(dropType == ChartConstants.DROP_REGION_Y2) {
-         addChartRef(dropType, -1, ref, cinfo);
+         addChartRef(dropType, -1, ref, cinfo, ctx);
       }
       // dimension to X
       else {
          // replace or insert at the top
          if(dropType == ChartConstants.DROP_REGION_X2) {
             if(refs[0] instanceof ChartDimensionRef && refs.length > 1) {
-               removeRef = replaceChartRef(dropType, 0, ref, cinfo);
+               removeRef = replaceChartRef(dropType, 0, ref, cinfo, ctx);
             }
             else {
-               addChartRef(dropType, 0, ref, cinfo);
+               addChartRef(dropType, 0, ref, cinfo, ctx);
             }
          }
          // replace the ref at bottom x
          else if(refs[refs.length - 1] instanceof ChartDimensionRef) {
-            removeRef = replaceChartRef(dropType, refs.length - 1, ref, cinfo);
+            removeRef = replaceChartRef(dropType, refs.length - 1, ref, cinfo, ctx);
          }
          else {
             for(int i = 0; i < refs.length; i++) {
                if(refs[i] instanceof ChartDimensionRef) {
-                  addChartRef(dropType, i + 1, ref, cinfo);
+                  addChartRef(dropType, i + 1, ref, cinfo, ctx);
                   break;
                }
             }
@@ -563,6 +570,12 @@ public final class ChartDndHandler {
    public void dropToHighLow(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
                              BindingDropTarget target)
    {
+      dropToHighLow(ref, cinfo, transfer, target, VizContext.LEGACY);
+   }
+
+   public void dropToHighLow(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
+                             BindingDropTarget target, VizContext ctx)
+   {
       if(ref == null || !ref.isMeasure()) {
          return;
       }
@@ -573,7 +586,7 @@ public final class ChartDndHandler {
       fixAggregate(aref, cinfo, transfer, target);
 
       if(transfer != null) {
-         GraphUtil.fixStaticColorFrame(aref, cinfo, null);
+         GraphUtil.fixStaticColorFrame(aref, cinfo, null, ctx);
       }
 
       // Check source change, ignore temporarily.
@@ -1107,13 +1120,19 @@ public final class ChartDndHandler {
     * Replace chart ref.
     */
    public ChartRef replaceChartRef(int dropType, int repIdx, ChartRef ref, ChartInfo cinfo) {
+      return replaceChartRef(dropType, repIdx, ref, cinfo, VizContext.LEGACY);
+   }
+
+   public ChartRef replaceChartRef(int dropType, int repIdx, ChartRef ref, ChartInfo cinfo,
+                                   VizContext ctx)
+   {
       ChartRef removeRef = null;
 
       if(dropType == ChartConstants.DROP_REGION_X ||
          dropType == ChartConstants.DROP_REGION_X2)
       {
          removeRef = cinfo.getXField(repIdx);
-         fixStaticColorFrame(ref, ref, cinfo);
+         fixStaticColorFrame(ref, ref, cinfo, ctx);
          cinfo.setXField(Math.min(repIdx, cinfo.getXFieldCount()), ref);
       }
       else if(dropType == ChartConstants.DROP_REGION_Y ||
@@ -1121,7 +1140,7 @@ public final class ChartDndHandler {
       {
          //Fixed bug #19566 that only has one measure on y pane,should not to fix.
          if(getYPaneAggrCount(cinfo) > 1) {
-            fixStaticColorFrame(ref, ref, cinfo);
+            fixStaticColorFrame(ref, ref, cinfo, ctx);
          }
 
          removeRef = cinfo.getYField(repIdx);
@@ -1142,12 +1161,18 @@ public final class ChartDndHandler {
     * Add chart ref to X/Y fields.
     */
    public void addChartRef(int dropType, int addIdx, ChartRef ref, ChartInfo cinfo) {
+      addChartRef(dropType, addIdx, ref, cinfo, VizContext.LEGACY);
+   }
+
+   public void addChartRef(int dropType, int addIdx, ChartRef ref, ChartInfo cinfo,
+                           VizContext ctx)
+   {
       if(dropType == ChartConstants.DROP_REGION_X ||
          dropType == ChartConstants.DROP_REGION_X2 ||
          dropType == ChartConstants.DROP_REGION_Y ||
          dropType == ChartConstants.DROP_REGION_Y2)
       {
-         fixStaticColorFrame(ref, null, cinfo);
+         fixStaticColorFrame(ref, null, cinfo, ctx);
       }
 
       // mekko only support x/y and one group (inner dim)
@@ -1190,13 +1215,15 @@ public final class ChartDndHandler {
     * @param oldRef the ref which will be replace by the new add chart ref.
     * @param cinfo current chart info.
     */
-   private void fixStaticColorFrame(ChartRef ref, ChartRef oldRef, ChartInfo cinfo) {
+   private void fixStaticColorFrame(ChartRef ref, ChartRef oldRef, ChartInfo cinfo,
+                                    VizContext ctx)
+   {
       if(!(ref instanceof ChartAggregateRef)) {
          return;
       }
 
       ChartAggregateRef movedRef = oldRef instanceof ChartAggregateRef ? (ChartAggregateRef) oldRef : null;
-      GraphUtil.fixStaticColorFrame(ref, cinfo, movedRef);
+      GraphUtil.fixStaticColorFrame(ref, cinfo, movedRef, ctx);
    }
 
    private void fixDimension(ChartDimensionRef ref, ChartInfo cinfo, BindingDropTarget target) {
