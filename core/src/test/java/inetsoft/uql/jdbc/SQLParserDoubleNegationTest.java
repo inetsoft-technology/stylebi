@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class SQLParserDoubleNegationTest {
    private static final String SEL = "select a.id ai, a.k ak, a.s az, b.id bi, b.k bk ";
    private static final String SEL_A = "select a.id ai, a.k ak, a.s az from a ";

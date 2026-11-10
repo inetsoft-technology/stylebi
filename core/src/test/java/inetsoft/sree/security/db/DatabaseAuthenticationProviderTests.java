@@ -55,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("slow")
+@Tag("database")
 class DatabaseAuthenticationProviderTests {
    private DatabaseAuthenticationProvider provider;
    private static List<TestOrganization> expectedData;

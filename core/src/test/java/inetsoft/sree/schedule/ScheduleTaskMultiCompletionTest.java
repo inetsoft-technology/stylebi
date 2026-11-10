@@ -41,6 +41,7 @@ import static org.mockito.Mockito.*;
  * write, so a "does not fire" assertion starts only after the dependency check has been made.
  */
 @Tag("slow")
+@Tag("cluster")
 class ScheduleTaskMultiCompletionTest {
    private SchedulerTestHarness harness;
    private final Map<String, AtomicInteger> runs = new ConcurrentHashMap<>();

@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("core")
+@Tag("slow")
 @Tag("integration")
 class DateComparisonCalcCollisionViewsheetTest {
    @Test

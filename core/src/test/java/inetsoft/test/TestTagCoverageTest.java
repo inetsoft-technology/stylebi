@@ -41,6 +41,10 @@ class TestTagCoverageTest {
     */
    private static final Set<String> KNOWN_UNTAGGED = Set.of();
 
+   /** The tags allowed next to the speed tag {@code core} or {@code slow}. */
+   private static final Set<String> OTHER_TAGS = Set.of(
+      "integration", "known-bug", "known-deadlock", "docker", "cluster", "database");
+
    @Test
    void everyTestClassHasATag() throws Exception {
       Set<String> untagged = findUntaggedTestClasses();
@@ -54,6 +58,98 @@ class TestTagCoverageTest {
                  "(and the Spring test context header if the test needs it): " + unexpected);
       assertTrue(stale.isEmpty(),
                  "KNOWN_UNTAGGED entries are tagged or no longer exist, remove them: " + stale);
+   }
+
+   /**
+    * Beyond having a tag, a test method has exactly one speed tag: {@code core} (under 10 s) or
+    * {@code slow} (10 s or more). Every other tag is one of {@link #OTHER_TAGS}, so a typo does
+    * not create a tag that no group selects. The tags of a method are the tags of its class, of
+    * a class around it, and its own. This cannot tell that a class tagged {@code core} takes
+    * 10 s or more; find those from the surefire report times.
+    */
+   @Test
+   void everyTestMethodHasOneSpeedTagAndOnlyKnownTags() throws Exception {
+      URI root = TestTagCoverageTest.class.getProtectionDomain().getCodeSource()
+         .getLocation().toURI();
+      List<Class<?>> classes = ReflectionSupport.findAllClassesInClasspathRoot(
+         root, TestTagCoverageTest::isConcreteTopLevelClass,
+         TestTagCoverageTest::isSurefireTestClassName);
+      List<String> violations = new ArrayList<>();
+      int[] checked = { 0 };
+
+      for(Class<?> c : classes) {
+         try {
+            checkSpeedTags(c, Set.of(), violations, checked);
+         }
+         catch(LinkageError e) {
+            // reported by everyTestClassHasATag
+         }
+      }
+
+      assertTrue(checked[0] > 0, "no test method was found, the class scan is broken");
+      assertTrue(violations.isEmpty(),
+                 violations.size() + " test class(es) have a wrong tag:\n" +
+                 String.join("\n", violations));
+   }
+
+   private static void checkSpeedTags(Class<?> c, Set<String> enclosingTags,
+                                      List<String> violations, int[] checked)
+   {
+      Set<String> classTags = new TreeSet<>(enclosingTags);
+      classTags.addAll(tagsOf(c));
+      Map<String, Set<String>> bad = new TreeMap<>();
+
+      for(Method m : ReflectionSupport.findMethods(
+         c, TestTagCoverageTest::isTestMethod, HierarchyTraversalMode.TOP_DOWN))
+      {
+         checked[0]++;
+         Set<String> tags = new TreeSet<>(classTags);
+         tags.addAll(tagsOf(m));
+         String problem = speedTagProblem(tags);
+
+         if(problem != null) {
+            bad.computeIfAbsent(problem, k -> new TreeSet<>()).add(m.getName());
+         }
+      }
+
+      bad.forEach((problem, methods) -> violations.add(
+         c.getName() + " " + problem + ", at " + methods.size() + " test method(s) such as " +
+         methods.iterator().next()));
+
+      for(Class<?> nested : ReflectionSupport.findNestedClasses(
+         c, n -> AnnotationSupport.isAnnotated(n, Nested.class)))
+      {
+         checkSpeedTags(nested, classTags, violations, checked);
+      }
+   }
+
+   private static String speedTagProblem(Set<String> tags) {
+      boolean core = tags.contains("core");
+      boolean slow = tags.contains("slow");
+
+      if(!core && !slow) {
+         return "has no speed tag, add @Tag(\"core\") or @Tag(\"slow\")";
+      }
+
+      if(core && slow) {
+         return "has both core and slow, keep only one";
+      }
+
+      for(String tag : tags) {
+         if(!"core".equals(tag) && !"slow".equals(tag) && !OTHER_TAGS.contains(tag)) {
+            return "has the unknown tag \"" + tag + "\", the known tags are core, slow and " +
+               new TreeSet<>(OTHER_TAGS);
+         }
+      }
+
+      return null;
+   }
+
+   private static Set<String> tagsOf(AnnotatedElement e) {
+      Set<String> tags = new TreeSet<>();
+      AnnotationSupport.findRepeatableAnnotations(e, Tag.class)
+         .forEach(tag -> tags.add(tag.value()));
+      return tags;
    }
 
    static Set<String> findUntaggedTestClasses() throws Exception {

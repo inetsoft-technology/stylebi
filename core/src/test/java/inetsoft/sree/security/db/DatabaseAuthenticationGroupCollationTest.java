@@ -61,7 +61,8 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
    initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("database")
 class DatabaseAuthenticationGroupCollationTest {
    @BeforeEach
    void savePrincipal() {

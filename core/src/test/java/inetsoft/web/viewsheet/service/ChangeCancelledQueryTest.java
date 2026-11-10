@@ -79,7 +79,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("core")
+@Tag("slow")
 class ChangeCancelledQueryTest {
    @BeforeEach
    void setUp() {

@@ -54,6 +54,7 @@ import static org.mockito.Mockito.*;
  * store instances over the same caches, as the nodes of a cluster are.
  */
 @Tag("slow")
+@Tag("cluster")
 class ClusterJobStoreOrphanKeyTest {
    @BeforeAll
    static void startIgnite(@TempDir Path workDir) {
