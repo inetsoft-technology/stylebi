@@ -300,6 +300,14 @@ public class GraphUtil {
     * Get the User specific color for Map shapes which contain data.
     */
    public static Color getMapDefaultColor() {
+      return getMapDefaultColor(VizContext.LEGACY);
+   }
+
+   /**
+    * Get the color for Map shapes which contain data: the server property when set, else the
+    * region color of the context.
+    */
+   public static Color getMapDefaultColor(VizContext ctx) {
       String defaultColor = SreeEnv.getProperty("map.default.color");
 
       if(defaultColor != null) {
@@ -315,12 +323,11 @@ public class GraphUtil {
          }
          catch(Exception ex) {
             LOG.debug("Failed to determine color for set value: " + defaultColor, ex);
-
-            return MAP_DEFAULT_COLOR;
          }
       }
 
-      return MAP_DEFAULT_COLOR;
+      return ctx != null && ctx.modern ?
+         VSChartPaletteDefaults.mapRegionColor(ctx) : MAP_DEFAULT_COLOR;
    }
 
    /**

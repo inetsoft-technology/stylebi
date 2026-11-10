@@ -493,7 +493,8 @@ public class MapGenerator extends MergedGraphGenerator {
          if(polygon) {
             if(point && !showPolygonColor || GraphTypes.isContour(getChartType())) {
                ColorFrame gframe = new GeoColorFrame(
-                  GraphUtil.getMapDefaultColor(), GraphUtil.getMapEmptyColor(getPlotDescriptor()));
+                  GraphUtil.getMapDefaultColor(vizContext),
+                  GraphUtil.getMapEmptyColor(getPlotDescriptor()));
                pocolor = gframe;
             }
             else if(colorFrame instanceof StaticColorFrame) {
