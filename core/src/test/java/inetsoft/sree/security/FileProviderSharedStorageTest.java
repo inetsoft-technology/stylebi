@@ -17,12 +17,16 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,6 +50,13 @@ class FileProviderSharedStorageTest {
    private static final String ORG = "sharedStorageOrg";
    private static final int ROUNDS = 3000;
    private static final long WAIT_SECONDS = 20L;
+
+   // the listener fields of FileAuthenticationProvider, and the shared storage of each
+   private static final Object[][] LISTENERS = {
+      { "userCacheListener", "defaultSecurityUsers" },
+      { "groupCacheListener", "defaultSecurityGroups" },
+      { "roleCacheListener", "defaultSecurityRoles" }
+   };
 
    private final AtomicBoolean stop = new AtomicBoolean();
    private Thread churner;
@@ -171,34 +182,59 @@ class FileProviderSharedStorageTest {
    }
 
    // a reader that still holds the replaced provider reads after its tearDown(): that must
-   // neither fail nor add the dead provider's listeners to the shared storages again
+   // neither fail nor add the dead provider's listeners to the shared storages again. This
+   // checks the registration itself. Counting the clearCache() calls of the provider does not
+   // work: the storages deliver a change on another thread, so a change made just before the
+   // provider registered can still reach its listener after tearDown() removed it
 
    @Test
    void readAfterTearDownOnTheOldProviderDoesNotFailOrReAddListeners() throws Exception {
-      CountingAuthn old = new CountingAuthn();
+      FileAuthenticationProvider old = new FileAuthenticationProvider();
       FileAuthenticationProvider writer = new FileAuthenticationProvider();
       IdentityID id = new IdentityID("after-teardown-user", ORG);
 
       try {
          writer.addUser(new FSUser(id));
          old.getUsers();
+
+         for(Object[] registration : LISTENERS) {
+            assertTrue(isRegistered(old, (String) registration[0], (String) registration[1]),
+                       "a provider that has read must listen to " + registration[1]);
+         }
+
          old.tearDown();
 
          assertNotNull(old.getUser(id), "a read on the torn down provider must still work");
          assertTrue(old.getUsers().length > 0);
-         int oldCleared = old.cleared.get();
 
-         writer.removeUser(id);
-         writer.addUser(new FSUser(id));
-         Thread.sleep(500L);
-
-         assertEquals(oldCleared, old.cleared.get(),
-                      "a read after tearDown must not register the old provider's listeners again");
+         for(Object[] registration : LISTENERS) {
+            assertFalse(isRegistered(old, (String) registration[0], (String) registration[1]),
+                        "a read after tearDown must not register the old provider's listener " +
+                        "on " + registration[1] + " again");
+         }
       }
       finally {
          writer.removeUser(id);
          writer.tearDown();
+         old.tearDown();
       }
+   }
+
+   /**
+    * Whether the cache listener held by the field {@code listenerField} of the provider is
+    * registered with the shared storage {@code storageId}.
+    */
+   private static boolean isRegistered(FileAuthenticationProvider provider, String listenerField,
+                                       String storageId) throws Exception
+   {
+      Field field = FileAuthenticationProvider.class.getDeclaredField(listenerField);
+      field.setAccessible(true);
+      Object listener = field.get(provider);
+      KeyValueStorage<?> storage = KeyValueStorageManager.getInstance().peekStorage(storageId);
+      assertNotNull(storage, "the storage " + storageId + " has not been created");
+      Field listeners = storage.getClass().getDeclaredField("listeners");
+      listeners.setAccessible(true);
+      return ((Set<?>) listeners.get(storage)).contains(listener);
    }
 
    private void churn(Runnable round) {
