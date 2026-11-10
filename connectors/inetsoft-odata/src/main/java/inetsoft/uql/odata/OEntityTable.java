@@ -21,6 +21,9 @@ import inetsoft.report.internal.table.TableFormat;
 import inetsoft.util.Tool;
 import inetsoft.util.swap.*;
 import inetsoft.uql.*;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.tabular.TabularColumn;
+import inetsoft.uql.tabular.TabularDatasetSchema;
 
 import java.io.*;
 import java.text.Format;
@@ -40,7 +43,21 @@ public class OEntityTable extends XTableNode {
    public OEntityTable(ClientEntitySetIterator<ClientEntitySet, ClientEntity> entities,
                        RetrieveRequestFactory requestFactory, boolean isV4, ODataQuery query)
    {
+      this(entities, requestFactory, isV4, query, null);
+   }
+
+   /**
+    * @param typedSchema the {@code $metadata} schema of the query's entity set when the query is
+    *                    {@link ODataQuery#isTypedByMetadata() typed by metadata}, else
+    *                    {@code null} (columns are then typed from the returned values only).
+    */
+   public OEntityTable(ClientEntitySetIterator<ClientEntitySet, ClientEntity> entities,
+                       RetrieveRequestFactory requestFactory, boolean isV4, ODataQuery query,
+                       TabularDatasetSchema typedSchema)
+   {
+      this.query = query;
       expandArrays = query.isExpanded();
+      initTypedSchema(typedSchema);
       // Check for paged results and execute a new request if it exists
       do {
          while(entities.hasNext()) {
@@ -66,11 +83,17 @@ public class OEntityTable extends XTableNode {
       while(entities.hasNext());
 
       allRows.complete();
-      this.query = query;
+      completeTyping();
    }
 
    public OEntityTable(ClientEntitySet entitySet, ODataQuery query) {
+      this(entitySet, query, null);
+   }
+
+   OEntityTable(ClientEntitySet entitySet, ODataQuery query, TabularDatasetSchema typedSchema) {
+      this.query = query;
       expandArrays = query.isExpanded();
+      initTypedSchema(typedSchema);
       List<ClientEntity> entities = entitySet.getEntities();
 
       for(ClientEntity entity : entities) {
@@ -78,7 +101,7 @@ public class OEntityTable extends XTableNode {
       }
 
       allRows.complete();
-      this.query = query;
+      completeTyping();
    }
 
    public OEntityTable(ClientEntity entity, ODataQuery query) {
@@ -254,8 +277,7 @@ public class OEntityTable extends XTableNode {
                String name = prefix + prop.getName();
 
                if(!prefixes.contains(name) && !typeMap.containsKey(name)) {
-                  Class<?> type = prop.hasNullValue() || prop.hasCollectionValue() ? String.class :
-                     prop.getPrimitiveValue().getType().getDefaultType();
+                  Class<?> type = columnType(name, prop);
                   names.add(name);
                   types.add(type);
                   typeMap.put(name, type);
@@ -422,8 +444,7 @@ public class OEntityTable extends XTableNode {
                String name = prefix + prop.getName();
 
                if(!prefixes.contains(name) && !typeMap.containsKey(name)) {
-                  Class<?> type = prop.hasNullValue() || prop.hasCollectionValue() ?
-                     String.class : prop.getPrimitiveValue().getType().getDefaultType();
+                  Class<?> type = columnType(name, prop);
                   names.add(name);
                   types.add(type);
                   typeMap.put(name, type);
@@ -518,7 +539,14 @@ public class OEntityTable extends XTableNode {
       public Object getValue(int row, int col) {
          // column may be missing in this row
          if(col < names.size()) {
-            return transform(rows.get(row).get(names.get(col)), col);
+            String name = names.get(col);
+            Object value = rows.get(row).get(name);
+
+            if(!temporalTypes.isEmpty()) {
+               value = temporalValue(name, value);
+            }
+
+            return transform(value, col);
          }
 
          return null;
@@ -550,7 +578,237 @@ public class OEntityTable extends XTableNode {
          }
       }
 
+      /**
+       * @return true if every non-null value of the column converts to the temporal type.
+       */
+      boolean isConvertible(String name, Class<?> type) {
+         for(Map<String, Object> row : rows) {
+            Object value = row.get(name);
+
+            if(value != null && convertTemporal(value, type) == null) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+
       private List<Map<String, Object>> rows = new ArrayList<>();
+   }
+
+   private void initTypedSchema(TabularDatasetSchema schema) {
+      typedSchema = schema;
+
+      if(schema == null) {
+         return;
+      }
+
+      for(TabularColumn column : schema.columns()) {
+         Class<?> type = temporalClass(column.type());
+
+         if(type != null) {
+            temporalTypes.put(column.name(), type);
+         }
+      }
+   }
+
+   /**
+    * The type of a column as it is first met: the schema's date/time class for a column the schema
+    * types as date/time (null cells included, so a null stays null instead of becoming ""),
+    * otherwise the type of the returned value.
+    */
+   private Class<?> columnType(String name, ClientProperty prop) {
+      Class<?> temporal = temporalTypes.get(name);
+
+      if(temporal != null && !prop.hasCollectionValue()) {
+         return temporal;
+      }
+
+      return prop.hasNullValue() || prop.hasCollectionValue() ? String.class :
+         prop.getPrimitiveValue().getType().getDefaultType();
+   }
+
+   /**
+    * Applies the schema once every row is read: a date/time column whose values do not all parse
+    * goes back to the untyped (text) column, and the columns the schema describes but the
+    * returned rows did not produce are added.
+    */
+   private void completeTyping() {
+      if(typedSchema == null) {
+         return;
+      }
+
+      for(Map.Entry<String, Class<?>> entry : temporalTypes.entrySet()) {
+         String name = entry.getKey();
+
+         if(!entry.getValue().equals(typeMap.get(name))) {
+            continue;
+         }
+
+         boolean convertible = true;
+
+         for(int i = 0; i < allRows.size() && convertible; i++) {
+            convertible = allRows.get(i).isConvertible(name, entry.getValue());
+         }
+
+         if(!convertible) {
+            LOG.warn("OData column '{}' has values that are not valid {}, keeping it as text",
+                     name, entry.getValue().getSimpleName());
+            types.set(names.indexOf(name), String.class);
+            typeMap.put(name, String.class);
+            revertedTemporal.add(name);
+         }
+      }
+
+      padDescribedColumns();
+   }
+
+   /**
+    * Makes the built columns include every column the schema describes. A column is missing when
+    * no returned row carries it (a derived entity type with no instance in the result, a filter
+    * or paging that excludes it, a complex property that is null in every row), and then the
+    * column is added with null cells; for a complex property that is null in every row the
+    * single text column the walk made for it is replaced by its dotted leaf columns. The
+    * described columns say nothing about a query that narrows the columns itself ($select) or
+    * reshapes the rows (expanded arrays), so those are left as returned.
+    */
+   private void padDescribedColumns() {
+      if(expandArrays || (query.getSelect() != null && !query.getSelect().trim().isEmpty())) {
+         return;
+      }
+
+      for(TabularColumn column : typedSchema.columns()) {
+         String name = column.name();
+
+         for(int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1)) {
+            String parent = name.substring(0, dot);
+
+            if(typeMap.containsKey(parent)) {
+               int index = names.indexOf(parent);
+               names.remove(index);
+               types.remove(index);
+               typeMap.remove(parent);
+               prefixes.add(parent);
+            }
+         }
+      }
+
+      for(TabularColumn column : typedSchema.columns()) {
+         String name = column.name();
+
+         if(!typeMap.containsKey(name) && !prefixes.contains(name)) {
+            Class<?> type = describedClass(column.type());
+            names.add(name);
+            types.add(type);
+            typeMap.put(name, type);
+         }
+      }
+   }
+
+   private Object temporalValue(String name, Object value) {
+      Class<?> type = temporalTypes.get(name);
+
+      if(type == null) {
+         return value;
+      }
+
+      if(revertedTemporal.contains(name)) {
+         return value == null ? "" : value;
+      }
+
+      return value == null ? null : convertTemporal(value, type);
+   }
+
+   private static Class<?> temporalClass(String xType) {
+      if(XSchema.TIME_INSTANT.equals(xType)) {
+         return java.sql.Timestamp.class;
+      }
+
+      if(XSchema.DATE.equals(xType)) {
+         return java.sql.Date.class;
+      }
+
+      if(XSchema.TIME.equals(xType)) {
+         return java.sql.Time.class;
+      }
+
+      return null;
+   }
+
+   private static Class<?> describedClass(String xType) {
+      Class<?> temporal = temporalClass(xType);
+
+      if(temporal != null) {
+         return temporal;
+      }
+
+      switch(xType) {
+         case XSchema.LONG:
+            return Long.class;
+         case XSchema.DOUBLE:
+            return Double.class;
+         case XSchema.BOOLEAN:
+            return Boolean.class;
+         default:
+            return String.class;
+      }
+   }
+
+   /**
+    * @return the value as an instance of the date/time type, or null if it is not one. The server
+    *         sends a date/time as ISO text unless the payload carries type annotations.
+    */
+   static Object convertTemporal(Object value, Class<?> type) {
+      if(type.isInstance(value)) {
+         return value;
+      }
+
+      Date date = null;
+
+      if(value instanceof Calendar) {
+         date = ((Calendar) value).getTime();
+      }
+      else if(value instanceof Date) {
+         date = (Date) value;
+      }
+
+      if(date != null) {
+         if(java.sql.Timestamp.class.equals(type)) {
+            return new java.sql.Timestamp(date.getTime());
+         }
+
+         if(java.sql.Date.class.equals(type)) {
+            return new java.sql.Date(date.getTime());
+         }
+
+         return new java.sql.Time(date.getTime());
+      }
+
+      if(!(value instanceof String)) {
+         return null;
+      }
+
+      String text = ((String) value).trim();
+
+      try {
+         if(java.sql.Timestamp.class.equals(type)) {
+            try {
+               return java.sql.Timestamp.from(java.time.OffsetDateTime.parse(text).toInstant());
+            }
+            catch(java.time.format.DateTimeParseException ex) {
+               return java.sql.Timestamp.valueOf(java.time.LocalDateTime.parse(text));
+            }
+         }
+
+         if(java.sql.Date.class.equals(type)) {
+            return java.sql.Date.valueOf(java.time.LocalDate.parse(text));
+         }
+
+         return java.sql.Time.valueOf(java.time.LocalTime.parse(text));
+      }
+      catch(java.time.format.DateTimeParseException ex) {
+         return null;
+      }
    }
 
    private final ODataQuery query;
@@ -560,6 +818,12 @@ public class OEntityTable extends XTableNode {
    private final Set<String> prefixes = new HashSet<>();
    private final XSwappableObjectList<ExpandedRows> allRows = new XSwappableObjectList<>(null);
    private final boolean expandArrays;
+   // date/time columns the $metadata schema types, keyed by built column name; empty unless the
+   // query is typed by metadata
+   private final Map<String, Class<?>> temporalTypes = new HashMap<>();
+   // date/time columns that fell back to text because a value did not parse
+   private final Set<String> revertedTemporal = new HashSet<>();
+   private TabularDatasetSchema typedSchema;
    private int index = 0; // index in allRows
    private int subIdx = -1; // index in ExpandedRows at (index)
    private static final Logger LOG = LoggerFactory.getLogger(OEntityTable.class.getName());

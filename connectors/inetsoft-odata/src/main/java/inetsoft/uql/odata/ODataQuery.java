@@ -320,6 +320,31 @@ public class ODataQuery extends TabularQuery implements PropertyVariableReplacer
       this.expanded = flag;
    }
 
+   /**
+    * How the result columns are typed. {@link #TYPED_BY_METADATA} is set only by
+    * {@link ODataCatalog} (it is part of the params {@code describeDataset} returns): the built
+    * table then types its date/time columns from the {@code $metadata} schema the describe side
+    * reports, so the described and built column kinds agree. A query without it (every query
+    * written in the query dialog, and every saved query) keeps typing columns from the values the
+    * server returns. It is deliberately not in the {@code @View}: it is a contract flag, not
+    * something to edit; {@code @Property} is what makes it settable through the tabular
+    * query-params contract at all.
+    */
+   @Property(label="Typed By")
+   public String getTypedBy() {
+      return typedBy;
+   }
+
+   public void setTypedBy(String typedBy) {
+      this.typedBy = typedBy;
+   }
+
+   /**
+    * @return true if the result columns are typed from the {@code $metadata} schema.
+    */
+   boolean isTypedByMetadata() {
+      return TYPED_BY_METADATA.equals(typedBy);
+   }
 
    @Override
    protected void writeAttributes(PrintWriter writer) {
@@ -361,6 +386,10 @@ public class ODataQuery extends TabularQuery implements PropertyVariableReplacer
       if(orderBy != null) {
          writer.println("<orderBy><![CDATA[" + orderBy + "]]></orderBy>");
       }
+
+      if(typedBy != null && !typedBy.isEmpty()) {
+         writer.println("<typedBy><![CDATA[" + typedBy + "]]></typedBy>");
+      }
    }
 
    @Override
@@ -401,6 +430,7 @@ public class ODataQuery extends TabularQuery implements PropertyVariableReplacer
       filter = Tool.getValue(node);
       node = Tool.getChildNodeByTagName(root, "orderBy");
       orderBy = Tool.getValue(node);
+      typedBy = Tool.getChildValueByTagName(root, "typedBy");
    }
 
    /**
@@ -528,6 +558,13 @@ public class ODataQuery extends TabularQuery implements PropertyVariableReplacer
    private ODataFunction function;
    private ODataFunction ofunction;
    private boolean expanded = false;
+   private String typedBy;
    private boolean parametersChanged = false;
    private String nameSpace;
+
+   /**
+    * The {@link #getTypedBy() typedBy} value that selects {@code $metadata} typing of date/time
+    * columns.
+    */
+   static final String TYPED_BY_METADATA = "metadata";
 }
