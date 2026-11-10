@@ -6,6 +6,7 @@ import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
 import inetsoft.util.css.CSSDictionary;
@@ -480,5 +481,88 @@ class VSChartPaletteDefaultsTest {
       assertFalse(hidden.contains("VarianceColorModel"));
       // Custom has no house successor and is kept for brand matching and one-offs
       assertFalse(hidden.contains("GradientColorModel"));
+   }
+
+   private static final VizContext LIGHT = VizContext.of(VizMark.MODERN_LIGHT);
+   private static final VizContext DARK = VizContext.of(VizMark.MODERN_DARK);
+
+   @Test
+   void aClassicChartPicksFromTheRawLegacyList() {
+      Color[] palette = VSChartPaletteDefaults.staticPalette(VizContext.LEGACY);
+      assertEquals(new Color(0x518DB9), palette[0]);
+      assertEquals(new Color(0xB9DBF4), palette[1]);
+   }
+
+   @Test
+   void aModernChartPicksFromItsMarksPalette() {
+      assertEquals(new Color(0x0490FF), VSChartPaletteDefaults.staticPalette(LIGHT)[0]);
+      assertEquals(new Color(0x4FA5FF), VSChartPaletteDefaults.staticPalette(DARK)[0]);
+   }
+
+   @Test
+   void reseatKeepsThePalettePosition() {
+      assertEquals(new Color(0x0490FF),
+                   VSChartPaletteDefaults.reseatStaticColor(new Color(0x518DB9), LIGHT));
+      assertEquals(new Color(0xFF5A35),
+                   VSChartPaletteDefaults.reseatStaticColor(new Color(0xB9DBF4), LIGHT));
+      assertEquals(new Color(0xB9DBF4),
+                   VSChartPaletteDefaults.reseatStaticColor(new Color(0xFF5A35), VizContext.LEGACY));
+      assertEquals(new Color(0x518DB9),
+                   VSChartPaletteDefaults.reseatStaticColor(new Color(0x4FA5FF), VizContext.LEGACY));
+      assertEquals(new Color(0x4FA5FF),
+                   VSChartPaletteDefaults.reseatStaticColor(new Color(0x0490FF), DARK));
+   }
+
+   @Test
+   void reseatLeavesOtherColoursAlone() {
+      Color[] others = { Color.RED, GraphUtil.OLD_COLOR_PALETTE_DEFAULT_COLOR,
+                         GraphUtil.MAP_DEFAULT_COLOR, null };
+
+      for(VizContext ctx : new VizContext[] { VizContext.LEGACY, LIGHT, DARK }) {
+         for(Color other : others) {
+            assertSame(other, VSChartPaletteDefaults.reseatStaticColor(other, ctx));
+         }
+      }
+   }
+
+   @Test
+   void theThreeListsShareNoColour() throws Exception {
+      Color[][] lists = {
+         CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]),
+         fallback("MODERN_FALLBACK"), fallback("DARK_FALLBACK")
+      };
+
+      for(int i = 0; i < lists.length; i++) {
+         assertEquals(lists[i].length, Set.of(lists[i]).size(), "repeat within list " + i);
+
+         for(int j = i + 1; j < lists.length; j++) {
+            for(Color c : lists[j]) {
+               assertFalse(Arrays.asList(lists[i]).contains(c), c + " in lists " + i + " and " + j);
+            }
+         }
+      }
+   }
+
+   @Test
+   void theMapRegionTintIsSlotOneOverTheCard() {
+      assertEquals(0xA6D0F0, VSChartPaletteDefaults.mapRegionColor(LIGHT).getRGB() & 0xFFFFFF);
+      assertEquals(0x3A5371, VSChartPaletteDefaults.mapRegionColor(DARK).getRGB() & 0xFFFFFF);
+   }
+
+   @Test
+   void onlyModernSeedValuesCountAsModern() {
+      for(int rgb : new int[] { 0x0490FF, 0x4FA5FF, 0x85827A, 0x7E7B86, 0xA6D0F0, 0x3A5371 }) {
+         assertTrue(VSChartPaletteDefaults.isModernChartColor(new Color(rgb)), Integer.toHexString(rgb));
+      }
+
+      for(Color c : new Color[] { new Color(0x518DB9), new Color(0xFBD29A), Color.RED }) {
+         assertFalse(VSChartPaletteDefaults.isModernChartColor(c), c.toString());
+      }
+   }
+
+   private static Color[] fallback(String name) throws Exception {
+      Field field = VSChartPaletteDefaults.class.getDeclaredField(name);
+      field.setAccessible(true);
+      return (Color[]) field.get(null);
    }
 }

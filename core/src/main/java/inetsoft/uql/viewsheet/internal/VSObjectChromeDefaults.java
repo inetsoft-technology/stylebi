@@ -88,6 +88,11 @@ public final class VSObjectChromeDefaults {
       return blend(new Color(CARD_TINT_RGB), CARD_TINT_ALPHA / 100f, backdrop);
    }
 
+   /** The card tint over the page, as the opaque colour a card shows. */
+   public static Color cardComposite(VizContext ctx) {
+      return cardTintOver(ctx.dark ? PAGE_BG_DARK : PAGE_BG);
+   }
+
    /** The opaque colour a translucent fill shows over a backdrop; a null backdrop is white. */
    public static Color flattenOver(Color fill, Color backdrop) {
       return fill == null || fill.getAlpha() == 255 ? fill :
