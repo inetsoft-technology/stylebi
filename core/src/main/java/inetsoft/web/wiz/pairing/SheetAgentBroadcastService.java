@@ -24,7 +24,6 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.WSAssembly;
 import inetsoft.uql.asset.Worksheet;
-import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -116,7 +115,7 @@ public class SheetAgentBroadcastService {
     * mutation produces none.
     *
     * @param capturedCommands commands the mutation dispatched; only {@code LoadTableDataCommand}s
-    *                         for visible, non-calc tables are used. May be null.
+    *                         for visible tables (calc tables included) are used. May be null.
     */
    public void broadcastRefresh(RuntimeSheet rs, SheetType sheetType, String runtimeId,
                                 Principal owner, List<CommandDispatcher.Command> capturedCommands)
@@ -202,9 +201,10 @@ public class SheetAgentBroadcastService {
    /**
     * Forwards the {@code LoadTableDataCommand}s a mutation dispatched (and the capturing
     * dispatcher swallowed) to the paired browser, after the per-assembly refresh so the table's
-    * model is already in place. The last command per assembly wins. Calc/freehand tables get their
-    * cells in the model and charts have no table data, so only visible {@code TableDataVSAssembly}
-    * instances other than calc tables are sent. Best effort: a failure is logged and swallowed.
+    * model is already in place. The last command per assembly wins. Table and calc/freehand
+    * table cells are never part of the object model (the client assigns them only from
+    * {@code LoadTableDataCommand}), and charts have no table data, so only visible
+    * {@code TableDataVSAssembly} instances are sent. Best effort: a failure is logged and swallowed.
     */
    private void broadcastCapturedTableData(RuntimeViewsheet rvs, String runtimeId,
                                            String sessionId, String user,
@@ -236,8 +236,7 @@ public class SheetAgentBroadcastService {
             try {
                Assembly a = vs.getAssembly(e.getKey());
 
-               if(!(a instanceof TableDataVSAssembly) || a instanceof CalcTableVSAssembly ||
-                  !((VSAssembly) a).isVisible())
+               if(!(a instanceof TableDataVSAssembly) || !((VSAssembly) a).isVisible())
                {
                   continue;
                }

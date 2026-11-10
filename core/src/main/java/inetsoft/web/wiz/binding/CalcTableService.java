@@ -48,6 +48,8 @@ import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.uql.erm.CalcAggregate;
 import inetsoft.web.binding.command.GetCellScriptCommand;
@@ -65,6 +67,9 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
+import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.binding.event.CopyCutCalcCellEvent;
 import inetsoft.web.binding.event.ModifyTableLayoutEvent;
@@ -464,6 +469,7 @@ public class CalcTableService {
          remapRankings(rvs, assembly, rankings, rankWarnings);
          clearDateFormatOnNumericCell(rvs, assemblyName, row, col, formatNotes);
          noteFormulaCellUnderObjectDateFormat(assembly, row, col, cellBindingInfo, formatNotes);
+         produceCellsForCanvas(rvs, assembly, assemblyName, user, dispatcher);
 
          // Pushes the new text to a Freehand formula dialog open at this cell (its agent-refresh
          // matcher compares kind/assembly/name). Sent for every session type: a whole-sheet write
@@ -2339,6 +2345,67 @@ public class CalcTableService {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(CalcTableService.class);
+
+   /**
+    * Makes the write produce the cells the paired browser paints (Bug #80844). A calc table's
+    * cells reach the client only as a {@code LoadTableDataCommand}, and the native cell-binding
+    * edit applies with {@code refreshData=false}, so it dispatches none; the capture forwarder
+    * would then have nothing to send and the canvas stays blank until Refresh. The lens is
+    * already built by the preceding apply, so this only serializes cells.
+    *
+    * <p>Runs after the ranking/format fix-ups so the cells reflect the final state, and applies
+    * the same visibility gate as {@code CoreLifecycleService.loadTableLens}. The load runs under
+    * its own throw-away capturing dispatcher and only its {@code LoadTableDataCommand} is moved
+    * to {@code dispatcher}: the preceding apply already reported any load failure, and a repeat
+    * ERROR/script-failure here must neither fail nor add a warning to a write that succeeded.
+    */
+   private void produceCellsForCanvas(RuntimeViewsheet rvs, CalcTableVSAssembly assembly,
+                                      String assemblyName, Principal user,
+                                      CapturingCommandDispatcher dispatcher)
+   {
+      try {
+         VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+         if(!VSEventUtil.isVisible(rvs, assembly) && !info.isControlByScript() &&
+            !(rvs.isRuntime() && (rvs.isTipView(assemblyName) ||
+               rvs.isPopComponent(assemblyName))))
+         {
+            return;
+         }
+
+         int start = assembly.getLastStartRow();
+         List<LoadTableDataCommand> loads = new ArrayList<>();
+
+         try {
+            CapturingCommandDispatcher.withCapturingDispatcher(user, scratch -> {
+               try {
+                  BaseTableService.loadTableData(rvs, assemblyName, 0, start, 100, null, scratch,
+                                                 true);
+               }
+               finally {
+                  for(CommandDispatcher.Command c : scratch.getCapturedCommands()) {
+                     if(c.getCommand() instanceof LoadTableDataCommand load) {
+                        loads.add(load);
+                     }
+                  }
+               }
+
+               return null;
+            });
+         }
+         catch(Exception e) {
+            LOG.debug("Cell data for {} not produced for the canvas: {}", assemblyName,
+                      e.getMessage());
+         }
+
+         for(LoadTableDataCommand load : loads) {
+            dispatcher.sendCommand(assemblyName, load);
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Could not produce the cells of {} for the paired canvas", assemblyName, e);
+      }
+   }
 
    private final ViewsheetSessionService sessions;
    private final VSTableLayoutService layoutService;
