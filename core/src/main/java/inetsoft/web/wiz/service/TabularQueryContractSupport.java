@@ -213,9 +213,11 @@ public final class TabularQueryContractSupport {
             invokeWriteMethod(prop, query, coerced);
             Object readBack = prop.getValue(query);
 
-            if(!Objects.equals(text(readBack), text(coerced))) {
+            if(!Objects.equals(text(readBack), text(coerced)) &&
+               !isBlankWriteNormalizedToDefault(query, prop, coerced, readBack))
+            {
                throw new IllegalStateException(
-                  "Setting '" + name + "' to " + describe(prop, coerced) + " appears to have " +
+                  "Setting '" + name + "' to "+ describe(prop, coerced) + " appears to have " +
                   "had no effect: reading it back returned " + describe(prop, readBack) +
                   " instead. Either '" + name + "' is derived from another property rather " +
                   "than directly settable on this connector (check GET .../query-schema for a " +
@@ -244,6 +246,25 @@ public final class TabularQueryContractSupport {
       }
 
       return String.join(", ", applied);
+   }
+
+   /**
+    * Whether a blank write read back as something else only because the connector's getter
+    * turns a blank value into its default (for example GraphQL {@code variables}: blank reads
+    * back as {@code "{}"}). That is the caller's "no value" taking effect, not a write that
+    * was ignored, so it is accepted. A blank write the setter really dropped on a query that
+    * holds some other value still reads back that other value, which is not the default, and
+    * keeps failing the read-back check.
+    */
+   private static boolean isBlankWriteNormalizedToDefault(TabularQuery query, PropertyMeta prop,
+                                                          Object written, Object readBack)
+      throws Exception
+   {
+      if(written != null && !text(written).isBlank()) {
+         return false;
+      }
+
+      return Objects.equals(text(readBack), text(prop.getValue(defaultsOf(query))));
    }
 
    /**

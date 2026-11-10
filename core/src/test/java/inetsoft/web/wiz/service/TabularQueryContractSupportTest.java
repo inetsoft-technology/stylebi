@@ -740,4 +740,41 @@ class TabularQueryContractSupportTest {
          () -> restate(query, params("jsonPath", "$.x")));
       assertTrue(ex.getMessage().contains("endpoint"), ex.getMessage());
    }
+
+   // ─── a blank write the getter normalizes to its default (#80943) ──────────
+
+   @Test
+   void aBlankWriteThatTheGetterNormalizesToItsDefaultIsAccepted() throws Exception {
+      FakeBlankNormalizingQuery query = new FakeBlankNormalizingQuery();
+
+      assertDoesNotThrow(() -> apply(query, params("variables", "")));
+      assertEquals("{}", query.getVariables());
+   }
+
+   @Test
+   void aBlankWriteIgnoredOnAQueryHoldingAnotherValueStillFails() {
+      FakeBlankNormalizingQuery query = new FakeBlankNormalizingQuery();
+      query.presetStuck("custom");
+
+      IllegalStateException ex = assertThrows(IllegalStateException.class,
+         () -> apply(query, params("stuck", "")));
+      assertTrue(ex.getMessage().contains("stuck"), ex.getMessage());
+   }
+
+   @Test
+   void aNonBlankWriteThatDoesNotStickStillFails() {
+      FakeBlankNormalizingQuery query = new FakeBlankNormalizingQuery();
+
+      assertThrows(IllegalStateException.class,
+         () -> apply(query, params("stuck", "wanted")));
+   }
+
+   @Test
+   void aNonBlankValueForANormalizingPropertyIsKept() throws Exception {
+      FakeBlankNormalizingQuery query = new FakeBlankNormalizingQuery();
+
+      apply(query, params("variables", "{\"a\":1}"));
+
+      assertEquals("{\"a\":1}", query.getVariables());
+   }
 }
