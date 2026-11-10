@@ -316,4 +316,19 @@ public class ProductFormulaTest {
    void getResultType_returnsDoubleClass() {
       assertEquals(Double.class, formula.getResultType());
    }
+
+   // -----------------------------------------------------------------------
+   // blank strings are skipped (Bug #80584)
+   // -----------------------------------------------------------------------
+
+   @Test
+   void addValue_blankAndWhitespaceStrings_areSkipped() {
+      formula.addValue("2");
+      formula.addValue("");
+      formula.addValue("  ");
+      formula.addValue((Object) null);
+      formula.addValue("abc");
+      formula.addValue("3");
+      assertEquals(6.0, formula.getDoubleResult(), 0.0001);
+   }
 }

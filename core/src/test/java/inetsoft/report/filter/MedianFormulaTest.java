@@ -72,4 +72,11 @@ class MedianFormulaTest {
       assertEquals(2.0, medianOf(3, 1, 2));
       assertEquals(2.5, medianOf(4, 1, 3, 2));
    }
+
+   @Test
+   void getResult_blankStrings_areSkipped() {
+      assertEquals(2.0, medianOf("1", "", "3"));
+      assertEquals(2.0, medianOf("1", "  ", "3"));
+      assertEquals(2.5, medianOf("1", "", "2", "3", "4"));
+   }
 }

@@ -516,4 +516,20 @@ public class PthPercentileFormulaTest {
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
    }
+
+   @Test
+   void getResult_blankStrings_areSkipped() {
+      PthPercentileFormula withBlank = new PthPercentileFormula(50);
+      PthPercentileFormula without = new PthPercentileFormula(50);
+
+      for(String v : new String[] { "1", "", "  ", "3", "5" }) {
+         withBlank.addValue((Object) v);
+      }
+
+      for(String v : new String[] { "1", "3", "5" }) {
+         without.addValue((Object) v);
+      }
+
+      assertEquals(without.getResult(), withBlank.getResult());
+   }
 }
