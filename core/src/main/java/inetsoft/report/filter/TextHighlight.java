@@ -238,14 +238,6 @@ public class TextHighlight implements Highlight {
    @Override
    public void replaceVariables(VariableTable vart) {
       conditions.replaceVariables(vart);
-
-      for(int i = 0; i < conditions.getSize(); i += 2) {
-         XCondition cond = conditions.getXCondition(i);
-
-         if(cond != null && cond instanceof Condition) {
-            ((Condition) cond).setIgnored(false);
-         }
-      }
    }
 
    @Override
