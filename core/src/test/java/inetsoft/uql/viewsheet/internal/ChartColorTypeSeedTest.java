@@ -43,6 +43,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -333,6 +335,75 @@ class ChartColorTypeSeedTest {
       info.seedChromeDefaults(VizContext.of(info));
 
       assertInstanceOf(BluesColorFrame.class, info.getVSChartInfo().getColorFrame());
+   }
+
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "bar", "tree", "polygon map", "pareto", "scatter contour" })
+   void modernizeThenRevertKeepsTheChartXml(String kind) {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      vs.addAssembly(chart);
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      bindClassic(info, kind);
+      assertNull(info.getVizMark(), "premise: a classic chart");
+      String before = chartXml(info);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      assertEquals(VizMark.MODERN_LIGHT, info.getVizMark(), "premise: modernized");
+      assertNotEquals(before, chartXml(info), "premise: Modernize moved a colour");
+
+      VizModernizeUtil.revert(vs);
+      assertEquals(before, chartXml(info));
+   }
+
+   // a classic chart of each kind, holding the colours a classic binding leaves
+   private static void bindClassic(ChartVSAssemblyInfo info, String kind) {
+      VSChartInfo cinfo = info.getVSChartInfo();
+
+      switch(kind) {
+      case "bar":
+         VSChartAggregateRef second = agg("w");
+         ((StaticColorFrameWrapper) second.getColorFrameWrapper()).setDefaultColor(LEGACY_2);
+         cinfo.addXField(dim("state"));
+         cinfo.addYField(agg("v"));
+         cinfo.addYField(second);
+         cinfo.setChartType(GraphTypes.CHART_BAR);
+         break;
+      case "tree":
+         info.setVSChartInfo(tree());
+         break;
+      case "polygon map":
+         info.setVSChartInfo(polygonMap());
+         // the region colour a classic binding writes over slot one
+         chartColor(info).setDefaultColor(PALE_ORANGE);
+         break;
+      case "pareto":
+         cinfo.addXField(dim("state"));
+         cinfo.addYField(agg("v"));
+         cinfo.setChartType(GraphTypes.CHART_PARETO);
+         break;
+      case "scatter contour":
+         cinfo.addXField(agg("w"));
+         cinfo.addYField(agg("v"));
+         cinfo.setChartType(GraphTypes.CHART_SCATTER_CONTOUR);
+         cinfo.setColorFrameWrapper(new BluesColorFrameWrapper());
+         break;
+      default:
+         fail("unknown chart kind " + kind);
+      }
+   }
+
+   // the chart info and the chart descriptor as saved
+   private static String chartXml(ChartVSAssemblyInfo info) {
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      info.getVSChartInfo().writeXML(writer);
+      info.getChartDescriptor().writeXML(writer);
+      writer.flush();
+      return buf.toString();
    }
 
    private static CompositeValue<?> emptyColor(ChartVSAssemblyInfo info) {

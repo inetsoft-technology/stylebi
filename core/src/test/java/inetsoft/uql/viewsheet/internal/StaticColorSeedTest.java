@@ -41,11 +41,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.List;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -140,6 +140,22 @@ class StaticColorSeedTest {
       modernize(info);
       assertEquals(MODERN_1, frame(rt).getDefaultColor());
       assertEquals(MODERN_2, frame(milestone).getDefaultColor());
+   }
+
+   @Test
+   void aTreesStaticNodeColourMovesAndComesBack() {
+      ChartVSAssemblyInfo info = newChart();
+      RelationVSChartInfo tree = new RelationVSChartInfo();
+      tree.setChartType(GraphTypes.CHART_TREE);
+      StaticColorFrameWrapper node = new StaticColorFrameWrapper();
+      node.setDefaultColor(LEGACY_1);
+      tree.setNodeColorFrameWrapper(node);
+      info.setVSChartInfo(tree);
+
+      modernize(info);
+      assertEquals(MODERN_1, node.getDefaultColor());
+      revert(info);
+      assertEquals(LEGACY_1, node.getDefaultColor());
    }
 
    @Test

@@ -39,7 +39,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * reset, and clears the user tier; any other colour is still the author's.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
 class StaticColorFrameFactoryTest {
@@ -87,6 +88,21 @@ class StaticColorFrameFactoryTest {
 
       assertEquals(DEFAULT, updated.getUserColor());
       assertTrue(updated.isChanged());
+   }
+
+   @Test
+   void aResetOnAFreshWrapperTakesTheModelsDefault() {
+      StaticColorFrameWrapper wrapper = new StaticColorFrameWrapper();
+      StaticColorModel model = new StaticColorModel(wrapper);
+      model.setColor("#b9dbf4");
+      model.setDefaultColor("#b9dbf4");
+      model.setCssColor("");
+      model.setChanged(false);
+
+      StaticColorFrameWrapper updated = newService().updateVisualFrameWrapper(wrapper, model);
+
+      assertEquals(new Color(0xB9DBF4), updated.getDefaultColor());
+      assertNull(updated.getUserColor());
    }
 
    private static StaticColorFrameWrapper wrapper() {

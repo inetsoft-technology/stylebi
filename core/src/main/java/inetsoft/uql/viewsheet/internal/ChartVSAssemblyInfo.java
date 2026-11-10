@@ -22,8 +22,6 @@ import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
-import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
-import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
@@ -42,6 +40,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.util.*;
 import inetsoft.util.css.*;
 import org.slf4j.Logger;
@@ -272,7 +272,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    /**
     * Writes the mark-appropriate palette onto every bound colour aesthetic, so Modernize and Revert
     * keep the chart's colours in step with the rest of its chrome: the categorical palette on every
-    * call, and the measure-to-colour ramp on a mark transition only.
+    * call, and the measure-to-colour ramp on a mark transition only. It also moves each measure's
+    * default colour by palette position.
     */
    private void seedColorPalette(VizContext ctx) {
       VSChartInfo info = getVSChartInfo();

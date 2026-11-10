@@ -2905,6 +2905,16 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * Check if the author set the label colour of a y axis, read from the descriptor and label
+    * format the axis is built with.
+    */
+   boolean isAuthorAxisLabelColor(Scale yscale) {
+      AxisDescriptor ydesc = getAxisDescriptor(yscale, "y");
+      CompositeTextFormat format = getAxisLabelFormat(ydesc, yscale.getFields(), false);
+      return format != null && format.getUserDefinedFormat().isColorDefined();
+   }
+
+   /**
     * If using default format and un-rotated label, allow abbreviation.
     * @param hor true if this axis is horizontal
     */
