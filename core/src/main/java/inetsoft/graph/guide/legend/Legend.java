@@ -705,6 +705,9 @@ public abstract class Legend extends BoundedContainer {
          if(itemColor != null) {
             item.setSymbolColor(itemColor);
          }
+         else if(frame.getLegendSpec().getSymbolFallbackColor() != null) {
+            item.setSymbolColor(frame.getLegendSpec().getSymbolFallbackColor());
+         }
 
          if(elem != null) {
             Object alpha = elem.getHint(GraphElement.HINT_ALPHA);
