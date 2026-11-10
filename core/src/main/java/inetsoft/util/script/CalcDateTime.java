@@ -184,25 +184,15 @@ public class CalcDateTime {
          return null;
       }
 
-      Date orig = (Date) ((Date) date).clone();
       Calendar cal = CoreTool.calendar.get();
       cal.setTime((Date) date);
-      int st_month = cal.get(Calendar.MONTH);
-
-      cal.set(Calendar.MONTH, cal.get(Calendar.MONTH) + months);
 
       // @by amitm, bug1130863074712
-      // Jan 31, 2000 + 1 using Calendar gives March 2, 2000
-      // Hence if the difference in the months > the number of months
-      // specified, we have to find the end of the nth month post current
-      // month.
-      if(cal.get(Calendar.MONTH) - st_month > months) {
-         Calendar calOg = CoreTool.calendar2.get();
-         calOg.setTime(orig);
-         calOg.set(Calendar.DATE, 1);
-         return eomonth(calOg.getTime(), months);
-      }
-
+      // Jan 31, 2000 + 1 using Calendar.set(MONTH) gives March 2, 2000.
+      // Calendar.add clamps the day to the end of the target month, for both
+      // positive and negative months and when the shift wraps the year
+      // (bug #80953: Dec 31, 2000 + 2 gave March 3, 2001).
+      cal.add(Calendar.MONTH, months);
       return cal.getTime();
    }
 
