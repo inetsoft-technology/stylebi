@@ -82,7 +82,20 @@ describe("Combined Color Pane Unit Test", () => {
 
       //Bug #20376
       combinedColorPane.reset();
-      expect(combinedColorPane.frameInfos[0].frame.color).toEqual(MODERN_HEAD[0]);
+      expect(combinedColorPane.frameInfos[0].frame.color).toEqual("#518db9");
       expect(combinedColorPane.frameInfos[1].frame.color).toEqual("#7030a0");
+   });
+
+   it("reset prefers the stylesheet colour", () => {
+      let frame = createMockStaticColorModel("#d84d3f");
+      frame.cssColor = "#123456";
+      fixture = TestBed.createComponent(CombinedColorPane);
+      combinedColorPane = <CombinedColorPane>fixture.componentInstance;
+      combinedColorPane.frameInfos = [{ frame: frame, name: "Sum(id)" }];
+      fixture.detectChanges();
+
+      combinedColorPane.reset();
+      expect(frame.color).toEqual("#123456");
+      expect(frame.changed).toBe(false);
    });
 });

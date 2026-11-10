@@ -50,6 +50,16 @@ public abstract class ColorFrameModelFactory<V extends ColorFrameWrapper,
       {
          Color color = Tool.getColorFromHexString(model.getColor());
          Color defaultColor = Tool.getColorFromHexString(model.getDefaultColor());
+         String css = model.getCssColor();
+         Color shown = Tool.getColorFromHexString(
+            css != null && !css.isEmpty() ? css : model.getDefaultColor());
+
+         // the colour the frame shows without an author colour is a reset
+         if(!model.isChanged() && color != null && color.equals(shown)) {
+            nwrapper.setUserColor(null);
+            nwrapper.setChanged(false);
+            return nwrapper;
+         }
 
          if(!Tool.equals(nwrapper.getColor(), color)) {
             nwrapper.setUserColor(color);
