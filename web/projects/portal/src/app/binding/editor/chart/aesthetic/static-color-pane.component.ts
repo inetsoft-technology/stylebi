@@ -36,8 +36,9 @@ export class StaticColorPane {
    }
 
    clearColor(color: string) {
+      const shown = this.frame.cssColor || this.frame.defaultColor;
       this.frame.changed = false;
-      this.frame.color = color;
-      this.colorChanged.emit(color);
+      this.frame.color = shown;
+      this.colorChanged.emit(shown);
    }
 }

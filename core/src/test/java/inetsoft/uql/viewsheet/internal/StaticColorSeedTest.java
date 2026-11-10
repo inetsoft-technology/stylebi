@@ -29,6 +29,10 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
+import inetsoft.web.binding.service.graph.aesthetic.ColorFrameModelFactory;
+import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactory;
+import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -37,6 +41,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -145,6 +151,28 @@ class StaticColorSeedTest {
       String before = writeXml(info);
       seed(info);
       assertEquals(before, writeXml(info));
+   }
+
+   @Test
+   void resetThenRevertDrawsTheLegacyColour() {
+      ChartVSAssemblyInfo info = newChart();
+      VSChartAggregateRef a = agg("a", LEGACY_1);
+      frame(a).setUserColor(Color.RED);
+      bind(info, GraphTypes.CHART_BAR, refs(), refs(a));
+      modernize(info);
+
+      StaticColorModel model = new StaticColorModel(frame(a));
+      model.setColor(model.getDefaultColor());
+      model.setChanged(false);
+      List<VisualFrameModelFactory<?, ?>> factories = new ArrayList<>();
+      factories.add(new ColorFrameModelFactory.StaticColorFrameFactory());
+      StaticColorFrameWrapper reset =
+         new VisualFrameModelFactoryService(factories).updateVisualFrameWrapper(frame(a), model);
+      a.setColorFrameWrapper(reset);
+      assertNull(frame(a).getUserColor());
+
+      revert(info);
+      assertEquals(LEGACY_1, frame(a).getColor());
    }
 
    @Test
