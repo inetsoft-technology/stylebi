@@ -48,6 +48,7 @@ import static org.mockito.Mockito.mockStatic;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("cluster")
 class BookmarkLockManagerClusterTest {
    private static final String MAP_NAME = "BOOKMARK_LOCK_MAP";
 

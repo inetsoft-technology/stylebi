@@ -60,6 +60,7 @@ import static org.mockito.Mockito.*;
  * 5 s -> 0.5 s, gap between the AT conditions 60 s -> 6 s.
  */
 @Tag("slow")
+@Tag("cluster")
 class ClusterJobStoreDuplicateFireTest {
    @BeforeEach
    void setUp() {

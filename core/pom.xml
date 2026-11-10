@@ -36,7 +36,9 @@
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <!--
       JUnit 5 tag expression for the tests surefire runs in this module. Tags in use
-      under src/test: core, slow, integration, known-bug, known-deadlock.
+      under src/test: core (under 10 s), slow (10 s or more), integration, known-bug,
+      known-deadlock, plus the environment tags docker, cluster and database, which are
+      added next to core or slow and do not change which tests run.
       Select other tags with -Dsurefire.groups=<expr>, e.g. -Dsurefire.groups=slow or
       "-Dsurefire.groups=core | slow". Do not use -Dgroups: it is ignored here and it
       also narrows modules that only set excludedGroups (they then run 0 tests).

@@ -47,7 +47,7 @@ import java.util.zip.ZipInputStream;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "/inetsoft/report/composition/EmbeddedVS1.zip")
-@Tag("core")
+@Tag("slow")
 class CSVVSExporterHiddenColumnTest {
    private String crosstab(int hide, boolean keep) throws Exception {
       ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();

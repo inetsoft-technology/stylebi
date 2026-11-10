@@ -66,7 +66,8 @@ import static org.junit.jupiter.api.Assertions.*;
    SnapshotFileReferencesStaleNodeTest.TestClusterConfiguration.class
 }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Tag("cluster")
 class SnapshotFileReferencesStaleNodeTest {
    @BeforeAll
    static void startSurvivor() throws Exception {

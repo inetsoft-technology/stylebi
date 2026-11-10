@@ -77,7 +77,7 @@ import static org.mockito.Mockito.*;
                                   DataSourcePathClashTest.Beans.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class DataSourcePathClashModelEntriesTest {
    private static final String URL = "jdbc:derby:memory:bug77820;create=true";
 

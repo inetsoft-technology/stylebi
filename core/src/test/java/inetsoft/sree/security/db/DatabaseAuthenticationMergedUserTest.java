@@ -51,6 +51,7 @@ import static org.mockito.Mockito.*;
 @SreeHome
 // over 10 s with the Spring context and the Derby databases
 @Tag("slow")
+@Tag("database")
 class DatabaseAuthenticationMergedUserTest extends DatabaseAuthenticationCollationTestBase {
    @ParameterizedTest(name = "usersQuery=''{0}''")
    @ValueSource(strings = { "", "   " })

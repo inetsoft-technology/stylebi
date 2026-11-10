@@ -63,6 +63,8 @@ import static org.mockito.Mockito.*;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("cluster")
+@Tag("database")
 class DatabaseAuthenticationCacheIgniteTest {
    @BeforeEach
    void setUp() throws Exception {

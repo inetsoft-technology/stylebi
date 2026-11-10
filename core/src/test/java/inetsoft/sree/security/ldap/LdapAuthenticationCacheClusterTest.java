@@ -51,6 +51,7 @@ import static org.mockito.Mockito.*;
 }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("cluster")
 class LdapAuthenticationCacheClusterTest {
    @BeforeAll
    static void startNode() throws Exception {

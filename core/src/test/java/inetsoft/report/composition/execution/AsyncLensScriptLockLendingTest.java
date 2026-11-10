@@ -73,7 +73,7 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 public class AsyncLensScriptLockLendingTest {
    @BeforeEach
    public void setUp() {

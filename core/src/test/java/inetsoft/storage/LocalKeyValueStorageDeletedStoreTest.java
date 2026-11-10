@@ -56,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
    initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow")
+@Tag("cluster")
 class LocalKeyValueStorageDeletedStoreTest {
    @TempDir
    static Path clusterDir;
