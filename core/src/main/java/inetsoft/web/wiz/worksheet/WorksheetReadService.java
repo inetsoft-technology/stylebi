@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -116,8 +117,42 @@ public class WorksheetReadService {
                                                  boolean primary) {
       return new WorksheetModel.MirrorModel(
          assembly.getName(), WorksheetEditService.Editor.assemblyKind(assembly),
-         WorksheetEditService.Editor.mirrorSource(mirror), mirror.isOuterMirror(),
-         mirror.isAutoUpdate(), primary);
+         WorksheetEditService.Editor.mirrorSource(mirror), outerScope(mirror),
+         mirror.isOuterMirror(), mirror.isAutoUpdate(), primary);
+   }
+
+   private static String outerScope(MirrorAssembly mirror) {
+      AssetEntry entry = mirror.getEntry();
+
+      if(!mirror.isOuterMirror() || entry == null || entry.getPath() == null) {
+         return null;
+      }
+
+      return entry.getScope() == AssetRepository.USER_SCOPE ? "user" : "global";
+   }
+
+   /**
+    * Where a visible table mirror was copied from, or {@code null} when it is not a
+    * cross-worksheet mirror. A mirror's hidden copies are skipped: a nested mirror's copy is
+    * itself an outer mirror pointing at the next worksheet down, and reporting that on a row the
+    * caller cannot touch would read as a second mirror. The path is the stored entry's, never
+    * decoded from the copy's {@code OUTER_} name, which can disagree after a rename.
+    */
+   private static WorksheetModel.MirrorOf readMirrorOf(TableAssembly t) {
+      if(!(t instanceof MirrorTableAssembly m) || m.isOuter() || !m.isOuterMirror()) {
+         return null;
+      }
+
+      AssetEntry entry = m.getEntry();
+
+      if(entry == null || entry.getPath() == null) {
+         return null;
+      }
+
+      boolean user = entry.getScope() == AssetRepository.USER_SCOPE;
+      IdentityID owner = user ? entry.getUser() : null;
+      return new WorksheetModel.MirrorOf(entry.getPath(), user ? "user" : "global",
+                                         owner == null ? null : owner.getName());
    }
 
    private static Boolean hidden(Assembly assembly) {
@@ -169,7 +204,7 @@ public class WorksheetReadService {
          readReferencedVariables(t),
          mvUpdatePreConditions, mvUpdatePostConditions,
          mvDeletePreConditions, mvDeletePostConditions,
-         t.isMVForceAppendUpdates(), hidden(t));
+         t.isMVForceAppendUpdates(), hidden(t), readMirrorOf(t));
    }
 
    /**

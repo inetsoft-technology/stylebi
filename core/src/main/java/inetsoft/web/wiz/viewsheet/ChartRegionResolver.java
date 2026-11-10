@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import org.slf4j.Logger;
@@ -191,6 +192,40 @@ final class ChartRegionResolver {
       // REAL-SIZE one, so each half is resolved from the same graph its areas come from.
       return new Regions(resolve(chart, pair == null ? null : pair.getExpandedVGraph()),
                          legends(pair == null ? null : pair.getRealSizeVGraph()));
+   }
+
+   /**
+    * The legends of the chart that are switched off: the bound ones from the descriptors, plus
+    * the automatic colour legend (the "Measures" legend) when the laid-out graph shows the chart
+    * would draw one (bug #80505 item 3). See {@link ChartVisibilityState#hiddenAutomaticColorLegend}.
+    */
+   static ChartVisibilityState.HiddenLegends hiddenLegends(RuntimeViewsheet rvs,
+                                                           ChartVSAssembly chart)
+   {
+      ChartDescriptor desc = ChartVisibilityState.descriptor(chart);
+      VSChartInfo info = chart.getVSChartInfo();
+      boolean maxMode = ChartVisibilityState.maxMode(rvs, chart);
+      ChartVisibilityState.HiddenLegends bound =
+         ChartVisibilityState.hiddenLegends(desc, info, maxMode);
+      VGraphPair pair = laidOutPair(rvs, chart);
+      VGraph graph = pair == null ? null : pair.getRealSizeVGraph();
+
+      if(graph == null) {
+         return bound;
+      }
+
+      boolean drawn = legends(graph).legends().stream()
+         .anyMatch(legend -> legend.field() == null && "color".equals(legend.channel()));
+      ChartVisibilityState.HiddenLegend automatic = ChartVisibilityState.hiddenAutomaticColorLegend(
+         graph.getEGraph(), info, desc, maxMode, drawn);
+
+      if(automatic == null) {
+         return bound;
+      }
+
+      List<ChartVisibilityState.HiddenLegend> all = new ArrayList<>(bound.hidden());
+      all.add(automatic);
+      return new ChartVisibilityState.HiddenLegends(List.copyOf(all));
    }
 
    /**

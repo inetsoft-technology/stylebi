@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -144,6 +145,42 @@ class SelectionRuntimeServiceSelectionStateTest {
       assertEquals(false, result.get("computed"));
       assertEquals(0, result.get("selectedTotal"));
       assertEquals(0, result.get("selectableTotal"));
+   }
+
+   @Test
+   void stateReportsTheActiveSearchString() throws Exception {
+      SelectionListVSAssembly assembly = SelectionRuntimeServiceTest.list(0, false, "Sm");
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      Map<String, Object> result =
+         h.service().selectionState("tok", SelectionRuntimeServiceTest.principal(), "Filter1");
+
+      assertEquals("Sm", result.get("search"));
+   }
+
+   @Test
+   void stateReportsAnEmptySearchWhenNoneIsSetOrItWasCleared() throws Exception {
+      for(String search : new String[] { null, "" }) {
+         SelectionListVSAssembly assembly = SelectionRuntimeServiceTest.list(0, false, search);
+         SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+         Map<String, Object> result =
+            h.service().selectionState("tok", SelectionRuntimeServiceTest.principal(), "Filter1");
+
+         assertEquals("", result.get("search"), "search must be empty, not null, for " + search);
+      }
+   }
+
+   @Test
+   void aTreeStateReportsItsSearchStringToo() throws Exception {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(((SelectionTreeVSAssemblyInfo) assembly.getInfo()).getSearchString()).thenReturn("Ea");
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      Map<String, Object> result =
+         h.service().selectionState("tok", SelectionRuntimeServiceTest.principal(), "Tree1");
+
+      assertEquals("Ea", result.get("search"));
    }
 
    @Test

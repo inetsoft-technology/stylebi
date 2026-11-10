@@ -2486,6 +2486,24 @@ public class ViewsheetAssemblyAgentController {
                                          request.col(), request.value(), linkUri);
    }
 
+   /**
+    * {@code form_table_read}: a checkpoint-free paged read of a Form table's rows with their
+    * state and the pending-edit flag. {@code offset} defaults to 0 and {@code limit} to 50.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/read")
+   public Map<String, Object> formTableRead(@PathVariable String sessionToken,
+                                            @RequestBody FormTableReadRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formTableRowService.read(sessionToken, user, request.assembly(),
+                                      request.offset() == null ? 0 : request.offset(),
+                                      request.limit() == null ? 50 : request.limit(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/apply")
    public Map<String, Object> formTableApply(@PathVariable String sessionToken,
                                              @RequestBody FormTableApplyRequest request,
@@ -2634,6 +2652,7 @@ public class ViewsheetAssemblyAgentController {
    public record FormTableDeleteRowsRequest(String assembly, java.util.List<Integer> rows) {}
    public record FormTableSetCellRequest(String assembly, int row, int col, String value) {}
    public record FormTableApplyRequest(String assembly) {}
+   public record FormTableReadRequest(String assembly, Integer offset, Integer limit) {}
    public record EmbeddedTableSetCellsRequest(
       String assembly, java.util.List<EmbeddedTableCellService.CellChange> changes) {}
 

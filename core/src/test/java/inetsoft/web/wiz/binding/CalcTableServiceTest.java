@@ -31,6 +31,11 @@ import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.web.viewsheet.command.LoadTableDataCommand;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
+import org.mockito.MockedStatic;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
@@ -1675,6 +1680,114 @@ class CalcTableServiceTest {
                               columnsHandler, layoutHandler),
          sessions, layoutService, vs, info, refModelService, fieldsService,
          columnsHandler, layoutHandler);
+   }
+
+
+   // ── Bug #80844: set_cell_binding must produce the cells the paired canvas paints ──────────
+
+   /**
+    * Runs set_cell_binding with the table-data load stubbed, collecting what the capturing
+    * dispatcher saw (what the broadcast layer would forward) in {@code captured}.
+    */
+   private static Map<String, Object> bindCellCapturing(Harness h, boolean visible,
+                                                        java.util.function.Consumer<CommandDispatcher> load,
+                                                        List<CommandDispatcher.Command> captured,
+                                                        MockedStatic<BaseTableService> table)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = h.sessions.resolve("tok", principal());
+      doAnswer(invocation -> {
+         ViewsheetSessionService.CellMutation mutation = invocation.getArgument(5);
+         return CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            try {
+               mutation.run(rvs, "rt1", dispatcher, false);
+            }
+            finally {
+               captured.addAll(dispatcher.getCapturedCommands());
+            }
+
+            return dispatcher.getWarnings();
+         });
+      }).when(h.sessions).mutateForCell(anyString(), any(Principal.class), anyString(), anyInt(),
+                                        anyInt(), any());
+      table.when(() -> BaseTableService.loadTableData(any(), anyString(), anyInt(), anyInt(),
+                                                      anyInt(), any(), any(), anyBoolean()))
+         .thenAnswer(invocation -> {
+            load.accept(invocation.getArgument(6));
+            return null;
+         });
+
+      try(MockedStatic<VSEventUtil> events = mockStatic(VSEventUtil.class)) {
+         events.when(() -> VSEventUtil.isVisible(any(), any())).thenReturn(visible);
+         return h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, columnCell("Region"));
+      }
+   }
+
+   private static long loadCommands(List<CommandDispatcher.Command> captured) {
+      return captured.stream()
+         .filter(c -> c.getCommand() instanceof LoadTableDataCommand).count();
+   }
+
+   /** Zero before the fix: the native apply dispatches no LoadTableDataCommand for this write. */
+   @Test
+   void setCellBindingCapturesExactlyOneLoadTableDataCommand() throws Exception {
+      Harness h = harness(1, 1);
+      List<CommandDispatcher.Command> captured = new ArrayList<>();
+
+      try(MockedStatic<BaseTableService> table = mockStatic(BaseTableService.class)) {
+         bindCellCapturing(h, true,
+                           d -> d.sendCommand("Calc1", mock(LoadTableDataCommand.class)),
+                           captured, table);
+
+         table.verify(() -> BaseTableService.loadTableData(any(), eq("Calc1"), eq(0), anyInt(),
+                                                           anyInt(), any(), any(), eq(true)));
+      }
+
+      assertEquals(1, loadCommands(captured));
+      assertEquals("Calc1", captured.stream()
+         .filter(c -> c.getCommand() instanceof LoadTableDataCommand)
+         .findFirst().orElseThrow().getAssembly());
+   }
+
+   @Test
+   void setCellBindingLoadFailureDoesNotTurnTheWriteIntoAWarningOrError() throws Exception {
+      Harness h = harness(1, 1);
+      List<CommandDispatcher.Command> captured = new ArrayList<>();
+
+      try(MockedStatic<BaseTableService> table = mockStatic(BaseTableService.class)) {
+         Map<String, Object> result = bindCellCapturing(h, true, d -> {
+            MessageCommand error = new MessageCommand();
+            error.setMessage("no data");
+            error.setType(MessageCommand.Type.ERROR);
+            d.sendCommand(error);
+            MessageCommand warning = new MessageCommand();
+            warning.setMessage("slow");
+            warning.setType(MessageCommand.Type.WARNING);
+            d.sendCommand(warning);
+         }, captured, table);
+
+         assertTrue(result == null || !result.containsKey("warnings"),
+                    "a repeated load failure must not add a warning: " + result);
+      }
+
+      assertEquals(0, loadCommands(captured));
+      assertTrue(captured.stream().noneMatch(c -> c.getCommand() instanceof MessageCommand));
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   @Test
+   void setCellBindingDoesNotLoadCellsForAnInvisibleTable() throws Exception {
+      Harness h = harness(1, 1);
+      List<CommandDispatcher.Command> captured = new ArrayList<>();
+
+      try(MockedStatic<BaseTableService> table = mockStatic(BaseTableService.class)) {
+         bindCellCapturing(h, false,
+                           d -> d.sendCommand("Calc1", mock(LoadTableDataCommand.class)),
+                           captured, table);
+         table.verifyNoInteractions();
+      }
+
+      assertEquals(0, loadCommands(captured));
    }
 
    private static Principal principal() {

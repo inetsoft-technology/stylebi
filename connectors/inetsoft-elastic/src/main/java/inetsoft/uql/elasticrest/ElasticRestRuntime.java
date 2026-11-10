@@ -35,7 +35,9 @@ import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class ElasticRestRuntime extends TabularRuntime implements TabularCatalogProvider {
    @Override
@@ -64,12 +66,14 @@ public class ElasticRestRuntime extends TabularRuntime implements TabularCatalog
             jsonpath = "$";
          }
 
-         Object rc = JsonPath.using(Configuration.builder()
+         DocumentContext response = JsonPath.using(Configuration.builder()
                            .options(Option.DEFAULT_PATH_LEAF_TO_NULL)
                            .jsonProvider(jsonProvider)
                            .build())
-            .parse(input)
-            .read(jsonpath);
+            .parse(input);
+         Object rc = response.read(jsonpath);
+         String cappedWarning = getCappedSearchWarning(
+            jsonpath, readOrNull(response, "$.hits.total"), readOrNull(response, "$.hits.hits"));
          final BaseJsonTable table;
 
          if(expanded) {
@@ -88,6 +92,10 @@ public class ElasticRestRuntime extends TabularRuntime implements TabularCatalog
 
          LOG.debug("ElasticSearch Rest query JSON result: \n" +
                    JsonFormatter.prettyPrint(rc.toString()));
+
+         if(cappedWarning != null) {
+            Tool.addUserWarning(cappedWarning);
+         }
 
          return table;
       }
@@ -132,6 +140,76 @@ public class ElasticRestRuntime extends TabularRuntime implements TabularCatalog
       }
 
       ElasticMappingTypes.apply(table, rc, fields);
+   }
+
+   /**
+    * Returns a one-line warning when a search response holds fewer hits than the documents it
+    * matched, or {@code null} when the table read every matching document (or there is nothing to
+    * compare).
+    *
+    * <p>A single {@code _search} returns at most {@code size} hits (10 when the request names none),
+    * and never more than the index's {@code max_result_window}, so a table built from
+    * {@code hits.hits} can silently hold only part of the result. The check compares the server's
+    * own {@code hits.total} with the number of hits the server returned, never with the rows the
+    * table kept, so the query's max-rows limit (applied after the fetch) does not raise it.
+    *
+    * <p>Elasticsearch 7+ reports {@code hits.total} as {@code {"value": n, "relation": "eq"|"gte"}}
+    * and, by default, stops counting at 10000 with {@code relation: "gte"} - so a 10000-hit page of a
+    * larger index has {@code value == hits returned} and only the relation reveals the cap.
+    * Elasticsearch 6 (and {@code rest_total_hits_as_int}) reports a bare number. A missing total
+    * ({@code track_total_hits: false}) gives nothing to compare, so no warning is raised.
+    *
+    * <p>Only a json path reading the hits themselves ({@code $.hits.hits...}) is checked. An
+    * aggregation query reads {@code $.aggregations...} and legitimately returns fewer hits than
+    * matched; a path reading the whole response ({@code $}, {@code $.hits}) leaves the hits to the
+    * caller, so neither warns.
+    *
+    * @param jsonPath  the query's json path, already defaulted to {@code $}.
+    * @param hitsTotal the response's {@code hits.total}, or {@code null} if absent.
+    * @param hits      the response's {@code hits.hits}, or {@code null} if absent.
+    */
+   static String getCappedSearchWarning(String jsonPath, Object hitsTotal, Object hits) {
+      if(jsonPath == null || !HITS_PATH.matcher(jsonPath.replaceAll("\\s", "")).find() ||
+         !(hits instanceof List<?> hitList))
+      {
+         return null;
+      }
+
+      long total;
+      boolean lowerBound = false;
+
+      if(hitsTotal instanceof Number number) {
+         total = number.longValue();
+      }
+      else if(hitsTotal instanceof Map<?, ?> map && map.get("value") instanceof Number number) {
+         total = number.longValue();
+         lowerBound = "gte".equals(map.get("relation"));
+      }
+      else {
+         return null;
+      }
+
+      int returned = hitList.size();
+
+      if(!lowerBound && total <= returned) {
+         return null;
+      }
+
+      return "The Elasticsearch search returned " + returned + " of " +
+         (lowerBound ? "at least " : "") + total + " matching documents, so the table holds only " +
+         "part of the result. Narrow the query (suffix or filter) to read the rest; a single " +
+         "search returns at most its size (10 by default) and never more than the index's " +
+         "max_result_window (10000 by default).";
+   }
+
+   private static Object readOrNull(DocumentContext response, String path) {
+      try {
+         return response.read(path);
+      }
+      catch(Exception ex) {
+         // the response is not a search response (e.g. an array from a _cat endpoint)
+         return null;
+      }
    }
 
    public void testDataSource(TabularDataSource ds0,
@@ -293,6 +371,9 @@ public class ElasticRestRuntime extends TabularRuntime implements TabularCatalog
       return url;
    }
 
+   // $.hits.hits / $['hits']['hits'] / $["hits"]["hits"], alone or followed by [ or .
+   private static final Pattern HITS_PATH = Pattern.compile(
+      "^\\$(\\.hits\\.hits|\\['hits']\\['hits']|\\[\"hits\"]\\[\"hits\"])($|[.\\[])");
    private static final JsonProvider jsonProvider = new JacksonJsonProvider();
    private static final Logger LOG = LoggerFactory.getLogger(ElasticRestRuntime.class.getName());
 }
