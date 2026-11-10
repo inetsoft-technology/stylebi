@@ -1894,7 +1894,33 @@ public class UserTreeService {
       identityService.setIdentity(oldRole, model, provider, principal);
       themeService.updateIdentityTheme(model.oldName(), model.name(), model.organization(),
                                        model.theme(), CustomTheme::getRoles, principal);
-      migrateRoleRename(oldID, new IdentityID(model.name(), model.organization()));
+      final IdentityID newID = new IdentityID(model.name(), model.organization());
+
+      // Bug #80956, the rename is already saved, so a failed move of the role's own permission
+      // must not skip the migration; the failure is reported after it
+      RuntimeException permissionFailure = null;
+
+      try {
+         identityService.moveIdentityPermission(ResourceType.SECURITY_ROLE, oldID, newID);
+      }
+      catch(RuntimeException e) {
+         permissionFailure = e;
+      }
+
+      try {
+         migrateRoleRename(oldID, newID);
+      }
+      catch(Exception e) {
+         if(permissionFailure == null) {
+            throw e;
+         }
+
+         permissionFailure.addSuppressed(e);
+      }
+
+      if(permissionFailure != null) {
+         throw permissionFailure;
+      }
    }
 
    private List<IdentityID> getDefaultRoles(AuthenticationProvider provider, String org) {
