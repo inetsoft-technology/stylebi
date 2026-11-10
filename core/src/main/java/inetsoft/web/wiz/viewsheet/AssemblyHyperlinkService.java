@@ -964,8 +964,11 @@ public class AssemblyHyperlinkService {
 
       // An existing-but-unreadable target must be indistinguishable from a missing one: same
       // text, so a caller cannot probe for another user's dashboards (or, via the bookmark
-      // validation that follows, learn their bookmark names).
-      if((!otherOrg && !repository.containsEntry(entry)) ||
+      // validation that follows, learn their bookmark names). Another user's private dashboard
+      // (My Dashboards) counts as unreadable for every caller, an Administrator included
+      // (bug #80639), exactly as list_hyperlink_targets never offers it.
+      if(isForeignUserScope(entry, user) ||
+         (!otherOrg && !repository.containsEntry(entry)) ||
          !isReadable(repository, user, entry))
       {
          throw new IllegalArgumentException(
@@ -976,10 +979,23 @@ public class AssemblyHyperlinkService {
    }
 
    /**
+    * True when {@code entry} is a private (user-scope, My Dashboards) asset owned by someone other
+    * than {@code user}, in any organization. The READ rule alone cannot express "never": it lets a
+    * system administrator read every user's private entries, whereas a link to another user's
+    * private dashboard is offered to nobody. {@link #listLinkTargets} walks only the caller's own
+    * user scope ({@code owner} built from {@code user.getName()}), so this is the same ownership
+    * test, applied to an explicit id (bug #80639).
+    */
+   private static boolean isForeignUserScope(AssetEntry entry, Principal user) {
+      return entry.getScope() == AssetRepository.USER_SCOPE &&
+         !IdentityID.getIdentityIDFromKey(user.getName()).equals(entry.getUser());
+   }
+
+   /**
     * True when {@code user} may READ {@code entry}. {@code containsEntry} is a permission-free
     * storage lookup, so the write path needs this gate to match the read tools
     * ({@link #describeTarget}, {@code getBookmarks}). A system administrator passes by product
-    * design.
+    * design; the owner-only rule for private dashboards is {@link #isForeignUserScope}.
     */
    private static boolean isReadable(AssetRepository repository, Principal user, AssetEntry entry) {
       try {
