@@ -689,8 +689,7 @@ public class ChartElementService {
          ChartDescriptor desc = ChartVisibilityState.descriptor(chart);
          VSChartInfo info = chart.getVSChartInfo();
          boolean maxMode = ChartVisibilityState.maxMode(rvs, chart);
-         ChartVisibilityState.HiddenLegends hidden =
-            ChartVisibilityState.hiddenLegends(desc, info, maxMode);
+         ChartVisibilityState.HiddenLegends hidden = ChartRegionResolver.hiddenLegends(rvs, chart);
          List<Map<String, Object>> hiddenLegends = new ArrayList<>();
 
          for(ChartVisibilityState.HiddenLegend legend : hidden.hidden()) {
@@ -840,9 +839,7 @@ public class ChartElementService {
       return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartRegionResolver.Legends legends = ChartRegionResolver.legends(rvs, chart);
-         ChartVisibilityState.HiddenLegends hidden = ChartVisibilityState.hiddenLegends(
-            ChartVisibilityState.descriptor(chart), chart.getVSChartInfo(),
-            ChartVisibilityState.maxMode(rvs, chart));
+         ChartVisibilityState.HiddenLegends hidden = ChartRegionResolver.hiddenLegends(rvs, chart);
          String already = alreadyHidden(legends, hidden, target);
 
          if(already != null) {

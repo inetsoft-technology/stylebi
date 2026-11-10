@@ -2240,9 +2240,7 @@ public class ChartRegionPropertyService {
             sessionToken, user,
             (rvs, runtimeId, dispatcher) -> {
                ChartVSAssembly chart = ChartRegionResolver.requireChart(rvs, assembly);
-               return ChartVisibilityState.hiddenLegends(
-                  ChartVisibilityState.descriptor(chart), chart.getVSChartInfo(),
-                  ChartVisibilityState.maxMode(rvs, chart));
+               return ChartRegionResolver.hiddenLegends(rvs, chart);
             });
 
          ChartRegionResolver.requireLegend(legends, indexOf(target), hidden);
