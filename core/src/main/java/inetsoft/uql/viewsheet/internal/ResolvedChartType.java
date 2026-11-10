@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.*;
 
@@ -27,9 +28,19 @@ import java.util.*;
  * The resolved chart type and design axis binding; a change re-runs the per-type seed.
  */
 public record ResolvedChartType(int type, boolean measureOnX, boolean measureOnY,
-                                List<String> xFields, List<String> yFields)
+                                List<String> xFields, List<String> yFields,
+                                boolean mapPolygonOnly)
    implements Serializable
 {
+   /**
+    * A key for a chart that is not a polygon-only map.
+    */
+   public ResolvedChartType(int type, boolean measureOnX, boolean measureOnY,
+                            List<String> xFields, List<String> yFields)
+   {
+      this(type, measureOnX, measureOnY, xFields, yFields, false);
+   }
+
    /**
     * The key for a chart info as it stands now.
     */
@@ -40,7 +51,13 @@ public record ResolvedChartType(int type, boolean measureOnX, boolean measureOnY
 
       return new ResolvedChartType(resolvedType(info), GraphUtil.hasMeasureOnX(info),
                                    GraphUtil.hasMeasureOnY(info), names(info.getXFields()),
-                                   names(info.getYFields()));
+                                   names(info.getYFields()), isPolygonOnlyMap(info));
+   }
+
+   // a map's regions with no point layer or anchor points
+   private static boolean isPolygonOnlyMap(ChartInfo info) {
+      return GraphTypeUtil.isMap(info) && GraphUtil.containsMapPolygon(info) &&
+         !GraphUtil.containsMapPoint(info);
    }
 
    private static int resolvedType(ChartInfo info) {

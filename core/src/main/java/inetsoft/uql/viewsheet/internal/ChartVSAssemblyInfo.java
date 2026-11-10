@@ -3151,8 +3151,68 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
       seedXGrid(ctx, type);
+      // the legacy branch replaces only a modern value
+      seedChartColor(ctx, type);
       // modern only; the classic value stays in legacySmoothLines()
       seedSmoothLines(ctx, type);
+   }
+
+   // the chart-level colour, which relation edges, maps and radar draw; default tier only
+   private void seedChartColor(VizContext ctx, ResolvedChartType type) {
+      VSChartInfo info = getVSChartInfo();
+      ColorFrameWrapper wrapper = info == null ? null : info.getColorFrameWrapper();
+
+      if(wrapper instanceof StaticColorFrameWrapper) {
+         StaticColorFrameWrapper sw = (StaticColorFrameWrapper) wrapper;
+         Color current = sw.getDefaultColor();
+         sw.setDefaultColor(ctx.modern ? modernChartColor(current, ctx, type) :
+                               legacyChartColor(current, type));
+      }
+   }
+
+   private static Color modernChartColor(Color current, VizContext ctx, ResolvedChartType type) {
+      if(GraphTypes.isRelation(type.type())) {
+         return VSChartChromeDefaults.axisLineColor(ctx);
+      }
+
+      if(type.mapPolygonOnly()) {
+         return GraphUtil.getMapDefaultColor(ctx);
+      }
+
+      if(isPaletteColor(current, ctx)) {
+         return VSChartPaletteDefaults.reseatStaticColor(current, ctx);
+      }
+
+      // the grey, a map tint or the classic region colour left by another type
+      if(VSChartPaletteDefaults.isModernChartColor(current) ||
+         GraphUtil.MAP_DEFAULT_COLOR.equals(current))
+      {
+         return VSChartPaletteDefaults.activePalette(ctx)[0];
+      }
+
+      return current;
+   }
+
+   private static Color legacyChartColor(Color current, ResolvedChartType type) {
+      // a classic value stays, so a classic chart's XML is unchanged
+      if(!VSChartPaletteDefaults.isModernChartColor(current)) {
+         return current;
+      }
+
+      if(type.mapPolygonOnly()) {
+         return GraphUtil.getMapDefaultColor();
+      }
+
+      return isPaletteColor(current, VizContext.LEGACY) ?
+         VSChartPaletteDefaults.reseatStaticColor(current, VizContext.LEGACY) :
+         CategoricalColorFrame.COLOR_PALETTE.get(0);
+   }
+
+   // a colour the position mapping knows, in the context's palette or another
+   private static boolean isPaletteColor(Color color, VizContext ctx) {
+      return color != null &&
+         (!color.equals(VSChartPaletteDefaults.reseatStaticColor(color, ctx)) ||
+          Arrays.asList(VSChartPaletteDefaults.staticPalette(ctx)).contains(color));
    }
 
    private void seedXGrid(VizContext ctx, ResolvedChartType type) {
