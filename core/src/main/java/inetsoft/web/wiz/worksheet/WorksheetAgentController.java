@@ -1836,20 +1836,19 @@ public class WorksheetAgentController {
          // row, encoding, ...) would otherwise keep the stale columns. Reset only after every
          // applyQueryContract call above, since those can re-cache columns through enabledMethods.
          // A caller-supplied 'columns' definition is the explicit new state and is kept.
-         boolean resetColumns = hasQueryParams || hasExtraProperties;
+         // Every edit form restates the request (endpoint, suffix or queryParams), so the previous
+         // request's output columns must never reach the probe: a probe that fails or returns no
+         // rows leaves them untouched, and they would then pass for a successful reload.
+         boolean callerSuppliedColumns =
+            containsColumnsKey(req.queryParams()) || containsColumnsKey(req.extraProperties());
 
-         if(resetColumns) {
-            boolean callerSuppliedColumns =
-               containsColumnsKey(req.queryParams()) || containsColumnsKey(req.extraProperties());
-
-            if(scratchQuery instanceof SelectableTabularQuery selectable &&
-               !callerSuppliedColumns)
-            {
-               selectable.setColumns(null);
-            }
-
-            scratchQuery.setOutputColumns(null);
+         if(scratchQuery instanceof SelectableTabularQuery selectable &&
+            !callerSuppliedColumns)
+         {
+            selectable.setColumns(null);
          }
+
+         scratchQuery.setOutputColumns(null);
 
          // Detached scratch assembly, never registered via ws.addAssembly -- loadColumnSelection
          // reads/writes only its OWN info/column-selection, so this is a pure, side-effect-free
@@ -1887,8 +1886,8 @@ public class WorksheetAgentController {
          Object reloadError = scratchQuery.getProperty("wizLoadColumnsError");
          // The seeded live selection can satisfy the emptiness check below even when the reload
          // failed, so a failed reload is detected explicitly rather than committed as stale columns.
-         boolean reloadFailed =
-            reloadError != null || (resetColumns && scratchQuery.getOutputColumns() == null);
+         // The output columns were cleared before the probe, so null means it produced none.
+         boolean reloadFailed = reloadError != null || scratchQuery.getOutputColumns() == null;
 
          if(reloadFailed || newColumns == null || newColumns.getAttributeCount() == 0) {
             Object loadError = scratchQuery.getProperty("wizLoadColumnsError");
