@@ -539,4 +539,23 @@ class WorksheetTableServiceEmptyResultMessageTest {
       assertNotNull(response.getColumns());
       assertEquals(1, response.getColumns().size());
    }
+
+   // ─── a probe that threw is refused even when metadata columns exist (Bug #80962) ──────────
+
+   @Test
+   void failedProbeIsRefusedEvenWhenMetadataColumnsExist() throws Exception {
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      XTypeNode idColumn = XSchema.createPrimitiveType(XSchema.STRING);
+      idColumn.setName("id");
+      query.setOutputColumns(new XTypeNode[] { idColumn });
+      query.reportThrownException("Null link provided");
+
+      WorksheetTableResponse response = only(build(query));
+
+      assertFalse(response.isSuccess(),
+         "a probe that threw must not become a table of described columns and zero rows");
+      assertTrue(response.getErrorMessage().contains("Null link provided"),
+         "the refusal must name the cause: " + response.getErrorMessage());
+      assertEquals(1, response.getErrorMessage().lines().count(), response.getErrorMessage());
+   }
 }

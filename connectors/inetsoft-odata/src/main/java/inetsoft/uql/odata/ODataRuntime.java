@@ -113,7 +113,11 @@ public class ODataRuntime extends TabularRuntime implements TabularCatalogProvid
                InvokeRequestFactory requestFactory = client.getInvokeRequestFactory();
                req = requestFactory.getFunctionInvokeRequest(uri, ClientEntitySet.class);
                setHeaders(isV4, req, true);
-               req.setAccept("*/*");
+
+               if(!isV4) {
+                  req.setAccept("*/*");
+               }
+
                ODataInvokeResponse res = req.execute();
                return new OEntityTable((ClientEntitySet) res.getBody(), query);
             }
@@ -173,9 +177,17 @@ public class ODataRuntime extends TabularRuntime implements TabularCatalogProvid
       }
       catch(Exception ex) {
          LOG.warn("Failed to execute OData query: " + query.getName(), ex);
-         Tool.addUserMessage("Failed to execute OData query: " + query.getName() +
-                             " (" + ex.getMessage() + ")");
-         handleError(params, ex, () -> null);
+         String message = "Failed to execute OData query: " + query.getName() +
+            " (" + ex.getMessage() + ")";
+         Tool.addUserMessage(message);
+
+         // Returning null made TabularHandler substitute an empty table, so a failed request
+         // read as "no data". Raise for every caller; handleError itself already throws for the
+         // scheduler. The message is flattened to one line because a multi-line message is
+         // truncated where it is reported.
+         handleError(params, ex, () -> {
+            throw new RuntimeException(singleLine(message), ex);
+         });
       }
 
       return null;
@@ -213,6 +225,24 @@ public class ODataRuntime extends TabularRuntime implements TabularCatalogProvid
    public void testDataSource(TabularDataSource ds0, VariableTable params) {
       ODataDataSource ds = (ODataDataSource) ds0;
       getEntities(ds, false);
+   }
+
+   /**
+    * Accept value for V4 requests that parse entities. With the default minimal metadata a
+    * service omits the media read link of an entity's stream property (it sends only
+    * {@code Photo@odata.mediaEtag}) and Olingo fails the whole response with "Null link
+    * provided"; full metadata carries the link. The wildcard keeps a server that cannot honour
+    * the explicit media type answering as before.
+    */
+   static final String V4_ENTITY_ACCEPT = "application/json;odata.metadata=full, */*;q=0.1";
+
+   /**
+    * Joins the lines of a message into one, since a multi-line message is truncated where
+    * it is reported.
+    */
+   static String singleLine(String message) {
+      return message.lines().map(String::trim).filter(l -> !l.isEmpty())
+         .collect(java.util.stream.Collectors.joining(" "));
    }
 
    static boolean isOdataV4(ODataDataSource ds) {
@@ -259,7 +289,7 @@ public class ODataRuntime extends TabularRuntime implements TabularCatalogProvid
          req.setAccept(format.toString());
       }
       else {
-         req.setAccept("*/*");
+         req.setAccept(V4_ENTITY_ACCEPT);
       }
    }
 

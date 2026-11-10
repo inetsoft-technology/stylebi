@@ -69,7 +69,7 @@ public class OEntityTable extends XTableNode {
             req = requestFactory.getEntitySetIteratorRequest(entities.getNext());
 
             if(isV4) {
-               req.setAccept("*/*");
+               req.setAccept(ODataRuntime.V4_ENTITY_ACCEPT);
             }
             else {
                req.setAccept(ContentType.APPLICATION_ATOM_XML.toString());

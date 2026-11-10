@@ -1430,12 +1430,14 @@ public class WorksheetAgentController {
          assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
+         Object loadError = query.getProperty("wizLoadColumnsError");
 
-         if(columns == null || columns.getAttributeCount() == 0) {
+         // A failed probe is refused even when metadata-derived columns exist, so a request that
+         // never read data does not become a table of zero rows.
+         if(loadError != null || columns == null || columns.getAttributeCount() == 0) {
             // Mirrors WorksheetTableService.buildTabularTable's empty-column check -- checked
             // BEFORE ws.addAssembly so a failed probe never leaves a zero-column assembly in the
             // live worksheet.
-            Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
             throw new PairingException(emptyColumnsRefusal(
                query, rws, loadError, cause,
@@ -1545,11 +1547,13 @@ public class WorksheetAgentController {
          assembly.loadColumnSelection(probeVariables(rws), true, null);
 
          ColumnSelection columns = assembly.getColumnSelection(false);
+         Object loadError = query.getProperty("wizLoadColumnsError");
 
-         if(columns == null || columns.getAttributeCount() == 0) {
+         // A failed probe is refused even when metadata-derived columns exist, so a request that
+         // never read data does not become a table of zero rows.
+         if(loadError != null || columns == null || columns.getAttributeCount() == 0) {
             // Checked BEFORE ws.addAssembly so a failed probe never leaves a zero-column
             // assembly in the live worksheet -- mirrors WorksheetTableService.buildTabularTable.
-            Object loadError = query.getProperty("wizLoadColumnsError");
             TabularProbeCause cause = TabularProbeCause.read(query, loadError);
             throw new PairingException(emptyColumnsRefusal(
                query, rws, loadError, cause, "The request to '" + dsName + "' returned no columns",
