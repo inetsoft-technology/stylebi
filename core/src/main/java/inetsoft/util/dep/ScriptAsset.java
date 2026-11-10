@@ -27,6 +27,7 @@ import inetsoft.uql.asset.internal.FunctionIterator;
 import inetsoft.uql.asset.internal.ScriptIterator.ScriptListener;
 import inetsoft.uql.asset.internal.ScriptIterator.Token;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.ai.scriptlibrary.ScriptLibraryValidator;
 import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,8 @@ import java.util.zip.ZipEntry;
  * @author InetSoft Technology Corp
  */
 public class ScriptAsset extends AbstractXAsset {
+   private static final Logger LOG = LoggerFactory.getLogger(ScriptAsset.class);
+
    /**
     * Script type XAsset.
     */
@@ -273,6 +276,7 @@ public class ScriptAsset extends AbstractXAsset {
          buf.append(line).append("\n");
       }
 
+      refuseDeadInvalidName(buf.toString());
       manager.setScript(script, buf.toString());
       Properties properties = new Properties();
 
@@ -293,6 +297,45 @@ public class ScriptAsset extends AbstractXAsset {
 
       manager.setScriptCommentProperties(script, properties, true);
       input.close();
+   }
+
+   /**
+    * The import is the one Script Library writer that takes the entry name from untrusted input.
+    * An entry whose name breaks the #80303 rule is refused only when it is also dead, i.e. its
+    * text does not compile (the same parse check the save gate uses, which is what the engine's
+    * install of the entry would fail on, e.g. {@code function a-b() {}}); an entry with an invalid
+    * name but a working body is still imported, as it always was, since its functions are
+    * callable. The refusal names the entry and lands in the import's failed list, the rest of the
+    * package still imports. When the engine cannot run the check the entry is not provably dead
+    * and is imported.
+    */
+   private void refuseDeadInvalidName(String body) {
+      try {
+         ScriptLibraryValidator.requireValidName("Script Library entry", script);
+         return;
+      }
+      catch(IllegalArgumentException nameError) {
+         ScriptLibraryValidator.SyntaxError error;
+
+         try {
+            error = ScriptLibraryValidator.diagnose(ScriptLibraryValidator.engineChecker(), body);
+         }
+         catch(RuntimeException e) {
+            error = null;
+         }
+
+         if(error == null || error.cause() instanceof IllegalStateException) {
+            LOG.warn("Imported Script Library entry \"{}\" has a name that is not a valid " +
+                     "JavaScript identifier; its text compiles so it was kept", script);
+            return;
+         }
+
+         throw new IllegalArgumentException(
+            "Script Library entry \"" + script + "\" was not imported: its name is not a valid " +
+            "JavaScript identifier (letters, digits, '_' and '$', not starting with a digit, not " +
+            "a reserved word) and its text does not compile, so it could never be loaded. " +
+            "Rename it to a valid function name in the source and export it again.", nameError);
+      }
    }
 
    /**
