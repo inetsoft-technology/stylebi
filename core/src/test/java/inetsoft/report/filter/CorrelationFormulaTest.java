@@ -93,6 +93,46 @@ class CorrelationFormulaTest {
    }
 
    @Test
+   void smallInputs_exactPlusMinusOne() {
+      assertExact(-1.0, new double[] { 1, 2, 3 }, new double[] { 3, 2, 1 });
+      assertExact(1.0, new double[] { 1, 2, 3 }, new double[] { 2, 4, 6 });
+      assertExact(1.0, new double[] { 1, 2, 3, 4, 5 }, new double[] { 10, 20, 30, 40, 50 });
+      assertExact(-1.0, new double[] { 1, 2, 3, 4 }, new double[] { 8, 6, 4, 2 });
+   }
+
+   private static void assertExact(double expected, double[] xs, double[] ys) {
+      CorrelationFormula f = new CorrelationFormula(1);
+
+      for(int i = 0; i < xs.length; i++) {
+         f.addValue(new Object[] { xs[i], ys[i] });
+      }
+
+      assertEquals(expected, (Double) f.getResult());
+      assertEquals(expected, f.getDoubleResult());
+   }
+
+   @Test
+   void extremeMagnitudes_productOverflowAndUnderflow() {
+      // m2x * m2y overflows to infinity, the separate roots must still give +-1
+      CorrelationFormula f = new CorrelationFormula(1);
+
+      for(int i = 1; i <= 5; i++) {
+         f.addValue(new Object[] { i * 1e100, -i * 1e100 });
+      }
+
+      assertEquals(-1.0, (Double) f.getResult(), 1e-12);
+
+      // m2x * m2y underflows to 0
+      f.reset();
+
+      for(int i = 1; i <= 5; i++) {
+         f.addValue(new Object[] { i * 1e-100, i * 1e-100 });
+      }
+
+      assertEquals(1.0, (Double) f.getResult(), 1e-12);
+   }
+
+   @Test
    void zeroVariance_behaviorPreserved() {
       CorrelationFormula f = new CorrelationFormula(1);
 

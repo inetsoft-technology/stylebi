@@ -87,7 +87,12 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
     * Get the correlation coefficient, NaN if either column has no variance.
     */
    private double correlation() {
-      return cxy / (Math.sqrt(m2x) * Math.sqrt(m2y));
+      double prod = m2x * m2y;
+      // sqrt of the product keeps exact results (e.g. -1) for small values; fall back to the
+      // separate roots only when the product underflows to 0 or overflows
+      double root = prod > 0 && !Double.isInfinite(prod) ? Math.sqrt(prod)
+         : Math.sqrt(m2x) * Math.sqrt(m2y);
+      return cxy / root;
    }
 
    /**
