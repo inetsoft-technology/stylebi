@@ -194,6 +194,39 @@ public class CalcDateTimeTest {
       }
    }
 
+   /**
+    * Bug #80953: axis = sign of months x whether the shift wraps the year.
+    */
+   @Test
+   public void testEdateYearWrap() {
+      // positive, same year (unchanged)
+      assertEquals(toDate("2001-02-28T00:00"), CalcDateTime.edate(toDate("2001-01-31T00:00"), 1));
+      assertEquals(toDate("2000-02-29T00:00"), CalcDateTime.edate(toDate("2000-01-31T00:00"), 1));
+      assertEquals(toDate("2001-02-28T00:00"), CalcDateTime.edate(toDate("2001-03-31T00:00"), -1));
+      // positive, year wraps
+      assertEquals(toDate("2001-02-28T00:00"), CalcDateTime.edate(toDate("2000-12-31T00:00"), 2));
+      assertEquals(toDate("2002-02-28T00:00"), CalcDateTime.edate(toDate("2001-11-30T00:00"), 3));
+      assertEquals(toDate("2002-02-28T00:00"), CalcDateTime.edate(toDate("2001-10-31T00:00"), 4));
+      // negative, year wraps: the day must be kept, not forced to month end
+      assertEquals(toDate("2000-12-15T00:00"), CalcDateTime.edate(toDate("2001-01-15T00:00"), -1));
+      assertEquals(toDate("2000-01-15T00:00"), CalcDateTime.edate(toDate("2001-03-15T00:00"), -14));
+   }
+
+   @Test
+   public void testEdateMatchesCalendarMonthAdd() {
+      LocalDateTime d = LocalDateTime.of(1999, 1, 1, 13, 45, 10);
+
+      for(int i = 0; i < 1500; i += 7) {
+         LocalDateTime start = d.plusDays(i);
+         Date date = toDate(start.toString());
+
+         for(int m = -30; m <= 30; m += 1) {
+            assertEquals(toDate(start.plusMonths(m).toString()), CalcDateTime.edate(date, m),
+                         start + " " + m);
+         }
+      }
+   }
+
    @Test
    public void testEomonth() {
       // Test Case 1: Valid date, positive months
