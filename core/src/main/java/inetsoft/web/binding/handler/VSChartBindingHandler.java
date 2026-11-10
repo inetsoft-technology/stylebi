@@ -215,7 +215,8 @@ public class VSChartBindingHandler {
       throws Exception
    {
       VSChartInfo cinfo = info.getVSChartInfo();
-      List<ChartRef> removeRefs = dndHandler.dropToXY(refs, cinfo, transfer, target);
+      List<ChartRef> removeRefs = dndHandler.dropToXY(refs, cinfo, transfer, target,
+                                                     VizContext.of(info));
 
       cinfo.clearRuntime();
 
@@ -246,7 +247,7 @@ public class VSChartBindingHandler {
       }
 
       VSChartInfo cinfo = info.getVSChartInfo();
-      dndHandler.dropToHighLow(ref, cinfo, transfer, target);
+      dndHandler.dropToHighLow(ref, cinfo, transfer, target, VizContext.of(info));
 
       if(transfer != null && ChartDndHandler.isAestheticRegion(transfer.getDragType())) {
          dataHandler.changeChartAesthetic(rvs, info);
