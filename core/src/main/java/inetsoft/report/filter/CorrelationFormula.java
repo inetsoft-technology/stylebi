@@ -59,11 +59,35 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
    @Override
    public void reset() {
       n = 0;
-      xy = 0;
-      x = 0;
-      y = 0;
-      x2 = 0; // x square
-      y2 = 0; // y square
+      meanX = 0;
+      meanY = 0;
+      m2x = 0;
+      m2y = 0;
+      cxy = 0;
+   }
+
+   /**
+    * Add one (x, y) pair. Uses the streaming (Welford) update of the means and the centered
+    * sums of squares/products, so the result depends on the spread of the values and not on
+    * their magnitude. The raw sums (n * sum(x^2) - sum(x)^2) cancel catastrophically when the
+    * values are large relative to their spread (Bug #80950).
+    */
+   private void add(double xv, double yv) {
+      n++;
+      double dx = xv - meanX;
+      double dy = yv - meanY;
+      meanX += dx / n;
+      meanY += dy / n;
+      m2x += dx * (xv - meanX);
+      m2y += dy * (yv - meanY);
+      cxy += dx * (yv - meanY);
+   }
+
+   /**
+    * Get the correlation coefficient, NaN if either column has no variance.
+    */
+   private double correlation() {
+      return cxy / (Math.sqrt(m2x) * Math.sqrt(m2y));
    }
 
    /**
@@ -85,12 +109,7 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
          return;
       }
 
-      n++;
-      x += v[1];
-      y += v[2];
-      x2 += v[1] * v[1];
-      y2 += v[2] * v[2];
-      xy += v[1] * v[2];
+      add(v[1], v[2]);
    }
 
    /**
@@ -145,12 +164,7 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
             return;
          }
 
-         n++;
-         x += xV.doubleValue();
-         y += yV.doubleValue();
-         x2 += xV.doubleValue() * xV.doubleValue();
-         y2 += yV.doubleValue() * yV.doubleValue();
-         xy += xV.doubleValue() * yV.doubleValue();
+         add(xV.doubleValue(), yV.doubleValue());
       }
       catch(NumberFormatException e) {
       }
@@ -186,8 +200,7 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
       }
 
       try {
-         double root = Math.sqrt((n * x2 - x * x) * (n * y2 - y * y));
-         double val = (n * xy - x * y) / root;
+         double val = correlation();
 
          if(Double.isNaN(val)) {
             return def ? (double) 0 : null;
@@ -209,7 +222,7 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
          return 0;
       }
 
-      return (n * xy - x * y) / Math.sqrt((n * x2 - x * x) * (n * y2 - y * y));
+      return correlation();
    }
 
    /**
@@ -257,11 +270,11 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
    }
 
    private double n = 0;
-   private double xy = 0;
-   private double x = 0;
-   private double y = 0;
-   private double x2 = 0; // x square
-   private double y2 = 0; // y square
+   private double meanX = 0;
+   private double meanY = 0;
+   private double m2x = 0; // sum of squared deviations of x from its mean
+   private double m2y = 0; // sum of squared deviations of y from its mean
+   private double cxy = 0; // sum of products of deviations
    private int col; // 2nd column
    private boolean def;
 }
