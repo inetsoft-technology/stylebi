@@ -17,7 +17,9 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.data.DataSetFilter;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.TableDataDescriptor;
 import inetsoft.report.TableDataPath;
@@ -26,6 +28,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.table.TableAttr;
@@ -54,8 +57,10 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.RangeOutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.MessageException;
@@ -72,6 +77,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -170,6 +176,10 @@ public class AssemblyHyperlinkService {
       Map<String, Object> out = describe(assemblyName, model, target,
          model == null ? null : tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow()));
       List<Map<String, Object>> inherited = tableInheritedLinks(rvs, assemblyName, cell);
+
+      if(inherited == null) {
+         inherited = nonTableInheritedLinks(rvs, assemblyName, target);
+      }
 
       if(inherited != null) {
          out.put("inheritedLinks", inherited);
@@ -1524,7 +1534,8 @@ public class AssemblyHyperlinkService {
 
    /**
     * Auto Drill links the data model attaches to the addressed cell (bug #80475); {@code null}
-    * for a non-table assembly or a table that did not render. They are not part of the cell's
+    * for a non-table assembly (see {@link #nonTableInheritedLinks}) or a table that did not
+    * render. They are not part of the cell's
     * own stored hyperlink (the dialog model never carries them), yet the Viewer shows them.
     */
    private static List<Map<String, Object>> tableInheritedLinks(RuntimeViewsheet rvs,
@@ -1565,7 +1576,141 @@ public class AssemblyHyperlinkService {
          inner = lens instanceof TableFilter filter ? filter.getTable() : lens;
       }
 
-      XDrillInfo info = inner == null ? null : inner.getXDrillInfo(row, col);
+      return drillPathLinks(inner == null ? null : inner.getXDrillInfo(row, col), null);
+   }
+
+   /**
+    * The Auto Drill links of a chart field, Text or Gauge-family assembly (bug #80805), read the
+    * way the Viewer reads them; {@code null} when this assembly type or region does not carry
+    * them, or when the assembly did not render. An empty list means it rendered and has none.
+    *
+    * <p>A chart's drill belongs to a bound field, not to the assembly, so it is reported only
+    * when the region names one ({@code colName}); a whole-assembly, title or empty-plot read
+    * has no field to look up and reports nothing rather than a guess. Inherited links are
+    * supplementary, so a failure to render the data is never an error here.
+    */
+   static List<Map<String, Object>> nonTableInheritedLinks(RuntimeViewsheet rvs,
+                                                           String assemblyName, Region target)
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      boolean chart = assembly instanceof ChartVSAssembly;
+      boolean output = assembly instanceof TextVSAssembly || assembly instanceof GaugeVSAssembly;
+
+      if(!chart && !output) {
+         return null;
+      }
+
+      String colName = target == null ? null : target.colName();
+
+      if(chart && (colName == null || colName.isBlank() || target.titleLink() ||
+                   target.emptyPlotLink()))
+      {
+         return null;
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box == null || box.isEmpty()) {
+         return null;
+      }
+
+      try {
+         Object data = box.get().getData(assemblyName);
+
+         if(chart) {
+            return data instanceof DataSet ds ? chartInheritedLinks(ds, colName) : null;
+         }
+
+         // The drill info of a Text or Gauge is filled in on its info while its data is
+         // computed, which the getData call above did.
+         return outputInheritedLinks(assembly.getVSAssemblyInfo());
+      }
+      catch(Exception e) {
+         LOG.debug("Inherited links of {} are unavailable: its data did not render",
+                   assemblyName, e);
+         return null;
+      }
+   }
+
+   /**
+    * The drill paths of a Text or Gauge-family info, as {@code OutputVSAssemblyInfo.getHyperlinks}
+    * hands them to the Viewer. {@code null} for any other info. A Text drops a drill path whose
+    * web link is a bare {@code hyperlink:column} reference (or has no link), as {@code
+    * VSTextModel.isValidLink} does; a Gauge keeps every path.
+    */
+   static List<Map<String, Object>> outputInheritedLinks(VSAssemblyInfo info) {
+      if(info instanceof TextVSAssemblyInfo text) {
+         return drillPathLinks(text.getXDrillInfo(), AssemblyHyperlinkService::isRenderedTextLink);
+      }
+
+      if(info instanceof RangeOutputVSAssemblyInfo range) {
+         return drillPathLinks(range.getXDrillInfo(), null);
+      }
+
+      return null;
+   }
+
+   private static boolean isRenderedTextLink(DrillPath path) {
+      if(path.getLinkType() != DrillPath.WEB_LINK) {
+         return true;
+      }
+
+      String link = path.getLink();
+      return link != null && !link.matches("^hyperlink:\\w+$");
+   }
+
+   /**
+    * The drill paths of the chart field {@code colName}, found the way {@code
+    * GraphUtil.getDrillLinks} finds a field's drill info: the data set column of that header, then
+    * the drill info the base table keeps for that column. Drill info is column metadata, so the
+    * first data row stands for the whole column. {@code null} when the data is not a viewsheet
+    * data set or the field is not one of its columns.
+    */
+   static List<Map<String, Object>> chartInheritedLinks(DataSet data, String colName) {
+      DataSet root = data;
+
+      while(root instanceof DataSetFilter filter && filter.getRootDataSet() != root) {
+         root = filter.getRootDataSet();
+      }
+
+      if(root instanceof BoxDataSet box) {
+         root = box.getDataSet();
+      }
+
+      if(!(root instanceof VSDataSet vsData)) {
+         return null;
+      }
+
+      int col = vsData.indexOfHeader(colName);
+
+      for(int i = 0; col < 0 && i < vsData.getColCount(); i++) {
+         if(colName.equalsIgnoreCase(vsData.getHeader(i))) {
+            col = i;
+         }
+      }
+
+      if(col < 0) {
+         return null;
+      }
+
+      TableLens lens = vsData.getTable();
+
+      if(lens == null || col >= lens.getColCount() || !lens.moreRows(lens.getHeaderRowCount())) {
+         return new ArrayList<>();
+      }
+
+      return drillPathLinks(lens.getXDrillInfo(lens.getHeaderRowCount(), col), null);
+   }
+
+   /**
+    * One shared conversion for every assembly type, so the shape reported for a table cell, a
+    * chart field, a Text and a Gauge cannot drift apart.
+    */
+   private static List<Map<String, Object>> drillPathLinks(XDrillInfo info,
+                                                           Predicate<DrillPath> keep)
+   {
+      List<Map<String, Object>> links = new ArrayList<>();
 
       if(info == null) {
          return links;
@@ -1574,7 +1719,7 @@ public class AssemblyHyperlinkService {
       for(int i = 0; i < info.getDrillPathCount(); i++) {
          DrillPath path = info.getDrillPath(i);
 
-         if(path == null) {
+         if(path == null || keep != null && !keep.test(path)) {
             continue;
          }
 
