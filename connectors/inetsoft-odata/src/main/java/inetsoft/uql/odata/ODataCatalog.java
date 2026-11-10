@@ -54,7 +54,8 @@ final class ODataCatalog {
          return new ODataCatalogSnapshot(new TabularCatalog(List.of(), List.of()), Map.of());
       }
 
-      Map<String, Element> entityTypeBySimpleName = indexEntityTypes(schemaNode);
+      Map<String, Element> entityTypeBySimpleName = indexTypes(schemaNode, "EntityType");
+      Map<String, Element> complexTypeBySimpleName = indexTypes(schemaNode, "ComplexType");
 
       // entitySetsByName preserves document order (LinkedHashMap over each container's
       // <EntitySet> children, containers visited in document order) so TabularCatalog.datasets()
@@ -97,7 +98,8 @@ final class ODataCatalog {
          datasets.add(new TabularDatasetRef(entitySetName));
 
          if(entityType != null) {
-            schemasByEntitySet.put(entitySetName, buildSchema(entitySetName, entityType));
+            schemasByEntitySet.put(entitySetName, buildSchema(
+               entitySetName, entityType, entityTypeBySimpleName, complexTypeBySimpleName));
          }
       }
 
@@ -108,25 +110,114 @@ final class ODataCatalog {
          new TabularCatalog(List.copyOf(datasets), relationships), Map.copyOf(schemasByEntitySet));
    }
 
-   private static Map<String, Element> indexEntityTypes(Node schemaNode) {
+   /**
+    * Indexes the schema's {@code <EntityType>} or {@code <ComplexType>} children by simple name.
+    */
+   private static Map<String, Element> indexTypes(Node schemaNode, String tagName) {
       Map<String, Element> result = new LinkedHashMap<>();
-      NodeList entityTypeNodes = Tool.getChildNodesByTagName(schemaNode, "EntityType");
+      NodeList typeNodes = Tool.getChildNodesByTagName(schemaNode, tagName);
 
-      for(int i = 0; i < entityTypeNodes.getLength(); i++) {
-         Element entityType = (Element) entityTypeNodes.item(i);
-         String name = Tool.getAttribute(entityType, "Name");
+      for(int i = 0; i < typeNodes.getLength(); i++) {
+         Element type = (Element) typeNodes.item(i);
+         String name = Tool.getAttribute(type, "Name");
 
          if(name != null) {
-            result.put(name, entityType);
+            result.put(name, type);
          }
       }
 
       return result;
    }
 
-   private static TabularDatasetSchema buildSchema(String entitySetName, Element entityType) {
+   /**
+    * Describes the table {@code OEntityTable} builds for the entity set, so that described and
+    * built columns agree: a complex-typed property is described by its dotted leaf columns
+    * ({@code Address.City}, as the build flattens it) and the columns of the entity type's base
+    * types and of every type derived from it are included (the server returns them on the rows of
+    * those types). {@link ODataRuntime#toXSchemaType} is untouched; it types each leaf.
+    */
+   private static TabularDatasetSchema buildSchema(
+      String entitySetName, Element entityType, Map<String, Element> entityTypeBySimpleName,
+      Map<String, Element> complexTypeBySimpleName)
+   {
+      List<Element> chain = typeChain(entityType, entityTypeBySimpleName);
       List<TabularColumn> columns = new ArrayList<>();
-      NodeList propertyNodes = Tool.getChildNodesByTagName(entityType, "Property");
+      Set<String> names = new HashSet<>();
+
+      // base types first, then the set's own type, then every derived type in document order
+      for(Element type : chain) {
+         addColumns(type, "", columns, names, complexTypeBySimpleName, new ArrayList<>());
+      }
+
+      Set<Element> added = Collections.newSetFromMap(new IdentityHashMap<>());
+      added.addAll(chain);
+
+      for(Element candidate : entityTypeBySimpleName.values()) {
+         List<Element> candidateChain = typeChain(candidate, entityTypeBySimpleName);
+
+         if(candidateChain.contains(entityType)) {
+            for(Element type : candidateChain) {
+               if(added.add(type)) {
+                  addColumns(type, "", columns, names, complexTypeBySimpleName, new ArrayList<>());
+               }
+            }
+         }
+      }
+
+      // the key is declared on the root of the hierarchy
+      List<String> keyColumns = new ArrayList<>();
+
+      for(Element type : chain) {
+         Node keyNode = Tool.getChildNodeByTagName(type, "Key");
+
+         if(keyNode != null) {
+            NodeList propertyRefs = Tool.getChildNodesByTagName(keyNode, "PropertyRef");
+
+            for(int i = 0; i < propertyRefs.getLength(); i++) {
+               String name = Tool.getAttribute((Element) propertyRefs.item(i), "Name");
+
+               if(name != null) {
+                  keyColumns.add(name);
+               }
+            }
+
+            break;
+         }
+      }
+
+      // typedBy makes the build type the date/time columns from this schema (see ODataQuery)
+      return new TabularDatasetSchema(entitySetName, List.copyOf(columns), List.copyOf(keyColumns),
+         Map.of("entity", entitySetName, TYPED_BY_PARAM, ODataQuery.TYPED_BY_METADATA));
+   }
+
+   /**
+    * @return the type's base-type chain, root type first and {@code type} last. A cyclic or
+    *         unresolvable {@code BaseType} ends the chain.
+    */
+   private static List<Element> typeChain(Element type, Map<String, Element> typesBySimpleName) {
+      LinkedList<Element> chain = new LinkedList<>();
+      Element current = type;
+
+      while(current != null && !chain.contains(current)) {
+         chain.addFirst(current);
+         String baseType = Tool.getAttribute(current, "BaseType");
+         current = baseType == null ? null : typesBySimpleName.get(simpleName(baseType));
+      }
+
+      return chain;
+   }
+
+   /**
+    * Adds the columns of one type's own {@code <Property>} elements. A property typed by a
+    * {@code <ComplexType>} of this schema is expanded into its leaf columns, named
+    * {@code prefix + name + "." + child}; any other property, including a collection and a type
+    * this schema does not declare, is one column.
+    */
+   private static void addColumns(Element type, String prefix, List<TabularColumn> columns,
+                                  Set<String> names, Map<String, Element> complexTypeBySimpleName,
+                                  List<Element> complexPath)
+   {
+      NodeList propertyNodes = Tool.getChildNodesByTagName(type, "Property");
 
       for(int i = 0; i < propertyNodes.getLength(); i++) {
          Element property = (Element) propertyNodes.item(i);
@@ -137,26 +228,24 @@ final class ODataCatalog {
             continue;
          }
 
-         columns.add(new TabularColumn(name, ODataRuntime.toXSchemaType(edmType)));
-      }
+         // a Collection(...) stays one column: the build renders it as one text column
+         Element complexType = edmType.startsWith("Edm.") || edmType.startsWith("Collection(") ?
+            null : complexTypeBySimpleName.get(simpleName(edmType));
 
-      List<String> keyColumns = new ArrayList<>();
-      Node keyNode = Tool.getChildNodeByTagName(entityType, "Key");
+         if(complexType != null && !complexPath.contains(complexType)) {
+            complexPath.add(complexType);
 
-      if(keyNode != null) {
-         NodeList propertyRefs = Tool.getChildNodesByTagName(keyNode, "PropertyRef");
-
-         for(int i = 0; i < propertyRefs.getLength(); i++) {
-            String name = Tool.getAttribute((Element) propertyRefs.item(i), "Name");
-
-            if(name != null) {
-               keyColumns.add(name);
+            for(Element complexLevel : typeChain(complexType, complexTypeBySimpleName)) {
+               addColumns(complexLevel, prefix + name + ".", columns, names,
+                          complexTypeBySimpleName, complexPath);
             }
+
+            complexPath.remove(complexType);
+         }
+         else if(names.add(prefix + name)) {
+            columns.add(new TabularColumn(prefix + name, ODataRuntime.toXSchemaType(edmType)));
          }
       }
-
-      return new TabularDatasetSchema(entitySetName, List.copyOf(columns), List.copyOf(keyColumns),
-         Map.of("entity", entitySetName));
    }
 
    /**
@@ -317,6 +406,12 @@ final class ODataCatalog {
 
       return type;
    }
+
+   /**
+    * The {@code describeDataset} param that carries {@link ODataQuery#getTypedBy()}; it must equal
+    * that bean property's name, as {@code entity} equals {@code ODataQuery#getEntity()}'s.
+    */
+   static final String TYPED_BY_PARAM = "typedBy";
 
    private static final Logger LOG = LoggerFactory.getLogger(ODataCatalog.class);
 }

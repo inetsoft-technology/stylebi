@@ -21,6 +21,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.TabularColumn;
 import inetsoft.uql.tabular.TabularDatasetRef;
 import inetsoft.uql.tabular.TabularDatasetSchema;
+import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
@@ -82,11 +83,73 @@ class ODataCatalogTest {
       // Charter D2: the params key must be the ODataQuery bean property name ("entity", from
       // getEntity()/setEntity()), not the @Property(label="Entity") display text and not some
       // other name like "entitySet". If the implementation drifted to either of those, or forgot
-      // to populate params at all, this fails on the exact Map equality below.
+      // to populate params at all, this fails on the exact Map equality below. The second entry
+      // makes the build type the date/time columns from this schema; its key must be a bean
+      // property of ODataQuery too, or the query contract rejects the described params.
       ODataCatalogSnapshot snapshot = ODataCatalog.parse(schemaNode("catalog.metadata.xml"));
 
       TabularDatasetSchema products = snapshot.schemasByEntitySet().get("Products");
-      assertEquals(Map.of("entity", "Products"), products.params());
+      assertEquals(Map.of("entity", "Products", "typedBy", "metadata"), products.params());
+
+      assertTrue(TabularUtil.getPropertyMap(ODataQuery.class).containsKey("entity"));
+      assertTrue(TabularUtil.getPropertyMap(ODataQuery.class)
+                    .containsKey(ODataCatalog.TYPED_BY_PARAM));
+      assertEquals(ODataQuery.TYPED_BY_METADATA, products.params().get("typedBy"));
+   }
+
+   @Test
+   void describeFlattensComplexTypesIntoDottedLeafColumns() throws Exception {
+      ODataCatalogSnapshot snapshot =
+         ODataCatalog.parse(schemaNode("catalogComplexDerived.metadata.xml"));
+
+      TabularDatasetSchema suppliers = snapshot.schemasByEntitySet().get("Suppliers");
+      assertNotNull(suppliers);
+      // Address is expanded (nested Geo too) into the columns the build produces; a collection, a
+      // type this schema does not declare and a type cycle each stay one column
+      assertEquals(List.of(new TabularColumn("ID", XSchema.LONG),
+                           new TabularColumn("Name", XSchema.STRING),
+                           new TabularColumn("Address.Street", XSchema.STRING),
+                           new TabularColumn("Address.Since", XSchema.TIME_INSTANT),
+                           new TabularColumn("Address.Geo.Lat", XSchema.DOUBLE),
+                           new TabularColumn("Address.Geo.Lon", XSchema.DOUBLE),
+                           new TabularColumn("Address.Geo.Back", XSchema.STRING),
+                           new TabularColumn("Tags", XSchema.STRING),
+                           new TabularColumn("Previous", XSchema.STRING),
+                           new TabularColumn("Foreign", XSchema.STRING),
+                           new TabularColumn("Opened", XSchema.DATE)),
+                   suppliers.columns());
+   }
+
+   @Test
+   void describeUnionsBaseAndDerivedTypeColumns() throws Exception {
+      ODataCatalogSnapshot snapshot =
+         ODataCatalog.parse(schemaNode("catalogComplexDerived.metadata.xml"));
+
+      // the entity set of the base type lists its own columns, then those of every derived type
+      TabularDatasetSchema persons = snapshot.schemasByEntitySet().get("Persons");
+      assertEquals(List.of(new TabularColumn("ID", XSchema.LONG),
+                           new TabularColumn("Name", XSchema.STRING),
+                           new TabularColumn("TotalExpense", XSchema.DOUBLE),
+                           new TabularColumn("EmployeeID", XSchema.LONG),
+                           new TabularColumn("HireDate", XSchema.TIME_INSTANT),
+                           new TabularColumn("Salary", XSchema.DOUBLE)),
+                   persons.columns());
+      assertEquals(List.of("ID"), persons.keyColumns());
+      // navigation properties are not columns
+      assertFalse(persons.columns().stream().anyMatch(c -> c.name().equals("Detail")));
+   }
+
+   @Test
+   void describeOfDerivedEntitySetIncludesBaseTypeColumnsAndKey() throws Exception {
+      ODataCatalogSnapshot snapshot =
+         ODataCatalog.parse(schemaNode("catalogComplexDerived.metadata.xml"));
+
+      TabularDatasetSchema customers = snapshot.schemasByEntitySet().get("Customers");
+      assertEquals(List.of(new TabularColumn("ID", XSchema.LONG),
+                           new TabularColumn("Name", XSchema.STRING),
+                           new TabularColumn("TotalExpense", XSchema.DOUBLE)),
+                   customers.columns());
+      assertEquals(List.of("ID"), customers.keyColumns());
    }
 
    @Test

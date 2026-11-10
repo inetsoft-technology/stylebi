@@ -158,6 +158,7 @@ public class ODataRuntime extends TabularRuntime implements TabularCatalogProvid
             URI uri = builder.build();
 
             boolean isV4 = isOdataV4(ds);
+            TabularDatasetSchema typedSchema = getTypedSchema(ds, query);
             ODataEntitySetIteratorRequest<ClientEntitySet,ClientEntity> req;
             RetrieveRequestFactory requestFactory = client.getRetrieveRequestFactory();
             req = requestFactory.getEntitySetIteratorRequest(uri);
@@ -167,7 +168,7 @@ public class ODataRuntime extends TabularRuntime implements TabularCatalogProvid
                res = req.execute();
             ClientEntitySetIterator<ClientEntitySet, ClientEntity> iter = res.getBody();
 
-            return new OEntityTable(iter, requestFactory, isV4, query);
+            return new OEntityTable(iter, requestFactory, isV4, query, typedSchema);
          }
       }
       catch(Exception ex) {
@@ -178,6 +179,35 @@ public class ODataRuntime extends TabularRuntime implements TabularCatalogProvid
       }
 
       return null;
+   }
+
+   /**
+    * @return the {@code $metadata} schema of the query's entity set when the query is
+    *         {@link ODataQuery#isTypedByMetadata() typed by metadata}, or {@code null} when it is
+    *         not, or when the schema cannot be read: a data query must not start failing because
+    *         {@code $metadata} is unreachable, so it then builds from the returned values only.
+    */
+   private static TabularDatasetSchema getTypedSchema(ODataDataSource ds, ODataQuery query) {
+      if(!query.isTypedByMetadata() || query.getEntity() == null) {
+         return null;
+      }
+
+      try {
+         TabularDatasetSchema schema =
+            ODataCatalogCache.snapshot(ds).schemasByEntitySet().get(query.getEntity());
+
+         if(schema == null) {
+            LOG.warn("Entity set '{}' not found in the metadata of '{}', building query '{}' " +
+                     "without metadata typing", query.getEntity(), ds.getName(), query.getName());
+         }
+
+         return schema;
+      }
+      catch(Exception ex) {
+         LOG.warn("Could not read the metadata of '{}', building query '{}' without metadata " +
+                  "typing", ds.getName(), query.getName(), ex);
+         return null;
+      }
    }
 
    public void testDataSource(TabularDataSource ds0, VariableTable params) {

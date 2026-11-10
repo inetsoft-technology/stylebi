@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="ODataDemo" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="Person">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int64" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <NavigationProperty Name="Detail" Type="ODataDemo.Detail" />
+      </EntityType>
+      <EntityType Name="Customer" BaseType="ODataDemo.Person">
+        <Property Name="TotalExpense" Type="Edm.Decimal" Nullable="false" />
+      </EntityType>
+      <EntityType Name="Employee" BaseType="ODataDemo.Person">
+        <Property Name="EmployeeID" Type="Edm.Int64" Nullable="false" />
+        <Property Name="HireDate" Type="Edm.DateTimeOffset" Nullable="false" />
+        <Property Name="Salary" Type="Edm.Single" Nullable="false" />
+      </EntityType>
+      <EntityType Name="Detail">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+      </EntityType>
+      <EntityType Name="Supplier">
+        <Key><PropertyRef Name="ID" /></Key>
+        <Property Name="ID" Type="Edm.Int32" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" />
+        <Property Name="Address" Type="ODataDemo.Address" />
+        <Property Name="Tags" Type="Collection(Edm.String)" />
+        <Property Name="Previous" Type="Collection(ODataDemo.Address)" />
+        <Property Name="Foreign" Type="Other.Thing" />
+        <Property Name="Opened" Type="Edm.Date" />
+      </EntityType>
+      <ComplexType Name="Address">
+        <Property Name="Street" Type="Edm.String" />
+        <Property Name="Since" Type="Edm.DateTimeOffset" />
+        <Property Name="Geo" Type="ODataDemo.Geo" />
+      </ComplexType>
+      <ComplexType Name="Geo">
+        <Property Name="Lat" Type="Edm.Double" />
+        <Property Name="Lon" Type="Edm.Double" />
+        <Property Name="Back" Type="ODataDemo.Address" />
+      </ComplexType>
+      <EntityContainer Name="DemoService">
+        <EntitySet Name="Persons" EntityType="ODataDemo.Person" />
+        <EntitySet Name="Customers" EntityType="ODataDemo.Customer" />
+        <EntitySet Name="Suppliers" EntityType="ODataDemo.Supplier" />
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>
