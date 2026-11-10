@@ -1488,6 +1488,10 @@ public class SelectionRuntimeService {
       result.put("type", describe(assembly));
       result.put("associationEnabled", rvs.getViewsheet().getViewsheetInfo().isAssociationEnabled());
       result.put("computed", list != null);
+      // The live search box text ("" when none), so a caller can see why values are hidden and
+      // confirm a clear. Null is the never-set default and is normalised to "" for the caller.
+      String activeSearch = searchString((SelectionVSAssemblyInfo) assembly.getInfo());
+      result.put("search", activeSearch == null ? "" : activeSearch);
 
       List<Map<String, Object>> values = selectionState(
          list == null ? null : list.getSelectionValues());
