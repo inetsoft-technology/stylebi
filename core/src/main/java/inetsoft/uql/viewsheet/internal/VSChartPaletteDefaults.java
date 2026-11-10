@@ -64,6 +64,79 @@ public final class VSChartPaletteDefaults {
    }
 
    /**
+    * The list a static colour pick draws from: the mark's palette for a modern chart, the raw
+    * legacy list otherwise.
+    */
+   public static Color[] staticPalette(VizContext ctx) {
+      return ctx != null && ctx.modern ? activePalette(ctx) :
+         CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
+   }
+
+   /**
+    * The colour at the same palette position in the context's static palette. A colour in no
+    * known palette, or null, is returned unchanged.
+    */
+   public static Color reseatStaticColor(Color color, VizContext ctx) {
+      if(color == null) {
+         return null;
+      }
+
+      Color[] target = staticPalette(ctx);
+      List<Color[]> lists = List.of(
+         target, CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]), modernPalette(),
+         darkPalette(), MODERN_FALLBACK, DARK_FALLBACK);
+
+      for(Color[] list : lists) {
+         int index = Arrays.asList(list).indexOf(color);
+
+         if(index >= 0) {
+            return list == target ? color : target[index % target.length];
+         }
+      }
+
+      return color;
+   }
+
+   /**
+    * The map region tint: the first palette colour at 30% over the card.
+    */
+   public static Color mapRegionColor(VizContext ctx) {
+      Color slot = activePalette(ctx)[0];
+      return VSObjectChromeDefaults.flattenOver(
+         new Color(slot.getRed(), slot.getGreen(), slot.getBlue(), 77),
+         VSObjectChromeDefaults.cardComposite(ctx));
+   }
+
+   /**
+    * True for a colour a modern seed writes: a palette member, the axis line, or the map tint.
+    */
+   public static boolean isModernChartColor(Color color) {
+      if(color == null) {
+         return false;
+      }
+
+      for(Color[] list : new Color[][] {
+         modernPalette(), darkPalette(), MODERN_FALLBACK, DARK_FALLBACK })
+      {
+         if(Arrays.asList(list).contains(color)) {
+            return true;
+         }
+      }
+
+      for(VizContext ctx : new VizContext[] {
+         VizContext.of(VizMark.MODERN_LIGHT), VizContext.of(VizMark.MODERN_DARK) })
+      {
+         if(color.equals(VSChartChromeDefaults.axisLineColor(ctx)) ||
+            color.equals(mapRegionColor(ctx)))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * The 40 colors a chart color picker should offer for the current gate state.
     */
    public static Color[] pickerPalette(VizContext ctx) {
