@@ -21,10 +21,10 @@ import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.AxisSpec;
 import inetsoft.graph.aesthetic.*;
-import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.element.GraphElement;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.test.*;
@@ -204,6 +204,14 @@ class ChartChromeRenderTest {
       EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false, Color.RED);
       assertEquals(Color.RED, ((StaticColorFrame) paretoLine(g).getColorFrame()).getColor());
       assertEquals(Color.RED, percentLabelColor(g));
+   }
+
+   @Test
+   void anAuthorYAxisLabelColourStillColoursThePercentAxis() {
+      EGraph g = paretoGraph(VizMark.MODERN_LIGHT, false, null, Color.RED);
+      assertEquals(Color.RED, percentLabelColor(g));
+      assertEquals(new Color(0xFF5A35),
+                   ((StaticColorFrame) paretoLine(g).getColorFrame()).getColor());
    }
 
    @Test
@@ -416,6 +424,12 @@ class ChartChromeRenderTest {
    }
 
    private static EGraph paretoGraph(VizMark mark, boolean ticks, Color authorLine) {
+      return paretoGraph(mark, ticks, authorLine, null);
+   }
+
+   private static EGraph paretoGraph(VizMark mark, boolean ticks, Color authorLine,
+                                     Color authorYLabel)
+   {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Sum(Total)" };
 
@@ -450,6 +464,12 @@ class ChartChromeRenderTest {
       if(authorLine != null) {
          assemblyInfo.getChartDescriptor().getPlotDescriptor()
             .setParetoLineColor(authorLine, CompositeValue.Type.USER);
+      }
+
+      // the measure's own axis, which a separated chart labels its y axis with
+      if(authorYLabel != null) {
+         total.getAxisDescriptor().getAxisLabelTextFormat().getUserDefinedFormat()
+            .setColor(authorYLabel);
       }
 
       return GraphGenerator.getGenerator(

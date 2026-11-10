@@ -58,6 +58,12 @@ public abstract class ColorFrameModelFactory<V extends ColorFrameWrapper,
          if(!model.isChanged() && color != null && color.equals(shown)) {
             nwrapper.setUserColor(null);
             nwrapper.setChanged(false);
+
+            // a freshly built wrapper still holds the stock default
+            if(defaultColor != null) {
+               nwrapper.setDefaultColor(defaultColor);
+            }
+
             return nwrapper;
          }
 

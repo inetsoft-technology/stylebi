@@ -105,6 +105,13 @@ class ChartColorRenderTest {
    }
 
    @Test
+   void aMalformedPropertyFallsThroughToTheSeed() {
+      SreeEnv.setProperty("map.empty.color", "not-a-colour");
+      assertEquals(new Color(0xD6D2C8), GraphUtil.getMapEmptyColor(plot(VizMark.MODERN_LIGHT)));
+      assertEquals(GraphUtil.MAP_EMPTY_DATA_COLOR, GraphUtil.getMapEmptyColor(plot(null)));
+   }
+
+   @Test
    void aClearedAuthorColourStillShadowsTheCssColour() {
       PlotDescriptor plot = plot(null);
       plot.setEmptyColor(Color.GREEN, CompositeValue.Type.CSS);

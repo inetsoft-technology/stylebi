@@ -20,8 +20,6 @@ import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { StaticColorModel } from "../../../../common/data/visual-frame-model";
-import { ChartPaletteService } from "../../../../widget/color-picker/chart-palette.service";
-import { MODERN_HEAD, palette40 } from "../../../../widget/color-picker/palette-test-fixtures";
 import { CombinedColorPane } from "./combined-color-pane.component";
 import { StaticColorEditor } from "./static-color-editor.component";
 
@@ -50,9 +48,6 @@ describe("Combined Color Pane Unit Test", () => {
             NgbModule,
             CombinedColorPane,
             StaticColorEditor,
-         ],
-         providers: [
-            { provide: ChartPaletteService, useValue: { flatColors: () => palette40(MODERN_HEAD) } }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

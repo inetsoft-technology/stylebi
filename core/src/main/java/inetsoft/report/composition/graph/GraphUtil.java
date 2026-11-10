@@ -353,8 +353,6 @@ public class GraphUtil {
          }
          catch(Exception ex) {
             LOG.debug("Failed to determine color for set value: " + emptyColor, ex);
-
-            return MAP_EMPTY_DATA_COLOR;
          }
       }
 
