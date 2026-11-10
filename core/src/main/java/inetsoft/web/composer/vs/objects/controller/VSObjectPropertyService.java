@@ -58,6 +58,7 @@ import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.wiz.viewsheet.AgentTrapWarning;
 import inetsoft.web.wiz.viewsheet.AssemblyNameRules;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
@@ -310,6 +311,18 @@ public class VSObjectPropertyService {
       VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry);
       AbstractModelTrapContext.TrapInfo tinfo = context.isCheckTrap() ?
          context.checkTrap(oinfo, info) : null;
+
+      // Bug #80476: the browser confirms through its own dialogs and its dispatcher leaves
+      // reportsModelTrap() false; the agent dispatcher gets a warning and the write proceeds.
+      // The check only sees what the info's data refs change, so no per-type filter is needed.
+      if(tinfo != null && tinfo.showWarning() && commandDispatcher != null &&
+         commandDispatcher.reportsModelTrap())
+      {
+         MessageCommand trapWarning = new MessageCommand();
+         trapWarning.setMessage(AgentTrapWarning.forCondition(context.getTrapCondition()));
+         trapWarning.setType(MessageCommand.Type.WARNING);
+         commandDispatcher.sendCommand(trapWarning);
+      }
 
       checkFlyoverChanges(rvs, oinfo, info, linkUri, commandDispatcher);
 

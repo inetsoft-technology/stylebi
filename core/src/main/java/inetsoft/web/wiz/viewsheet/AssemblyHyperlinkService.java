@@ -32,6 +32,7 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.table.TableAttr;
+import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
@@ -44,6 +45,7 @@ import inetsoft.uql.DrillPath;
 import inetsoft.uql.XDrillInfo;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
@@ -245,6 +247,7 @@ public class AssemblyHyperlinkService {
       }
 
       CellLinkScope[] scope = new CellLinkScope[1];
+      String[] trap = new String[1];
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          if(!"none".equals(type)) {
             requireHyperlinkable(rvs, assemblyName);
@@ -262,6 +265,12 @@ public class AssemblyHyperlinkService {
          scope[0] = tableLinkScope(rvs, assemblyName, cell, model.isApplyToRow());
          apply(rvs, assemblyName, model, type, link, assetId);
          model.setRejectDerivedMeasure(true);
+
+         // Bug #80476: the Composer dialog asks before a plain Table link commits. Checked here,
+         // before setHyperlinkDialogModel, which mutates the live info in place; the write is
+         // applied either way. Crosstab, freehand-table, Text, Image and Gauge links have no native
+         // check, and a Chart link is covered by the VSObjectPropertyService hook.
+         trap[0] = tableLinkTrap(rvs, assemblyName, model, user).orElse(null);
          ChartRenderCheck.guarded(rvs, assemblyName, dispatcher, () ->
             hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri,
                                                      user, dispatcher));
@@ -276,7 +285,61 @@ public class AssemblyHyperlinkService {
                  ("none".equals(type) ? "cleared" : "set") + " for " + scope[0].scope() + ".");
       }
 
+      if(trap[0] != null) {
+         out.add(AgentTrapWarning.forCondition(trap[0]));
+      }
+
       return out;
+   }
+
+   /**
+    * The trap, if any, that the link about to be written to a plain Table introduces. Both infos
+    * are clones, so the live assembly is untouched (unlike the native checkVSTableTrap).
+    */
+   Optional<String> tableLinkTrap(RuntimeViewsheet rvs, String assemblyName,
+                                  HyperlinkDialogModel model, Principal user)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableVSAssembly) ||
+         !(assembly.getInfo() instanceof TableVSAssemblyInfo current))
+      {
+         return Optional.empty();
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box == null || box.isEmpty()) {
+         return Optional.empty();
+      }
+
+      TableVSAssemblyInfo oinfo = (TableVSAssemblyInfo) current.clone();
+      TableVSAssemblyInfo ninfo = (TableVSAssemblyInfo) current.clone();
+      Hyperlink hyperlink = hyperlinkService.getHyperlink(model, user);
+
+      if(model.isApplyToRow()) {
+         ninfo.setHyperlinkAttr(new TableHyperlinkAttr());
+         ninfo.setRowHyperlink(hyperlink);
+      }
+      else {
+         VSTableLens lens = box.get().getVSTableLens(assemblyName, false);
+
+         if(lens == null) {
+            return Optional.empty();
+         }
+
+         if(ninfo.getHyperlinkAttr() == null) {
+            ninfo.setHyperlinkAttr(new TableHyperlinkAttr());
+         }
+
+         ninfo.getHyperlinkAttr().setHyperlink(
+            lens.getTableDataPath(model.getRow(), model.getCol()), hyperlink);
+         ninfo.setRowHyperlink(null);
+      }
+
+      return AgentTrapCheck.newTrap(rvs, DataSourceRegistry.getRegistry(), oinfo, ninfo);
    }
 
    /**

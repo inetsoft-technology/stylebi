@@ -93,6 +93,15 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
    }
 
    /**
+    * Whether a data-model trap found while a write is applied is reported back to the caller as a
+    * warning message. The browser dispatcher shows its own confirm dialogs and leaves this false;
+    * the agent (capturing) dispatcher has no dialog and returns true.
+    */
+   public boolean reportsModelTrap() {
+      return false;
+   }
+
+   /**
     * Sends a command to the client. This should only be used to send commands not
     * associated with a specific assembly, those should be sent using
     * {@link #sendCommand(String, ViewsheetCommand)}. The result of

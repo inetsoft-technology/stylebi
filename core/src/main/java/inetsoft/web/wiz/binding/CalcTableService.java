@@ -78,6 +78,7 @@ import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.model.table.TableCell;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.viewsheet.AgentTrapWarning;
 import inetsoft.web.wiz.viewsheet.ConditionVocabulary;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import inetsoft.web.wiz.viewsheet.WizDateFormatOverNumeric;
@@ -388,6 +389,7 @@ public class CalcTableService {
 
       List<String> rankWarnings = new ArrayList<>();
       List<String> formatNotes = new ArrayList<>();
+      String[] trap = new String[1];
       List<String> warnings = sessions.mutateForCell(sessionToken, user, assemblyName, row, col,
                                                      (rvs, runtimeId, dispatcher, cellScoped) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
@@ -465,6 +467,11 @@ public class CalcTableService {
          // shrink (a summary cell rebound to text/another column/formula). Snapshotted after
          // toCellBindingInfo, which resolved a new rankBy against that same pre-write list.
          List<RankTarget> rankings = snapshotRankings(rvs, assembly);
+
+         // Bug #80476: setCellBinding applies with checkTrap=false and its event has no trap flag; the
+         // Composer asks through a separate pre-write call. Compared on clones here, and the write is
+         // applied either way.
+         trap[0] = layoutService.newCellBindingTrap(rvs, event, user).orElse(null);
          layoutService.setCellBinding(runtimeId, event, user, dispatcher);
          remapRankings(rvs, assembly, rankings, rankWarnings);
          clearDateFormatOnNumericCell(rvs, assemblyName, row, col, formatNotes);
@@ -483,6 +490,11 @@ public class CalcTableService {
       });
 
       Map<String, Object> body = new LinkedHashMap<>();
+      if(trap[0] != null) {
+         warnings = new ArrayList<>(warnings == null ? List.<String>of() : warnings);
+         warnings.add(AgentTrapWarning.forCondition(trap[0]));
+      }
+
       ViewsheetSessionService.relayWarnings(body, warnings);
       relayRankingNotes(body, rankWarnings);
 

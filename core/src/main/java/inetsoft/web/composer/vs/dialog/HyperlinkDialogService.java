@@ -656,7 +656,7 @@ public class HyperlinkDialogService {
       return result;
    }
 
-   private Hyperlink getHyperlink(HyperlinkDialogModel model, Principal principal) {
+   public Hyperlink getHyperlink(HyperlinkDialogModel model, Principal principal) {
       Hyperlink hyperlink;
 
       if(model.getLinkType() == NONE) {

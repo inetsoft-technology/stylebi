@@ -25,7 +25,13 @@ import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLayout;
+import inetsoft.report.composition.VSModelTrapContext;
+import inetsoft.uql.erm.AbstractModelTrapContext;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedConstruction;
+import org.mockito.Mockito;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
@@ -54,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -201,6 +208,83 @@ class VSTableLayoutServiceTest {
       assertTrue(commands.stream().noneMatch(c -> c.getCommand() == null), commands.toString());
    }
 
+
+   /**
+    * Bug #80476: the pre-write check for set_cell_binding compares two clones. Unlike the native
+    * {@code checkTrapForCalc}, the live assembly is never swapped, and its layout keeps the old
+    * cell binding.
+    */
+   @Test
+   void newCellBindingTrapComparesClonesAndLeavesTheLiveCellAlone() throws Exception {
+      Fixture f = new Fixture(false);
+      CalcTableVSAssemblyInfo live = (CalcTableVSAssemblyInfo) f.assembly.getInfo();
+
+      try(MockedConstruction<VSModelTrapContext> ctx =
+             Mockito.mockConstruction(VSModelTrapContext.class, (context, c) -> {
+                AbstractModelTrapContext.TrapInfo trap =
+                   mock(AbstractModelTrapContext.TrapInfo.class);
+                when(trap.showWarning()).thenReturn(true);
+                when(context.isCheckTrap()).thenReturn(true);
+                when(context.checkTrap(any(), any())).thenReturn(trap);
+                when(context.getTrapCondition()).thenReturn("Chasm Trap is on Orders, Returns");
+             }))
+      {
+         Optional<String> trap =
+            f.service.newCellBindingTrap(f.rvs, f.cellBindingEvent(), () -> "admin");
+
+         assertEquals(Optional.of("Chasm Trap is on Orders, Returns"), trap);
+
+         ArgumentCaptor<VSAssemblyInfo> oinfo = ArgumentCaptor.forClass(VSAssemblyInfo.class);
+         ArgumentCaptor<VSAssemblyInfo> ninfo = ArgumentCaptor.forClass(VSAssemblyInfo.class);
+         verify(ctx.constructed().get(0)).checkTrap(oinfo.capture(), ninfo.capture());
+         assertNotSame(live, oinfo.getValue());
+         assertNotSame(live, ninfo.getValue());
+         assertNotSame(oinfo.getValue(), ninfo.getValue());
+         assertEquals("SumWT", ((TableCellBinding) ((CalcTableVSAssemblyInfo) ninfo.getValue())
+            .getTableLayout().getCellBinding(0, 0)).getValue());
+         assertNull(((CalcTableVSAssemblyInfo) oinfo.getValue()).getTableLayout()
+                       .getCellBinding(0, 0), "the old side is the pre-write state");
+         assertNull(live.getTableLayout().getCellBinding(0, 0),
+                    "the live layout must not be touched");
+         assertSame(live, f.assembly.getInfo(), "the live info must not be swapped");
+      }
+   }
+
+   @Test
+   void newCellBindingTrapIsEmptyWhenThereIsNoNewTrap() throws Exception {
+      Fixture f = new Fixture(false);
+
+      try(MockedConstruction<VSModelTrapContext> ctx =
+             Mockito.mockConstruction(VSModelTrapContext.class, (context, c) -> {
+                AbstractModelTrapContext.TrapInfo trap =
+                   mock(AbstractModelTrapContext.TrapInfo.class);
+                when(trap.showWarning()).thenReturn(false);
+                when(context.isCheckTrap()).thenReturn(true);
+                when(context.checkTrap(any(), any())).thenReturn(trap);
+             }))
+      {
+         assertTrue(f.service.newCellBindingTrap(f.rvs, f.cellBindingEvent(), () -> "admin")
+                       .isEmpty());
+      }
+   }
+
+   /**
+    * Bug #80476 guard: the native checkTrap=true protocol reverts the write and sends an INFO
+    * VSTrapCommand that the capturing dispatcher swallows, so a wiz write would silently do
+    * nothing. setCellBinding must keep applying with confirmed=false, checkTrap=false.
+    */
+   @Test
+   void setCellBindingKeepsTheNativeTrapCheckOff() throws Exception {
+      Fixture f = new Fixture(false);
+
+      CapturingCommandDispatcher.withCapturingDispatcher(() -> "admin", d -> {
+         f.service.setCellBinding("id", f.cellBindingEvent(), () -> "admin", d);
+         return null;
+      });
+
+      verify(f.handler).apply(any(), any(), any(), eq(false), eq(false), anyBoolean(),
+                              anyBoolean(), anyBoolean(), any(), any(), any(), any(), any());
+   }
    /**
     * A real calc table + layout whose execute (the mocked {@code apply}) fails the way
     * {@code BaseTableService.loadTableData0} does, leaving no lens.
@@ -208,7 +292,7 @@ class VSTableLayoutServiceTest {
    private static final class Fixture {
       Fixture(boolean dispatchError) throws Exception {
          Viewsheet vs = new Viewsheet();
-         CalcTableVSAssembly assembly = new CalcTableVSAssembly(vs, "Calc1");
+         assembly = new CalcTableVSAssembly(vs, "Calc1");
          assembly.initDefaultFormat();
          vs.addAssembly(assembly);
          TableLayout layout = new TableLayout();
@@ -220,13 +304,13 @@ class VSTableLayoutServiceTest {
 
          ViewsheetSandbox box = mock(ViewsheetSandbox.class);
          when(box.getVSTableLens(anyString(), anyBoolean())).thenReturn(null);
-         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         rvs = mock(RuntimeViewsheet.class);
          when(rvs.getViewsheet()).thenReturn(vs);
          when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
          ViewsheetService engine = mock(ViewsheetService.class);
          when(engine.getViewsheet(anyString(), any())).thenReturn(rvs);
 
-         VSAssemblyInfoHandler handler = mock(VSAssemblyInfoHandler.class);
+         handler = mock(VSAssemblyInfoHandler.class);
 
          if(dispatchError) {
             doAnswer(inv -> {
@@ -267,5 +351,8 @@ class VSTableLayoutServiceTest {
       }
 
       final VSTableLayoutService service;
+      final RuntimeViewsheet rvs;
+      final VSAssemblyInfoHandler handler;
+      final CalcTableVSAssembly assembly;
    }
 }

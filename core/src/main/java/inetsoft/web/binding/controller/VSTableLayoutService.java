@@ -51,6 +51,7 @@ import inetsoft.web.composer.vs.objects.event.ResizeCalcTableCellEvent;
 import inetsoft.web.viewsheet.command.AssemblyLoadingCommand;
 import inetsoft.web.viewsheet.command.ClearAssemblyLoadingCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.wiz.viewsheet.AgentTrapCheck;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -211,6 +212,39 @@ public class VSTableLayoutService {
       sendTableLayout(dispatcher, name, rvs, assembly);
       assemblyInfoHandler.getGrayedOutFields(rvs, dispatcher);
       return null;
+   }
+
+   /**
+    * Bug #80476: whether the binding {@link #setCellBinding} is about to write to a freehand-table
+    * cell introduces a new data-model trap. {@code setCellBinding} applies with checkTrap=false and
+    * its event carries no trap flag, so the Composer asks through {@link #checkTrapForCalc}
+    * beforehand. This compares two clones and never swaps the live info in and out, as that does.
+    *
+    * @return the trap description (e.g. "Chasm Trap is on A, B, C"), or empty when there is none
+    */
+   public Optional<String> newCellBindingTrap(RuntimeViewsheet rvs, SetCellBindingEvent event,
+                                              Principal principal)
+      throws Exception
+   {
+      TableCell[] cells = event.getSelectCells();
+
+      if(cells == null || cells.length == 0) {
+         return Optional.empty();
+      }
+
+      String name = event.getName();
+      CalcTableVSAssembly assembly = getCalcTableVSAssembly(rvs, name);
+      TableCell cell = cells[cells.length - 1];
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+      CalcTableVSAssemblyInfo oinfo = (CalcTableVSAssemblyInfo) info.clone();
+      CalcTableVSAssemblyInfo ninfo = (CalcTableVSAssemblyInfo) info.clone();
+      AssetNamedGroupInfo[] infos = getPredefinedNamedGroup(rvs, name,
+                                                            event.getBinding().getValue());
+      setBinding(event.getBinding(),
+                 getBindingFromLayout(ninfo.getTableLayout(), cell.getRow(), cell.getCol()),
+                 principal, infos);
+
+      return AgentTrapCheck.newTrap(rvs, dataSourceRegistry, oinfo, ninfo);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

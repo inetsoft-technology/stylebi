@@ -36,11 +36,15 @@ import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.composer.ws.assembly.ConditionTrapValidator;
+import inetsoft.web.composer.ws.assembly.ImmutableConditionTrapModel;
 import inetsoft.web.viewsheet.controller.VSRefreshService;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.service.WizVsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -66,6 +70,8 @@ import java.util.*;
  */
 @Service
 public class AssemblyConditionService {
+   private static final Logger LOG = LoggerFactory.getLogger(AssemblyConditionService.class);
+
    /** Evaluates a condition expression the way the viewsheet refresh will. */
    @FunctionalInterface
    interface ExpressionChecker {
@@ -221,6 +227,7 @@ public class AssemblyConditionService {
       throws Exception
    {
       int[] applied = new int[1];
+      boolean[] trap = new boolean[1];
       List<String> warnings = new ArrayList<>();
 
       List<String> sessionWarnings = sessions.mutate(sessionToken, user,
@@ -258,6 +265,11 @@ public class AssemblyConditionService {
          boolean guard = box != null && VariableOperandCheck.hasVariableOperand(conditionList);
          boolean failingBefore = guard && failedQueryCause(box, assemblyName) != null;
          Object[] previous = model.getConditionList();
+
+         // Bug #80476: the Composer dialog asks to confirm a condition that introduces a data-model
+         // trap. Checked before the write, which is applied either way; the validator names the
+         // grayed-out fields, not the tables, so the warning is generic.
+         trap[0] = conditionTrap(runtimeId, assemblyName, previous, conditionList, user);
          model.setConditionList(conditionList);
          applied[0] = clauses == null ? 0 : clauses.size();
 
@@ -325,7 +337,33 @@ public class AssemblyConditionService {
          }
       }
 
+      if(trap[0]) {
+         warnings.add(AgentTrapWarning.genericTrap());
+      }
+
       return new SetResult(applied[0], warnings);
+   }
+
+   /**
+    * Whether replacing {@code previous} with {@code next} introduces a new data-model trap. A failing
+    * check is logged and treated as no trap: it must not fail the write.
+    */
+   private boolean conditionTrap(String runtimeId, String assemblyName, Object[] previous,
+                                 Object[] next, Principal user)
+   {
+      try {
+         ConditionTrapValidator validator = conditionService.checkConditionTrap(
+            runtimeId, ImmutableConditionTrapModel.builder()
+               .oldConditionList(previous == null ? new Object[0] : previous)
+               .newConditionList(next)
+               .tableName(assemblyName)
+               .build(), user);
+         return validator != null && validator.showTrap();
+      }
+      catch(Exception e) {
+         LOG.warn("Data-model trap check of a condition failed; the write is not blocked", e);
+         return false;
+      }
    }
 
    /**
