@@ -63,8 +63,8 @@ class CorrelationFormulaTest {
 
       for(int i = 1; i <= 10; i++) {
          double x = offset + i;
-         // index 0 is the primary value, 1 and 2 are read as x and y
-         f.addValue(new double[] { x, x, 3 * x + 7 });
+         // the pair is members 0 and 1
+         f.addValue(new double[] { x, 3 * x + 7 });
       }
 
       assertEquals(1.0, (Double) f.getResult(), 1e-9);
@@ -161,5 +161,41 @@ class CorrelationFormulaTest {
       f.reset();
       assertTrue(f.isNull());
       assertEquals(1.0, (Double) c.getResult(), 1e-9);
+   }
+
+   // Bug #80974: a blank string is no value, the whole pair is skipped
+   @Test
+   void blankInPair_skipsWholePair() {
+      CorrelationFormula f = new CorrelationFormula(1);
+      Object[][] pairs = { { 1, 1 }, { 2, 2 }, { "", 3 }, { 4, 4 }, { 5, 5.5 }, { 6, " " } };
+
+      for(Object[] p : pairs) {
+         f.addValue((Object) p);
+      }
+
+      assertEquals(0.9964037900472443, (Double) f.getResult(), 1e-9);
+   }
+
+   @Test
+   void allBlank_sameAsAllNull() {
+      CorrelationFormula blank = new CorrelationFormula(1);
+      CorrelationFormula nulls = new CorrelationFormula(1);
+      blank.setDefaultResult(false);
+      nulls.setDefaultResult(false);
+      blank.addValue((Object) new Object[] { "", "" });
+      nulls.addValue((Object) new Object[] { null, null });
+      assertEquals(nulls.getResult(), blank.getResult());
+      assertEquals(nulls.isNull(), blank.isNull());
+   }
+
+   @Test
+   void doubleArrayPair_twoElementsAndShortArray() {
+      CorrelationFormula f = new CorrelationFormula(1);
+      f.addValue(new double[] { 1, 2 });
+      f.addValue(new double[] { 2, 4 });
+      f.addValue(new double[] { 3, 6.5 });
+      f.addValue(new double[] { 9 });
+      f.addValue(new double[] { 9, inetsoft.util.Tool.NULL_DOUBLE });
+      assertEquals(0.9981, (Double) f.getResult(), 1e-3);
    }
 }

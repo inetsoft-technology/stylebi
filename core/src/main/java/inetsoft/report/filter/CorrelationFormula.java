@@ -109,12 +109,12 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
    @Override
    public void addValue(double[] v) {
       if(v == null || v.length < 2 ||
-         v[1] == Tool.NULL_DOUBLE || v[2] == Tool.NULL_DOUBLE)
+         v[0] == Tool.NULL_DOUBLE || v[1] == Tool.NULL_DOUBLE)
       {
          return;
       }
 
-      add(v[1], v[2]);
+      add(v[0], v[1]);
    }
 
    /**
@@ -166,6 +166,13 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
             : NumberParserWrapper.getDouble(pair[1] + "");
 
          if(xV == null || yV == null) {
+            return;
+         }
+
+         // a blank string parses to NaN, skip the whole pair
+         if((!(pair[0] instanceof Number) && Double.isNaN(xV.doubleValue())) ||
+            (!(pair[1] instanceof Number) && Double.isNaN(yV.doubleValue())))
+         {
             return;
          }
 

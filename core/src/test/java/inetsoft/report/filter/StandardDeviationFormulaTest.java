@@ -314,4 +314,13 @@ public class StandardDeviationFormulaTest {
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
    }
+
+   @Test
+   void blankString_isSkipped_bug80974() {
+      StandardDeviationFormula f = new StandardDeviationFormula();
+      for(Object o : new Object[] { 2, "", 4, " ", 6 }) {
+         f.addValue(o);
+      }
+      assertEquals(2.0, ((Number) f.getResult()).doubleValue(), 1e-9);
+   }
 }
