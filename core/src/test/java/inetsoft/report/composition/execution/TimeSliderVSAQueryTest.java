@@ -753,6 +753,7 @@ public class TimeSliderVSAQueryTest {
 
       private final Object[] yearData = { 2013, 2016 };
       private final Object[] yearPlaceholder = { 999, 999 };
+      private final Object[] grownYearData = { 2013, 2017 };
 
       /**
        * A viewer of a sheet saved with Use Metadata on goes to a full-range bookmark after the
@@ -785,32 +786,6 @@ public class TimeSliderVSAQueryTest {
       }
 
       /**
-       * A sheet saved (or previewed) with Use Metadata on before the fix wrote its partial
-       * selection as full="true" against the persisted one-tick placeholder list. Going to that
-       * state must keep the saved selection, not restore the placeholder as the full range.
-       */
-      @Test
-      void healsStateWrittenAsFullAgainstPlaceholder() throws Exception {
-         setUpDateSlider(TimeInfo.MONTH);
-         refresh(dateData);
-         selectRange(10, 5);
-         refresh(dateData);
-
-         viewsheet.getViewsheetInfo().setMetadata(true);
-         refresh(datePlaceholder);
-         String bookmark = writeBookmark();
-         assertTrue(bookmark.contains("full=\"false\""),
-            "a partial selection over the placeholder list must not be written as full");
-
-         useRuntimeBox();
-         gotoBookmark(bookmark.replace("full=\"false\"", "full=\"true\""));
-         refresh(dateData);
-
-         assertEquals(5, assembly.getTimeInfo().getLength());
-         assertSelected(10, 5);
-      }
-
-      /**
        * A partial slider saved while Use Metadata is on (view list = the placeholder) must come
        * back partial when the sheet is opened again, in the viewer or in Composer. The year
        * slider of Examples/Sales Summary narrowed to 2013..2015.
@@ -819,8 +794,8 @@ public class TimeSliderVSAQueryTest {
       void partialYearSelectionSurvivesSaveWithMetadataOn() throws Exception {
          setUpYearSlider();
          String saved = saveWithMetadataOn(yearData, 0, 2, yearPlaceholder);
-         assertTrue(saved.contains("full=\"false\""),
-            "a partial selection over the placeholder list must not be written as full");
+         assertTrue(saved.contains("full=\"false\" placeholder=\"true\""),
+            "a partial selection over the placeholder list must be written as partial");
 
          reloadAndRefreshInViewer(saved, yearData);
 
@@ -840,19 +815,190 @@ public class TimeSliderVSAQueryTest {
       }
 
       /**
-       * The same sheet saved before the fix, with full="true" written against the persisted
-       * placeholder view list: opening it must still give back the saved partial range.
+       * Review r3 blocker 2: a full slider saved with Use Metadata on is the full range, also
+       * once the data has grown (2013..2016 saved, 2013..2017 now), as with Use Metadata off.
        */
       @Test
-      void partialYearSelectionSavedAsFullWithMetadataOnIsHealed() throws Exception {
+      void fullYearSliderSavedWithMetadataOnCoversGrownData() throws Exception {
+         setUpYearSlider();
+         refresh(yearData);
+         String saved = saveWithMetadataOn(yearData, 0,
+            assembly.getSelectionList().getSelectionValueCount() - 1, yearPlaceholder);
+         assertTrue(saved.contains("full=\"true\" placeholder=\"true\""),
+            "the full range must be written as full over the placeholder list");
+
+         reloadAndRefreshInViewer(saved, grownYearData);
+
+         assertFullRange();
+         assertEquals("2017", getStateValues().get(getStateValues().size() - 1));
+      }
+
+      @Test
+      void fullYearSliderSavedWithMetadataOnCoversGrownDataInComposer() throws Exception {
+         setUpYearSlider();
+         refresh(yearData);
+         String saved = saveWithMetadataOn(yearData, 0,
+            assembly.getSelectionList().getSelectionValueCount() - 1, yearPlaceholder);
+
+         // reopened in Composer with Use Metadata on, then turned off
+         reload(saved);
+         setUpDesignMode();
+         refresh(yearPlaceholder);
+         viewsheet.getViewsheetInfo().setMetadata(false);
+         refresh(grownYearData);
+
+         assertFullRange();
+         assertEquals("2017", getStateValues().get(getStateValues().size() - 1));
+      }
+
+      @Test
+      void fullMonthSliderSavedWithMetadataOnCoversGrownData() throws Exception {
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(dateData);
+         String saved = saveWithMetadataOn(dateData, 0,
+            assembly.getSelectionList().getSelectionValueCount() - 1, datePlaceholder);
+
+         reloadAndRefreshInViewer(saved, grownDateData);
+
+         assertFullRange();
+      }
+
+      @Test
+      void partialYearSelectionSavedWithMetadataOnSurvivesDataGrowth() throws Exception {
+         setUpYearSlider();
+         String saved = saveWithMetadataOn(yearData, 0, 2, yearPlaceholder);
+
+         reloadAndRefreshInViewer(saved, grownYearData);
+
+         assertEquals(List.of("2013", "2014", "2015"), getStateValues());
+      }
+
+      /**
+       * Review r3 blocker 1: a full-range bookmark of a sheet without Use Metadata, applied
+       * where the slider's list starts before the bookmark's min and is shorter than its length
+       * (another user's data, or the data changed), selects the full range as before.
+       */
+      @Test
+      void fullBookmarkOnEarlierShorterListStaysFull() throws Exception {
+         useRuntimeBox();
+         setUpYearSlider();
+         refresh(yearData);
+         assertSelected(0, assembly.getSelectionList().getSelectionValueCount() - 1);
+         String bookmark = writeBookmark();
+         assertTrue(bookmark.contains("full=\"true\"/>"),
+            "a sheet without Use Metadata writes the state as before");
+
+         Object[] earlier = { 2012, 2014 };
+         refresh(earlier);
+         gotoBookmark(bookmark);
+         refresh(earlier);
+
+         assertFullRange();
+         assertEquals("2012", getStateValues().get(0));
+      }
+
+      /**
+       * Review r3 minor-1: a date slider of a sheet without Use Metadata whose data had a single
+       * value is saved with a list that reads back without ticks. Opened after the data grew,
+       * it selects the full range as before.
+       */
+      @Test
+      void singleValueDateSliderWithoutMetadataCoversGrownData() throws Exception {
+         useRuntimeBox();
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(datePlaceholder);
+         String saved = writeSheet();
+
+         reload(saved);
+         useRuntimeBox();
+         gotoBookmark(writeBookmark());
+         refresh(dateData);
+
+         assertEquals(1, assembly.getTimeInfo().getLength());
+         assertEquals(List.of("{m '2022-03'}", "{m '2022-04'}"), getStateValues());
+      }
+
+      /**
+       * A sheet saved with Use Metadata on before the fix has no placeholder marker: it is read
+       * as before, i.e. a full="true" state restores the full range of the saved view list, and
+       * no fullness is carried to the refresh.
+       */
+      @Test
+      void sheetSavedWithMetadataOnBeforeTheFixParsesAsBefore() throws Exception {
          setUpYearSlider();
          String saved = saveWithMetadataOn(yearData, 0, 2, yearPlaceholder)
-            .replace("full=\"false\"", "full=\"true\"");
+            .replace("full=\"false\" placeholder=\"true\"", "full=\"true\"");
+         assertFalse(saved.contains("placeholder=\"true\""));
 
-         reloadAndRefreshInViewer(saved, yearData);
+         reload(saved);
 
-         assertEquals(2, assembly.getTimeInfo().getLength());
-         assertSelected(0, 2);
+         assertNull(assembly.getPlaceholderFull());
+         assertEquals(getValues(assembly.getSelectionList()), getStateValues());
+         assertEquals(assembly.getSelectionList().getSelectionValueCount() - 1,
+                      assembly.getTimeInfo().getLengthValue());
+
+         // reopened in Composer with Use Metadata on: still nothing to carry
+         setUpDesignMode();
+         refresh(yearPlaceholder);
+         assertNull(assembly.getPlaceholderFull());
+      }
+
+      /**
+       * A state written over the placeholder (e.g. by an embedded viewsheet copy during the
+       * Use Metadata reset) and parsed where the view list is real again restores the full
+       * range of that real list, as before.
+       */
+      @Test
+      void markedFullStateOnRealListRestoresFullRange() throws Exception {
+         setUpYearSlider();
+         refresh(yearData);
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(yearPlaceholder);
+         String bookmark = writeBookmark();
+         assertTrue(bookmark.contains("full=\"true\" placeholder=\"true\""));
+
+         viewsheet.getViewsheetInfo().setMetadata(false);
+         refresh(grownYearData);
+         gotoBookmark(bookmark);
+
+         assertNull(assembly.getPlaceholderFull());
+         assertEquals(getValues(assembly.getSelectionList()), getStateValues());
+         refresh(grownYearData);
+         assertFullRange();
+      }
+
+      /**
+       * A bookmark written in the viewer (no placeholder marker), applied to a sheet saved with
+       * Use Metadata on before its first refresh (e.g. a scheduled bookmark export), keeps the
+       * bookmark's range instead of taking the placeholder list as its full range.
+       */
+      @Test
+      void viewerBookmarkOnSheetSavedWithMetadataOnKeepsItsRange() throws Exception {
+         setUpYearSlider();
+         refresh(yearData);
+         selectRange(1, 1);
+         refresh(yearData);
+         String partial = writeBookmark();
+         assertFalse(partial.contains("placeholder"));
+         String saved = saveWithMetadataOn(yearData, 0, 3, yearPlaceholder);
+
+         reload(saved);
+         useRuntimeBox();
+         gotoBookmark(partial);
+         refresh(grownYearData);
+
+         assertEquals(List.of("2014", "2015"), getStateValues());
+      }
+
+      @Test
+      void cloneKeepsCarriedFullness() throws Exception {
+         setUpYearSlider();
+         refresh(yearData);
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(yearPlaceholder);
+
+         assertEquals(Boolean.TRUE, assembly.getPlaceholderFull());
+         assertEquals(Boolean.TRUE, assembly.clone().getPlaceholderFull());
       }
 
       private String saveWithMetadataOn(Object[] data, int pos, int length, Object[] placeholder)
@@ -864,7 +1010,10 @@ public class TimeSliderVSAQueryTest {
          assertSelected(pos, length);
          viewsheet.getViewsheetInfo().setMetadata(true);
          refresh(placeholder);
+         return writeSheet();
+      }
 
+      private String writeSheet() {
          java.io.StringWriter buf = new java.io.StringWriter();
          java.io.PrintWriter writer = new java.io.PrintWriter(buf);
          viewsheet.writeXML(writer);
@@ -872,14 +1021,29 @@ public class TimeSliderVSAQueryTest {
          return buf.toString();
       }
 
-      private void reloadAndRefreshInViewer(String saved, Object[] data) throws Exception {
+      private void reload(String saved) throws Exception {
          Viewsheet reloaded = new Viewsheet();
          reloaded.parseXML(Tool.parseXML(new java.io.StringReader(saved)).getDocumentElement());
-         assertTrue(reloaded.getViewsheetInfo().isMetadata());
          viewsheet = reloaded;
          assembly = (TimeSliderVSAssembly) reloaded.getAssembly(SLIDER);
+      }
+
+      /**
+       * Open a saved sheet in the viewer: a runtime box, the initial bookmark taken from the
+       * opened sheet and applied again (RuntimeViewsheet), then the first refresh.
+       */
+      private void reloadAndRefreshInViewer(String saved, Object[] data) throws Exception {
+         reload(saved);
+         assertTrue(viewsheet.getViewsheetInfo().isMetadata());
          useRuntimeBox();
+         gotoBookmark(writeBookmark());
          refresh(data);
+      }
+
+      private void assertFullRange() {
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+         assertEquals(ticks - 1, assembly.getTimeInfo().getLength());
+         assertSelected(0, ticks - 1);
       }
 
       private List<String> getValues(SelectionList list) {
@@ -927,6 +1091,8 @@ public class TimeSliderVSAQueryTest {
        * again (RuntimeViewsheet constructor -> refresh() -> default bookmark).
        */
       private void openPreview() throws Exception {
+         viewsheet = (Viewsheet) viewsheet.clone();
+         assembly = (TimeSliderVSAssembly) viewsheet.getAssembly(SLIDER);
          useRuntimeBox();
          gotoBookmark(writeBookmark());
       }
@@ -1049,6 +1215,8 @@ public class TimeSliderVSAQueryTest {
       // metadata placeholder: a single date with omax present, so the list has one tick
       private final Object[] datePlaceholder =
          { date(2022, 3, 13), date(2022, 3, 13), date(2022, 3, 13) };
+      private final Object[] grownDateData =
+         { date(2022, 3, 13), date(2026, 6, 28), date(2026, 6, 28) };
       private final Object[] numberData = { 0.0, 1000.0 };
       private final Object[] numberPlaceholder = { 0.0, 0.0 };
    }

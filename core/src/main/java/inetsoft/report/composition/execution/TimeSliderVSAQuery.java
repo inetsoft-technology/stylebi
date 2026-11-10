@@ -909,14 +909,17 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          }
       }
       //by @nickgovus 2023-10-31, prevent position overwriting in metadata
-      // a date list left by a metadata placeholder refresh has no tick at all once the sheet
-      // is saved and read back, the saved state decides the position then too (Bug #80814)
-      SelectionList state = assembly.getStateSelectionList();
-      boolean stateOnly = assembly.getTotalLength() == 0 && state != null &&
-         state.getSelectionValueCount() > 0;
-
-      if((assembly.getTotalLength() == 1 || stateOnly) && total > 1 && curr == 0) {
+      if(assembly.getTotalLength() == 1 && total > 1 && curr == 0) {
          hint=NORMAL;
+      }
+
+      // the view list is the placeholder of a Use Metadata design-time refresh, the fullness
+      // carried from the real list keeps the full range (also over new data) or the saved
+      // partial range (Bug #80814)
+      Boolean placeholderFull = assembly.getPlaceholderFull();
+
+      if(placeholderFull != null && !isMetadataDesignMode()) {
+         hint = placeholderFull ? ALL : NORMAL;
       }
 
       if(tinfo instanceof SingleTimeInfo) {
@@ -952,7 +955,10 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       // this method rebuilds the assembly's slist below, so the NUMBER branch's own recovered
       // position (see nearestPos/pos below) can be trusted over a spurious ALL hint instead of
       // being unconditionally clobbered by it.
-      boolean priorTotalDegraded = assembly.getTotalLength() <= 1;
+      // a Use Metadata placeholder list with a carried fullness is not degraded, the ALL hint
+      // then comes from the real selection (Bug #80814)
+      boolean priorTotalDegraded = assembly.getTotalLength() <= 1 &&
+         (assembly.getPlaceholderFull() == null || isMetadataDesignMode());
       double maxsize = tinfo.getMaxRangeSize();
       double rsize0 = tinfo.getRangeSize();
       rsize0 = Double.isNaN(rsize0) ? 0 : rsize0;
@@ -1481,7 +1487,12 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          }
       }
 
-      assembly.setSelectionList(slist);
+      if(isMetadataDesignMode()) {
+         assembly.setPlaceholderSelectionList(slist);
+      }
+      else {
+         assembly.setSelectionList(slist);
+      }
 
       if(!isMetadataDesignMode()) {
          assembly.setStateSelectionList(slist2);
@@ -1818,7 +1829,12 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          }
       }
 
-      assembly.setSelectionList(slist);
+      if(isMetadataDesignMode()) {
+         assembly.setPlaceholderSelectionList(slist);
+      }
+      else {
+         assembly.setSelectionList(slist);
+      }
 
       if(!isMetadataDesignMode()) {
          assembly.setStateSelectionList(slist2);
