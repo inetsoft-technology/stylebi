@@ -43,6 +43,7 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.viewsheet.model.RemoveAnnotationsCondition;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
+import inetsoft.web.wiz.WizUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,7 +95,6 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    public Void saveBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
                             Principal principal, CommandDispatcher commandDispatcher, String linkUri) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = vsObjectService.getRuntimeViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
       VSBookmarkInfoModel vsBookmarkInfoModel = value.vsBookmarkInfoModel();
@@ -117,61 +117,10 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          return null;
       }
 
-      if(VSBookmark.HOME_BOOKMARK.equals(name)) {
-         String id = rvs.getOriginalID();
-         RuntimeViewsheet rvs0 = id == null ? rvs : engine.getViewsheet(id, principal);
-         Viewsheet vs0 = rvs0.getViewsheet();
-         Viewsheet ovs = vs.clone();
-         AssetEntry vsEntry0 = rvs0.getEntry();
-
-         // could be disposed
-         if(vs0 == null || vsEntry0 == null) {
-            return null;
-         }
-
-         vsEntry.setProperty("noAnnotation", "true");
-         // use the preview runtime viewsheet to update the edit viewsheet
-         VSEventUtil.updateViewsheet(ovs, true, vs0);
-         vsEntry.setProperty("noAnnotation", null);
-         vsEntry0.setProperty("homeBookmarkSaved", "true");
-         vsEntry0.setProperty("bookmarkIndex", null);
-
-         try {
-            engine.setViewsheet(vs0, vsEntry0, principal, true, true);
-            saveEmbeddedViewsheets(vs0, engine, principal);
-         }
-         finally {
-            if(rvs.isViewer()) {
-               vs.getRuntimeEntry().setProperty("keepAnnoVis", "true");
-               Viewsheet nvs = rvs.getViewsheet();
-               VSEventUtil.updateViewsheet(ovs, true, nvs);
-               vs.getRuntimeEntry().setProperty("keepAnnoVis", null);
-            }
-         }
-
-         if(rvs.isPreview()) {
-            rvs0.setSavePoint(rvs0.getCurrent());
-            vsObjectService.refreshViewsheet(rvs0, linkUri, new CommandDispatcher(commandDispatcher, value.clientId()));
-         }
-         else if(rvs.isViewer()) {
-            if(vs.getViewsheetInfo().isScaleToScreen()) {
-               Object scaleSize = rvs.getProperty("viewsheet.appliedScale");
-
-               if(scaleSize instanceof Dimension && ((Dimension) scaleSize).width > 0 &&
-                  ((Dimension) scaleSize).height > 0)
-               {
-                  vsObjectService.refreshViewsheet(rvs, ((Dimension) scaleSize).width,
-                                           ((Dimension) scaleSize).height, linkUri, commandDispatcher);
-               }
-            }
-         }
-         else {
-            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-
-            if(box.isPresent()) {
-               box.get().updateAssemblies();
-            }
-         }
+      if(VSBookmark.HOME_BOOKMARK.equals(name) &&
+         !saveHomeBookmarkAsset(rvs, principal, commandDispatcher, linkUri, value.clientId()))
+      {
+         return null;
       }
 
       if(!value.confirmed()) {
@@ -245,6 +194,81 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
 
       return null;
+   }
+
+   /**
+    * Saves the live state of the runtime viewsheet into the dashboard asset itself, which is what
+    * the "(Home)" bookmark means: every user opens the dashboard from that saved state.
+    * Callers must have verified the caller's write permission; the engine's own check is
+    * approved for agent principals.
+    *
+    * @return false when the runtime was disposed and nothing was saved.
+    */
+   public boolean saveHomeBookmarkAsset(RuntimeViewsheet rvs, Principal principal,
+                                        CommandDispatcher commandDispatcher, String linkUri,
+                                        String clientId) throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      AssetEntry vsEntry = vs.getRuntimeEntry();
+      String id = rvs.getOriginalID();
+      RuntimeViewsheet rvs0 = id == null ? rvs : viewsheetService.getViewsheet(id, principal);
+      Viewsheet vs0 = rvs0.getViewsheet();
+      Viewsheet ovs = vs.clone();
+      AssetEntry vsEntry0 = rvs0.getEntry();
+
+      // could be disposed
+      if(vs0 == null || vsEntry0 == null) {
+         return false;
+      }
+
+      vsEntry.setProperty("noAnnotation", "true");
+      // use the preview runtime viewsheet to update the edit viewsheet
+      VSEventUtil.updateViewsheet(ovs, true, vs0);
+      vsEntry.setProperty("noAnnotation", null);
+      vsEntry0.setProperty("homeBookmarkSaved", "true");
+      vsEntry0.setProperty("bookmarkIndex", null);
+
+      try {
+         viewsheetService.setViewsheet(vs0, vsEntry0, principal, true, true);
+         saveEmbeddedViewsheets(vs0, viewsheetService, principal);
+      }
+      finally {
+         // normally cleared by the engine's lock check; make sure a refusal never leaves it
+         vsEntry0.setProperty("homeBookmarkSaved", null);
+
+         if(rvs.isViewer()) {
+            vs.getRuntimeEntry().setProperty("keepAnnoVis", "true");
+            Viewsheet nvs = rvs.getViewsheet();
+            VSEventUtil.updateViewsheet(ovs, true, nvs);
+            vs.getRuntimeEntry().setProperty("keepAnnoVis", null);
+         }
+      }
+
+      if(rvs.isPreview()) {
+         rvs0.setSavePoint(rvs0.getCurrent());
+         vsObjectService.refreshViewsheet(rvs0, linkUri, new CommandDispatcher(commandDispatcher, clientId));
+      }
+      else if(rvs.isViewer()) {
+         if(vs.getViewsheetInfo().isScaleToScreen()) {
+            Object scaleSize = rvs.getProperty("viewsheet.appliedScale");
+
+            if(scaleSize instanceof Dimension && ((Dimension) scaleSize).width > 0 &&
+               ((Dimension) scaleSize).height > 0)
+            {
+               vsObjectService.refreshViewsheet(rvs, ((Dimension) scaleSize).width,
+                                        ((Dimension) scaleSize).height, linkUri, commandDispatcher);
+            }
+         }
+      }
+      else {
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            box.get().updateAssemblies();
+         }
+      }
+
+      return true;
    }
 
    @ClusterWriteMethod
@@ -1199,6 +1223,12 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
                   cloned.setViewsheet(null);
 
                   try {
+                     // the engine's WRITE check is approved for an agent principal
+                     if(principal instanceof XPrincipal xp) {
+                        WizUtil.requireSaveWritePermission(
+                           engine.getAssetRepository(), embeddedEntry, xp, "viewsheet");
+                     }
+
                      // updateDependency=false: saving embedded VS runtime state does not change the dependency graph
                      engine.setViewsheet(cloned, embeddedEntry, principal, true, false);
                   }

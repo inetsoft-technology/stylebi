@@ -55,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -432,5 +433,101 @@ class VSBookmarkServiceTest {
          inetsoft.sree.security.Organization.getDefaultOrganizationID(), "orgA", false, dispatcher);
       verify(rvs).setDefaultBookmark(any());
       verify(dispatcher, never()).sendCommand(any());
+   }
+
+   // ---- Bug #80165: "(Home)" is saved into the dashboard asset ----
+
+   private static final class HomeFixture {
+      final ViewsheetService engine = mock(ViewsheetService.class);
+      final inetsoft.uql.viewsheet.Viewsheet vs = mock(inetsoft.uql.viewsheet.Viewsheet.class);
+      final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      final AssetEntry entry = new AssetEntry(inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Dash", null, "host-org");
+      final VSBookmarkService service;
+
+      HomeFixture() {
+         when(vs.clone()).thenReturn(vs);
+         when(vs.getRuntimeEntry()).thenReturn(entry);
+         when(rvs.getViewsheet()).thenReturn(vs);
+         when(rvs.getEntry()).thenReturn(entry);
+         when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.empty());
+         when(vs.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+         service = new VSBookmarkService(mock(VSObjectService.class), engine,
+            mock(SecurityEngine.class), mock(ScheduleManager.class), mock(Cluster.class),
+            mock(XSessionService.class));
+      }
+   }
+
+   @Test
+   void saveHomeBookmarkAsset_rewritesTheDashboardAssetWithTheHomeFlagClearedAfterwards()
+      throws Exception
+   {
+      HomeFixture f = new HomeFixture();
+      Principal caller = () -> "admin";
+
+      try(MockedStatic<inetsoft.analytic.composition.event.VSEventUtil> util =
+             mockStatic(inetsoft.analytic.composition.event.VSEventUtil.class))
+      {
+         boolean saved = f.service.saveHomeBookmarkAsset(f.rvs, caller, null, "", null);
+
+         assertTrue(saved);
+      }
+
+      verify(f.engine).setViewsheet(f.vs, f.entry, caller, true, true);
+      assertEquals(null, f.entry.getProperty("homeBookmarkSaved"));
+   }
+
+   @Test
+   void saveHomeBookmarkAsset_clearsTheHomeFlagWhenTheWriteIsRefused() throws Exception {
+      HomeFixture f = new HomeFixture();
+      Principal caller = () -> "admin";
+      org.mockito.Mockito.doThrow(new inetsoft.util.MessageException("locked")).when(f.engine)
+         .setViewsheet(any(), any(), any(), anyBoolean(), anyBoolean());
+
+      try(MockedStatic<inetsoft.analytic.composition.event.VSEventUtil> util =
+             mockStatic(inetsoft.analytic.composition.event.VSEventUtil.class))
+      {
+         org.junit.jupiter.api.Assertions.assertThrows(inetsoft.util.MessageException.class,
+            () -> f.service.saveHomeBookmarkAsset(f.rvs, caller, null, "", null));
+      }
+
+      assertEquals(null, f.entry.getProperty("homeBookmarkSaved"));
+   }
+
+   @Test
+   void saveHomeBookmarkAsset_embeddedViewsheetWithoutWriteIsNotRewrittenForAnAgentPrincipal()
+      throws Exception
+   {
+      HomeFixture f = new HomeFixture();
+      inetsoft.uql.asset.AssetRepository repo = mock(inetsoft.uql.asset.AssetRepository.class);
+      when(f.engine.getAssetRepository()).thenReturn(repo);
+      when(repo.containsEntry(any())).thenReturn(true);
+      AssetEntry embeddedEntry = new AssetEntry(inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Other", null, "host-org");
+      org.mockito.Mockito.doThrow(new inetsoft.util.MessageException("denied")).when(repo)
+         .checkAssetPermission(any(), argThat(e -> "Other".equals(e.getPath())),
+                               eq(ResourceAction.WRITE));
+      inetsoft.uql.viewsheet.Viewsheet embedded = mock(inetsoft.uql.viewsheet.Viewsheet.class);
+      when(embedded.getEntry()).thenReturn(embeddedEntry);
+      when(embedded.clone()).thenReturn(embedded);
+      when(embedded.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      when(f.vs.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[] { embedded });
+      inetsoft.sree.security.SRPrincipal wiz;
+
+      try(MockedStatic<inetsoft.analytic.composition.event.VSEventUtil> util =
+             mockStatic(inetsoft.analytic.composition.event.VSEventUtil.class);
+          MockedStatic<XSessionService> sessionService = mockStatic(XSessionService.class))
+      {
+         sessionService.when(XSessionService::getService).thenReturn(new XSessionService());
+         IdentityID id = IdentityID.getIdentityIDFromKey("admin");
+         wiz = new inetsoft.sree.security.SRPrincipal(
+            id, new IdentityID[0], new String[0], id.orgID, 1L);
+         wiz.setProperty("wiz", "true");
+         f.service.saveHomeBookmarkAsset(f.rvs, wiz, null, "", null);
+      }
+
+      verify(f.engine).setViewsheet(f.vs, f.entry, wiz, true, true);
+      verify(f.engine, never()).setViewsheet(any(), eq(embeddedEntry), any(), anyBoolean(),
+                                             anyBoolean());
    }
 }

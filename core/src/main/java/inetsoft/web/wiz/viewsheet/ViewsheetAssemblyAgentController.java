@@ -78,6 +78,7 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
 import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.VSBookmarkService;
 import inetsoft.web.viewsheet.service.ExportInProgressException;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -608,7 +609,7 @@ public class ViewsheetAssemblyAgentController {
       AtomicReference<UpdateBookmarkResult> result = new AtomicReference<>();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         result.set(updateBookmarkIn(rvs, name, request, onConflict, ownerArg, user));
+         result.set(updateBookmarkIn(rvs, name, request, onConflict, ownerArg, user, dispatcher));
       });
 
       return result.get();
@@ -616,7 +617,8 @@ public class ViewsheetAssemblyAgentController {
 
    private UpdateBookmarkResult updateBookmarkIn(RuntimeViewsheet rvs, String name,
                                                  SaveBookmarkRequest request, String onConflict,
-                                                 String ownerArg, Principal user)
+                                                 String ownerArg, Principal user,
+                                                 CommandDispatcher dispatcher)
       throws Exception
    {
       IdentityID caller = ownerOf(user);
@@ -720,6 +722,16 @@ public class ViewsheetAssemblyAgentController {
       // a minimal Principal suffices), not unconditionally the caller -- otherwise this would
       // silently create a new, distinct bookmark under the caller's own identity instead of
       // overriding the shared one the guard just approved.
+      // Bug #80165: "(Home)" is the dashboard's saved initial view, so (like the Viewer) it is
+      // written into the dashboard asset, not only into the caller's own bookmark store.
+      // All refusals come first so nothing is written for a caller who may not do this.
+      if(VSBookmark.HOME_BOOKMARK.equals(name)) {
+         requireOk(vsBookmarkService.checkAddBookmark(
+                      rvs, name, true, principalOf(targetOwner), user),
+                   "update_bookmark");
+         saveHomeAsset(rvs, user, dispatcher);
+      }
+
       requireOk(vsBookmarkService.addBookmarkToViewSheet(
                    rvs, name, type, readOnly, true, principalOf(targetOwner), user),
                 "update_bookmark");
@@ -729,6 +741,42 @@ public class ViewsheetAssemblyAgentController {
 
       return new UpdateBookmarkResult(conflict, "modified".equals(conflict) ? "override" : "none",
                                       targetOwner.getName());
+   }
+
+   /**
+    * Bug #80165: writes the live "(Home)" state into the dashboard asset. The engine's own WRITE
+    * check is approved for a wiz principal (Bug #79530), so the caller's real write permission
+    * is verified here first, as save_viewsheet does. Engine refusals (lock, validity) are
+    * reported by name instead of surfacing as bare server errors.
+    */
+   private void saveHomeAsset(RuntimeViewsheet rvs, Principal user, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      String prefix = "update_bookmark: '" + VSBookmark.HOME_BOOKMARK + "' is saved into the " +
+         "dashboard itself and was not changed: ";
+
+      try {
+         if(user instanceof XPrincipal xp) {
+            WizUtil.requireSaveWritePermission(viewsheetService.getAssetRepository(),
+                                               rvs.getEntry(), xp, "viewsheet");
+         }
+
+         if(!vsBookmarkService.saveHomeBookmarkAsset(rvs, user, dispatcher, "", null)) {
+            throw new IllegalArgumentException(
+               prefix + "the dashboard runtime is no longer available.");
+         }
+
+         if(rvs.getOriginalID() == null) {
+            // the whole runtime was just stored, so it is no longer an unsaved edit
+            rvs.setSavePoint(rvs.getCurrent());
+         }
+      }
+      catch(PairingException e) {
+         throw new PairingException(prefix + e.getMessage(), e);
+      }
+      catch(MessageException e) {
+         throw new IllegalArgumentException(prefix + e.getMessage(), e);
+      }
    }
 
    /**
