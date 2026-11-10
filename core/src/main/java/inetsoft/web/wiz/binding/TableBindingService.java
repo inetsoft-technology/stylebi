@@ -64,6 +64,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.wiz.viewsheet.EmbeddedTableFlag;
 import inetsoft.web.wiz.viewsheet.TableLensGuard;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import inetsoft.web.wiz.viewsheet.WizDateFormatOverNumeric;
@@ -3402,6 +3403,9 @@ public class TableBindingService {
       event.setClearVacatedAliases(true);
       event.setUngroupDimensions(ungroup);
       bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+      // Bug #80479: a flagged embedded table bound to a worksheet table must read it raw, not
+      // through the mirror built while it was unbound
+      EmbeddedTableFlag.unwrap(rvs, assemblyName);
    }
 
    /**

@@ -1122,6 +1122,80 @@ class TableBindingServiceTest {
                    "worksheet tables bind as ASSET — the form used everywhere else");
    }
 
+   /**
+    * Bug #80479: a flagged Embedded Table whose worksheet table was already mirrored reads the
+    * raw table once set_table_source has written the binding.
+    */
+   @Test
+   void setSourceUnwrapsTheMirrorOfAFlaggedEmbeddedTable() throws Exception {
+      Viewsheet vs = viewsheetWithMirroredGrid(
+         new inetsoft.uql.asset.EmbeddedTableAssembly(new inetsoft.uql.asset.Worksheet(), "Targets"));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.empty());
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", mock(inetsoft.web.wiz.dispatch.CapturingCommandDispatcher.class));
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      assertInstanceOf(inetsoft.uql.asset.MirrorTableAssembly.class,
+                       vs.getBaseWorksheet().getAssembly("Targets"));
+
+      serviceWith(sessions, withTables("Targets"), mock(VSBindingModelService.class))
+         .setSource("tok", principal(), "TargetGrid", "Targets", false);
+
+      assertInstanceOf(inetsoft.uql.asset.EmbeddedTableAssembly.class,
+                       vs.getBaseWorksheet().getAssembly("Targets"));
+   }
+
+   /** A flagged Embedded Table bound to a worksheet table that is not embedded is left alone. */
+   @Test
+   void setSourceLeavesANonEmbeddedWorksheetTableMirrored() throws Exception {
+      inetsoft.uql.asset.Worksheet ws = new inetsoft.uql.asset.Worksheet();
+      inetsoft.uql.asset.BoundTableAssembly other =
+         new inetsoft.uql.asset.BoundTableAssembly(ws, "Targets");
+      Viewsheet vs = viewsheetWithMirroredGrid(other);
+      assertInstanceOf(inetsoft.uql.asset.MirrorTableAssembly.class,
+                       vs.getBaseWorksheet().getAssembly("Targets"));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      assertFalse(inetsoft.web.wiz.viewsheet.EmbeddedTableFlag.unwrap(rvs, "TargetGrid"));
+      assertInstanceOf(inetsoft.uql.asset.MirrorTableAssembly.class,
+                       vs.getBaseWorksheet().getAssembly("Targets"));
+   }
+
+   /** Unflagged grid bound to {@code table}; its worksheet table is mirrored, then flagged. */
+   private static Viewsheet viewsheetWithMirroredGrid(inetsoft.uql.asset.TableAssembly table)
+      throws Exception
+   {
+      inetsoft.uql.asset.Worksheet ws = new inetsoft.uql.asset.Worksheet();
+
+      if(table instanceof inetsoft.uql.asset.EmbeddedTableAssembly) {
+         table = new inetsoft.uql.asset.EmbeddedTableAssembly(ws, "Targets");
+         ((inetsoft.uql.asset.EmbeddedTableAssembly) table).setEmbeddedData(
+            new inetsoft.uql.util.XEmbeddedTable(
+               new String[] { inetsoft.uql.schema.XSchema.STRING },
+               new Object[][] { { "Region" }, { "East" } }));
+      }
+      else {
+         table = new inetsoft.uql.asset.BoundTableAssembly(ws, "Targets");
+      }
+
+      ws.addAssembly(table);
+      Viewsheet vs = new Viewsheet();
+      EmbeddedTableVSAssembly grid = new EmbeddedTableVSAssembly(vs, "TargetGrid");
+      grid.setSourceInfo(new inetsoft.uql.asset.SourceInfo(
+         inetsoft.uql.asset.SourceInfo.ASSET, null, "Targets"));
+      vs.addAssembly(grid);
+      java.lang.reflect.Method setBase =
+         Viewsheet.class.getDeclaredMethod("setBaseWorksheet", inetsoft.uql.asset.Worksheet.class);
+      setBase.setAccessible(true);
+      setBase.invoke(vs, ws);
+      inetsoft.web.wiz.viewsheet.EmbeddedTableFlag.flag(grid);
+      return vs;
+   }
+
    // Bug #79192: worksheet tables Customers and CUSTOMERS are two tables.
    @Test
    void setSourceBindsTheExactTableWhenACaseVariantIsListedFirst() throws Exception {

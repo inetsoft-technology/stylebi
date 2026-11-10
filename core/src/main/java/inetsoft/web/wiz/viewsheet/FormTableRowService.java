@@ -26,6 +26,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.ComboBoxColumnOption;
+import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.ListData;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -241,7 +242,7 @@ public class FormTableRowService {
    private static String checkSetCell(RuntimeViewsheet rvs, String assemblyName, int row, int col,
                                       String value) throws Exception
    {
-      requireForm(rvs, assemblyName);
+      requireForm(rvs, assemblyName, true);
       requireFormLens(rvs, assemblyName);
       requireCellInRange(rvs, assemblyName, row, col);
 
@@ -487,6 +488,12 @@ public class FormTableRowService {
    }
 
    private static TableVSAssemblyInfo requireForm(RuntimeViewsheet rvs, String assemblyName) {
+      return requireForm(rvs, assemblyName, false);
+   }
+
+   static TableVSAssemblyInfo requireForm(RuntimeViewsheet rvs, String assemblyName,
+                                          boolean cellEdit)
+   {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
@@ -505,7 +512,10 @@ public class FormTableRowService {
       if(!info.isForm()) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is not a Form table -- enable Table > Form Options > Form " +
-            "in the Composer before row edits are possible.");
+            "in the Composer before row edits are possible." +
+            (cellEdit && assembly instanceof EmbeddedTableVSAssembly ?
+               " To edit the cells of a plain (non-Form) Embedded Table use " +
+               "embedded_table_set_cells." : ""));
       }
 
       return info;

@@ -102,6 +102,35 @@ class AssemblyPropertyServiceEmbeddedTableTest {
          .getVSAssemblyInfo()).getMaxRows());
    }
 
+   /**
+    * Bug #80479: an embedded table created through the agent add path carries the embedded-table
+    * flag. A property write and a rename must neither drop the flag nor swap the assembly.
+    */
+   @Test
+   void flaggedEmbeddedTableSurvivesMaxRowsAndRename() throws Exception {
+      Stack stack = stack(true);
+      assertTrue(stack.info().isEmbeddedTable(), "created through the agent add path");
+
+      stack.service().set("tok", principal(), NAME, Map.of("maxRows", 37), "");
+
+      assertSame(stack.table(), stack.vs().getAssembly(NAME));
+      assertTrue(stack.info().isEmbeddedTable(), "flag kept after set_assembly_properties");
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(stack.vs());
+      when(rvs.getID()).thenReturn("rt1");
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertTrue(stack.properties().editObjectProperty(
+         rvs, stack.table().getVSAssemblyInfo(), NAME, "Renamed", "", principal(),
+         mock(CommandDispatcher.class), true, null));
+
+      Object renamed = stack.vs().getAssembly("Renamed");
+      assertInstanceOf(EmbeddedTableVSAssembly.class, renamed);
+      assertTrue(((EmbeddedTableVSAssemblyInfo) ((EmbeddedTableVSAssembly) renamed)
+         .getVSAssemblyInfo()).isEmbeddedTable(), "flag kept after rename");
+   }
+
    @Test
    @SuppressWarnings("unchecked")
    void submitOnChangeRoundTripsOnAnEmbeddedTable() throws Exception {
@@ -120,7 +149,7 @@ class AssemblyPropertyServiceEmbeddedTableTest {
    private static final String NAME = "EmbeddedTable1";
 
    private record Stack(AssemblyPropertyService service, Viewsheet vs,
-                        EmbeddedTableVSAssembly table)
+                        EmbeddedTableVSAssembly table, VSObjectPropertyService properties)
    {
       EmbeddedTableVSAssemblyInfo info() {
          return (EmbeddedTableVSAssemblyInfo) table.getVSAssemblyInfo();
@@ -137,8 +166,17 @@ class AssemblyPropertyServiceEmbeddedTableTest {
     * mocks.
     */
    private static Stack stack() throws Exception {
+      return stack(false);
+   }
+
+   private static Stack stack(boolean flagged) throws Exception {
       Viewsheet vs = new Viewsheet();
       EmbeddedTableVSAssembly table = new EmbeddedTableVSAssembly(vs, NAME);
+
+      if(flagged) {
+         EmbeddedTableFlag.flag(table);
+      }
+
       vs.addAssembly(table);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
@@ -191,6 +229,6 @@ class AssemblyPropertyServiceEmbeddedTableTest {
          mock(SubmitPropertyDialogService.class), mock(VSOutputService.class),
          mock(VSColumnHandler.class), mock(DataOutputService.class),
          mock(ViewsheetObjectPropertyDialogService.class));
-      return new Stack(service, vs, table);
+      return new Stack(service, vs, table, properties);
    }
 }

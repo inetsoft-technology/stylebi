@@ -375,6 +375,11 @@ public class ViewsheetEditService {
             return;
          }
 
+         if(rvs.getViewsheet() != null) {
+            // Bug #80479: keep the worksheet table an embedded table once it is bound
+            EmbeddedTableFlag.flag(rvs.getViewsheet().getAssembly(name));
+         }
+
          if(request.assembly() != null && !request.assembly().isBlank()) {
             Viewsheet vs = rvs.getViewsheet();
             VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(name);
