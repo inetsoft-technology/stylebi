@@ -775,6 +775,33 @@ public class ViewsheetFormatService {
       }
    }
 
+   /**
+    * Bug #80935: a chart text region stores its alignment as one int and the painter writes the
+    * whole int from the request, so an {@code align} naming one axis clears the other. The other
+    * targets have that axis filled in from what is stored ({@link #seededEvents}); these go
+    * through the painter's per-chart route, which has no read of a region's current alignment
+    * this service can call before writing, so the write is refused rather than allowed to clear
+    * the unsent axis. Both axes, or neither (a reset), still go through.
+    */
+   private static void refuseOneAxisChartAlign(FormatRequest request, String target) {
+      AlignmentInfo align = request.reset() || request.format() == null ? null :
+         request.format().getAlign();
+
+      if(!isOneAxis(align)) {
+         return;
+      }
+
+      String name = "text".equals(target) ? "text" : chartRegionDisplayName(target);
+      String sent = align.getHalign() != null ? "halign" : "valign";
+      String missing = align.getHalign() != null ? "valign" : "halign";
+
+      throw new IllegalArgumentException(
+         "set_format: target '" + name + "' needs both alignment axes in 'align'; got only " +
+         sent + ". A chart text region keeps one alignment value, so the " + missing +
+         " left out would be cleared. Send both, e.g. " +
+         "{\"halign\":\"Right\",\"valign\":\"Middle\"}.");
+   }
+
    private static boolean isChartRegionTarget(String target) {
       return AXIS_LABEL.equals(target) || AXIS_LABEL2.equals(target) ||
          LEGEND_TITLE_TARGET.equals(target) || LEGEND_CONTENT_TARGET.equals(target) ||
@@ -1440,6 +1467,10 @@ public class ViewsheetFormatService {
          }
       }
 
+      if("text".equals(target) || isChartRegionTarget(target)) {
+         refuseOneAxisChartAlign(request, target);
+      }
+
       Set<String> warnings = new LinkedHashSet<>();
 
       List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
@@ -1747,12 +1778,18 @@ public class ViewsheetFormatService {
 
    /**
     * What the painter would otherwise overwrite with the request's blank defaults: the assembly's
-    * gauge fill / tab corner flags, the path's CSS class/id, and the border sides and colours the
-    * caller did not send (null when no border key was sent).
+    * gauge fill / tab corner flags, the path's CSS class/id, the border sides and colours the
+    * caller did not send (null when no border key was sent), and the path's current alignment
+    * (null unless exactly one alignment axis was sent).
     */
    private record SeedKey(String valueFill, Boolean roundTop, Boolean roundBottom,
-                          String cssClass, String cssId, List<String> border)
+                          String cssClass, String cssId, List<String> border, Integer align)
    {
+   }
+
+   /** Exactly one of {@code halign}/{@code valign}: a write meant to change that axis alone. */
+   private static boolean isOneAxis(AlignmentInfo align) {
+      return align != null && (align.getHalign() == null) != (align.getValign() == null);
    }
 
    private static boolean styleSent(Set<String> keys, String side) {
@@ -1790,6 +1827,7 @@ public class ViewsheetFormatService {
 
       Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
       boolean border = anyBorderKeySent(keys);
+      boolean oneAxis = keys.contains("align") && isOneAxis(format.getAlign());
       Map<SeedKey, List<Unit>> groups = new LinkedHashMap<>();
 
       for(int i = 0; i < assemblies.size(); i++) {
@@ -1801,15 +1839,17 @@ public class ViewsheetFormatService {
          TableDataPath[] paths = data != null && data.size() > i ? data.get(i) : null;
 
          if(paths == null || paths.length == 0) {
-            groups.computeIfAbsent(seedKey(info, VSAssemblyInfo.OBJECTPATH, keys, border),
-                                   k -> new ArrayList<>()).add(new Unit(name, null));
+            groups.computeIfAbsent(
+               seedKey(info, VSAssemblyInfo.OBJECTPATH, keys, border, oneAxis),
+               k -> new ArrayList<>()).add(new Unit(name, null));
             continue;
          }
 
          Map<SeedKey, List<TableDataPath>> byKey = new LinkedHashMap<>();
 
          for(TableDataPath path : paths) {
-            byKey.computeIfAbsent(seedKey(info, path, keys, border), k -> new ArrayList<>())
+            byKey.computeIfAbsent(seedKey(info, path, keys, border, oneAxis),
+                                  k -> new ArrayList<>())
                .add(path);
          }
 
@@ -1846,7 +1886,7 @@ public class ViewsheetFormatService {
    }
 
    private static SeedKey seedKey(VSAssemblyInfo info, TableDataPath path, Set<String> keys,
-                                  boolean border)
+                                  boolean border, boolean oneAxis)
    {
       String valueFill = null;
       Boolean roundTop = null;
@@ -1920,7 +1960,36 @@ public class ViewsheetFormatService {
          }
       }
 
-      return new SeedKey(valueFill, roundTop, roundBottom, cssClass, cssId, borderSeed);
+      Integer alignSeed = null;
+
+      if(oneAxis) {
+         // Bug #80935: the painter stores the alignment as one int, so a model carrying one axis
+         // clears the other. Unlike the borders above, this seeds the effective alignment rather
+         // than the user layer: the write stores the whole int as user-defined either way, so an
+         // inherited (default/CSS) axis left out of the seed would be lost too. The effective
+         // value is also what the Composer's own alignment pane sends back for the axis it did not
+         // change (FormatPainterService.getFormat reads the same composite).
+         VSCompositeFormat current = alignmentFormat(info, path);
+         alignSeed = current == null ? 0 : current.getAlignment();
+      }
+
+      return new SeedKey(valueFill, roundTop, roundBottom, cssClass, cssId, borderSeed,
+                         alignSeed);
+   }
+
+   /**
+    * The format the painter reads and writes this path's alignment in: an input's label lives in
+    * its {@code LabelInfo}, every other path in the assembly's {@code FormatInfo}.
+    */
+   private static VSCompositeFormat alignmentFormat(VSAssemblyInfo info, TableDataPath path) {
+      if(path != null && path.getType() == TableDataPath.INPUT_LABEL &&
+         info instanceof InputVSAssemblyInfo input)
+      {
+         return input.getLabelInfo() == null ? null : input.getLabelInfo().getLabelFormat();
+      }
+
+      FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+      return formatInfo == null ? null : formatInfo.getFormat(path, false);
    }
 
    /**
@@ -1952,6 +2021,16 @@ public class ViewsheetFormatService {
 
       if(!keys.contains("cssID")) {
          model.setCssID(seed.cssId());
+      }
+
+      if(seed.align() != null) {
+         // A fresh AlignmentInfo: with one seed group the model is the request's own object.
+         AlignmentInfo sent = model.getAlign();
+         AlignmentInfo current = new AlignmentInfo(seed.align());
+         AlignmentInfo filled = new AlignmentInfo();
+         filled.setHalign(sent.getHalign() != null ? sent.getHalign() : current.getHalign());
+         filled.setValign(sent.getValign() != null ? sent.getValign() : current.getValign());
+         model.setAlign(filled);
       }
 
       List<String> border = seed.border();
