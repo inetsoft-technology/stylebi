@@ -22,6 +22,9 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.StaticColorFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.graph.*;
@@ -113,6 +116,40 @@ class StaticColorPickTest {
          GraphUtil.fixStaticColorFrame(lone, new DefaultVSChartInfo(), null, ctx);
          assertEquals(GraphUtil.OLD_COLOR_PALETTE_DEFAULT_COLOR, frame(lone).getDefaultColor());
       }
+   }
+
+   @Test
+   void aRenderDoesNotRepickAModernColour() {
+      CategoricalColorFrame combined = combine(MODERN, MODERN_1, MODERN_2);
+      assertEquals(MODERN_1, combined.getColor(0));
+      assertEquals(MODERN_2, combined.getColor(1));
+   }
+
+   @Test
+   void aRenderRepicksAModernDuplicateFromTheModernPalette() {
+      CategoricalColorFrame combined = combine(MODERN, MODERN_1, MODERN_1);
+      assertEquals(MODERN_1, combined.getColor(0));
+      assertEquals(MODERN_2, combined.getColor(1));
+   }
+
+   @Test
+   void aClassicRenderRepicksFromTheLegacyList() {
+      CategoricalColorFrame combined = combine(VizContext.LEGACY, LEGACY_1, LEGACY_1);
+      assertEquals(LEGACY_1, combined.getColor(0));
+      assertEquals(LEGACY_2, combined.getColor(1));
+   }
+
+   private static CategoricalColorFrame combine(VizContext ctx, Color... colors) {
+      VSColorFrameStrategy strategy = new VSColorFrameStrategy(new DefaultVSChartInfo(), ctx);
+      VisualFrame[] frames = new VisualFrame[colors.length];
+      String[] names = new String[colors.length];
+
+      for(int i = 0; i < colors.length; i++) {
+         frames[i] = new StaticColorFrame(colors[i]);
+         names[i] = "m" + i;
+      }
+
+      return (CategoricalColorFrame) strategy.createCombinedFrame(names, frames, true, false);
    }
 
    private static StaticColorFrameWrapper frame(ChartAggregateRef ref) {

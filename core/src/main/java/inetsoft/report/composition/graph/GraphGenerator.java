@@ -327,7 +327,7 @@ public abstract class GraphGenerator {
          boolean global = !info.isMultiAesthetic();
          String vsrc = GraphUtil.getVisualSource(chart);
 
-         cstrategy = new VSColorFrameStrategy(info);
+         cstrategy = new VSColorFrameStrategy(info, vizContext);
          cvisitor = new VSFrameVisitor(info, fdata, cstrategy, global, vdata, cubeType, vsrc,
             sourceType, dateComparison, getFrameInitializer());
 
@@ -480,7 +480,7 @@ public abstract class GraphGenerator {
       DataSet fdata = adata == null ? odata : adata;
       // create color frame
       boolean sep = !info.isMultiAesthetic();
-      cstrategy = new VSColorFrameStrategy(info);
+      cstrategy = new VSColorFrameStrategy(info, VizContext.LEGACY);
       cvisitor = new VSFrameVisitor(info, fdata, cstrategy, sep, data,
                                     null, vsrc, sourceType, getFrameInitializer());
 
@@ -5480,6 +5480,8 @@ public abstract class GraphGenerator {
       if(!applyColor) {
          ColorFrame colors = elem.getColorFrame();
 
+         Color[] palette = VSChartPaletteDefaults.staticPalette(vizContext);
+
          if(colors instanceof MultiMeasureColorFrame) {
             // apply color to image icon if there are more than one color
             // (e.g. for multiple measure)
@@ -5489,7 +5491,7 @@ public abstract class GraphGenerator {
             if(!applyColor) {
                if(info.isMultiAesthetic()) {
                   // or if color has changed.
-                  applyColor = !colors.getColor(elem.getVar(0)).equals(CategoricalColorFrame.COLOR_PALETTE.get(0));
+                  applyColor = !colors.getColor(elem.getVar(0)).equals(palette[0]);
                }
                else {
                   // must cast to MultiMeasureColorFrame to call getColor(int), otherwise it
@@ -5500,7 +5502,7 @@ public abstract class GraphGenerator {
                   // (on combined-color-pane) for their corresponding index, so we compare
                   // the color with the color at that index. (59286)
                   applyColor = !mcolors.getColor(measureIdx)
-                     .equals(CategoricalColorFrame.COLOR_PALETTE.get(measureIdx));
+                     .equals(palette[measureIdx % palette.length]);
                }
             }
          }
