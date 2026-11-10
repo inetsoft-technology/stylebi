@@ -22,6 +22,8 @@ import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
@@ -270,6 +272,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          return;
       }
 
+      seedMeasureColors(info, ctx);
+
       for(boolean runtime : new boolean[]{ false, true }) {
          for(AestheticRef ref : info.getAestheticRefs(runtime)) {
             seedColorFrame(ref, ctx);
@@ -284,6 +288,28 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // measure-backed node color the loop already reached simply takes the same write twice.
       if(info instanceof RelationChartInfo) {
          seedColorFrame(((RelationChartInfo) info).getNodeColorField(), ctx);
+      }
+   }
+
+   // moves each static default colour to the same position in the mark's palette
+   private void seedMeasureColors(VSChartInfo info, VizContext ctx) {
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(ChartRef ref : info.getBindingRefs(runtime)) {
+            if(ref instanceof ChartAggregateRef) {
+               reseatStaticDefault(((ChartAggregateRef) ref).getColorFrameWrapper(), ctx);
+            }
+         }
+      }
+
+      if(info instanceof RelationChartInfo) {
+         reseatStaticDefault(((RelationChartInfo) info).getNodeColorFrameWrapper(), ctx);
+      }
+   }
+
+   private void reseatStaticDefault(ColorFrameWrapper wrapper, VizContext ctx) {
+      if(wrapper instanceof StaticColorFrameWrapper) {
+         StaticColorFrameWrapper sw = (StaticColorFrameWrapper) wrapper;
+         sw.setDefaultColor(VSChartPaletteDefaults.reseatStaticColor(sw.getDefaultColor(), ctx));
       }
    }
 
