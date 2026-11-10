@@ -188,7 +188,9 @@ public class ServerFileQuery extends SelectableTabularQuery {
       dependsOn = {"tab", "fileFolder"})
    public String getDelimiter() {
       if(this.delimiter == null || this.delimiter.isEmpty()) {
-         initDelimiter();
+         // derived from the file on every read and never stored: a read made before the file
+         // is set (e.g. by the layout creator) must not freeze the "," fallback in place
+         return detectDelimiter();
       }
 
       return delimiter;
@@ -565,6 +567,16 @@ public class ServerFileQuery extends SelectableTabularQuery {
    }
 
    public void initDelimiter() {
+      this.delimiter = detectDelimiter();
+   }
+
+   /**
+    * Detect the delimiter of the first text file in the folder, falling back to a comma when
+    * there is no file or none can be detected. Does not change the query.
+    */
+   private String detectDelimiter() {
+      String detected = null;
+
       if(isText()) {
          File firstFile = ServerFileUtil.getFirstFile(getFileFolder(), ServerFileUtil.FileType.TEXT);
 
@@ -601,14 +613,12 @@ public class ServerFileQuery extends SelectableTabularQuery {
             }
 
             if(!dlimit.equals("\t")) {
-               this.delimiter = dlimit;
+               detected = dlimit;
             }
          }
       }
 
-      if(this.delimiter == null || this.delimiter.isEmpty()) {
-         this.delimiter = ",";
-      }
+      return detected == null || detected.isEmpty() ? "," : detected;
    }
 
    /**
