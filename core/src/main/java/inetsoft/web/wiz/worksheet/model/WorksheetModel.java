@@ -63,13 +63,28 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    {@code "date range"}
     * @param source      the source worksheet path for an outer mirror, otherwise the name of the
     *                    mirrored assembly in this worksheet; {@code null} when unknown
+    * @param sourceScope {@code "global"} or {@code "user"}: the repository scope of the source
+    *                    worksheet for an outer mirror (the same path can exist in both scopes);
+    *                    omitted when the source is in this worksheet
     * @param outerMirror whether the source is another worksheet
     * @param autoUpdate  whether the mirror follows its source automatically
     * @param primary     {@code true} if this is the worksheet's primary assembly; always emitted
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
-   public record MirrorModel(String name, String kind, String source, boolean outerMirror,
-                             boolean autoUpdate, boolean primary) {}
+   public record MirrorModel(String name, String kind, String source, String sourceScope,
+                             boolean outerMirror, boolean autoUpdate, boolean primary) {}
+
+   /**
+    * The saved worksheet a visible cross-worksheet table mirror was copied from. This locates a
+    * worksheet, not an assembly: a mirror made by {@code add_mirror(path)} or by dropping a
+    * worksheet on the canvas always mirrors that worksheet's primary table.
+    *
+    * @param path  the source worksheet's repository path
+    * @param scope {@code "global"} or {@code "user"}; the same path can exist in both
+    * @param owner the owning user, for {@code "user"} scope only; omitted otherwise
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record MirrorOf(String path, String scope, String owner) {}
 
    /**
     * A single table assembly inside the worksheet.
@@ -165,6 +180,12 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param hidden             {@code true} for a hidden copy that backs a mirror (see
     *                           {@link MirrorModel}); {@code null} otherwise. Such a copy is not
     *                           user content: it cannot be edited, renamed or deleted directly
+    * @param mirrorOf           for a visible table mirror copied from another saved worksheet, the
+    *                           worksheet it was copied from (path, scope, and owner for user
+    *                           scope); {@code null} for every other table, including a mirror of
+    *                           a table in this same worksheet and a mirror's hidden copies. It
+    *                           locates a worksheet, not an assembly: such a mirror always mirrors
+    *                           the source worksheet's primary table
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record TableModel(
@@ -197,7 +218,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<FilterModel> mvDeletePreConditions,
       List<FilterModel> mvDeletePostConditions,
       boolean mvForceAppendUpdates,
-      Boolean hidden
+      Boolean hidden,
+      MirrorOf mirrorOf
    ) {}
 
    /**
