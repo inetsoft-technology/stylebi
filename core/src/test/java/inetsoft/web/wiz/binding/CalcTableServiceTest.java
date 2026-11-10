@@ -1542,6 +1542,33 @@ class CalcTableServiceTest {
                                                          anyString(), anyString(), anyString());
    }
 
+   // ── Bug #80476: data-model trap warning on set_cell_binding ──────────────────────────────
+
+   @Test
+   void aNewTrapFromACellBindingWarnsAndTheWriteStillHappens() throws Exception {
+      Harness h = harness(2, 2);
+      when(h.layoutService.newCellBindingTrap(any(), any(), any(Principal.class)))
+         .thenReturn(java.util.Optional.of("Chasm Trap is on Orders, Returns"));
+
+      Map<String, Object> body =
+         h.service.setCellBinding("tok", principal(), "Calc1", 1, 0, columnCell("Region"));
+
+      assertEquals(List.of("Data-model trap: Chasm Trap is on Orders, Returns. " +
+                           "The write was applied; use undo to revert it."), body.get("warnings"));
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   @Test
+   void aCellBindingWithoutANewTrapIsSilent() throws Exception {
+      Harness h = harness(2, 2);
+
+      Map<String, Object> body =
+         h.service.setCellBinding("tok", principal(), "Calc1", 1, 0, columnCell("Region"));
+
+      assertTrue(body == null || !body.containsKey("warnings"), String.valueOf(body));
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,

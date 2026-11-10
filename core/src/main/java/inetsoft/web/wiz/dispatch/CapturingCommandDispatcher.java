@@ -20,6 +20,7 @@ package inetsoft.web.wiz.dispatch;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
+import inetsoft.web.binding.command.VSBindingTrapCommand;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -27,6 +28,7 @@ import inetsoft.web.viewsheet.command.ViewsheetCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
+import inetsoft.web.wiz.viewsheet.AgentTrapWarning;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.MessagingException;
@@ -208,9 +210,59 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
     * fail the call -- the caller decides whether to relay them.
     */
    public List<String> getWarnings() {
-      List<String> warnings = messagesOfType(MessageCommand.Type.WARNING);
+      List<String> warnings = collapseTrapWarnings(messagesOfType(MessageCommand.Type.WARNING));
       warnings.addAll(getScriptFailures());
       return warnings;
+   }
+
+   /**
+    * Bug #80476: at most one {@code Data-model trap:} warning per call. A binding write sends a
+    * {@code VSBindingTrapCommand} (post-apply) whose model is non-null only when the write
+    * introduced a NEW trap; Composer shows its alert on exactly that, and an unchanged or
+    * pre-existing trap is silent. The command carries only the grayed-out fields, not the tables
+    * forming the trap, so its warning is generic and yields to a table-naming one already present
+    * (from the {@code VSObjectPropertyService} hook). One call can send several such commands
+    * (multi-step chart writes); each step is compared with its predecessor, so a trap introduced
+    * by step 1 and undone by step 2 still warns, and one introduced by step 2 after step 1
+    * trapped is silent. {@code ChangeChartRefService} checks only for a non-zero change hint, so
+    * a hint-0 chart binding write is never reported.
+    */
+   private List<String> collapseTrapWarnings(List<String> warnings) {
+      boolean seen = false;
+
+      for(int i = 0; i < warnings.size(); ) {
+         if(AgentTrapWarning.isTrapWarning(warnings.get(i))) {
+            if(seen) {
+               warnings.remove(i);
+               continue;
+            }
+
+            seen = true;
+         }
+
+         i++;
+      }
+
+      if(!seen && newBindingTrap()) {
+         warnings.add(AgentTrapWarning.genericTrap());
+      }
+
+      return warnings;
+   }
+
+   private boolean newBindingTrap() {
+      for(Command command : captured) {
+         if(command.getCommand() instanceof VSBindingTrapCommand trap && trap.getModel() != null) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   @Override
+   public boolean reportsModelTrap() {
+      return true;
    }
 
    /**
