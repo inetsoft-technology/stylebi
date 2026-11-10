@@ -301,9 +301,40 @@ public final class TabularQueryContractSupport {
             clearCompositeValues(query, prop);
          }
          else if(!queryParams.containsKey(param.getName())) {
-            resetToDefault(query, fresh, prop);
+            resetToDefault(query, defaultsFor(query, fresh, pmap, prop), prop);
          }
       }
+   }
+
+   /**
+    * The defaults to compare {@code prop} against. A property whose default is derived from the
+    * params it {@code dependsOn} (ServerFile's delimiter, detected from the file in fileFolder)
+    * has no default of its own on a bare instance, so such a property is read off a fresh
+    * instance that carries the live query's values for those params; otherwise an omitted
+    * delimiter would be "reset" to the file-less fallback and break a file that needs another one.
+    */
+   private static TabularQuery defaultsFor(TabularQuery query, TabularQuery fresh,
+                                           Map<String, PropertyMeta> pmap, PropertyMeta prop)
+   {
+      String[] dependsOn = prop.getDependsOn();
+
+      if(dependsOn == null || dependsOn.length == 0) {
+         return fresh;
+      }
+
+      TabularQuery derived = defaultsOf(query);
+
+      for(String name : dependsOn) {
+         PropertyMeta dep = pmap.get(name);
+
+         if(dep != null && !name.equals(prop.getName()) &&
+            dep.getDescriptor().getWriteMethod() != null)
+         {
+            dep.setValue(derived, dep.getValue(query));
+         }
+      }
+
+      return derived;
    }
 
    /**
