@@ -1211,6 +1211,128 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #80969: an edit that only restates the request (here the suffix) onto a request that
+    * fails used to be committed with ok:true, because the probe started from the previous
+    * request's output columns and a failed run never overwrites them.
+    */
+   @Test
+   void editTableRefusesRequestOnlyEditOntoAFailingRequest() throws Exception {
+      assertRequestOnlyEditRefusedAndTableUnchanged("TOK-ET80969A", "/gone");
+   }
+
+   /**
+    * Bug #80969: same as above for a request that completes but yields no columns/rows; the
+    * runner never reports an error for it either.
+    */
+   @Test
+   void editTableRefusesRequestOnlyEditOntoAZeroRowRequest() throws Exception {
+      assertRequestOnlyEditRefusedAndTableUnchanged("TOK-ET80969B", "/nothing");
+   }
+
+   /** Control for #80969: a request-only edit onto a working request still replaces columns. */
+   @Test
+   void editTableRequestOnlyEditOntoAWorkingRequestStillApplies() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Fixture f = failureLeavesColumnsUntouchedFixture("TOK-ET80969C", agent);
+
+      assertDoesNotThrow(() -> f.ctrl().edit("TOK-ET80969C",
+         editTableRequest("Widgets", null, null, null, "/gadgets", null, null, null), agent));
+
+      ColumnSelection cols = f.assembly().getColumnSelection(false);
+      assertEquals(2, cols.getAttributeCount());
+      assertNotNull(cols.getAttribute("gadgetId"));
+      assertNull(cols.getAttribute("widgetId"));
+   }
+
+   private void assertRequestOnlyEditRefusedAndTableUnchanged(String token, String badSuffix)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Fixture f = failureLeavesColumnsUntouchedFixture(token, agent);
+      TabularQuery liveQuery = ((TabularTableAssemblyInfo) f.assembly().getTableInfo()).getQuery();
+
+      PairingException ex = assertThrows(PairingException.class, () -> f.ctrl().edit(token,
+         editTableRequest("Widgets", null, null, null, badSuffix, null, null, null), agent));
+      assertTrue(ex.getMessage().contains("returned no columns"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("MyDatasource"), ex.getMessage());
+
+      assertSame(liveQuery, ((TabularTableAssemblyInfo) f.assembly().getTableInfo()).getQuery());
+      assertEquals("/widgets", ((FakeColumnProducingCustomRestQuery) liveQuery).getSuffix(),
+         "a refused edit must not mutate the live query");
+      ColumnSelection cols = f.assembly().getColumnSelection(false);
+      assertEquals(1, cols.getAttributeCount());
+      assertNotNull(cols.getAttribute("widgetId"));
+   }
+
+   private record Fixture(TabularTableAssembly assembly, WorksheetAgentController ctrl) {
+   }
+
+   /**
+    * Reports columns only for the suffixes it knows; any other suffix models a failed or empty
+    * request, which leaves the query's output columns as they were. Public with a no-argument
+    * constructor because the tabular property reflection needs one.
+    */
+   public static class FailureKeepsColumnsQuery extends FakeColumnProducingCustomRestQuery {
+      @Override
+      public void setColumnsBySuffix(Map<String, List<String>> columnsBySuffix) {
+         super.setColumnsBySuffix(columnsBySuffix);
+         known = columnsBySuffix;
+      }
+
+      @Override
+      public void loadOutputColumns(VariableTable vtable) {
+         if(known.containsKey(getSuffix())) {
+            super.loadOutputColumns(vtable);
+         }
+      }
+
+      private Map<String, List<String>> known = Map.of();
+   }
+
+   /**
+    * A live "/widgets" table over a connector that, like the real runners, leaves its output
+    * columns untouched when a request fails or returns nothing (the stock fake overwrites them
+    * with an empty array, which would hide the bug).
+    */
+   private Fixture failureLeavesColumnsUntouchedFixture(String token, Principal agent)
+      throws Exception
+   {
+      FailureKeepsColumnsQuery liveQuery = new FailureKeepsColumnsQuery();
+      liveQuery.setColumnsBySuffix(Map.of(
+         "/widgets", List.of("widgetId"),
+         "/gadgets", List.of("gadgetId", "gadgetName")));
+      liveQuery.setSuffix("/widgets");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Widgets");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      return new Fixture(liveAssembly, securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class)));
+   }
+
+   /**
     * Bug #79598: a file-style connector (SelectableTabularQuery) caches its ColumnDefinition[]
     * and rebuilds its output columns from that cache alone, so edit_table on a schema-affecting
     * parameter (here the delimiter) kept the stale column set while ok:true was returned.
