@@ -323,6 +323,43 @@ class ChartChromeRenderTest {
       return graph.getXTitleSpec().getLabel();
    }
 
+   @Test
+   void aModernLineChartStillDarkensItsSeededColour() {
+      Object[][] rows = new Object[7][];
+      rows[0] = new Object[]{ "State", "Sum(Total)" };
+
+      for(int i = 1; i < rows.length; i++) {
+         rows[i] = new Object[]{ i % 3 == 0 ? "CA" : (i % 3 == 1 ? "NY" : "TX"),
+                                 (double) (i * 100) };
+      }
+
+      VSChartAggregateRef total = new VSChartAggregateRef();
+      total.setDataRef(new BaseField("Total"));
+      total.setFormulaValue("Sum");
+
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_LINE);
+      cinfo.setRTChartType(GraphTypes.CHART_LINE);
+      cinfo.addXField(new VSChartDimensionRef(new BaseField("State")));
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(new ChartDescriptor());
+      assemblyInfo.setVizMark(VizMark.MODERN_LIGHT);
+      VizModernizeUtil.reseedAfterRestore(assemblyInfo);
+
+      EGraph graph = GraphGenerator.getGenerator(
+         assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
+         XSourceInfo.NONE, null).createEGraph();
+      MultiMeasureColorFrame frame = (MultiMeasureColorFrame) graph.getElement(0).getColorFrame();
+      String measure = graph.getElement(0).getVar(0);
+      assertEquals(0.75, frame.getBrightness(measure), 1e-9);
+      frame.setBrightness(measure, 1.0);
+      assertEquals(new Color(0x0490FF), frame.getColor(measure));
+   }
+
    private static EGraph paretoGraph(VizMark mark, boolean ticks) {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Sum(Total)" };

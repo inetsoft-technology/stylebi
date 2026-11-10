@@ -17,12 +17,12 @@
  */
 package inetsoft.web.binding.service;
 
-import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.report.composition.graph.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
@@ -34,6 +34,7 @@ import inetsoft.web.binding.service.graph.ChartAestheticService;
 import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
 
+import java.awt.Color;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -241,7 +242,7 @@ public abstract class ChartInfoModelBuilder {
 
       model.setPointLine(plot.isPointLine());
       model.setStackMeasures(plot.isStackMeasures());
-      fixColorChanged(model);
+      fixColorChanged(model, getVizContext());
 
       // Populate text layout
       model.setTextLayout(TextLayoutModel.fromDomain(plot.getTextLayout()));
@@ -260,22 +261,25 @@ public abstract class ChartInfoModelBuilder {
    }
 
    // check for default color and set color changed.
-   private static void fixColorChanged(ChartBindingModel model) {
+   static void fixColorChanged(ChartBindingModel model, VizContext ctx) {
       List<ChartRefModel> xfields = model.getXFields().stream()
          .filter(f -> f instanceof ChartAggregateRefModel).collect(Collectors.toList());
       List<ChartRefModel> yfields = model.getYFields().stream()
          .filter(f -> f instanceof ChartAggregateRefModel).collect(Collectors.toList());
 
       if(yfields.size() > 0) {
-         fixColorChanged(model, yfields);
+         fixColorChanged(model, yfields, ctx);
       }
       else {
-         fixColorChanged(model, xfields);
+         fixColorChanged(model, xfields, ctx);
       }
    }
 
-   private static void fixColorChanged(ChartBindingModel model, List<ChartRefModel> yfields) {
-      final int n = CategoricalColorFrame.COLOR_PALETTE.size();
+   private static void fixColorChanged(ChartBindingModel model, List<ChartRefModel> yfields,
+                                       VizContext ctx)
+   {
+      final Color[] palette = VSChartPaletteDefaults.staticPalette(ctx);
+      final int n = palette.length;
 
       for(int i = 0; i < yfields.size(); i++ ) {
          ColorFrameModel colorFrame = ((ChartAggregateRefModel) yfields.get(i)).getColorFrame();
@@ -287,11 +291,11 @@ public abstract class ChartInfoModelBuilder {
             // should be applied on image. this condition matches the logic for applyColor.
             // (61437)
             if(model.isMultiStyles()) {
-               if(!color.equals(Tool.toString(CategoricalColorFrame.COLOR_PALETTE.get(0)))) {
+               if(!color.equals(Tool.toString(palette[0]))) {
                   colorFrame.setChanged(true);
                }
             }
-            else if(!color.equals(Tool.toString(CategoricalColorFrame.COLOR_PALETTE.get(i % n)))) {
+            else if(!color.equals(Tool.toString(palette[i % n]))) {
                colorFrame.setChanged(true);
             }
          }
