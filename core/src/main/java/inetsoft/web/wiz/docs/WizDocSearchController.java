@@ -19,7 +19,6 @@ package inetsoft.web.wiz.docs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
-import inetsoft.web.assistant.AIAssistantController;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -92,14 +91,17 @@ public class WizDocSearchController {
 
       String body = new String(bytes, StandardCharsets.UTF_8);
 
-      String baseUrl = AIAssistantController.resolveAssistantBaseUrl();
+      DocSearchTarget target = DocSearchTarget.resolve().orElse(null);
 
-      if(baseUrl == null) {
+      if(target == null) {
          writeJson(response, HttpStatus.SERVICE_UNAVAILABLE.value(), errorBody(
-            "AI assistant server is not configured on this StyleBI server " +
-            "(chat.app.internal.url or chat.app.server.url)."));
+            "Documentation search is not available on this StyleBI server (disabled, or no " +
+            "documentation server is configured: " + DocSearchTarget.DOCS_URL_PROPERTY +
+            ", chat.app.internal.url or chat.app.server.url)."));
          return;
       }
+
+      String baseUrl = target.baseUrl();
 
       // Only the network call to the assistant is guarded here. Writing the response is done
       // after the try returns, so a client disconnect mid-write (an IOException from the servlet
@@ -109,26 +111,46 @@ public class WizDocSearchController {
       AssistantDocSearchGateway.Response gatewayResponse;
 
       try {
-         gatewayResponse = gateway.post(baseUrl, ASSISTANT_PATH, body, request.getHeader("Authorization"));
+         // The caller's StyleBI bearer token goes only to the deployment's own assistant.
+         String authorization = target.source().forwardsCallerToken()
+            ? request.getHeader("Authorization") : null;
+         gatewayResponse = gateway.post(baseUrl, ASSISTANT_PATH, body, authorization,
+                                        target.source().usesAssistantTls());
       }
       catch(InterruptedException e) {
          Thread.currentThread().interrupt();
 
-         unreachable(response, baseUrl, e);
+         unreachable(response, target, e);
          return;
       }
       catch(Exception e) {
-         unreachable(response, baseUrl, e);
+         unreachable(response, target, e);
          return;
       }
 
       // A bare 404 reads as "no such StyleBI route" and sends the operator to debug the wrong
       // layer. It actually means the assistant predates this endpoint.
       if(gatewayResponse.status() == HttpStatus.NOT_FOUND.value()) {
-         LOG.warn("AI assistant at {} has no {} endpoint", baseUrl, ASSISTANT_PATH);
+         LOG.warn("Documentation server at {} (from {}) has no {} endpoint", baseUrl,
+                  target.source(), ASSISTANT_PATH);
 
          writeJson(response, HttpStatus.BAD_GATEWAY.value(), errorBody(
-            "The AI assistant server does not support document search — upgrade required."));
+            "The documentation search server does not support document search — upgrade required."));
+         return;
+      }
+
+      // The documentation server wants credentials (an older or self-hosted assistant that keeps
+      // doc search behind auth). Relayed as 401 it would read to the plugin as "your StyleBI
+      // login expired", which is not what happened, so it is reported as the upstream failure
+      // it is.
+      if(gatewayResponse.status() == HttpStatus.UNAUTHORIZED.value() ||
+         gatewayResponse.status() == HttpStatus.FORBIDDEN.value())
+      {
+         LOG.warn("Documentation server at {} (from {}) rejected the request with {}", baseUrl,
+                  target.source(), gatewayResponse.status());
+
+         writeJson(response, HttpStatus.BAD_GATEWAY.value(), errorBody(
+            "The documentation search server requires authentication and rejected the request."));
          return;
       }
 
@@ -141,13 +163,16 @@ public class WizDocSearchController {
       writeJson(response, gatewayResponse.status(), gatewayResponse.body());
    }
 
-   private void unreachable(HttpServletResponse response, String baseUrl, Exception e)
+   private void unreachable(HttpServletResponse response, DocSearchTarget target, Exception e)
       throws IOException
    {
-      LOG.warn("AI assistant doc search failed for {}: {}", baseUrl, e.getMessage());
+      // Says which URL was used and where it came from, so an operator can see why a
+      // misconfigured or blocked host is the one that failed. No fallback follows.
+      LOG.warn("Documentation search failed for {} (from {}): {}", target.baseUrl(),
+               target.source(), e.getMessage());
 
       writeJson(response, HttpStatus.BAD_GATEWAY.value(),
-         errorBody("The AI assistant server did not respond."));
+         errorBody("The documentation search server did not respond."));
    }
 
    /**
