@@ -335,8 +335,10 @@ public class GraphUtil {
     * data.
     */
    public static Color getMapEmptyColor(PlotDescriptor plotDesc) {
-      if(plotDesc != null && plotDesc.getEmptyColor() != null) {
-         return plotDesc.getEmptyColor();
+      Color authored = plotDesc == null ? null : plotDesc.getAuthoredEmptyColor();
+
+      if(authored != null) {
+         return authored;
       }
 
       String emptyColor = SreeEnv.getProperty("map.empty.color");
@@ -356,7 +358,10 @@ public class GraphUtil {
          }
       }
 
-      return MAP_EMPTY_DATA_COLOR;
+      // the seeded tier of a marked chart, below an admin's server property
+      Color seeded = plotDesc == null ? null :
+         plotDesc.getEmptyColor(CompositeValue.Type.DEFAULT);
+      return seeded != null ? seeded : MAP_EMPTY_DATA_COLOR;
    }
 
    /**

@@ -25,6 +25,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
@@ -63,6 +64,8 @@ class ChartColorTypeSeedTest {
    private static final Color EDGE_DARK = new Color(0x7E7B86);
    private static final Color TINT = new Color(0xA6D0F0);
    private static final Color PALE_ORANGE = new Color(0xFBD29A);
+   private static final Color GRID = new Color(0xD6D2C8);
+   private static final Color GRID_DARK = new Color(0x4A484F);
    private static final String STATE_LAYER = "2";
    private static final String CITY_LAYER = "1001";
 
@@ -209,6 +212,56 @@ class ChartColorTypeSeedTest {
       String before = writeXml(info);
       seed(info);
       assertEquals(before, writeXml(info));
+   }
+
+   @Test
+   void aModernMapsNoDataColourIsTheGridColour() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVSChartInfo(polygonMap());
+      seed(info);
+      assertEquals(GRID, emptyColor(info).get(CompositeValue.Type.DEFAULT));
+      assertFalse(emptyColor(info).hasUserValue());
+
+      info.setVizMark(VizMark.MODERN_DARK);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(GRID_DARK, emptyColor(info).get(CompositeValue.Type.DEFAULT));
+   }
+
+   @Test
+   void revertClearsTheSeededNoDataColour() {
+      ChartVSAssemblyInfo info = newChart();
+      info.setVSChartInfo(polygonMap());
+      modernize(info);
+      assertEquals(GRID, emptyColor(info).get(CompositeValue.Type.DEFAULT), "premise: seeded");
+      revert(info);
+      assertNull(emptyColor(info).get(CompositeValue.Type.DEFAULT));
+   }
+
+   @Test
+   void aClassicChartSavesNoNoDataColour() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVSChartInfo(polygonMap());
+      String before = writeXml(info);
+      seed(info);
+      assertNull(emptyColor(info).get(CompositeValue.Type.DEFAULT));
+      assertEquals(before, writeXml(info));
+   }
+
+   @Test
+   void anAuthorNoDataColourSurvivesAReseed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVSChartInfo(polygonMap());
+      info.getChartDescriptor().getPlotDescriptor().setEmptyColor(Color.RED);
+      seed(info);
+      assertEquals(Color.RED, info.getChartDescriptor().getPlotDescriptor().getEmptyColor());
+      assertEquals(Color.RED, info.getChartDescriptor().getPlotDescriptor().getAuthoredEmptyColor());
+   }
+
+   private static CompositeValue<?> emptyColor(ChartVSAssemblyInfo info) {
+      return info.getChartDescriptor().getPlotDescriptor().chromeValue("emptyColor");
    }
 
    // ---- harness -----------------------------------------------------------------------------

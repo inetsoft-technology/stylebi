@@ -171,6 +171,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          plotDesc.setFacetGridColor(gridline, CompositeValue.Type.DEFAULT);
          plotDesc.setDiagonalColor(gridline, CompositeValue.Type.DEFAULT);
          plotDesc.setQuadrantColor(gridline, CompositeValue.Type.DEFAULT);
+         // a map's regions without data
+         plotDesc.setEmptyColor(gridline, CompositeValue.Type.DEFAULT);
 
          // the data-label ink. Seeded, so PlotDescriptor.initDefaultFormat no longer writes a
          // colour at all - it ran on every render and overwrote this
@@ -208,6 +210,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          plotDesc.setQuadrantColor(
             ChartLineColor.getPlotLineColor(GDefaults.DEFAULT_GRIDLINE_COLOR, "quadrant"),
             CompositeValue.Type.DEFAULT);
+         // null, so the server property is read again at render
+         plotDesc.setEmptyColor(null, CompositeValue.Type.DEFAULT);
 
          plotDesc.getTextFormat().getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
 

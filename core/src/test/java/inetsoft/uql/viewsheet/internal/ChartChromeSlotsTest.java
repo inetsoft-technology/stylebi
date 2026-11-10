@@ -23,6 +23,7 @@ import inetsoft.graph.aesthetic.SpectralColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.StyleFont;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -148,6 +149,30 @@ class ChartChromeSlotsTest {
       slot.clearAuthor(info);
       assertFalse(plot.chromeValue("xGridColor").hasUserValue());
       assertThrows(IllegalArgumentException.class, () -> plot.chromeValue("trendline"));
+   }
+
+   @Test
+   void aNoDataColourIsATieredSlotAndAnAuthorValueClears() {
+      ChartVSAssemblyInfo info = chart();
+      PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
+      plot.setEmptyColor(Color.RED, CompositeValue.Type.USER);
+
+      ChromeSlot slot = find(info, "chart:plot:emptyColor");
+      assertTrue(slot.isAuthorSet(info));
+      assertTrue(slot.residueEligible());
+      assertEquals(Color.RED, slot.authorValue(info));
+
+      slot.clearAuthor(info);
+      assertFalse(plot.chromeValue("emptyColor").hasUserValue());
+   }
+
+   @Test
+   void aNoDataColourEqualToTheClassicRenderIsResidue() {
+      ChartVSAssemblyInfo info = chart();
+      PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
+      plot.setEmptyColor(GraphUtil.MAP_EMPTY_DATA_COLOR, CompositeValue.Type.USER);
+      assertEquals(1, VizModernizeUtil.clearResidue(info));
+      assertFalse(plot.chromeValue("emptyColor").hasUserValue());
    }
 
    @Test
