@@ -26,6 +26,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
@@ -71,6 +72,51 @@ class ChartColorRenderTest {
    @Test
    void aClassicMapWithPointsKeepsThePaleOrange() {
       assertEquals(new Color(0xFBD29A), regionColor(null));
+   }
+
+   @Test
+   void theServerPropertyBeatsTheSeededNoDataColour() {
+      SreeEnv.setProperty("map.empty.color", "#123456");
+      assertEquals(new Color(0x123456), GraphUtil.getMapEmptyColor(plot(VizMark.MODERN_LIGHT)));
+   }
+
+   @Test
+   void aModernMapDrawsTheSeededNoDataColourWithoutTheProperty() {
+      assertEquals(new Color(0xD6D2C8), GraphUtil.getMapEmptyColor(plot(VizMark.MODERN_LIGHT)));
+   }
+
+   @Test
+   void anAuthorNoDataColourBeatsTheProperty() {
+      SreeEnv.setProperty("map.empty.color", "#123456");
+      PlotDescriptor plot = plot(VizMark.MODERN_LIGHT);
+      plot.setEmptyColor(Color.RED);
+      assertEquals(Color.RED, GraphUtil.getMapEmptyColor(plot));
+   }
+
+   @Test
+   void aClassicMapStillReadsTheProperty() {
+      SreeEnv.setProperty("map.empty.color", "#123456");
+      assertEquals(new Color(0x123456), GraphUtil.getMapEmptyColor(plot(null)));
+   }
+
+   @Test
+   void aClearedAuthorColourStillShadowsTheCssColour() {
+      PlotDescriptor plot = plot(null);
+      plot.setEmptyColor(Color.GREEN, CompositeValue.Type.CSS);
+      plot.setEmptyColor(null, CompositeValue.Type.USER);
+      assertEquals(GraphUtil.MAP_EMPTY_DATA_COLOR, GraphUtil.getMapEmptyColor(plot));
+
+      SreeEnv.setProperty("map.empty.color", "#123456");
+      assertEquals(new Color(0x123456), GraphUtil.getMapEmptyColor(plot));
+   }
+
+   private static PlotDescriptor plot(VizMark mark) {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVSChartInfo(new VSMapInfo());
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setVizMark(mark);
+      VizModernizeUtil.reseedAfterRestore(info);
+      return info.getChartDescriptor().getPlotDescriptor();
    }
 
    // the colour the polygon element draws a region with data in

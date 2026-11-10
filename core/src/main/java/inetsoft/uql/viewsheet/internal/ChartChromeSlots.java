@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.aesthetic.*;
 import inetsoft.report.composition.graph.GraphTarget;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.VSDataRef;
@@ -75,7 +76,7 @@ final class ChartChromeSlots {
    private static final Loc<PlotDescriptor> PLOT = DESC.then(ChartDescriptor::getPlotDescriptor);
    private static final String[] PLOT_VALUES = {
       "xGridColor", "yGridColor", "xGridStyle", "yGridStyle", "diagonalColor", "quadrantColor",
-      "facetColor", "bgColor"
+      "facetColor", "bgColor", "emptyColor"
    };
    private static final String[] LEGENDS_VALUES = { "borderColor", "border", "gap", "padding" };
 
@@ -135,7 +136,13 @@ final class ChartChromeSlots {
             text("chart:plot:text", PLOT.then(PlotDescriptor::getTextFormat), false);
 
             for(String field : PLOT_VALUES) {
-               slots.add(valueSlot("chart:plot:" + field, PLOT.then(p -> p.chromeValue(field))));
+               Loc<CompositeValue<?>> value = PLOT.then(p -> p.chromeValue(field));
+
+               // the classic no-data colour is the server property or the built-in, not the tier
+               slots.add(field.equals("emptyColor") ?
+                  valueSlot("chart:plot:" + field, value, null,
+                            info -> GraphUtil.getMapEmptyColor(PLOT.on(info))) :
+                  valueSlot("chart:plot:" + field, value));
             }
 
             slots.add(ChromeSlot.plain("chart:plot:trendLineColor", copy(PLOT,
@@ -557,6 +564,14 @@ final class ChartChromeSlots {
    private static ChromeSlot valueSlot(String key, Loc<CompositeValue<?>> loc,
                                        BiConsumer<VSAssemblyInfo, VSAssemblyInfo> reset)
    {
+      return valueSlot(key, loc, reset, null);
+   }
+
+   // a null resolved function reads the tiers' own value
+   private static ChromeSlot valueSlot(String key, Loc<CompositeValue<?>> loc,
+                                       BiConsumer<VSAssemblyInfo, VSAssemblyInfo> reset,
+                                       Function<VSAssemblyInfo, Object> resolved)
+   {
       return ChromeSlot.tiered(
          key, false, true,
          info -> {
@@ -568,7 +583,7 @@ final class ChartChromeSlots {
             CompositeValue<?> value = loc.on(info);
             return value == null ? null : value.get(CompositeValue.Type.USER);
          },
-         info -> {
+         resolved != null ? resolved : info -> {
             CompositeValue<?> value = loc.on(info);
             return value == null ? null : value.get();
          },
