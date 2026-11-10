@@ -40,6 +40,7 @@ import java.awt.*;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Describe a property as a pair of getter and setter methods.
@@ -284,13 +285,16 @@ public class PropertyDescriptor {
                }
             }
             else if(JSObject.isObject(val)) {
-               String link = (String) JSObject.get(val, "link");
-               String target = (String) JSObject.get(val, "target");
-               String tooltip = (String) JSObject.get(val, "tooltip");
+               // script values arrive as host String/Boolean/Double/null, so convert
+               // instead of casting (a number tooltip or a 'true' flag used to throw)
+               String link = Objects.toString(JSObject.get(val, "link"), null);
+               String target = Objects.toString(JSObject.get(val, "target"), null);
+               String tooltip = Objects.toString(JSObject.get(val, "tooltip"), null);
                // report, web, archive
-               String ltype = (String) JSObject.get(val, "type");
-               Boolean sendParams = (Boolean)
-                  JSObject.get(val, "sendReportParameters");
+               String ltype = Objects.toString(JSObject.get(val, "type"), null);
+               Object sendParamsVal = JSObject.get(val, "sendReportParameters");
+               Boolean sendParams = sendParamsVal == null ? null :
+                  Boolean.valueOf(Hyperlink.Ref.isTrue(sendParamsVal));
                Object[] ids = JSObject.getIds(val);
                Hyperlink hyper = new Hyperlink(link, true);
 
@@ -368,13 +372,16 @@ public class PropertyDescriptor {
                }
             }
             else if(JSObject.isObject(val)) {
-               String link = (String) JSObject.get(val, "link");
-               String target = (String) JSObject.get(val, "target");
-               String tooltip = (String) JSObject.get(val, "tooltip");
+               // script values arrive as host String/Boolean/Double/null, so convert
+               // instead of casting (a number tooltip or a 'true' flag used to throw)
+               String link = Objects.toString(JSObject.get(val, "link"), null);
+               String target = Objects.toString(JSObject.get(val, "target"), null);
+               String tooltip = Objects.toString(JSObject.get(val, "tooltip"), null);
                // report, web, archive
-               String ltype = (String) JSObject.get(val, "type");
-               Boolean sendParams = (Boolean)
-                  JSObject.get(val, "sendReportParameters");
+               String ltype = Objects.toString(JSObject.get(val, "type"), null);
+               Object sendParamsVal = JSObject.get(val, "sendReportParameters");
+               Boolean sendParams = sendParamsVal == null ? null :
+                  Boolean.valueOf(Hyperlink.Ref.isTrue(sendParamsVal));
                Object[] ids = JSObject.getIds(val);
                Hyperlink.Ref hyper = new Hyperlink.Ref(link, true);
 

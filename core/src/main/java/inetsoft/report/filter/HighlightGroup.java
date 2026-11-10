@@ -446,6 +446,52 @@ public class HighlightGroup implements Cloneable, XMLSerializable, Serializable 
    }
 
    /**
+    * Check whether the named highlight in the default level matches the value.
+    * Unlike {@link #findGroup(Object)}, whose merged result of several matches
+    * carries no name, this answers per highlight, so every matching highlight
+    * reports true. A highlight without conditions never matches.
+    *
+    * @param name  the highlight name (the key in the group).
+    * @param value the value to evaluate.
+    *
+    * @return true if the highlight exists and its conditions match the value.
+    */
+   public boolean isMatched(String name, Object value) {
+      return isMatched(DEFAULT_LEVEL, name, value);
+   }
+
+   /**
+    * Check whether the named highlight in the specified level matches the value.
+    * The evaluation is the same as the loop body of
+    * {@link #findGroup(String, Object)}, except that
+    * <code>fireHighlightApplied</code> is not called: this is a read-only query
+    * (e.g. from script), and the listeners use that event to record which
+    * highlights were actually applied to the output.
+    *
+    * @param level the name of the level.
+    * @param name  the highlight name (the key in the group).
+    * @param value the value to evaluate.
+    *
+    * @return true if the highlight exists and its conditions match the value.
+    */
+   public boolean isMatched(String level, String name, Object value) {
+      OrderedMap<String, Highlight> group = highlightGroup0.get(level);
+      Highlight highlight = group == null ? null : group.get(name);
+
+      if(highlight == null) {
+         return false;
+      }
+
+      ConditionList conditions = highlight.getConditionGroup();
+
+      if(conditions == null || conditions.getSize() == 0) {
+         return false;
+      }
+
+      return new ConditionGroup(0, conditions, getQuerySandbox()).evaluate(value);
+   }
+
+   /**
     * Finds the highlight in the default level whose conditions match a value
     * in the specified row of a table.
     *
