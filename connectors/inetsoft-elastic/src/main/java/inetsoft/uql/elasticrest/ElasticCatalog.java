@@ -97,15 +97,23 @@ import java.util.*;
  * relationship that is not there. The substructure still reaches the reader, through the column's
  * own description.
  *
- * <h2>The declared type is reported even where the runtime coarsens it</h2>
+ * <h2>The built table is typed by the same mapping</h2>
  *
- * <p>{@code JsonTable.getTypeClass} maps every JSON number to {@code Double.class}, so a field the
- * mapping calls {@code long} arrives in a worksheet as a Double. The type reported here is still
- * {@code long}: the field-level COMMON extension's {@code "type"} key is documented as "the column's
- * declared type as the source reports it", and the source reports {@code long}. The coarsening
- * changes nothing about dimension-versus-measure or about charts, and is not worked around — seeding
- * per-column types would mean an extra request inside every {@code runQuery} plus parsing the index
- * name back out of a free-form {@code suffix}.
+ * <p>Left alone, {@code JsonTable} infers a column's type from the {@code _source} values, which
+ * disagrees with the mapping in kind, not just in width: a {@code date} field holding both ISO
+ * strings and epoch-millis numbers (both legal for the default date format) widens to a string,
+ * one holding only numbers becomes a number, and a {@code text} field whose values look like dates
+ * becomes a date. So {@link #describeDataset} puts the index name in {@code params} as
+ * {@code mappingIndex}, and {@link ElasticRestRuntime#runQuery} then types the table's columns
+ * from {@link #mappedFields} — the same walk and the same {@link #TYPES} table as the columns
+ * reported here. {@link ElasticMappingTypes} says which kinds it applies to and why. A query
+ * without {@code mappingIndex} (every query a user wrote in the query dialog) keeps value
+ * inference exactly as before.
+ *
+ * <p>Numeric and boolean fields are deliberately left to inference: their kind already agrees with
+ * the mapping, and a JSON number still arrives as a Double where the mapping says {@code long}. The
+ * type reported here stays {@code long} — the field-level COMMON extension's {@code "type"} key is
+ * documented as "the column's declared type as the source reports it".
  *
  * <h2>{@code isDimension} is null on every column</h2>
  *
@@ -200,6 +208,85 @@ final class ElasticCatalog {
    static TabularDatasetSchema describeDataset(ElasticRestDataSource ds, String datasetId)
       throws Exception
    {
+      Map<?, ?> mappings = readMappings(ds, datasetId);
+      Map<?, ?> properties = asMap(mappings.get("properties"));
+      List<TabularColumn> columns = new ArrayList<>();
+      List<String> unaddressable = new ArrayList<>();
+      List<String> arrays = new ArrayList<>();
+      List<String> unrecognizedTypes = new ArrayList<>();
+      List<String> aliases = new ArrayList<>();
+      collect(properties, null, columns, null, unaddressable, arrays, unrecognizedTypes, aliases);
+
+      if(columns.isEmpty()) {
+         // aliases is deliberately folded in HERE ONLY, not into unaddressable itself: unaddressable
+         // is also the roster written into the dataset description (see datasetDescription below),
+         // and an alias is absent from _source entirely -- it isn't data the description needs to
+         // explain away, it simply isn't part of the data (fieldAliasIsNotAColumn pins this). But an
+         // index whose fields are ALL aliases still needs an exception that explains itself, so this
+         // one-off list is exactly the fields responsible for columns being empty, matching the
+         // count in the sentence that quotes it -- properties.size() would only count top-level
+         // fields and undercount whenever a declared object is in the mix.
+         List<String> reasons = new ArrayList<>(unaddressable);
+         reasons.addAll(aliases);
+         throw new Exception("Elasticsearch index '" + datasetId + "' declares " + reasons.size() +
+            " field(s), but none of them can be addressed as a column: " +
+            String.join(", ", reasons) + ".");
+      }
+
+      // Fully filled, with no empty value. Once the index is known a runnable query is completely
+      // determined, so there is nothing left for the caller to choose from the column list. wiz's
+      // buildMetadataTableBinding filters queryParams for empty values and, finding none, takes the
+      // branch that tells the caller queryParams is exactly this map -- emitting an empty value
+      // here would turn that into an instruction to fill something that does not exist.
+      Map<String, String> params = new LinkedHashMap<>();
+      params.put("suffix", searchSuffix(datasetId));
+      params.put("jsonPath", ROW_PATH);
+      params.put("expanded", "false");
+      // Makes the built table type its columns by the same _mapping rule as the columns above, so
+      // what is described here is what add_table builds. See ElasticMappingTypes.
+      params.put(MAPPING_INDEX_PARAM, datasetId);
+
+      // keyColumns empty: a document's _id is its key, and _id is not in _source, so it is not one
+      // of the columns above and cannot be named here. columnsMayBeIncomplete false: _mapping is
+      // the schema the index declares, not a bounded scan.
+      return new TabularDatasetSchema(datasetId, columns, List.of(), params, false,
+         datasetDescription(ds, datasetId, mappings, columns, unaddressable, arrays,
+                            unrecognizedTypes));
+   }
+
+   /**
+    * The type every column of one index gets under the same rule {@link #describeDataset} reports,
+    * keyed by the column name {@code JsonTable.walkRecord} produces for it. This is the one place
+    * the build side ({@link ElasticMappingTypes}) learns a column's type, so describe and build
+    * cannot drift apart.
+    *
+    * @param index a concrete index name, as {@link #describeDataset} put it in {@code params}.
+    * @throws Exception for the same reasons {@link #describeDataset} does: an illegal or unknown
+    *                   name, an alias or wildcard spanning several indexes, or an empty mapping.
+    */
+   static Map<String, MappedField> mappedFields(ElasticRestDataSource ds, String index)
+      throws Exception
+   {
+      Map<String, MappedField> fields = new LinkedHashMap<>();
+      collect(asMap(readMappings(ds, index).get("properties")), null, new ArrayList<>(), fields,
+              new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+      return fields;
+   }
+
+   /**
+    * One mapped column: its {@link XSchema} type and, for a date field, the mapping's
+    * {@code format} (null when the mapping states none, which means the field type's default).
+    */
+   record MappedField(String type, String esType, String format) {
+   }
+
+   /**
+    * Reads and validates {@code GET /{index}/_mapping} and returns the one index's
+    * {@code mappings} block, which is guaranteed to carry a non-empty {@code properties} map.
+    */
+   private static Map<?, ?> readMappings(ElasticRestDataSource ds, String datasetId)
+      throws Exception
+   {
       if(datasetId == null || datasetId.isBlank()) {
          throw new Exception("Elasticsearch was asked to describe a blank dataset id.");
       }
@@ -238,45 +325,7 @@ final class ElasticCatalog {
             "index with an empty mapping has nothing to annotate.");
       }
 
-      List<TabularColumn> columns = new ArrayList<>();
-      List<String> unaddressable = new ArrayList<>();
-      List<String> arrays = new ArrayList<>();
-      List<String> unrecognizedTypes = new ArrayList<>();
-      List<String> aliases = new ArrayList<>();
-      collect(properties, null, columns, unaddressable, arrays, unrecognizedTypes, aliases);
-
-      if(columns.isEmpty()) {
-         // aliases is deliberately folded in HERE ONLY, not into unaddressable itself: unaddressable
-         // is also the roster written into the dataset description (see datasetDescription below),
-         // and an alias is absent from _source entirely -- it isn't data the description needs to
-         // explain away, it simply isn't part of the data (fieldAliasIsNotAColumn pins this). But an
-         // index whose fields are ALL aliases still needs an exception that explains itself, so this
-         // one-off list is exactly the fields responsible for columns being empty, matching the
-         // count in the sentence that quotes it -- properties.size() would only count top-level
-         // fields and undercount whenever a declared object is in the mix.
-         List<String> reasons = new ArrayList<>(unaddressable);
-         reasons.addAll(aliases);
-         throw new Exception("Elasticsearch index '" + datasetId + "' declares " + reasons.size() +
-            " field(s), but none of them can be addressed as a column: " +
-            String.join(", ", reasons) + ".");
-      }
-
-      // Fully filled, with no empty value. Once the index is known a runnable query is completely
-      // determined, so there is nothing left for the caller to choose from the column list. wiz's
-      // buildMetadataTableBinding filters queryParams for empty values and, finding none, takes the
-      // branch that tells the caller queryParams is exactly this map -- emitting an empty value
-      // here would turn that into an instruction to fill something that does not exist.
-      Map<String, String> params = new LinkedHashMap<>();
-      params.put("suffix", searchSuffix(datasetId));
-      params.put("jsonPath", ROW_PATH);
-      params.put("expanded", "false");
-
-      // keyColumns empty: a document's _id is its key, and _id is not in _source, so it is not one
-      // of the columns above and cannot be named here. columnsMayBeIncomplete false: _mapping is
-      // the schema the index declares, not a bounded scan.
-      return new TabularDatasetSchema(datasetId, columns, List.of(), params, false,
-         datasetDescription(ds, datasetId, mappings, columns, unaddressable, arrays,
-                            unrecognizedTypes));
+      return mappings;
    }
 
    /**
@@ -344,8 +393,12 @@ final class ElasticCatalog {
     * given this list) — it exists only so {@code describeDataset}'s "none of them can be addressed"
     * exception can still explain itself for an index whose fields are all aliases, instead of
     * rendering an empty list.
+    *
+    * <p>{@code fields}, when not null, receives the same column under the same type, plus the date
+    * format — the build side's copy of the rule, so it is never written twice.
     */
    private static void collect(Map<?, ?> properties, String prefix, List<TabularColumn> columns,
+                               Map<String, MappedField> fields,
                                List<String> unaddressable, List<String> arrays,
                                List<String> unrecognizedTypes, List<String> aliases)
    {
@@ -373,11 +426,16 @@ final class ElasticCatalog {
             arrays.add(name);
             columns.add(new TabularColumn(name, XSchema.STRING,
                                           description(node, arrayNote(name, sub)), null, null));
+
+            if(fields != null) {
+               fields.put(name, new MappedField(XSchema.STRING, type, null));
+            }
+
             continue;
          }
 
          if(sub != null) {
-            collect(sub, name, columns, unaddressable, arrays, unrecognizedTypes, aliases);
+            collect(sub, name, columns, fields, unaddressable, arrays, unrecognizedTypes, aliases);
             continue;
          }
 
@@ -406,6 +464,10 @@ final class ElasticCatalog {
          }
 
          columns.add(new TabularColumn(name, xtype, description(node, null), null, null));
+
+         if(fields != null) {
+            fields.put(name, new MappedField(xtype, type, str(node.get("format"))));
+         }
       }
    }
 
@@ -539,6 +601,11 @@ final class ElasticCatalog {
          .append("query's URL Suffix to read fewer rows, and use the Filter body to select rows ")
          .append("rather than raising it.");
 
+      text.append(" Its column types come from the same _mapping as the columns above: a date ")
+         .append("field reads as a date whether a document stored it as a string or as an epoch ")
+         .append("number (as long as every value is in one of the field's own date formats), and ")
+         .append("a text or keyword field reads as text even when its values look like dates.");
+
       return text.toString();
    }
 
@@ -648,6 +715,12 @@ final class ElasticCatalog {
       "object", "geo_point", "geo_shape", "point", "shape", "flattened", "histogram",
       "percolator", "join", "completion", "rank_features",
       "integer_range", "long_range", "float_range", "double_range", "date_range", "ip_range");
+
+   /**
+    * The {@code params} key that turns mapping-driven typing on. It is the bean property name
+    * {@code TabularUtil} derives from {@link ElasticRestQuery#getMappingIndex()}.
+    */
+   static final String MAPPING_INDEX_PARAM = "mappingIndex";
 
    private static final String ALIAS = "alias";
    private static final String NESTED = "nested";

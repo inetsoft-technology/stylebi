@@ -85,6 +85,8 @@ public class ElasticRestRuntime extends TabularRuntime implements TabularCatalog
             table.setMaxRows(query.getMaxRows());
          }
 
+         applyMappingTypes(query, table, rc);
+         // After the mapping types, so a column type the user set on the query still wins.
          table.applyQueryColumnTypes(query);
          table.load(rc);
 
@@ -108,6 +110,36 @@ public class ElasticRestRuntime extends TabularRuntime implements TabularCatalog
       }
 
       return null;
+   }
+
+   /**
+    * Types the result's columns by the {@code _mapping} of the query's mapping index, when it has
+    * one — the same rule {@link ElasticCatalog#describeDataset} reports columns by. A query without
+    * one is left to value inference, unchanged.
+    *
+    * @throws Exception if the mapping cannot be read. Not swallowed: a table that silently fell
+    *                   back to inference would contradict its own catalog description again.
+    */
+   private static void applyMappingTypes(ElasticRestQuery query, BaseJsonTable table, Object rc)
+      throws Exception
+   {
+      String index = query.getMappingIndex();
+
+      if(index == null || index.isEmpty()) {
+         return;
+      }
+
+      Map<String, ElasticCatalog.MappedField> fields;
+
+      try {
+         fields = ElasticCatalog.mappedFields((ElasticRestDataSource) query.getDataSource(), index);
+      }
+      catch(Exception ex) {
+         throw new Exception("Could not read the _mapping of index '" + index + "' that types " +
+                             "this query's columns (mappingIndex): " + ex.getMessage(), ex);
+      }
+
+      ElasticMappingTypes.apply(table, rc, fields);
    }
 
    /**

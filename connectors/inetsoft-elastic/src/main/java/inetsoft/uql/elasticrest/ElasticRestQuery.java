@@ -87,6 +87,25 @@ public class ElasticRestQuery extends TabularQuery {
       this.expandedPath = expandedPath;
    }
 
+   /**
+    * The index whose {@code _mapping} types this query's columns, or null to infer every column's
+    * type from the returned values. Deliberately not in the {@code @View}: it is set from the
+    * tabular catalog's own {@code params} ({@code ElasticCatalog.describeDataset}), so a table built
+    * from a catalog description has the column types that description reported. A query written in
+    * the query dialog never has it, and keeps value inference unchanged.
+    *
+    * <p>{@code @Property} is what makes it settable through {@code params} at all — the query
+    * contract only accepts annotated bean properties.
+    */
+   @Property(label = "Mapping Index")
+   public String getMappingIndex() {
+      return mappingIndex;
+   }
+
+   public void setMappingIndex(String mappingIndex) {
+      this.mappingIndex = mappingIndex;
+   }
+
    @Override
    public void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
@@ -113,6 +132,10 @@ public class ElasticRestQuery extends TabularQuery {
       if(expandedPath != null && !expandedPath.isEmpty()) {
          writer.format("<expandedPath><![CDATA[%s]]></expandedPath>%n", expandedPath);
       }
+
+      if(mappingIndex != null && !mappingIndex.isEmpty()) {
+         writer.format("<mappingIndex><![CDATA[%s]]></mappingIndex>%n", mappingIndex);
+      }
    }
 
    @Override
@@ -128,9 +151,11 @@ public class ElasticRestQuery extends TabularQuery {
       jsonpath = Tool.getChildValueByTagName(root, "jsonpath");
       filter = Tool.getChildValueByTagName(root, "filter");
       expandedPath = Tool.getChildValueByTagName(root, "expandedPath");
+      mappingIndex = Tool.getChildValueByTagName(root, "mappingIndex");
    }
 
    private String suffix;
+   private String mappingIndex;
    private String filter;
    private String jsonpath;
    private boolean expanded = false;

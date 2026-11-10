@@ -168,6 +168,25 @@ class ElasticCatalogTests {
       // "columns ends up empty AND an alias is one of the reasons" needs one backing field whose
       // own type is separately unaddressable (geo_point), plus alias(es) pointing to it. Two
       // aliases, not one, so the fix is checked against more than a single-element list.
+      // Bug #80828: one field per way a value's stored form and its mapping can disagree in kind.
+      // d: the default date format, documents mixing an ISO string with epoch millis. s: an
+      // epoch_second date. c: a custom-pattern date. t: text holding date-looking strings. n: a
+      // long, the control.
+      request("PUT", "/dated", """
+         {"mappings": {"properties": {
+            "d": {"type": "date"},
+            "s": {"type": "date", "format": "epoch_second"},
+            "c": {"type": "date", "format": "yyyy/MM/dd HH:mm:ss"},
+            "t": {"type": "text"},
+            "n": {"type": "long"}
+         }}}""");
+      request("POST", "/dated/_doc/1?refresh=true", """
+         {"d": "2026-03-04T10:00:00Z", "s": 1700000000, "c": "2026/03/04 10:00:00",
+          "t": "2026-03-04 10:00:00", "n": 1}""");
+      request("POST", "/dated/_doc/2?refresh=true", """
+         {"d": 1700000000000, "s": 0, "c": "2026/12/31 00:00:00",
+          "t": "2016/01/04T21:18:48.64Z", "n": 2}""");
+
       request("PUT", "/alias-only", """
          {"mappings": {"properties": {
             "loc":  {"type": "geo_point"},
@@ -193,7 +212,7 @@ class ElasticCatalogTests {
       TabularCatalog catalog = runtime.listDatasets(dataSource);
       List<String> ids = catalog.datasets().stream().map(TabularDatasetRef::id).toList();
 
-      assertEquals(List.of("alias-only", "earthquakes", "logs-2026.09.04", "orders"), ids,
+      assertEquals(List.of("alias-only", "dated", "earthquakes", "logs-2026.09.04", "orders"), ids,
                    "only the open, non-internal indexes, sorted by name -- including the dotted, " +
                    "ILM-style index name (G1)");
       // The cluster's own bookkeeping indexes must not reach the annotation list, and a closed
@@ -494,6 +513,11 @@ class ElasticCatalogTests {
       assertTrue(beanProperties.containsAll(params.keySet()),
                  params.keySet() + " must all be properties of ElasticRestQuery, which has " +
                  beanProperties);
+      // Bug #80828: the mapping-index param is the property the getter derives, not a literal.
+      String mappingIndexProperty = beanProperties.stream()
+         .filter(p -> p.equalsIgnoreCase("mappingIndex")).findFirst().orElseThrow();
+      assertEquals(mappingIndexProperty, ElasticCatalog.MAPPING_INDEX_PARAM);
+      assertEquals("earthquakes", params.get(mappingIndexProperty));
       // Fully filled -- no empty value. wiz's buildMetadataTableBinding branches on that: with an
       // empty value it would tell the caller to fill something, and there is nothing to fill.
       params.forEach((key, value) -> assertFalse(value == null || value.isBlank(),
@@ -516,6 +540,74 @@ class ElasticCatalogTests {
       // is permanently 10 no matter how many documents the index holds.
       assertEquals(221, rows, "the fixture holds 221 documents and the binding must return them all");
       assertTrue(schema.params().get("suffix").contains("size="), schema.params().toString());
+   }
+
+   @Test
+   void theBuiltTableHasTheTypesTheDescriptionReports() throws Exception {
+      // Bug #80828: describe typed columns from _mapping, the build inferred them from values, and
+      // the two disagreed in kind in both directions. Every date and string column must now agree.
+      for(String index : List.of("dated", "earthquakes")) {
+         TabularDatasetSchema schema = runtime.describeDataset(dataSource, index);
+         XTableNode table = runBinding(schema);
+
+         for(TabularColumn column : schema.columns()) {
+            if(XSchema.TIME_INSTANT.equals(column.type()) || XSchema.STRING.equals(column.type())) {
+               assertEquals(column.type(), builtType(table, column.name()),
+                            "'" + index + "." + column.name() + "': described " + column.type());
+            }
+         }
+      }
+
+      assertEquals(XSchema.STRING, builtType(
+         runBinding(runtime.describeDataset(dataSource, "earthquakes")), "@timestamp"),
+         "a text field whose values look like dates must build as text, as it is described");
+   }
+
+   @Test
+   void everyDateValueIsTheInstantItWasStoredAs() throws Exception {
+      XTableNode table = runBinding(runtime.describeDataset(dataSource, "dated"));
+
+      assertEquals(Set.of(java.time.Instant.parse("2026-03-04T10:00:00Z"),
+                          java.time.Instant.parse("2023-11-14T22:13:20Z")),
+                   new HashSet<>(instants(table, "d")),
+                   "an ISO string and an epoch-millis number in the same date field");
+      assertEquals(Set.of(java.time.Instant.parse("2023-11-14T22:13:20Z"), java.time.Instant.EPOCH),
+                   new HashSet<>(instants(table, "s")),
+                   "epoch_second must be scaled to millis, not read as millis");
+      assertEquals(Set.of(java.time.Instant.parse("2026-03-04T10:00:00Z"),
+                          java.time.Instant.parse("2026-12-31T00:00:00Z")),
+                   new HashSet<>(instants(table, "c")), "a custom-pattern date");
+   }
+
+   @Test
+   void aQueryWithoutMappingIndexKeepsValueInference() throws Exception {
+      // Every query written in the query dialog: unchanged behaviour, including the mismatch the
+      // catalog path no longer has.
+      ElasticRestQuery query = new ElasticRestQuery();
+      query.setDataSource(dataSource);
+      query.setSuffix("/dated/_search?size=10000");
+      query.setJsonPath("$.hits.hits[*]._source");
+      XTableNode table = runtime.runQuery(query, new VariableTable());
+
+      assertEquals(XSchema.STRING, builtType(table, "d"));
+      assertEquals(XSchema.TIME_INSTANT, builtType(table, "t"));
+   }
+
+   @Test
+   void aColumnTypeTheUserSetStillWinsOverTheMapping() throws Exception {
+      ElasticRestQuery query = fill(runtime.describeDataset(dataSource, "dated"));
+      query.setColumnType("t", XSchema.TIME_INSTANT);
+
+      assertEquals(XSchema.TIME_INSTANT, builtType(runtime.runQuery(query, new VariableTable()), "t"));
+   }
+
+   @Test
+   void anUnreadableMappingIndexFailsTheQueryRatherThanFallingBack() throws Exception {
+      ElasticRestQuery query = fill(runtime.describeDataset(dataSource, "dated"));
+      query.setMappingIndex("nosuchindex");
+
+      assertNull(runtime.runQuery(query, new VariableTable()),
+                 "a table that silently fell back to inference would contradict its description");
    }
 
    @Test
@@ -571,6 +663,12 @@ class ElasticCatalogTests {
     * {@code params} is what the fill receives.
     */
    private XTableNode runBinding(TabularDatasetSchema schema) throws Exception {
+      XTableNode table = runtime.runQuery(fill(schema), new VariableTable());
+      assertNotNull(table, "the query built from the catalog's own params must run");
+      return table;
+   }
+
+   private ElasticRestQuery fill(TabularDatasetSchema schema) throws Exception {
       ElasticRestQuery query = new ElasticRestQuery();
       query.setDataSource(dataSource);
 
@@ -583,10 +681,39 @@ class ElasticCatalogTests {
       assertEquals(schema.params().get("jsonPath"), query.getJsonPath());
       // params carries strings; the fill coerces this one back to the boolean the setter takes.
       assertFalse(query.isExpanded(), "expanded=false must survive the round trip as a boolean");
+      // Bug #80828: the param that makes the build typed by the mapping must reach the bean.
+      assertEquals(schema.datasetId(), query.getMappingIndex());
+      return query;
+   }
 
-      XTableNode table = runtime.runQuery(query, new VariableTable());
-      assertNotNull(table, "the query built from the catalog's own params must run");
-      return table;
+   /** The built column's kind as a worksheet sees it: the XSchema type of its Java class. */
+   private static String builtType(XTableNode table, String name) {
+      for(int i = 0; i < table.getColCount(); i++) {
+         if(name.equals(table.getName(i))) {
+            return inetsoft.util.Tool.getDataType(table.getType(i));
+         }
+      }
+
+      throw new AssertionError("no built column '" + name + "'");
+   }
+
+   private static List<java.time.Instant> instants(XTableNode table, String name) {
+      int col = -1;
+
+      for(int i = 0; i < table.getColCount(); i++) {
+         if(name.equals(table.getName(i))) {
+            col = i;
+         }
+      }
+
+      List<java.time.Instant> values = new ArrayList<>();
+      table.rewind();
+
+      while(table.next()) {
+         values.add(((java.sql.Timestamp) table.getObject(col)).toInstant());
+      }
+
+      return values;
    }
 
    private static TabularColumn column(TabularDatasetSchema schema, String name) {
