@@ -15,97 +15,117 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
 package inetsoft.test;
 
 import org.junit.jupiter.api.*;
-import org.junit.platform.commons.support.AnnotationSupport;
+import org.junit.platform.commons.support.*;
 
-import java.io.IOException;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.net.URISyntaxException;
-import java.nio.file.*;
+import java.lang.reflect.*;
+import java.net.URI;
 import java.util.*;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Checks the tags of every test class in this module, so that a class that was added without
- * a speed tag is not silently left out of the {@code surefire.groups} selection.
- * <ul>
- *   <li>A test method has exactly one of {@code core} (under 10 s) and {@code slow}
- *       (10 s or more), from its class, a class around it, or itself.</li>
- *   <li>Every other tag is one of {@link #OTHER_TAGS}.</li>
- * </ul>
- * This only checks that the tags are present and well formed. It cannot tell that a class is
- * tagged {@code core} but takes 10 s or more; find those from the surefire report times.
+ * Core surefire runs only the {@code core} tag group, so a test class without any JUnit tag
+ * silently never runs in CI (Bug #77104). This guard fails when a concrete test class in this
+ * module's test classes has a test method that carries no tag, neither on the method nor on
+ * its class, a superclass or an enclosing class. Test methods inherited from superclasses and
+ * test methods in {@link Nested} classes are included.
  */
 @Tag("core")
 class TestTagCoverageTest {
-   private static final String CORE = "core";
-   private static final String SLOW = "slow";
+   /**
+    * Test classes that are known to be untagged. Every entry must still be untagged; remove an
+    * entry as soon as the class is tagged.
+    */
+   private static final Set<String> KNOWN_UNTAGGED = Set.of();
+
+   /** The tags allowed next to the speed tag {@code core} or {@code slow}. */
    private static final Set<String> OTHER_TAGS = Set.of(
       "integration", "known-bug", "known-deadlock", "docker", "cluster", "database");
 
    @Test
+   void everyTestClassHasATag() throws Exception {
+      Set<String> untagged = findUntaggedTestClasses();
+      Set<String> unexpected = new TreeSet<>(untagged);
+      unexpected.removeAll(KNOWN_UNTAGGED);
+      Set<String> stale = new TreeSet<>(KNOWN_UNTAGGED);
+      stale.removeAll(untagged);
+
+      assertTrue(unexpected.isEmpty(),
+                 "Test classes with untagged test methods never run in CI. Add @Tag(\"core\") " +
+                 "(and the Spring test context header if the test needs it): " + unexpected);
+      assertTrue(stale.isEmpty(),
+                 "KNOWN_UNTAGGED entries are tagged or no longer exist, remove them: " + stale);
+   }
+
+   /**
+    * Beyond having a tag, a test method has exactly one speed tag: {@code core} (under 10 s) or
+    * {@code slow} (10 s or more). Every other tag is one of {@link #OTHER_TAGS}, so a typo does
+    * not create a tag that no group selects. The tags of a method are the tags of its class, of
+    * a class around it, and its own. This cannot tell that a class tagged {@code core} takes
+    * 10 s or more; find those from the surefire report times.
+    */
+   @Test
    void everyTestMethodHasOneSpeedTagAndOnlyKnownTags() throws Exception {
+      URI root = TestTagCoverageTest.class.getProtectionDomain().getCodeSource()
+         .getLocation().toURI();
+      List<Class<?>> classes = ReflectionSupport.findAllClassesInClasspathRoot(
+         root, TestTagCoverageTest::isConcreteTopLevelClass,
+         TestTagCoverageTest::isSurefireTestClassName);
       List<String> violations = new ArrayList<>();
       int[] checked = { 0 };
 
-      for(Class<?> cls : testClasses()) {
-         check(cls, cls, tagsOf(cls), violations, checked);
+      for(Class<?> c : classes) {
+         try {
+            checkSpeedTags(c, Set.of(), violations, checked);
+         }
+         catch(LinkageError e) {
+            // reported by everyTestClassHasATag
+         }
       }
 
       assertTrue(checked[0] > 0, "no test method was found, the class scan is broken");
       assertTrue(violations.isEmpty(),
                  violations.size() + " test class(es) have a wrong tag:\n" +
-                    String.join("\n", violations));
+                 String.join("\n", violations));
    }
 
-   /**
-    * Checks the test methods of {@code cls}, those of its superclasses, which run with the tags
-    * of {@code cls}, and those of its nested classes, which add to the tags of the class around
-    * them. The tags of a method are the tags of the class it runs in plus its own.
-    */
-   private static void check(Class<?> cls, Class<?> owner, Set<String> classTags,
-                             List<String> violations, int[] checked)
+   private static void checkSpeedTags(Class<?> c, Set<String> enclosingTags,
+                                      List<String> violations, int[] checked)
    {
+      Set<String> classTags = new TreeSet<>(enclosingTags);
+      classTags.addAll(tagsOf(c));
       Map<String, Set<String>> bad = new TreeMap<>();
 
-      for(Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
-         for(Method method : c.getDeclaredMethods()) {
-            if(!isTest(method)) {
-               continue;
-            }
+      for(Method m : ReflectionSupport.findMethods(
+         c, TestTagCoverageTest::isTestMethod, HierarchyTraversalMode.TOP_DOWN))
+      {
+         checked[0]++;
+         Set<String> tags = new TreeSet<>(classTags);
+         tags.addAll(tagsOf(m));
+         String problem = speedTagProblem(tags);
 
-            checked[0]++;
-            Set<String> tags = new TreeSet<>(classTags);
-            tags.addAll(tagsOf(method));
-            String problem = problem(tags);
-
-            if(problem != null) {
-               bad.computeIfAbsent(problem, k -> new TreeSet<>()).add(method.getName());
-            }
+         if(problem != null) {
+            bad.computeIfAbsent(problem, k -> new TreeSet<>()).add(m.getName());
          }
       }
 
       bad.forEach((problem, methods) -> violations.add(
-         owner.getName() + " " + problem + ", at " + methods.size() + " test method(s) such as " +
-            methods.iterator().next()));
+         c.getName() + " " + problem + ", at " + methods.size() + " test method(s) such as " +
+         methods.iterator().next()));
 
-      for(Class<?> nested : cls.getDeclaredClasses()) {
-         Set<String> tags = new TreeSet<>(classTags);
-         tags.addAll(tagsOf(nested));
-         check(nested, nested, tags, violations, checked);
+      for(Class<?> nested : ReflectionSupport.findNestedClasses(
+         c, n -> AnnotationSupport.isAnnotated(n, Nested.class)))
+      {
+         checkSpeedTags(nested, classTags, violations, checked);
       }
    }
 
-   private static String problem(Set<String> tags) {
-      boolean core = tags.contains(CORE);
-      boolean slow = tags.contains(SLOW);
+   private static String speedTagProblem(Set<String> tags) {
+      boolean core = tags.contains("core");
+      boolean slow = tags.contains("slow");
 
       if(!core && !slow) {
          return "has no speed tag, add @Tag(\"core\") or @Tag(\"slow\")";
@@ -116,7 +136,7 @@ class TestTagCoverageTest {
       }
 
       for(String tag : tags) {
-         if(!CORE.equals(tag) && !SLOW.equals(tag) && !OTHER_TAGS.contains(tag)) {
+         if(!"core".equals(tag) && !"slow".equals(tag) && !OTHER_TAGS.contains(tag)) {
             return "has the unknown tag \"" + tag + "\", the known tags are core, slow and " +
                new TreeSet<>(OTHER_TAGS);
          }
@@ -125,58 +145,86 @@ class TestTagCoverageTest {
       return null;
    }
 
-   private static Set<String> tagsOf(AnnotatedElement element) {
+   private static Set<String> tagsOf(AnnotatedElement e) {
       Set<String> tags = new TreeSet<>();
-      AnnotationSupport.findRepeatableAnnotations(element, Tag.class)
+      AnnotationSupport.findRepeatableAnnotations(e, Tag.class)
          .forEach(tag -> tags.add(tag.value()));
       return tags;
    }
 
+   static Set<String> findUntaggedTestClasses() throws Exception {
+      URI root = TestTagCoverageTest.class.getProtectionDomain().getCodeSource()
+         .getLocation().toURI();
+      List<Class<?>> classes = ReflectionSupport.findAllClassesInClasspathRoot(
+         root, TestTagCoverageTest::isConcreteTopLevelClass,
+         TestTagCoverageTest::isSurefireTestClassName);
+      Set<String> untagged = new TreeSet<>();
+
+      for(Class<?> c : classes) {
+         try {
+            if(hasUntaggedTestMethod(c, false)) {
+               untagged.add(c.getName());
+            }
+         }
+         catch(LinkageError e) {
+            // a class that cannot be introspected cannot be discovered by JUnit either
+            untagged.add(c.getName() + " (" + e + ")");
+         }
+      }
+
+      return untagged;
+   }
+
    /**
-    * The top-level, non-abstract classes under the test class output directory. A nested class
-    * takes the tags of the class around it.
+    * @param enclosingTagged true when an enclosing class of a {@link Nested} class is tagged, in
+    *                        which case its tags apply to the nested tests too.
     */
-   private static List<Class<?>> testClasses()
-      throws IOException, URISyntaxException, ClassNotFoundException
-   {
-      Path root = Paths.get(TestTagCoverageTest.class.getProtectionDomain().getCodeSource()
-                               .getLocation().toURI());
-      ClassLoader loader = TestTagCoverageTest.class.getClassLoader();
-      List<Class<?>> classes = new ArrayList<>();
+   private static boolean hasUntaggedTestMethod(Class<?> c, boolean enclosingTagged) {
+      boolean classTagged = enclosingTagged || isTagged(c);
 
-      try(Stream<Path> files = Files.walk(root)) {
-         for(Path file : (Iterable<Path>) files::iterator) {
-            String name = root.relativize(file).toString().replace('\\', '/');
+      if(!classTagged) {
+         List<Method> tests = ReflectionSupport.findMethods(
+            c, TestTagCoverageTest::isTestMethod, HierarchyTraversalMode.TOP_DOWN);
 
-            if(!name.endsWith(".class") || name.contains("$") ||
-               name.equals("module-info.class") || name.endsWith("package-info.class"))
-            {
-               continue;
-            }
-
-            String className = name.substring(0, name.length() - ".class".length())
-               .replace('/', '.');
-
-            try {
-               Class<?> cls = Class.forName(className, false, loader);
-
-               if(!Modifier.isAbstract(cls.getModifiers()) && !cls.isInterface()) {
-                  classes.add(cls);
-               }
-            }
-            catch(LinkageError ignore) {
-               // a helper class that cannot be linked here is not a test class
+         for(Method m : tests) {
+            if(!isTagged(m)) {
+               return true;
             }
          }
       }
 
-      return classes;
+      for(Class<?> nested : ReflectionSupport.findNestedClasses(
+         c, n -> AnnotationSupport.isAnnotated(n, Nested.class)))
+      {
+         if(hasUntaggedTestMethod(nested, classTagged)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
-   private static boolean isTest(Method method) {
-      return AnnotationSupport.isAnnotated(method, Test.class) ||
-         AnnotationSupport.isAnnotated(method, RepeatedTest.class) ||
-         AnnotationSupport.isAnnotated(method, TestFactory.class) ||
-         AnnotationSupport.isAnnotated(method, TestTemplate.class);
+   // finds direct, repeated (@Tags), meta-annotated and @Inherited (superclass) tags
+   private static boolean isTagged(AnnotatedElement e) {
+      return !AnnotationSupport.findRepeatableAnnotations(e, Tag.class).isEmpty();
+   }
+
+   private static boolean isTestMethod(Method m) {
+      return AnnotationSupport.isAnnotated(m, Test.class) ||
+         AnnotationSupport.isAnnotated(m, TestTemplate.class) ||
+         AnnotationSupport.isAnnotated(m, TestFactory.class);
+   }
+
+   private static boolean isConcreteTopLevelClass(Class<?> c) {
+      return c.getName().startsWith("inetsoft.") && !c.isInterface() && !c.isAnnotation() &&
+         !c.isEnum() && !c.isRecord() && !Modifier.isAbstract(c.getModifiers()) &&
+         c.getEnclosingClass() == null;
+   }
+
+   // surefire's default includes: **/Test*.java, **/*Test.java, **/*Tests.java, **/*TestCase.java
+   private static boolean isSurefireTestClassName(String name) {
+      String simple = name.substring(name.lastIndexOf('.') + 1);
+      return !simple.contains("$") && (simple.startsWith("Test") || simple.endsWith("Test") ||
+         simple.endsWith("Tests") || simple.endsWith("TestCase"));
    }
 }
