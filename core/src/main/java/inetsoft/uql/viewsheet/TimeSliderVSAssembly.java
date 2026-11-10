@@ -831,6 +831,11 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
       setLengthValue(slist.getSelectionValueCount() - 1);
       updateSharedBounds();
 
+      // the view list is a Use Metadata placeholder, the real range is selected in full
+      if(placeholderFull != null) {
+         placeholderFull = true;
+      }
+
       return changed;
    }
 
@@ -851,6 +856,36 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
    public void setSelectionList(SelectionList list) {
       getTimeSliderInfo().setSelectionList(list);
       runtimeMin = runtimeMax = null;
+      realSelectionList = true;
+      placeholderFull = null;
+   }
+
+   /**
+    * Set the view list built from the placeholder data of a Use Metadata design-time refresh,
+    * which leaves the state selection and length alone. Whether the state selects the full
+    * range can only be told against the real list it was made on, so it is taken from the
+    * list being replaced and carried until a refresh on real data, which then keeps the full
+    * range (also over new data) or the saved partial range (Bug #80814).
+    */
+   public void setPlaceholderSelectionList(SelectionList list) {
+      if(realSelectionList) {
+         SelectionList vlist = getSelectionList();
+         placeholderFull = vlist == null ||
+            getLengthValue() >= vlist.getSelectionValueCount() - 1;
+      }
+
+      getTimeSliderInfo().setSelectionList(list);
+      runtimeMin = runtimeMax = null;
+      realSelectionList = false;
+   }
+
+   /**
+    * Check if the state selects the full range, when the view list is a Use Metadata
+    * placeholder and that is known.
+    * @return true or false while the view list is a placeholder, null otherwise.
+    */
+   public Boolean getPlaceholderFull() {
+      return placeholderFull;
    }
 
    /**
@@ -958,6 +993,15 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
       }
 
       int length = getLengthValue();
+
+      // the view list is a Use Metadata placeholder, which can't tell if the state is full,
+      // so write the fullness carried from the real list and mark it (Bug #80814)
+      if(placeholderFull != null) {
+         writer.println("<state_length length=\"" + length + "\" full=\"" + placeholderFull +
+                        "\" placeholder=\"true\"/>");
+         return;
+      }
+
       SelectionList vlist = getSelectionList();
       boolean all = vlist == null || length >= vlist.getSelectionValueCount() - 1;
 
@@ -974,6 +1018,17 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
       throws Exception
    {
       super.parseStateContent(elem, runtime);
+
+      // the view list is a Use Metadata placeholder that carries the fullness of the state.
+      // A state parsed with the sheet comes with the view list written next to it, and only
+      // its own marker tells if that list is a placeholder (Bug #80814)
+      boolean placeholderList = placeholderFull != null;
+
+      if(!runtime) {
+         realSelectionList = false;
+         placeholderFull = null;
+         placeholderList = false;
+      }
 
       Element snode = Tool.getChildNodeByTagName(elem, "state_selectionList");
 
@@ -1001,15 +1056,27 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
           int length = Integer.parseInt(lstr);
           boolean all = "true".equals(astr);
 
+          if(!runtime && "true".equals(Tool.getAttribute(lnode, "placeholder"))) {
+             placeholderList = true;
+          }
+
+          // a placeholder list is not the range the state was made on, so the saved state
+          // is kept and its fullness is carried to the next refresh on real data
+          if(placeholderList) {
+             placeholderFull = all;
+          }
           // if the state is saved with the slider selecting the full range,
           // it's equivalent to no selection, so we restore to the same full
           // range state
-          if(all && getSelectionList() != null) {
+          else if(all && getSelectionList() != null) {
              length = getSelectionList().getSelectionValueCount() - 1;
              setStateSelectionList(getSelectionList());
           }
 
           setLengthValue(length);
+      }
+      else if(placeholderList) {
+         placeholderFull = null;
       }
    }
 
@@ -1687,6 +1754,10 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
 
    // script set values
    private transient Object runtimeMin, runtimeMax;
+   // the view list was set from real data (or by other code than a Use Metadata refresh)
+   private boolean realSelectionList;
+   // while the view list is a Use Metadata placeholder, whether the state is the full range
+   private Boolean placeholderFull;
 
    private static final Logger LOG = LoggerFactory.getLogger(TimeSliderVSAssembly.class);
 }

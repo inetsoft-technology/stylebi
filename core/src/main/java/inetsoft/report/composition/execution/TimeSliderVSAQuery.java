@@ -20,7 +20,6 @@ package inetsoft.report.composition.execution;
 import inetsoft.graph.internal.GTool;
 import inetsoft.mv.*;
 import inetsoft.report.*;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.lens.*;
@@ -914,6 +913,15 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          hint=NORMAL;
       }
 
+      // the view list is the placeholder of a Use Metadata design-time refresh, the fullness
+      // carried from the real list keeps the full range (also over new data) or the saved
+      // partial range (Bug #80814)
+      Boolean placeholderFull = assembly.getPlaceholderFull();
+
+      if(placeholderFull != null && !isMetadataDesignMode()) {
+         hint = placeholderFull ? ALL : NORMAL;
+      }
+
       if(tinfo instanceof SingleTimeInfo) {
          refreshSingleSelectionValue(data, hint);
       }
@@ -947,7 +955,10 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       // this method rebuilds the assembly's slist below, so the NUMBER branch's own recovered
       // position (see nearestPos/pos below) can be trusted over a spurious ALL hint instead of
       // being unconditionally clobbered by it.
-      boolean priorTotalDegraded = assembly.getTotalLength() <= 1;
+      // a Use Metadata placeholder list with a carried fullness is not degraded, the ALL hint
+      // then comes from the real selection (Bug #80814)
+      boolean priorTotalDegraded = assembly.getTotalLength() <= 1 &&
+         (assembly.getPlaceholderFull() == null || isMetadataDesignMode());
       double maxsize = tinfo.getMaxRangeSize();
       double rsize0 = tinfo.getRangeSize();
       rsize0 = Double.isNaN(rsize0) ? 0 : rsize0;
@@ -965,7 +976,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
                                 new DataRef[] {tinfo.getDataRef()}, excludeRight);
          length = tinfo.getLength();
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             tinfo.setLengthValue(Math.max(1, Math.min(length, maxlength)));
          }
 
@@ -1015,7 +1026,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       int[] dateLevels = {};
 
       if(unit == TimeInfo.NUMBER && (!(min instanceof Number) || !(max instanceof Number))) {
-         if(getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(isMetadataDesignMode()) {
             min = 0;
             max = 100;
          }
@@ -1191,7 +1202,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          if(init) {
             length = (int) ((maxd - mind) * 0.2 / (rsize0));
 
-            if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+            if(!isMetadataDesignMode()) {
                tinfo.setLengthValue(Math.max(1, length));
             }
          }
@@ -1380,7 +1391,6 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       }
 
       SelectionList slist2 = new SelectionList();
-      boolean runtimeMode = box.getMode() == RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE;
 
       // if script set max, calculate the length by applying the max
       if(assembly.getRuntimeMax() instanceof Date) {
@@ -1417,14 +1427,19 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          // trivially satisfies pos == 0) from masquerading as a real recovered selection.
          if(!(unit == TimeInfo.NUMBER && priorTotalDegraded && hasRecoveredValue && pos >= 0)) {
             pos = 0;
-            tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
+            length = slist.getSelectionValueCount() - 1;
+
+            // in metadata mode slist is built from placeholder data, so keep the real length
+            if(!isMetadataDesignMode()) {
+               tinfo.setLengthValue(Math.max(1, length));
+            }
          }
       }
       else if((hint & FIRST_N) == FIRST_N) {
          length = Math.min(slist.getSelectionValueCount() - 1, olength);
          pos = 0;
 
-         if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
       }
@@ -1433,7 +1448,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          length = Math.min(length, maxlength);
          pos = slist.getSelectionValueCount() - 1 - length;
 
-         if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
       }
@@ -1447,7 +1462,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          //fix bug1295840324493, when the position is -1, select all range value
          // and clear all state selection
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             LOG.warn("Invalid position, clearing all state selection");
             tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
          }
@@ -1457,7 +1472,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          length = Math.min(length, slist.getSelectionValueCount() - 1 - pos);
       }
 
-      if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
+      if(!isMetadataDesignMode()) {
          tinfo.setLengthValue(length = Math.max(1, Math.min(length, maxlength)));
       }
 
@@ -1472,9 +1487,14 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          }
       }
 
-      assembly.setSelectionList(slist);
+      if(isMetadataDesignMode()) {
+         assembly.setPlaceholderSelectionList(slist);
+      }
+      else {
+         assembly.setSelectionList(slist);
+      }
 
-      if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
+      if(!isMetadataDesignMode()) {
          assembly.setStateSelectionList(slist2);
          slist2.complete();
       }
@@ -1761,7 +1781,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       if((hint & ALL) == ALL) {
          pos = 0;
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
          }
       }
@@ -1769,7 +1789,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          length = Math.min(slist.getSelectionValueCount() - 1, olength);
          pos = 0;
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
       }
@@ -1777,7 +1797,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          length = Math.min(slist.getSelectionValueCount() - 1, olength);
          pos = slist.getSelectionValueCount() - 1 - length;
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
       }
@@ -1793,7 +1813,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          pos = Math.max(0, slist.getSelectionValueCount() - 1 - length);
          length = Math.min(length, slist.getSelectionValueCount() - 1);
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(!isMetadataDesignMode()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
       }
@@ -1809,9 +1829,14 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          }
       }
 
-      assembly.setSelectionList(slist);
+      if(isMetadataDesignMode()) {
+         assembly.setPlaceholderSelectionList(slist);
+      }
+      else {
+         assembly.setSelectionList(slist);
+      }
 
-      if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+      if(!isMetadataDesignMode()) {
          assembly.setStateSelectionList(slist2);
       }
    }
