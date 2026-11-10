@@ -2362,6 +2362,78 @@ public class IdentityService {
    }
 
    /**
+    * Bug #80956, moves the permission keyed by an identity (who may administer it) to its new
+    * name when the identity is renamed. setIdentity() renames the identity where it is a grantee,
+    * but not the grant keyed by the identity itself, so without this the old key keeps the grant
+    * and a new identity created with the old name inherits it.
+    * <p>
+    * The permission is moved as is, in the organization bucket it is stored in, so every grant
+    * and scope is kept. The key is looked up in every organization, because the key of a global
+    * role is stored in each organization and an administrator may rename an identity of another
+    * organization than the current one.
+    *
+    * @param resourceType the type of the renamed identity.
+    * @param oldID        the identity ID before the rename.
+    * @param newID        the identity ID after the rename.
+    */
+   public void moveIdentityPermission(ResourceType resourceType, IdentityID oldID,
+                                      IdentityID newID)
+   {
+      if(oldID == null || newID == null || oldID.equals(newID)) {
+         return;
+      }
+
+      boolean scanned = false;
+      Optional<AuthorizationChain> chain = securityEngine.getAuthorizationChain();
+
+      if(chain.isPresent()) {
+         for(AuthorizationProvider aprovider : chain.get().getProviders()) {
+            List<Tuple4<ResourceType, String, String, Permission>> permissions;
+
+            try {
+               permissions = aprovider.getPermissions();
+            }
+            catch(UnsupportedOperationException e) {
+               continue;
+            }
+
+            scanned = true;
+
+            if(permissions == null) {
+               continue;
+            }
+
+            for(Tuple4<ResourceType, String, String, Permission> entry : permissions) {
+               String orgID = entry.getSecond();
+               String path = entry.getThird();
+               Permission permission = entry.getForth();
+
+               // a legacy key without an organization is moved by the storage migration
+               if(entry.getFirst() != resourceType || permission == null || orgID == null ||
+                  path == null || !path.contains(IdentityID.KEY_DELIMITER) ||
+                  !oldID.equals(IdentityID.getIdentityIDFromKey(path)))
+               {
+                  continue;
+               }
+
+               aprovider.setPermission(resourceType, newID, permission, orgID);
+               aprovider.removePermission(resourceType, oldID, orgID);
+            }
+         }
+      }
+
+      if(!scanned) {
+         AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
+         Permission permission = authzProvider.getPermission(resourceType, oldID);
+
+         if(permission != null) {
+            authzProvider.setPermission(resourceType, newID, permission);
+            authzProvider.removePermission(resourceType, oldID);
+         }
+      }
+   }
+
+   /**
     * Removes a grant from the given bucket org, or from the ambient current org when it is null.
     */
    private static void removePermission(AuthorizationProvider authzProvider,
