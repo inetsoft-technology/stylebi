@@ -5437,6 +5437,21 @@ public class WorksheetEditService {
             "directly. Change the mirror itself or the source worksheet instead.");
       }
 
+      /**
+       * A clone of the named table for the warn-only trap check (Bug #80958), or {@code null}
+       * when there is no such table so the op's own error stays first. Mutates nothing.
+       */
+      TableAssembly trapSnapshot(String name) {
+         return ws.getAssembly(name) instanceof TableAssembly t ? (TableAssembly) t.clone() : null;
+      }
+
+      /**
+       * A clone of the named table's current state, for the warn-only trap check (Bug #80958).
+       */
+      TableAssembly trapTable(String name) {
+         return trapSnapshot(name);
+      }
+
       private TableAssembly requireTable(String name) throws PairingException {
          Assembly a = ws.getAssembly(name);
 
