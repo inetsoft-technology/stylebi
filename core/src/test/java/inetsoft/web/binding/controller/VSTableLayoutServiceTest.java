@@ -250,6 +250,16 @@ class VSTableLayoutServiceTest {
       }
    }
 
+   /** A prelude that throws (here: no binding on the event) is swallowed, not propagated. */
+   @Test
+   void newCellBindingTrapSwallowsAFailingPrelude() throws Exception {
+      Fixture f = new Fixture(false);
+      SetCellBindingEvent event = f.cellBindingEvent();
+      event.setBinding(null);
+
+      assertTrue(f.service.newCellBindingTrap(f.rvs, event, () -> "admin").isEmpty());
+   }
+
    @Test
    void newCellBindingTrapIsEmptyWhenThereIsNoNewTrap() throws Exception {
       Fixture f = new Fixture(false);

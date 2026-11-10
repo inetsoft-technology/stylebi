@@ -40,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * must pass a literal {@code false} as its checkTrap argument (the fifth), and nothing may call
  * {@code setCheckTrap(true)}.
  */
+// Tripwire only: scans wiz/ for apply(...) calls on four handler variable names with 8+ arguments;
+// it does not see binding/ services the wiz layer calls (covered by VSTableLayoutServiceTest) or a renamed field.
 @Tag("core")
 class WizKeepsNativeTrapProtocolOffTest {
    private static final Path WIZ = Path.of("src", "main", "java", "inetsoft", "web", "wiz");

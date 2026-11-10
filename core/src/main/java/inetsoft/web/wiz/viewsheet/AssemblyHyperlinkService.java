@@ -300,46 +300,54 @@ public class AssemblyHyperlinkService {
                                   HyperlinkDialogModel model, Principal user)
       throws Exception
    {
-      Viewsheet vs = rvs.getViewsheet();
-      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      try {
+         Viewsheet vs = rvs.getViewsheet();
+         VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
-      if(!(assembly instanceof TableVSAssembly) ||
-         !(assembly.getInfo() instanceof TableVSAssemblyInfo current))
-      {
-         return Optional.empty();
-      }
-
-      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-
-      if(box == null || box.isEmpty()) {
-         return Optional.empty();
-      }
-
-      TableVSAssemblyInfo oinfo = (TableVSAssemblyInfo) current.clone();
-      TableVSAssemblyInfo ninfo = (TableVSAssemblyInfo) current.clone();
-      Hyperlink hyperlink = hyperlinkService.getHyperlink(model, user);
-
-      if(model.isApplyToRow()) {
-         ninfo.setHyperlinkAttr(new TableHyperlinkAttr());
-         ninfo.setRowHyperlink(hyperlink);
-      }
-      else {
-         VSTableLens lens = box.get().getVSTableLens(assemblyName, false);
-
-         if(lens == null) {
+         if(!(assembly instanceof TableVSAssembly) ||
+            !(assembly.getInfo() instanceof TableVSAssemblyInfo current))
+         {
             return Optional.empty();
          }
 
-         if(ninfo.getHyperlinkAttr() == null) {
-            ninfo.setHyperlinkAttr(new TableHyperlinkAttr());
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box == null || box.isEmpty()) {
+            return Optional.empty();
          }
 
-         ninfo.getHyperlinkAttr().setHyperlink(
-            lens.getTableDataPath(model.getRow(), model.getCol()), hyperlink);
-         ninfo.setRowHyperlink(null);
-      }
+         TableVSAssemblyInfo oinfo = (TableVSAssemblyInfo) current.clone();
+         TableVSAssemblyInfo ninfo = (TableVSAssemblyInfo) current.clone();
+         Hyperlink hyperlink = hyperlinkService.getHyperlink(model, user);
 
-      return AgentTrapCheck.newTrap(rvs, DataSourceRegistry.getRegistry(), oinfo, ninfo);
+         if(model.isApplyToRow()) {
+            ninfo.setHyperlinkAttr(new TableHyperlinkAttr());
+            ninfo.setRowHyperlink(hyperlink);
+         }
+         else {
+            VSTableLens lens = box.get().getVSTableLens(assemblyName, false);
+
+            if(lens == null) {
+               return Optional.empty();
+            }
+
+            if(ninfo.getHyperlinkAttr() == null) {
+               ninfo.setHyperlinkAttr(new TableHyperlinkAttr());
+            }
+
+            ninfo.getHyperlinkAttr().setHyperlink(
+               lens.getTableDataPath(model.getRow(), model.getCol()), hyperlink);
+            ninfo.setRowHyperlink(null);
+         }
+
+         return AgentTrapCheck.newTrap(rvs, DataSourceRegistry.getRegistry(), oinfo, ninfo);
+      }
+      catch(Exception e) {
+         // A warning-only check must never turn a write into a failure; the write repeats the
+         // same operations and reports any real error itself.
+         LOG.warn("Data-model trap check of a table link failed; the write is not blocked", e);
+         return Optional.empty();
+      }
    }
 
    /**

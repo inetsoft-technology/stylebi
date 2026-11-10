@@ -226,25 +226,33 @@ public class VSTableLayoutService {
                                               Principal principal)
       throws Exception
    {
-      TableCell[] cells = event.getSelectCells();
+      try {
+         TableCell[] cells = event.getSelectCells();
 
-      if(cells == null || cells.length == 0) {
+         if(cells == null || cells.length == 0) {
+            return Optional.empty();
+         }
+
+         String name = event.getName();
+         CalcTableVSAssembly assembly = getCalcTableVSAssembly(rvs, name);
+         TableCell cell = cells[cells.length - 1];
+         CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
+         CalcTableVSAssemblyInfo oinfo = (CalcTableVSAssemblyInfo) info.clone();
+         CalcTableVSAssemblyInfo ninfo = (CalcTableVSAssemblyInfo) info.clone();
+         AssetNamedGroupInfo[] infos = getPredefinedNamedGroup(rvs, name,
+                                                               event.getBinding().getValue());
+         setBinding(event.getBinding(),
+                    getBindingFromLayout(ninfo.getTableLayout(), cell.getRow(), cell.getCol()),
+                    principal, infos);
+
+         return AgentTrapCheck.newTrap(rvs, dataSourceRegistry, oinfo, ninfo);
+      }
+      catch(Exception e) {
+         // A warning-only check must never turn a write into a failure; the write repeats the
+         // same operations and reports any real error itself.
+         LOG.warn("Data-model trap check of a cell binding failed; the write is not blocked", e);
          return Optional.empty();
       }
-
-      String name = event.getName();
-      CalcTableVSAssembly assembly = getCalcTableVSAssembly(rvs, name);
-      TableCell cell = cells[cells.length - 1];
-      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getInfo();
-      CalcTableVSAssemblyInfo oinfo = (CalcTableVSAssemblyInfo) info.clone();
-      CalcTableVSAssemblyInfo ninfo = (CalcTableVSAssemblyInfo) info.clone();
-      AssetNamedGroupInfo[] infos = getPredefinedNamedGroup(rvs, name,
-                                                            event.getBinding().getValue());
-      setBinding(event.getBinding(),
-                 getBindingFromLayout(ninfo.getTableLayout(), cell.getRow(), cell.getCol()),
-                 principal, infos);
-
-      return AgentTrapCheck.newTrap(rvs, dataSourceRegistry, oinfo, ninfo);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

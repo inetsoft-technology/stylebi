@@ -112,6 +112,24 @@ class AssemblyHyperlinkServiceTrapTest {
       }
    }
 
+   /** A prelude that throws must not fail the write: no warning, the link is still written. */
+   @Test
+   void aFailingPreludeIsSwallowedAndTheWriteStillHappens() throws Exception {
+      Fixture f = new Fixture(mock(TableVSAssembly.class));
+      when(f.links.getHyperlink(any(), any())).thenThrow(new IllegalStateException("boom"));
+
+      try(MockedStatic<DataSourceRegistry> registry = Mockito.mockStatic(DataSourceRegistry.class);
+          MockedConstruction<VSModelTrapContext> ctx = trapContext(true))
+      {
+         List<String> warnings = f.service.set(
+            "tok", principal(), "Table1", null, link(), "");
+
+         assertTrue(warnings.isEmpty(), warnings.toString());
+         verify(f.links).setHyperlinkDialogModel(eq("rt1"), eq("Table1"), any(), anyString(),
+                                                 any(Principal.class), any());
+      }
+   }
+
    /** A crosstab link has no native trap check: the detector is never even built. */
    @Test
    void aCrosstabLinkIsNotChecked() throws Exception {
