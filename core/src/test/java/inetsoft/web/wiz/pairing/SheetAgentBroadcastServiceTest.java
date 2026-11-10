@@ -706,14 +706,38 @@ class SheetAgentBroadcastServiceTest {
    }
 
    @Test
-   void tableDataForChartCalcTableInvisibleOrMissingAssemblyIsExcluded() {
+   void tableDataForChartInvisibleOrMissingAssemblyIsExcluded() {
       Fixture f = new Fixture(
          assemblyOf(ChartVSAssembly.class, "Chart1", true),
-         assemblyOf(CalcTableVSAssembly.class, "Calc1", true),
          assemblyOf(CrosstabVSAssembly.class, "Hidden1", false));
 
-      f.broadcast(List.of(captured("Chart1", tableData(1)), captured("Calc1", tableData(1)),
+      f.broadcast(List.of(captured("Chart1", tableData(1)),
                           captured("Hidden1", tableData(1)), captured("Gone1", tableData(1))));
+
+      List<Object> payloads =
+         verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
+      assertTrue(payloads.get(0) instanceof UpdateUndoStateCommand);
+   }
+
+   /** Bug #80844: calc table cells come only from LoadTableDataCommand, so it is forwarded. */
+   @Test
+   void tableDataForVisibleCalcTableIsForwarded() {
+      Fixture f = new Fixture(assemblyOf(CalcTableVSAssembly.class, "Calc1", true));
+
+      LoadTableDataCommand cmd = tableData(1);
+
+      f.broadcast(List.of(captured("Calc1", cmd)));
+
+      List<Object> payloads =
+         verifySent(f, 2, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
+      assertTrue(payloads.contains(cmd), "the calc table's LoadTableDataCommand was not forwarded");
+   }
+
+   @Test
+   void tableDataForInvisibleCalcTableIsExcluded() {
+      Fixture f = new Fixture(assemblyOf(CalcTableVSAssembly.class, "Calc1", false));
+
+      f.broadcast(List.of(captured("Calc1", tableData(1))));
 
       List<Object> payloads =
          verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
