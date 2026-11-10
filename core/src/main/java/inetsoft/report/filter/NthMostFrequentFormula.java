@@ -51,6 +51,7 @@ public class NthMostFrequentFormula implements Formula, java.io.Serializable {
 
    // Needed to avoid Kyro error "Class cannot be created (missing no-arg constructor):"
    public NthMostFrequentFormula() {
+      this(1);
    }
 
    /**
