@@ -21,11 +21,13 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.MirrorTableAssembly;
+import inetsoft.uql.asset.WSAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-import inetsoft.uql.asset.MirrorTableAssembly;
-import inetsoft.uql.asset.WSAssembly;
 
 /**
  * Bug #80479: an Embedded Table assembly created through the agent add path is a bare
@@ -51,6 +53,16 @@ public final class EmbeddedTableFlag {
    }
 
    /**
+    * True if the table is the mirror {@code Viewsheet.createMirrorTable} built around an
+    * embedded worksheet table, the only wrapping a flagged assembly can undo.
+    */
+   private static boolean isMirrorOfEmbeddedTable(Worksheet ws, String tableName) {
+      return ws.getAssembly(tableName) instanceof MirrorTableAssembly mirror &&
+         (tableName + Viewsheet.OUTER_TABLE_SUFFIX).equals(mirror.getAssemblyName()) &&
+         ws.getAssembly(mirror.getAssemblyName()) instanceof EmbeddedTableAssembly;
+   }
+
+   /**
     * Un-wraps the mirror that was built around the bound worksheet table before the assembly was
     * flagged or bound. The worksheet is only re-prepared by {@code Viewsheet.resetWS()}, which an
     * in-place binding edit does not reliably trigger, so it is called here; the cached lenses of
@@ -71,7 +83,7 @@ public final class EmbeddedTableFlag {
       String tableName = table.getTableName();
 
       if(tableName == null || vs.getBaseWorksheet() == null ||
-         !(vs.getBaseWorksheet().getAssembly(tableName) instanceof MirrorTableAssembly))
+         !isMirrorOfEmbeddedTable(vs.getBaseWorksheet(), tableName))
       {
          return false;
       }

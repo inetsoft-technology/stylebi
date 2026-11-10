@@ -122,8 +122,8 @@ class AssemblyPropertyServiceEmbeddedTableTest {
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
 
       assertTrue(stack.properties().editObjectProperty(
-         rvs, stack.table().getVSAssemblyInfo(), NAME, "Renamed", "", principal(), mock(CommandDispatcher.class), true,
-         null));
+         rvs, stack.table().getVSAssemblyInfo(), NAME, "Renamed", "", principal(),
+         mock(CommandDispatcher.class), true, null));
 
       Object renamed = stack.vs().getAssembly("Renamed");
       assertInstanceOf(EmbeddedTableVSAssembly.class, renamed);
