@@ -1840,6 +1840,9 @@ public class FormatPainterService {
    /**
     * Reads the effective font and colours of one chart text region, without a command dispatcher.
     *
+    * @param ignoreTextField {@code true} to read a measure's show-value (data label) format even
+    *                        when the chart also has a text-aesthetic field bound, {@code false}
+    *                        to read the text field's format when there is one
     * @return the region's format, or null when the region has no format yet (for example an axis
     *         label region that is not rendered)
     */
@@ -1847,11 +1850,12 @@ public class FormatPainterService {
    public VSObjectFormatInfoModel getChartRegionFormatModel(@ClusterProxyKey String runtimeId,
                                                             Principal principal,
                                                             String name, String region, int index,
-                                                            String columnName)
+                                                            String columnName,
+                                                            boolean ignoreTextField)
       throws Exception
    {
       CompositeTextFormat format = getChartRegionFormat(
-         runtimeId, principal, name, region, index, columnName, false).format;
+         runtimeId, principal, name, region, index, columnName, ignoreTextField).format;
 
       if(format == null) {
          return null;

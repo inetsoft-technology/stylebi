@@ -401,6 +401,24 @@ public class ViewsheetAssemblyAgentController {
       return formatService.setFormat(sessionToken, user, request, linkUri);
    }
 
+   /**
+    * Reads back the format stored for one target ({@code get_format}); the read counterpart of
+    * {@link #format}.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/format/read")
+   public Map<String, Object> getFormat(
+      @PathVariable String sessionToken,
+      @RequestParam(required = false) String assembly,
+      @RequestParam(required = false) String target,
+      @RequestParam(required = false) String field,
+      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formatService.getFormat(
+         sessionToken, user, new ViewsheetFormatService.FormatReadRequest(assembly, target, field));
+   }
+
    /** Writes the font/colour of one chart text sub-region (axis labels/title, legend, target). */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/region/format")
    public ViewsheetFormatService.ChartRegionFormatResult setChartRegionFormat(

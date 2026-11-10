@@ -69,7 +69,7 @@ class FormatPainterServiceSpringProxyTest {
 
          assertThrows(NullPointerException.class,
                       () -> painter.getChartRegionFormatModel("rid", null, "Chart1", "x_title", 0,
-                                                              ""));
+                                                              "", false));
          verify(viewsheets).getViewsheet(any(), any());
       }
    }

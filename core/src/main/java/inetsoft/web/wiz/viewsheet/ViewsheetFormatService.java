@@ -109,6 +109,7 @@ import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -1285,7 +1286,7 @@ public class ViewsheetFormatService {
       return new ChartRegionFormatResult(
          painter.getChartRegionFormatModel(rvs.getID(), user, request.assembly(),
                                            region.painterRegion(), region.index(),
-                                           region.column()),
+                                           region.column(), false),
          List.of());
    }
 
@@ -1330,7 +1331,7 @@ public class ViewsheetFormatService {
       ChartRegion region = resolveChartRegion(rvs, request);
       VSObjectFormatInfoModel after = painter.getChartRegionFormatModel(
          rvs.getID(), user, request.assembly(), region.painterRegion(), region.index(),
-         region.column());
+         region.column(), false);
       return new ChartRegionFormatResult(after, new ArrayList<>(warnings));
    }
 
@@ -3825,6 +3826,426 @@ public class ViewsheetFormatService {
       out.put("presenter", model.getPresenter());
       out.put("cssClass", model.getCssClass());
       out.put("cssID", model.getCssID());
+      return out;
+   }
+
+   /**
+    * What {@code get_format} reads: the format stored for one target, addressed the way
+    * {@code set_format} writes it.
+    *
+    * @param assembly the assembly's name; omitted for target {@code viewsheet}
+    * @param target   {@code object} (default), {@code title}, {@code viewsheet},
+    *                 {@code activeTab}, {@code calendarHeader}, {@code calendarGrid},
+    *                 {@code optionText}, {@code inputLabel}, {@code plotLabel} or {@code text}
+    * @param field    the chart column for {@code plotLabel} (a bound measure; optional when the
+    *                 chart has exactly one) and {@code text} (required)
+    */
+   public record FormatReadRequest(String assembly, String target, String field) {
+   }
+
+   /**
+    * The read counterpart of {@link #setFormat} for the targets whose format lives at one
+    * addressable place -- the assembly's own, its title bar, its calendar/tab/option/input-label
+    * regions, the dashboard's own, and a chart's data-label / text-field format.
+    *
+    * <p>The result is the format <em>stored</em> for that target, not the rendered style: a value
+    * never set is absent from the map (an untouched title has no font), and a target with no
+    * user-defined format of its own reads {@code format: null}, the same convention
+    * {@link #getCellFormat} uses. Every key present is one the stored entry itself defines, so
+    * the map can be fed to {@code set_format} unchanged.
+    *
+    * <p>A chart's {@code plotLabel}/{@code text} go through the painter's region reader, which
+    * carries font, colour, background colour and alpha and alignment only (no borders or round
+    * corner -- a text region has none); {@code plotLabel} reads the measure's show-value format
+    * and {@code text} the text-aesthetic field's.
+    *
+    * <p>Targets with no single place to read are refused by name, never answered with a default:
+    * {@code field} (writes several places), {@code data}/{@code header}/{@code cell}/
+    * {@code measureText}/{@code measureBar}/{@code measureBarNegative} (per-cell or per-region
+    * paths) and the chart axis/legend targets, which {@code get_chart_region_format} reads.
+    */
+   public Map<String, Object> getFormat(String sessionToken, Principal user,
+                                        FormatReadRequest request)
+      throws Exception
+   {
+      String target = requireReadTarget(request.target());
+      boolean sheet = VIEWSHEET.equals(target);
+      boolean chartLabel = PLOT_LABEL.equals(target) || "text".equals(target);
+      String assembly = request.assembly() == null || request.assembly().isBlank() ? null :
+         request.assembly();
+      String field = request.field() == null || request.field().isBlank() ? null :
+         request.field();
+
+      if(sheet && assembly != null) {
+         throw new IllegalArgumentException(
+            "get_format: target 'viewsheet' reads the dashboard itself, so 'assembly' must be " +
+            "omitted; got '" + assembly + "'. To read an assembly use target 'object'.");
+      }
+
+      if(!sheet && assembly == null) {
+         throw new IllegalArgumentException(
+            "get_format requires 'assembly' (the name of the assembly to read) unless target is " +
+            "'viewsheet'.");
+      }
+
+      if(field != null && !chartLabel) {
+         throw new IllegalArgumentException(
+            "get_format: 'field' only applies to targets 'plotLabel' and 'text'; target '" +
+            request.target() + "' reads one format per assembly. Omit 'field'.");
+      }
+
+      try {
+         return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+            Viewsheet viewsheet = rvs.getViewsheet();
+
+            if(!sheet && viewsheet.getAssembly(assembly) == null) {
+               throw new IllegalArgumentException(
+                  "get_format: no assembly named '" + assembly + "' on this viewsheet.");
+            }
+
+            refuseReadTargetOnWrongAssembly(viewsheet, assembly, target);
+            Map<String, Object> out = new LinkedHashMap<>();
+
+            if(!sheet) {
+               out.put("assembly", assembly);
+            }
+
+            out.put("target", displayTarget(target));
+
+            if(chartLabel) {
+               String column = chartLabelColumn(viewsheet, assembly, target, field);
+               out.put("field", column);
+               VSObjectFormatInfoModel model = painter.getChartRegionFormatModel(
+                  rvs.getID(), user, assembly,
+                  PLOT_LABEL.equals(target) ? ChartFormatConstants.PLOT_AREA :
+                     ChartFormatConstants.TEXT, 0, column, PLOT_LABEL.equals(target));
+
+               if(model == null) {
+                  throw new IllegalArgumentException(
+                     "get_format: chart '" + assembly + "' returned no format for target '" +
+                     displayTarget(target) + "' of field '" + column + "'.");
+               }
+
+               out.put("format", toChartTextWireFormat(model));
+               return out;
+            }
+
+            TableDataPath path = readPath(rvs, assembly, target);
+            VSCompositeFormat own = storedFormat(rvs, assembly, path);
+
+            if(own == null || !(own.isDefined() || own.getCSSFormat().getCSSClass() != null ||
+                                own.getCSSFormat().getCSSID() != null))
+            {
+               out.put("format", null);
+               return out;
+            }
+
+            GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
+            event.setName(assembly);
+
+            if(!OBJECT.equals(target) && !sheet) {
+               event.setDataPath(path);
+            }
+
+            painter.getFormat(runtimeId, event, user, dispatcher);
+            VSObjectFormatInfoModel model = null;
+
+            for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+               if(command.getCommand() instanceof SetCurrentFormatCommand current) {
+                  model = current.getModel();
+                  break;
+               }
+            }
+
+            if(model == null) {
+               throw new IllegalArgumentException(
+                  "get_format: no format came back for target '" + displayTarget(target) +
+                  "' of " + (sheet ? "the viewsheet" : "'" + assembly + "'") + ".");
+            }
+
+            out.put("format", toStoredWireFormat(model, own));
+            return out;
+         });
+      }
+      catch(IllegalArgumentException e) {
+         throw readRefusal(e);
+      }
+   }
+
+   private static final String OBJECT = "object";
+
+   /**
+    * Validates a {@code get_format} target. Every {@code set_format} target is recognised, so a
+    * target that exists but cannot be read gets the reason and the tool that reads it, and only a
+    * target that is not a format target at all falls through to the unknown-target error.
+    */
+   private static String requireReadTarget(String target) {
+      String name = target == null || target.isBlank() ? OBJECT : target.trim().toLowerCase();
+
+      if("sheet".equals(name) || "dashboard".equals(name)) {
+         name = VIEWSHEET;
+      }
+
+      if(OBJECT.equals(name) || "title".equals(name) || "text".equals(name) ||
+         VIEWSHEET.equals(name) || ACTIVE_TAB.equals(name) || isCalendarTarget(name) ||
+         PLOT_LABEL.equals(name) || OPTION_TEXT.equals(name) || INPUT_LABEL_TARGET.equals(name))
+      {
+         return name;
+      }
+
+      if(AXIS_LABEL.equals(name) || AXIS_LABEL2.equals(name) ||
+         LEGEND_TITLE_TARGET.equals(name) || LEGEND_CONTENT_TARGET.equals(name))
+      {
+         throw new IllegalArgumentException(
+            "get_format: target '" + chartRegionDisplayName(name) + "' is not read here; " +
+            "use get_chart_region_format (regions axis_labels, axis_title, legend_title, " +
+            "legend_content, target_label) to read a chart's axis and legend text.");
+      }
+
+      if("field".equals(name)) {
+         throw new IllegalArgumentException(
+            "get_format: target 'field' cannot be read -- set_format 'field' writes one value " +
+            "format to several places (axis labels, legend, data labels). Read the place you " +
+            "mean instead: target 'plotLabel' with 'field' for its data labels, or " +
+            "get_chart_region_format for its axis labels or legend.");
+      }
+
+      if("data".equals(name) || "header".equals(name) || isSelectionRegionTarget(name)) {
+         throw new IllegalArgumentException(
+            "get_format: target '" + target.trim() + "' cannot be read yet -- its format is " +
+            "stored per cell or per region path, so there is no single format to return. " +
+            "Supported targets: object, title, viewsheet, activeTab, calendarHeader, " +
+            "calendarGrid, optionText, inputLabel, plotLabel, text.");
+      }
+
+      throw new IllegalArgumentException(
+         "get_format 'target' must be 'object', 'title', 'viewsheet', 'activeTab', " +
+         "'calendarHeader', 'calendarGrid', 'optionText', 'inputLabel', 'plotLabel' or 'text', " +
+         "got '" + target + "'.");
+   }
+
+   /** The {@code camelCase} name a caller wrote for a normalised, supported read target. */
+   private static String displayTarget(String target) {
+      return switch(target) {
+         case ACTIVE_TAB -> "activeTab";
+         case CALENDAR_HEADER -> "calendarHeader";
+         case CALENDAR_GRID -> "calendarGrid";
+         case OPTION_TEXT -> "optionText";
+         case INPUT_LABEL_TARGET -> "inputLabel";
+         case PLOT_LABEL -> "plotLabel";
+         default -> target;
+      };
+   }
+
+   /** The assembly-kind refusals {@code set_format} applies, so a read names the mismatch too. */
+   private static void refuseReadTargetOnWrongAssembly(Viewsheet viewsheet, String assembly,
+                                                       String target)
+   {
+      if(assembly == null) {
+         return;
+      }
+
+      List<String> names = List.of(assembly);
+
+      if("title".equals(target)) {
+         refuseTitleOnUntitledAssemblies(viewsheet, names);
+      }
+      else if("text".equals(target)) {
+         refuseTextOnNonChart(viewsheet, assembly);
+      }
+      else if(PLOT_LABEL.equals(target)) {
+         refuseChartRegionTargetOnNonChart(viewsheet, names, target);
+      }
+      else if(ACTIVE_TAB.equals(target)) {
+         refuseActiveTabOnNonTab(viewsheet, names);
+      }
+      else if(isCalendarTarget(target)) {
+         refuseCalendarTargetOnNonCalendar(viewsheet, names, target);
+      }
+      else if(OPTION_TEXT.equals(target)) {
+         refuseOptionTextOnNonOption(viewsheet, names);
+      }
+      else if(INPUT_LABEL_TARGET.equals(target)) {
+         refuseInputLabelOnNonInput(viewsheet, names);
+      }
+   }
+
+   /**
+    * The chart column a {@code plotLabel}/{@code text} read addresses. {@code text} names its
+    * field; {@code plotLabel} names one of the chart's bound measures, and when the chart has
+    * several and none is named the read is refused rather than answered for an arbitrary one --
+    * each measure owns its own data-label format.
+    */
+   private static String chartLabelColumn(Viewsheet viewsheet, String assembly, String target,
+                                          String field)
+   {
+      if("text".equals(target)) {
+         if(field == null) {
+            throw new IllegalArgumentException(
+               "get_format: target 'text' requires 'field' -- the column bound to the chart's " +
+               "text aesthetic channel.");
+         }
+
+         return field;
+      }
+
+      String[] measures = resolvePlotLabelColumnNames(viewsheet, assembly);
+
+      if(field == null) {
+         if(measures.length == 1) {
+            return measures[0];
+         }
+
+         throw new IllegalArgumentException(
+            "get_format: target 'plotLabel' requires 'field' -- chart '" + assembly + "' has " +
+            measures.length + " measures, each with its own data-label format: " +
+            String.join(", ", measures) + ".");
+      }
+
+      if(!Arrays.asList(measures).contains(field)) {
+         throw new IllegalArgumentException(
+            "get_format: 'field' '" + field + "' is not a measure bound on chart '" + assembly +
+            "' (bound measures: " + String.join(", ", measures) + ").");
+      }
+
+      return field;
+   }
+
+   /** The {@link TableDataPath} {@link #setFormat} writes {@code target} to. */
+   private static TableDataPath readPath(RuntimeViewsheet rvs, String assembly, String target) {
+      if(OBJECT.equals(target) || VIEWSHEET.equals(target)) {
+         return VSAssemblyInfo.OBJECTPATH;
+      }
+
+      if("title".equals(target)) {
+         return VSAssemblyInfo.TITLEPATH;
+      }
+
+      if(ACTIVE_TAB.equals(target)) {
+         return TabVSAssemblyInfo.ACTIVE_TAB_PATH;
+      }
+
+      if(isCalendarTarget(target)) {
+         return calendarPath(rvs, assembly, target);
+      }
+
+      if(OPTION_TEXT.equals(target)) {
+         return new TableDataPath(-1, TableDataPath.DETAIL);
+      }
+
+      return new TableDataPath(-1, TableDataPath.INPUT_LABEL);
+   }
+
+   /**
+    * The stored entry for {@code path}, looked up without the painter's side effects; a label's
+    * format lives on the input's {@code LabelInfo}, not in the format map. Null for none.
+    */
+   private static VSCompositeFormat storedFormat(RuntimeViewsheet rvs, String assembly,
+                                                 TableDataPath path)
+   {
+      Viewsheet viewsheet = rvs.getViewsheet();
+      VSAssembly vsAssembly = assembly == null ? viewsheet : viewsheet.getAssembly(assembly);
+      VSAssemblyInfo info = vsAssembly == null ? null : vsAssembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return null;
+      }
+
+      if(path.getType() == TableDataPath.INPUT_LABEL) {
+         return info instanceof InputVSAssemblyInfo input && input.getLabelInfo() != null ?
+            input.getLabelInfo().getLabelFormat() : null;
+      }
+
+      FormatInfo formatInfo = info.getFormatInfo();
+      return formatInfo == null ? null : formatInfo.getFormat(path);
+   }
+
+   /** Rewords a refusal that a shared {@code set_format} helper raised as a {@code get_format} one. */
+   private static IllegalArgumentException readRefusal(IllegalArgumentException e) {
+      String message = e.getMessage();
+
+      if(message == null || !message.startsWith("set_format")) {
+         return e;
+      }
+
+      return new IllegalArgumentException(
+         "get_format" + message.substring("set_format".length())
+            .replace(" The request was not applied.", ""), e);
+   }
+
+   /**
+    * {@link #toWireFormat} restricted to what {@code own} itself defines, plus the background
+    * alpha. The painter's pane model carries a default for every field (border colours, alignment,
+    * wrap, round corner, alpha) and inherits unset fields from the whole-object format; sending
+    * those on would make a read-then-write round trip store values nobody set.
+    */
+   private static Map<String, Object> toStoredWireFormat(VSObjectFormatInfoModel model,
+                                                         VSCompositeFormat own)
+   {
+      VSFormat user = own.getUserDefinedFormat();
+      Map<String, Object> all = toWireFormat(model);
+      all.put("backgroundAlpha", model.getBackgroundAlpha());
+      Set<String> drop = new HashSet<>();
+
+      if(!(user.isForegroundDefined() || user.isForegroundValueDefined())) {
+         drop.add("color");
+      }
+
+      if(!(user.isBackgroundDefined() || user.isBackgroundValueDefined())) {
+         drop.add("backgroundColor");
+      }
+
+      if(!(user.isFontDefined() || user.isFontValueDefined())) {
+         drop.add("font");
+      }
+
+      if(!(user.isAlignmentDefined() || user.isAlignmentValueDefined())) {
+         drop.add("align");
+      }
+
+      if(!(user.isFormatDefined() || user.isFormatValueDefined())) {
+         drop.add("format");
+         drop.add("formatSpec");
+      }
+
+      if(!(user.isBordersDefined() || user.isBordersValueDefined())) {
+         drop.addAll(BORDER_STYLES);
+      }
+
+      if(!(user.isBorderColorsDefined() || user.isBorderColorsValueDefined())) {
+         drop.addAll(List.of("borderTopColor", "borderLeftColor", "borderBottomColor",
+                             "borderRightColor"));
+      }
+
+      if(!(user.isRoundCornerDefined() || user.isRoundCornerValueDefined())) {
+         drop.add("roundCorner");
+      }
+
+      if(!(user.isWrappingDefined() || user.isWrappingValueDefined())) {
+         drop.add("wrapText");
+      }
+
+      if(!(user.isAlphaDefined() || user.isAlphaValueDefined())) {
+         drop.add("backgroundAlpha");
+      }
+
+      if(!(user.isPresenterDefined() || user.isPresenterValueDefined())) {
+         drop.add("presenter");
+      }
+
+      all.keySet().removeIf(key -> drop.contains(key) || all.get(key) == null);
+      return all;
+   }
+
+   /** A chart text region's format: the keys that region's reader fills, empty ones left out. */
+   private static Map<String, Object> toChartTextWireFormat(VSObjectFormatInfoModel model) {
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("color", model.getColor());
+      out.put("backgroundColor", model.getBackgroundColor());
+      out.put("backgroundAlpha", model.getBackgroundAlpha());
+      out.put("font", model.getFont());
+      out.put("align", model.getAlign());
+      out.values().removeIf(value -> value == null || "".equals(value));
       return out;
    }
 
