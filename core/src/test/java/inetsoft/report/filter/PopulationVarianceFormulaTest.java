@@ -304,4 +304,29 @@ public class PopulationVarianceFormulaTest {
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
    }
+
+   // Bug #80974: a blank string is no value, same as null
+   @Test
+   void blankString_isSkipped() {
+      PopulationVarianceFormula f = new PopulationVarianceFormula();
+      for(Object o : new Object[] { 2, "", 4, " ", 6 }) {
+         f.addValue(o);
+      }
+      assertEquals(8.0 / 3, ((Number) f.getResult()).doubleValue(), 1e-9);
+   }
+
+   @Test
+   void allBlank_sameAsAllNull() {
+      PopulationVarianceFormula blank = new PopulationVarianceFormula();
+      PopulationVarianceFormula nulls = new PopulationVarianceFormula();
+      blank.setDefaultResult(false);
+      nulls.setDefaultResult(false);
+      blank.addValue("");
+      blank.addValue("");
+      nulls.addValue((Object) null);
+      nulls.addValue((Object) null);
+      assertNull(nulls.getResult());
+      assertNull(blank.getResult());
+      assertEquals(nulls.isNull(), blank.isNull());
+   }
 }

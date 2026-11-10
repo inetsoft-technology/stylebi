@@ -353,4 +353,29 @@ public class VarianceFormulaTest {
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
    }
+
+   // Bug #80974: a blank string is no value, same as null
+   @Test
+   void blankString_isSkipped() {
+      VarianceFormula f = new VarianceFormula();
+      for(Object o : new Object[] { 2, "", 4, " ", 6 }) {
+         f.addValue(o);
+      }
+      assertEquals(4.0, ((Number) f.getResult()).doubleValue(), 1e-9);
+   }
+
+   @Test
+   void allBlank_sameAsAllNull() {
+      VarianceFormula blank = new VarianceFormula();
+      VarianceFormula nulls = new VarianceFormula();
+      blank.setDefaultResult(false);
+      nulls.setDefaultResult(false);
+      blank.addValue("");
+      blank.addValue("");
+      nulls.addValue((Object) null);
+      nulls.addValue((Object) null);
+      assertNull(nulls.getResult());
+      assertNull(blank.getResult());
+      assertEquals(nulls.isNull(), blank.isNull());
+   }
 }
