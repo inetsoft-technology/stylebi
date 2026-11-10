@@ -228,6 +228,83 @@ class ChartRegionPropertyServiceGanttScenarioTest {
       }
    }
 
+   /** Bug #80819: the bare start column is accepted on the time axis, like Min(START_DATE). */
+   @Test
+   void theBareStartColumnActsOnTheTimeAxisForListAndSet() throws Exception {
+      Gantt g = gantt(true);
+
+      Map<String, Object> listed = g.h.service.list("tok", principal(), "Chart1", "axis", "y",
+                                                    "START_DATE");
+      assertTrue(names(listed).containsAll(List.of("minimum", "maximum")), listed.toString());
+      assertNotNull(listed.get("note"));
+
+      g.h.service.set("tok", principal(), "Chart1", "axis", "y", "START_DATE",
+                      Map.of("minimum", "2025-01-01"), "");
+      assertEquals(Long.valueOf(JAN_1), g.start.getAxisDescriptor().getMinimum());
+
+      Map<String, Object> back = g.h.service.list("tok", principal(), "Chart1", "axis", "y",
+                                                  "Min(START_DATE)");
+      assertEquals(String.valueOf(JAN_1), prop(back, "minimum").get("value"));
+   }
+
+   @Test
+   void theBareEndColumnIsRefusedNamingTheStartField() throws Exception {
+      Gantt g = gantt(true);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> g.h.service.set("tok", principal(), "Chart1", "axis", "y", "END_DATE",
+                               Map.of("minimum", "2025-01-01"), ""));
+      assertTrue(thrown.getMessage().contains("Min(START_DATE)"), thrown.getMessage());
+      verifyNoDialogWrite(g.h);
+   }
+
+   @Test
+   void anUnknownFieldOnAGanttYAxisNamesTheTimeAxisField() throws Exception {
+      Gantt g = gantt(true);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> g.h.service.list("tok", principal(), "Chart1", "axis", "y", "Sum(START_DATE)"));
+      assertTrue(thrown.getMessage().startsWith("Unknown field 'Sum(START_DATE)' on axis 'y'"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("field 'Min(START_DATE)'"), thrown.getMessage());
+   }
+
+   @Test
+   void anEntityColumnStartIsAcceptedByItsBareAttribute() throws Exception {
+      Gantt g = gantt(true);
+      VSChartAggregateRef entityStart = new VSChartAggregateRef();
+      ColumnRef col = new ColumnRef(new AttributeRef("Orders", "START_DATE"));
+      col.setDataType(XSchema.DATE);
+      entityStart.setDataRef(col);
+      entityStart.setFormula(AggregateFormula.MIN);
+      g.info.setStartField(entityStart);
+
+      Map<String, Object> listed = g.h.service.list("tok", principal(), "Chart1", "axis", "y",
+                                                    "START_DATE");
+      assertTrue(names(listed).containsAll(List.of("minimum", "maximum")), listed.toString());
+   }
+
+   @Test
+   void theSameColumnAsStartAndEndResolvesToThePrimaryField() throws Exception {
+      Gantt g = gantt(true);
+      g.info.setEndField(aggregate("START_DATE", XSchema.DATE, AggregateFormula.MAX));
+
+      g.h.service.set("tok", principal(), "Chart1", "axis", "y", "START_DATE",
+                      Map.of("minimum", "2025-01-01"), "");
+      assertEquals(Long.valueOf(JAN_1), g.start.getAxisDescriptor().getMinimum());
+   }
+
+   @Test
+   void aNonGanttUnknownFieldMessageIsUnchanged() throws Exception {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_POINT);
+      info.addXField(dimension("REGION"));
+      info.addYField(aggregate("SALES", XSchema.DOUBLE, AggregateFormula.SUM));
+      Harness h = harness(info);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "axis", "y", "FOO"));
+      assertEquals("Unknown field 'FOO' on axis 'y'. Fields on this axis: Sum(SALES). " +
+                   "Omit 'field' when the axis has only one.", thrown.getMessage());
+   }
+
    private static TimeScale render(Gantt g) {
       g.info.setRTStartField(g.start);
       g.info.setRTEndField(g.end);

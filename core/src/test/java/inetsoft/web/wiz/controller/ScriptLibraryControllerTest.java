@@ -19,6 +19,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -234,6 +235,72 @@ class ScriptLibraryControllerTest {
 
       verify(fixture.lib).removeScript("helper");
       verify(fixture.lib).save();
+   }
+
+   /** Bug #80189: delete drops the SCRIPT grant so a same-name function cannot inherit it. */
+   @Test
+   void delete_removesTheScriptsPermissionGrant() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRemovableScript("helper", "return 1;");
+
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class);
+          MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class))
+      {
+         handler.when(DependencyHandler::getInstance).thenReturn(mock(DependencyHandler.class));
+         transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
+            .thenReturn(List.of());
+
+         fixture.controller.delete("helper", false, fixture.principal);
+      }
+
+      verify(fixture.securityEngine).removePermission(ResourceType.SCRIPT, "helper");
+   }
+
+   @Test
+   void delete_keepsTheGrantWhenTheDeleteIsRefused() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRemovableScript("helper", "return 1;");
+
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+         transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
+            .thenReturn(List.of(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                               AssetEntry.Type.VIEWSHEET, "dash", null)));
+
+         assertThrows(IllegalArgumentException.class,
+                      () -> fixture.controller.delete("helper", false, fixture.principal));
+      }
+
+      verify(fixture.securityEngine, never()).removePermission(any(), anyString());
+   }
+
+   /** Bug #80189: rename moves an existing grant to the new name. */
+   @Test
+   void rename_movesTheScriptsPermissionGrant() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRenamableScript("helper", FN_1);
+      Permission grant = new Permission();
+      when(fixture.securityEngine.getPermission(ResourceType.SCRIPT, "helper")).thenReturn(grant);
+
+      fixture.controller.rename(
+         "helper", new ScriptLibraryController.RenameScriptLibraryFunctionRequest("renamed"),
+         fixture.principal);
+
+      verify(fixture.securityEngine).setPermission(ResourceType.SCRIPT, "renamed", grant);
+      verify(fixture.securityEngine).removePermission(ResourceType.SCRIPT, "helper");
+   }
+
+   /** Bug #80189: a grant-less source must not inherit a stale grant stored at the target. */
+   @Test
+   void rename_ofAGrantlessSourceClearsAStaleGrantAtTheTarget() throws Exception {
+      Fixture fixture = new Fixture();
+      fixture.stubRenamableScript("helper", FN_1);
+
+      fixture.controller.rename(
+         "helper", new ScriptLibraryController.RenameScriptLibraryFunctionRequest("renamed"),
+         fixture.principal);
+
+      verify(fixture.securityEngine).removePermission(ResourceType.SCRIPT, "renamed");
+      verify(fixture.securityEngine, never()).setPermission(any(), anyString(), any());
    }
 
    @Test

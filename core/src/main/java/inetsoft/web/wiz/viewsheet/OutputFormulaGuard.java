@@ -41,6 +41,11 @@ import java.util.*;
  *       First and Last, every other column the full list without Aggregate.</li>
  * </ul>
  *
+ * <p>The services copy aggregate, with, num and magnitude into the stored binding only when the
+ * pane has a table, so a write of any of them to an output with no table is dropped silently
+ * (Redmine #80798); {@link #requireBinding} refuses it. A blank aggregate is judged like
+ * {@code none}: it takes neither a second column nor an N/P operand.
+ *
  * <p>A dynamic aggregate ({@code $(x)}, {@code =script}) is not judged, and every rule fires only
  * when the patch changes a field it is about, so a state saved earlier never blocks an unrelated
  * write.
@@ -52,8 +57,10 @@ final class OutputFormulaGuard {
    static final String AGGREGATE = "dataOutputPaneModel.aggregate";
    static final String WITH = "dataOutputPaneModel.with";
    static final String NUM = "dataOutputPaneModel.num";
+   static final String TABLE = "dataOutputPaneModel.table";
+   static final String MAGNITUDE = "dataOutputPaneModel.magnitude";
 
-   record Snapshot(String aggregate, String with, String num) {
+   record Snapshot(String aggregate, String with, String num, String table, Object magnitude) {
    }
 
    private static final Set<String> DATE_FORMULAS = names(
@@ -93,7 +100,9 @@ final class OutputFormulaGuard {
 
       return new Snapshot((String) PropertyPath.get(model, AGGREGATE),
                           (String) PropertyPath.get(model, WITH),
-                          (String) PropertyPath.get(model, NUM));
+                          (String) PropertyPath.get(model, NUM),
+                          (String) PropertyPath.get(model, TABLE),
+                          PropertyPath.get(model, MAGNITUDE));
    }
 
    /**
@@ -130,6 +139,58 @@ final class OutputFormulaGuard {
       }
    }
 
+   /**
+    * The Data pane enables Aggregate only once a column is picked, and the services keep
+    * aggregate, with, num and magnitude only when the pane has a table. A write of one of them
+    * (to a value other than its empty default) while the post-patch pane has no table would be
+    * stored nowhere, so it is refused; a same-call table write passes.
+    */
+   static void requireBinding(Snapshot before, Object model) {
+      if(before == null || !isBlank(PropertyPath.get(model, TABLE))) {
+         return;
+      }
+
+      List<String> dropped = new ArrayList<>();
+      Object aggregate = PropertyPath.get(model, AGGREGATE);
+      Object with = PropertyPath.get(model, WITH);
+      Object num = PropertyPath.get(model, NUM);
+      Object magnitude = PropertyPath.get(model, MAGNITUDE);
+
+      if(!Objects.equals(before.aggregate(), aggregate) && !isBlank(aggregate) &&
+         !"none".equalsIgnoreCase(aggregate.toString().trim()))
+      {
+         dropped.add("'" + AGGREGATE + "' (alias 'aggregate')");
+      }
+
+      if(!Objects.equals(before.with(), with) && !isBlank(with)) {
+         dropped.add("'" + WITH + "' (alias 'with')");
+      }
+
+      if(!Objects.equals(before.num(), num) && num != null &&
+         !"1".equals(num.toString().trim()))
+      {
+         dropped.add("'" + NUM + "' (alias 'nthOperand')");
+      }
+
+      if(!Objects.equals(before.magnitude(), magnitude) && magnitude != null &&
+         !"1".equals(magnitude.toString().trim()))
+      {
+         dropped.add("'" + MAGNITUDE + "' (alias 'magnitude')");
+      }
+
+      if(!dropped.isEmpty()) {
+         throw new IllegalArgumentException(
+            String.join(", ", dropped) + ": the output is not bound to a table and column, so " +
+            "the Composer's Data pane has nothing to apply it to and StyleBI would drop the " +
+            "value. Set 'table' and 'column' in the same call, or bind the output first. " +
+            "Nothing was changed.");
+      }
+   }
+
+   private static boolean isBlank(Object value) {
+      return value == null || value.toString().isBlank();
+   }
+
    /** The with/operand rules, judged on the post-patch model. */
    static void requireArity(Snapshot before, Object model) {
       if(before == null) {
@@ -139,7 +200,7 @@ final class OutputFormulaGuard {
       String aggregate = (String) PropertyPath.get(model, AGGREGATE);
       String with = (String) PropertyPath.get(model, WITH);
       String num = (String) PropertyPath.get(model, NUM);
-      AggregateFormula formula = staticFormula(aggregate);
+      AggregateFormula formula = formulaForArity(aggregate);
 
       if(formula == null) {
          return;
@@ -149,6 +210,8 @@ final class OutputFormulaGuard {
       boolean withChanged = !Objects.equals(before.with(), with);
       boolean numChanged = !Objects.equals(before.num(), num);
       boolean hasWith = with != null && !with.isBlank();
+      String shown = aggregate == null || aggregate.isBlank() ? "no aggregate is set" :
+         "the aggregate '" + aggregate + "'";
 
       if(formula.isTwoColumns() && !hasWith && (aggregateChanged || withChanged)) {
          throw new IllegalArgumentException(
@@ -161,7 +224,7 @@ final class OutputFormulaGuard {
 
       if(!formula.isTwoColumns() && hasWith && withChanged) {
          throw new IllegalArgumentException(
-            "'" + WITH + "' ('" + with + "'): the aggregate '" + aggregate + "' does not take a " +
+            "'" + WITH + "' ('" + with + "'): " + shown + ", which does not take a " +
             "second column, so the Composer hides \"With\" for it and the value would be " +
             "ignored. 'with' applies to First, Last, Correlation, Covariance and " +
             "WeightedAverage. Change the aggregate in the same call, or leave 'with' out. " +
@@ -170,12 +233,53 @@ final class OutputFormulaGuard {
 
       if(!formula.hasN() && numChanged) {
          throw new IllegalArgumentException(
-            "'" + NUM + "' ('" + num + "'): the aggregate '" + aggregate + "' has no N/P " +
+            "'" + NUM + "' ('" + num + "'): " + shown + ", which has no N/P " +
             "operand, so the Composer hides that field and the value would be ignored. The " +
             "operand ('nthOperand') applies to NthLargest, NthSmallest, NthMostFrequent and " +
             "PthPercentile. Change the aggregate in the same call, or leave it out. Nothing " +
             "was changed.");
       }
+   }
+
+   /**
+    * When the patch changed the aggregate to one that takes no second column / no N/P operand,
+    * drops the value left over from the previous aggregate, as the Data pane does for
+    * {@code with} ({@code updateColumn2}). The pane only hides N and keeps its value; resetting
+    * {@code num} to 1 here is a deliberate difference, so that a hidden operand cannot come back
+    * when an Nth/Pth aggregate is picked later. A dynamic aggregate is not judged. Runs after
+    * {@link #requireArity}, so it only touches values this patch did not write.
+    *
+    * @return the model to keep using
+    */
+   static Object clearStaleOperands(Snapshot before, Object model) {
+      if(before == null) {
+         return model;
+      }
+
+      String aggregate = (String) PropertyPath.get(model, AGGREGATE);
+      AggregateFormula formula = formulaForArity(aggregate);
+
+      if(formula == null || Objects.equals(before.aggregate(), aggregate)) {
+         return model;
+      }
+
+      if(!formula.isTwoColumns() && !isBlank(PropertyPath.get(model, WITH))) {
+         model = PropertyPath.set(model, WITH, null);
+      }
+
+      String num = (String) PropertyPath.get(model, NUM);
+
+      if(!formula.hasN() && num != null && !"1".equals(num.trim())) {
+         model = PropertyPath.set(model, NUM, "1");
+      }
+
+      return model;
+   }
+
+   /** Like {@link #staticFormula}, but a blank aggregate counts as {@code none}. */
+   private static AggregateFormula formulaForArity(String aggregate) {
+      return aggregate == null || aggregate.isBlank() ? AggregateFormula.NONE :
+         staticFormula(aggregate);
    }
 
    /**

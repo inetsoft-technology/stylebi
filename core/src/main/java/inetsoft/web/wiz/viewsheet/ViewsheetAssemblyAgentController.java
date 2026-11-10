@@ -148,6 +148,7 @@ public class ViewsheetAssemblyAgentController {
                                    SelectionLayoutService selectionLayoutService,
                                    FormTableRowService formTableRowService,
                                    FormTableImportService formTableImportService,
+                                   EmbeddedTableCellService embeddedTableCellService,
                                    ColumnOptionService columnOptionService,
                                    ParameterCollectionService parameterCollectionService,
                                    ParameterValueService parameterValueService,
@@ -192,6 +193,7 @@ public class ViewsheetAssemblyAgentController {
       this.selectionLayoutService = selectionLayoutService;
       this.formTableRowService = formTableRowService;
       this.formTableImportService = formTableImportService;
+      this.embeddedTableCellService = embeddedTableCellService;
       this.columnOptionService = columnOptionService;
       this.parameterCollectionService = parameterCollectionService;
       this.parameterValueService = parameterValueService;
@@ -1479,10 +1481,18 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
 
-      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Export",
-                                         ResourceAction.READ))
+      // Redmine #80497: the wiz principal is approved for everything, so the Export and
+      // ExportExpandComponents toolbar actions are evaluated on a copy without the wiz tag (and
+      // without the login check, which a toolbar action would otherwise fail). The copy is only
+      // used for these checks; the export itself keeps running as the wiz principal.
+      Principal permissionUser = WizUtil.toolbarCheckPrincipal(user);
+
+      if(!securityEngine.checkPermission(permissionUser, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+                                         "Export", ResourceAction.READ))
       {
-         throw new SecurityException("No permission for viewsheet export.");
+         throw new IllegalArgumentException(
+            "export_viewsheet: you do not have the Export permission (Dashboard Toolbar > " +
+            "Export), so the viewsheet cannot be exported.");
       }
 
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
@@ -1719,17 +1729,30 @@ public class ViewsheetAssemblyAgentController {
       boolean effectiveMatch = formatType == FileFormatInfo.EXPORT_TYPE_CSV ?
          false : match == null || match;
 
-      // Bug #80182: a table cell longer than max.cell.size is cut while it is written, so the
-      // CSV export reports it (column and cap) in the same header the worksheet export uses.
+      // Redmine #80497: same rule as VSExportService.exportViewsheet, which the wiz principal
+      // always passes. Applied after the CSV override, as in the Viewer (ExportController sets
+      // match=false for CSV, then the service turns it back on for a user without the permission).
+      if(!effectiveMatch &&
+         !securityEngine.checkPermission(permissionUser, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+                                         "ExportExpandComponents", ResourceAction.READ))
+      {
+         effectiveMatch = true;
+      }
+
+      // Bug #80182, #80500: a table cell longer than max.cell.size is cut while it is written,
+      // so the export reports it (column and cap) in the same header the worksheet export uses.
+      // Registered for every format, not only CSV: an Excel request can be switched to CSV
+      // inside the export, and the other table formats are cut the same way. A format that
+      // never shows a table to the observer (snapshot) simply reports nothing.
       List<String> cellCapWarnings = new ArrayList<>();
       ExportResponse exportResponse = new ExportResponse(out);
 
-      if(formatType == FileFormatInfo.EXPORT_TYPE_CSV) {
-         // read the cap per table, inside the export, not when the request is set up
-         exportResponse.setTableObserver((name, lens) ->
-            cellCapWarnings.addAll(ExportCellCapScanner.scanViewsheetTable(name, lens,
+      // read the cap per table, inside the export, not when the request is set up; a table seen
+      // again (another bookmark) repeats its warning, so keep each one once
+      exportResponse.setTableObserver((name, lens) ->
+         ExportCellCapScanner.addDistinct(cellCapWarnings,
+            ExportCellCapScanner.scanViewsheetTable(name, lens,
                inetsoft.report.internal.Util.getOrganizationMaxCellSize())));
-      }
 
       try {
          exportService.exportViewsheet(rvs, formatType, effectiveMatch,
@@ -2234,7 +2257,7 @@ public class ViewsheetAssemblyAgentController {
       return selectionService.setSelection(sessionToken, user, request.assembly(), request.values(),
                                           request.deselect(), request.sortOrder(),
                                           request.singleSelect(), request.additive(),
-                                          request.search(), linkUri);
+                                          request.search(), request.discardPending(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/clear")
@@ -2246,7 +2269,8 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      return selectionService.clearSelection(sessionToken, user, request.assembly(), linkUri);
+      return selectionService.clearSelection(sessionToken, user, request.assembly(),
+                                            request.discardPending(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/subtree")
@@ -2259,12 +2283,13 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return selectionService.selectSubtree(sessionToken, user, request.assembly(), request.path(),
-                                           request.mode(), linkUri);
+                                           request.mode(), request.discardPending(), linkUri);
    }
 
    public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
                                   java.util.List<java.util.List<String>> deselect, String sortOrder,
-                                  Boolean singleSelect, Boolean additive, String search) {}
+                                  Boolean singleSelect, Boolean additive, String search,
+                                  Boolean discardPending) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/display")
    public Map<String, Object> setCalendarDisplay(@PathVariable String sessionToken,
@@ -2474,6 +2499,24 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * {@code embedded_table_set_cells}: a batch of cell edits to a plain (non-Form) Embedded Table,
+    * the Viewer's {@code changeCellText}. Everything is validated before anything is written; see
+    * {@link EmbeddedTableCellService}.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/embedded-table/set-cells")
+   public Map<String, Object> embeddedTableSetCells(@PathVariable String sessionToken,
+                                                    @RequestBody EmbeddedTableSetCellsRequest request,
+                                                    @RequestParam(required = false, defaultValue = "")
+                                                    String linkUri,
+                                                    Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return embeddedTableCellService.setCells(sessionToken, user, request.assembly(),
+                                               request.changes(), linkUri);
+   }
+
+   /**
     * {@code form_table_import_excel}: the Viewer's Import Excel for an offline-edited export of
     * the paired dashboard. Replaces the pending rows of the Form tables the file has named ranges
     * for; nothing is committed until {@code form_table_apply}. See {@link FormTableImportService}
@@ -2591,8 +2634,11 @@ public class ViewsheetAssemblyAgentController {
    public record FormTableDeleteRowsRequest(String assembly, java.util.List<Integer> rows) {}
    public record FormTableSetCellRequest(String assembly, int row, int col, String value) {}
    public record FormTableApplyRequest(String assembly) {}
+   public record EmbeddedTableSetCellsRequest(
+      String assembly, java.util.List<EmbeddedTableCellService.CellChange> changes) {}
 
-   public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
+   public record SubtreeRequest(String assembly, java.util.List<String> path, String mode,
+                                Boolean discardPending) {}
 
    public record ConvertRequest(String assembly, String to) {}
 
@@ -4298,6 +4344,7 @@ public class ViewsheetAssemblyAgentController {
    private final SelectionLayoutService selectionLayoutService;
    private final FormTableRowService formTableRowService;
    private final FormTableImportService formTableImportService;
+   private final EmbeddedTableCellService embeddedTableCellService;
    private final ColumnOptionService columnOptionService;
    private final ParameterCollectionService parameterCollectionService;
    private final ParameterValueService parameterValueService;

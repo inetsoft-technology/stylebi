@@ -683,6 +683,8 @@ public class ViewsheetChangesetApplyService {
       GetViewsheetFolderResult before = folderService.getFolder(fullPath, owner);
       String beforeProjection = ViewsheetProjection.projectFolder(before);
 
+      planService.requireFolderCreateTargetFree(
+         "folder create \"" + key + "\"", fullPath, owner);
       mutationEntered.set(true);
       viewsheetApiService.addFolder(
          original.getParentFolder(), folderName, original.getAlias(), original.getDescription(),
@@ -801,6 +803,11 @@ public class ViewsheetChangesetApplyService {
       }
 
       String beforeProjection = ViewsheetProjection.projectFolder(before);
+
+      if(!normalizedNew.equals(normalizedOld)) {
+         planService.requireFolderRenameTargetFree(
+            "folder rename \"" + key + "\"", normalizedNew, owner);
+      }
 
       mutationEntered.set(true);
       viewsheetApiService.renameFolder(normalizedOld, normalizedNew, owner, user);

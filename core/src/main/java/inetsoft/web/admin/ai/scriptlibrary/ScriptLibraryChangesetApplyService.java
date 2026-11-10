@@ -220,16 +220,17 @@ public class ScriptLibraryChangesetApplyService {
       String description = original.getDescription() == null ? "" : original.getDescription();
       String text = original.getText() == null ? "" : original.getText();
       mutationEntered.set(true);
-      lib.setScript(name, text);
+      boolean verified = lib.runAtomically(() -> {
+         lib.setScript(name, text);
+
+         if(!description.isEmpty()) {
+            lib.setScriptComment(name, description);
+         }
+
+         lib.save();
+         return lib.getScript(name) != null;
+      });
       DependencyHandler.getInstance().updateScriptDependencies(null, text, scriptEntry(name));
-
-      if(!description.isEmpty()) {
-         lib.setScriptComment(name, description);
-      }
-
-      lib.save();
-
-      boolean verified = scriptLibraryService.exists(name, user);
       String after = verified ? ScriptLibraryChangePlanService.project(name, description, text) : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new ScriptLibraryApplyOutcome(key, null, after, status,
@@ -261,16 +262,27 @@ public class ScriptLibraryChangesetApplyService {
 
       String before = ScriptLibraryChangePlanService.project(entry);
       Permission permission = scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, name);
+      // Bug #80189: grants are keyed by name and outlive the script, so a grant left at the target
+      // would be inherited by the renamed function; kept so a rollback can restore it
+      Permission displaced = permission == null ?
+         scriptLibraryService.securityEngine.getPermission(ResourceType.SCRIPT, newName) : null;
       String oldText = lib.getScript(name);
       String newText = ScriptLibraryChangePlanService.renamedText(name, newName, oldText);
       boolean rewritten = !Objects.equals(oldText, newText);
       mutationEntered.set(true);
-      lib.renameScript(name, newName);
-      lib.save();
+      lib.runAtomically(() -> {
+         lib.renameScript(name, newName);
+         lib.save();
+         return null;
+      });
 
       if(permission != null) {
          scriptLibraryService.securityEngine.removePermission(ResourceType.SCRIPT, name);
          scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, newName, permission);
+      }
+      else if(displaced != null) {
+         AbstractAssetEngine.removePermissionBestEffort(
+            scriptLibraryService.securityEngine, ResourceType.SCRIPT, newName);
       }
 
       boolean verified = !scriptLibraryService.exists(name, user) &&
@@ -284,7 +296,7 @@ public class ScriptLibraryChangesetApplyService {
                 before, after, status, backupRef, reviewOutcome, user);
 
       if(verified) {
-         undoable.add(Undo.rename(key, newName, name, permission, rewritten ? oldText : null));
+         undoable.add(Undo.rename(key, newName, name, permission, rewritten ? oldText : null, displaced));
       }
    }
 
@@ -300,10 +312,11 @@ public class ScriptLibraryChangesetApplyService {
       ScriptLibraryEntryDetail entry = scriptLibraryService.requireEntry(name, user);
       String before = ScriptLibraryChangePlanService.project(entry);
       mutationEntered.set(true);
-      lib.setScriptComment(name, original.getDescription());
-      lib.save();
-
-      boolean verified = Tool.equals(lib.getScriptComment(name), original.getDescription());
+      boolean verified = lib.runAtomically(() -> {
+         lib.setScriptComment(name, original.getDescription());
+         lib.save();
+         return Tool.equals(lib.getScriptComment(name), original.getDescription());
+      });
       String after = verified ?
          ScriptLibraryChangePlanService.project(name, original.getDescription(), entry.text()) : null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
@@ -342,10 +355,11 @@ public class ScriptLibraryChangesetApplyService {
       mutationEntered.set(true);
       // drop the function's edges to its callees so they are not refused as "used by" a deleted one
       DependencyHandler.getInstance().updateScriptDependencies(entry.text(), null, scriptEntry(name));
-      lib.removeScript(name);
-      lib.save();
-
-      boolean verified = !scriptLibraryService.exists(name, user);
+      boolean verified = lib.runAtomically(() -> {
+         lib.removeScript(name);
+         lib.save();
+         return lib.getScript(name) == null;
+      });
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       String advisory = dependents.isEmpty() ? null :
          "still used by: " + String.join(", ", dependents) + " -- those will break while this " +
@@ -403,49 +417,59 @@ public class ScriptLibraryChangesetApplyService {
          case CREATE -> {
             DependencyHandler.getInstance().updateScriptDependencies(
                lib.getScript(undo.name), null, scriptEntry(undo.name));
-            lib.removeScript(undo.name);
-            lib.save();
-            verified = lib.getScript(undo.name) == null;
+            verified = lib.runAtomically(() -> {
+               lib.removeScript(undo.name);
+               lib.save();
+               return lib.getScript(undo.name) == null;
+            });
          }
          case RENAME -> {
-            lib.renameScript(undo.newName, undo.name);
+            verified = lib.runAtomically(() -> {
+               lib.renameScript(undo.newName, undo.name);
 
-            if(undo.text != null) {
-               lib.setScript(undo.name, undo.text);
-            }
+               if(undo.text != null) {
+                  lib.setScript(undo.name, undo.text);
+               }
 
-            lib.save();
+               lib.save();
+               return lib.getScript(undo.name) != null && lib.getScript(undo.newName) == null;
+            });
 
             if(undo.permission != null) {
                scriptLibraryService.securityEngine.removePermission(ResourceType.SCRIPT, undo.newName);
                scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.name,
                   undo.permission);
             }
-
-            verified = lib.getScript(undo.name) != null && lib.getScript(undo.newName) == null;
+            else if(undo.displacedPermission != null) {
+               scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.newName,
+                  undo.displacedPermission);
+            }
          }
          case UPDATE -> {
-            lib.setScriptComment(undo.name, undo.description);
-            lib.save();
-            verified = Tool.equals(lib.getScriptComment(undo.name), undo.description);
+            verified = lib.runAtomically(() -> {
+               lib.setScriptComment(undo.name, undo.description);
+               lib.save();
+               return Tool.equals(lib.getScriptComment(undo.name), undo.description);
+            });
          }
          default -> {
-            lib.setScript(undo.name, undo.text);
             DependencyHandler.getInstance().updateScriptDependencies(
                null, undo.text, scriptEntry(undo.name));
+            verified = lib.runAtomically(() -> {
+               lib.setScript(undo.name, undo.text);
 
-            if(undo.description != null && !undo.description.isEmpty()) {
-               lib.setScriptComment(undo.name, undo.description);
-            }
+               if(undo.description != null && !undo.description.isEmpty()) {
+                  lib.setScriptComment(undo.name, undo.description);
+               }
 
-            lib.save();
+               lib.save();
+               return lib.getScript(undo.name) != null;
+            });
 
             if(undo.permission != null) {
                scriptLibraryService.securityEngine.setPermission(ResourceType.SCRIPT, undo.name,
                   undo.permission);
             }
-
-            verified = lib.getScript(undo.name) != null;
          }
       }
 
@@ -514,9 +538,11 @@ public class ScriptLibraryChangesetApplyService {
 
       /** {@code priorText} is the text to restore, or null when the rename did not rewrite it. */
       static Undo rename(String key, String newName, String name, Permission permission,
-                         String priorText)
+                         String priorText, Permission displacedPermission)
       {
-         return new Undo(UndoKind.RENAME, key, name, newName, null, priorText, permission);
+         Undo undo = new Undo(UndoKind.RENAME, key, name, newName, null, priorText, permission);
+         undo.displacedPermission = displacedPermission;
+         return undo;
       }
 
       static Undo update(String key, String name, String priorDescription) {
@@ -547,6 +573,8 @@ public class ScriptLibraryChangesetApplyService {
       final String description;
       final String text;
       final Permission permission;
+      /** A grant at the rename target that the rename cleared, restored on rollback. */
+      Permission displacedPermission;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ScriptLibraryChangesetApplyService.class);

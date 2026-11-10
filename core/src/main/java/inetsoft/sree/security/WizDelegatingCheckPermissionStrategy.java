@@ -64,8 +64,21 @@ import java.security.Principal;
  * satisfies it through the tag, before anything is written or any folder is created. The write
  * itself still runs as the wiz principal.
  * <p>
- * <b>Recorded decision: no further carve-outs (Redmine bugs #80171, #80172; decision: documented,
- * not narrowed).</b> The toolbar action {@code PageNavigation} (Undo/Redo) and the bookmark actions
+ * <b>Third narrow carve-out (Redmine bug #80497, user decision 2026-11-09, supersedes #76630
+ * for these two toolbar actions only).</b> The Viewer toolbar actions {@code Export} and
+ * {@code ExportExpandComponents} are evaluated against the real user's grants on the wiz agent
+ * export path ({@code ViewsheetAssemblyAgentController.export}), so an admin-configured deny is
+ * honored for {@code export_viewsheet}: a user without Export is refused, and a user without
+ * ExportExpandComponents gets the layout-matched export, as in the Viewer. The check runs on
+ * {@code WizUtil.toolbarCheckPrincipal} (wiz tag removed, login check skipped, because a toolbar
+ * action, unlike VIEWSHEET_ACTION, requires {@code SecurityEngine.isLogin}); the export itself
+ * still runs as the wiz principal. This strategy is unchanged, and the shared
+ * {@code VSExportService} (also called with wiz principals by the script image, visualization and
+ * Wiz portal export paths) is deliberately not gated. The Wiz portal dashboard export controllers
+ * are not covered by this carve-out.
+ * <p>
+ * <b>Recorded decision: no further carve-outs beyond those above (Redmine bugs #80171, #80172;
+ * decision: documented, not narrowed).</b> The toolbar action {@code PageNavigation} (Undo/Redo) and the bookmark actions
  * {@code Bookmark} (EM: "Open and Create Bookmark") and {@code OpenBookmark} stay under the bypass.
  * StyleBI's own server path does not check {@code PageNavigation} for undo/redo: it is only a
  * Viewer UI hint produced by {@code CoreLifecycleService.getPermissions} for runtime viewsheets.

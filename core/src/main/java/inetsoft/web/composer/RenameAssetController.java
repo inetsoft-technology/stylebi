@@ -199,8 +199,21 @@ public class RenameAssetController {
 
          if(entry.isScript()) {
             ScriptLibraryValidator.requireValidName("name", nentry.getName());
+            SecurityEngine security = SecurityEngine.getSecurity();
+            Permission permission = security.getPermission(ResourceType.SCRIPT, entry.getName());
             manager.renameScript(entry.getName(), nentry.getName());
             manager.save();
+
+            // Bug #80189: grants are keyed by name and outlive the script; move the grant with the
+            // rename, or clear one stored at the new name so the renamed function does not inherit it
+            if(permission != null) {
+               AbstractAssetEngine.movePermissionBestEffort(
+                  security, ResourceType.SCRIPT, entry.getName(), nentry.getName(), permission);
+            }
+            else {
+               AbstractAssetEngine.removePermissionBestEffort(
+                  security, ResourceType.SCRIPT, nentry.getName());
+            }
          }
          else if(entry.isTableStyle()) {
             String oname = entry.getProperty("styleName");

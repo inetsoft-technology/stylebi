@@ -215,7 +215,8 @@ public class BrowseDataController {
          return null;
       }
 
-      String[][] data = bdata.getBrowsedData(null, getDateOption(), false);
+      ColumnCache.FormatResult result = bdata.getBrowsedData(null, getDateOption(), false, true);
+      String[][] data = result.data();
       data = data == null ? new String[0][0] : data;
       String[] values = data[0];
 
@@ -227,6 +228,7 @@ public class BrowseDataController {
       return BrowseDataModel.builder()
          .values((Object[]) values)
          .labels((Object[]) labels)
+         .nullExcluded(result.nullExcluded())
          .build();
    }
 

@@ -151,7 +151,7 @@ class ScheduleFolderChangesetApplyServiceTest {
    @Test void appliesACreateAndReportsApplied() throws Exception {
       when(folderGateway.folderExists("NewFolder")).thenReturn(false);
       when(folderGateway.findFolder("NewFolder")).thenReturn(new AssetFolder());
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ResolvedPlan preview = planService.resolve(planRequest(createChange(null, "NewFolder")), user);
       ScheduleFolderApplyRequest req =
@@ -161,7 +161,9 @@ class ScheduleFolderChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      assertEquals("snap-ref", result.backupRef());
+      // Bug #80650: a create-only plan takes no whole-storage snapshot.
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
       verify(folderGateway).createFolder(eq("NewFolder"), eq(user), any(AtomicBoolean.class));
    }
 
@@ -582,7 +584,7 @@ class ScheduleFolderChangesetApplyServiceTest {
    // -------------------------------------------------------------------------
 
    private ApplyResult applyOne(ScheduleFolderChangeRequest change) throws Exception {
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
       ResolvedPlan preview = planService.resolve(planRequest(change), user);
       ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), change);
       req.setReviewOutcome("approved");

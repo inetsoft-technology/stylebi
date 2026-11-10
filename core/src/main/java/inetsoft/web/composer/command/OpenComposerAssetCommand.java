@@ -82,6 +82,21 @@ public abstract class OpenComposerAssetCommand {
    @Nullable
    public abstract String agentOwnerLabel();
 
+   /**
+    * Whether the runtime named by {@link #runtimeId()} was created solely for the tab this command
+    * opens (an agent's create_viewsheet/create_worksheet), so closing the tab must also close the
+    * runtime on the server. False for a runtime other things depend on (open_base_worksheet, whose
+    * worksheet is linked to the viewsheet's sandbox), which the tab must not dispose.
+    *
+    * <p>The browser's default is "a tab opened with a server-provided runtime id does not own it",
+    * so without this flag closing an agent-created tab never sent the server close event and the
+    * runtime, and the agent session paired to it, stayed alive and editable.
+    */
+   @Value.Default
+   public boolean closeRuntimeOnTabClose() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }

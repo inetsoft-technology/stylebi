@@ -24,6 +24,8 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.WSAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.command.RefreshBindingTreeCommand;
@@ -34,6 +36,7 @@ import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
 import inetsoft.web.composer.ws.command.SetAgentActiveCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
+import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.RefreshAgentScriptCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
@@ -54,7 +57,9 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class SheetAgentBroadcastService {
@@ -96,6 +101,26 @@ public class SheetAgentBroadcastService {
    public void broadcastRefresh(RuntimeSheet rs, SheetType sheetType, String runtimeId,
                                 Principal owner)
    {
+      broadcastRefresh(rs, sheetType, runtimeId, owner, List.of());
+   }
+
+   /**
+    * {@link #broadcastRefresh(RuntimeSheet, SheetType, String, Principal)} that also forwards the
+    * table data the mutation itself loaded.
+    *
+    * <p>A wiz write runs under a capturing dispatcher, so the {@code LoadTableDataCommand} a
+    * native table service dispatches (e.g. {@code VSBindingModelService.setBinding}) never reaches
+    * the browser, and crosstab/table cells are not part of the object model the refresh carries.
+    * Without them a freshly bound table paints empty until the user hits Refresh (Bug #80736).
+    * Only commands the mutation already produced are forwarded: no extra query runs, and a chart
+    * mutation produces none.
+    *
+    * @param capturedCommands commands the mutation dispatched; only {@code LoadTableDataCommand}s
+    *                         for visible, non-calc tables are used. May be null.
+    */
+   public void broadcastRefresh(RuntimeSheet rs, SheetType sheetType, String runtimeId,
+                                Principal owner, List<CommandDispatcher.Command> capturedCommands)
+   {
       String sessionId = rs.getSocketSessionId();
 
       if(sessionId == null) {
@@ -112,6 +137,8 @@ public class SheetAgentBroadcastService {
 
       if(sheetType == SheetType.VIEWSHEET) {
          broadcastViewsheetRefresh((RuntimeViewsheet) rs, runtimeId, sessionId, user);
+         broadcastCapturedTableData((RuntimeViewsheet) rs, runtimeId, sessionId, user,
+                                    capturedCommands);
          sendUndoState(rs, runtimeId, sessionId, user);
          return;
       }
@@ -170,6 +197,62 @@ public class SheetAgentBroadcastService {
 
       LOG.info("Pairing broadcast viewsheet refresh sent (runtimeId={}, sessionId={}, assemblies={})",
                runtimeId, sessionId, sent);
+   }
+
+   /**
+    * Forwards the {@code LoadTableDataCommand}s a mutation dispatched (and the capturing
+    * dispatcher swallowed) to the paired browser, after the per-assembly refresh so the table's
+    * model is already in place. The last command per assembly wins. Calc/freehand tables get their
+    * cells in the model and charts have no table data, so only visible {@code TableDataVSAssembly}
+    * instances other than calc tables are sent. Best effort: a failure is logged and swallowed.
+    */
+   private void broadcastCapturedTableData(RuntimeViewsheet rvs, String runtimeId,
+                                           String sessionId, String user,
+                                           List<CommandDispatcher.Command> captured)
+   {
+      if(captured == null || captured.isEmpty()) {
+         return;
+      }
+
+      try {
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs == null) {
+            return;
+         }
+
+         Map<String, LoadTableDataCommand> latest = new LinkedHashMap<>();
+
+         for(CommandDispatcher.Command c : captured) {
+            if(c != null && c.getCommand() instanceof LoadTableDataCommand load &&
+               c.getAssembly() != null)
+            {
+               latest.remove(c.getAssembly());
+               latest.put(c.getAssembly(), load);
+            }
+         }
+
+         for(Map.Entry<String, LoadTableDataCommand> e : latest.entrySet()) {
+            try {
+               Assembly a = vs.getAssembly(e.getKey());
+
+               if(!(a instanceof TableDataVSAssembly) || a instanceof CalcTableVSAssembly ||
+                  !((VSAssembly) a).isVisible())
+               {
+                  continue;
+               }
+
+               sendToBrowser(user, sessionId, runtimeId, e.getKey(), e.getValue());
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to forward table data to the paired browser (assembly={})",
+                        e.getKey(), ex);
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to forward captured table data (runtimeId={})", runtimeId, ex);
+      }
    }
 
    /**
@@ -539,10 +622,25 @@ public class SheetAgentBroadcastService {
    public void sendToBrowser(String socketUserName, String socketSessionId, String runtimeId,
                              Object command)
    {
+      sendToBrowser(socketUserName, socketSessionId, runtimeId, null, command);
+   }
+
+   /**
+    * {@link #sendToBrowser(String, String, String, Object)} for a command the client routes by
+    * assembly (e.g. {@code LoadTableDataCommand}, which carries no assembly name itself).
+    */
+   public void sendToBrowser(String socketUserName, String socketSessionId, String runtimeId,
+                             String assemblyName, Object command)
+   {
       SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create();
       headers.setSessionId(socketSessionId);
       headers.setLeaveMutable(true);
       headers.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, runtimeId);
+
+      if(assemblyName != null) {
+         headers.setNativeHeader(CommandDispatcher.ASSEMBLY_NAME_HEADER, assemblyName);
+      }
+
       headers.setNativeHeader(CommandDispatcher.COMMAND_TYPE_HEADER,
                               resolveCommandType(command));
 

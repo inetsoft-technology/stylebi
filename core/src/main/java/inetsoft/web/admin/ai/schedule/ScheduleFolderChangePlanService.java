@@ -21,6 +21,7 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -87,13 +88,18 @@ public class ScheduleFolderChangePlanService {
 
       String planHash = hash(changes);
       String task = req.getTask().trim();
-      // requiresStorageBackup: unconditionally true, every verb here mutates the schedule-task
-      // folder tree. requiresAgentSignoff: unconditionally true (design §4) -- this area has no
+      // requiresStorageBackup: false only when every change is a folder create (a create refuses an
+      // existing path and its undo removes the new leaf folder; Bug #80650, see
+      // StorageBackupPolicy); every other verb mutates the existing schedule-task folder tree.
+      // requiresAgentSignoff: unconditionally true (design §4) -- this area has no
       // task-facing low-risk "update" verb the way Viewsheets does, and a non-empty delete is
       // unconditionally catastrophic, so collapsing to "always signoff" is the simpler, safer
       // default for this first cut.
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true, planHash,
-                              TaskAuditToken.issue(planHash, task));
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         req.getChanges(),
+         c -> ScheduleFolderChangeRequest.VERB_CREATE.equals(normalizeVerb("", c.getVerb())));
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup, true,
+                              planHash, TaskAuditToken.issue(planHash, task));
    }
 
    private PlanChange resolveOne(String label, ScheduleFolderChangeRequest change, Principal user,

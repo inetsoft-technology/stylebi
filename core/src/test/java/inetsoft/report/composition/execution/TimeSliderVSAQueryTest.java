@@ -18,6 +18,7 @@
 
 package inetsoft.report.composition.execution;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.util.XSourceInfo;
@@ -39,6 +40,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -548,6 +551,153 @@ public class TimeSliderVSAQueryTest {
             "with no recoverable prior value at all, an ALL hint (even from a degraded prior " +
             "slist) must still fall back to selecting the full range");
       }
+   }
+
+   /**
+    * Bug #80813: turning Use Metadata on and then off again must give back the slider's own
+    * selection. While metadata is on the query runs on placeholder data that yields a one-tick
+    * list; the full-range length must not be overwritten with that placeholder's tick count,
+    * or the slider comes back selecting only its first tick.
+    */
+   @Nested
+   class MetadataToggle {
+      @BeforeEach
+      void setUpDesignMode() {
+         ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+         when(box.getID()).thenReturn("vs1");
+         when(box.getViewsheet()).thenReturn(viewsheet);
+         when(box.getMode()).thenReturn(RuntimeViewsheet.VIEWSHEET_DESIGN_MODE);
+         query = new TimeSliderVSAQuery(box, SLIDER);
+      }
+
+      @Test
+      void fullRangeMonthSliderSurvivesMetadataToggle() throws Exception {
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(dateData);
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+         assertSelected(0, ticks - 1);
+
+         toggleMetadata(datePlaceholder, dateData);
+
+         assertEquals(ticks - 1, assembly.getTimeInfo().getLength(),
+            "the full-range length must not be replaced by the metadata placeholder's");
+         assertSelected(0, ticks - 1);
+      }
+
+      @Test
+      void fullRangeNumberSliderSurvivesMetadataToggle() throws Exception {
+         setUpNumberSlider();
+         refresh(numberData);
+         int ticks = assembly.getSelectionList().getSelectionValueCount();
+         assertSelected(0, ticks - 1);
+
+         toggleMetadata(numberPlaceholder, numberData);
+
+         assertEquals(ticks - 1, assembly.getTimeInfo().getLength());
+         assertSelected(0, ticks - 1);
+      }
+
+      @Test
+      void partialMonthSelectionSurvivesMetadataToggle() throws Exception {
+         setUpDateSlider(TimeInfo.MONTH);
+         refresh(dateData);
+         selectRange(10, 5);
+         refresh(dateData);
+         assertSelected(10, 5);
+
+         toggleMetadata(datePlaceholder, dateData);
+
+         assertEquals(5, assembly.getTimeInfo().getLength());
+         assertSelected(10, 5);
+      }
+
+      private void toggleMetadata(Object[] placeholder, Object[] data) throws Exception {
+         viewsheet.getViewsheetInfo().setMetadata(true);
+         refresh(placeholder);
+         assertEquals(1, assembly.getSelectionList().getSelectionValueCount(),
+            "test setup invariant: the metadata placeholder must produce a one-tick list");
+         viewsheet.getViewsheetInfo().setMetadata(false);
+         refresh(data);
+      }
+
+      private void setUpDateSlider(int unit) {
+         SingleTimeInfo tinfo = new SingleTimeInfo();
+         tinfo.setRangeTypeValue(unit);
+         ColumnRef ref = createRef(MEASURE);
+         ref.setDataType(XSchema.DATE);
+         tinfo.setDataRef(ref);
+         assembly.setTimeInfo(tinfo);
+      }
+
+      private void setUpNumberSlider() {
+         SingleTimeInfo tinfo = new SingleTimeInfo();
+         tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+         ColumnRef ref = createRef(MEASURE);
+         ref.setDataType(XSchema.DOUBLE);
+         tinfo.setDataRef(ref);
+         assembly.setTimeInfo(tinfo);
+      }
+
+      // selects ticks pos..pos+length, as a user drag would leave it
+      private void selectRange(int pos, int length) {
+         SelectionList list = assembly.getSelectionList();
+         SelectionList state = new SelectionList();
+
+         for(int i = 0; i < list.getSelectionValueCount(); i++) {
+            SelectionValue value = list.getSelectionValue(i);
+            boolean selected = i >= pos && i <= pos + length;
+            value.setState(selected ? SelectionValue.STATE_SELECTED : 0);
+
+            if(selected) {
+               state.addSelectionValue(value);
+            }
+         }
+
+         assembly.setStateSelectionList(state);
+         assembly.getTimeInfo().setLengthValue(length);
+      }
+
+      private void assertSelected(int pos, int length) {
+         SelectionList list = assembly.getSelectionList();
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertEquals(length + 1, state.getSelectionValueCount());
+         assertEquals(list.getSelectionValue(pos).getValue(),
+                      state.getSelectionValue(0).getValue());
+         assertEquals(list.getSelectionValue(pos + length).getValue(),
+                      state.getSelectionValue(length).getValue());
+      }
+
+      private void refresh(Object[] data) throws Exception {
+         Method m = TimeSliderVSAQuery.class.getDeclaredMethod(
+            "refreshSelectionValue0", Object.class);
+         m.setAccessible(true);
+
+         try {
+            m.invoke(query, (Object) data);
+         }
+         catch(InvocationTargetException e) {
+            if(e.getCause() instanceof Exception) {
+               throw (Exception) e.getCause();
+            }
+
+            throw e;
+         }
+      }
+
+      private Date date(int year, int month, int day) {
+         return new GregorianCalendar(year, month - 1, day).getTime();
+      }
+
+      // real data: min, max, omax
+      private final Object[] dateData =
+         { date(2022, 3, 13), date(2025, 12, 28), date(2025, 12, 28) };
+      // metadata placeholder: a single date with omax present, so the list has one tick
+      private final Object[] datePlaceholder =
+         { date(2022, 3, 13), date(2022, 3, 13), date(2022, 3, 13) };
+      private final Object[] numberData = { 0.0, 1000.0 };
+      private final Object[] numberPlaceholder = { 0.0, 0.0 };
    }
 
    /**

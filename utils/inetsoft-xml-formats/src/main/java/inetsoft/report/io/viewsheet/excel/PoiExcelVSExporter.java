@@ -2043,6 +2043,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    private void writeAllExpandTable(VSAssembly cassembly) throws Exception {
       if(cassembly instanceof TableDataVSAssembly) {
          VSTableLens lens = box.getVSTableLens(cassembly.getAbsoluteName(), false, 1);
+         observeTable((TableDataVSAssembly) cassembly, lens);
          lens = getRegionTableLens(lens, (TableDataVSAssembly) cassembly, box);
          writeExpandTableToSheet(cassembly, lens);
       }

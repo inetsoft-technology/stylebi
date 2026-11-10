@@ -22,6 +22,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -83,10 +84,14 @@ public class ScheduleCycleChangePlanService {
 
       String planHash = hash(changes);
       String task = req.getTask().trim();
-      // requiresStorageBackup: unconditionally true, every verb here mutates the cycle store.
+      // requiresStorageBackup: false only when every change is a cycle create (a create refuses an
+      // existing name and its undo deletes the new cycle; Bug #80650, see StorageBackupPolicy).
       // requiresAgentSignoff: unconditionally true (decision D8).
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true, true, planHash,
-                              TaskAuditToken.issue(planHash, task));
+      boolean requiresBackup = StorageBackupPolicy.requiresBackup(
+         req.getChanges(),
+         c -> ScheduleCycleChangeRequest.VERB_CREATE.equals(normalizeVerb("", c.verb())));
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup, true,
+                              planHash, TaskAuditToken.issue(planHash, task));
    }
 
    private PlanChange resolveOne(String label, ScheduleCycleChangeRequest change, Principal user,

@@ -2256,6 +2256,9 @@ public final class WorksheetMutationSupport {
       }
 
       if(untyped.isEmpty()) {
+         // Bug #80785: every select column is parser-typed, so nothing has touched the datasource
+         // and an unknown column in WHERE/ORDER BY would go unnoticed until preview.
+         probeSqlResolvable(query, session);
          return List.of();
       }
 
@@ -2320,7 +2323,45 @@ public final class WorksheetMutationSupport {
    private static final java.util.regex.Pattern MISSING_TABLE_ERROR = java.util.regex.Pattern.compile(
       "(?is)\\b(table|view|relation|object|schema|column)\\b[^\\n]{0,120}?(does not exist|doesn't exist|" +
       "not found|not exist)|no such table|invalid object name|unknown table|object not found|" +
-      "not in any table in the from list");
+      "not in any table in the from list|unknown column|invalid identifier|" +
+      "invalid column name|no such column");
+
+   /**
+    * Bug #80785: prepare-only probe for a query whose select list the parser fully typed. The
+    * driver reports an unknown WHERE/ORDER BY column when the statement is prepared, so the
+    * statement's metadata is requested (never executed, unlike
+    * {@link JDBCQuery#getOutputTypeForNonParseableSQL}, which falls back to running the SQL) and
+    * a failure is recorded in {@link JDBCQuery#setLastQueryError} for {@link #missingTableRefusal}
+    * to classify. Parameterised SQL is skipped, and any probe failure is swallowed: only a
+    * classifier match ever refuses.
+    */
+   private static void probeSqlResolvable(JDBCQuery query, Object session) {
+      try {
+         String text = query.getSQLAsString();
+
+         if(text == null || text.isEmpty() || text.contains("$(") || text.contains("${") ||
+            text.indexOf('?') >= 0)
+         {
+            return;
+         }
+
+         Enumeration<String> vars = query.getVariableNames();
+
+         if(vars != null && vars.hasMoreElements()) {
+            return;
+         }
+
+         XNode mtype = new XNode("sql");
+         mtype.setAttribute("type", "SQL");
+         mtype.setAttribute("cache", "false");
+         mtype.setAttribute("sql", text);
+         XRepository.getRepository().getMetaData(session, query.getDataSource(), mtype, true, null);
+      }
+      catch(Exception ex) {
+         LOG.debug("SQL resolvability probe failed", ex);
+         query.setLastQueryError(ex);
+      }
+   }
 
    /**
     * Bug #80178 (wsq-032): the refusal for a query whose tables do not resolve. With explicit

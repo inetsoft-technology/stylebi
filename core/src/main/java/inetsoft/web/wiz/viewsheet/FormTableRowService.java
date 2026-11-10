@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -40,6 +41,7 @@ import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.text.ParseException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -243,7 +245,43 @@ public class FormTableRowService {
 
       int nativeRow = row + headerRowOffset(rvs, assemblyName);
       requireEditableCell(rvs, assemblyName, nativeRow, row, col);
-      return requireStrictValue(rvs, assemblyName, col, value);
+      String data = requireStrictValue(rvs, assemblyName, col, value);
+      requireColumnOptionAccepts(rvs, assemblyName, col, data);
+      return data;
+   }
+
+   /**
+    * Refuses {@code data} with the column option's configured error message when the native cell
+    * edit would reject it ({@code Text} pattern, {@code Integer}/{@code Float}/{@code Date}
+    * range). The native path only reports that as an ERROR command after the mutation started,
+    * which {@code ViewsheetSessionService.mutate} relabels as a partially applied write.
+    */
+   private static void requireColumnOptionAccepts(RuntimeViewsheet rvs, String assemblyName,
+                                                  int col, String data) throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      FormTableLens lens = box.isEmpty() ? null : box.get().getFormTableLens(assemblyName);
+
+      if(lens == null) {
+         return;
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) VSEventUtil.getAssemblyInfo(rvs, assembly);
+      String error;
+
+      try {
+         error = VSFormTableService.convertCellInput(
+            VSFormTableService.getFormColumnRef(info, col), lens, col, data).error();
+      }
+      catch(ParseException ex) {
+         throw new IllegalArgumentException(
+            "The value '" + data + "' could not be read as a date.", ex);
+      }
+
+      if(error != null) {
+         throw new IllegalArgumentException(error);
+      }
    }
 
    /**

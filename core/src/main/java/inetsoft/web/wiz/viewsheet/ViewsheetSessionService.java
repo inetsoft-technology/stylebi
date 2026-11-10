@@ -22,6 +22,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldService;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.pairing.*;
@@ -32,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -214,6 +216,9 @@ public class ViewsheetSessionService {
       boolean cellScoped = PaneScopeService.isCellGrant(session.editorContext());
 
       List<String> warnings = List.of();
+      // LoadTableDataCommands the mutation dispatched; the capturing dispatcher swallows them, so
+      // they are forwarded to the paired browser after the refresh (Bug #80736)
+      List<CommandDispatcher.Command> producedCommands = new ArrayList<>();
 
       // The checkpoint and the broadcast happen even when the mutation fails. A composer service
       // partially applies before it ERRORs -- that is precisely why it ERRORs rather than throwing
@@ -226,7 +231,13 @@ public class ViewsheetSessionService {
 
       try {
          warnings = CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
-            mutation.run(rvs, session.runtimeId(), dispatcher, cellScoped);
+            try {
+               mutation.run(rvs, session.runtimeId(), dispatcher, cellScoped);
+            }
+            finally {
+               producedCommands.addAll(dispatcher.getCapturedCommands());
+            }
+
             return dispatcher.getWarnings();
          });
       }
@@ -260,7 +271,8 @@ public class ViewsheetSessionService {
          // 2026-08-17-write-coordination-design.md / -implementation.md.
          rvs.bumpWriteRevision();
 
-         broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+         broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent,
+                                    producedCommands);
       }
 
       return warnings;

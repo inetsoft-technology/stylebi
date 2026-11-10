@@ -2082,6 +2082,13 @@ public class FormatPainterService {
          CompositeTextFormat format = getChartRegionFormat(
             runtimeId,
             principal, chart.getAbsoluteName(), region, 0, null, valueText).format;
+
+         // a reset carries no format model; build the region's default model the same way the
+         // indexed branch below does, otherwise the reset is silently skipped
+         if(reset && format != null) {
+            model = createTextFormatModel(format.getDefaultFormat());
+         }
+
          changeChartRegionFormat(model, origFormat, format, region, reset, null);
       }
       else {

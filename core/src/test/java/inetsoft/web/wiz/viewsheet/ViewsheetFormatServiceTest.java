@@ -3129,6 +3129,55 @@ class ViewsheetFormatServiceTest {
       verify(calcService, never()).cellOutputType(any(), any(), anyInt(), anyInt());
    }
 
+   // Bug #80501: a reset under a whole-table date format is refused / disclosed by the calc service
+   @Test
+   void aRefusedResetWritesNothingAndLeavesNoUndoStep() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      ViewsheetSessionService sessions = sessionsFor(mock(RuntimeViewsheet.class));
+      CalcTableService calcService = calcCellOfType(XSchema.DOUBLE);
+      when(calcService.checkResetUnderObjectDateFormat(any(), eq("RegionSales"), eq(2), eq(1)))
+         .thenThrow(new IllegalArgumentException(
+            "resetting would render its numeric value as a 1970-01-01 date"));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, painter, calcService)
+            .setCellFormat("tok", principal(), cellRequest(null, true), ""));
+
+      assertTrue(DATE_ON_NUMBER.matcher(thrown.getMessage()).find(), thrown.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void aResetDisclosureIsReturnedAfterTheResetIsApplied() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = calcCellOfType(null);
+      when(calcService.cellFormatPath(any(), eq("RegionSales"), eq(2), eq(1)))
+         .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+      when(calcService.checkResetUnderObjectDateFormat(any(), eq("RegionSales"), eq(2), eq(1)))
+         .thenReturn("formula date format number note");
+
+      List<String> warnings = serviceWith(painter, calcService, mock(RuntimeViewsheet.class))
+         .setCellFormat("tok", principal(), cellRequest(null, true), "");
+
+      assertTrue(warnings.contains("formula date format number note"), warnings.toString());
+      verify(painter).setFormat(any(), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void aNonResetFormatDoesNotAskTheResetCheck() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = calcCellOfType(XSchema.DOUBLE);
+      when(calcService.cellFormatPath(any(), eq("RegionSales"), eq(2), eq(1)))
+         .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      serviceWith(painter, calcService, mock(RuntimeViewsheet.class))
+         .setCellFormat("tok", principal(), cellRequest("DecimalFormat", false), "");
+
+      verify(calcService, never()).checkResetUnderObjectDateFormat(any(), any(), anyInt(), anyInt());
+   }
+
    @Test
    void aMergedCellKeepsItsErrorOverTheDateOnNumberRefusal() throws Exception {
       CalcTableService calcService = calcCellOfType(XSchema.DOUBLE);

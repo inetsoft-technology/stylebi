@@ -411,6 +411,22 @@ public final class BindableColumns {
          ". Guessing would bind the wrong table and render something that looks right.");
    }
 
+   /**
+    * Refuses a table named explicitly when it is not in the assembly's own listing, independent of
+    * whether any fields are being written in the same call.
+    *
+    * <p>{@link #requireSource} exists to decide a write's source, so it no-ops on an empty
+    * {@code fields} — but a bare repoint such as {@code set_chart_source} writes no fields at all
+    * and would otherwise reach {@link #matchListed} through no path.
+    */
+   public static void requireKnownTable(List<BindableTable> tables, String assembly,
+                                        String requested)
+   {
+      if(requested != null) {
+         matchListed(tables == null ? List.of() : tables, requested, assembly);
+      }
+   }
+
    private static List<FieldRef> named(Collection<FieldRef> fields) {
       List<FieldRef> named = new ArrayList<>();
 

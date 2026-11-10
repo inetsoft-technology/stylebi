@@ -20,13 +20,20 @@ package inetsoft.web.wiz.pairing;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.command.RefreshBindingTreeCommand;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.HyperlinkModel;
+import inetsoft.web.viewsheet.command.LoadTableDataCommand;
+import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
+import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -40,6 +47,7 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -566,5 +574,160 @@ class SheetAgentBroadcastServiceTest {
                                                                  TestPrincipals.user("alice", "host-org")));
 
       verifyNoInteractions(dispatcher);
+   }
+
+   // ---- Bug #80736: table data a plugin write produced must reach the paired browser ----
+
+   private static LoadTableDataCommand tableData(int rowCount) {
+      return LoadTableDataCommand.builder()
+         .colWidths(new double[0])
+         .rowCount(rowCount)
+         .colCount(1)
+         .dataRowCount(rowCount)
+         .dataColCount(1)
+         .headerRowCount(1)
+         .headerColCount(0)
+         .headerRowHeights(new int[0])
+         .dataRowHeight(20)
+         .headerRowPositions(new int[0])
+         .dataRowPositions(new int[0])
+         .scrollHeight(0)
+         .wrapped(false)
+         .formChanged(false)
+         .tableCells(new BaseTableCellModel[0][0])
+         .start(0)
+         .end(rowCount)
+         .runtimeRowHeaderCount(0)
+         .runtimeColHeaderCount(0)
+         .runtimeDataRowCount(rowCount)
+         .rowHyperlinks(new HyperlinkModel[0])
+         .prototypeCache(Map.of())
+         .build();
+   }
+
+   private static VSAssembly assemblyOf(Class<? extends VSAssembly> type, String name,
+                                        boolean visible)
+   {
+      VSAssembly assembly = mock(type);
+      when(assembly.isVisible()).thenReturn(visible);
+      when(assembly.getName()).thenReturn(name);
+      return assembly;
+   }
+
+   private static CommandDispatcher.Command captured(String assembly, LoadTableDataCommand cmd) {
+      return new CommandDispatcher.Command(assembly, "LoadTableDataCommand", cmd);
+   }
+
+   /** A viewsheet whose model factory yields no model, so only the commands under test are sent. */
+   private static final class Fixture {
+      final CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      final SheetAgentBroadcastService svc;
+      final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+
+      Fixture(VSAssembly... assemblies) {
+         svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory(),
+                                              noopBindingTreeService(),
+                                              noopCoreLifecycleService());
+         Viewsheet vs = mock(Viewsheet.class);
+         when(rvs.getSocketSessionId()).thenReturn("stomp-vs-1");
+         when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
+         when(rvs.getViewsheet()).thenReturn(vs);
+         when(vs.getAssemblies()).thenReturn(assemblies);
+
+         for(VSAssembly a : assemblies) {
+            when(vs.getAssembly(a.getName())).thenReturn(a);
+         }
+      }
+
+      void broadcast(List<CommandDispatcher.Command> captured) {
+         svc.broadcastRefresh(rvs, SheetType.VIEWSHEET, "ViewsheetRuntime/bar-9",
+                              TestPrincipals.user("alice", "host-org"), captured);
+      }
+   }
+
+   private static ArgumentCaptor<Object> verifySent(Fixture f, int expected,
+                                                    ArgumentCaptor<MessageHeaders> headers) {
+      ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
+      verify(f.dispatcher, times(expected)).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), payloads.capture(),
+         headers.capture());
+      return payloads;
+   }
+
+   @Test
+   void capturedCrosstabTableDataIsForwardedRoutedByAssemblyName() {
+      Fixture f = new Fixture(assemblyOf(CrosstabVSAssembly.class, "Crosstab1", true));
+      LoadTableDataCommand cmd = tableData(5);
+
+      f.broadcast(List.of(captured("Crosstab1", cmd)));
+
+      // the table data command plus the undo-state sync
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      List<Object> payloads = verifySent(f, 2, headers).getAllValues();
+      int idx = payloads.indexOf(cmd);
+      assertTrue(idx >= 0, "the captured LoadTableDataCommand was not forwarded");
+
+      MessageHeaders sent = headers.getAllValues().get(idx);
+      SimpMessageHeaderAccessor acc = SimpMessageHeaderAccessor.wrap(
+         new org.springframework.messaging.support.GenericMessage<>("", sent));
+      assertEquals("stomp-vs-1", SimpMessageHeaderAccessor.getSessionId(sent));
+      assertEquals("Crosstab1", acc.getNativeHeader(CommandDispatcher.ASSEMBLY_NAME_HEADER).get(0));
+      assertEquals("LoadTableDataCommand",
+                   acc.getNativeHeader(CommandDispatcher.COMMAND_TYPE_HEADER).get(0));
+      assertEquals("ViewsheetRuntime/bar-9",
+                   acc.getNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR).get(0));
+   }
+
+   @Test
+   void lastCapturedTableDataPerAssemblyWins() {
+      Fixture f = new Fixture(assemblyOf(CrosstabVSAssembly.class, "Crosstab1", true));
+      LoadTableDataCommand first = tableData(1);
+      LoadTableDataCommand last = tableData(2);
+
+      f.broadcast(List.of(captured("Crosstab1", first), captured("Crosstab1", last)));
+
+      List<Object> payloads =
+         verifySent(f, 2, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
+      assertTrue(payloads.contains(last));
+      assertFalse(payloads.contains(first));
+   }
+
+   @Test
+   void chartOnlyMutationForwardsNoTableData() {
+      Fixture f = new Fixture(assemblyOf(ChartVSAssembly.class, "Chart1", true));
+
+      // a chart mutation captures no LoadTableDataCommand, only other commands
+      f.broadcast(List.of(new CommandDispatcher.Command("Chart1", "RefreshVSObjectCommand",
+                                                        new RefreshVSObjectCommand())));
+
+      List<Object> payloads =
+         verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
+      assertTrue(payloads.get(0) instanceof UpdateUndoStateCommand);
+   }
+
+   @Test
+   void tableDataForChartCalcTableInvisibleOrMissingAssemblyIsExcluded() {
+      Fixture f = new Fixture(
+         assemblyOf(ChartVSAssembly.class, "Chart1", true),
+         assemblyOf(CalcTableVSAssembly.class, "Calc1", true),
+         assemblyOf(CrosstabVSAssembly.class, "Hidden1", false));
+
+      f.broadcast(List.of(captured("Chart1", tableData(1)), captured("Calc1", tableData(1)),
+                          captured("Hidden1", tableData(1)), captured("Gone1", tableData(1))));
+
+      List<Object> payloads =
+         verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
+      assertTrue(payloads.get(0) instanceof UpdateUndoStateCommand);
+   }
+
+   @Test
+   void nullCapturedCommandsKeepsLegacyBehavior() {
+      Fixture f = new Fixture(assemblyOf(CrosstabVSAssembly.class, "Crosstab1", true));
+
+      f.broadcast(null);
+
+      List<Object> payloads =
+         verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
+      assertTrue(payloads.get(0) instanceof UpdateUndoStateCommand);
    }
 }

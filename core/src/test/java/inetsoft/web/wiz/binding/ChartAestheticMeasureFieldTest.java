@@ -418,6 +418,53 @@ class ChartAestheticMeasureFieldTest {
          new DefaultVSChartInfo(), null, field));
    }
 
+   private static FieldRef withResetCalc(String column, String agg) {
+      inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo calc =
+         new inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo();
+      calc.setAggregate(agg);
+      return new FieldRef(column, "measure", agg, null, null, null, null, null, calc);
+   }
+
+   private static List<String> resetNotes(List<String> returned) {
+      return returned.stream().filter(n -> n.startsWith("Binding reset: ")).toList();
+   }
+
+   /** Bug #80648: the per-measure and "all" routes into bindField report the reset too. */
+   @Test
+   void aPerMeasureFormulaChangeThatDropsACalculatorReturnsTheResetNote() throws Exception {
+      Pipeline p = pipeline(true);
+      p.service.setField("tok", principal(), "Chart1", "color", withResetCalc("M1", "Sum"), null,
+                         "M1", "");
+      ChartBindingMutator.drainNotes();
+
+      List<String> returned = p.service.setField(
+         "tok", principal(), "Chart1", "color",
+         new FieldRef("M1", "measure", "Average", null, null), null, "M1", "");
+
+      assertEquals(1, resetNotes(returned).size(), returned.toString());
+      assertTrue(resetNotes(returned).get(0).contains("Sum to Average"), returned.toString());
+
+      List<String> same = p.service.setField(
+         "tok", principal(), "Chart1", "color",
+         new FieldRef("M1", "measure", "Average", null, null), null, "M1", "");
+      assertTrue(resetNotes(same).isEmpty(), same.toString());
+   }
+
+   @Test
+   void anAllMeasuresFormulaChangeThatDropsACalculatorReturnsTheResetNote() throws Exception {
+      Pipeline p = pipeline(true);
+      p.service.setField("tok", principal(), "Chart1", "color", withResetCalc("M1", "Sum"), null,
+                         "all", "");
+      ChartBindingMutator.drainNotes();
+
+      List<String> returned = p.service.setField(
+         "tok", principal(), "Chart1", "color",
+         new FieldRef("M1", "measure", "Average", null, null), null, "all", "");
+
+      assertFalse(resetNotes(returned).isEmpty(), returned.toString());
+      assertTrue(resetNotes(returned).get(0).contains("Sum to Average"), returned.toString());
+   }
+
    private static String fieldName(ChartRef ref, String channel) {
       ChartBindable bindable = (ChartBindable) ref;
       AestheticRef field = switch(channel) {

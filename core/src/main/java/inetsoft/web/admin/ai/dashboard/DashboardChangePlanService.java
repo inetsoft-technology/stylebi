@@ -29,6 +29,7 @@ import inetsoft.web.admin.ai.AdminIdentityRefs;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.PlanHashInputs;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.StorageBackupPolicy;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.content.repository.RepositoryDashboardService;
 import inetsoft.web.admin.content.repository.model.RepositoryDashboardSettingsModel;
@@ -154,8 +155,20 @@ public class DashboardChangePlanService {
       boolean requiresAgentSignoff = changes.stream()
          .anyMatch(c -> AdminChangeRecord.RISK_HIGH.equals(c.risk()));
       String planHash = hash(changes);
-      return new ResolvedPlan(task, Collections.unmodifiableList(changes), true,
+      // requiresStorageBackup: every update, delete and folder reorder has a captured undo in
+      // DashboardChangesetApplyService (a delete re-creates the binding and its permissions), so
+      // the whole-storage snapshot adds nothing. A create is the exception: it appends to the
+      // identity's dashboard list, which its rollback does not undo, so any plan containing a
+      // create keeps the snapshot (Bug #80826, see StorageBackupPolicy).
+      boolean requiresBackup =
+         StorageBackupPolicy.requiresBackup(req.getChanges(), c -> !isCreate(c));
+      return new ResolvedPlan(task, Collections.unmodifiableList(changes), requiresBackup,
                               requiresAgentSignoff, planHash, TaskAuditToken.issue(planHash, task));
+   }
+
+   private boolean isCreate(DashboardChangeRequest change) {
+      return DashboardChangeRequest.UNIT_DASHBOARD.equalsIgnoreCase(change.getUnitType().trim()) &&
+         DashboardChangeRequest.VERB_CREATE.equals(requireDashboardVerb("change", change.getVerb()));
    }
 
    private PlanChange resolveOne(String label, DashboardChangeRequest change, Principal user,

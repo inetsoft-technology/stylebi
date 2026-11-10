@@ -4749,14 +4749,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          throw new RuntimeException("Unsupported assembly found: " + iassembly);
       }
 
-      String tname = iassembly.getTableName();
+      String tname = iassembly.getBindingTargetName();
       VariableTable vt = wbox == null ? new VariableTable() : wbox.getVariableTable();
 
-      if(iassembly.isVariable() && tname != null && !tname.isEmpty() && tname.startsWith("$(")) {
-         tname = tname.substring(2, tname.length() - 1);
-      }
-
-      if(wbox != null && tname != null && !tname.isEmpty()) {
+      if(wbox != null && tname != null) {
          Worksheet ws = getWorksheet();
          Assembly ass = ws.getAssembly(tname);
 
@@ -4878,11 +4874,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // for this binding type can only be a stale/unrelated value (e.g. left over from
       // before the cell binding was configured, when the assembly was still unbound and
       // went through the generic fallback branch), so skip it. (#80020)
-      String cellTableName = iassembly.getTableName();
-
-      if(cellTableName != null && !cellTableName.isEmpty()) {
+      if(!iassembly.isUnbound()) {
          Worksheet ws = getWorksheet();
-         Assembly wsAssembly = ws == null ? null : ws.getAssembly(cellTableName);
+         Assembly wsAssembly = ws == null ? null : ws.getAssembly(iassembly.getTableName());
 
          if(wsAssembly instanceof EmbeddedTableAssembly) {
             return;
@@ -6603,6 +6597,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public void resetDataMap(String name) {
       resetDataMap(name, ALL);
+   }
+
+   /**
+    * Drop the cached list data of a Form table column's combo box option. {@code executeView}
+    * restores a runtime option's list from this entry, and no reset of the assembly's own data
+    * clears it, so a column option that was rewritten would otherwise get its old list back.
+    * @param name the specified Form table name.
+    * @param index the column's index in the table's full column selection.
+    */
+   public void resetFormOptionData(String name, int index) {
+      resetDataMap(name + "^" + index + "^" + FORM_OPTION);
    }
 
    /**

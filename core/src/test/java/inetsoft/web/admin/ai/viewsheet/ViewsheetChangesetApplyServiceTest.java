@@ -653,6 +653,50 @@ class ViewsheetChangesetApplyServiceTest {
       assertTrue(folderStore.getOrDefault(folderKey("Examples/New Folder", null), false));
    }
 
+   // Bug #80190: a destination taken after preview (or one the plan cannot see, e.g. a viewsheet)
+   // must be refused BEFORE the mutating call; reaching renameFolder and failing there was
+   // reported as a false "rollback-failed" (may be partially changed).
+   @Test void folderRenameOntoOccupiedFolderIsACleanRefusalNotRollbackFailed() throws Exception {
+      folderStore.put(folderKey("Examples/Old Folder", null), true);
+      ViewsheetApplyRequest req = applyRequest("rename folder", false,
+         renameFolderChange("Examples/Old Folder", "Examples/New Folder", null));
+      // Destination appears between preview and apply.
+      folderStore.put(folderKey("Examples/New Folder", null), true);
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(ex.getMessage().contains("\"Examples/New Folder\" already exists"), ex.getMessage());
+      verify(viewsheetApiService, never()).renameFolder(anyString(), anyString(), any(), any());
+      assertTrue(folderStore.getOrDefault(folderKey("Examples/Old Folder", null), false));
+   }
+
+   @Test void folderRenameOntoOccupiedViewsheetPathIsACleanRefusalNotRollbackFailed()
+      throws Exception
+   {
+      folderStore.put(folderKey("Examples/Old Folder", null), true);
+      ViewsheetApplyRequest req = applyRequest("rename folder", false,
+         renameFolderChange("Examples/Old Folder", "Examples/New Folder", null));
+      when(viewsheetApiService.isFolderRenameTargetTaken(eq("Examples/New Folder"), any()))
+         .thenReturn(true);
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(ex.getMessage().contains("Examples/New Folder"), ex.getMessage());
+      verify(viewsheetApiService, never()).renameFolder(anyString(), anyString(), any(), any());
+   }
+
+   @Test void folderCreateOntoOccupiedPathIsACleanRefusalNotRollbackFailed() throws Exception {
+      ViewsheetApplyRequest req = applyRequest("create folder", false,
+         createFolderChange("Examples", "New Folder", null));
+      when(viewsheetApiService.isFolderCreateTargetTaken(eq("Examples/New Folder"), any()))
+         .thenReturn(true);
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.apply(req, user));
+      assertTrue(ex.getMessage().contains("Examples/New Folder"), ex.getMessage());
+      verify(viewsheetApiService, never()).addFolder(any(), anyString(), any(), any(), any(), any());
+   }
+
    @Test void folderRenameRollbackSwapsBackToTheOriginalPath() throws Exception {
       folderStore.put(folderKey("Examples/Old Folder", null), true);
       folderStore.put(folderKey("Examples/DoomedFolder", null), true);

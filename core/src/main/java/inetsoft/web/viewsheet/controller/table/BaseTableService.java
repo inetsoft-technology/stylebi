@@ -42,6 +42,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.UndefinedNameException;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
 import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
@@ -361,7 +362,12 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          dispatcher.sendCommand(scmd);
       }
       catch(Throwable ex) {
-         while(ex instanceof RuntimeException && ex.getCause() != null) {
+         // An undefined name is thrown as ScriptException(UndefinedNameException); stop on that
+         // ScriptException so it is reported like any other script failure (Bug #80820).
+         while(ex instanceof RuntimeException && ex.getCause() != null &&
+               !(ex instanceof ScriptException &&
+                 ex.getCause() instanceof UndefinedNameException))
+         {
             ex = ex.getCause();
          }
 

@@ -117,6 +117,7 @@ class FormTableInsertRowModeTest {
                                           mock(SelectionLayoutService.class),
                                           rows,
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),

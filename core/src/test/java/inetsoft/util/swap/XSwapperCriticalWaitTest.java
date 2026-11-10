@@ -25,6 +25,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -65,5 +70,56 @@ class XSwapperCriticalWaitTest {
       assertTrue(elapsed[0] > 0, "waitForMemory() did not return within 30s");
       assertTrue(elapsed[0] >= 500L, "returned before the cap: " + elapsed[0] + "ms");
       assertTrue(elapsed[0] < 15000L, "cap was not honored: " + elapsed[0] + "ms");
+   }
+
+   /**
+    * An interrupt that reaches a thread while it waits for memory must end the wait and stay
+    * set when waitForMemory() returns. A script timeout or cancel is often delivered as a
+    * single Thread.interrupt() (Graal's Context.interrupt sends it once), so clearing it here
+    * means the runaway work is never stopped.
+    */
+   @Test
+   void interruptEndsTheWaitAndStaysSet() throws Exception {
+      final XSwapper swapper = spy(XSwapper.getSwapper());
+      // memory is critical and stays critical, and nothing is ever freed
+      doReturn(XSwapper.CRITICAL_MEM).when(swapper).getMemoryState();
+      swapper.setMaxCriticalWait(10000L);
+
+      final AtomicLong returnedAt = new AtomicLong(-1L);
+      final AtomicBoolean interruptedAfter = new AtomicBoolean();
+      Thread caller = new Thread(() -> {
+         swapper.waitForMemory();
+         returnedAt.set(System.nanoTime());
+         interruptedAfter.set(Thread.currentThread().isInterrupted());
+      });
+
+      caller.setDaemon(true);
+      caller.start();
+
+      // wait until the caller is parked in the critical wait (the timed Condition.await), so
+      // the bound below measures only the response to the interrupt and not the first-pass
+      // full GC, which can be slow on a busy runner with a large heap
+      final long reachDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30L);
+
+      while(caller.getState() != Thread.State.TIMED_WAITING && caller.isAlive() &&
+         System.nanoTime() < reachDeadline)
+      {
+         Thread.sleep(5L);
+      }
+
+      assertSame(Thread.State.TIMED_WAITING, caller.getState(),
+                 "the caller never reached the critical wait");
+
+      final long interruptedAt = System.nanoTime();
+      caller.interrupt();
+      caller.join(30000L);
+
+      assertTrue(returnedAt.get() != -1L, "waitForMemory() did not return within 30s");
+      final long sinceInterrupt = TimeUnit.NANOSECONDS.toMillis(returnedAt.get() - interruptedAt);
+      // without the fix the interrupt is swallowed and the wait runs to the 10s cap
+      assertTrue(sinceInterrupt < 5000L,
+                 "the interrupt did not end the wait: returned " + sinceInterrupt +
+                 "ms after the interrupt");
+      assertTrue(interruptedAfter.get(), "the interrupt status was cleared by waitForMemory()");
    }
 }

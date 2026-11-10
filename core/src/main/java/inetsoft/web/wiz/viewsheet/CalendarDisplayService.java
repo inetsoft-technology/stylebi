@@ -112,6 +112,18 @@ public class CalendarDisplayService {
             info.getDates() != null && info.getDates().length > 0,
             yearView, doubleCalendar, rangeComparison, comparisonEnabled, assemblyName);
 
+         // Year view stores a bare year and month view a year-month, and every reader (painter,
+         // browser, displayMonth) expects the shape of the current view. The toggle stores the
+         // positions it is given, so they are converted to the target view first; the month
+         // checks below then compare the positions the calendar will actually hold.
+         String date1 = nullToEmpty(info.getCurrentDate1());
+         String date2 = info.getCurrentDate2();
+
+         if(plan.setYearView()) {
+            date1 = positionForView(date1, plan.yearViewValue(), info.getRange(), false);
+            date2 = positionForView(date2, plan.yearViewValue(), info.getRange(), true);
+         }
+
          // Refused before anything is written. The toggles clear the dates, so a selection only
          // blocks a month write when no toggle in this same call is about to clear it.
          boolean datesAfterToggles = info.getDates() != null && info.getDates().length > 0 &&
@@ -121,15 +133,11 @@ public class CalendarDisplayService {
             doubleCalendar != null ? doubleCalendar :
                info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE,
             yearView != null ? yearView : info.isYearView(),
-            datesAfterToggles, info.getRange(), info.getCurrentDate1(), info.getCurrentDate2(),
-            assemblyName);
+            datesAfterToggles, info.getRange(), date1, date2, assemblyName);
 
          result.put("assembly", assemblyName);
          result.put("changed", plan.changed());
          result.put("sideEffects", plan.sideEffects());
-
-         String date1 = nullToEmpty(info.getCurrentDate1());
-         String date2 = info.getCurrentDate2();
 
          // Double calendar first: it resets period, so a rangeComparison request has to be applied
          // after it rather than before.
@@ -173,18 +181,22 @@ public class CalendarDisplayService {
          if(navigation != null) {
             calendars.navigate(runtimeId, assemblyName, navigation.date1(), navigation.date2(),
                                linkUri, user, dispatcher);
+         }
+
+         // A view toggle moves the position into the new view's shape (a year gains a month), so
+         // the caller is told what the calendar shows now, as for an explicit month.
+         if(navigation != null || plan.setYearView()) {
             CalendarVSAssemblyInfo shown = (CalendarVSAssemblyInfo)
                requireCalendar(rvs, assemblyName).getVSAssemblyInfo();
-            Map<String, Object> displayed = new LinkedHashMap<>();
-            displayed.put("month", displayMonth(shown.getCurrentDate1(), shown.isYearView()));
+            Map<String, Object> displayed = displayed(
+               shown.getCurrentDate1(), shown.getCurrentDate2(), shown.isYearView(),
+               shown.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE,
+               navigation != null);
 
-            if(shown.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE) {
-               displayed.put("secondMonth",
-                             displayMonth(shown.getCurrentDate2(), shown.isYearView()));
+            if(displayed != null) {
+               result.put("displayed", displayed);
+               result.put("persistsOnSave", true);
             }
-
-            result.put("displayed", displayed);
-            result.put("persistsOnSave", true);
          }
       });
 
@@ -462,6 +474,39 @@ public class CalendarDisplayService {
       }
    }
 
+   /**
+    * A stored position converted to the shape of the view a toggle switches to: year view keeps
+    * only the year, month view gives a bare year a month. The month follows the browser
+    * calendar's own year-to-month toggle ({@code sendToggleYear}): the first calendar opens on
+    * January, or on the range's first month in the range's first year; the second calendar on
+    * December, or on the range's last month in the range's last year. A blank or unreadable
+    * position is returned as is (the calendar then shows today).
+    *
+    * @param range  {@code getRange()}: {@code year-month-day} with a 0-based month, a null end is
+    *               open; null when unbound.
+    * @param second the position belongs to the second calendar of a double calendar.
+    */
+   static String positionForView(String stored, boolean yearView, String[] range, boolean second) {
+      int[] value = parseStored(stored, true);
+
+      if(value == null) {
+         return stored;
+      }
+
+      if(yearView) {
+         return String.valueOf(value[0]);
+      }
+
+      if(parseStored(stored, false) != null) {
+         return stored;
+      }
+
+      int[] end = range == null || range.length != 2 ? null :
+         parseRangeEnd(second ? range[1] : range[0]);
+      int month = end != null && end[0] == value[0] ? end[1] : second ? 11 : 0;
+      return store(new int[] { value[0], month }, false);
+   }
+
    private static String store(int[] value, boolean yearView) {
       return yearView ? String.valueOf(value[0]) : value[0] + "-" + value[1];
    }
@@ -480,6 +525,32 @@ public class CalendarDisplayService {
    static String displayMonth(String stored, boolean yearView) {
       int[] value = parseStored(stored, yearView);
       return value == null ? null : iso(value, yearView);
+   }
+
+   /**
+    * What the calendar shows after setDisplay, as returned in {@code displayed}. For an explicit
+    * month/secondMonth both entries are always given (secondMonth on a double calendar). For a
+    * view toggle alone only a calendar with a stored position is reported: one with none shows
+    * today, and there is no position to tell the caller about.
+    *
+    * @return null when a toggle alone leaves no calendar with a position.
+    */
+   static Map<String, Object> displayed(String current1, String current2, boolean yearView,
+                                        boolean dual, boolean explicitMonth)
+   {
+      Map<String, Object> displayed = new LinkedHashMap<>();
+      String first = displayMonth(current1, yearView);
+      String second = dual ? displayMonth(current2, yearView) : null;
+
+      if(explicitMonth || first != null) {
+         displayed.put("month", first);
+      }
+
+      if(dual && (explicitMonth || second != null)) {
+         displayed.put("secondMonth", second);
+      }
+
+      return displayed.isEmpty() ? null : displayed;
    }
 
    private static boolean isBlank(String value) {

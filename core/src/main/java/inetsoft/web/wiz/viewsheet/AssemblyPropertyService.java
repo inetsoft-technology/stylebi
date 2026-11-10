@@ -345,211 +345,22 @@ public class AssemblyPropertyService {
             "set_assembly_properties needs at least one property to set.");
       }
 
+      // Refuse before mutate(): a refused call inside it still costs an undo step and a revision,
+      // so the next undo would revert nothing. The dry run gets its own copy of the patch values
+      // because PropertyPath.set may hand them to the model, which later steps edit in place.
+      sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         prepareWrite(rvs, runtimeId, user, assemblyName, copyPatch(patch));
+         return null;
+      });
+
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         String type = typeOf(rvs, assemblyName);
-         Object model = readModel(rvs, type, assemblyName, user);
-         String measureBefore = selectionMeasure(type, model);
-         String formulaBefore = selectionFormula(type, model);
-         String outputAggregateBefore = outputAggregate(type, model);
-         String outputTableBefore = outputBinding(type, model, OUTPUT_TABLE_PATH);
-         String outputColumnBefore = outputBinding(type, model, OUTPUT_COLUMN_PATH);
-         SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
-         OutputFormulaGuard.Snapshot formulaGuardBefore = OutputFormulaGuard.snapshot(type, model);
-         String checkboxTargetBefore = "checkbox".equals(type) ?
-            (String) PropertyPath.get(model, CHECKBOX_TARGET_PATH) : null;
-         ComboDateFormatBefore dateFormatBefore = ComboDateFormatBefore.of(type, model);
-         ShapeFillGradientGuard.Snapshot fillBefore = ShapeFillGradientGuard.snapshot(type, model);
-
-         // Resolved whole before anything is written: a typo in the fourth key must not
-         // leave the first three applied, which would be a partial edit the caller has no
-         // way to detect from the error alone.
-         // resolveForWrite's refusals are keyed by type, so going through the write path means
-         // a refusal added for an assembly type applies here without anyone remembering to route it.
-         Map<String, String> resolved = PropertyAliases.resolvePatchForWrite(type, patch.keySet());
-
-         // Gated by type / the live enabled path, so no other write reads anything; taken before
-         // the patch loop so the pre-write state is what is compared.
-         FilterEffectGuard.Snapshot filterBefore =
-            FilterEffectGuard.snapshot(rvs, type, assemblyName, resolved.values());
-
-         // Taken before anything is written, so a same-patch write to a domain list (or the
-         // rebuild of an Image's immutable pane) cannot widen what the check accepts.
-         Map<String, AssemblyReference> references = assemblyReferences(model, resolved.values());
-         Set<String> unchangedReferences = new HashSet<>();
-         // Copied, not referenced: PropertyPath.set mutates the list-input editor in place.
-         ListInputEditorGuard.Snapshot listEditorBefore =
-            ListInputEditorGuard.snapshot(type, model);
-         LockedGeometryGuard.Snapshot lockedBefore = LockedGeometryGuard.snapshot(type, model);
-         Map<String, Object> patchGuardsBefore =
-            PatchGuards.snapshot(type, model, resolved.values());
-
-         // PropertyPath.set returns the root the caller must keep using: if a future alias
-         // ever targets a direct top-level field of an Immutables dialog model (no nested pane
-         // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
-         // instance and the original reference silently stops reflecting the write.
-         for(Map.Entry<String, String> entry : resolved.entrySet()) {
-            Object value = canonicalIntEnum(type, entry.getValue(), patch.get(entry.getKey()));
-
-            requirePositiveSize(entry.getKey(), entry.getValue(), value);
-            requireNonNegativePosition(type, entry.getKey(), entry.getValue(), value);
-            requireLabelGapInRange(entry.getKey(), entry.getValue(), value);
-            OutputFormulaGuard.requireValidOperand(entry.getKey(), entry.getValue(), value);
-
-            if("textinput".equals(type) && entry.getValue().equalsIgnoreCase(INPUT_CONTROL_PATH)) {
-               value = requireKnownInputControlType(entry.getKey(), value);
-            }
-
-            if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
-               value = requireKnownTableStyle(model, entry.getValue(), value);
-            }
-
-            if(entry.getValue().endsWith(".imagePreviewPaneModel.selectedImage")) {
-               value = requireKnownSelectedImage(model, entry.getValue(), value);
-            }
-
-            if(model instanceof GaugePropertyDialogModel &&
-               entry.getValue().endsWith(".facePaneModel.face"))
-            {
-               value = requireKnownGaugeFace(value);
-            }
-
-            AssemblyReference reference = references.get(entry.getValue());
-
-            if(reference != null && reference.require(entry.getKey(), value)) {
-               unchangedReferences.add(entry.getValue());
-            }
-
-            model = PropertyPath.set(model, entry.getValue(), value);
-         }
-
-         // Before the measure check, so a measure is never looked up against a table set the
-         // patch is about to be refused for.
-         SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
-         PatchGuards.require(type, patchGuardsBefore, model);
-         LockedGeometryGuard.require(lockedBefore, assemblyName, resolved, model);
-         model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
-                                              measureBefore);
-         model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
-         model = requireKnownOutputAggregate(assemblyName, type, model, outputAggregateBefore);
-         model = requireKnownOutputBinding(rvs, user, type, model, outputTableBefore,
-                                           outputColumnBefore);
-
-         if(PropertyAliases.isDataOutputType(type)) {
-            OutputFormulaGuard.requireArity(formulaGuardBefore, model);
-            requireOutputAggregateFitsColumn(rvs, user, model, formulaGuardBefore,
-                                             outputTableBefore, outputColumnBefore);
-         }
-
-         if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
-            path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
-         {
-            model = requireKnownSingleSelectionLevels(model);
-         }
-
-         if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
-            path -> path.equalsIgnoreCase(SELECT_CHILDREN_PATH)))
-         {
-            requireApplicableSelectChildren(model);
-         }
-
-         if("timeslider".equals(type)) {
-            requireApplicableRangeSize(model, resolved.values());
-         }
-
-         if("checkbox".equals(type)) {
-            requireNoDeadCheckboxDataInputWrites(model, resolved, patch, rvs.getViewsheet());
-            requireCheckboxTargetIsVariable(rvs.getViewsheet(), model, resolved.values(),
-                                            checkboxTargetBefore);
-         }
-
-         if(PropertyAliases.derivesVariableFlagFromTable(type)) {
-            model = normalizeVariableTableBinding(model);
-         }
-
-         if(type.equals("gauge") && resolved.values().stream()
-            .anyMatch(path -> path.startsWith("gaugeAdvancedPaneModel.rangePaneModel")))
-         {
-            requireNoInteriorGapInGaugeRangeValues(model);
-         }
-
-         if(("slider".equals(type) || "spinner".equals(type)) && resolved.values().stream()
-            .anyMatch(path -> path.contains(NUMERIC_RANGE_PANE)))
-         {
-            requireValidNumericRange(model, resolved);
-         }
-
-         if("gauge".equals(type) && resolved.values().stream()
-            .anyMatch(path -> path.contains(NUMBER_RANGE_PANE)))
-         {
-            requireValidGaugeNumberRange(model, resolved);
-         }
-
-         if(PropertyAliases.derivesVariableFlagFromTable(type) &&
-            resolved.containsValue("dataInputPaneModel.variable"))
-         {
-            requireVariableFlagAchievable(type, model, rvs.getViewsheet());
-         }
-
-         if(PropertyAliases.derivesVariableFlagFromTable(type) && !"checkbox".equals(type) &&
-            (resolved.containsValue("dataInputPaneModel.columnValue") ||
-             resolved.containsValue("dataInputPaneModel.rowValue")))
-         {
-            requireRowColumnValueValid(type, model, rvs.getViewsheet());
-         }
-
-         if("textinput".equals(type) && resolved.values().stream()
-            .anyMatch(path -> path.startsWith("textInputColumnOptionPaneModel.")))
-         {
-            requireValidTextInputColumnOption(model);
-         }
-
-         if("combobox".equals(type) && resolved.values().stream()
-            .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
-                              path.equals(QUERY_DATE_FORMAT_PATH)))
-         {
-            requireValidComboboxDateFormat(model, resolved.values());
-         }
-
-         // An unchanged tipView is a no-op, so it must not turn view tips on either.
-         List<String> changedPaths = new ArrayList<>(resolved.values());
-         changedPaths.removeAll(unchangedReferences);
-         model = impliedSibling(model, changedPaths, "tipView", "tipOption", true);
-         model = impliedSibling(model, resolved.values(), "tipPaneModel.alpha",
-                                 "tipPaneModel.tipOption", true);
-         model = impliedSibling(model, resolved.values(), "customTip", "customRB",
-                                 TipCustomizeDialogModel.TipFormat.CUSTOM);
-
-         if(PropertyAliases.isListInputType(type)) {
-            // Before requireValidListInput, so a dataType change strict-checks the embedded
-            // values against the list type they will be stored with.
-            ListInputEditorGuard.apply(type, listEditorBefore, model, resolved.values());
-
-            // After apply(): a data type that leaves date has already switched the format off
-            if("combobox".equals(type) && resolved.values().stream()
-               .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
-                                 path.equals(QUERY_DATE_FORMAT_PATH) ||
-                                 path.equalsIgnoreCase(COMBO_DATA_TYPE_PATH)))
-            {
-               requireDateFormatApplicable(dateFormatBefore, model);
-            }
-
-            requireValidListInput(type, model, resolved.values(), rvs, user,
-                                  listEditorBefore != null && listEditorBefore.query());
-            model = deriveEmbeddedFromStaticList(model, resolved.values());
-         }
-
-         if(PropertyAliases.isDataOutputType(type)) {
-            model = deriveColumnTypeFromRealColumn(model, rvs, user, resolved.values());
-         }
-
-         if("chart".equals(type)) {
-            markTargetsUnchanged(model);
-         }
-
-         ShapeFillGradientGuard.Result fillResult =
-            ShapeFillGradientGuard.apply(fillBefore, model, resolved.values());
-         model = fillResult.model();
-         final Object written = model;
+         // Re-run against the state mutate() sees; it refuses here only if the viewsheet
+         // changed since the dry run.
+         PreparedWrite prepared = prepareWrite(rvs, runtimeId, user, assemblyName, patch);
+         String type = prepared.type();
+         Map<String, String> resolved = prepared.resolved();
+         ShapeFillGradientGuard.Result fillResult = prepared.fillResult();
+         final Object written = fillResult.model();
 
          if("chart".equals(type)) {
             ChartRenderCheck.swallowScriptError(rvs, assemblyName, () ->
@@ -568,8 +379,8 @@ public class AssemblyPropertyService {
          }
 
          if(dispatcher != null) {
-            for(String note : FilterEffectGuard.apply(filterBefore, rvs, assemblyName, written,
-                                                      resolved.values()))
+            for(String note : FilterEffectGuard.apply(prepared.filterBefore(), rvs, assemblyName,
+                                                      written, resolved.values()))
             {
                MessageCommand filterNote = new MessageCommand();
                filterNote.setType(MessageCommand.Type.WARNING);
@@ -578,6 +389,259 @@ public class AssemblyPropertyService {
             }
          }
       });
+   }
+
+   /**
+    * What {@link #set} needs to write a validated patch: the model to write and the pre-write
+    * snapshots its post-write steps compare against.
+    */
+   private record PreparedWrite(String type, Map<String, String> resolved,
+                                FilterEffectGuard.Snapshot filterBefore,
+                                ShapeFillGradientGuard.Result fillResult)
+   {
+   }
+
+   /**
+    * Everything {@link #set} does before the write: resolves the patch, applies it to a detached
+    * dialog model and runs every guard. Writes nothing to the viewsheet, so it can run under
+    * {@link ViewsheetSessionService#read} to refuse a patch before {@code mutate()} records a
+    * checkpoint.
+    */
+   private PreparedWrite prepareWrite(RuntimeViewsheet rvs, String runtimeId, Principal user,
+                                      String assemblyName, Map<String, Object> patch)
+      throws Exception
+   {
+      String type = typeOf(rvs, assemblyName);
+      Object model = readModel(rvs, type, assemblyName, user);
+      String measureBefore = selectionMeasure(type, model);
+      String formulaBefore = selectionFormula(type, model);
+      String outputAggregateBefore = outputAggregate(type, model);
+      String outputTableBefore = outputBinding(type, model, OUTPUT_TABLE_PATH);
+      String outputColumnBefore = outputBinding(type, model, OUTPUT_COLUMN_PATH);
+      SelectionSourceGuard.Snapshot sourceBefore = SelectionSourceGuard.snapshot(type, model);
+      OutputFormulaGuard.Snapshot formulaGuardBefore = OutputFormulaGuard.snapshot(type, model);
+      String checkboxTargetBefore = "checkbox".equals(type) ?
+         (String) PropertyPath.get(model, CHECKBOX_TARGET_PATH) : null;
+      ComboDateFormatBefore dateFormatBefore = ComboDateFormatBefore.of(type, model);
+      ShapeFillGradientGuard.Snapshot fillBefore = ShapeFillGradientGuard.snapshot(type, model);
+
+      // Resolved whole before anything is written: a typo in the fourth key must not
+      // leave the first three applied, which would be a partial edit the caller has no
+      // way to detect from the error alone.
+      // resolveForWrite's refusals are keyed by type, so going through the write path means
+      // a refusal added for an assembly type applies here without anyone remembering to route it.
+      Map<String, String> resolved = PropertyAliases.resolvePatchForWrite(type, patch.keySet());
+
+      // Gated by type / the live enabled path, so no other write reads anything; taken before
+      // the patch loop so the pre-write state is what is compared.
+      FilterEffectGuard.Snapshot filterBefore =
+         FilterEffectGuard.snapshot(rvs, type, assemblyName, resolved.values());
+
+      // Taken before anything is written, so a same-patch write to a domain list (or the
+      // rebuild of an Image's immutable pane) cannot widen what the check accepts.
+      Map<String, AssemblyReference> references = assemblyReferences(model, resolved.values());
+      Set<String> unchangedReferences = new HashSet<>();
+      // Copied, not referenced: PropertyPath.set mutates the list-input editor in place.
+      ListInputEditorGuard.Snapshot listEditorBefore =
+         ListInputEditorGuard.snapshot(type, model);
+      LockedGeometryGuard.Snapshot lockedBefore = LockedGeometryGuard.snapshot(type, model);
+      Map<String, Object> patchGuardsBefore =
+         PatchGuards.snapshot(type, model, resolved.values());
+
+      // PropertyPath.set returns the root the caller must keep using: if a future alias
+      // ever targets a direct top-level field of an Immutables dialog model (no nested pane
+      // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
+      // instance and the original reference silently stops reflecting the write.
+      for(Map.Entry<String, String> entry : resolved.entrySet()) {
+         Object value = canonicalIntEnum(type, entry.getValue(), patch.get(entry.getKey()));
+
+         requirePositiveSize(entry.getKey(), entry.getValue(), value);
+         requireNonNegativePosition(type, entry.getKey(), entry.getValue(), value);
+         requireLabelGapInRange(entry.getKey(), entry.getValue(), value);
+         OutputFormulaGuard.requireValidOperand(entry.getKey(), entry.getValue(), value);
+
+         if("textinput".equals(type) && entry.getValue().equalsIgnoreCase(INPUT_CONTROL_PATH)) {
+            value = requireKnownInputControlType(entry.getKey(), value);
+         }
+
+         if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
+            value = requireKnownTableStyle(model, entry.getValue(), value);
+         }
+
+         if(entry.getValue().endsWith(".imagePreviewPaneModel.selectedImage")) {
+            value = requireKnownSelectedImage(model, entry.getValue(), value);
+         }
+
+         if(model instanceof GaugePropertyDialogModel &&
+            entry.getValue().endsWith(".facePaneModel.face"))
+         {
+            value = requireKnownGaugeFace(value);
+         }
+
+         AssemblyReference reference = references.get(entry.getValue());
+
+         if(reference != null && reference.require(entry.getKey(), value)) {
+            unchangedReferences.add(entry.getValue());
+         }
+
+         model = PropertyPath.set(model, entry.getValue(), value);
+      }
+
+      // Before the measure check, so a measure is never looked up against a table set the
+      // patch is about to be refused for.
+      SelectionSourceGuard.requireSourceUnchanged(type, sourceBefore, model);
+      PatchGuards.require(type, patchGuardsBefore, model);
+      LockedGeometryGuard.require(lockedBefore, assemblyName, resolved, model);
+      model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
+                                           measureBefore);
+      model = requireKnownSelectionFormula(assemblyName, type, model, formulaBefore);
+      requireSelectionFormulaFitsMeasure(runtimeId, user, assemblyName, type, model,
+                                         measureBefore, formulaBefore);
+      model = requireKnownOutputAggregate(assemblyName, type, model, outputAggregateBefore);
+      model = requireKnownOutputBinding(rvs, user, type, model, outputTableBefore,
+                                        outputColumnBefore);
+
+      if(PropertyAliases.isDataOutputType(type)) {
+         OutputFormulaGuard.requireBinding(formulaGuardBefore, model);
+         OutputFormulaGuard.requireArity(formulaGuardBefore, model);
+         model = OutputFormulaGuard.clearStaleOperands(formulaGuardBefore, model);
+         requireOutputAggregateFitsColumn(rvs, user, model, formulaGuardBefore,
+                                          outputTableBefore, outputColumnBefore);
+      }
+
+      if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
+         path -> path.equalsIgnoreCase(SINGLE_SELECTION_LEVELS_PATH)))
+      {
+         model = requireKnownSingleSelectionLevels(model);
+      }
+
+      if("selectiontree".equals(type) && resolved.values().stream().anyMatch(
+         path -> path.equalsIgnoreCase(SELECT_CHILDREN_PATH)))
+      {
+         requireApplicableSelectChildren(model);
+      }
+
+      if("timeslider".equals(type)) {
+         requireApplicableRangeSize(model, resolved.values());
+      }
+
+      if("checkbox".equals(type)) {
+         requireNoDeadCheckboxDataInputWrites(model, resolved, patch, rvs.getViewsheet());
+         requireCheckboxTargetIsVariable(rvs.getViewsheet(), model, resolved.values(),
+                                         checkboxTargetBefore);
+      }
+
+      if(PropertyAliases.derivesVariableFlagFromTable(type)) {
+         model = normalizeVariableTableBinding(model);
+      }
+
+      if(type.equals("gauge") && resolved.values().stream()
+         .anyMatch(path -> path.startsWith("gaugeAdvancedPaneModel.rangePaneModel")))
+      {
+         requireNoInteriorGapInGaugeRangeValues(model);
+      }
+
+      if(("slider".equals(type) || "spinner".equals(type)) && resolved.values().stream()
+         .anyMatch(path -> path.contains(NUMERIC_RANGE_PANE)))
+      {
+         requireValidNumericRange(model, resolved);
+      }
+
+      if("gauge".equals(type) && resolved.values().stream()
+         .anyMatch(path -> path.contains(NUMBER_RANGE_PANE)))
+      {
+         requireValidGaugeNumberRange(model, resolved);
+      }
+
+      if(PropertyAliases.derivesVariableFlagFromTable(type) &&
+         resolved.containsValue("dataInputPaneModel.variable"))
+      {
+         requireVariableFlagAchievable(type, model, rvs.getViewsheet());
+      }
+
+      if(PropertyAliases.derivesVariableFlagFromTable(type) && !"checkbox".equals(type) &&
+         (resolved.containsValue("dataInputPaneModel.columnValue") ||
+          resolved.containsValue("dataInputPaneModel.rowValue")))
+      {
+         requireRowColumnValueValid(type, model, rvs.getViewsheet());
+      }
+
+      if("textinput".equals(type) && resolved.values().stream()
+         .anyMatch(path -> path.startsWith("textInputColumnOptionPaneModel.")))
+      {
+         requireValidTextInputColumnOption(model);
+      }
+
+      if("combobox".equals(type) && resolved.values().stream()
+         .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
+                           path.equals(QUERY_DATE_FORMAT_PATH)))
+      {
+         requireValidComboboxDateFormat(model, resolved.values());
+      }
+
+      // An unchanged tipView is a no-op, so it must not turn view tips on either.
+      List<String> changedPaths = new ArrayList<>(resolved.values());
+      changedPaths.removeAll(unchangedReferences);
+      model = impliedSibling(model, changedPaths, "tipView", "tipOption", true);
+      model = impliedSibling(model, resolved.values(), "tipPaneModel.alpha",
+                              "tipPaneModel.tipOption", true);
+      model = impliedSibling(model, resolved.values(), "customTip", "customRB",
+                              TipCustomizeDialogModel.TipFormat.CUSTOM);
+
+      if(PropertyAliases.isListInputType(type)) {
+         // Before requireValidListInput, so a dataType change strict-checks the embedded
+         // values against the list type they will be stored with.
+         ListInputEditorGuard.apply(type, listEditorBefore, model, resolved.values());
+
+         // After apply(): a data type that leaves date has already switched the format off
+         if("combobox".equals(type) && resolved.values().stream()
+            .anyMatch(path -> path.equals(DATE_FORMAT_PATTERN_PATH) ||
+                              path.equals(QUERY_DATE_FORMAT_PATH) ||
+                              path.equalsIgnoreCase(COMBO_DATA_TYPE_PATH)))
+         {
+            requireDateFormatApplicable(dateFormatBefore, model);
+         }
+
+         requireValidListInput(type, model, resolved.values(), rvs, user,
+                               listEditorBefore != null && listEditorBefore.query());
+         model = deriveEmbeddedFromStaticList(model, resolved.values());
+      }
+
+      if(PropertyAliases.isDataOutputType(type)) {
+         model = deriveColumnTypeFromRealColumn(model, rvs, user, resolved.values());
+      }
+
+      if("chart".equals(type)) {
+         markTargetsUnchanged(model);
+      }
+
+      ShapeFillGradientGuard.Result fillResult =
+         ShapeFillGradientGuard.apply(fillBefore, model, resolved.values());
+
+      return new PreparedWrite(type, resolved, filterBefore, fillResult);
+   }
+
+   /** A copy of the patch whose map and list values are copied too, deeply. */
+   private static Map<String, Object> copyPatch(Map<String, Object> patch) {
+      Map<String, Object> copy = new LinkedHashMap<>();
+      patch.forEach((key, value) -> copy.put(key, copyPatchValue(value)));
+      return copy;
+   }
+
+   private static Object copyPatchValue(Object value) {
+      if(value instanceof Map<?, ?> map) {
+         Map<Object, Object> copy = new LinkedHashMap<>();
+         map.forEach((key, item) -> copy.put(key, copyPatchValue(item)));
+         return copy;
+      }
+
+      if(value instanceof List<?> list) {
+         List<Object> copy = new ArrayList<>(list.size());
+         list.forEach(item -> copy.add(copyPatchValue(item)));
+         return copy;
+      }
+
+      return value;
    }
 
    private static final String NUMERIC_RANGE_PANE = ".numericRangePaneModel.";
@@ -1233,6 +1297,52 @@ public class AssemblyPropertyService {
          PropertyPath.set(model, pane + ".selectionMeasurePaneModel.formula", resolved);
    }
 
+   /**
+    * Sum is offered only for a numeric measure (the dialog's aggregate dropdown); a Sum stored over
+    * a text measure left the list showing placeholder values (bug #80836). Judges the effective
+    * measure/formula pair when EITHER changed, so a measure change under a stored Sum is caught
+    * too, for the list and the tree, on the aliases and raw paths. A dynamic ({@code $()}/
+    * {@code =}) measure or formula, and a measure the dropdown reports no type for (calc-field
+    * and other unlisted columns), is not judged; neither is a legacy pair left untouched.
+    */
+   private void requireSelectionFormulaFitsMeasure(String runtimeId, Principal user,
+                                                   String assemblyName, String type, Object model,
+                                                   String measureBefore, String formulaBefore)
+      throws Exception
+   {
+      String pane = selectionPane(type);
+      String measure = selectionMeasure(type, model);
+      String formula = selectionFormula(type, model);
+
+      if(pane == null || measure == null || measure.isBlank() || formula == null ||
+         !SelectionFormulaResolver.isSum(formula) ||
+         (measure.equals(measureBefore) && formula.equals(formulaBefore)))
+      {
+         return;
+      }
+
+      String table = (String) PropertyPath.get(model, pane + ".selectedTable");
+      @SuppressWarnings("unchecked")
+      List<String> additional = (List<String>) PropertyPath.get(model, pane + ".additionalTables");
+      SelectionMeasureResolver.Resolved resolved;
+
+      try {
+         resolved = SelectionMeasureResolver.resolveTyped(
+            dataOutputService, runtimeId, user, assemblyName, table, additional, measure);
+      }
+      catch(IllegalArgumentException e) {
+         // A stored measure the dropdown no longer offers is not this patch's doing.
+         if(measure.equals(measureBefore)) {
+            return;
+         }
+
+         throw e;
+      }
+
+      SelectionFormulaResolver.requireFitsMeasure(
+         assemblyName, formula, resolved.name(), resolved.type());
+   }
+
    private static String outputAggregate(String type, Object model) {
       return PropertyAliases.isDataOutputType(type) ?
          (String) PropertyPath.get(model, OUTPUT_AGGREGATE_PATH) : null;
@@ -1746,17 +1856,17 @@ public class AssemblyPropertyService {
     * static {@code variableListDialogModel.labels}/{@code .values} to the assembly, but only
     * <i>uses</i> them at render/bind time when {@code comboBoxEditorModel.embedded} (or
     * {@code .query}) is set -- with both false (the default), {@code sourceType} stays
-    * {@code NONE_SOURCE} and the write is silently inert (Redmine #76699/VFO-016). A patch that
-    * sets {@code labels}/{@code values} with no {@code query}/{@code table}/{@code column} in
-    * the same call has unambiguous static-list intent, so {@code embedded} is implied true for
+    * {@code NONE_SOURCE} and the write is silently inert (Redmine #76699/VFO-016). The items are
+    * only ever read when {@code embedded} is on, so a patch that writes {@code labels}/
+    * {@code values} has unambiguous embedded-list intent and {@code embedded} is implied true for
     * it, the same "forgiving where intent is unambiguous" shape {@link #impliedSibling} already
     * covers for the Tip panes.
     *
-    * <p>A patch that ALSO sets {@code query}/{@code table}/{@code column} is left alone --
-    * {@code embedded=false, query=true} is a real, distinct configuration ({@code BOUND_SOURCE},
-    * driven purely by the query binding); silently forcing {@code embedded=true} there would
-    * reclassify it into {@code MERGE_SOURCE} instead, a different, surprising outcome. A caller
-    * who sets {@code embedded} explicitly (either value) is likewise always left alone.
+    * <p>This holds whatever the same patch writes to {@code query}/{@code table}/{@code column}:
+    * with query off the items are the only source, and with query on the list merges the query
+    * values with the items ({@code MERGE_SOURCE}), the same result as writing the items alone on
+    * a list whose query is already on. Only a caller who sets {@code embedded} explicitly (either
+    * value) is left alone.
     */
    private static Object deriveEmbeddedFromStaticList(Object model,
                                                        Collection<String> resolvedPaths)
@@ -1778,18 +1888,6 @@ public class AssemblyPropertyService {
          String embeddedPath = editorPrefix + ".embedded";
 
          if(resolvedPaths.contains(embeddedPath)) {
-            continue;
-         }
-
-         String queryPath = editorPrefix + ".query";
-         String tablePath =
-            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.table";
-         String columnPath =
-            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.column";
-
-         if(resolvedPaths.contains(queryPath) || resolvedPaths.contains(tablePath) ||
-            resolvedPaths.contains(columnPath))
-         {
             continue;
          }
 

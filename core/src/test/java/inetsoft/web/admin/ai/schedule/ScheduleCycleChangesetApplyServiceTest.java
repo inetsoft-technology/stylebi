@@ -156,7 +156,7 @@ class ScheduleCycleChangesetApplyServiceTest {
    // -------------------------------------------------------------------------
 
    @Test void appliesACreateAndReportsApplied() throws Exception {
-      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      lenient().when(backupService.backup(anyString())).thenReturn("snap-ref");
       when(cycleGateway.cycleExists("NewCycle", user)).thenReturn(false);
       DataCycleManager.DataCycleAsset[] state = { null };
       when(cycleGateway.currentAsset(eq("NewCycle"), eq("host-org"))).thenAnswer(inv -> state[0]);
@@ -166,6 +166,8 @@ class ScheduleCycleChangesetApplyServiceTest {
       ApplyResult result = apply(createChange("NewCycle"));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.backupRef());
+      verify(backupService, never()).backup(anyString());
       verify(cycleGateway).createCycle(any(), eq(user));
    }
 
@@ -192,6 +194,8 @@ class ScheduleCycleChangesetApplyServiceTest {
       ApplyResult result = apply(deleteChange("Cycle1"));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals("snap-ref", result.backupRef());
+      verify(backupService, times(1)).backup(anyString());
       verify(cycleGateway).deleteCycles(eq(List.of("Cycle1")), eq(user));
    }
 

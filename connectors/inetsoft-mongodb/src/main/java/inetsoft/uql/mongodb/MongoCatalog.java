@@ -111,7 +111,7 @@ final class MongoCatalog {
       Set<String> resolved = new HashSet<>();
 
       for(BsonDocument doc : sample) {
-         for(Map.Entry<String, BsonValue> entry : doc.entrySet()) {
+         for(Map.Entry<String, BsonValue> entry : flattenLeaves(doc).entrySet()) {
             String name = entry.getKey();
             BsonValue value = entry.getValue();
 
@@ -152,6 +152,35 @@ final class MongoCatalog {
          // source-published metadata -- MongoDB has none to read instead. Same position
          // AerospikeCatalog takes; this connector has no path that would make it false.
          true);
+   }
+
+   /**
+    * Flattens a document into its leaf values keyed by dotted path, the same way the runtime
+    * ({@code JsonTable.walkRecord}) names the columns it builds: every embedded document is
+    * recursed into as {@code <prefix>.<key>}, so {@code address={city,zip}} yields
+    * {@code address.city}/{@code address.zip} and no {@code address}. Scalars, nulls and arrays
+    * are leaves; an empty embedded document contributes no column, as at runtime.
+    */
+   static LinkedHashMap<String, BsonValue> flattenLeaves(BsonDocument doc) {
+      LinkedHashMap<String, BsonValue> leaves = new LinkedHashMap<>();
+      flattenLeaves(null, doc, leaves);
+      return leaves;
+   }
+
+   private static void flattenLeaves(String prefix, BsonDocument doc,
+                                     Map<String, BsonValue> leaves)
+   {
+      for(Map.Entry<String, BsonValue> entry : doc.entrySet()) {
+         String name = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
+         BsonValue value = entry.getValue();
+
+         if(value.getBsonType() == BsonType.DOCUMENT) {
+            flattenLeaves(name, value.asDocument(), leaves);
+         }
+         else {
+            leaves.put(name, value);
+         }
+      }
    }
 
    private static String widen(String prev, String type) {
@@ -206,14 +235,15 @@ final class MongoCatalog {
     * future driver version adds a constant this switch does not name.
     *
     * Only the types a real inserted document can plausibly carry (DOUBLE, STRING, INT32, INT64,
-    * BOOLEAN, DATE_TIME, DECIMAL128, OBJECT_ID, and the coarsened DOCUMENT/ARRAY/BINARY) are
+    * BOOLEAN, DATE_TIME, DECIMAL128, OBJECT_ID, and the coarsened ARRAY/BINARY) are
     * exercised against a live MongoDB instance in this connector's test suite. The legacy/internal
     * BSON types below (SYMBOL, DB_POINTER, JAVASCRIPT[_WITH_SCOPE], MIN_KEY/MAX_KEY, UNDEFINED,
     * REGULAR_EXPRESSION, END_OF_DOCUMENT) are mapped from the driver's own enum documentation, not
     * from having observed one — the mongo-java-driver client itself does not offer a way to
     * construct most of them, and a real user document is not expected to contain any.
     *
-    * Compound/opaque shapes (DOCUMENT, ARRAY, BINARY, ...) are reported as STRING rather than
+    * Embedded documents are not typed here: {@link #flattenLeaves} expands them into dotted leaf
+    * columns first. Other compound/opaque shapes (ARRAY, BINARY, ...) are reported as STRING rather than
     * modeled structurally -- XSchema has no nested-document or array type, so this is the same
     * kind of coarsening Cassandra's collection types (List/Map/Set/...) and Hive's ARRAY/MAP/
     * STRUCT already accept in this codebase, not a MongoDB-specific shortcut.
@@ -222,6 +252,8 @@ final class MongoCatalog {
       return switch(type) {
          case DOUBLE -> XSchema.DOUBLE;
          case STRING -> XSchema.STRING;
+         // Unreachable from describeDataset, which flattens embedded documents into leaf columns
+         // before typing; kept only so the switch stays exhaustive.
          case DOCUMENT -> XSchema.STRING;
          case ARRAY -> XSchema.STRING;
          case BINARY -> XSchema.STRING;

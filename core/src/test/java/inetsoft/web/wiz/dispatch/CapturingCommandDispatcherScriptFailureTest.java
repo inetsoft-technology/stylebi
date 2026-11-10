@@ -27,6 +27,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.util.Catalog;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
@@ -186,6 +187,83 @@ class CapturingCommandDispatcherScriptFailureTest {
       list.append(new ConditionItem(type, cond, 0));
       table.setPreConditionList(list);
       box.resetDataMap(TABLE);
+   }
+
+   /** Bug #80820: the shared property path reports a failing assembly script as an ERROR. */
+   @Test
+   void aScriptFailureErrorFromThePropertyPathBecomesAWarning() throws Exception {
+      String text = scriptFailedPrefix() + BaseTableService.SCRIPT_FAILURE_PREFIX + "T1\nboom";
+      List<List<String>> out =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, text));
+            return List.of(dispatcher.getErrors(), dispatcher.getWarnings());
+         });
+
+      assertEquals(List.of(), out.get(0));
+      assertEquals(1, out.get(1).size(), out.get(1).toString());
+      assertTrue(out.get(1).get(0).startsWith(FAILURE.replace("T1 boom", "T1\nboom")),
+                 out.get(1).get(0));
+      assertFalse(out.get(1).get(0).startsWith(scriptFailedPrefix()), out.get(1).get(0));
+   }
+
+   @Test
+   void anOrdinaryErrorStillFailsTheCall() throws Exception {
+      assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "Error loading data"));
+            return null;
+         }));
+   }
+
+   @Test
+   void aScriptFailedErrorThatIsNotAnAssemblyScriptFailureStillFailsTheCall() throws Exception {
+      assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(
+               message(MessageCommand.Type.ERROR, scriptFailedPrefix() + "something else"));
+            return null;
+         }));
+   }
+
+   /** The same failure reached by the table path and the property path differs only in the hint. */
+   @Test
+   void theSameFailureWithADifferentHintIsReportedOnce() throws Exception {
+      String head = BaseTableService.SCRIPT_FAILURE_PREFIX + "T1";
+      String body = "\nScript failed:\nReferenceError: foo is not defined (line 1)";
+      List<String> warnings =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(info(head + "\nTo fix: declare foo" + body));
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR,
+                                           scriptFailedPrefix() + head + body));
+            return dispatcher.getWarnings();
+         });
+
+      assertEquals(1, warnings.size(), warnings.toString());
+   }
+
+   /** A different error on the same table is a different failure and must not be swallowed. */
+   @Test
+   void twoDifferentErrorsOnTheSameTableAreBothKept() throws Exception {
+      String head = BaseTableService.SCRIPT_FAILURE_PREFIX + "T1";
+      List<String> warnings =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(info(head + "\nScript failed:\nTypeError: a"));
+            dispatcher.sendCommand(info(head + "\nScript failed:\nReferenceError: b"));
+            return dispatcher.getWarnings();
+         });
+
+      assertEquals(2, warnings.size(), warnings.toString());
+   }
+
+   private static String scriptFailedPrefix() {
+      return Catalog.getCatalog().getString("Script failed");
+   }
+
+   private static MessageCommand message(MessageCommand.Type type, String message) {
+      MessageCommand command = new MessageCommand();
+      command.setType(type);
+      command.setMessage(message);
+      return command;
    }
 
    private static MessageCommand info(String message) {

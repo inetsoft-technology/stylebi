@@ -580,6 +580,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -630,6 +631,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -683,6 +685,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -726,6 +729,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -773,6 +777,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -818,6 +823,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -864,6 +870,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -910,6 +917,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -1279,6 +1287,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -1325,6 +1334,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -1372,6 +1382,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -1420,6 +1431,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -1468,6 +1480,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -1517,6 +1530,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -1566,6 +1580,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -3668,6 +3683,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -3751,7 +3767,7 @@ class ViewsheetAssemblyAgentControllerTest {
       assertSame(expected, controller.model(toolbar.sessionToken(), principal()));
    }
 
-   private static SheetAgentFeature featureOn() {
+   static SheetAgentFeature featureOn() {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
       return feature;
@@ -3984,6 +4000,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -6886,6 +6903,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),
@@ -7065,6 +7083,9 @@ class ViewsheetAssemblyAgentControllerTest {
       when(securityEngine.checkPermission(any(Principal.class),
          eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
          .thenReturn(true);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("ExportExpandComponents"),
+         eq(ResourceAction.READ))).thenReturn(true);
 
       ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
@@ -7519,7 +7540,7 @@ class ViewsheetAssemblyAgentControllerTest {
       ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
 
-      assertThrows(SecurityException.class,
+      assertThrows(IllegalArgumentException.class,
          () -> controller.export("tok", "PDF", null, null, null, null, null, null, null,
             principal(), mock(HttpServletResponse.class)));
       verifyNoInteractions(exportService);
@@ -7988,7 +8009,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
    /** Feature enabled, only {@code sessions}/{@code exportService}/{@code securityEngine}/
     *  {@code imageService} wired -- for the export() tests. */
-   private static ViewsheetAssemblyAgentController controllerForExport(
+   static ViewsheetAssemblyAgentController controllerForExport(
       ViewsheetSessionService sessions, VSExportService exportService,
       SecurityEngine securityEngine, inetsoft.web.wiz.script.ScriptImageService imageService)
    {
@@ -7996,7 +8017,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                  mock(VSBookmarkService.class));
    }
 
-   private static ViewsheetAssemblyAgentController controllerForExport(
+   static ViewsheetAssemblyAgentController controllerForExport(
       ViewsheetSessionService sessions, VSExportService exportService,
       SecurityEngine securityEngine, inetsoft.web.wiz.script.ScriptImageService imageService,
       VSBookmarkService vsBookmarkService)
@@ -8026,6 +8047,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionLayoutService.class),
                                           mock(FormTableRowService.class),
                                           mock(FormTableImportService.class),
+                                          mock(EmbeddedTableCellService.class),
                                           mock(ColumnOptionService.class),
                                           mock(ParameterCollectionService.class),
                                           mock(ParameterValueService.class),

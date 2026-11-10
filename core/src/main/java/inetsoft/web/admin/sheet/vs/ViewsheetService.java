@@ -153,6 +153,25 @@ public class ViewsheetService {
    }
 
    /**
+    * Bug #80190: whether a folder created at {@code fullPath} would collide with an existing
+    * folder (case-insensitive) or viewsheet. This is the exact predicate {@code addFolder}
+    * refuses on, exposed so a change plan/apply can refuse the same collision before it starts.
+    */
+   public boolean isFolderCreateTargetTaken(String fullPath, IdentityID owner) throws Exception {
+      return repletRegistryService.isDuplicatedName(fullPath, null, owner);
+   }
+
+   /**
+    * Bug #80190: whether a folder renamed to {@code newPath} would land on an existing folder or
+    * viewsheet. This is the exact predicate {@code renameFolder} refuses on (the registry is the
+    * owner's only under the "My Dashboards" prefix, else the global one), exposed so a change
+    * plan/apply can refuse the same collision before it starts.
+    */
+   public boolean isFolderRenameTargetTaken(String newPath, IdentityID owner) {
+      return SUtil.isDuplicatedRepositoryPath(newPath, owner);
+   }
+
+   /**
     * Checks whether renaming the viewsheet to the given location would land on an occupied path
     * (another viewsheet, snapshot or repository folder in the same scope/owner/organization).
     * A rename onto the viewsheet's own current location is not a collision.
@@ -309,7 +328,7 @@ public class ViewsheetService {
 
          String fullPath = parentPath + folderName;
 
-         if(repletRegistryService.isDuplicatedName(fullPath, null, owner)) {
+         if(isFolderCreateTargetTaken(fullPath, owner)) {
             throw new ResourceExistsException(fullPath);
          }
 
@@ -429,7 +448,7 @@ public class ViewsheetService {
             }
          }
 
-         if(SUtil.isDuplicatedRepositoryPath(newPath, owner)) {
+         if(isFolderRenameTargetTaken(newPath, owner)) {
             throw new ResourceExistsException(newPath);
          }
 

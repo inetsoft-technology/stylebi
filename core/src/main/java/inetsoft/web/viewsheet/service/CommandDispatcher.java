@@ -488,7 +488,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
    private static final String PREVIEW_ID_HEADER = "sheetPreviewId";
    private static final String CLIENT_ID_HEADER = "inetsoftClientId";
    public static final String COMMAND_TYPE_HEADER = "commandType";
-   private static final String ASSEMBLY_NAME_HEADER = "assemblyName";
+   public static final String ASSEMBLY_NAME_HEADER = "assemblyName";
    public static final String COMMANDS_TOPIC = "/commands";
    private static final String TIMER = CommandDispatcher.class.getName() + ".timer";
    private static final Lock timerLock = new ReentrantLock();

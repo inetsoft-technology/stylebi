@@ -36,7 +36,6 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.List;
 import java.util.*;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompressExporter {
@@ -185,6 +184,14 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
       } catch (IOException e) {
          LOG.error("Failed to export calc table:" + assembly.getAbsoluteName(), e);
       }
+   }
+
+   /**
+    * CSV observes each table in {@link #writeTableDataAssembly}, over every column it writes.
+    */
+   @Override
+   protected boolean observesTablesInWriter() {
+      return true;
    }
 
    /**
@@ -428,9 +435,6 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
     * Sets an observer called with each table assembly name and its lens just before that table is
     * written to CSV, while the lens still yields uncut values (Bug #80182).
     */
-   public void setTableObserver(BiConsumer<String, TableLens> tableObserver) {
-      this.tableObserver = tableObserver;
-   }
 
    public void setExcelFile(File excelFile) {
       this.excelFile = excelFile;
@@ -443,7 +447,6 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
    private File tmpDir;
    private List<File> resultFiles = new ArrayList<>();
    private File excelFile;
-   private BiConsumer<String, TableLens> tableObserver;
    private List<String> exportAssemblies = new ArrayList<>();
    private OutputStream stream;
    private String currentBookmark;

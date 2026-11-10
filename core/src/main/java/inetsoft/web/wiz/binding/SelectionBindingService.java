@@ -390,8 +390,16 @@ public class SelectionBindingService {
                   .setRangeType(inferRangeType(resolvedColumns.get(0).dataType()));
             }
 
+            String rangeBefore = heldRange((TimeSliderVSAssembly) assembly);
             rangeSliderService.setRangeSliderPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
+            // A time-info change (column, single/composite, range type) resets the held range
+            // upstream, so the range comes from a fresh lookup of the replaced assembly.
+            discloseDroppedRange(
+               rangeBefore,
+               heldRange((TimeSliderVSAssembly) SelectionRuntimeService.requireSelection(
+                  rvs, assemblyName)),
+               result);
             result.put("composite", composite);
          }
          else if(assembly instanceof CalendarVSAssembly) {
@@ -1234,6 +1242,55 @@ public class SelectionBindingService {
    }
 
    /**
+    * The range a range slider currently holds as "first .. last" selected bucket label, or null
+    * when it filters nothing: every bucket selected is the slider's own "full range", and a
+    * slider that has not rendered yet has no buckets (its applied state list is the fallback).
+    */
+   private static String heldRange(TimeSliderVSAssembly slider) {
+      SelectionList display = slider.getSelectionList();
+      List<SelectionValue> selected = new ArrayList<>();
+      boolean fullRange = false;
+
+      if(display != null && display.getSelectionValues() != null) {
+         fullRange = true;
+
+         for(SelectionValue value : display.getSelectionValues()) {
+            if(value != null && value.isSelected()) {
+               selected.add(value);
+            }
+            else {
+               fullRange = false;
+            }
+         }
+      }
+      else if(slider.getStateSelectionList() != null &&
+         slider.getStateSelectionList().getSelectionValues() != null)
+      {
+         selected.addAll(Arrays.asList(slider.getStateSelectionList().getSelectionValues()));
+      }
+
+      if(selected.isEmpty() || fullRange) {
+         return null;
+      }
+
+      return rangeLabel(selected.get(0)) + " .. " + rangeLabel(selected.get(selected.size() - 1));
+   }
+
+   private static String rangeLabel(SelectionValue value) {
+      return value.getLabel() == null || value.getLabel().isEmpty()
+         ? value.getValue() : value.getLabel();
+   }
+
+   /** Range counterpart of discloseDroppedSelection: one entry naming the range that was lost. */
+   private static void discloseDroppedRange(String before, String after,
+                                            Map<String, Object> result)
+   {
+      if(before != null && !before.equals(after)) {
+         result.put("droppedSelection", List.of(before));
+      }
+   }
+
+   /**
     * Discloses the selected values a rebind reset (#79880). Changing a selection list's source,
     * measure or additional tables resets its selection upstream, with nothing in the response to
     * say so. Same-source rebinds that keep the selection report nothing.
@@ -1293,8 +1350,11 @@ public class SelectionBindingService {
    {
       if(measure != null) {
          if(!measure.isBlank()) {
-            measurePane.setMeasure(resolveMeasure(
-               runtimeId, user, assemblyName, table, additionalTables, measure));
+            SelectionMeasureResolver.Resolved resolved = SelectionMeasureResolver.resolveTyped(
+               dataOutputService, runtimeId, user, assemblyName, table, additionalTables,
+               measure);
+            measurePane.setMeasure(resolved.name());
+            resetSumForNonNumericMeasure(measurePane, resolved, result);
             return;
          }
 
@@ -1329,6 +1389,31 @@ public class SelectionBindingService {
          measurePane.setMeasure(null);
          result.put("droppedMeasure", stored);
       }
+   }
+
+   /**
+    * The dialog's aggregate dropdown offers Sum only for a numeric measure and falls back to
+    * Count when the measure changes to a non-numeric one (selection-measure-pane
+    * {@code updateAggregate}). A stored Sum would otherwise outlive the measure change and leave
+    * the list showing placeholder values (bug #80836); the reset is named in
+    * {@code formulaReset}. An explicit Sum request for a text measure is refused by the later
+    * formula write ({@code AssemblyPropertyService}), not here.
+    */
+   private static void resetSumForNonNumericMeasure(
+      SelectionMeasurePaneModel measurePane, SelectionMeasureResolver.Resolved measure,
+      Map<String, Object> result)
+   {
+      String type = measure.type();
+
+      if(type == null || type.isBlank() || XSchema.isNumericType(type) ||
+         !SelectionFormulaResolver.isSum(measurePane.getFormula()))
+      {
+         return;
+      }
+
+      String count = "Count";
+      measurePane.setFormula(count);
+      result.put("formulaReset", count);
    }
 
    /** resolveMeasure's dynamic test: {@code $(…)} or {@code =…}. A bare {@code $Foo} is literal. */

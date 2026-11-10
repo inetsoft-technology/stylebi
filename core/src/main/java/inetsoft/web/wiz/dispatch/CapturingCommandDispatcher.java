@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.dispatch;
 
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
@@ -220,22 +221,59 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
     */
    public List<String> getScriptFailures() {
       List<String> messages = new ArrayList<>();
+      java.util.Set<String> seen = new java.util.HashSet<>();
 
       for(Command command : captured) {
          if(command.getCommand() instanceof MessageCommand message &&
             message.getType() == MessageCommand.Type.INFO && message.getMessage() != null &&
             message.getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX))
          {
-            String text = CommandErrorException.messageOf(message.getMessage()) + SCRIPT_FAILURE_NOTE;
+            String text = CommandErrorException.messageOf(message.getMessage());
 
-            if(!messages.contains(text)) {
-               messages.add(text);
+            if(seen.add(failureKey(text))) {
+               messages.add(text + SCRIPT_FAILURE_NOTE);
             }
          }
       }
 
       return messages;
    }
+
+   /**
+    * The same failure reaches the dispatcher from the table path (with a "To fix" hint) and from
+    * the property path (without one), so two reports are one failure when they name the same
+    * assembly and carry the same engine error. The key is the first line plus the text after the
+    * last "Script failed:" line, which ignores only the hint.
+    */
+   private static String failureKey(String text) {
+      int nl = text.indexOf('\n');
+      String head = nl < 0 ? text : text.substring(0, nl);
+      int body = text.lastIndexOf(SCRIPT_FAILED_MARKER);
+      return head + '\n' + (body < 0 ? "" : text.substring(body + SCRIPT_FAILED_MARKER.length()));
+   }
+
+   /**
+    * Length of the localized "Script failed" label that {@code VSObjectPropertyService} puts in
+    * front of an assembly-script failure, or -1 if the message is not one.
+    */
+   private static int scriptFailedLabelLength(String message) {
+      String label = Catalog.getCatalog().getString("Script failed");
+
+      if(message.startsWith(label + BaseTableService.SCRIPT_FAILURE_PREFIX)) {
+         return label.length();
+      }
+
+      // The catalog is read on this thread; a message produced under another locale carries the
+      // English label.
+      if(message.startsWith(ENGLISH_LABEL + BaseTableService.SCRIPT_FAILURE_PREFIX)) {
+         return ENGLISH_LABEL.length();
+      }
+
+      return -1;
+   }
+
+   private static final String ENGLISH_LABEL = "Script failed:";
+   private static final String SCRIPT_FAILED_MARKER = "Script failed:\n";
 
    private static final String SCRIPT_FAILURE_NOTE =
       "\nThe table may show no data; the failure can predate this call.";
@@ -253,12 +291,49 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
    }
 
    /**
+    * Bug #80820: reclassifies the ERROR {@code VSObjectPropertyService.editObjectProperty} sends
+    * for a failing assembly script ({@code "Script failed:" + "Script execution error in
+    * assembly: ..."}) as the INFO the table path already uses, so {@link #getScriptFailures}
+    * reports it as a warning instead of {@link #getErrors} failing the write. This is the #78378
+    * contract: the failure comes from a script the change merely re-ran and may predate it.
+    *
+    * <p>The seam is here, not in {@code VSObjectPropertyService}, because the Composer UI shares
+    * that service and must keep its error dialog. The effect reaches every wiz write that goes
+    * through it: set_calendar_display, set_assembly_properties, /edit (rename, paste, cut),
+    * set_selection_layout and set_chart_element_visibility now return ok plus a warning where
+    * they used to throw. Only messages that start with the exact label and assembly-script prefix
+    * are touched; any other ERROR still fails the call.
+    *
+    * <p>Caveats: the label is localized through the Catalog of the sending thread, so an ERROR
+    * produced under another locale is matched by its English label only. The match is on text, so a
+    * script failure whose cause is a {@code TableLoadException} (Bug #78071) is downgraded too,
+    * although {@code BaseTableService} still reports that one as an error.
+    */
+   private static ViewsheetCommand downgradeScriptFailure(ViewsheetCommand command) {
+      if(command instanceof MessageCommand m && m.getType() == MessageCommand.Type.ERROR &&
+         m.getMessage() != null)
+      {
+         int label = scriptFailedLabelLength(m.getMessage());
+
+         if(label >= 0) {
+            MessageCommand info = new MessageCommand();
+            info.setMessage(m.getMessage().substring(label));
+            info.setType(MessageCommand.Type.INFO);
+            return info;
+         }
+      }
+
+      return command;
+   }
+
+   /**
     * Captures the command rather than transmitting it. Deliberately does not call
     * {@code super}, which would engage the debounce/flush machinery that needs a real STOMP
     * session.
     */
    @Override
    public void sendCommand(String assemblyName, ViewsheetCommand command) {
+      command = downgradeScriptFailure(command);
       captured.add(new Command(assemblyName, commandTypeOf(command), command));
    }
 

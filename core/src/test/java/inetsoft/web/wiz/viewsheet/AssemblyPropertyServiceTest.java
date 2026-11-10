@@ -40,6 +40,7 @@ import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartLinePaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel;
+import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CrosstabPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -1508,9 +1509,10 @@ class AssemblyPropertyServiceTest {
    //
    // labels/values have no short name (still raw-path-only), but VSInputService.setListValues
    // always writes them while sourceType (which gates whether they are ever read back) is
-   // derived from embedded/query alone, defaulting to NONE_SOURCE. Writing labels/values with no
-   // query/table/column in the same patch has unambiguous static-list intent, so embedded is
-   // implied true; a caller who also sets query/table/column, or embedded itself, is left alone.
+   // derived from embedded/query alone, defaulting to NONE_SOURCE. The items are only read when
+   // embedded is on, so writing labels/values implies embedded true whatever the same patch writes
+   // to query/table/column (query off: the items are the list; query on: MERGE_SOURCE). Only a
+   // caller who sets embedded itself is left alone (Redmine #80863).
 
    private static final String CHECKBOX_LABELS =
       "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
@@ -1542,13 +1544,11 @@ class AssemblyPropertyServiceTest {
    }
 
    /**
-    * A patch that ALSO sets {@code table}/{@code column} alongside the static labels/values
-    * intends a real, distinct configuration ({@code embedded=false, query=true} ==
-    * {@code BOUND_SOURCE}) -- embedded must not be silently forced true, which would reclassify
-    * it into {@code MERGE_SOURCE} instead.
+    * A {@code table}/{@code column} written with query off is not a list source, so the items
+    * are the only source and embedded is implied true; a NONE_SOURCE list would show nothing.
     */
    @Test
-   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCheckbox() throws Exception {
+   void impliesEmbeddedWhenTableAndColumnAreAlsoSetForCheckbox() throws Exception {
       CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
       AssemblyPropertyService service =
          serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
@@ -1560,20 +1560,19 @@ class AssemblyPropertyServiceTest {
 
       service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
 
-      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
-                     .getComboBoxEditorModel().isEmbedded(),
-                  "a query/table/column binding in the same patch must not be reclassified " +
-                  "into MERGE_SOURCE by forcing embedded true");
+      ComboBoxEditorModel editor = model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel();
+      assertTrue(editor.isEmbedded(),
+                 "with query off the static items are the only source, so embedded is implied");
+      assertFalse(editor.isQuery());
    }
 
    /**
-    * Same guard, exercised via {@code query} alone (no {@code table}/{@code column}) --
-    * {@code embedded=false, query=true} is itself a complete, real {@code BOUND_SOURCE}
-    * configuration, so this disjunct of the guard must trip on {@code query} by itself, not only
-    * when {@code table}/{@code column} are also present.
+    * {@code query:true} written with the items gives a merged list (MERGE_SOURCE), the same
+    * result as writing the items alone on a list whose query is already on.
     */
    @Test
-   void leavesEmbeddedAloneWhenQueryAloneIsAlsoSetForCheckbox() throws Exception {
+   void impliesEmbeddedForAMergedListWhenQueryIsAlsoSetForCheckbox() throws Exception {
       CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
       AssemblyPropertyService service =
          serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
@@ -1584,10 +1583,10 @@ class AssemblyPropertyServiceTest {
 
       service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
 
-      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
-                     .getComboBoxEditorModel().isEmbedded(),
-                  "query set alone in the same patch must not be reclassified into " +
-                  "MERGE_SOURCE by forcing embedded true");
+      ComboBoxEditorModel editor = model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel();
+      assertTrue(editor.isEmbedded(), "static items with query on must give a merged list");
+      assertTrue(editor.isQuery());
    }
 
    /** A caller who sets {@code embedded} explicitly is never overridden, even to {@code false}. */
@@ -1632,11 +1631,7 @@ class AssemblyPropertyServiceTest {
     * Same shape, ComboBox -- confirms the derivation is not CheckBox/RadioButton-only either.
     * ComboBox's registration ({@code register(registry, "combobox", ..., listInput(...))}) goes
     * through the identical {@code listInput()} helper as the other two, with no separate
-    * {@code dataInput()} merge -- {@code comboboxTableAliasIsTheListValuesQueryNotTheWriteBackTarget}
-    * in {@code PropertyAliasesTest} already pins that ComboBox's short {@code table} alias
-    * resolves to the list-values query path, not the unrelated {@code dataInputPaneModel.table}
-    * row/column write-back target -- so the guard's {@code table}/{@code column} disjunct is
-    * reachable via ComboBox's own short aliases too, not raw-path-only.
+    * {@code dataInput()} merge.
     */
    @Test
    void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCombobox() throws Exception {
@@ -1655,13 +1650,9 @@ class AssemblyPropertyServiceTest {
                  "as CheckBox/RadioButton");
    }
 
-   /**
-    * The guard case for ComboBox, using its own short {@code table}/{@code column} aliases (not
-    * a raw path) -- proves the guard's table/column disjunct is actually reachable for ComboBox
-    * through the vocabulary a caller would really use, not just in theory.
-    */
+   /** ComboBox's own short {@code table}/{@code column} aliases, with query off. */
    @Test
-   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCombobox() throws Exception {
+   void impliesEmbeddedWhenTableAndColumnAreAlsoSetForCombobox() throws Exception {
       ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
       AssemblyPropertyService service =
          serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
@@ -1673,10 +1664,146 @@ class AssemblyPropertyServiceTest {
 
       service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
 
-      assertFalse(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
-                     .getComboBoxEditorModel().isEmbedded(),
-                  "ComboBox's own short table/column aliases must trip the guard just like the " +
-                  "raw path would, not be silently unreachable");
+      ComboBoxEditorModel editor = model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel();
+      assertTrue(editor.isEmbedded(),
+                 "with query off the static items are the only source, so embedded is implied");
+      assertFalse(editor.isQuery());
+   }
+
+   /** One list input type with its model, a service over it and its list-values editor. */
+   private record StaticListCase(String name, AssemblyPropertyService service,
+                                 java.util.function.Supplier<ComboBoxEditorModel> editor)
+   {
+   }
+
+   /**
+    * CheckBox, RadioButton and ComboBox, each over a column handler that resolves
+    * {@code CUSTOMERS.COMPANY_NAME}, optionally with a stored {@code query:true} source.
+    */
+   private static List<StaticListCase> staticListCases(boolean storedQuery) {
+      CheckboxPropertyDialogModel checkbox = new CheckboxPropertyDialogModel();
+      RadioButtonPropertyDialogModel radio = new RadioButtonPropertyDialogModel();
+      ComboboxPropertyDialogModel combobox = new ComboboxPropertyDialogModel();
+      List<StaticListCase> cases = List.of(
+         new StaticListCase("CheckBox",
+            listInputServiceWithColumns(mock(CheckBoxVSAssembly.class), checkbox),
+            () -> checkbox.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+               .getComboBoxEditorModel()),
+         new StaticListCase("RadioButton",
+            listInputServiceWithColumns(mock(RadioButtonVSAssembly.class), radio),
+            () -> radio.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+               .getComboBoxEditorModel()),
+         new StaticListCase("ComboBox",
+            listInputServiceWithColumns(mock(ComboBoxVSAssembly.class), combobox),
+            () -> combobox.getComboboxGeneralPaneModel().getListValuesPaneModel()
+               .getComboBoxEditorModel()));
+
+      if(storedQuery) {
+         for(StaticListCase c : cases) {
+            ComboBoxEditorModel editor = c.editor().get();
+            editor.setQuery(true);
+            editor.getSelectionListDialogModel().getSelectionListEditorModel()
+               .setTable("CUSTOMERS");
+            editor.getSelectionListDialogModel().getSelectionListEditorModel()
+               .setColumn("COMPANY_NAME");
+            editor.getSelectionListDialogModel().getSelectionListEditorModel()
+               .setValue("COMPANY_NAME");
+         }
+      }
+
+      return cases;
+   }
+
+   /** The bug's patch: query switched off and the static items written, in either key order. */
+   @Test
+   void impliesEmbeddedWhenQueryFalseIsWrittenWithTheItemsInEitherOrder() {
+      for(boolean queryFirst : new boolean[] { true, false }) {
+         for(StaticListCase c : staticListCases(true)) {
+            Map<String, Object> patch = new LinkedHashMap<>();
+
+            if(queryFirst) {
+               patch.put("query", false);
+            }
+
+            patch.put("staticLabels", List.of("East Coast", "West Coast"));
+            patch.put("staticValues", List.of("USA East", "USA West"));
+
+            if(!queryFirst) {
+               patch.put("query", false);
+            }
+
+            setList(c.service(), patch);
+
+            String where = c.name() + (queryFirst ? ", query first" : ", query last");
+            assertTrue(c.editor().get().isEmbedded(), where + ": embedded must be implied");
+            assertFalse(c.editor().get().isQuery(), where);
+            assertEquals(List.of("USA East", "USA West"),
+                         List.of(c.editor().get().getVariableListDialogModel().getValues()),
+                         where);
+         }
+      }
+   }
+
+   /** query:true with a table/column and the items in one patch gives a merged list. */
+   @Test
+   void impliesEmbeddedForAMergedListWhenAQuerySourceIsWrittenWithTheItems() {
+      for(StaticListCase c : staticListCases(false)) {
+         Map<String, Object> patch = new LinkedHashMap<>();
+         patch.put("query", true);
+         patch.put("table", "CUSTOMERS");
+         patch.put("column", "COMPANY_NAME");
+         patch.put("staticLabels", List.of("Other"));
+         patch.put("staticValues", List.of("Other"));
+
+         setList(c.service(), patch);
+
+         assertTrue(c.editor().get().isEmbedded(), c.name() + ": embedded must be implied");
+         assertTrue(c.editor().get().isQuery(), c.name());
+      }
+   }
+
+   /** The items written alone over a stored query source also give a merged list. */
+   @Test
+   void impliesEmbeddedForAMergedListWhenTheItemsAreWrittenOverAStoredQuery() {
+      for(StaticListCase c : staticListCases(true)) {
+         setList(c.service(), Map.of("staticLabels", List.of("Other"),
+                                     "staticValues", List.of("Other")));
+
+         assertTrue(c.editor().get().isEmbedded(), c.name() + ": embedded must be implied");
+         assertTrue(c.editor().get().isQuery(), c.name());
+      }
+   }
+
+   /** An explicit embedded:false is kept even with query off; the items are still stored. */
+   @Test
+   void keepsAnExplicitEmbeddedFalseWrittenWithTheItems() {
+      for(StaticListCase c : staticListCases(true)) {
+         Map<String, Object> patch = new LinkedHashMap<>();
+         patch.put("query", false);
+         patch.put("embedded", false);
+         patch.put("staticLabels", List.of("East Coast"));
+         patch.put("staticValues", List.of("USA East"));
+
+         setList(c.service(), patch);
+
+         assertFalse(c.editor().get().isEmbedded(), c.name() + ": explicit embedded wins");
+         assertEquals(List.of("USA East"),
+                      List.of(c.editor().get().getVariableListDialogModel().getValues()),
+                      c.name());
+      }
+   }
+
+   /** The items alone on a fresh list: embedded implied, query left off. */
+   @Test
+   void impliesEmbeddedWhenTheItemsAreWrittenAloneOnEveryListInputType() {
+      for(StaticListCase c : staticListCases(false)) {
+         setList(c.service(), Map.of("staticLabels", List.of("East Coast"),
+                                     "staticValues", List.of("USA East")));
+
+         assertTrue(c.editor().get().isEmbedded(), c.name() + ": embedded must be implied");
+         assertFalse(c.editor().get().isQuery(), c.name());
+      }
    }
 
    /**
@@ -2174,6 +2301,93 @@ class AssemblyPropertyServiceTest {
          .thenReturn(columns.toArray(new OutputColumnRefModel[0]));
    }
 
+   /** Like offerMeasures, but each entry is {@code name:type}, as the dropdown reports a type. */
+   private static void offerTypedMeasures(String... nameTypes) throws Exception {
+      List<OutputColumnRefModel> columns = new ArrayList<>();
+      columns.add(new OutputColumnRefModel());
+
+      for(String nameType : nameTypes) {
+         OutputColumnRefModel column = new OutputColumnRefModel();
+         column.setName(nameType.substring(0, nameType.indexOf(':')));
+         column.setDataType(nameType.substring(nameType.indexOf(':') + 1));
+         columns.add(column);
+      }
+
+      when(lastDataOutput.getOutputSelectionColumns(eq("rt1"), any(), any()))
+         .thenReturn(columns.toArray(new OutputColumnRefModel[0]));
+   }
+
+   private static void setTypedList(SelectionListPropertyDialogModel model,
+                                    Map<String, Object> patch) throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+      offerTypedMeasures("AMOUNT:double", "CITY:string");
+      service.set("tok", principal(), "List1", patch, "");
+   }
+
+   // -- #80836: Sum only for a numeric selection measure --
+
+   @Test
+   void refusesSumOnATextSelectionMeasureAndWritesNothing() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setTypedList(model, Map.of("measure", "CITY", "formula", "Sum")));
+
+      assertTrue(thrown.getMessage().contains("CITY"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("string"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Count, Max or Min"), thrown.getMessage());
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesAMeasureChangeToTextUnderAStoredSum() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setFormula("Sum");
+
+      assertThrows(IllegalArgumentException.class,
+         () -> setTypedList(model, Map.of("measure", "CITY")));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void refusesSumOnATextMeasureOfASelectionTreeOnTheRawPath() throws Exception {
+      SelectionTreePropertyDialogModel model = boundTree();
+      model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().setMeasure("CITY");
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+      offerTypedMeasures("AMOUNT:double", "CITY:string");
+
+      assertThrows(IllegalArgumentException.class, () -> service.set("tok", principal(), "Tree1",
+         Map.of("selectionTreePaneModel.selectionMeasurePaneModel.formula", "Sum"), ""));
+      verifyNothingWritten();
+   }
+
+   @Test
+   void acceptsCountMaxMinOnATextMeasureAndSumOnANumericOne() throws Exception {
+      for(String formula : new String[] {"Count", "Max", "Min"}) {
+         SelectionListPropertyDialogModel model = boundList();
+         setTypedList(model, Map.of("measure", "CITY", "formula", formula));
+         assertEquals(formula, listFormula(model));
+      }
+
+      SelectionListPropertyDialogModel numeric = boundList();
+      setTypedList(numeric, Map.of("measure", "AMOUNT", "formula", "Sum"));
+      assertEquals("Sum", listFormula(numeric));
+   }
+
+   @Test
+   void doesNotJudgeADynamicMeasureOrAnUntypedOneForSum() throws Exception {
+      SelectionListPropertyDialogModel dynamic = boundList();
+      setTypedList(dynamic, Map.of("measure", "$(m)", "formula", "Sum"));
+      assertEquals("Sum", listFormula(dynamic));
+
+      SelectionListPropertyDialogModel untyped = boundList();
+      setList(untyped, Map.of("measure", "AMOUNT", "formula", "Sum"));
+      assertEquals("Sum", listFormula(untyped));
+   }
+
    private static SelectionListPropertyDialogModel boundList() {
       SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
       model.getSelectionListPaneModel().setSelectedTable("ORDERS");
@@ -2270,7 +2484,7 @@ class AssemblyPropertyServiceTest {
    // ── #78756: gauge/text/image output aggregate ──────────────────────────────
 
    private static GaugePropertyDialogModel boundGauge(String aggregate) {
-      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
       model.getDataOutputPaneModel().setAggregate(aggregate);
       return model;
    }
@@ -6876,6 +7090,8 @@ class AssemblyPropertyServiceTest {
          }
 
          TextPropertyDialogModel text = new TextPropertyDialogModel();
+         text.getDataOutputPaneModel().setTable("Table1");
+         text.getDataOutputPaneModel().setColumn("Total");
          pr3Output(text, mock(TextVSAssembly.class), "Table1", cols)
             .set("tok", principal(), "Text1", Map.of(key, "millions"), "");
          assertEquals(1000000, text.getDataOutputPaneModel().getMagnitude());
@@ -6996,5 +7212,122 @@ class AssemblyPropertyServiceTest {
       cal.getComboboxGeneralPaneModel().getListValuesPaneModel().getComboBoxEditorModel()
          .setCalendar(true);
       setCombobox(cal, Map.of("minDate", "2024-01-01"));
+   }
+
+   // ── #80798: output formula writes need a bound table and a set aggregate ──
+
+   /** A Gauge, Text or Image with an empty Data pane, and the service that edits it. */
+   private AssemblyPropertyService unboundOutput(String type, Object[] modelOut) {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      switch(type) {
+      case "Text":
+         modelOut[0] = new TextPropertyDialogModel();
+         return pr3Output(modelOut[0], mock(TextVSAssembly.class), "Table1", cols);
+      case "Image":
+         modelOut[0] = ImagePropertyDialogModel.builder().build();
+         return serviceWithImage(mock(ImageVSAssembly.class), (ImagePropertyDialogModel) modelOut[0],
+                                 mock(ImagePropertyDialogService.class));
+      default:
+         modelOut[0] = new GaugePropertyDialogModel();
+         return pr3Output(modelOut[0], mock(GaugeVSAssembly.class), "Table1", cols);
+      }
+   }
+
+   @Test
+   void refusesAnOutputFormulaWriteWhenNoTableIsBound() {
+      Object[][] writes = {
+         { "aggregate", "Sum" }, { "dataOutputPaneModel.aggregate", "Sum" },
+         { "aggregate", "$(x)" }, { "with", "Cost" }, { "dataOutputPaneModel.with", "Cost" },
+         { "nthOperand", "3" }, { "dataOutputPaneModel.num", "3" },
+         { "magnitude", "thousands" }, { "magnitude", 1000 },
+         { "dataOutputPaneModel.magnitude", "millions" }
+      };
+
+      for(String type : new String[] { "Gauge", "Text", "Image" }) {
+         for(Object[] write : writes) {
+            Object[] model = new Object[1];
+            AssemblyPropertyService service = unboundOutput(type, model);
+            Exception e = assertThrows(IllegalArgumentException.class,
+               () -> service.set("tok", principal(), type + "1",
+                                 Map.of((String) write[0], write[1]), ""),
+               type + " " + write[0] + "=" + write[1]);
+
+            assertTrue(e.getMessage().contains("not bound to a table"), e.getMessage());
+            assertTrue(e.getMessage().contains("Nothing was changed"), e.getMessage());
+         }
+      }
+   }
+
+   @Test
+   void acceptsTheDefaultOutputValuesWhenNoTableIsBound() throws Exception {
+      Object[] model = new Object[1];
+      AssemblyPropertyService service = unboundOutput("Gauge", model);
+
+      service.set("tok", principal(), "Gauge1",
+                  patchOf("aggregate", "none", "nthOperand", "1", "magnitude", 1), "");
+      service.set("tok", principal(), "Gauge1", Map.of("with", ""), "");
+   }
+
+   @Test
+   void acceptsATableColumnAndAggregateWrittenInOneCall() throws Exception {
+      Object[] model = new Object[1];
+      AssemblyPropertyService service = unboundOutput("Gauge", model);
+
+      service.set("tok", principal(), "Gauge1",
+                  patchOf("table", "Table1", "column", "Total", "aggregate", "Sum"), "");
+
+      assertEquals("Sum", ((GaugePropertyDialogModel) model[0]).getDataOutputPaneModel()
+         .getAggregate());
+   }
+
+   @Test
+   void refusesWithAndOperandOnABoundOutputWhoseAggregateIsUnset() {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      for(Object[] write : new Object[][] { { "with", "Cost" }, { "nthOperand", "3" } }) {
+         String msg = refusedOutput(
+            pr3Output(gaugeBoundTo("Table1", "Total"), mock(GaugeVSAssembly.class), "Table1",
+                      cols), "Gauge1", Map.of((String) write[0], write[1]));
+
+         assertTrue(msg.contains("no aggregate is set"), msg);
+      }
+   }
+
+   @Test
+   void clearsTheStaleWithAndOperandWhenTheAggregateChangesToOneThatIgnoresThem()
+      throws Exception
+   {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      GaugePropertyDialogModel first = gaugeBoundTo("Table1", "Total");
+      first.getDataOutputPaneModel().setAggregate("First");
+      first.getDataOutputPaneModel().setWith("Cost");
+      pr3Output(first, mock(GaugeVSAssembly.class), "Table1", cols)
+         .set("tok", principal(), "Gauge1", Map.of("aggregate", "Sum"), "");
+      assertEquals("Sum", first.getDataOutputPaneModel().getAggregate());
+      assertTrue(first.getDataOutputPaneModel().getWith() == null ||
+                 first.getDataOutputPaneModel().getWith().isEmpty());
+
+      GaugePropertyDialogModel nth = gaugeBoundTo("Table1", "Total");
+      nth.getDataOutputPaneModel().setAggregate("NthLargest");
+      nth.getDataOutputPaneModel().setNum("3");
+      pr3Output(nth, mock(GaugeVSAssembly.class), "Table1", cols)
+         .set("tok", principal(), "Gauge1", Map.of("aggregate", "Sum"), "");
+      assertEquals("1", nth.getDataOutputPaneModel().getNum());
+   }
+
+   @Test
+   void keepsTheWithWhenTheAggregateIsDynamicOrStillTwoColumn() throws Exception {
+      ColumnSelection cols = columnsWithType("Total", XSchema.DOUBLE, "Cost", XSchema.DOUBLE);
+
+      for(String aggregate : new String[] { "$(agg)", "Last" }) {
+         GaugePropertyDialogModel model = gaugeBoundTo("Table1", "Total");
+         model.getDataOutputPaneModel().setAggregate("First");
+         model.getDataOutputPaneModel().setWith("Cost");
+         pr3Output(model, mock(GaugeVSAssembly.class), "Table1", cols)
+            .set("tok", principal(), "Gauge1", Map.of("aggregate", aggregate), "");
+         assertEquals("Cost", model.getDataOutputPaneModel().getWith(), aggregate);
+      }
    }
 }

@@ -36,4 +36,10 @@ export interface OpenComposerAssetCommand {
    agentActive?: boolean;
    /** Display label of the agent's owner, when agentActive is true. */
    agentOwnerLabel?: string;
+   /**
+    * True when runtimeId was created only for this tab (agent create_viewsheet/create_worksheet),
+    * so closing the tab must close the runtime on the server. Absent/false for runtimes other
+    * things depend on (open_base_worksheet).
+    */
+   closeRuntimeOnTabClose?: boolean;
 }

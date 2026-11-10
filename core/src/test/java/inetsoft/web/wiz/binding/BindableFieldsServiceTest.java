@@ -21,18 +21,23 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
 import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.ListInputVSAssembly;
 import inetsoft.uql.viewsheet.RadioButtonVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.service.VSOutputService;
@@ -1150,5 +1155,184 @@ class BindableFieldsServiceTest {
 
       assertFalse(plain.contains("warnings"), plain);
       assertTrue(warned.contains("\"warnings\":[\"why\"]"), warned);
+   }
+
+   // -- Bug #80823: a runtime-mode (Preview) viewsheet lists what design mode lists ------------
+
+   /** A cube as {@code AssetEventUtil.getCubeNode} builds it: a TABLE entry tagged CUBE_TABLE. */
+   private static TreeNodeModel cubeTree() {
+      AssetEntry cube = entry(AssetEntry.Type.TABLE, "SalesCube", null);
+      when(cube.getProperty("CUBE_TABLE")).thenReturn("true");
+      TreeNodeModel cubeTable = TreeNodeModel.builder().label("SalesCube").data(cube)
+         .addChildren(columnNode("Revenue", "double")).build();
+
+      return TreeNodeModel.builder().label("Cubes")
+         .data(entry(AssetEntry.Type.FOLDER, "Cubes", null)).addChildren(cubeTable).build();
+   }
+
+   /**
+    * The worksheet-wide tree of a worksheet base: the WORKSHEET container holding the visible
+    * tables, then the Cubes and Variables folders {@code VSEventUtil.refreshBaseWSTree} adds.
+    */
+   private static TreeNodeModel worksheetBaseTree() {
+      TreeNodeModel worksheet = TreeNodeModel.builder().label("Base")
+         .data(entry(AssetEntry.Type.WORKSHEET, "Base", null))
+         .addAllChildren(twoTableTree().children()).build();
+      TreeNodeModel variables = TreeNodeModel.builder().label("Variables")
+         .data(entry(AssetEntry.Type.FOLDER, "Variables", null))
+         .addChildren(columnNode("var1", "string")).build();
+
+      return TreeNodeModel.builder().label("root")
+         .addChildren(worksheet).addChildren(cubeTree()).addChildren(variables).build();
+   }
+
+   private static VSBindingTreeService runtimeTree(String name, TreeNodeModel scoped,
+                                                   TreeNodeModel unscoped)
+      throws Exception
+   {
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      when(tree.getBinding(eq("rt1"), eq(name), anyBoolean(), any(Principal.class), any()))
+         .thenReturn(scoped);
+      when(tree.getBinding(eq("rt1"), isNull(), anyBoolean(), any(Principal.class), any()))
+         .thenReturn(unscoped);
+      return tree;
+   }
+
+   private static BindableFieldsService runtimeService(String name, VSAssembly target,
+                                                       VSBindingTreeService tree,
+                                                       AssetEntry baseEntry, boolean runtime)
+      throws Exception
+   {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(name)).thenReturn(target);
+      when(vs.getBaseEntry()).thenReturn(baseEntry);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.isRuntime()).thenReturn(runtime);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      return new BindableFieldsService(tree, engine, mock(VSOutputService.class));
+   }
+
+   private static TableVSAssembly unboundTable() {
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getVSAssemblyInfo()).thenReturn(mock(TableVSAssemblyInfo.class));
+      return table;
+   }
+
+   private static List<String> names(List<BindableTable> tables) {
+      return tables.stream().map(BindableTable::name).toList();
+   }
+
+   private static List<String> columns(BindableTable table) {
+      return table.fields().stream().map(BindableField::column).toList();
+   }
+
+   /**
+    * In a runtime-mode viewsheet the scoped tree of an unbound table is empty (the Viewer rule:
+    * only the current source). The listing offers the base's visible tables, as design mode does,
+    * with their columns -- and neither a cube (design offers none to a table) nor Variables.
+    */
+   @Test
+   void aRuntimeUnboundTableListsTheBaseWorksheetTables() throws Exception {
+      TreeNodeModel empty = TreeNodeModel.builder().label("root").build();
+      VSBindingTreeService tree = runtimeTree("Table1", empty, worksheetBaseTree());
+
+      List<BindableTable> tables = runtimeService("Table1", unboundTable(), tree, null, true)
+         .list("rt1", "Table1", principal());
+
+      assertEquals(List.of("ORDERS1", "ORDER_DETAILS1"), names(tables));
+      assertEquals(List.of("PAID"), columns(byName(tables, "ORDERS1")));
+      assertTrue(tables.stream().allMatch(t -> Boolean.FALSE.equals(t.current())));
+   }
+
+   /** A calc table is offered no cube either. */
+   @Test
+   void aRuntimeCalcTableGetsNoCube() throws Exception {
+      CalcTableVSAssembly calc = mock(CalcTableVSAssembly.class);
+      when(calc.getVSAssemblyInfo()).thenReturn(mock(CalcTableVSAssemblyInfo.class));
+      TreeNodeModel empty = TreeNodeModel.builder().label("root").build();
+      VSBindingTreeService tree = runtimeTree("Calc1", empty, worksheetBaseTree());
+
+      List<BindableTable> tables = runtimeService("Calc1", calc, tree, null, true)
+         .list("rt1", "Calc1", principal());
+
+      assertEquals(List.of("ORDERS1", "ORDER_DETAILS1"), names(tables));
+   }
+
+   /** A chart is offered the cubes in design mode, so it is in runtime mode too. */
+   @Test
+   void aRuntimeChartIsOfferedTheCubes() throws Exception {
+      TreeNodeModel empty = TreeNodeModel.builder().label("root").build();
+      VSBindingTreeService tree = runtimeTree("Chart1", empty, worksheetBaseTree());
+
+      List<BindableTable> tables =
+         runtimeService("Chart1", mock(ChartVSAssembly.class), tree, null, true)
+            .list("rt1", "Chart1", principal());
+
+      assertEquals(List.of("ORDERS1", "ORDER_DETAILS1", "SalesCube"), names(tables));
+   }
+
+   /**
+    * On a model base the runtime scoped tree of an unbound crosstab holds the model-level calc
+    * field alone, already under the model's name. The model's entity columns must be added to
+    * that same table, not dropped because the table is already listed.
+    */
+   @Test
+   void aRuntimeUnboundCrosstabOnAModelGetsTheEntityColumnsAndTheCalcField() throws Exception {
+      TreeNodeModel calcFolder = TreeNodeModel.builder().label("Dimensions")
+         .data(entry(AssetEntry.Type.FOLDER, "Dimensions", null))
+         .addChildren(columnNode("rcalc", "double")).build();
+      TreeNodeModel scoped = TreeNodeModel.builder().label("root").addChildren(calcFolder).build();
+      TreeNodeModel unscoped = TreeNodeModel.builder().label("root")
+         .addChildren(unscopedModelTree()).build();
+      AssetEntry baseEntry = mock(AssetEntry.class);
+      when(baseEntry.isLogicModel()).thenReturn(true);
+      when(baseEntry.getName()).thenReturn("Order Model");
+      VSBindingTreeService tree = runtimeTree("Crosstab1", scoped, unscoped);
+
+      List<BindableTable> tables =
+         runtimeService("Crosstab1", mock(CrosstabVSAssembly.class), tree, baseEntry, true)
+            .list("rt1", "Crosstab1", principal());
+
+      assertEquals(List.of("Order Model"), names(tables));
+      assertEquals(List.of("rcalc", "Customer:Address", "Supplier:Address"),
+                   columns(tables.get(0)));
+      assertEquals(Boolean.FALSE, tables.get(0).current());
+   }
+
+   /**
+    * A bound table keeps its current source as the scoped tree lists it, marked current, and is
+    * offered the base's other tables, so it can be pointed at one of them.
+    */
+   @Test
+   void aRuntimeBoundTableKeepsItsSourceAndIsOfferedTheOthers() throws Exception {
+      TableVSAssembly table = unboundTable();
+      when(table.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, "ORDERS1"));
+      TreeNodeModel scoped = TreeNodeModel.builder().label("root")
+         .addChildren(twoTableTree().children().get(0)).build();
+      VSBindingTreeService tree = runtimeTree("Table1", scoped, worksheetBaseTree());
+
+      List<BindableTable> tables = runtimeService("Table1", table, tree, null, true)
+         .list("rt1", "Table1", principal());
+
+      assertEquals(List.of("ORDERS1", "ORDER_DETAILS1"), names(tables));
+      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
+      assertEquals(List.of("PAID"), columns(byName(tables, "ORDERS1")),
+                   "the current source's columns must not be listed twice");
+      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+   }
+
+   /** Design mode already lists every base table in the scoped tree: no second fetch. */
+   @Test
+   void aDesignModeTableReadsOnlyTheScopedTree() throws Exception {
+      VSBindingTreeService tree = runtimeTree("Table1", twoTableTree(), worksheetBaseTree());
+
+      List<BindableTable> tables = runtimeService("Table1", unboundTable(), tree, null, false)
+         .list("rt1", "Table1", principal());
+
+      assertEquals(List.of("ORDERS1", "ORDER_DETAILS1"), names(tables));
+      verify(tree, never()).getBinding(eq("rt1"), isNull(), anyBoolean(), any(Principal.class),
+                                       any());
    }
 }

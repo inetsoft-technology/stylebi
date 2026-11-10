@@ -78,6 +78,8 @@ class SwapInterruptStoppedLensTest {
 
    @BeforeEach
    void setUp() throws Exception {
+      // pin the memory state, so the swapper never sees the real heap of the test JVM
+      memoryState(XSwapper.GOOD_MEM);
       previousTimeout = ScriptStopTestSupport.setTimeout("1");
       previousForceHash = SreeEnv.getProperty(FORCE_HASH);
       engine = new GraalJavaScriptEngine();
@@ -128,7 +130,7 @@ class SwapInterruptStoppedLensTest {
    void joinInterruptedByTimeoutIsStopped(boolean hash) throws Exception {
       // set outside the exec, the delegate is created in it
       SreeEnv.setProperty(FORCE_HASH, Boolean.toString(hash));
-      memoryState(hash ? null : XSwapper.LOW_MEM);
+      memoryState(hash ? XSwapper.GOOD_MEM : XSwapper.LOW_MEM);
       TableLens lens = assertStoppedByTimeout(SwapInterruptStoppedLensTest::join, 21);
       assertEquals(hash ? HashJoinTable.class : MergeJoinTable.class, delegate(lens).getClass());
    }
@@ -144,7 +146,7 @@ class SwapInterruptStoppedLensTest {
 
       for(boolean hash : new boolean[] { false, true }) {
          SreeEnv.setProperty(FORCE_HASH, Boolean.toString(hash));
-         memoryState(hash ? null : XSwapper.LOW_MEM);
+         memoryState(hash ? XSwapper.GOOD_MEM : XSwapper.LOW_MEM);
          TableLens join = inline(() -> join(lostTable(lost)));
          assertEquals(hash ? HashJoinTable.class : MergeJoinTable.class, delegate(join).getClass());
          assertLostIsNotAStop(join, null);

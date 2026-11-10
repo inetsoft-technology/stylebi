@@ -1677,10 +1677,114 @@ class ChartRegionPropertyServiceTest {
       LegendFormatDialogModel model = legendModel();
       model.setDimension(dimension);
       model.setTime(time);
+      // The dialog shows Ignore Null when dimension && field != null; this legend has a field.
+      model.getLegendFormatGeneralPaneModel().setNotShowNullVisible(dimension);
       when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
                                                 any(Principal.class)))
          .thenReturn(model);
       return h;
+   }
+
+   /**
+    * A legend model built by the real dialog constructor, as {@code ChartRegionHandler
+    * .createLegendFormatDialogModel} builds it, so {@code notShowNullVisible} is the model's own
+    * {@code dimension && field != null}. The descriptors and the area are bare mocks (the real
+    * descriptors need a Spring context, see {@link #viewsheet(boolean, String)}).
+    */
+   private static LegendFormatDialogModel realLegendModel(boolean dimension, boolean time,
+                                                          String field)
+   {
+      inetsoft.report.composition.region.ChartArea area =
+         mock(inetsoft.report.composition.region.ChartArea.class);
+      inetsoft.report.composition.region.LegendsArea legendsArea =
+         mock(inetsoft.report.composition.region.LegendsArea.class);
+      when(area.getLegendsArea()).thenReturn(legendsArea);
+      when(legendsArea.getLegendAreas())
+         .thenReturn(new inetsoft.report.composition.region.LegendArea[0]);
+      inetsoft.uql.viewsheet.graph.ChartInfo info = mock(inetsoft.uql.viewsheet.graph.ChartInfo.class);
+      inetsoft.uql.viewsheet.graph.LegendsDescriptor legends =
+         mock(inetsoft.uql.viewsheet.graph.LegendsDescriptor.class);
+      inetsoft.uql.viewsheet.graph.LegendDescriptor legend =
+         mock(inetsoft.uql.viewsheet.graph.LegendDescriptor.class);
+      return new LegendFormatDialogModel(info, legends, legend, area, List.of(), "Color", field,
+                                         "Measures", dimension, time, false);
+   }
+
+   private Harness legendHarness(LegendFormatDialogModel model) throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(model);
+      return h;
+   }
+
+   /**
+    * Bug #80505 item 1: the automatic multi-measure legend is a dimension frame with no field, so
+    * the dialog hides Ignore Null there. The guard, the list row and the list note follow the
+    * model's own flag instead of dimension alone, and nothing is stored.
+    */
+   @Test
+   void refusesNotShowNullOnADimensionLegendWithNoFieldBound() throws Exception {
+      LegendFormatDialogModel model = realLegendModel(true, false, null);
+      assertTrue(model.isDimension());
+      assertFalse(model.getLegendFormatGeneralPaneModel().isNotShowNullVisible());
+      Harness h = legendHarness(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("notShowNull", true), ""));
+
+      assertTrue(thrown.getMessage().contains("notShowNull"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("no dimension field"), thrown.getMessage());
+      verifyNoLegendWrite(h);
+   }
+
+   @Test
+   void acceptsFalseNotShowNullOnADimensionLegendWithNoFieldBound() throws Exception {
+      Harness h = legendHarness(realLegendModel(true, false, null));
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("notShowNull", false), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void listFlagsNotShowNullInapplicableOnADimensionLegendWithNoFieldBound() throws Exception {
+      Harness h = legendHarness(realLegendModel(true, false, null));
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "legend", "0", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> notShowNull = props.stream()
+         .filter(p -> "notShowNull".equals(p.get("name"))).findFirst().orElseThrow();
+      assertEquals(false, notShowNull.get("applies"));
+      assertTrue(String.valueOf(listed.get("note")).contains("notShowNull (marked applies:false)"),
+                 String.valueOf(listed.get("note")));
+   }
+
+   /** Control: the same real model with a field bound still takes notShowNull and lists it as applicable. */
+   @Test
+   void stillAcceptsNotShowNullOnADimensionLegendWithAFieldBound() throws Exception {
+      LegendFormatDialogModel model = realLegendModel(true, false, "Customer:Region");
+      assertTrue(model.getLegendFormatGeneralPaneModel().isNotShowNullVisible());
+      Harness h = legendHarness(model);
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("notShowNull", true), "");
+
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(), any(),
+                                                   anyString(), any(Principal.class), any());
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>)
+         h.service.list("tok", principal(), "Chart1", "legend", "0", null).get("properties");
+      Map<String, Object> notShowNull = props.stream()
+         .filter(p -> "notShowNull".equals(p.get("name"))).findFirst().orElseThrow();
+      assertFalse(notShowNull.containsKey("applies"));
    }
 
    /** A measure legend whose Scale tab hides Reverse, as a treemap Size legend does. */
@@ -3170,6 +3274,104 @@ class ChartRegionPropertyServiceTest {
       setAxis(h, Map.of("labelOnSecondaryAxis", true, "minimum", "0", "maximum", "10"));
 
       verifyAxisWritten(h);
+   }
+
+   /**
+    * Bug #80505 item 6: a true secondary axis is drawn at a fixed position, so the opposite-side
+    * bit is refused there (true), listed inapplicable, and accepted as a clear (false).
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {"y2", "right_y_axis", "Y2"})
+   void refusesATruthyLabelOnSecondaryAxisOnTheSecondaryYAxis(String target) throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", target, null,
+                             Map.of("labelOnSecondaryAxis", true), ""));
+
+      assertTrue(thrown.getMessage().contains("labelOnSecondaryAxis"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("secondary y axis"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+
+      Map<String, Object> listed = listedKey(h, target, "labelOnSecondaryAxis");
+      assertEquals(false, listed.get("applies"));
+      assertTrue(String.valueOf(listed.get("reason")).contains("secondary y axis"),
+                 listed.toString());
+   }
+
+   @Test
+   void acceptsLabelOnSecondaryAxisFalseOnTheSecondaryYAxis() throws Exception {
+      Harness h = harness();
+      stubAxisModel(h);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y2", null,
+                    Map.of("labelOnSecondaryAxis", false), "");
+
+      verifyAxisWritten(h);
+   }
+
+   /** A secondary measure on x of an inverted (swapped) graph puts the secondary axis at the top. */
+   private static Harness invertedSecondaryXHarness() throws Exception {
+      Viewsheet vs = viewsheet(true);
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      ChartRef[] y = info.getYFields();
+      ChartRef[] x = info.getXFields();
+      when(info.isInvertedGraph()).thenReturn(true);
+      when(info.getXFields()).thenReturn(y);
+      when(info.getYFields()).thenReturn(x);
+      Harness h = harness(vs);
+      stubAxisModel(h);
+      return h;
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"x2", "top_x_axis"})
+   void refusesATruthyLabelOnSecondaryAxisOnTheSecondaryXAxisAfterASwap(String target)
+      throws Exception
+   {
+      Harness h = invertedSecondaryXHarness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", target, null,
+                             Map.of("labelOnSecondaryAxis", true), ""));
+
+      assertTrue(thrown.getMessage().contains("labelOnSecondaryAxis"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("secondary x axis"), thrown.getMessage());
+      verifyNoAxisWrite(h);
+      assertEquals(false, listedKey(h, target, "labelOnSecondaryAxis").get("applies"));
+   }
+
+   @Test
+   void acceptsLabelOnSecondaryAxisFalseOnTheSecondaryXAxisAfterASwap() throws Exception {
+      Harness h = invertedSecondaryXHarness();
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x2", null,
+                    Map.of("labelOnSecondaryAxis", false), "");
+
+      verifyAxisWritten(h);
+   }
+
+   /**
+    * Control (bug #80354 part B shape): the primary axes of the same dual-axis charts are not
+    * touched, and a primary whose labels were relocated is addressed as y / x, never y2 / x2.
+    */
+   @Test
+   void stillAcceptsLabelOnSecondaryAxisOnThePrimaryAxesNextToASecondary() throws Exception {
+      Harness y = harness();
+      stubAxisModel(y);
+      y.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("labelOnSecondaryAxis", true), "");
+      verifyAxisWritten(y);
+      assertFalse(listedKey(y, "y", "labelOnSecondaryAxis").containsKey("applies"));
+
+      Harness x = invertedSecondaryXHarness();
+      x.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("labelOnSecondaryAxis", true), "");
+      verifyAxisWritten(x);
+      assertFalse(listedKey(x, "x", "labelOnSecondaryAxis").containsKey("applies"));
    }
 
    /** Bug #80321: a legend style outside the dialog's border constants is refused by name. */
