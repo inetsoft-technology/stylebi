@@ -1639,7 +1639,11 @@ public class WorksheetTableService {
       // the table and renders nothing.
       ColumnSelection columns = table.getColumnSelection(false);
 
-      if(columns == null || columns.getAttributeCount() == 0) {
+      // A failed probe is refused even when metadata-derived columns exist, so a request that
+      // never read data does not become a table of zero rows.
+      if(query.getProperty("wizLoadColumnsError") != null || columns == null ||
+         columns.getAttributeCount() == 0)
+      {
          throw new IllegalArgumentException(emptyColumnsMessage(query, dsName, probeDesc));
       }
 

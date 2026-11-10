@@ -49,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -222,6 +223,103 @@ class ODataRuntimeTests {
       assertNotNull(functionLabels);
       assertEquals(1, functionLabels.length);
       assertArrayEquals(new String[]{ " ", "" }, functionLabels[0]);
+   }
+
+   // An entity with a stream property: with minimal metadata the service sends only the media
+   // etag, which Olingo cannot bind ("Null link provided"); full metadata adds the media link.
+   private static final String STREAM_ROWS_MINIMAL =
+      "{\"value\":[{\"PersonID\":0,\"Phone\":\"555\",\"Photo@odata.mediaEtag\":\"W/\\\"1\\\"\"}]}";
+   private static final String STREAM_ROWS_FULL =
+      "{\"value\":[{\"@odata.id\":\"PersonDetails(0)\",\"PersonID\":0,\"Phone\":\"555\"," +
+      "\"Photo@odata.mediaEtag\":\"W/\\\"1\\\"\"," +
+      "\"Photo@odata.mediaEditLink\":\"PersonDetails(0)/Photo\"}]}";
+
+   private void stubStreamEntitySet(String path, String minimal, String full) {
+      stubFor(get(urlPathEqualTo(path))
+                 .atPriority(5)
+                 .willReturn(okJson(minimal)));
+      stubFor(get(urlPathEqualTo(path))
+                 .atPriority(1)
+                 .withHeader("Accept", containing("odata.metadata=full"))
+                 .willReturn(okJson(full)));
+   }
+
+   @Test
+   void shouldReadEntitiesWithStreamPropertyByRequestingFullMetadata() {
+      dataSource.setODataVersion("4.0");
+      stubStreamEntitySet("/V4/OData/OData.svc/PersonDetails", STREAM_ROWS_MINIMAL,
+                          STREAM_ROWS_FULL);
+
+      ODataQuery query = new ODataQuery();
+      query.setDataSource(dataSource);
+      query.setName("OData Test Query");
+      query.setEntity("PersonDetails");
+
+      XNodeTableLens table = getTable(query);
+
+      try {
+         assertEquals(2, getData(table).length);
+      }
+      finally {
+         table.dispose();
+      }
+   }
+
+   @Test
+   void shouldRequestFullMetadataForFollowingPages(WireMockRuntimeInfo info) {
+      dataSource.setODataVersion("4.0");
+      String base = info.getHttpBaseUrl() + "/V4/OData/OData.svc/PersonDetails";
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/PersonDetails"))
+                 .atPriority(5)
+                 .willReturn(okJson(STREAM_ROWS_MINIMAL)));
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/PersonDetails"))
+                 .atPriority(1)
+                 .withHeader("Accept", containing("odata.metadata=full"))
+                 .withQueryParam("page", absent())
+                 .willReturn(okJson(STREAM_ROWS_FULL.replace("{\"value\"",
+                    "{\"@odata.nextLink\":\"" + base + "?page=2\",\"value\""))));
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/PersonDetails"))
+                 .atPriority(1)
+                 .withHeader("Accept", containing("odata.metadata=full"))
+                 .withQueryParam("page", equalTo("2"))
+                 .willReturn(okJson(STREAM_ROWS_FULL)));
+
+      ODataQuery query = new ODataQuery();
+      query.setDataSource(dataSource);
+      query.setName("OData Test Query");
+      query.setEntity("PersonDetails");
+
+      XNodeTableLens table = getTable(query);
+
+      try {
+         assertEquals(3, getData(table).length);
+      }
+      finally {
+         table.dispose();
+      }
+   }
+
+   @Test
+   void shouldRaiseSingleLineErrorWhenRequestFails() {
+      stubFor(get(urlPathEqualTo("/V4/OData/OData.svc/Products"))
+                 .willReturn(aResponse().withStatus(500)));
+
+      ODataQuery query = new ODataQuery();
+      query.setDataSource(dataSource);
+      query.setName("OData Test Query");
+      query.setEntity("Products");
+
+      RuntimeException ex = assertThrows(
+         RuntimeException.class, () -> runtime.runQuery(query, new VariableTable()));
+
+      assertTrue(ex.getMessage().startsWith("Failed to execute OData query: OData Test Query"),
+                 ex.getMessage());
+      assertTrue(ex.getMessage().lines().count() == 1, ex.getMessage());
+   }
+
+   @Test
+   void singleLineJoinsTheLinesOfAMessage() {
+      assertEquals("a b c", ODataRuntime.singleLine("a\n  b \r\n\r\nc"));
    }
 
    private String readXml(String file) throws IOException {
