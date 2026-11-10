@@ -42,6 +42,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Objects;
 
 @Controller
 public class RenameAssetController {
@@ -199,6 +200,7 @@ public class RenameAssetController {
          if(entry.isScript()) {
             manager.renameScript(entry.getName(), nentry.getName());
             manager.save();
+            movePermission(ResourceType.SCRIPT, entry.getName(), nentry.getName());
          }
          else if(entry.isTableStyle()) {
             String oname = entry.getProperty("styleName");
@@ -207,6 +209,7 @@ public class RenameAssetController {
             String oid = entry.getProperty("styleID");
             manager.renameTableStyle(oname, newName, oid);
             manager.save();
+            movePermission(ResourceType.TABLE_STYLE, oname, newName);
          }
          else if(entry.isTableStyleFolder()) {
             String oname = entry.getProperty("folder");
@@ -327,15 +330,41 @@ public class RenameAssetController {
       return null;
    }
 
+   /**
+    * Bug #80959, LibManager renames a script or table style but leaves its permission at the old
+    * name, so the renamed item would be open to everyone with READ on the library. Moves it the
+    * way the EM script rename does (Bug #78217: the item is already renamed, a failed permission
+    * write is logged and does not fail the rename, and the new key is written before the old is
+    * removed). A stale permission left at the new name is removed so it is not inherited.
+    */
+   private void movePermission(ResourceType type, String oname, String nname) {
+      if(Objects.equals(oname, nname)) {
+         return;
+      }
+
+      SecurityEngine security = SecurityEngine.getSecurity();
+      Permission permission = security.getPermission(type, oname);
+
+      if(permission != null) {
+         AbstractAssetEngine.movePermissionBestEffort(security, type, oname, nname, permission);
+      }
+      else {
+         AbstractAssetEngine.removePermissionBestEffort(security, type, nname);
+      }
+   }
+
    private void renameTableStyleFolder(String oname, String nname, LibManager manager) {
       XTableStyle[] tstyles = manager.getTableStyles(oname);
 
       for(XTableStyle tstyle : tstyles) {
-         String tstyleName = tstyle.getName();
+         // the style object is renamed in place, keep its old name for the permission move
+         String ostyleName = tstyle.getName();
+         String tstyleName = ostyleName;
          int idx = tstyleName.lastIndexOf(LibManager.SEPARATOR);
          tstyleName = idx < 0 ? tstyleName : tstyleName.substring(idx + 1);
-         manager.renameTableStyle(
-            tstyle.getName(), nname + LibManager.SEPARATOR + tstyleName, tstyle.getID());
+         String nstyleName = nname + LibManager.SEPARATOR + tstyleName;
+         manager.renameTableStyle(ostyleName, nstyleName, tstyle.getID());
+         movePermission(ResourceType.TABLE_STYLE, ostyleName, nstyleName);
       }
 
       manager.renameTableStyleFolder(oname, nname);
