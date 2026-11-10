@@ -77,7 +77,7 @@ public class LegendGroup extends BoundedContainer {
    protected double getMinWidth0() {
       // the legends are laid out in the group size minus the gap
       boolean gapped = layout == GraphConstants.LEFT || layout == GraphConstants.RIGHT;
-      return minW + (gapped ? getLegendGap() : 0);
+      return minW + (gapped ? getEffectiveGap() : 0);
    }
 
    /**
@@ -88,7 +88,7 @@ public class LegendGroup extends BoundedContainer {
    protected double getMinHeight0() {
       // the legends are laid out in the group size minus the gap
       boolean gapped = layout == GraphConstants.TOP || layout == GraphConstants.BOTTOM;
-      return minH + (gapped ? getLegendGap() : 0);
+      return minH + (gapped ? getEffectiveGap() : 0);
    }
 
    /**
@@ -126,7 +126,7 @@ public class LegendGroup extends BoundedContainer {
     */
    private void layoutLR() {
       Rectangle2D bounds = getBounds();
-      int gap = getLegendGap();
+      int gap = getEffectiveGap();
       double w = bounds.getWidth() - gap;
       double h = bounds.getHeight();
       double x = bounds.getX();
@@ -164,7 +164,7 @@ public class LegendGroup extends BoundedContainer {
     */
    private void layoutTB() {
       Rectangle2D bounds = getBounds();
-      int gap = getLegendGap();
+      int gap = getEffectiveGap();
       double x = bounds.getX();
       double y = bounds.getY();
       double w = bounds.getWidth();
@@ -288,8 +288,6 @@ public class LegendGroup extends BoundedContainer {
          ratios[i] = areas[i] / areaSum;
       }
 
-      int gap = getLegendGap();
-
       if(layout == GraphConstants.LEFT || layout == GraphConstants.RIGHT) {
          // fix ration to avoid legend's height too small
          for(int i = 0; i < getVisualCount(); i++) {
@@ -317,7 +315,7 @@ public class LegendGroup extends BoundedContainer {
          }
 
          prefH = asize.getHeight();
-         prefW += gap;
+         prefW += getEffectiveGap();
       }
       else if(layout == GraphConstants.TOP || layout == GraphConstants.BOTTOM) {
          double maxh = asize.getHeight();
@@ -334,7 +332,7 @@ public class LegendGroup extends BoundedContainer {
          }
 
          prefW = asize.getWidth();
-         prefH += gap;
+         prefH += getEffectiveGap();
       }
    }
 
@@ -408,6 +406,35 @@ public class LegendGroup extends BoundedContainer {
     */
    public Dimension2D getLayoutSize() {
       return asize;
+   }
+
+   /**
+    * Get the gap limited by the space left in the available size after the legend
+    * content min size, so a large gap can't take over the whole legend area.
+    */
+   private int getEffectiveGap() {
+      int gap = getLegendGap();
+
+      if(asize == null) {
+         return gap;
+      }
+
+      double avail;
+      double content;
+
+      if(layout == GraphConstants.LEFT || layout == GraphConstants.RIGHT) {
+         avail = asize.getWidth();
+         content = minW;
+      }
+      else if(layout == GraphConstants.TOP || layout == GraphConstants.BOTTOM) {
+         avail = asize.getHeight();
+         content = minH;
+      }
+      else {
+         return gap;
+      }
+
+      return (int) Math.min(gap, Math.max(0, Math.floor(avail - content)));
    }
 
    private int getLegendGap() {

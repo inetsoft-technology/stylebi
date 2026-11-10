@@ -323,7 +323,7 @@ public class VLabel extends BoundedVisualizable {
    protected Point2D alignText(Point2D pos, double width, double height,
                                double lwidth, double lheight, int alignx, int aligny)
    {
-      Insets insets = getTransformedInsets(this.insets, -spec.getRotation());
+      Insets insets = getTransformedInsets(getEffectiveInsets(), -spec.getRotation());
       double x = 0;
 
       if(alignx == GraphConstants.LEFT_ALIGNMENT) {
@@ -440,6 +440,7 @@ public class VLabel extends BoundedVisualizable {
 
    private String[] truncate(String[] dlabels, double width, double height) {
       // inner bounding box width/height without insets
+      Insets insets = getEffectiveInsets();
       double iwidth = width - insets.left - insets.right;
       double iheight = height - insets.top - insets.bottom;
       double angle = Math.toRadians(spec.getRotation());
@@ -922,6 +923,7 @@ public class VLabel extends BoundedVisualizable {
       FontMetrics fm = GTool.getFontMetrics(getFont());
       double lwidth = GTool.stringWidth(lines, getFont());
       double lheight = fm.getHeight() * lines.length;
+      Insets insets = getEffectiveInsets();
       Shape bounds = new Rectangle2D.Double(
          x - insets.left, y - insets.bottom,
          lwidth + insets.left + insets.right,
@@ -1595,6 +1597,55 @@ public class VLabel extends BoundedVisualizable {
    }
 
    /**
+    * Set whether the insets (e.g. the title gap) may be reduced so the insets and the
+    * text fit in the max size. The insets set by setInsets are kept unchanged and
+    * the reduced insets are only used for sizing and layout.
+    */
+   public void setLimitInsets(boolean limitInsets) {
+      this.limitInsets = limitInsets;
+   }
+
+   /**
+    * Get the insets used for sizing and layout. If the insets are limited, they are
+    * reduced to the space left in the max size after the (non-truncated, non-wrapped)
+    * text. The insets are not reduced for a label rotated at an angle that is not a
+    * multiple of 90, since the text extent along the inset is not well defined.
+    */
+   private Insets getEffectiveInsets() {
+      if(!limitInsets || maxSize == null) {
+         return insets;
+      }
+
+      double rotation = spec.getRotation();
+
+      if(rotation % 90 != 0) {
+         return insets;
+      }
+
+      // the insets are in the label coordinates, find the insets in the screen
+      Insets sins = getTransformedInsets(insets, -rotation);
+      String[] lines = getLines(getText());
+      double lwidth = GTool.stringWidth(lines, getFont());
+      double lheight = GTool.getFontMetrics(getFont()).getHeight() * lines.length;
+      boolean swap = rotation % 180 != 0;
+      double hroom = Math.max(0, maxSize.getWidth() - (swap ? lheight : lwidth));
+      double vroom = Math.max(0, maxSize.getHeight() - (swap ? lwidth : lheight));
+      double hsum = (double) sins.left + sins.right;
+      double vsum = (double) sins.top + sins.bottom;
+
+      if(hsum <= hroom && vsum <= vroom) {
+         return insets;
+      }
+
+      double hratio = hsum > hroom ? hroom / hsum : 1;
+      double vratio = vsum > vroom ? vroom / vsum : 1;
+      Insets limited = new Insets((int) (sins.top * vratio), (int) (sins.left * hratio),
+                                  (int) (sins.bottom * vratio), (int) (sins.right * hratio));
+
+      return getTransformedInsets(limited, rotation);
+   }
+
+   /**
     * Get the text collision resolution option.
     */
    @TernMethod
@@ -1811,6 +1862,7 @@ public class VLabel extends BoundedVisualizable {
    private int aligny = GraphConstants.MIDDLE_ALIGNMENT;
    private Point2D offset = new Point2D.Double(0, 0);
    private Insets insets = new Insets(0, 0, 0, 0);
+   private boolean limitInsets = false;
    private int modifier = MOVE_NONE;
    private boolean truncate = true;
    private boolean wrap = false;

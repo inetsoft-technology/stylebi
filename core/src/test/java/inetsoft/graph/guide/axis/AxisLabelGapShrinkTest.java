@@ -22,6 +22,7 @@ import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.LegendSpec;
 import inetsoft.graph.Plotter;
+import inetsoft.graph.TitleSpec;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.coord.RectCoord;
@@ -29,6 +30,7 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.IntervalElement;
 import inetsoft.graph.element.PointElement;
 import inetsoft.graph.guide.VLabel;
+import inetsoft.graph.guide.legend.Legend;
 import inetsoft.graph.guide.legend.LegendGroup;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.LinearScale;
@@ -56,8 +58,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #79381: a label gap ("Label Distance from Axis") larger than a fixed (user-resized) axis
- * can hold must give way so the labels stay inside the axis, and a legend gap must not leave the
- * legend with a non-positive width.
+ * can hold must give way so the labels stay inside the axis, and a legend, title or axis label
+ * gap must not leave the plot (or the legend/title text) with no room.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -189,6 +191,260 @@ class AxisLabelGapShrinkTest {
       assertTrue(legendWidth > 0, "legend width " + legendWidth);
       assertTrue(group.getBounds().getWidth() >= group.getMinWidth() - 0.5,
                  "legend group " + group.getBounds().getWidth() + " < min " + group.getMinWidth());
+   }
+
+   /**
+    * A large legend gap gives way to the legend content so the plot is kept, in all four
+    * legend positions.
+    */
+   @Test
+   void largeLegendGapKeepsPlotAndLegend() {
+      int[] layouts = { GraphConstants.RIGHT, GraphConstants.LEFT, GraphConstants.TOP,
+                        GraphConstants.BOTTOM };
+
+      for(int layout : layouts) {
+         for(int gap : new int[] { 200, 1000 }) {
+            VGraph vgraph = legendChart(layout, gap);
+            Rectangle2D plot = vgraph.getPlotBounds();
+            LegendGroup group = vgraph.getLegendGroup();
+            Legend legend = group.getLegend(0);
+            String msg = "layout " + layout + " gap " + gap;
+
+            assertTrue(plot.getWidth() > 0, msg + " plot width " + plot.getWidth());
+            assertTrue(plot.getHeight() > 0, msg + " plot height " + plot.getHeight());
+            assertTrue(legend.getBounds().getWidth() > 0, msg + " legend width");
+            assertTrue(legend.getBounds().getHeight() > 0, msg + " legend height");
+            assertTrue(group.getBounds().getWidth() >= group.getMinWidth() - 0.5,
+                       msg + " legend group narrower than min");
+            assertTrue(group.getBounds().getHeight() >= group.getMinHeight() - 0.5,
+                       msg + " legend group shorter than min");
+         }
+      }
+   }
+
+   /**
+    * A legend gap that fits is not changed.
+    */
+   @Test
+   void legendGapKeptWhenItFits() {
+      for(int gap : new int[] { 0, 50 }) {
+         LegendGroup right = legendChart(GraphConstants.RIGHT, gap).getLegendGroup();
+         assertEquals(gap, right.getLegend(0).getBounds().getX() - right.getBounds().getX(), 0.5,
+                      "RIGHT gap " + gap);
+
+         LegendGroup left = legendChart(GraphConstants.LEFT, gap).getLegendGroup();
+         assertEquals(gap, left.getBounds().getWidth() - left.getLegend(0).getBounds().getWidth(),
+                      0.5, "LEFT gap " + gap);
+
+         LegendGroup top = legendChart(GraphConstants.TOP, gap).getLegendGroup();
+         assertEquals(gap, top.getLegend(0).getBounds().getY() - top.getBounds().getY(), 0.5,
+                      "TOP gap " + gap);
+
+         LegendGroup bottom = legendChart(GraphConstants.BOTTOM, gap).getLegendGroup();
+         assertEquals(gap, bottom.getBounds().getHeight() - bottom.getLegend(0).getBounds().getHeight(),
+                      0.5, "BOTTOM gap " + gap);
+      }
+   }
+
+   /**
+    * A large title gap gives way to the title text, so the text is not truncated and stays in
+    * its tile, for both the vertical (Y) and horizontal (X) title and both rotations.
+    */
+   @Test
+   void largeTitleGapKeepsTextInTile() {
+      for(int rotation : new int[] { 0, 90, -90 }) {
+         for(int gap : new int[] { 50, 200, 300 }) {
+            for(boolean ytitle : new boolean[] { true, false }) {
+               VLabel title = title(ytitle, rotation, gap);
+               String msg = (ytitle ? "Y" : "X") + " title rotation " + rotation + " gap " + gap;
+               Rectangle2D tile = title.getBounds();
+               Rectangle2D text = title.getTransformedBounds().getBounds2D();
+
+               assertArrayEquals(new String[] { "Sales" }, title.getDisplayLabel(), msg);
+               assertTrue(text.getX() >= tile.getX() - 0.5 && text.getMaxX() <= tile.getMaxX() + 0.5 &&
+                          text.getY() >= tile.getY() - 0.5 && text.getMaxY() <= tile.getMaxY() + 0.5,
+                          msg + " text " + text + " outside tile " + tile);
+               assertTrue(tile.getX() >= 0 && tile.getMaxX() <= 400 &&
+                          tile.getY() >= 0 && tile.getMaxY() <= 240,
+                          msg + " tile " + tile + " outside the chart");
+            }
+         }
+      }
+   }
+
+   /**
+    * A title gap that fits is not changed.
+    */
+   @Test
+   void titleGapKeptWhenItFits() {
+      double base = title(true, 90, 0).getBounds().getWidth();
+      assertEquals(base + 50, title(true, 90, 50).getBounds().getWidth(), 0.5);
+
+      // the default rotation of the Y title for CJK locales
+      double cjkBase = title(true, -90, 0).getBounds().getWidth();
+      assertEquals(cjkBase + 50, title(true, -90, 50).getBounds().getWidth(), 0.5);
+
+      double xbase = title(false, 0, 0).getBounds().getHeight();
+      assertEquals(xbase + 20, title(false, 0, 20).getBounds().getHeight(), 0.5);
+   }
+
+   /**
+    * An auto sized axis with a huge label gap must not take the whole chart, and the layout
+    * must not recurse when it limits the gap (the gap is part of the auto size).
+    */
+   @Test
+   void hugeLabelGapOnAutoSizedAxisKeepsPlot() {
+      Rectangle2D yplot = plotWithLabelGap(false, 1000);
+      assertTrue(yplot.getWidth() > 0, "plot width " + yplot.getWidth());
+
+      Rectangle2D xplot = plotWithLabelGap(true, 1000);
+      assertTrue(xplot.getHeight() > 0, "plot height " + xplot.getHeight());
+
+      assertLabelsInside(linearY(1000, 0));
+   }
+
+   /**
+    * A label gap above what the chart can spare for the labels is reduced even when the
+    * plot did not collapse with it, and a gap below it is kept.
+    */
+   @Test
+   void labelGapAboveCeilingIsReduced() {
+      double plot50 = plotWithLabelGap(false, 50).getWidth();
+      double plot400 = plotWithLabelGap(false, 400).getWidth();
+      double plot1000 = plotWithLabelGap(false, 1000).getWidth();
+
+      // 400 is more than the chart allows, so it takes no more space than 1000
+      assertEquals(plot1000, plot400, 0.5);
+      // but a gap that fits (50) is not reduced
+      assertTrue(plot50 > plot400 + 1, "plot " + plot50 + " vs " + plot400);
+      assertTrue(plot1000 > 0);
+   }
+
+   /**
+    * The modern default label gaps (12/8/6) are kept on a chart with long rotated labels, which
+    * take most of the room the labels are allowed.
+    */
+   @Test
+   void defaultLabelGapKeptWithLongRotatedLabels() {
+      for(int rotation : new int[] { 90, -90 }) {
+         double h2 = plotWithLongLabels(false, rotation, 2).getHeight();
+
+         assertEquals(h2 - 6, plotWithLongLabels(false, rotation, 8).getHeight(), 0.5,
+                      "gap 8 rotation " + rotation);
+         assertEquals(h2 - 10, plotWithLongLabels(false, rotation, 12).getHeight(), 0.5,
+                      "gap 12 rotation " + rotation);
+      }
+   }
+
+   /**
+    * A huge gap on long rotated labels can't push the labels and the gap over the plot.
+    */
+   @Test
+   void hugeLabelGapWithLongRotatedLabelsKeepsPlot() {
+      for(int rotation : new int[] { 90, -90 }) {
+         for(int gap : new int[] { 120, 400, 1000 }) {
+            Rectangle2D plot = plotWithLongLabels(false, rotation, gap);
+            assertTrue(plot.getHeight() > 0,
+                       "rotation " + rotation + " gap " + gap + " plot height " + plot.getHeight());
+         }
+      }
+   }
+
+   /**
+    * The same for long category labels on the vertical axis (horizontal bars): the default gaps
+    * are kept and a huge gap keeps the plot.
+    */
+   @Test
+   void longLabelsOnVerticalAxisKeepDefaultGapAndPlot() {
+      double w2 = plotWithLongLabels(true, 0, 2).getWidth();
+
+      assertEquals(w2 - 6, plotWithLongLabels(true, 0, 8).getWidth(), 0.5, "gap 8");
+      assertEquals(w2 - 10, plotWithLongLabels(true, 0, 12).getWidth(), 0.5, "gap 12");
+
+      for(int gap : new int[] { 400, 1000 }) {
+         Rectangle2D plot = plotWithLongLabels(true, 0, gap);
+         assertTrue(plot.getWidth() > 0, "gap " + gap + " plot width " + plot.getWidth());
+      }
+   }
+
+   /**
+    * @param vertical true to put the long categorical labels on the vertical axis.
+    */
+   private static Rectangle2D plotWithLongLabels(boolean vertical, int rotation, int gap) {
+      Object[][] rows = new Object[7][];
+      rows[0] = new Object[] { "State", "Sales" };
+
+      for(int i = 1; i <= 6; i++) {
+         rows[i] = new Object[] { "A very long category name number " + i, i * 1000 };
+      }
+
+      CategoricalScale cscale = new CategoricalScale("State");
+      cscale.getAxisSpec().setLabelGap(gap);
+      cscale.getAxisSpec().getTextSpec().setRotation(rotation);
+
+      EGraph graph = new EGraph();
+
+      if(vertical) {
+         graph.addElement(new PointElement("Sales", "State"));
+         graph.setCoordinate(new RectCoord(new LinearScale("Sales"), cscale));
+      }
+      else {
+         graph.addElement(new IntervalElement("State", "Sales"));
+         graph.setCoordinate(new RectCoord(cscale, new LinearScale("Sales")));
+      }
+
+      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, 400, 240)
+         .getPlotBounds();
+   }
+
+   private static VGraph legendChart(int layout, int gap) {
+      Object[][] rows = { { "State", "Sales" }, { "NJ", 200 }, { "NY", 3000 }, { "CA", 12000 } };
+      EGraph graph = new EGraph();
+      IntervalElement elem = new IntervalElement("State", "Sales");
+      CategoricalColorFrame color = new CategoricalColorFrame("State");
+      LegendSpec spec = new LegendSpec();
+      spec.setGap(gap);
+      color.setLegendSpec(spec);
+      elem.setColorFrame(color);
+      graph.addElement(elem);
+      graph.setCoordinate(new RectCoord(new CategoricalScale("State"), new LinearScale("Sales")));
+      graph.setLegendLayout(layout);
+      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, 400, 240);
+   }
+
+   private static VLabel title(boolean ytitle, int rotation, int gap) {
+      Object[][] rows = { { "State", "Sales" }, { "NJ", 200 }, { "NY", 3000 } };
+      EGraph graph = new EGraph();
+      graph.addElement(new IntervalElement("State", "Sales"));
+      graph.setCoordinate(new RectCoord(new CategoricalScale("State"), new LinearScale("Sales")));
+      TitleSpec spec = new TitleSpec();
+      spec.setLabel("Sales");
+      spec.setLabelGap(gap);
+      spec.getTextSpec().setRotation(rotation);
+
+      if(ytitle) {
+         graph.setYTitleSpec(spec);
+      }
+      else {
+         graph.setXTitleSpec(spec);
+      }
+
+      VGraph vgraph = Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, 400, 240);
+      return ytitle ? vgraph.getYTitle() : vgraph.getXTitle();
+   }
+
+   private static Rectangle2D plotWithLabelGap(boolean xaxis, int gap) {
+      Object[][] rows = { { "State", "Sales" }, { "NJ", 200 }, { "NY", 3000 }, { "CA", 12000 } };
+      CategoricalScale xscale = new CategoricalScale("State");
+      LinearScale yscale = new LinearScale("Sales");
+      (xaxis ? xscale : yscale).getAxisSpec().setLabelGap(gap);
+      yscale.getAxisSpec().setTickVisible(false);
+
+      EGraph graph = new EGraph();
+      graph.addElement(new IntervalElement("State", "Sales"));
+      graph.setCoordinate(new RectCoord(xscale, yscale));
+      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, 400, 240)
+         .getPlotBounds();
    }
 
    private static DefaultAxis linearY(int gap, double size) {

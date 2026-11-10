@@ -911,6 +911,55 @@ public class DefaultAxis extends Axis {
    }
 
    /**
+    * Get the bounds the labels are limited to.
+    */
+   private Rectangle2D getLabelCoordBounds() {
+      Coordinate coord = vgraph.getCoordinate();
+      Rectangle2D cbounds = coord.getCoordBounds();
+
+      for(Coordinate pcoord = coord.getParentCoordinate();
+          pcoord != null && cbounds == null;
+          pcoord = pcoord.getParentCoordinate())
+      {
+         Dimension2D csize = (pcoord.getVGraph() != null) ? pcoord.getLayoutSize() : null;
+
+         if(csize == null) {
+            cbounds = pcoord.getCoordBounds();
+         }
+         else {
+            cbounds = new Rectangle2D.Double(0, 0, csize.getWidth(), csize.getHeight());
+         }
+      }
+
+      return cbounds;
+   }
+
+   /**
+    * Get the max label gap. The labels and the gap together (the axis size) can't take
+    * more than most of the chart, so the plot is kept. The label size is capped
+    * independently of the gap and is not recalculated from the axis size, so this is safe
+    * to use in the size calculation. The ceiling stays above the shipped default gaps for
+    * ordinary charts, even with crowded labels (labels are capped at 2/3 of the chart).
+    */
+   private double getGapCeiling() {
+      if(vgraph == null || vlabels == null || vlabels.length == 0) {
+         return Double.MAX_VALUE;
+      }
+
+      Rectangle2D cbounds = getLabelCoordBounds();
+
+      if(cbounds == null) {
+         return Double.MAX_VALUE;
+      }
+
+      boolean hor = isHorizontal();
+      double avail = (hor ? cbounds.getHeight() : cbounds.getWidth()) * MAX_AXIS_RATIO;
+
+      // keep the legacy 2px gap at least
+      return Math.max(2, avail - getMaxLabelSize(!hor));
+   }
+
+   /**
     * Get max label width.
     */
    private double getMaxLabelSize(boolean width) {
@@ -927,23 +976,8 @@ public class DefaultAxis extends Axis {
       }
 
       double maxSize = 0;
-      Coordinate coord = vgraph.getCoordinate();
-      Rectangle2D cbounds = coord.getCoordBounds();
+      Rectangle2D cbounds = getLabelCoordBounds();
       boolean hor = isHorizontal();
-
-      for(Coordinate pcoord = coord.getParentCoordinate();
-          pcoord != null && cbounds == null;
-          pcoord = pcoord.getParentCoordinate())
-      {
-         Dimension2D csize = (pcoord.getVGraph() != null) ? pcoord.getLayoutSize() : null;
-
-         if(csize == null) {
-            cbounds = pcoord.getCoordBounds();
-         }
-         else {
-            cbounds = new Rectangle2D.Double(0, 0, csize.getWidth(), csize.getHeight());
-         }
-      }
 
       for(int i = 0; i < vlabels.length; i++) {
          VLabel vlabel = vlabels[i];
@@ -2084,7 +2118,7 @@ public class DefaultAxis extends Axis {
 
          if(gap != 0) {
             // multiply by 2 to counter the / 2 in sizing calculation
-            return gap * 2.0;
+            return Math.min(gap, getGapCeiling()) * 2.0;
          }
       }
 
@@ -2111,7 +2145,7 @@ public class DefaultAxis extends Axis {
    private double getLabelGap() {
       int gap = getScale().getAxisSpec().getLabelGap();
       // use 2 since it was the hardcoded value before we added label-gap to axisSpec
-      return gap == 0 ? 2 : gap;
+      return gap == 0 ? 2 : Math.min(gap, getGapCeiling());
    }
 
    /**
@@ -2128,8 +2162,10 @@ public class DefaultAxis extends Axis {
 
       double asize = getAxisSize();
 
+      // for auto size the gap is already limited by getLabelGap, and the preferred
+      // size can't be used here since it is calculated from the gap
       if(asize == 0) {
-         asize = hor ? getPreferredHeight() : getPreferredWidth();
+         return gap;
       }
 
       double lineSize = isLineVisible() ? line.getHeight() : 0;
@@ -2421,5 +2457,6 @@ public class DefaultAxis extends Axis {
    private boolean prepared;
    private transient Shape layoutBounds = null;
    private boolean anchorChanged = false;
+   private static final double MAX_AXIS_RATIO = 0.9;
    private transient double maxLabelW = -1, maxLabelH = -1;
 }
