@@ -17,7 +17,15 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.EGraph;
+import inetsoft.graph.aesthetic.ColorFrame;
+import inetsoft.graph.aesthetic.CompositeVisualFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
+import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.guide.legend.LegendGroup;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -178,6 +186,87 @@ final class ChartVisibilityState {
 
       return found.isEmpty() ? HiddenLegends.NONE : new HiddenLegends(
          List.copyOf(found.values()));
+   }
+
+   /**
+    * The automatic colour legend (the "Measures" legend of a chart with several measures and no
+    * colour field) when it is switched off, or null (bug #80505 item 3).
+    *
+    * <p>That legend has no bound field, so {@link #hiddenLegends} never sees it, and a hidden
+    * legend is not built into the graph, so an empty legend list read as "no legends". Whether
+    * the chart WOULD draw one is decided by the renderer, not by a rule copied here: the laid-out
+    * graph is cloned, the colour frames whose legend descriptor is off (found with the same
+    * {@code GraphUtil.getLegendDescriptor} call the renderer makes) have their legend switched on
+    * in the clone, and {@link EGraph#getVisualFrames()} - the one place that chooses which frames
+    * become legends - is asked what it would draw. A field-less colour frame coming back is the
+    * hidden legend; its title is the name, the one the visible legend shows.
+    *
+    * <p>The user's hide is the evidence, as for a bound legend (descriptor off, or the NO_LEGEND
+    * layout), and a field-less colour legend that is already drawn means nothing is hidden.
+    * Sparkline and donut charts are left alone: the renderer switches their legend off whatever
+    * the descriptor says, so the clone would name a legend that is never drawn.
+    *
+    * @param egraph      the laid-out graph the legends were read from, or null
+    * @param drawnLegend true when a colour legend with no field is already in the laid-out list
+    */
+   static HiddenLegend hiddenAutomaticColorLegend(EGraph egraph, VSChartInfo info,
+                                                  ChartDescriptor chartDesc, boolean maxMode,
+                                                  boolean drawnLegend)
+   {
+      LegendsDescriptor legendsDesc = chartDesc == null ? null : chartDesc.getLegendsDescriptor();
+
+      if(egraph == null || info == null || legendsDesc == null || drawnLegend ||
+         info.isDonut() || chartDesc.isSparkline())
+      {
+         return null;
+      }
+
+      boolean noLegend = legendsDesc.getLayout() == LegendsDescriptor.NO_LEGEND;
+      EGraph what = (EGraph) egraph.clone();
+
+      if(what == null) {
+         return null;
+      }
+
+      boolean hiddenByUser = false;
+
+      for(int i = 0; i < what.getElementCount(); i++) {
+         GraphElement elem = what.getElement(i);
+         ColorFrame color = elem.getColorFrame();
+
+         if(color == null || color.getField() != null) {
+            continue;
+         }
+
+         LegendDescriptor desc = GraphUtil.getLegendDescriptor(
+            info, legendsDesc, null, Arrays.asList(elem.getVars()), ChartArea.COLOR_LEGEND);
+         boolean off = noLegend ||
+            desc != null && (maxMode ? !desc.isMaxModeVisible() : !desc.isVisible());
+
+         if(off) {
+            hiddenByUser = true;
+
+            for(VisualFrame frame : LegendGroup.getLegendFrames(color)) {
+               for(VisualFrame f = frame; f != null;
+                   f = f instanceof CompositeVisualFrame c ? c.getGuideFrame() : null)
+               {
+                  f.getLegendSpec().setVisible(true);
+               }
+            }
+         }
+      }
+
+      if(!hiddenByUser) {
+         return null;
+      }
+
+      for(VisualFrame frame : what.getVisualFrames()) {
+         if(frame instanceof ColorFrame && frame.getField() == null) {
+            return new HiddenLegend("color", frame.getTitle());
+         }
+      }
+
+      return null;
    }
 
    /**
