@@ -3382,6 +3382,8 @@ public abstract class GraphGenerator {
     */
    private StaticColorFrame getParetoColorFrame(String[] names, boolean all) {
       Color c = null;
+      // a modern line takes its own colour; brushing is handled first and reads the frame
+      boolean modernLine = vizContext.modern;
 
       if(names.length > 0) {
          ColorFrame pcolor = all ? acolor : getColorFrame(null);
@@ -3392,6 +3394,11 @@ public abstract class GraphGenerator {
             }
             else if(pcolor != null && (isBrusingTarget() || isBrushingSource())) {
                c = pcolor.getColor(data, names[0], 0);
+            }
+            else if(modernLine &&
+                    (pcolor instanceof StaticColorFrame || pcolor instanceof MultiMeasureColorFrame))
+            {
+               c = desc.getPlotDescriptor().getParetoLineColor();
             }
             else if(pcolor instanceof StaticColorFrame) {
                c = ((StaticColorFrame) pcolor).getColor();
@@ -3758,6 +3765,11 @@ public abstract class GraphGenerator {
          line.setHint("_pareto_", "true");
          line.setCollisionModifier(GraphElement.STACK_SYMMETRIC);
          line.setColorFrame(getParetoColorFrame(names, all));
+
+         if(vizContext.modern) {
+            line.setSizeFrame(new StaticSizeFrame(2));
+         }
+
          line.setStackNegative(false);
          line.setStackGroup(false);
          bar.setCollisionModifier(GraphElement.STACK_SYMMETRIC);
