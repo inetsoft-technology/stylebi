@@ -220,14 +220,36 @@ class ChartTargetLineServiceTest {
     * names stores a data-derived line. Both are refused before the runtime is touched.
     */
    @ParameterizedTest
-   @ValueSource(strings = { "", "   ", "high", "1,000", "$5", "=Total * 2", "Average", "max" })
-   void refusesAValueThatIsNotAFixedNumber(String value) {
+   @ValueSource(strings = { "", "   ", "high", "1,000", "$5", "$foo", "=", "=   ", "$()", "$( )",
+                            "$(x", "Average", "max" })
+   void refusesAValueThatIsNotANumberScriptOrVariable(String value) {
       Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
 
       assertThrows(Exception.class,
                    () -> h.service.add("tok", principal(), "Chart1", null, value, null, null,
                                        null, null, null, ""));
       assertNoWrite(h);
+   }
+
+   /**
+    * Bug #81013: the Target dialog stores a script as {@code =<script>} and a variable as
+    * {@code $(Name)}; both are evaluated when the chart renders, so the line follows the data.
+    * The value is kept verbatim, leading "=" included.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "=Number(1000)+5", "=Max", "$(Slider1)",
+                            "=var h = baseData[0]; Number(baseData[1][0])" })
+   void storesAScriptOrVariableVerbatim(String value) throws Exception {
+      Harness h = harness(chart(GraphTypes.CHART_BAR), pane());
+
+      Map<String, Object> result =
+         h.service.add("tok", principal(), "Chart1", null, "  " + value + " ", null, null, null,
+                       null, null, "");
+
+      TargetInfo written = writtenTargets(h)[0];
+      assertEquals(value, written.getValue());
+      assertEquals(TargetInfo.LINE_TARGET, written.getTabFlag());
+      assertEquals(value, result.get("value"));
    }
 
    @ParameterizedTest
