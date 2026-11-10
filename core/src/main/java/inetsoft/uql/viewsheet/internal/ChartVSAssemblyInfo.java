@@ -283,6 +283,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       seedMeasureColors(info, ctx);
 
+      // the chart-level ramp, as the aesthetic-ref ramps below: a mark transition only
+      if(ctx.transition && isOtherMarkSeededLinearFrame(info.getColorFrame(), ctx)) {
+         info.setColorFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
+      }
+
       for(boolean runtime : new boolean[]{ false, true }) {
          for(AestheticRef ref : info.getAestheticRefs(runtime)) {
             seedColorFrame(ref, ctx);
