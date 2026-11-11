@@ -205,8 +205,7 @@ class NumericRangeRefBoundaryTest {
    // a null is never in a segment. The top segment of the script has no null test, and in
    // JavaScript null >= 0 is true: when the last value is 0 or less and the lower end is
    // included, a null falls into the top segment of the script but into "Others" in SQL.
-   @Disabled("Looks unintended: the top segment of the script expression has no null test; "
-      + "to be reported")
+   @Disabled("Bug #81105: the top segment of the script expression has no null test")
    @Test
    void nullIsOthersWhenTheLastValueIsNotPositive() throws Exception {
       NumericRangeRef ref = range(InclusiveType.LOWER, true, true, -20, -10, 0);
