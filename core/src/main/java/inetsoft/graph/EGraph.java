@@ -266,6 +266,20 @@ public class EGraph implements Cloneable, Serializable {
    }
 
    /**
+    * Check whether a stacked top or bottom legend lists its items in the order of the marks.
+    */
+   public boolean isLegendInMarkOrder() {
+      return legendInMarkOrder;
+   }
+
+   /**
+    * Set whether a stacked top or bottom legend lists its items in the order of the marks.
+    */
+   public void setLegendInMarkOrder(boolean inMarkOrder) {
+      this.legendInMarkOrder = inMarkOrder;
+   }
+
+   /**
     * Get the preferred width or height of the legends.
     */
    @TernMethod(url = "#cshid=EGraphGetLegendPreferredSize")
@@ -588,6 +602,7 @@ public class EGraph implements Cloneable, Serializable {
       legendPreferredSize = null;
       legendMaxRatio = 0;
       legendAlignment = 0;
+      legendInMarkOrder = false;
       xTitleSpec = new TitleSpec();
       yTitleSpec = new TitleSpec();
       x2TitleSpec = new TitleSpec();
@@ -689,6 +704,7 @@ public class EGraph implements Cloneable, Serializable {
    private Double legendPreferredSize;
    private double legendMaxRatio;
    private int legendAlignment;
+   private boolean legendInMarkOrder;
    private TitleSpec xTitleSpec;
    private TitleSpec yTitleSpec;
    private TitleSpec x2TitleSpec;
