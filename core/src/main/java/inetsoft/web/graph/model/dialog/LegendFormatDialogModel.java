@@ -18,6 +18,7 @@
 package inetsoft.web.graph.model.dialog;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.CompositeValue;
@@ -66,6 +67,29 @@ public class LegendFormatDialogModel implements Serializable {
       return new Insets(0, 4, 1, 4);
    }
 
+   // an unset alignment reads as Center
+   private static String alignmentName(int alignment) {
+      switch(alignment) {
+      case GraphConstants.LEFT_ALIGNMENT:
+         return "Start";
+      case GraphConstants.RIGHT_ALIGNMENT:
+         return "End";
+      default:
+         return "Center";
+      }
+   }
+
+   private static int alignmentValue(String name) {
+      switch(name) {
+      case "Start":
+         return GraphConstants.LEFT_ALIGNMENT;
+      case "End":
+         return GraphConstants.RIGHT_ALIGNMENT;
+      default:
+         return GraphConstants.CENTER_ALIGNMENT;
+      }
+   }
+
    public LegendFormatDialogModel(ChartInfo info, LegendsDescriptor legendsDesc,
       LegendDescriptor legendDesc, ChartArea area, List<String> targetFields,
       String aestheticType, String field, String titleName, boolean dimension, boolean time,
@@ -106,6 +130,8 @@ public class LegendFormatDialogModel implements Serializable {
       if(legendsDesc.getLayout() >= 1) {
          generalPaneModel.setPosition(LEGEND_POSITIONS[legendsDesc.getLayout() - 1]);
       }
+
+      generalPaneModel.setAlignment(alignmentName(legendsDesc.getAlignment()));
 
       // Create LegendScalePaneModel.
       scalePaneModel = new LegendScalePaneModel();
@@ -181,6 +207,17 @@ public class LegendFormatDialogModel implements Serializable {
 
          if(layout != legendsDesc.getLayout()) {
             legendsDesc.setAuthorLayout(layout);
+         }
+      }
+
+      final String alignment = generalPaneModel.getAlignment();
+
+      if(alignment != null) {
+         final int shown = alignmentValue(alignmentName(legendsDesc.getAlignment()));
+         final int chosen = alignmentValue(alignment);
+
+         if(chosen != shown) {
+            legendsDesc.setAlignment(chosen);
          }
       }
 

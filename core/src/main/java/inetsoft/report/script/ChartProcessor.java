@@ -295,6 +295,8 @@ public class ChartProcessor {
 
       scriptable.addProperty("legendBorderColor", "getBorderColor",
          "setBorderColor", Color.class, LegendsDescriptor.class, legends);
+      scriptable.addProperty("legendAlignment", "getAlignment", "setAlignment",
+         int.class, LegendsDescriptor.class, legends);
       scriptable.addProperty("legendBorder", "getBorder", "setBorder",
          int.class, LegendsDescriptor.class, legends);
       scriptable.addProperty("legendGap", "getGap", "setGap",

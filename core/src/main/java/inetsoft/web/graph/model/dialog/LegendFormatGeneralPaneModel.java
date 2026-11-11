@@ -63,6 +63,15 @@ public class LegendFormatGeneralPaneModel implements Serializable {
       this.position = position;
    }
 
+   /** The legend's alignment along a top or bottom edge: Start, Center or End. */
+   public String getAlignment() {
+      return alignment;
+   }
+
+   public void setAlignment(String alignment) {
+      this.alignment = alignment;
+   }
+
    public boolean isVisible() {
       return visible;
    }
@@ -159,6 +168,7 @@ public class LegendFormatGeneralPaneModel implements Serializable {
    private int style;
    private String fillColor;
    private String position;
+   private String alignment;
    private boolean visible;
    private boolean notShowNull;
    private boolean notShowNullVisible;
