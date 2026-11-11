@@ -192,7 +192,7 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     */
    get currentTargetLabel(): string {
       // A pane instance's session is scoped to its own location, never the whole sheet.
-      const target = this.currentTarget ?? this.mintedEditorContext ?? this.editorContext ?? null;
+      const target = this.currentTarget ?? this.mintedEditorContext;
 
       if(!target) {
          return "Whole sheet";
@@ -204,11 +204,8 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
          return `${target.assembly} → row ${cell[0]}, col ${cell[1]}`;
       }
 
-      if(target.assembly) {
-         return `${target.assembly} → ${target.kind}`;
-      }
-
-      return target.name && !this.currentTarget ? `${target.kind}: ${target.name}` : target.kind;
+      const base = target.assembly ? `${target.assembly} → ${target.kind}` : target.kind;
+      return target.name ? `${base}: ${target.name}` : base;
    }
 
    /**
