@@ -274,7 +274,11 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       // Check expiration
       Date expirationTime = claims.getExpirationTime();
 
-      if(expirationTime == null || expirationTime.before(new Date())) {
+      if(expirationTime == null) {
+         throw new WizAuthenticationException("Token missing expiration", Reason.MALFORMED);
+      }
+
+      if(expirationTime.before(new Date())) {
          throw new WizAuthenticationException("Token has expired", Reason.EXPIRED);
       }
 

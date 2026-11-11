@@ -346,6 +346,15 @@ class WizServiceAuthenticationFilterTest {
    }
 
    @Test
+   void doFilter_missingExpiration_reportsMalformed() throws Exception {
+      JWTClaimsSet claims = new JWTClaimsSet.Builder()
+         .subject("alice").audience(List.of("wiz-service")).build();
+      SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims);
+      jwt.sign(new RSASSASigner(keyPair.getPrivate()));
+      assertEquals(REASON_PREFIX + "token-malformed\"}", rejectedBody(jwt.serialize()));
+   }
+
+   @Test
    void doFilter_garbageToken_reportsMalformed() throws Exception {
       assertEquals(REASON_PREFIX + "token-malformed\"}", rejectedBody("not-a-real-jwt"));
    }
