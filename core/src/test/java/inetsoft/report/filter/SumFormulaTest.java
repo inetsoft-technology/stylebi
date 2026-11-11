@@ -493,6 +493,39 @@ public class SumFormulaTest {
       assertNotEquals(first, copy.getResult());
    }
 
+   // Test Case #80957: a NaN value is not a null (only Tool.NULL_DOUBLE is skipped), so it
+   // makes the sum NaN, through the primitive and the object overload. Current behavior
+   @Test
+   void addValue_nanValue_sumIsNaN() {
+      formula.addValue(1.0);
+      formula.addValue(Double.NaN);
+      formula.addValue(2.0);
+      assertTrue(Double.isNaN(asDouble(formula.getResult())));
+
+      formula.reset();
+      addAll(formula, 1.0, Double.NaN, 2.0);
+      assertTrue(Double.isNaN(asDouble(formula.getResult())));
+   }
+
+   // Test Case #80957: integers are summed as double, so a sum beyond the int or long range
+   // does not overflow (it loses precision beyond 2^53 instead)
+   @Test
+   void addValue_beyondIntAndLongRange_doesNotOverflow() {
+      formula.addValue(Integer.MAX_VALUE);
+      formula.addValue(Integer.MAX_VALUE);
+      assertEquals(4294967294.0, asDouble(formula.getResult()));
+
+      formula.reset();
+      addAll(formula, Integer.MAX_VALUE, Integer.MAX_VALUE);
+      assertEquals(4294967294.0, asDouble(formula.getResult()));
+
+      // Long.MAX_VALUE as a double is 2^63, so twice it is 2^64
+      formula.reset();
+      formula.addValue(Long.MAX_VALUE);
+      formula.addValue(Long.MAX_VALUE);
+      assertEquals(Math.pow(2, 64), asDouble(formula.getResult()));
+   }
+
    private static void addAll(Formula formula, Object... values) {
       for(Object value : values) {
          formula.addValue(value);
