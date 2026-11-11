@@ -25,6 +25,7 @@ import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.visual.ElementVO;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.test.*;
@@ -33,8 +34,10 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
 import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
@@ -191,6 +194,37 @@ class ChartChromeRenderTest {
       SizeFrame size = paretoLine(g).getSizeFrame();
       assertInstanceOf(StaticSizeFrame.class, size);
       assertEquals(2, ((StaticSizeFrame) size).getSize(), 1e-9);
+   }
+
+   @Test
+   void aBrushedTargetsParetoLineKeepsItsColour() {
+      GraphGenerator gen = paretoGenerator(VizMark.MODERN_LIGHT, true, false);
+      EGraph g = gen.createEGraph();
+      assertTrue(gen.isBrusingTarget(), "premise: a brush target");
+
+      assertEquals(new Color(0xFF5A35), lineColor(paretoLine(g, false)));
+      // the all-data layer recedes from the line's own colour, as the bars do from theirs
+      assertEquals(VSChartPaletteDefaults.companionOf(new Color(0xFF5A35),
+                                                      VizContext.of(VizMark.MODERN_LIGHT)),
+                   lineColor(paretoLine(g, true)));
+   }
+
+   @Test
+   void aBrushingSourcesParetoLineKeepsItsColour() {
+      GraphGenerator gen = paretoGenerator(VizMark.MODERN_LIGHT, false, true);
+      EGraph g = gen.createEGraph();
+      assertTrue(gen.isBrushingSource(), "premise: a brush source");
+
+      assertEquals(new Color(0xFF5A35), lineColor(paretoLine(g)));
+   }
+
+   @Test
+   void aClassicBrushedParetoLineStillTakesTheBrushColours() {
+      GraphGenerator gen = paretoGenerator(null, true, false);
+      EGraph g = gen.createEGraph();
+
+      assertEquals(BrushingColor.getHighlightColor(), lineColor(paretoLine(g, false)));
+      assertEquals(BrushingColor.getDimColor(), lineColor(paretoLine(g, true)));
    }
 
    @Test
@@ -485,6 +519,73 @@ class ChartChromeRenderTest {
       }
 
       throw new AssertionError("no pareto line");
+   }
+
+   // the brushed or the all-data layer's line of a brush target
+   private static GraphElement paretoLine(EGraph g, boolean allData) {
+      for(int i = 0; i < g.getElementCount(); i++) {
+         GraphElement elem = g.getElement(i);
+
+         if("true".equals(elem.getHint("_pareto_")) &&
+            elem.getVar(0).contains(ElementVO.ALL_PREFIX) == allData)
+         {
+            return elem;
+         }
+      }
+
+      throw new AssertionError("no pareto line on the " + (allData ? "all-data" : "brushed") +
+                               " layer");
+   }
+
+   private static Color lineColor(GraphElement line) {
+      return ((StaticColorFrame) line.getColorFrame()).getColor();
+   }
+
+   // a pareto by State as a brush target (CA brushed) or as the brush source (CA selected)
+   private static GraphGenerator paretoGenerator(VizMark mark, boolean target, boolean source) {
+      Object[][] rows = new Object[7][];
+      Object[][] brushed = new Object[3][];
+      rows[0] = brushed[0] = new Object[]{ "State", "Sum(Total)" };
+
+      for(int i = 1; i < rows.length; i++) {
+         rows[i] = new Object[]{ i % 3 == 0 ? "CA" : (i % 3 == 1 ? "NY" : "TX"),
+                                 (double) (i * 100) };
+      }
+
+      brushed[1] = rows[3];
+      brushed[2] = rows[6];
+
+      VSChartAggregateRef total = new VSChartAggregateRef();
+      total.setDataRef(new BaseField("Total"));
+      total.setFormulaValue("Sum");
+
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_PARETO);
+      cinfo.setRTChartType(GraphTypes.CHART_PARETO);
+      VSChartDimensionRef state = new VSChartDimensionRef(new BaseField("State"));
+      state.setGroupColumnValue("State");
+      cinfo.addXField(state);
+      cinfo.addYField(total);
+      cinfo.updateChartType(false);
+
+      ChartVSAssemblyInfo assemblyInfo = new ChartVSAssemblyInfo();
+      assemblyInfo.setVSChartInfo(cinfo);
+      assemblyInfo.setChartDescriptor(new ChartDescriptor());
+      assemblyInfo.setVizMark(mark);
+      VizModernizeUtil.reseedAfterRestore(assemblyInfo);
+
+      if(source) {
+         VSPoint point = new VSPoint();
+         point.addValue(new VSFieldValue("State", "CA"));
+         VSSelection selection = new VSSelection();
+         selection.addPoint(point);
+         assemblyInfo.setBrushSelection(selection);
+      }
+
+      return GraphGenerator.getGenerator(
+         assemblyInfo, target ? new DefaultDataSet(rows) : null,
+         new DefaultDataSet(target ? brushed : rows), new VariableTable(), null,
+         XSourceInfo.NONE, null);
    }
 
    private static Color percentLabelColor(EGraph g) {
