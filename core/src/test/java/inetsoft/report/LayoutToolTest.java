@@ -128,6 +128,16 @@ class LayoutToolTest {
       assertEquals("say \"hi\"", escapeColName("say \"hi\""));
    }
 
+   // Known defect #81085: getFieldNameByScript() ends the name at the first quote and bracket, so a
+   // column name that contains them is cut. The name must come back whole.
+   @org.junit.jupiter.api.Disabled("known defect #81085, a column name containing a quote and a bracket is cut")
+   @ParameterizedTest
+   @ValueSource(strings = { "a']b", "Sales ['USD']" })
+   void getFieldNameByScriptKeepsAWholeColumnName(String name) throws Exception {
+      String script = "data['" + escapeColName(name) + "@g:$g']";
+      assertEquals(escapeColName(name), LayoutTool.getFieldNameByScript(script));
+   }
+
    // Current behavior, UNCONFIRMED whether intended: a backslash in the name is not escaped.
    @Test
    void escapeColNameDoesNotEscapeBackslash() throws Exception {
