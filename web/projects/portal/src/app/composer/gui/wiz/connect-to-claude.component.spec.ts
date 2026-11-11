@@ -881,6 +881,85 @@ describe("ConnectToClaudeComponent", () => {
       });
    });
 
+   describe("pane status target label (bug 81056)", () => {
+      function notice(body: any): any {
+         return { frame: { body: JSON.stringify(body) } };
+      }
+
+      function pairPane(ctx: any): string {
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") {
+                  mintHandler = h;
+               }
+               else if(dest === "/user/commands/wiz/pairing/joined") {
+                  joinedHandler = h;
+               }
+
+               return { unsubscribe: vi.fn() };
+            });
+
+         component.ngOnInit();
+         component.editorContext = ctx;
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+         joinedHandler!(notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: ctx }));
+         fixture.detectChanges();
+         return fixture.nativeElement.querySelector(".wiz-connect-target").textContent;
+      }
+
+      let joinedHandler: ((msg: any) => void) | null = null;
+
+      it("toolbar instance reads Whole sheet", () => {
+         let mintHandler: ((msg: any) => void) | null = null;
+         mockStompConnection.subscribe.mockImplementation(
+            (dest: string, h: (msg: any) => void) => {
+               if(dest === "/user/commands/wiz/pairing/mint") {
+                  mintHandler = h;
+               }
+               else if(dest === "/user/commands/wiz/pairing/joined") {
+                  joinedHandler = h;
+               }
+
+               return { unsubscribe: vi.fn() };
+            });
+         component.ngOnInit();
+         component.requestCode();
+         mintHandler!(notice({ code: "ABC123" }));
+         joinedHandler!(notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", editorContext: null }));
+         fixture.detectChanges();
+
+         expect(fixture.nativeElement.querySelector(".wiz-connect-target").textContent)
+            .toContain("Whole sheet");
+      });
+
+      it("expression-column pane names its column", () => {
+         const text = pairPane({ kind: "worksheetExpression", table: "T", name: "Col1" });
+         expect(text).not.toMatch(/whole sheet/i);
+         expect(text).toContain("Col1");
+      });
+
+      it("Create Expression pane (pending) names its column", () => {
+         const text = pairPane({ kind: "worksheetExpression", table: "T", name: "Expression1",
+                                 pending: true });
+         expect(text).not.toMatch(/whole sheet/i);
+         expect(text).toContain("Expression1");
+      });
+
+      it("script pane names its target", () => {
+         const text = pairPane({ kind: "viewsheetOnInit" });
+         expect(text).not.toMatch(/whole sheet/i);
+         expect(text).toContain("viewsheetOnInit");
+      });
+
+      it("calc-field pane names its field", () => {
+         const text = pairPane({ kind: "calcField", assembly: "Query1", name: "Margin" });
+         expect(text).not.toMatch(/whole sheet/i);
+         expect(text).toContain("Query1");
+      });
+   });
+
    describe("Follow Focus toggle + live target indicator (Phase 3)", () => {
       function notice(body: any): any {
          return { frame: { body: JSON.stringify(body) } };

@@ -191,19 +191,24 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
     * the exact shape the design spec's indicator calls for.
     */
    get currentTargetLabel(): string {
-      if(!this.currentTarget) {
+      // A pane instance's session is scoped to its own location, never the whole sheet.
+      const target = this.currentTarget ?? this.mintedEditorContext ?? this.editorContext ?? null;
+
+      if(!target) {
          return "Whole sheet";
       }
 
       // A cell grant carries its coordinate in `name`; show it as row/col, never as a name.
-      if(this.currentTarget.kind === "calcTableCell") {
-         const cell = (this.currentTarget.name || "").split(",");
-         return `${this.currentTarget.assembly} → row ${cell[0]}, col ${cell[1]}`;
+      if(target.kind === "calcTableCell") {
+         const cell = (target.name || "").split(",");
+         return `${target.assembly} → row ${cell[0]}, col ${cell[1]}`;
       }
 
-      return this.currentTarget.assembly
-         ? `${this.currentTarget.assembly} → ${this.currentTarget.kind}`
-         : this.currentTarget.kind;
+      if(target.assembly) {
+         return `${target.assembly} → ${target.kind}`;
+      }
+
+      return target.name && !this.currentTarget ? `${target.kind}: ${target.name}` : target.kind;
    }
 
    /**
