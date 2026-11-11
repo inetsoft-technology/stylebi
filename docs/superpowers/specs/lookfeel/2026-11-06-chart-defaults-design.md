@@ -127,8 +127,10 @@ Facts that make this safe:
 - **Older builds read it.** `CompositeValue.parse` reads the `^^DEF^^` prefix into the DEFAULT tier, whatever the reading build's `saveDefault` is (`:114-127`). This has been true since this repository's first commit (2024-07-12). The reviewer also confirmed it in the InetSoft 2023 `inetsoft-core.jar`.
 - **Older builds don't keep it (known limitation, ruled 2026-11-09).**
   - An older build's `CompositeValue.toString` writes the DEFAULT tier only when `saveDefault` is set, and parsing never sets it. So the tier is gone the first time that build writes the asset.
-  - An EM import writes on the way in (`AbstractSheetAsset.parseContent` → `setSheet`). An imported asset therefore arrives without its seeded values. On a marked chart, that build's render-time CSS still colours the x, y and facet lines, but the diagonal and quadrant lines draw classic in the composer.
-  - Opening the stored file without a write, for example after a downgrade on the same storage, draws the saved values.
+  - Any state round trip by that build loses them, not only a save:
+    - An EM import writes on the way in (`AbstractSheetAsset.parseContent` → `setSheet`). An imported asset therefore arrives without its seeded values. On a marked chart, that build's render-time CSS still colours the x, y and facet lines, but the diagonal and quadrant lines draw classic in the composer.
+    - Its viewer writes and re-reads the dashboard state on open. In the S2a checks, `13c54d60b6`'s viewer drew a modern map's no-data regions in the classic `#F2EFE9`, while its composer drew the saved `#D6D2C8` (that build's `PlotDescriptor.savedDefaults()` has no `emptyColor`).
+  - Opening the stored file in that build's composer without a write, for example after a downgrade on the same storage, draws the saved values.
   - Only the USER tier survives an older writer. Saving a seed there would make it the author's and break Revert, so this is not changed.
 - **Bug #55730.** The `readAsDefault` branch (`:129-136`) turns a bare string into DEFAULT only when the field saves defaults *and* the caller passes `readAsDefault=true`. No chart descriptor parse passes `true`. The only caller that does is `StaticSizeFrameWrapper:99`. So an author's bare value from an old file stays USER.
 - **Data-label ink already travels.** `CompositeTextFormat` writes its `<defaultFormat>` without any `saveDefault` gate (`CompositeTextFormat.writeContents`, DK §4).
@@ -211,7 +213,7 @@ Some defaults choose the binding or the data, not the look. These are:
 
 There is no migration on load: the epic is unreleased.
 - Drawing rules (D) apply to marked charts at once.
-- Seeded values (V, N) reach a chart that was marked before this ships at its next re-seed: Modernize, Revert, a type change, a density change or a restore. One example is the corner (0.3 → 0.08), whose plain value is already stored. Seeds that were not saved before slice 0 come back as the field's own default until then.
+- Seeded values (V, N) reach a chart that was marked before this ships at its next re-seed: Revert then Modernize, a dark/light switch, a density change, a type change or a restore. Modernize on its own is not one: it skips charts that are already marked (`VizModernizeUtil.modernize` takes the unmarked ones only). One example is the corner (0.3 → 0.08), whose plain value is already stored. Seeds that were not saved before slice 0 come back as the field's own default until then.
 
 ### M9. Exports and older builds
 

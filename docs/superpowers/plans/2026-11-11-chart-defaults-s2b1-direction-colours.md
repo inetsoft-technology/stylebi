@@ -60,6 +60,8 @@
 - **Up and down are hue only** (1.04:1 light, 1.05:1 dark), as the spec accepts. Candle keeps hollow for up and filled for down. A waterfall relies on values on the bars (S8-3). Stock has no second cue.
 - **A multi-style chart with a waterfall measure** shares the chart's pair.
 - **Older builds** ignore the new frames and draw the chart's single colour (slot 1, seeded by S2a). The Total colour travels, because the summary frame is already saved.
+  - An older build that saves a modern file drops the two frames. This build then draws that chart's single colour until its next re-seed (M8): Revert then Modernize, a dark/light switch, a type change or a restore. Modernize on its own skips charts that are already marked.
+- **A single colour on a modern candle** has no pane entry: the pane offers Up and Down only. An author who wants one colour sets both to it.
 
 ## Global Constraints
 
