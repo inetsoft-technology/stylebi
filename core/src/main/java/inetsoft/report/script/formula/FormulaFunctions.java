@@ -76,6 +76,8 @@ public class FormulaFunctions {
     * rounddate - year, quarter, month, week, day, hour, minute, second
     * maxrows - number of items to keep in the list. If the value is negative,
     *           the last number of items are kept.
+    * sort2 - asc, desc, false. The display order of the rows kept by maxrows
+    *         (applied after the maxrows limit). Defaults to the sort option.
     * remainder - if specified and there are items ignored due to maxrows, return
     *          an extra item with the value specified by remainder.
     */
@@ -735,6 +737,8 @@ public class FormulaFunctions {
     * the following:<br>
     * others - may be: groupothers and leaveothers for grouping non-mapped
     * values into a single group or leave them as individual values.
+    * sort2 - asc, desc, false. The display order of the rows kept by maxrows
+    *         (applied after the maxrows limit). Defaults to the sort option.
     * remainder - if specified and there are items ignored due to maxrows, return
     *          an extra item with the value specified by remainder.
     * @return an array of mapped values, or a single mapped value if the
@@ -1507,7 +1511,11 @@ public class FormulaFunctions {
     * Sort a list according to option setting.
     */
    private static void sortList(Object[] arr, Options opt, Comparator comp0, boolean sort2) {
-      String sort = isTimeSeries(opt) ? "asc" : opt.getOption(sort2 ? "sort2" : "sort", "asc");
+      // the trailing pass (after maxrows) defaults to the sort option, so the kept rows
+      // are displayed in the direction they were ranked in (Bug #81071)
+      String sort = isTimeSeries(opt) ? "asc" :
+         opt.getOption(sort2 ? "sort2" : "sort",
+                       sort2 ? opt.getOption("sort", "asc") : "asc");
       boolean sortOthersLast = opt.getBoolean("sortotherslast", false);
 
       if(comp0 != null) {
