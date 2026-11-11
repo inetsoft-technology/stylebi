@@ -514,9 +514,6 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
    }
 
    /**
-    * Check if a function is supported summarize on non-table lens.
-    */
-   /**
     * Compute an aggregate by the formula, the same way as the crosstab path.
     */
    private static Object formulaResult(Formula formula, Object[] values) {
@@ -537,6 +534,9 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
       return CalcUtil.convertToDoubleArray(values).length == nonNull;
    }
 
+   /**
+    * Check if a function is supported summarize on non-table lens.
+    */
    private static boolean isFuncSupported(String func) {
       return func != null && !"correlation".equals(func) &&
          !"covariance".equals(func) && !"weightedAverage".equals(func) &&
