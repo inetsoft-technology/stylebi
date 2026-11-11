@@ -547,6 +547,47 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    /**
+    * Whether {@code name} is a script function installed as a global of every context: a
+    * CALC function (case-insensitive, as the CALC scope is), a {@code FormulaFunctions} static
+    * or one of the {@code JavaScriptEngine} utilities of {@link #installGlobalFunctions()}.
+    * Context-free (no polyglot call), so a row scope can ask it for every identifier. The
+    * JavaScriptEngine names are listed in {@link #ENGINE_FUNCTION_NAMES}; keep them in sync
+    * with {@code installGlobalFunctions}.
+    */
+   public static boolean isGlobalFunctionName(String name) {
+      return name != null && GlobalFunctionNames.NAMES.contains(name);
+   }
+
+   private static final String[] ENGINE_FUNCTION_NAMES = {
+      "newInstance", "isNull", "isArray", "indexOf", "getDate", "isDate", "isNumber",
+      "formatDate", "formatNumber", "parseDate", "dateAdd", "dateDiff", "datePart",
+      "datePartForceWeekOfMonth", "trim", "ltrim", "rtrim", "split", "log", "alert",
+      "confirm", "getImage", "numberToString", "setupGoogleMapsPlot"
+   };
+
+   private static final class GlobalFunctionNames {
+      // case-insensitive, the way the row scope matches a column to an identifier
+      private static final Set<String> NAMES = build();
+
+      private static Set<String> build() {
+         Set<String> names = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+
+         for(Object key : SharedHostObjects.calc().getMemberKeys()) {
+            names.add(String.valueOf(key));
+         }
+
+         for(Map.Entry<String, ScriptFunction> func : SharedHostObjects.staticFunctions(
+            inetsoft.report.script.formula.FormulaFunctions.class))
+         {
+            names.add(func.getKey());
+         }
+
+         names.addAll(Arrays.asList(ENGINE_FUNCTION_NAMES));
+         return java.util.Collections.unmodifiableSet(names);
+      }
+   }
+
+   /**
     * Register a single Java method as a callable JS global under {@code jsName}.
     */
    private static void putFunction(Value bindings, String jsName, Class<?> cls,

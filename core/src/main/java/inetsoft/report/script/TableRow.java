@@ -100,6 +100,41 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    }
 
    /**
+    * Whether {@code id} names a column of this row exactly (same case), as the header or as
+    * the part after the last dot of a qualified header, i.e. without the ignore-case fallback
+    * of {@link #hasMember}.
+    */
+   public boolean hasExactColumn(String id) {
+      // the headers themselves, not the column map: that one also takes the ignore-case and
+      // not-found aliases that hasMember and getMember write into it
+      if(id == null || row == 0) {
+         return false;
+      }
+
+      if(exactNames == null) {
+         Set<String> names = new HashSet<>();
+
+         for(int i = 0; i < table.getColCount(); i++) {
+            Object hdr = table.getObject(0, i);
+
+            if(hdr != null) {
+               String hstr = hdr.toString();
+               names.add(hstr);
+               int dot = hstr.lastIndexOf('.');
+
+               if(dot > 0) {
+                  names.add(hstr.substring(dot + 1));
+               }
+            }
+         }
+
+         exactNames = names;
+      }
+
+      return exactNames.contains(id);
+   }
+
+   /**
     * Get the col count from colmap.
     */
    private Object getColFromColMap(String col, Map colmap) {
@@ -779,6 +814,7 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    private Set<String> notfound = new ObjectOpenHashSet<>(); // not found id cache
    // columns whose failed read has already been logged at error level, kept across setRow()
    private Set<String> failedLogged = new ObjectOpenHashSet<>();
+   private Set<String> exactNames; // header names as written, see hasExactColumn
    private boolean headerInit = false; // column header initialized
    private transient TableRow prevRow = null;
    private transient int prevIndex = Integer.MIN_VALUE;

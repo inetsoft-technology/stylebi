@@ -57,6 +57,7 @@ public class FormulaEvaluator {
          if(subscope instanceof TableRow) {
             TableRowScope tableRowScope = new TableRowScope((TableRow) subscope, null);
             tableRowScope.setBuiltinDate(expr.contains("new Date("));
+            tableRowScope.setFormulas(java.util.List.of(expr));
             execScope = tableRowScope;
          }
 
@@ -73,6 +74,7 @@ public class FormulaEvaluator {
          if(subscope instanceof TableRow) {
             TableRowScope tableRowScope = new TableRowScope((TableRow) subscope, null);
             tableRowScope.setBuiltinDate(expr.contains("new Date("));
+            tableRowScope.setFormulas(java.util.List.of(expr));
             execScope = tableRowScope;
          }
 
