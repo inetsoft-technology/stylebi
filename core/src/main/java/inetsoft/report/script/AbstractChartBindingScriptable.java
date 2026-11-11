@@ -1825,7 +1825,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     */
    private void setAestheticGrpOrder(AestheticRef aref, int order) {
       if(aref.getDataRef() instanceof XDimensionRef) {
-         if(Arrays.binarySearch(this.attributes, order) > -1) {
+         if(isDateLevel(order)) {
             setDateLevelValue((XDimensionRef) aref.getDataRef(), order);
          }
       }
@@ -1839,7 +1839,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     */
    private void setBindingGrpOrder(XDimensionRef[] flds, int order) {
       for(int i = 0; flds != null && i < flds.length; i++) {
-         if(Arrays.binarySearch(this.attributes, order) > -1) {
+         if(isDateLevel(order)) {
             setDateLevelValue(flds[i], order);
          }
       }
@@ -2444,6 +2444,17 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          getInfo(), aggr != null ? aggr + "" : null);
 
       return bindable.getTextField();
+   }
+
+   // attributes is not sorted (NONE_INTERVAL = 0 is last), so binarySearch is invalid
+   private boolean isDateLevel(int order) {
+      for(int attribute : attributes) {
+         if(attribute == order) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private boolean inited = false;

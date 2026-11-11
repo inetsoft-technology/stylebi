@@ -575,6 +575,27 @@ public class VSChartBindingScriptableTest {
    }
 
    @Test
+   void testSetGroupOrderNoneDateGroup() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_LINE);
+      vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
+
+      Object[] xField = { "date", ChartConstants.DATE };
+      vsChartBindingScriptable.setXFields(new Object[] { xField });
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.MONTH_INTERVAL, ChartConstants.BINDING_FIELD);
+      assertEquals(ChartConstants.MONTH_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.NONE_DATE_GROUP, ChartConstants.BINDING_FIELD);
+      assertEquals(ChartConstants.NONE_DATE_GROUP, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.BINDING_FIELD));
+
+      VSAestheticRef ref1 = (VSAestheticRef) vsChartBindingScriptable
+         .createAestheticRef("date", ChartConstants.DATE);
+      vsChartBindingScriptable.setColorField(ref1, null, ChartConstants.DATE);
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.WEEK_INTERVAL, ChartConstants.AESTHETIC_COLOR);
+      assertEquals(ChartConstants.WEEK_INTERVAL, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.AESTHETIC_COLOR));
+      vsChartBindingScriptable.setGroupOrder("date", ChartConstants.NONE_DATE_GROUP, ChartConstants.AESTHETIC_COLOR);
+      assertEquals(ChartConstants.NONE_DATE_GROUP, vsChartBindingScriptable.getGroupOrder("date", ChartConstants.AESTHETIC_COLOR));
+   }
+
+   @Test
    void testSetGetGroupOrder() {
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_LINE);
       vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);

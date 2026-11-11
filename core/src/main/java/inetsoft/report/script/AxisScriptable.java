@@ -292,10 +292,33 @@ public class AxisScriptable extends PropertyScriptable {
             if(isGlobalAxisScriptable()) {
                ChartRef[] refs = isXAxis ? info.getRTXFields() : info.getRTYFields();
 
+               boolean y2 = isY2Axis && !isXAxis;
+               boolean ownAxisWritten = false;
+
                for(int i = 0; i < refs.length; i++) {
+                  boolean dim = GraphUtil.isDimension(refs[i]);
+
+                  if(y2) {
+                     // y2Axis only owns the secondary measures (and its own axis).
+                     // Dimensions and primary measures belong to the primary side.
+                     if(dim) {
+                        continue;
+                     }
+
+                     if(info.isSeparatedGraph()) {
+                        if(!isSecondaryMeasure(refs[i])) {
+                           continue;
+                        }
+
+                        if(!ownAxisWritten) {
+                           put(name, value, desc, axis);
+                           ownAxisWritten = true;
+                        }
+                     }
+                  }
+
                   put(name, value, desc,
-                     !GraphUtil.isDimension(refs[i]) && !info.isSeparatedGraph() ?
-                     axis : getAxisDescriptor(refs[i]));
+                     !dim && !info.isSeparatedGraph() ? axis : getAxisDescriptor(refs[i]));
                }
             }
             else {
@@ -353,6 +376,10 @@ public class AxisScriptable extends PropertyScriptable {
    public Class getType(String name) {
       init();
       return super.getType(name);
+   }
+
+   private static boolean isSecondaryMeasure(ChartRef ref) {
+      return ref instanceof ChartAggregateRef && ((ChartAggregateRef) ref).isSecondaryY();
    }
 
    /**

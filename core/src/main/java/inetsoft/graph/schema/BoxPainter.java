@@ -122,7 +122,10 @@ public class BoxPainter extends SchemaPainter {
       GraphElement elem = geometry.getElement();
       Color borderColor = elem.getBorderColor();
 
-      if(borderColor != null && elem.getColorFrame().getField() == null) {
+      // a null color frame (scripted element) means no color field
+      if(borderColor != null &&
+         (elem.getColorFrame() == null || elem.getColorFrame().getField() == null))
+      {
          color = borderColor;
       }
 
