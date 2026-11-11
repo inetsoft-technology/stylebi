@@ -571,7 +571,8 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       writer.print(" visible=\"" + visible + "\" ");
       writer.print(" maxModeVisible=\"" + maxModeVisible + "\" ");
       writer.print(" titleVisible=\"" + titleVisible + "\" ");
-      DerivedUserFlag.write(writer, "userTitleVisible", userTitleVisible, derivedUserTitleVisible());
+      DerivedUserFlag.write(writer, "userTitleVisible", userTitleVisible,
+                            derivedUserTitleVisible());
       writer.print(" notShowNull=\"" + notShowNull + "\" ");
       writer.print(" includeZero=\"" + includeZero + "\" ");
       writer.print(" symbolSize=\"" + symbolSize + "\" ");

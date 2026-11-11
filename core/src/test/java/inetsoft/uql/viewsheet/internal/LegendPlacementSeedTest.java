@@ -344,6 +344,21 @@ class LegendPlacementSeedTest {
    }
 
    @Test
+   void aCountOnAnUnmarkedChartWritesNothing() {
+      gateOff();
+      ChartVSAssemblyInfo info = boundBar();
+      seed(info);
+      assertNull(info.getVizMark(), "premise: unmarked");
+      info.requestLegendCount();
+
+      assertFalse(info.applyLegendCount(true));
+
+      assertEquals(LegendsDescriptor.RIGHT, design(info).getLayout());
+      assertFalse(info.isLegendCrowded());
+      assertTrue(info.isLegendCountPending());
+   }
+
+   @Test
    void aTypedTitleStaysOnATopLegend() {
       gateOn();
       ChartVSAssemblyInfo info = boundBar();

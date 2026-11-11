@@ -763,7 +763,7 @@ public class VGraph extends BoundedContainer {
       // fit coord
       fitCoord(coordx, coordy, coordw, coordh);
 
-      // align the legend row to the plot, known only after the fit; moving along x changes no size
+      // align the legend row to the plot, known only after the fit; the group's bounds stay fixed
       if(vlegends != null && legendAlignment != 0 &&
          (legendLayout == GraphConstants.TOP || legendLayout == GraphConstants.BOTTOM))
       {

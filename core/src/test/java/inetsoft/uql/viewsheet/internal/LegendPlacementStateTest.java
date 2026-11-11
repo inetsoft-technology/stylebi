@@ -58,6 +58,7 @@ class LegendPlacementStateTest {
    @Test
    void theVerdictRoundTrips() throws Exception {
       ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
       info.setLegendCrowded(true);
 
       String written = writeXml(info);
@@ -75,11 +76,29 @@ class LegendPlacementStateTest {
    }
 
    @Test
+   void aRevertedChartWritesNoVerdict() {
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.of(info));
+      info.setLegendCrowded(true);
+      assertTrue(writeXml(info).contains(" legendCrowded=\"true\""), "premise: marked");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of(info));
+
+      String written = writeXml(info);
+
+      assertTrue(info.isLegendCrowded(), "premise: the verdict is kept in memory");
+      assertFalse(written.contains("legendCrowded"), written);
+   }
+
+   @Test
    void theVerdictIsNotInABookmark() {
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
       vs.addAssembly(chart);
       chart.getVSAssemblyInfo().initDefaultFormat();
+      chart.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
       ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).setLegendCrowded(true);
 
       StringWriter sw = new StringWriter();

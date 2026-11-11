@@ -646,12 +646,28 @@ public class VGraphPair {
          return;
       }
 
-      // only a composer draw takes a requested legend count, once per init
+      // a composer draw of real rows takes a requested count; a moved legend re-runs the creators
       if(!legendRecount && box.getMode() == Viewsheet.SHEET_DESIGN_MODE &&
-         ainfo.needsLegendCount() && ainfo.applyLegendCount(LegendEntryCount.crowded(egraph)))
+         !vs.getViewsheetInfo().isMetadata() && ainfo.needsLegendCount())
       {
-         legendRecount = true;
-         return;
+         int count = LegendEntryCount.count(egraph);
+         boolean moved = false;
+
+         if(count > 0) {
+            vbox.lockWrite();
+
+            try {
+               moved = ainfo.applyLegendCount(count > LegendEntryCount.CROWDED_ABOVE);
+            }
+            finally {
+               vbox.unlockWrite();
+            }
+         }
+
+         if(moved) {
+            legendRecount = true;
+            return;
+         }
       }
 
       // get size

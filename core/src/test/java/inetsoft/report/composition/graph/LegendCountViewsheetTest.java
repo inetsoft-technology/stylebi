@@ -20,9 +20,13 @@ package inetsoft.report.composition.graph;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
@@ -40,7 +44,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A modern legend's entries are counted once, on a composer draw that a seed asked for, and the
- * verdict is saved; a viewer draw never counts. TableView1 has 30 years and 2 storm types.
+ * verdict is saved; a viewer, metadata or empty draw never counts. TableView1 has 30 years and
+ * 2 storm types.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -71,6 +76,42 @@ class LegendCountViewsheetTest {
       assertTrue(info.isLegendCrowded());
       assertFalse(info.isLegendCountPending());
       assertEquals(LegendsDescriptor.RIGHT, pair.getEGraph().getLegendLayout());
+      // the rerun plotted
+      assertTrue(pair.isCompleted());
+      assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
+      assertNotNull(pair.getRealSizeVGraph());
+   }
+
+   @Test
+   void aMetadataDrawLeavesTheCountPending() throws Exception {
+      ViewsheetSandbox box = sandbox(composer);
+      box.getViewsheet().getViewsheetInfo().setMetadata(true);
+      ChartVSAssemblyInfo info = addBar(box, "type", "year");
+
+      VGraphPair pair = box.getVGraphPair(CHART, true, null);
+
+      assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
+      assertTrue(LegendEntryCount.count(pair.getEGraph()) > 0, "premise: entries drawn");
+      assertEquals(LegendsDescriptor.TOP, layout(info));
+      assertFalse(info.isLegendCrowded());
+      assertTrue(info.isLegendCountPending());
+      assertEquals(LegendsDescriptor.TOP, pair.getEGraph().getLegendLayout());
+   }
+
+   @Test
+   void aDrawWithNoRowsLeavesTheCountPending() throws Exception {
+      ViewsheetSandbox box = sandbox(composer);
+      ChartVSAssemblyInfo info = addBar(box, "type", "year");
+      info.setPreConditionList(noRows());
+
+      VGraphPair pair = box.getVGraphPair(CHART, true, null);
+
+      assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
+      assertEquals(0, LegendEntryCount.count(pair.getEGraph()), "premise: no entries drawn");
+      assertEquals(LegendsDescriptor.TOP, layout(info));
+      assertFalse(info.isLegendCrowded());
+      assertTrue(info.isLegendCountPending());
+      assertEquals(LegendsDescriptor.TOP, pair.getEGraph().getLegendLayout());
    }
 
    @Test
@@ -143,6 +184,16 @@ class LegendCountViewsheetTest {
       info.initDefaultFormat();
       vs.addAssembly(chart);
       return info;
+   }
+
+   // a type no row has
+   private static ConditionList noRows() {
+      AssetCondition cond = new AssetCondition(XSchema.STRING);
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.addValue("no such type");
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new ColumnRef(new AttributeRef(null, "type")), cond, 0));
+      return list;
    }
 
    private static int layout(ChartVSAssemblyInfo info) {

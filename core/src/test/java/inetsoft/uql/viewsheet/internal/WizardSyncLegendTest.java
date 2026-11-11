@@ -93,6 +93,46 @@ class WizardSyncLegendTest {
    }
 
    @Test
+   void aSeededLayoutStaysOffAnUnmarkedTarget() {
+      gateOn();
+      ChartVSAssembly original = barOn(new Viewsheet(), "Chart1");
+      LegendsDescriptor from = legends(original);
+      assertNotNull(original.getChartInfo().getVizMark(), "premise: a marked source");
+      assertEquals(LegendsDescriptor.TOP, from.getLayout(), "premise: a seeded top legend");
+      assertFalse(from.getColorLegendDescriptor().isTitleVisible(), "premise: a seeded title");
+      gateOff();
+      ChartVSAssembly target = barOn(new Viewsheet(), "Chart2");
+      assertNull(target.getChartInfo().getVizMark(), "premise: an unmarked target");
+      assertEquals(LegendsDescriptor.RIGHT, legends(target).getLayout(), "premise: classic");
+
+      sync(original, target);
+
+      LegendsDescriptor to = legends(target);
+      assertEquals(LegendsDescriptor.RIGHT, to.getLayout());
+      assertFalse(to.isUserLayout());
+      assertTrue(to.getColorLegendDescriptor().isTitleVisible());
+      assertFalse(to.getColorLegendDescriptor().isUserTitleVisible());
+   }
+
+   @Test
+   void anAuthorsLayoutTravelsIntoAnUnmarkedTarget() {
+      gateOn();
+      ChartVSAssembly original = barOn(new Viewsheet(), "Chart1");
+      legends(original).setAuthorLayout(LegendsDescriptor.BOTTOM);
+      legends(original).getColorLegendDescriptor().setAuthorTitleVisible(false);
+      gateOff();
+      ChartVSAssembly target = barOn(new Viewsheet(), "Chart2");
+
+      sync(original, target);
+
+      LegendsDescriptor to = legends(target);
+      assertEquals(LegendsDescriptor.BOTTOM, to.getLayout());
+      assertTrue(to.isUserLayout());
+      assertFalse(to.getColorLegendDescriptor().isTitleVisible());
+      assertTrue(to.getColorLegendDescriptor().isUserTitleVisible());
+   }
+
+   @Test
    void theVerdictTravels() {
       gateOn();
       ChartVSAssembly original = barOn(new Viewsheet(), "Chart1");
@@ -116,6 +156,10 @@ class WizardSyncLegendTest {
 
    private static void gateOn() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+   }
+
+   private static void gateOff() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "false");
    }
 
    private static ChartVSAssembly barOn(Viewsheet vs, String name) {
