@@ -172,8 +172,7 @@ class RotatedQueryTest {
 
    // the first column holds A twice: AssetUtil.fixAlias is meant to give the second one an alias
    // (A_1), but the rotated table keeps one column only and the data of the other is lost
-   @Disabled("Looks unintended: columns with the same name of a rotated table are dropped; "
-      + "to be reported")
+   @Disabled("Bug #81102: columns with the same name of a rotated table are dropped")
    @Test
    void sameNamesInTheFirstColumnAreMadeDifferent() throws Exception {
       Object[][] data = {
@@ -192,8 +191,7 @@ class RotatedQueryTest {
 
    // names that differ in case only: the column of "A" is missing and the header "a_1" is over
    // the values of "A"
-   @Disabled("Looks unintended: same cause as above, with names that differ in case; "
-      + "to be reported")
+   @Disabled("Bug #81102: same cause as above, with names that differ in case")
    @Test
    void namesDifferingInCaseKeepAllColumns() throws Exception {
       Object[][] data = {
