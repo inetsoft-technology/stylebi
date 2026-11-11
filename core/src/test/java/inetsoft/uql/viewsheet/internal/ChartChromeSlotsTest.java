@@ -266,6 +266,40 @@ class ChartChromeSlotsTest {
       assertFalse(legends.chromeValue("borderColor").hasUserValue());
    }
 
+   @Test
+   void theLayoutResetClearsTheFlagAndAsksForACount() {
+      ChartVSAssemblyInfo info = chart();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      legends.setLayout(LegendsDescriptor.BOTTOM);
+      legends.setUserLayout(true);
+      info.clearLegendCountPending();
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout());
+      assertFalse(legends.isUserLayout());
+      assertTrue(info.isLegendCountPending());
+   }
+
+   @Test
+   void aLegendTitleFlagClearsOnResetUnlessTyped() {
+      ChartVSAssemblyInfo info = chart();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor color = legends.getColorLegendDescriptor();
+      LegendDescriptor shape = legends.getShapeLegendDescriptor();
+      color.setAuthorTitleVisible(false);
+      shape.setAuthorTitleValue("Shapes");
+      assertTrue(shape.isUserTitleVisible(), "premise");
+
+      resetAll(info, fresh(VizMark.MODERN_LIGHT));
+
+      assertFalse(color.isUserTitleVisible());
+      assertTrue(shape.isUserTitleVisible());
+      find(info, "chart:legends:color:titleVisible");
+      find(info, "chart:legends:shape:titleVisible");
+      find(info, "chart:legends:size:titleVisible");
+   }
+
    // a size set for a bottom legend squeezes the plot once the legend moves right
    @Test
    void legendSizesResetToANewChartsWithThePosition() {
