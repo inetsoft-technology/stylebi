@@ -446,7 +446,7 @@ public class CalcTableScopeTest {
    };
 
    // Differences found so far: key is "aggregate|values", value is {script, crosstab}. They are
-   // pinned as current behavior, unconfirmed whether intended (Redmine #81071).
+   // pinned as current behavior, unconfirmed whether intended (Redmine #81084).
    private static final Map<String, String[]> KNOWN_PATH_DIFFERENCES = new HashMap<>();
 
    static {

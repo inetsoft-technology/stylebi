@@ -339,8 +339,8 @@ public class FormulaFunctionsTest {
 
    // Known defect: Options() stops splitting at a comma after a quote or an open parenthesis, so
    // the option after such a manual value (here maxrows=2) is read as part of the value and
-   // ignored. Enable when it is fixed.
-   @org.junit.jupiter.api.Disabled("known defect, options after a manual value with a quote or ( are ignored")
+   // ignored. Enable when it is fixed (Redmine #81083).
+   @org.junit.jupiter.api.Disabled("known defect #81083, options after a manual value with a quote or ( are ignored")
    @ParameterizedTest
    @ValueSource(strings = { "'", "\"", "(" })
    void testToListManualValueWithQuoteKeepsLaterOptions(String special) {
