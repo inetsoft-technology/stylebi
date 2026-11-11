@@ -1721,6 +1721,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       DerivedUserFlag.write(writer, "userSmoothLines", isUserSmoothLines(),
                             derivedUserSmoothLines());
 
+      if(legendCrowded) {
+         writer.print(" legendCrowded=\"true\"");
+      }
+
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
       }
@@ -2054,6 +2058,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // after the plot and the chart info, as the derivation reads both
       userSmoothLines = DerivedUserFlag.parse(Tool.getAttribute(elem, "userSmoothLines"),
                                               derivedUserSmoothLines());
+      legendCrowded = "true".equals(Tool.getAttribute(elem, "legendCrowded"));
    }
 
    /**
@@ -2072,6 +2077,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          seededType = ninfo.seededType;
          result = true;
       }
+
+      if(legendCrowded != ninfo.legendCrowded) {
+         legendCrowded = ninfo.legendCrowded;
+         result = true;
+      }
+
+      // a copy never loses a request
+      legendCountPending = legendCountPending || ninfo.legendCountPending;
+      seededLegendKey = ninfo.seededLegendKey;
 
       if(!Tool.equalsContent(rdesc, ninfo.rdesc)) {
          rdesc = ninfo.rdesc;
@@ -3161,6 +3175,41 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Whether the legend's entry count last measured as crowded.
+    */
+   public boolean isLegendCrowded() {
+      return legendCrowded;
+   }
+
+   public void setLegendCrowded(boolean legendCrowded) {
+      this.legendCrowded = legendCrowded;
+   }
+
+   /**
+    * Ask for the next draw to count the legend's entries.
+    */
+   public void requestLegendCount() {
+      legendCountPending = true;
+   }
+
+   public void clearLegendCountPending() {
+      legendCountPending = false;
+   }
+
+   public boolean isLegendCountPending() {
+      return legendCountPending;
+   }
+
+   /**
+    * Whether a count is pending on a marked chart whose legend position is not the author's.
+    */
+   public boolean needsLegendCount() {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+      return legendCountPending && getVizMark() != null && legends != null &&
+         !legends.isUserLayout();
+   }
+
+   /**
     * The key the per-type seed last ran for, or null before the first observation.
     */
    public ResolvedChartType getSeededType() {
@@ -3622,6 +3671,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean userSmoothLines = false;
    // not saved, not serialized; a clone carries it
    private transient ResolvedChartType seededType;
+   private boolean legendCrowded = false;
+   // not saved, not serialized; a clone carries it
+   private transient boolean legendCountPending = false;
+   private transient List<String> seededLegendKey;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }

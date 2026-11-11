@@ -215,6 +215,38 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Whether the author chose the legends position or size.
+    */
+   public boolean isUserLayout() {
+      return userLayout;
+   }
+
+   public void setUserLayout(boolean userLayout) {
+      this.userLayout = userLayout;
+   }
+
+   /**
+    * Set the layout as the author's choice.
+    */
+   public void setAuthorLayout(int layout) {
+      this.option = layout;
+      this.userLayout = true;
+   }
+
+   /**
+    * Set the preferred size as the author's choice.
+    */
+   public void setAuthorPreferredSize(Dimension2D size) {
+      this.preferredSize = size;
+      this.userLayout = true;
+   }
+
+   // the position and size every classic creation wrote
+   private boolean derivedUserLayout() {
+      return option != RIGHT || preferredSize != null;
+   }
+
+   /**
     * Get a legend descriptor for the color field.
     * @return a legend descriptor, <code>null</code> If the color legend don't
     * need to show.
@@ -482,6 +514,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          && roundCorners == desc.roundCorners
          && option == desc.option
          && Tool.equals(preferredSize, desc.preferredSize)
+         && userLayout == desc.userLayout
          && Tool.equals(gap, desc.gap)
          && Tool.equals(padding, desc.padding);
    }
@@ -512,6 +545,8 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          writer.print(" preferredSize=\"" + preferredSize.getWidth() +
                       "," + preferredSize.getHeight() + "\"");
       }
+
+      DerivedUserFlag.write(writer, "userLayout", userLayout, derivedUserLayout());
 
       writer.print(" gap=\"" + gap + "\"");
       GapZeroMarker.write(writer, "gapZero", gap);
@@ -585,6 +620,10 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          catch(Exception e) {
          }
       }
+
+      // after the position and the size, as the derivation reads both
+      userLayout = DerivedUserFlag.parse(Tool.getAttribute(tag, "userLayout"),
+                                         derivedUserLayout());
 
       if((val = Tool.getAttribute(tag, "gap")) != null) {
          gap.parse(val);
@@ -688,6 +727,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    private LegendDescriptor sizeDesc;
    private int option = RIGHT;
    private Dimension2D preferredSize;
+   private boolean userLayout = false;
    private CompositeTextFormat fmt;
    private CompositeValue<Integer> gap = new CompositeValue<>(Integer.class, 0);
    private CompositeValue<Insets> padding = new CompositeValue<>(Insets.class, null);
