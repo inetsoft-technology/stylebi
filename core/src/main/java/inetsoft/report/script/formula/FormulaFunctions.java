@@ -1891,13 +1891,15 @@ public class FormulaFunctions {
             else {
                switch(c) {
                case '(':
-                  lookfor = ')';
-                  break;
                case '\'':
-                  lookfor = '\'';
-                  break;
                case '"':
-                  lookfor = '"';
+                  // the value of a free-text option (manualvalues, remainder) is data, not
+                  // an expression, and its commas are already escaped as '\,'. don't let an
+                  // unpaired quote/parenthesis in it swallow the options after it. (81083)
+                  if(!isFreeTextOption(str, start, i)) {
+                     lookfor = c == '(' ? ')' : c;
+                  }
+
                   break;
                }
             }
@@ -1925,6 +1927,21 @@ public class FormulaFunctions {
                optmap.put(name.toLowerCase(), value);
             }
          }
+      }
+
+      /**
+       * Check if the option that starts at start and the char at pos belongs to is inside the
+       * value of a free-text option, i.e. an option whose name is manualvalues or remainder.
+       */
+      private static boolean isFreeTextOption(String str, int start, int pos) {
+         int eq = str.indexOf('=', start);
+
+         if(eq < 0 || eq >= pos) {
+            return false;
+         }
+
+         String name = str.substring(start, eq).trim();
+         return name.equalsIgnoreCase("manualvalues") || name.equalsIgnoreCase("remainder");
       }
 
       /**
