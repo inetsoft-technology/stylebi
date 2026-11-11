@@ -508,7 +508,9 @@ public class Catalog {
          return null;
       }
 
-      if(val.contains("{") || val.contains("'")) {
+      // do not run MessageFormat.format() without params, or it will strip ' (same as
+      // getString)
+      if((val.contains("{") || val.contains("'")) && params != null && params.length > 0) {
          try {
             return format(val, params);
          }
@@ -568,7 +570,14 @@ public class Catalog {
     */
    @SuppressWarnings("UnusedParameters")
    private String getString0(String id, boolean log, boolean def) {
-      if(id == null || id.endsWith(".*")) {
+      if(id == null) {
+         return null;
+      }
+
+      // an id prefix is never a string id; when the caller wants the id back if not found,
+      // return it directly. otherwise (getIDString) it must be looked up like any other id so
+      // that "not translated" is reported as null instead of the id itself
+      if(def && id.endsWith(".*")) {
          return id;
       }
 
