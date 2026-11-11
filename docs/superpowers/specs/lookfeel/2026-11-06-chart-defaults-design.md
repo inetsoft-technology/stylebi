@@ -98,8 +98,10 @@ Every item in §5 is one of these kinds:
 | **C**: creation-time default | A binding, sort, chart type or date level chosen when a chart is created or changes type | Yes. It is ordinary saved binding | It is the author's binding afterwards (M6) |
 
 **Principle.** Where a rule can be stated as a value of a property that older builds already read, it is built as kind V, even if a drawing rule would be simpler. Example: pie size is seeded into the existing `pieRatio` field at 0.8, instead of computing 80% at draw time. A rule becomes D only when it depends on:
-- the data, such as the diverging ramp, or the legend falling back to the right above 5 entries
+- the data, such as the diverging ramp
 - the card size, such as the label rule
+
+The legend's entry count (S3-1) depends on the data, but it is not a drawing rule: the owner ruled on 2026-11-11 that a legend stays where the chart was designed. The count is taken once, when the composer draws the chart after a seed, and the resulting position is saved (kind V).
 - new layout code, such as legend caps, pixel floors and zero lines
 
 ### M3. Seeded values are saved (slice 0)
@@ -144,6 +146,7 @@ Facts that make this safe:
 - **New flags this design needs:**
   - the value-axis line (`AxisDescriptor.lineVisible`, per axis)
   - the legend layout (`LegendsDescriptor.option`)
+  - the legend title's visibility (`LegendDescriptor.titleVisible`, per legend; S3-6)
   - values shown (`PlotDescriptor.valuesVisible`)
   - the size legend's visibility (`LegendDescriptor` visible, size legend)
   - the tree node corner (`PlotDescriptor.nodeCornerRadius`)
@@ -341,7 +344,7 @@ C1 (card), C13 (text sizes and colours) and C15 (density) are already shipped. S
 | S2-9 | A measure on colour that crosses zero uses the diverging ramp, centred on zero | C23, point 4 | Frame class chosen at bind (`GraphUtil:972` `defaultLinearFrame(ctx)`). `ChangeChartProcessor.fixColorField:234` always picks Blues, even on modern charts. `LinearColorFrame:52-70` runs min to max with no centre | D + flag | See "S2-9 diverging ramp" under this table. |
 | S2-10 | Map ramp starts at about 25% of its range | C23, geo 2 | `TealColorFrame` has fixed spline stops and no offset | N | The builder chooses between a stored low-stop property and a modern-only frame. Mark detection keys on the frame class (`ChartVSAssemblyInfo:264-268`). |
 | S2-11 | Each deeper level of a sunburst or icicle is a lighter step of its group colour, up to three levels | hierarchy 3 | `TreemapVO.paint:212-242` fills every level with `gobj.getColor(0)` | D | A level-step flag on `TreemapElement`, set by the generator. Use the palette's shade function, not `getCompanionColor` (COMP §8 says they differ). Labels must keep 4.5:1 on the lightest step. A per-level author colour wins (the builder defines how one is set). |
-| S2-12 | Funnel colours in funnel order, top stage = slot 1 | funnel 3 | The colours follow the colour field's own comparator (alphabetical). `ChartVSAQuery.applyFunnelSort:2080-2102` sorts the stage by value and leaves colour out on purpose (comment 55854) | D | It recolours saved modern colour-by-stage funnels, which is accepted (a look change; Revert undoes it). The legend order is S3-4. |
+| S2-12 | Funnel colours in funnel order, top stage = slot 1 | funnel 3 | The colours follow the colour field's own comparator (alphabetical). `ChartVSAQuery.applyFunnelSort:2080-2102` sorts the stage by value and leaves colour out on purpose (comment 55854) | D | It recolours saved modern colour-by-stage funnels, which is accepted (a look change; Revert undoes it). The funnel legend lists the stages in the same order, top stage first: moved here from S3-4 by the owner's S2b ruling Q9 (2026-11-11). |
 | S2-13 | Contrast of the direction tokens on the real translucent card | C16, financial open item | The card shipped in #7750, so this is no longer blocked | check | Sample the composited card in light and dark at 15%. Record the figures in the plan for S2-6. |
 
 **S2-1 palette readers.**
@@ -381,51 +384,118 @@ C1 (card), C13 (text sizes and colours) and C15 (density) are already shipped. S
 
 ### S3. Legend layout
 
+Amended 2026-11-11, after the owner reviewed S3 against the slice 2 head (`e600339878`, PR #8038). The owner's rulings are D28 to D31 and D43; the design calls made with them are D32 to D42 (§10).
+
+**The rule that shapes this slice (D28).** A legend stays where the chart was designed. Nothing in the viewer moves it, and neither do later data changes, filters or selections. So the saved `LegendsDescriptor.option` is always the position that draws. That has three consequences:
+- The Legend Format dialog, the browser's `legendOption` (`GraphBuilder.getLegendOption`, which drives the legend resize handle in `vs-chart.service.ts`) and the drawn chart always agree.
+- The gap (S3-5) and the title (S3-6) can follow the saved position. They become a resolver input and a seed, not drawing rules.
+- The "more than 5 entries" rule is a count taken once and saved, not a fallback at draw time.
+
 | # | Item | Bundle | Where | Kind | Notes |
 |---|---|---|---|---|---|
-| S3-1 | Top legend for cartesian charts; right for part-to-whole, ramps, networks, polar charts and more than 5 entries | C7, common 8 | `LegendsDescriptor.option` (plain, `RIGHT`, `:647`), through `GraphUtil:451` to `EGraph.setLegendLayout` | V + flag + D | See "S3-1 legend placement" under this table. |
-| S3-2 | Legend size caps: 30% of the width for a side legend, 25% of the height for a top or bottom one | C9, common 10 | `VGraph.layout0:686` and `:699` (0.5 caps), `:626-635`; `LegendGroup:222` | D | A new `EGraph` property set from the context. See "S3-2 caps" under this table. |
-| S3-3 | Legend alignment: start, centre or end. The modern default for top and bottom legends is start, at the plot's left edge | C10, common 9 | `LegendGroup.layoutTB:191-192` centres the row. `VGraph.layout0` lays out legends before `coord.fit` | N | See "S3-3 alignment" under this table. |
-| S3-4 | Legend entries in mark order: stack order with the top segment first, funnel order with the top stage first | C24, bar 6, funnel 3 | `Legend.isReversed:658-665` already reverses a stacked legend in a vertical or single-column layout. A horizontal (top) layout is not reversed (`Legend:549-556`). Comparator from `VSFrameVisitor.setLegendComparator:263-271` | D | Check the shipped order at run time first (§7). It conflicts with the intent of Bug #10019. Extend the rule to horizontal layouts under modern. Clustered bars keep their natural order. A stacked area follows bar. |
-| S3-5 | Top and bottom legend gap one step larger (R5) | C10, common 5 | `VSChartChromeDefaults.resolveLegendGap:157` and its callers: `GraphGenerator:1742`, `:1823`, `:1860`; `LegendFormatDialogModel:86`, `:177`; `VSChartResizeLegendService:78` | D (resolver) | Add the layout as a parameter. The dialog shows the same resolved value. |
-| S3-6 | A top or bottom legend has no title; a side legend keeps its title | Text specs, Gantt 5 | The legend title setup in `GraphGenerator` | D | Only while the author has not set the title visibility. This also removes the Gantt "Measures" title. End stays out of the Gantt legend by design (`VSFrameVisitor.getAggregates:278-280`). |
+| S3-1 | Top legend for cartesian charts; right for part-to-whole, ramps, relation charts, polar charts, maps and more than 5 entries | C7, common 8 | `LegendsDescriptor.option` (plain, `RIGHT`, `:689`), through `GraphUtil.setLegendOptions:460` to `EGraph.setLegendLayout` | V + flag | See "S3-1 legend placement" under this table. |
+| S3-2 | Legend size caps: 30% of the width for a side legend, 25% of the height for a top or bottom one | C9, common 10 | `VGraph.layout0:677-705` (0.5 caps, then `Math.max` with the minimum size), the layout size at `:626-641`; `LegendGroup.refixRatios` | D | A new `EGraph` property set from the context. See "S3-2 caps" under this table. |
+| S3-3 | Legend alignment: start, centre or end. The modern default for top and bottom legends is start, at the plot's left edge | C10, common 9 | `LegendGroup.layoutTB:165-205` centres a single legend and fills the width with several. `VGraph.layout0` lays out legends before `coord.fit` | N | See "S3-3 alignment" under this table. |
+| S3-4 | Stacked legends list entries in mark order | C24, bar 6 | `Legend.isReversed` (vertical or single-column layouts only) and the reversed layout in `Legend.layoutItems` (`:546-575`, Bug #10019). Comparator from `VSFrameVisitor.setLegendComparator:264` | D | See "S3-4 legend order" under this table. The funnel half of C24 moved to S2-12 (S2b ruling Q9). |
+| S3-5 | Top and bottom legend gap one step larger (R5) | C10, common 5 | `VSChartChromeDefaults.resolveLegendGap:176` and its callers: `GraphGenerator:1760`, `:1841`, `:1878`; `LegendFormatDialogModel:86`, `:177`; `VSChartResizeLegendService:78` | D (resolver) | Add the layout as a parameter: the saved position, which is the drawn one (D28). Top and bottom give descriptor 14, 18, 22 (16, 20, 24 on screen); left, right and in-place keep 10, 14, 18. In the dialog, Apply compares against the gap resolved for the position being applied. |
+| S3-6 | A top or bottom legend has no title; a side legend keeps its title | Text specs, Gantt 5 | `LegendDescriptor.titleVisible` (plain, default true, no flag, `:957`), read at `GraphGenerator:6756` | V + flag | See "S3-6 legend title" under this table. |
 
 **S3-1 legend placement.**
-- **What is seeded:**
-  - `TOP` by type for bar, horizontal bar, interval, line, step, jump, area, point, box plot, candle, stock and Gantt.
-  - `RIGHT` for pie, donut, the treemap family, funnel, marimekko, radar, network, circular network and map.
-- **At draw time, a seeded `TOP` falls back to the right** when:
-  - the legend has more than 5 entries, or
-  - it is a colour ramp.
-- **The user flag** is stamped by every user path:
-  - `VSChartMoveLegendService`
-  - `LegendFormatDialogModel`
-  - `VSChartLegendsVisibilityService`
-  - `ChartProcessor` (the `legendPosition` script)
-  - `SyncChartHandler`
-  - the wizard copying a legend from another chart
+- **The type default** is seeded on marked charts, keyed on the resolved type (M5):
+  - `TOP`: bar, horizontal bar, interval, line, step, jump, area, step area, point, box plot, candle, stock, Gantt, waterfall and pareto.
+  - `RIGHT`: pie, donut, the treemap family, funnel, marimekko, radar, filled radar, tree, network, circular network, map and contour map. Scatter contour is `RIGHT` too, because its legend is always the density ramp.
+  - Stacked variants follow their base type. A multi-style chart follows its resolved type (the first measure's type).
+- **A colour ramp** (a measure on Color) seeds `RIGHT`. This is known from the binding, so it is part of the seed, not the count.
+- **The count.** When the composer draws a marked chart whose placement seed is waiting for a count, it counts the entries in the legends it draws.
+  - It counts the total across every visible legend (colour, shape and size), after hidden values and `graph.legend.maxcount`.
+  - More than 5 entries: the position is saved as `RIGHT`. Otherwise the type default stays.
+  - Only the composer writes the count. The viewer, exports, the scheduler and any other draw read the saved position and never write it.
+- **The count's verdict is saved** (more than 5 entries or not). This is a new saved value; the builder chooses where it lives (D41).
+  - The modern placement seed depends only on three things: the resolved type, the Color binding and the saved verdict.
+  - So every re-seed reproduces the designed position without counting, including in the viewer. That covers bookmark and state restores (`VizModernizeUtil.reseedAfterRestore`), density changes, `SyncChartHandler` and the resolved-type re-seed in `ChartVSAssemblyInfo.update`.
+  - A restore re-seeds from the designed chart's verdict. A bookmark state saved without a verdict does not clear it.
+  - A binding change made in the viewer's chart editor re-seeds from the saved verdict and never counts.
+- **When the count is taken again:**
+  - creation
+  - a type change
+  - any binding change in the composer: every shelf, including Color, Shape and Size, and the measures that make a "Measures" legend
+  - Modernize, the reset copy, and "show all legends" from no legend (below)
+  - The per-type re-seed today keys only on `ResolvedChartType` (type, measure placement, X and Y fields). The placement seed must also re-run when the Color, Shape or Size binding changes.
+  - These are the moments when the composer draw that follows retakes the count. Every other re-seed reuses the saved verdict (above).
+  - Data changes, filters, selections and parameters never trigger it.
+  - If the chart is saved before the composer has drawn it, the seeded default stands until the next re-seed.
+- **The user flag** (`userLegendLayout`, M4):
+  - **Stamped by** `VSChartMoveLegendService` (a drag to an edge), `LegendFormatDialogModel` (only when the position changes; `:167` writes on every Apply today) and the two script properties, `legendPosition` (`ChartProcessor:272`) and `legend.position` (`:351`). The script properties go through a separate author setter, as `TitleDescriptor.setAuthorTitle` does, because both bind straight to `setLayout`.
+  - **A resized legend stays where it is** (owner, D43). A legend size the author set (`LegendsDescriptor.preferredSize`, written by `VSChartResizeLegendService` and kept current by `VSChartDataHandler.updatePreferredSize`) counts as an opinion on the position:
+    - A resize stamps the flag.
+    - On parse, an old file with a stored size derives the flag as `true`. The builder confirms that nothing but an author resize sets the size; its creation default is null.
+    - So neither the seed nor the count moves a sized legend, and Modernize "Keep" leaves it where it was.
+    - The reset copy clears both the size (80398's `chart:legends:size` slot) and the flag, then seeds the type default.
+    - Why: the size is stored as width and height proportions, and a side legend's height proportion is about 1.0. Moved to the top, that legend would take half the chart.
+  - **Not stamped by `SyncChartHandler`** (`:243`). It copies the layout together with its flag, and a marked target re-seeds an unflagged layout. (This corrects the earlier list, which made the wizard a stamping path. S1's rule for a marked wizard target copies only author values.)
+  - **"Show all legends" from no legend** (`VSChartLegendsVisibilityService:214-215`) restores `RIGHT` today. On a marked chart it clears the flag and seeds the type default instead, so the count runs again. Classic keeps `RIGHT`.
+  - **Old files** derive the flag on parse:
+    - `RIGHT` with no stored size is no opinion, because it is the classic default.
+    - Any other stored value (`TOP`, `BOTTOM`, `LEFT`, `IN_PLACE`, `NO_LEGEND`) is the author's, and so is any value with a stored size (D43).
+    - Write it with `DerivedUserFlag`, so classic XML is unchanged and a seeded `TOP` writes its `false` explicitly.
+- **Legacy branch:** writes `RIGHT` on every legacy pass while the flag is false (D24).
 - **Precedence:**
   - A flagged layout always wins.
   - A single series still has no legend.
-  - The reset sets the type default (R6).
+  - Modernize "Keep" keeps a flagged layout.
+  - The reset clears the flag and seeds the type default (R6).
+- **Frame:** a top legend is not in-place, so it stays unframed (S1-5's `legendFramed`).
+- **In an older build:** the saved position draws there (V). An older writer drops the flag (M9), so the next open derives a seeded `TOP` as the author's. This is accepted under M9.
 
 **S3-2 caps.**
-- `Math.max(…, getMinHeight/Width)` overrides the cap today. Fix that under the gate.
-- A legend size the author set (`preferredSize`, a legend drag) is not capped.
-- Entries that do not fit are truncated with an ellipsis or scroll, whichever the legend already supports (builder).
-- There is no plot floor.
+- **Which legends:** the caps apply on marked charts to a legend with no size from the author (`LegendsDescriptor.preferredSize` unset):
+  - a side legend: at most 30% of the chart width
+  - a top or bottom legend: at most 25% of the chart height
+- **Classic:** today's 50% cap stays, and so does `Math.max(…, getMinHeight/Width)`, which lets a legend's minimum size beat that cap.
+- **Marked:** the new cap wins over the minimum size.
+- **A size the author set** (a legend drag, `VSChartResizeLegendService`) keeps today's behaviour, including the 50% cap.
+- **Entries that do not fit** behave as they do today at the 50% cap. Nothing new is built for overflow. `GraphUtil.setLegendSpec` marks every legend partial, and the browser's legend area scrolls on hover (`chart-legend-area.component.scss`). The plan checks both on a live chart.
+- **No plot floor.**
 
 **S3-3 alignment.**
-- **The new field:**
-  - `LegendsDescriptor` field and XML attribute
-  - a `LegendSpec` field
-  - the dialog: `LegendFormatDialogModel`, `legend-format-dialog.component.ts`
-  - `property-type.properties`
-  - a script property
-- **Layout:** start-at-plot-edge needs the plot inset, so the layout needs a second pass. With several legends, they sit side by side at their content width from the plot edge.
-- **Side legends** are unaffected.
-- **Defaults:** the modern default is seeded `start`. Classic keeps centre.
+- **The new setting:** start, centre or end.
+  - It is stored as a `LegendsDescriptor` field and XML attribute, carried in a `LegendSpec` field, and exposed in the dialog (`LegendFormatDialogModel`, `legend-format-dialog.component.ts`), in `property-type.properties` and as a script property.
+  - It is offered on every chart, because it is an author setting.
+- **Unset draws today's layout** on any chart: a single legend centred across the chart width, several legends filling it. Classic charts are pixel-identical because they never have it set.
+- **Start, centre and end are measured against the plot's horizontal extent:**
+  - Start puts the row at the plot's left edge, after the Y axis title and labels. End puts it at the plot's right edge. Centre centres it on the plot.
+  - With several legends, each takes its content width and they sit side by side from that edge.
+- **Modern default:** start, seeded for top and bottom legends (tiered DEFAULT tier saved on marked charts as in S0, or plain and flagged; builder). The legacy pass writes unset.
+- **Layout:** the plot's left edge is known only after `coord.fit`, so the legend row moves in a second pass. The move only shifts the row along x, so it must not change the legend's height or re-run the fit.
+- **Side and in-place legends** ignore the setting.
+- **In an older build:** the attribute is ignored, and the legend draws today's layout (N).
+- **It joins 80398's slot list** (M7). The reset seeds the modern default.
 - **Land it with S3-1.**
+
+**S3-4 legend order.**
+- **Run the §7 check first.** The bundle saw a stacked bar's side legend run opposite to its stack, but the code already reverses vertical stacked legends (Bug #10019). The fix is defined by the order wanted below, not by today's code.
+- **The rule, on marked charts only,** through a property the generator sets on the legend (M1). It applies to stacked elements (stacked bar, and stacked area following bar):
+  - **The legend and the stack run along the same axis** (a side legend on a vertical stack, or a top or bottom legend on a horizontal stack): each entry sits at the same end as its segment. On a vertical stack, the top entry is the top segment. On a horizontal stack, the row reads left to right in the same order as the segments (owner, D31).
+  - **They run across each other** (a top or bottom legend on a vertical stack, or a side legend on a horizontal stack): the outer segment comes first. On a vertical stack, the leftmost entry is the top segment. On a horizontal stack, the top entry is the outermost segment (design call, D36).
+- **Clustered bars** keep their natural order.
+- **Classic charts** keep the shipped order, including Bug #10019's reversal.
+- **The funnel legend** is S2-12.
+
+**S3-6 legend title.**
+- **The flag:** `LegendDescriptor.titleVisible` gets a user flag (`userTitleVisible`, M4) on every legend descriptor the chart can show. The builder enumerates them: colour, shape, size, and the per-field descriptors that `GraphUtil.getLegendDescriptor` returns.
+- **Seed:**
+  - Modern: `false` while the saved position is `TOP` or `BOTTOM`; `true` for left, right and in-place.
+  - Legacy: `true` on every legacy pass while the flag is false.
+- **The title follows the position** while its flag is false. It is re-seeded whenever the position changes: by the seed, by the count, and by an author's move (a drag, the dialog or script). So dragging a top legend to the right brings its title back.
+- **Stamped** by `LegendFormatDialogModel` only when the title visibility changes (`:160` writes on every Apply today), and by the `colorLegend.titleVisible`, `shapeLegend.titleVisible` and `sizeLegend.titleVisible` script properties (`ChartProcessor:360`, `:376`, `:392`).
+  - `SyncChartHandler` (`:268-269`) copies the text and the value together with the flag.
+- **A typed legend title counts as the author's** (D42, following S1-2 and D26). Setting custom title text stamps the flag with the title visible: through the dialog's title field (`LegendFormatDialogModel:150-158`) or the `colorLegend.title`, `shapeLegend.title` and `sizeLegend.title` script properties. So a top legend with a typed title still shows it.
+- **Old files:**
+  - A stored `false` is the author's.
+  - A stored `true` with custom title text is the author's.
+  - `true` with no text is no opinion.
+- **Gantt:** its top legend loses the "Measures" title. End stays out of the Gantt legend by design (`VSFrameVisitor.getAggregates:278-280`).
+- **It joins 80398's slot list** (M7). "Keep" keeps a flagged title. The reset clears the flag (design call, D37, following R8). The exception is a legend with custom title text: title text is kept on the reset copy (MD §5.1), so that title stays visible, as for axis titles in S1-2.
 
 ### S4. Mark sizes and corners
 
@@ -581,7 +651,8 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 |---|---|---|
 | The top gap below the title | S6-1 | The bundle measured about 5px at the top against 12 at the bottom. GEO §1.1.1 found no gap at render. Did the measurement count the top value label, which sits centred on the top gridline? |
 | 9px or 10px labels | — | The chart-type sizes ticket maps tick and data labels to 9px (`DEFAULT_SMALL_FONT`). The bundle observed 10px. C13 stays as shipped either way; record which is true. |
-| Stacked-legend order | S3-4 | The code already reverses vertical stacked legends. Is the observed order really reversed? |
+| Stacked-legend order | S3-4 | The code already reverses vertical stacked legends. Is the observed order really reversed? Record the order of a side legend and of a top legend on a vertical and on a horizontal stacked bar. |
+| Legend overflow | S3-2 | What a legend that hits today's 50% cap does with entries that do not fit, on screen and in a PDF export. The capped modern legend keeps that behaviour. |
 | Gantt tick count | S8-7 | "Dozens" of grid lines at 25 tasks against about 5 ticks from `TimeScale`. |
 | Relation edge width | S4-9 | About 35px observed; largest 15 is expected. |
 | Direction-token contrast on the real card | S2-13 | Sample now that #7750 has shipped. |
@@ -612,7 +683,10 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 - The exact list of fields for S0-1, and whether the render-time CSS writes stay (S0-2).
 - How each axis is identified as the value axis or the category axis for S1-4, including facets and dual axes.
-- How legend overflow behaves under the S3-2 caps (ellipsis or scroll).
+- How the composer's legend count reaches the saved descriptor: which draw takes it, how the composer is told apart from the viewer and exports, whether the "waiting for a count" marker is saved, and keeping the write inside the undo step of the action that seeded it (S3-1).
+- How the placement seed re-runs on a Color, Shape or Size binding change: a wider `ResolvedChartType` key or a second key (S3-1).
+- Whether the legend alignment is a tiered value or a plain field with a flag, and where several start-aligned legends go when they are wider than the plot (S3-3).
+- Which legend descriptors carry the title flag (S3-6).
 - The shape of the up and down colour property, and the editor for it (S2-6).
 - The pre-blend base for the map highlight and the tree tint (S2-4, S8-6).
 - How an author sets a per-level colour on a sunburst or icicle (S2-11).
@@ -621,7 +695,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06. "Design" means settled while writing this spec.
+"Owner" means ruled by the owner on 2026-11-06, or on 2026-11-11 from D28 on. "Design" means settled while writing this spec, or while amending S3 for D32 to D42.
 
 | # | Decision | Who |
 |---|---|---|
@@ -652,6 +726,22 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D25 | Per-type seeds key on the resolved type and re-run on every change of it, including binding changes (M5, S0-6) | Design, from the reviewer's check |
 | D26 | A typed axis title keeps its title visible on new charts, on Keep and on the reset copy (S1-2) | Design, from the bundle |
 | D27 | Straight lines are S1-8. A type change keeps an author's smoothing | Design, from the reviewer's check |
+| D28 | A legend stays where the chart was designed. It never moves in the viewer or with later data. The "more than 5 entries" rule is a count taken once, when the composer draws the chart after a seed, and saved (S3-1) | Owner |
+| D29 | A measure on Color seeds a right legend from the binding. A stored right legend with no flag is no opinion. The gap and the legend title follow the saved position. The legend title gets a user flag, and while it is unset the title follows every position change, an author's move included (S3-1, S3-5, S3-6) | Owner, approving the S3 review's proposal |
+| D30 | The 30% and 25% caps apply only to a legend the author has not sized; an author's size keeps today's 50% cap; overflow behaves as today. Alignment is start, centre or end against the plot's horizontal extent, in the dialog and in script (S3-2, S3-3) | Owner, approving the S3 review's proposal |
+| D31 | A top or bottom legend on a horizontal stacked bar reads left to right in the same order as the segments (S3-4) | Owner |
+| D32 | The types the earlier S3-1 lists left out are placed by family: step area, waterfall and pareto at the top; filled radar, tree, contour map and scatter contour on the right | Design |
+| D33 | The legend count is the total across every visible legend | Design |
+| D34 | `SyncChartHandler` copies the legend layout and title flags and never stamps them; an earlier S3-1 list made it a stamping path (S1's wizard rule) | Design |
+| D35 | "Show all legends" from no legend restores the type default on a marked chart and clears the layout flag | Design |
+| D36 | A side legend on a horizontal stack puts the outermost segment at the top (S3-4) | Design |
+| D37 | The reset clears the legend-title flag, following R8 | Design |
+| D38 | An unset alignment draws today's layout on every chart, so classic charts stay pixel-identical; the setting is offered on every chart | Design |
+| D39 | Only the composer writes the legend count. A chart saved before the composer draws it keeps the seeded default until the next re-seed | Design |
+| D40 | The placement seed also re-runs on a Color, Shape or Size binding change, which the resolved-type key does not see | Design |
+| D41 | The count's verdict is saved, and the modern placement seed depends only on the resolved type, the Color binding and that verdict. Every re-seed, the viewer's included, reproduces the designed position without counting (D28 with M5) | Design, from the builder check |
+| D42 | A typed legend title counts as the author's and stays visible on a top or bottom legend, on "Keep" and on the reset copy (S1-2 and D26 applied to legends) | Design, from the builder check |
+| D43 | A legend the author resized stays where it is: a resize stamps the layout flag, and an old file with a stored legend size derives it. The reset copy clears both (S3-1) | Owner |
 
 ## 11. Testing
 
