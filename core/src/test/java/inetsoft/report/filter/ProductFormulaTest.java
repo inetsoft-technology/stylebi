@@ -17,10 +17,13 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag("core")
 public class ProductFormulaTest {
+
+   private static final double DELTA = 1e-9;
 
    private ProductFormula formula;
 
@@ -330,5 +335,167 @@ public class ProductFormulaTest {
       formula.addValue("abc");
       formula.addValue("3");
       assertEquals(6.0, formula.getDoubleResult(), 0.0001);
+   }
+
+   // -----------------------------------------------------------------------
+   // mixed inputs, ported from the 13.8 summary formula tests
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.arithmetic#product-multiplies-values
+   @Test
+   void getResult_mixedSignsAndFractions_returnsProduct() {
+      addAll(formula, 20, 1, -10, 20, 0.01);
+      assertEquals(-40.0, asDouble(formula.getResult()), DELTA);
+      assertEquals(-40.0, formula.getDoubleResult(), DELTA);
+      assertFalse(formula.isNull());
+
+      // two negative values give a positive product
+      formula.reset();
+      addAll(formula, -3, -4, 0.5);
+      assertEquals(6.0, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#product-multiplies-values
+   @Test
+   void addValue_allPrimitiveOverloadsWithNullSentinels_returnsProduct() {
+      // the primitive overloads and the double array, and their null markers
+      formula.addValue(2.0);
+      formula.addValue(3.0f);
+      formula.addValue(4L);
+      formula.addValue((short) 5);
+      formula.addValue(6);
+      formula.addValue(new double[] { 7.0, 100.0 });
+      formula.addValue(Tool.NULL_DOUBLE);
+      formula.addValue(Tool.NULL_INTEGER);
+      assertEquals(5040.0, formula.getResult());
+
+      // the product of a clone does not change the original
+      Formula copy = (Formula) formula.clone();
+      copy.addValue(2);
+      assertEquals(10080.0, copy.getResult());
+      assertEquals(5040.0, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#percentage-negative-total
+   @Test
+   void getResult_negativePercentageTotal_returnsNegativeShare() {
+      addAll(formula, 3, 4);
+      asPercentage(formula, -48);
+      assertEquals(-0.25, asDouble(formula.getResult()), DELTA);
+      assertEquals(-0.25, formula.getDoubleResult(), DELTA);
+      assertEquals(12.0, formula.getOriginalResult());
+
+      // the percentage type is kept after the original result is read
+      assertEquals(StyleConstants.PERCENTAGE_OF_GROUP, formula.getPercentageType());
+      assertEquals(-0.25, asDouble(formula.getResult()), DELTA);
+   }
+
+   // gap:report.summary-formulas.arithmetic#percentage-total-zero-is-null
+   @Test
+   void getResult_percentageTotalZero_returnsNull() {
+      addAll(formula, 0, 1, 10, null);
+      asPercentage(formula, 0);
+      assertNull(formula.getResult());
+      assertEquals(0.0, formula.getDoubleResult());
+      assertEquals(0.0, asDouble(formula.getOriginalResult()), DELTA);
+
+      // a total of 0.0 is 0 as well, and the default-result flag gives 0 instead of null
+      formula.setTotal(0.0);
+      assertNull(formula.getResult());
+      formula.setDefaultResult(true);
+      assertEquals(0.0, formula.getResult());
+      formula.setDefaultResult(false);
+
+      // a different total is a real percentage again
+      formula.setTotal(10);
+      assertNotNull(formula.getResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#product-skips-text-and-null
+   @Test
+   void addValue_textAndNullBetweenNumbers_skipped() {
+      addAll(formula, "1", "2", "3", "4", "5.5", "a", null);
+      assertEquals(132.0, formula.getResult());
+      assertEquals(132.0, formula.getDoubleResult());
+      assertFalse(formula.isNull());
+
+      // the text and the null do not change the product
+      formula.reset();
+      addAll(formula, 2, "abc", null, "x", 3);
+      assertEquals(6.0, formula.getResult());
+
+      // the text between numbers, with a negative number
+      formula.reset();
+      addAll(formula, "-2", "text", 5);
+      assertEquals(-10.0, formula.getResult());
+
+      // a percentage of the group keeps skipping them
+      formula.reset();
+      addAll(formula, 30, 1, -10, 20, 7.2, 0.01, null);
+      asPercentage(formula, 100);
+      assertEquals(-4.32, asDouble(formula.getResult()), DELTA);
+      assertEquals(-432.0, asDouble(formula.getOriginalResult()), DELTA);
+   }
+
+   // Product of text and dates only is 1.0 (Bug #80541 rejected, kept as is)
+   @Test
+   void addValue_textOrDatesOnly_returnsOne() {
+      // ProductFormula.addValue counts a value before it is parsed, so only text or dates give
+      // 1.0 and isNull is false, where Sum gives null. 13.8 Bug #80541 asked for null and was
+      // rejected; 13.8 keeps that expectation @Disabled, StyleBI pins the behavior it keeps
+      addAll(formula, "abc", "x1");
+      assertFalse(formula.isNull());
+      assertEquals(1.0, formula.getResult());
+
+      formula.reset();
+      addAll(formula, new Date(1_000_000L), new Date(2_000_000L), null);
+      assertFalse(formula.isNull());
+      assertEquals(1.0, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.common#formula-reused-after-reset
+   @Test
+   void reset_afterClone_eachCopyKeepsItsOwnValues() {
+      Formula fresh = (Formula) formula.clone();
+      formula.addValue(4.0);
+      formula.addValue(6.0);
+      assertFalse(formula.isNull());
+      Object first = formula.getResult();
+      assertNotNull(first);
+
+      // a clone is its own copy
+      Formula copy = (Formula) formula.clone();
+      assertEquals(first, copy.getResult());
+      copy.addValue(100.0);
+      copy.addValue(-50.0);
+      assertEquals(first, formula.getResult());
+      assertNotEquals(first, copy.getResult());
+
+      // reset starts over, and it can take another group
+      formula.reset();
+      assertEquals(fresh.isNull(), formula.isNull());
+      assertEquals(fresh.getResult(), formula.getResult());
+      formula.addValue(4.0);
+      formula.addValue(6.0);
+      assertEquals(first, formula.getResult());
+
+      // the copy was not reset by it
+      assertNotEquals(first, copy.getResult());
+   }
+
+   private static void addAll(Formula formula, Object... values) {
+      for(Object value : values) {
+         formula.addValue(value);
+      }
+   }
+
+   private static void asPercentage(PercentageFormula formula, Object total) {
+      formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GROUP);
+      formula.setTotal(total);
+   }
+
+   private static double asDouble(Object result) {
+      assertInstanceOf(Double.class, result);
+      return (Double) result;
    }
 }

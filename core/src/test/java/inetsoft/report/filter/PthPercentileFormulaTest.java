@@ -23,7 +23,10 @@ import org.junit.jupiter.api.Tag;
 
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -531,5 +534,220 @@ public class PthPercentileFormulaTest {
       }
 
       assertEquals(without.getResult(), withBlank.getResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // ported from 13.8 (gap:report.summary-formulas.statistical)
+   // -----------------------------------------------------------------------
+
+   private static void addAll(Formula formula, Object... values) {
+      for(Object value : values) {
+         formula.addValue(value);
+      }
+   }
+
+   // gap:report.summary-formulas.statistical#pth-percentile-position
+   @Test
+   void getResult_objectValues_positionRoundsHalfUp() {
+      // the position is round(p / 100 * (n - 1)) in the ascending order
+      Object[] values = { 3.6, -9.3, -9.3, 10.0, 10.0, 6.0, 10.0 };
+      int[] percentiles = { 0, 10, 25, 50, 60, 75, 100 };
+      // positions 0, 1 (0.6), 2 (1.5 rounds up), 3, 4 (3.6), 5 (4.5 rounds up), 6
+      Object[] atPosition = { -9.3, -9.3, 3.6, 6.0, 10.0, 10.0, 10.0 };
+
+      for(int i = 0; i < percentiles.length; i++) {
+         PthPercentileFormula pth = new PthPercentileFormula(percentiles[i]);
+         addAll(pth, values);
+         assertEquals(atPosition[i], pth.getResult(), "P" + percentiles[i]);
+      }
+
+      // a fraction below one half rounds down: P20 is position round(1.2) = 1, not 2
+      PthPercentileFormula p20 = new PthPercentileFormula(20);
+      addAll(p20, values);
+      assertEquals(-9.3, p20.getResult());
+      assertEquals(3.6, percentileOf(30, values), "P30 is position round(1.8) = 2");
+
+      // four values: P50 is position round(1.5) = 2, the third value
+      PthPercentileFormula p50 = new PthPercentileFormula(50);
+      addAll(p50, 40, 10, 30, 20);
+      assertEquals(30, p50.getResult());
+
+      // P0 and P100 are the extremes, and the percentage is limited to 0..100
+      assertEquals(10, percentileOf(0, 40, 10, 30, 20));
+      assertEquals(40, percentileOf(100, 40, 10, 30, 20));
+      assertEquals(40, percentileOf(250, 40, 10, 30, 20));
+      assertEquals(10, percentileOf(-30, 40, 10, 30, 20));
+
+      // one value is every percentile
+      assertEquals(5, percentileOf(37, 5));
+
+      // numeric strings are ordered by value, not by text
+      assertEquals("9", percentileOf(0, "10", "9", "100"));
+      assertEquals("10", percentileOf(50, "10", "9", "100"));
+      assertEquals("100", percentileOf(100, "10", "9", "100"));
+   }
+
+   // Pth Percentile of dates that are already in order
+   @Test
+   void getResult_datesInOrder_nullIgnored() {
+      Date early = new Date(1_000_000L);
+      Date middle = new Date(2_000_000L);
+      Date late = new Date(3_000_000L);
+
+      assertEquals(late, percentileOf(100, early, middle, late, null));
+      assertEquals(early, percentileOf(20, early, late, late));
+      assertEquals(early, percentileOf(0, early, middle, late));
+   }
+
+   // gap:report.summary-formulas.statistical#pth-percentile-null-and-text
+   @Test
+   void getResult_nullAndText() {
+      // nulls are ignored: seven values remain, P10 is position round(0.6) = 1
+      PthPercentileFormula pth = new PthPercentileFormula(10);
+      addAll(pth, "a", "A", "3", "7", "", "A", "3", null);
+      assertEquals("A", pth.getResult());
+
+      // only nulls
+      PthPercentileFormula nulls = new PthPercentileFormula(50);
+      addAll(nulls, null, null, null, null);
+      assertNull(nulls.getResult());
+      nulls.setDefaultResult(true);
+      assertEquals(0.0, nulls.getResult());
+
+      // a null does not take a position among the values
+      assertEquals(30, percentileOf(100, 10, null, 20, null, 30));
+      assertEquals(10, percentileOf(0, null, 10, 20, 30));
+   }
+
+   // gap:report.summary-formulas.statistical#pth-percentile-primitive-values
+   @Test
+   void getResult_primitiveValues_keepTypeAndOrder() {
+      int[] ints = { 50, 10, 40, 20, 30 };
+
+      for(int percentile : new int[] { 0, 25, 50, 75, 100 }) {
+         PthPercentileFormula typed = new PthPercentileFormula(percentile);
+         PthPercentileFormula boxed = new PthPercentileFormula(percentile);
+
+         for(int value : ints) {
+            typed.addValue(value);
+            boxed.addValue(Integer.valueOf(value));
+         }
+
+         assertEquals(boxed.getResult(), typed.getResult(), "P" + percentile);
+      }
+
+      PthPercentileFormula p75 = new PthPercentileFormula(75);
+
+      for(int value : ints) {
+         p75.addValue(value);
+      }
+
+      assertEquals(40, p75.getResult());
+
+      // each primitive type keeps its own type and sorts its values
+      PthPercentileFormula longs = new PthPercentileFormula(100);
+      longs.addValue(5L);
+      longs.addValue(9_000_000_000L);
+      longs.addValue(7L);
+      assertEquals(9_000_000_000L, longs.getResult());
+
+      PthPercentileFormula shorts = new PthPercentileFormula(0);
+      shorts.addValue((short) 5);
+      shorts.addValue((short) -3);
+      shorts.addValue((short) 7);
+      assertEquals((short) -3, shorts.getResult());
+
+      PthPercentileFormula floats = new PthPercentileFormula(50);
+      floats.addValue(2.5f);
+      floats.addValue(0.5f);
+      floats.addValue(1.5f);
+      assertEquals(1.5f, floats.getResult());
+
+      PthPercentileFormula doubles = new PthPercentileFormula(50);
+      doubles.addValue(new double[] { 3.0 });
+      doubles.addValue(new double[] { 1.0 });
+      doubles.addValue(new double[] { 2.0 });
+      assertEquals(2.0, doubles.getResult());
+
+      // the null markers of the primitive types are not added
+      PthPercentileFormula nulls = new PthPercentileFormula(0);
+      nulls.addValue(Tool.NULL_INTEGER);
+      nulls.addValue(Tool.NULL_LONG);
+      nulls.addValue(Tool.NULL_SHORT);
+      nulls.addValue(Tool.NULL_FLOAT);
+      nulls.addValue(Tool.NULL_DOUBLE);
+      nulls.addValue(new double[] { Tool.NULL_DOUBLE });
+      assertNull(nulls.getResult());
+      nulls.addValue(4);
+      nulls.addValue(Tool.NULL_INTEGER);
+      assertEquals(4, nulls.getResult());
+
+      // reset drops the typed lists
+      p75.reset();
+      assertNull(p75.getResult());
+   }
+
+   // Bug #80539: Pth(0) and Pth(100) of unordered dates are the extremes
+   @Test
+   void getResult_dateExtremes_keepTypeAndCompareByTime() {
+      Date a = new Date(1_000_000L);
+      Timestamp ta = new Timestamp(10_000L);
+      Timestamp tb = new Timestamp(20_000L);
+      Timestamp tc = new Timestamp(30_000L);
+      assertInstanceOf(Timestamp.class, percentileOf(100, tb, tc, ta));
+      // a Date and a Timestamp compare by time
+      assertEquals(a, percentileOf(100, tc, a, tb));
+   }
+
+   // Bug #80697: Pth Percentile skips a blank string like Sum
+   @Test
+   void getResult_blankStrings_skippedAtExtremes() {
+      PthPercentileFormula p100 = new PthPercentileFormula(100);
+      addAll(p100, "1", "", "3");
+      assertEquals("3", p100.getResult());
+
+      PthPercentileFormula p0 = new PthPercentileFormula(0);
+      addAll(p0, "", "4", " ", "2");
+      assertEquals("2", p0.getResult());
+
+      // a clone keeps the values that were kept
+      PthPercentileFormula copy = (PthPercentileFormula) p0.clone();
+      assertEquals("2", copy.getResult());
+
+      // only blank strings leave nothing to calculate
+      PthPercentileFormula blanks = new PthPercentileFormula(50);
+      addAll(blanks, "", " ");
+      assertNull(blanks.getResult());
+      blanks.setDefaultResult(true);
+      assertEquals(0.0, blanks.getResult());
+   }
+
+   // Bug #80697: blank strings change nothing, and other values are unchanged
+   @Test
+   void getResult_blankStrings_changeNothingInRandomLists() {
+      Object[] pool = { null, "", " ", "1", "2.5", "-4", "abc", 3, 7.5, 2L };
+      Random random = new Random(80697L);
+
+      for(int i = 0; i < 3000; i++) {
+         List<Object> values = new ArrayList<>();
+         List<Object> noBlanks = new ArrayList<>();
+         int size = random.nextInt(8);
+
+         for(int j = 0; j < size; j++) {
+            Object value = pool[random.nextInt(pool.length)];
+            values.add(value);
+
+            if(!(value instanceof String) || !((String) value).trim().isEmpty()) {
+               noBlanks.add(value);
+            }
+         }
+
+         int percentile = random.nextInt(101);
+         PthPercentileFormula pth = new PthPercentileFormula(percentile);
+         PthPercentileFormula pthNoBlanks = new PthPercentileFormula(percentile);
+         values.forEach(pth::addValue);
+         noBlanks.forEach(pthNoBlanks::addValue);
+         assertEquals(pthNoBlanks.getResult(), pth.getResult(), values + " p" + percentile);
+      }
    }
 }

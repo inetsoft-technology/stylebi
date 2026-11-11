@@ -17,8 +17,11 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -28,6 +31,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -328,5 +335,258 @@ public class MinFormulaTest {
       formula.addValue("");
       formula.addValue("Alice");
       assertEquals("", formula.getResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // more numeric input, dates, result type, clone and reset
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.min-max#min-numeric
+   @Test
+   void addValue_negativeWideAndBoxedValues_returnsMin() {
+      formula.addValue(4);
+      formula.addValue(-1);
+      formula.addValue(6);
+      assertEquals(-1, formula.getResult());
+
+      formula.reset();
+      formula.addValue(1.2);
+      formula.addValue(-3.5);
+      formula.addValue(0.25);
+      assertEquals(-3.5, formula.getResult());
+      assertEquals(-3.5, formula.getDoubleResult());
+
+      formula.reset();
+      formula.addValue(2.5);
+      formula.addValue(1.25);
+      assertEquals(1.25, formula.getResult());
+
+      // a long is a Long
+      formula.reset();
+      formula.addValue(10_000_000_000L);
+      formula.addValue(5_000_000_000L);
+      assertEquals(5_000_000_000L, formula.getResult());
+
+      formula.reset();
+      formula.addValue(2.5f);
+      formula.addValue(-8.5f);
+      assertEquals(-8.5f, formula.getResult());
+
+      MinFormula shorts = new MinFormula();
+      shorts.addValue((short) 4);
+      shorts.addValue((short) -9);
+      assertEquals((short) -9, shorts.getResult());
+
+      // boxed values keep their type
+      formula.reset();
+      addAll(formula, -1, -1, 1, 1, 4, 5, 6);
+      assertEquals(-1, formula.getResult());
+
+      // the null value of a primitive is skipped
+      formula.reset();
+      formula.addValue(7.5);
+      formula.addValue(Tool.NULL_DOUBLE);
+      assertEquals(7.5, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.min-max#min-max-dates
+   @Test
+   void addValue_datesTimestampsAndTimes_returnsEarliestKeepingType() {
+      long hour = 3_600_000L;
+      long base = 1_700_000_000_000L;
+
+      Date d1 = new Date(base);
+      Date d2 = new Date(base + 48 * hour);
+      Date d3 = new Date(base + 24 * hour);
+      addAll(formula, d2, d1, d3, null);
+      assertEquals(Date.class, formula.getResult().getClass());
+      assertEquals(d1, formula.getResult());
+
+      Timestamp t1 = new Timestamp(base);
+      Timestamp t2 = new Timestamp(base + 48 * hour);
+      Timestamp t3 = new Timestamp(base + 24 * hour);
+      formula.reset();
+      addAll(formula, t3, t2, t1);
+      assertEquals(Timestamp.class, formula.getResult().getClass());
+      assertEquals(t1, formula.getResult());
+
+      Time m1 = new Time(base);
+      Time m2 = new Time(base + 3 * hour);
+      Time m3 = new Time(base + hour);
+      formula.reset();
+      addAll(formula, m3, m2, m1);
+      assertEquals(Time.class, formula.getResult().getClass());
+      assertEquals(m1, formula.getResult());
+
+      // chronological, whatever the order of arrival
+      Date early = new Date(base - 400 * 24 * hour);
+      formula.reset();
+      addAll(formula, d1, early);
+      assertEquals(early, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.common#result-type-defaults-to-input-type
+   @Test
+   void getResultType_takesTheInputType_returnsNull() {
+      assertNull(formula.getResultType());
+   }
+
+   // gap:report.summary-formulas.min-max#min-max-no-values-null
+   @Test
+   void getResult_onlyNullsThenDefaultResult_realValueWinsAndResetGoesBack() {
+      // only nulls, as an object and as the null of each primitive
+      addAll(formula, null, null);
+      formula.addValue(Tool.NULL_DOUBLE);
+      formula.addValue(Tool.NULL_INTEGER);
+      formula.addValue(Tool.NULL_LONG);
+      assertNull(formula.getResult());
+      assertTrue(formula.isNull());
+      assertEquals(0.0, formula.getDoubleResult());
+
+      // 0 with the default result option
+      formula.setDefaultResult(true);
+      assertEquals(0, formula.getResult());
+
+      // a real value wins over the default
+      formula.addValue(3);
+      assertEquals(3, formula.getResult());
+
+      // reset: back to no values
+      formula.reset();
+      assertEquals(0, formula.getResult());
+      formula.setDefaultResult(false);
+      assertNull(formula.getResult());
+   }
+
+   // gap:report.summary-formulas.common#formula-reused-after-reset
+   @Test
+   void cloneAndReset_copyAndOriginalStayIndependent() {
+      Formula fresh = (Formula) formula.clone();
+      formula.addValue(4.0);
+      formula.addValue(6.0);
+      assertFalse(formula.isNull());
+      Object first = formula.getResult();
+      assertNotNull(first);
+
+      // a clone is its own copy
+      Formula copy = (Formula) formula.clone();
+      assertEquals(first, copy.getResult());
+      copy.addValue(100.0);
+      copy.addValue(-50.0);
+      assertEquals(first, formula.getResult());
+      assertNotEquals(first, copy.getResult());
+
+      // reset starts over, and it can take another group
+      formula.reset();
+      assertEquals(fresh.isNull(), formula.isNull());
+      assertEquals(fresh.getResult(), formula.getResult());
+      formula.addValue(4.0);
+      formula.addValue(6.0);
+      assertEquals(first, formula.getResult());
+
+      // the copy was not reset by it
+      assertNotEquals(first, copy.getResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // percentage of total
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.min-max#min-max-percentage-of-total
+   @Test
+   void getResult_percentageOfTotal_returnsRatio() {
+      MinFormula min = new MinFormula();
+      min.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      min.setTotal(200);
+      addAll(min, 30, 40, 80);
+      assertEquals(0.15, min.getResult());
+      assertEquals(30, min.getOriginalResult());
+
+      // a negative value gives a negative ratio
+      MinFormula negMin = new MinFormula();
+      negMin.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      negMin.setTotal(200.0);
+      negMin.addValue(-50.0);
+      negMin.addValue(10.0);
+      assertEquals(-0.25, negMin.getResult());
+
+      // a total of 0: null, or 0 with the default result
+      min.setTotal(0);
+      assertNull(min.getResult());
+      min.setDefaultResult(true);
+      assertEquals(0.0, min.getResult());
+      assertEquals(0.0, min.getDoubleResult());
+
+      // a value that is not a number stays as it is
+      MinFormula textMin = new MinFormula();
+      textMin.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      textMin.setTotal(10);
+      addAll(textMin, "abc", "abd");
+      assertEquals("abc", textMin.getResult());
+
+      Date date = new Date(1_700_000_000_000L);
+      MinFormula dateMin = new MinFormula();
+      dateMin.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      dateMin.setTotal(10);
+      dateMin.addValue(date);
+      assertEquals(date, dateMin.getResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // numeric strings
+   // -----------------------------------------------------------------------
+
+   // Numeric strings compare as numbers and text compares as strings; Min compares numeric
+   // strings as numbers by default
+   @Test
+   void addValue_numericStrings_compareAsNumbers() {
+      // strings that all parse as numbers compare numerically: 10 is above 9
+      addAll(formula, "9", "10");
+      assertEquals("9", formula.getResult());
+
+      MinFormula min = new MinFormula();
+      addAll(min, "10", "9", "100");
+      assertEquals("9", min.getResult());
+
+      // a value that does not parse makes the whole comparison textual
+      min = new MinFormula();
+      addAll(min, "1", "A", "A", "1", null);
+      assertEquals("1", min.getResult());
+   }
+
+   // Bug #80517: Min honours formula.parse.number like Max
+   @Test
+   @Disabled("Bug #80517: MinFormula reads formula.min.number instead of formula.parse.number, "
+      + "so with formula.parse.number=false Min still compares \"9\" and \"10\" as numbers "
+      + "(13.8: Bug #80487, fixed)")
+   void addValue_numericStrings_parseNumberOff_compareAsText() {
+      withProperty("formula.parse.number", "false", () -> {
+         MinFormula min = new MinFormula();
+         addAll(min, "9", "10");
+         assertEquals("10", min.getResult());
+      });
+   }
+
+   private static void addAll(Formula formula, Object... values) {
+      for(Object value : values) {
+         formula.addValue(value);
+      }
+   }
+
+   private static void withProperty(String name, String value, Runnable action) {
+      String old = SreeEnv.getProperty(name);
+
+      try {
+         SreeEnv.setProperty(name, value);
+         action.run();
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove(name);
+         }
+         else {
+            SreeEnv.setProperty(name, old);
+         }
+      }
    }
 }
