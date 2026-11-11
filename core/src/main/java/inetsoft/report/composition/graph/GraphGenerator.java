@@ -3396,6 +3396,31 @@ public abstract class GraphGenerator {
       return GraphFormatUtil.getDefaultFormat(data, info, desc, cols);
    }
 
+   // the chart's own colour frame, which applyBrushing puts last in its composite
+   private static ColorFrame unbrushedFrame(ColorFrame frame) {
+      if(frame instanceof CompositeColorFrame composite && composite.getFrameCount() > 0) {
+         return (ColorFrame) composite.getFrame(composite.getFrameCount() - 1);
+      }
+
+      return frame;
+   }
+
+   // a frame with no colour field, which a modern pareto line replaces with its own colour
+   private static boolean isStaticFrame(ColorFrame frame) {
+      return frame instanceof StaticColorFrame || frame instanceof MultiMeasureColorFrame;
+   }
+
+   // the modern pareto line colour on a brushed chart: faded on a target's all-data layer
+   private Color brushedParetoLineColor(boolean all) {
+      Color line = desc.getPlotDescriptor().getParetoLineColor();
+
+      if(!isBrusingTarget()) {
+         return line;
+      }
+
+      return createBrushingTargetColorFrame(all, new StaticColorFrame(line)).getColor((Object) null);
+   }
+
    /**
     * Get color frame for pareto chart.
     * @param names the measure name.
@@ -3403,7 +3428,7 @@ public abstract class GraphGenerator {
     */
    private StaticColorFrame getParetoColorFrame(String[] names, boolean all) {
       Color c = null;
-      // a modern line takes its own colour; brushing is handled first and reads the frame
+      // a modern line takes its own colour, brushed or not; a classic one follows the bars
       boolean modernLine = vizContext.modern;
 
       if(names.length > 0) {
@@ -3414,7 +3439,9 @@ public abstract class GraphGenerator {
                c = desc.getPlotDescriptor().getParetoLineColor();
             }
             else if(pcolor != null && (isBrusingTarget() || isBrushingSource())) {
-               c = pcolor.getColor(data, names[0], 0);
+               // a modern line keeps its own colour, receding on a target's all-data layer
+               c = companionBrushing && isStaticFrame(unbrushedFrame(pcolor)) ?
+                  brushedParetoLineColor(all) : pcolor.getColor(data, names[0], 0);
             }
             else if(modernLine &&
                     (pcolor instanceof StaticColorFrame || pcolor instanceof MultiMeasureColorFrame))
