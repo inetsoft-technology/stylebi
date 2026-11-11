@@ -265,6 +265,114 @@ class LegendPlacementSeedTest {
       assertFalse(design(info).isUserLayout());
    }
 
+   @Test
+   void aTopLegendHasNoTitle() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      seed(info);
+
+      assertEquals(LegendsDescriptor.TOP, design(info).getLayout(), "premise");
+      assertFalse(design(info).getColorLegendDescriptor().isTitleVisible());
+
+      if(runtime(info).getColorLegendDescriptor() != null) {
+         assertFalse(runtime(info).getColorLegendDescriptor().isTitleVisible());
+      }
+   }
+
+   @Test
+   void aRightLegendKeepsItsTitle() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_PIE);
+      seed(info);
+
+      assertEquals(LegendsDescriptor.RIGHT, design(info).getLayout(), "premise");
+      assertTrue(design(info).getColorLegendDescriptor().isTitleVisible());
+   }
+
+   @Test
+   void aCrowdedLegendKeepsItsTitle() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      seed(info);
+      assertFalse(design(info).getColorLegendDescriptor().isTitleVisible(), "premise");
+
+      info.setLegendCrowded(true);
+      info.reseedLegendPlacement();
+      info.reseedLegendTitles();
+
+      assertEquals(LegendsDescriptor.RIGHT, design(info).getLayout(), "premise");
+      assertTrue(design(info).getColorLegendDescriptor().isTitleVisible());
+   }
+
+   @Test
+   void aTypedTitleStaysOnATopLegend() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      seed(info);
+      design(info).getColorLegendDescriptor().setAuthorTitleValue("Brands");
+
+      info.reseedLegendTitles();
+      seed(info);
+
+      assertEquals(LegendsDescriptor.TOP, design(info).getLayout(), "premise");
+      assertTrue(design(info).getColorLegendDescriptor().isTitleVisible());
+   }
+
+   @Test
+   void anAuthorsHiddenTitleStaysHiddenOnTheRight() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      info.getVSChartInfo().setChartType(GraphTypes.CHART_PIE);
+      seed(info);
+      design(info).getColorLegendDescriptor().setAuthorTitleVisible(false);
+
+      seed(info);
+      info.reseedLegendTitles();
+
+      assertFalse(design(info).getColorLegendDescriptor().isTitleVisible());
+   }
+
+   @Test
+   void aMultiStyleMeasuresLegendLosesItsTitle() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.addXField(dim("state"));
+      VSChartAggregateRef y1 = agg("v");
+      VSChartAggregateRef y2 = agg("w");
+      y1.setColorField(colorOf(dim("region")));
+      y2.setColorField(colorOf(dim("city")));
+      cinfo.addYField(y1);
+      cinfo.addYField(y2);
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      cinfo.setMultiStyles(true);
+      info.setVSChartInfo(cinfo);
+      info.setRTChartDescriptor((ChartDescriptor) info.getChartDescriptor().clone());
+      seed(info);
+
+      AestheticRef[] refs = cinfo.getAestheticRefs(false);
+      assertEquals(2, refs.length, "premise");
+      assertEquals(LegendsDescriptor.TOP, design(info).getLayout(), "premise");
+
+      for(AestheticRef ref : refs) {
+         assertFalse(ref.getLegendDescriptor().isTitleVisible());
+      }
+   }
+
+   @Test
+   void revertShowsEveryTitle() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      seed(info);
+      assertFalse(design(info).getColorLegendDescriptor().isTitleVisible(), "premise");
+
+      info.setVizMark(null);
+      seed(info);
+
+      assertTrue(design(info).getColorLegendDescriptor().isTitleVisible());
+   }
+
    private static LegendsDescriptor design(ChartVSAssemblyInfo info) {
       return info.getChartDescriptor().getLegendsDescriptor();
    }

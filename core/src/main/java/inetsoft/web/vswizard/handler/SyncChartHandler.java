@@ -269,6 +269,7 @@ public class SyncChartHandler extends SyncAssemblyHandler {
    {
       nlegendDescriptor.setTitleValue(olegendDescriptor.getTitleValue());
       nlegendDescriptor.setTitleVisible(olegendDescriptor.isTitleVisible());
+      nlegendDescriptor.setUserTitleVisible(olegendDescriptor.isUserTitleVisible());
       nlegendDescriptor.setNotShowNull(olegendDescriptor.isNotShowNull());
       nlegendDescriptor.setLogarithmicScale(olegendDescriptor.isLogarithmicScale());
       nlegendDescriptor.setReversed(olegendDescriptor.isReversed());
