@@ -62,8 +62,9 @@ import java.util.regex.Pattern;
  * value outside 0/1/2.</li>
  * <li>{@code updateAllTargets} only calls {@code addTarget} when {@code index == -1}. An
  * {@code index >= 0} on a chart with no targets builds a {@code GraphTarget} and discards it.</li>
- * <li>A non-numeric constant reaches {@code TargetStrategyWrapper.runtimeValueOf}, which drops
- * unparseable values, leaving a strategy with zero boundaries and a target with no geometry.</li>
+ * <li>A constant that is neither a number nor a dynamic value ({@code =script}, {@code $(var)})
+ * reaches {@code TargetStrategyWrapper.runtimeValueOf}, which drops unparseable values, leaving a
+ * strategy with zero boundaries and a target with no geometry.</li>
  * <li>{@code isFormulaSupported} reads the five literal strings Average/Min/Max/Median/Sum as
  * <i>formulas</i>, so a "fixed value" of {@code "Max"} silently becomes a data-derived line.</li>
  * <li>{@code supportsTarget} is computed on read and never consulted on write, so a target on a
@@ -142,7 +143,10 @@ public class ChartTargetLineService {
     *
     * @param measure   the measure the line is drawn against, {@code "all"} for an unbound line,
     *                  or null/blank to bind the chart's only measure.
-    * @param value     the constant the line sits at.
+    * @param value     where the line sits: a number, a script ({@code =<script>}) or a variable
+    *                  reference ({@code $(Name)}). The last two are stored verbatim and evaluated
+    *                  when the chart renders, the way the Target dialog's Expression and
+    *                  Variable modes store them.
     * @param label     the line's label; {@code {0}} interpolates the value. Defaults to
     *                  {@code "{0}"} when null. A blank string ({@code ""} or whitespace) means
     *                  no label text and is stored as a single space, which survives save and
@@ -715,6 +719,13 @@ public class ChartTargetLineService {
    /**
     * Refuses everything that would store a target the graph cannot draw.
     *
+    * <p>Accepted: a number, a script ({@code =<script>}) and a variable reference
+    * ({@code $(Name)}), the three forms the Target dialog's Value box stores. A dynamic value is
+    * returned verbatim (trimmed) and evaluated when the chart renders, so whether a script yields
+    * a number cannot be known here. The variable test is {@code VSUtil.isVariableValue}'s
+    * ({@code $(} ... {@code )}), not the dialog's looser "starts with $": {@code $500} would be
+    * read as a literal that does not parse.
+    *
     * <p>Two distinct traps, deliberately named separately in the messages: a value that does not
     * parse yields a strategy with no boundaries (a target that exists and has no geometry), and
     * one of the five formula names yields a data-derived line (a target that draws, in the wrong
@@ -725,7 +736,22 @@ public class ChartTargetLineService {
 
       if(text.isEmpty()) {
          throw new IllegalArgumentException(
-            "add_chart_target_line needs 'value' -- the number the line sits at.");
+            "add_chart_target_line needs 'value' -- a number, a script (\"=<script>\") or a " +
+            "variable (\"$(Name)\").");
+      }
+
+      boolean script = text.startsWith("=");
+
+      if(script || text.startsWith("$(") && text.endsWith(")")) {
+         String body = script ? text.substring(1) : text.substring(2, text.length() - 1);
+
+         if(body.isBlank()) {
+            throw new IllegalArgumentException(
+               "'value' \"" + text + "\" has nothing after '" + (script ? "=" : "$(") + "'. " +
+               "Give a script (\"=<script>\"), a variable (\"$(Name)\") or a number.");
+         }
+
+         return text;
       }
 
       for(String formula : FORMULA_NAMES) {
@@ -742,8 +768,9 @@ public class ChartTargetLineService {
          throw new IllegalArgumentException(
             "'" + value + "' is not a number. A fixed-value target line stores its value as a " +
             "constant; a value that does not parse as a double produces a target with no " +
-            "boundaries -- it saves, it lists back, and it draws nothing. Give a plain number " +
-            "(1000, -2.5); thousands separators, currency symbols and expressions do not parse.");
+            "boundaries -- it saves, it lists back, and it draws nothing. Give a number " +
+            "(1000, -2.5), a script (\"=<script>\") or a variable (\"$(Name)\"); thousands " +
+            "separators and currency symbols do not parse.");
       }
 
       return text;
