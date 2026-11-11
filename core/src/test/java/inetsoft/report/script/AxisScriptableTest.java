@@ -142,4 +142,66 @@ public class AxisScriptableTest {
       axisScriptable.putMember("font", mock(PropertyDescriptor.class));
       assertNull(axisScriptable.getMember("font"));
    }
+
+   private VSChartDimensionRef dimRef;
+   private VSChartAggregateRef primaryRef;
+   private VSChartAggregateRef secondaryRef;
+   private DefaultVSChartInfo realInfo;
+
+   private void setUpRealInfo(boolean separated) {
+      realInfo = new DefaultVSChartInfo();
+      realInfo.setSeparatedGraph(separated);
+      dimRef = new VSChartDimensionRef();
+      dimRef.setGroupColumnValue("D");
+      primaryRef = new VSChartAggregateRef();
+      primaryRef.setColumnValue("A");
+      secondaryRef = new VSChartAggregateRef();
+      secondaryRef.setColumnValue("B");
+      secondaryRef.setSecondaryY(true);
+
+      for(VSChartRef ref : new VSChartRef[] { dimRef, primaryRef, secondaryRef }) {
+         ref.setRTAxisDescriptor(new AxisDescriptor());
+      }
+
+      realInfo.setRTYFields(new ChartRef[] { dimRef, primaryRef, secondaryRef });
+      realInfo.setRTAxisDescriptor(new AxisDescriptor());
+      realInfo.setRTAxisDescriptor2(new AxisDescriptor());
+   }
+
+   @Test
+   void y2AxisSeparatedOnlyWritesSecondaryAndOwnAxis() {
+      setUpRealInfo(true);
+      AxisScriptable y2 = new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor2(), false, true);
+      y2.putMember("lineVisible", false);
+
+      assertTrue(dimRef.getRTAxisDescriptor().isLineVisible());
+      assertTrue(primaryRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(secondaryRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(realInfo.getRTAxisDescriptor2().isLineVisible());
+      assertTrue(realInfo.getRTAxisDescriptor().isLineVisible());
+      assertEquals(false, y2.getMember("lineVisible"));
+   }
+
+   @Test
+   void y2AxisNonSeparatedSkipsDimension() {
+      setUpRealInfo(false);
+      AxisScriptable y2 = new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor2(), false, true);
+      y2.putMember("lineVisible", false);
+
+      assertTrue(dimRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(realInfo.getRTAxisDescriptor2().isLineVisible());
+      assertTrue(realInfo.getRTAxisDescriptor().isLineVisible());
+   }
+
+   @Test
+   void yAxisSeparatedBehaviorUnchanged() {
+      setUpRealInfo(true);
+      AxisScriptable y = new AxisScriptable(realInfo, realInfo.getRTAxisDescriptor(), false, false);
+      y.putMember("lineVisible", false);
+
+      assertFalse(dimRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(primaryRef.getRTAxisDescriptor().isLineVisible());
+      assertFalse(secondaryRef.getRTAxisDescriptor().isLineVisible());
+      assertTrue(realInfo.getRTAxisDescriptor2().isLineVisible());
+   }
 }
