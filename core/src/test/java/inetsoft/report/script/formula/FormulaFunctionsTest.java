@@ -31,6 +31,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -310,6 +311,40 @@ public class FormulaFunctionsTest {
    @Test
    void testToListWithScalar() {
       assertEquals("x", FormulaFunctions.toList("x", "sort=asc"));
+   }
+
+   // A manual value that contains a special character must not change how the options after it
+   // are read. The result for such a value has to be the result for a plain value with the
+   // character put back, so the plain run is the expected value.
+   private static void assertManualValueKeepsLaterOptions(String special) {
+      String plain = "x";
+      Object[] expected = (Object[]) FormulaFunctions.toList(
+         new Object[] { "b", "a", "c" + plain },
+         "manualvalues=c" + plain + ";a,maxrows=2");
+      Object[] actual = (Object[]) FormulaFunctions.toList(
+         new Object[] { "b", "a", "c" + special },
+         "manualvalues=c" + special + ";a,maxrows=2");
+
+      assertEquals(expected.length, actual.length, java.util.Arrays.toString(actual));
+
+      for(int i = 0; i < expected.length; i++) {
+         assertEquals(expected[i].toString().replace(plain, special), actual[i].toString());
+      }
+   }
+
+   @Test
+   void testToListManualValueWithClosingParenthesisKeepsLaterOptions() {
+      assertManualValueKeepsLaterOptions(")");
+   }
+
+   // Known defect: Options() stops splitting at a comma after a quote or an open parenthesis, so
+   // the option after such a manual value (here maxrows=2) is read as part of the value and
+   // ignored. Enable when it is fixed.
+   @org.junit.jupiter.api.Disabled("known defect, options after a manual value with a quote or ( are ignored")
+   @ParameterizedTest
+   @ValueSource(strings = { "'", "\"", "(" })
+   void testToListManualValueWithQuoteKeepsLaterOptions(String special) {
+      assertManualValueKeepsLaterOptions(special);
    }
 
    // date option: the date part, as number or name
