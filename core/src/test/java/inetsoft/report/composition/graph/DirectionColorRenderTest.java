@@ -34,6 +34,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -51,7 +52,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -205,6 +208,24 @@ class DirectionColorRenderTest {
    }
 
    @Test
+   void aBrushTargetsWaterfallTotalStaysNeutral() {
+      Render r = waterfallBrushTarget(VizMark.MODERN_LIGHT);
+      VizContext ctx = VizContext.of(VizMark.MODERN_LIGHT);
+
+      assertEquals(Set.of(NEUTRAL), totalColours(r, false));
+      // the all-data layer recedes from the neutral, as the steps do from their directions
+      assertEquals(Set.of(VSChartPaletteDefaults.companionOf(NEUTRAL, ctx)), totalColours(r, true));
+   }
+
+   @Test
+   void aClassicBrushTargetsWaterfallTotalKeepsTheBrushColours() {
+      Render r = waterfallBrushTarget(null);
+
+      assertEquals(Set.of(BrushingColor.getHighlightColor()), totalColours(r, false));
+      assertEquals(Set.of(BrushingColor.getDimColor()), totalColours(r, true));
+   }
+
+   @Test
    void theStoredUpAndDownColoursDraw() {
       CandleVSChartInfo cinfo = candle(new CandleVSChartInfo(), true);
       ChartVSAssemblyInfo assemblyInfo = seeded(cinfo, VizMark.MODERN_LIGHT);
@@ -349,6 +370,39 @@ class DirectionColorRenderTest {
 
    private static Color colorAt(Render r, GraphElement elem, int row) {
       return elem.getColorFrame().getColor(r.gen.getData(), elem.getVar(0), row);
+   }
+
+   // a waterfall by State as a brush target: A +5, B -3 and C +4, with B brushed (a falling Total)
+   private static Render waterfallBrushTarget(VizMark mark) {
+      DefaultVSChartInfo winfo = new DefaultVSChartInfo();
+      VSChartAggregateRef value = agg("V");
+      winfo.addXField(dim("State"));
+      winfo.addYField(value);
+      winfo.setChartType(GraphTypes.CHART_WATERFALL);
+      winfo.setRTChartType(GraphTypes.CHART_WATERFALL);
+      winfo.updateChartType(false);
+      Object[] header = { "State", GraphUtil.getName(value) };
+      Object[][] all = { header, { "A", 5.0 }, { "B", -3.0 }, { "C", 4.0 } };
+      Object[][] brushed = { header, { "B", -3.0 } };
+
+      return render(winfo, mark, new DefaultDataSet(all), new DefaultDataSet(brushed));
+   }
+
+   // the colours the Total of the brushed or the all-data layer draws, on the rows that hold one
+   private static Set<Color> totalColours(Render r, boolean allData) {
+      GraphElement total = element(r, e -> "true".equals(e.getHint("_waterfall_")) &&
+                                           e.getVar(0).contains(ElementVO.ALL_PREFIX) == allData);
+      DataSet data = r.gen.getData();
+      Set<Color> colours = new HashSet<>();
+
+      for(int row = 0; row < data.getRowCount(); row++) {
+         if(data.getData(total.getVar(0), row) != null) {
+            colours.add(colorAt(r, total, row));
+         }
+      }
+
+      assertFalse(colours.isEmpty(), "premise: the layer draws a Total");
+      return colours;
    }
 
    private static GraphElement element(Render r, Predicate<GraphElement> pick) {
