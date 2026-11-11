@@ -40,8 +40,8 @@ import java.awt.Color;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Direction colours draw only on a marked candle, stock or waterfall with no colour field, no
- * author or stylesheet single colour, and (for stock) an Open field.
+ * Direction colours draw only on a marked candle, stock or waterfall with both stored colours,
+ * no colour field, no author or stylesheet single colour, and (for stock) an Open field.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
@@ -77,6 +77,22 @@ class VSChartDirectionColorsTest {
    }
 
    @Test
+   void aMarkedCandleWithoutStoredColoursDoesNot() {
+      CandleVSChartInfo candle = candle(new CandleVSChartInfo());
+      assertTrue(VSChartDirectionColors.draws(MODERN, candle), "premise: both stored colours");
+
+      candle.setDownColorFrameWrapper(null);
+      assertFalse(VSChartDirectionColors.draws(MODERN, candle), "no down colour");
+
+      candle.setUpColorFrameWrapper(null);
+      assertFalse(VSChartDirectionColors.draws(MODERN, candle), "neither colour");
+
+      DefaultVSChartInfo waterfall = waterfall();
+      waterfall.setUpColorFrameWrapper(null);
+      assertFalse(VSChartDirectionColors.draws(MODERN, waterfall), "a waterfall with no up colour");
+   }
+
+   @Test
    void aStockWithoutOpenDoesNot() {
       StockVSChartInfo stock = new StockVSChartInfo();
       candle(stock);
@@ -97,7 +113,7 @@ class VSChartDirectionColorsTest {
       bar.addXField(dim("state"));
       bar.addYField(agg("v"));
       bar.setChartType(GraphTypes.CHART_BAR);
-      assertFalse(VSChartDirectionColors.draws(MODERN, bar));
+      assertFalse(VSChartDirectionColors.draws(MODERN, stored(bar)));
    }
 
    @Test
@@ -141,6 +157,7 @@ class VSChartDirectionColorsTest {
       info.setMultiStyles(true);
       info.addXField(dim("state"));
       info.addYField(styled(agg("v"), GraphTypes.CHART_WATERFALL));
+      stored(info);
       assertEquals(GraphTypes.CHART_WATERFALL, ResolvedChartType.of(info).type(),
                    "premise: resolves as a waterfall");
       assertTrue(VSChartDirectionColors.draws(MODERN, info),
@@ -164,7 +181,7 @@ class VSChartDirectionColorsTest {
       info.setLowField(agg("low"));
       info.setChartType(info instanceof StockVSChartInfo ? GraphTypes.CHART_STOCK :
                            GraphTypes.CHART_CANDLE);
-      return info;
+      return stored(info);
    }
 
    private static DefaultVSChartInfo waterfall() {
@@ -172,6 +189,13 @@ class VSChartDirectionColorsTest {
       info.addXField(dim("state"));
       info.addYField(agg("v"));
       info.setChartType(GraphTypes.CHART_WATERFALL);
+      return stored(info);
+   }
+
+   // the up and down colours a marked chart's seed stores
+   private static <T extends AbstractChartInfo> T stored(T info) {
+      info.setUpColorFrameWrapper(new StaticColorFrameWrapper());
+      info.setDownColorFrameWrapper(new StaticColorFrameWrapper());
       return info;
    }
 

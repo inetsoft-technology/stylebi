@@ -3250,12 +3250,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             boolean neutral = VSChartPaletteDefaults.isNeutralToken(current);
 
             if(ctx.modern) {
-               if(neutral || CLASSIC_TOTAL.equals(current)) {
+               if(neutral || VSChartAggregateRef.DEFAULT_SUMMARY_COLOR.equals(current)) {
                   sw.setDefaultColor(VSChartPaletteDefaults.directionNeutral(ctx));
                }
             }
             else if(neutral) {
-               sw.setDefaultColor(CLASSIC_TOTAL);
+               sw.setDefaultColor(VSChartAggregateRef.DEFAULT_SUMMARY_COLOR);
             }
          }
       }
@@ -3624,6 +3624,4 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private transient ResolvedChartType seededType;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
-   // the classic waterfall Total
-   private static final Color CLASSIC_TOTAL = new Color(0x7030A0);
 }

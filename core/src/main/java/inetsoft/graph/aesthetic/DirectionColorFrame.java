@@ -31,18 +31,25 @@ public class DirectionColorFrame extends StaticColorFrame {
     * A frame for a candle or stock chart, comparing the close with the open.
     */
    public DirectionColorFrame(Color up, Color down, String openField, String closeField) {
+      this(up, down, openField, closeField, false);
+   }
+
+   private DirectionColorFrame(Color up, Color down, String openField, String closeField,
+                               boolean waterfall)
+   {
       super(up);
       this.up = up;
       this.down = down;
       this.openField = openField;
       this.closeField = closeField;
+      this.waterfall = waterfall;
    }
 
    /**
     * A frame for a waterfall, reading the sign of each step.
     */
-   public DirectionColorFrame(Color up, Color down) {
-      this(up, down, null, null);
+   public static DirectionColorFrame forWaterfall(Color up, Color down) {
+      return new DirectionColorFrame(up, down, null, null, true);
    }
 
    public Color getUpColor() {
@@ -71,14 +78,15 @@ public class DirectionColorFrame extends StaticColorFrame {
       }
 
       DirectionColorFrame frame = (DirectionColorFrame) obj;
-      return Objects.equals(up, frame.up) && Objects.equals(down, frame.down) &&
+      return waterfall == frame.waterfall &&
+         Objects.equals(up, frame.up) && Objects.equals(down, frame.down) &&
          Objects.equals(openField, frame.openField) &&
          Objects.equals(closeField, frame.closeField);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), up, down, openField, closeField);
+      return Objects.hash(super.hashCode(), waterfall, up, down, openField, closeField);
    }
 
    private boolean isDown(DataSet data, String col, int row) {
@@ -86,7 +94,7 @@ public class DirectionColorFrame extends StaticColorFrame {
          return false;
       }
 
-      if(openField == null && closeField == null) {
+      if(waterfall) {
          Number step = number(data, col, row);
          return step != null && step.doubleValue() < 0;
       }
@@ -120,6 +128,7 @@ public class DirectionColorFrame extends StaticColorFrame {
    private final Color down;
    private final String openField;
    private final String closeField;
+   private final boolean waterfall; // reads the sign of each step, not open and close
 
    private static final long serialVersionUID = 1L;
 }

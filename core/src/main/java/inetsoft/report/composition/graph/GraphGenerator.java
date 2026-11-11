@@ -52,7 +52,6 @@ import inetsoft.uql.viewsheet.graph.TextLayout;
 import inetsoft.uql.viewsheet.graph.TextLayoutItem;
 import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
-import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.css.CSSDictionary;
@@ -7181,14 +7180,12 @@ public abstract class GraphGenerator {
    }
 
    /**
-    * The up and down colours from the chart's stored frames, or the tokens where it has none.
+    * The up and down colours from the chart's stored frames, which draws() requires.
     */
    private ColorFrame createDirectionColorFrame() {
-      AbstractChartInfo chart = info instanceof AbstractChartInfo ? (AbstractChartInfo) info : null;
-      Color up = colorOf(chart == null ? null : chart.getUpColorFrameWrapper(),
-                         VSChartPaletteDefaults.directionUp(vizContext));
-      Color down = colorOf(chart == null ? null : chart.getDownColorFrameWrapper(),
-                           VSChartPaletteDefaults.directionDown(vizContext));
+      AbstractChartInfo chart = (AbstractChartInfo) info;
+      Color up = chart.getUpColorFrameWrapper().getColor();
+      Color down = chart.getDownColorFrameWrapper().getColor();
 
       if(info instanceof CandleChartInfo) {
          CandleChartInfo candle = (CandleChartInfo) info;
@@ -7196,12 +7193,7 @@ public abstract class GraphGenerator {
                                         GraphUtil.getName(candle.getRTCloseField()));
       }
 
-      return new DirectionColorFrame(up, down);
-   }
-
-   private static Color colorOf(StaticColorFrameWrapper wrapper, Color token) {
-      Color color = wrapper == null ? null : wrapper.getColor();
-      return color != null ? color : token;
+      return DirectionColorFrame.forWaterfall(up, down);
    }
 
    /**

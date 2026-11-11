@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -130,6 +131,30 @@ class DirectionColorSeedTest {
       info.reseedIfResolvedTypeChanged();
 
       assertEquals(UP, up(info).getDefaultColor());
+      assertEquals(DOWN, down(info).getDefaultColor());
+   }
+
+   @Test
+   void anAuthorsUpSurvivesCandleToStock() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVSChartInfo(chartOf("candle"));
+      seed(info);
+      up(info).setUserColor(new Color(0x00AA00));
+
+      ChartInfo changed = new ChangeChartTypeProcessor(
+         GraphTypes.CHART_CANDLE, GraphTypes.CHART_STOCK, false, false, null,
+         info.getVSChartInfo(), false, info.getChartDescriptor(), VizContext.of(info)).process();
+      assertInstanceOf(StockVSChartInfo.class, changed, "premise: a new stock info");
+      // as an execution resolves it; the test has no principal for the type permission
+      changed.setRTChartType(GraphTypes.CHART_STOCK);
+      assertNotEquals(info.getSeededType(), ResolvedChartType.of(changed),
+                      "premise: the re-seed runs");
+      info.setVSChartInfo((VSChartInfo) changed);
+      info.reseedIfResolvedTypeChanged();
+
+      assertNotNull(up(info));
+      assertEquals(new Color(0x00AA00), up(info).getUserColor());
       assertEquals(DOWN, down(info).getDefaultColor());
    }
 

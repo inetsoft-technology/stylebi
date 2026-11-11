@@ -35,11 +35,15 @@ public final class VSChartDirectionColors {
    }
 
    /**
-    * True for a marked chart of a direction type with no colour field and no author or
-    * stylesheet single colour; a stock chart also needs its Open field, a waterfall one measure.
+    * True for a marked chart of a direction type with both stored colours, no colour field and
+    * no author or stylesheet single colour; a stock chart also needs its Open field, a waterfall
+    * one measure.
     */
    public static boolean draws(VizContext ctx, ChartInfo info) {
-      if(ctx == null || !ctx.modern || info == null) {
+      // an older chart without both stored colours draws its single colour
+      if(ctx == null || !ctx.modern || !(info instanceof AbstractChartInfo chart) ||
+         chart.getUpColorFrameWrapper() == null || chart.getDownColorFrameWrapper() == null)
+      {
          return false;
       }
 
@@ -71,18 +75,13 @@ public final class VSChartDirectionColors {
          }
       }
 
-      if(!(single instanceof StaticColorFrameWrapper)) {
+      if(!(single instanceof StaticColorFrameWrapper) ||
+         !(single.getVisualFrame() instanceof StaticColorFrame frame))
+      {
          return false;
       }
 
-      StaticColorFrameWrapper wrapper = (StaticColorFrameWrapper) single;
-
-      if(wrapper.getUserColor() != null) {
-         return false;
-      }
-
-      return !(wrapper.getVisualFrame() instanceof StaticColorFrame) ||
-         ((StaticColorFrame) wrapper.getVisualFrame()).getCssColor() == null;
+      return frame.getUserColor() == null && frame.getCssColor() == null;
    }
 
    // the chart's measure, or null when it has none or more than one

@@ -95,6 +95,14 @@ class DirectionColorFrameTest {
    }
 
    @Test
+   void aCandleWithoutFieldNamesDoesNotReadTheStep() {
+      DirectionColorFrame frame = new DirectionColorFrame(UP, DOWN, null, null);
+
+      assertEquals(UP, frame.getColor(step(-3.0), STEP, 0));
+      assertNotEquals(waterfall(), frame);
+   }
+
+   @Test
    void aValueWithoutARowIsUp() {
       assertEquals(UP, candle().getColor((Object) "Sum(High)"));
       assertEquals(UP, waterfall().getColor((Object) (-3.0)));
@@ -125,6 +133,12 @@ class DirectionColorFrameTest {
       assertEquals(UP, copy.getUpColor());
       assertEquals(DOWN, copy.getDownColor());
       assertEquals(DOWN, copy.getColor(day(OPEN, CLOSE, 12.0, 10.0), HIGH, 0));
+
+      // the clone keeps the waterfall mode
+      DirectionColorFrame steps = (DirectionColorFrame) waterfall().clone();
+      assertEquals(waterfall(), steps);
+      assertEquals(waterfall().hashCode(), steps.hashCode());
+      assertEquals(DOWN, steps.getColor(step(-3.0), STEP, 0));
    }
 
    private static DirectionColorFrame candle() {
@@ -132,7 +146,7 @@ class DirectionColorFrameTest {
    }
 
    private static DirectionColorFrame waterfall() {
-      return new DirectionColorFrame(UP, DOWN);
+      return DirectionColorFrame.forWaterfall(UP, DOWN);
    }
 
    private static DataSet day(String openCol, String closeCol, Double open, Double close) {

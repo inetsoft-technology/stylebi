@@ -225,7 +225,7 @@ public abstract class ChartAggregateInfoFactory<A extends ChartAggregateRef>
                Tool.getColorFromHexString(((StaticColorModel) scFrameModel).getDefaultColor()) :
                null;
             ((StaticColorFrameWrapper) nwrapper).setDefaultColor(
-               total != null ? total : new Color(0x7030a0));
+               total != null ? total : VSChartAggregateRef.DEFAULT_SUMMARY_COLOR);
          }
 
          ref.setSummaryColorFrameWrapper(nwrapper);
