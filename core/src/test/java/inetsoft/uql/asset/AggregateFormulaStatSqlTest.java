@@ -393,15 +393,14 @@ class AggregateFormulaStatSqlTest {
    // the expression counts the rows where x is there and sums y over all rows, so a row with
    // only one of the two values changes the means; the covariance and the correlation of the
    // rows that have both values is what the other databases give
-   @Disabled("Looks unintended: composite covariance counts x only, SUM(y) includes rows "
-      + "without x; to be reported")
+   @Disabled("Bug #81095: composite covariance counts x only, SUM(y) includes rows without x")
    @Test
    void covarianceLeavesOutRowsWithAMissingValue() throws Exception {
       checkAll("COVARIANCE", true, AggregateFormulaStatSqlTest::populationCovariance,
                d -> d.name().equals("a null in x") || d.name().equals("nulls in different rows"));
    }
 
-   @Disabled("Looks unintended: same cause as the covariance; to be reported")
+   @Disabled("Bug #81095: same cause as the covariance")
    @Test
    void correlationLeavesOutRowsWithAMissingValue() throws Exception {
       checkAll("CORRELATION", true, AggregateFormulaStatSqlTest::correlation,
@@ -410,8 +409,7 @@ class AggregateFormulaStatSqlTest {
 
    // one pair has no correlation: the other databases give null, Derby fails with a division
    // by zero
-   @Disabled("Looks unintended: composite correlation divides by zero for a single row; "
-      + "to be reported")
+   @Disabled("Bug #81096: composite correlation divides by zero for a single row")
    @Test
    void correlationOfOneRowIsNull() throws Exception {
       checkAll("CORRELATION", true, AggregateFormulaStatSqlTest::correlation,
