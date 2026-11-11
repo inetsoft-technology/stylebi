@@ -194,6 +194,35 @@ public class SheetRuntimeAccess {
       };
    }
 
+   /**
+    * Refreshes only the heartbeat of a paired runtime that is resident on this node
+    * ({@code access(false)}), so an idle paired session is not reaped by the heartbeat timeout.
+    *
+    * <p>Deliberately does nothing else: it does not reset the idle clock (the server's idle limit
+    * stays the safety net for an abandoned runtime), does not mutate or render, does not grant the
+    * {@link #PAIRED_AGENT} bypass, and looks the runtime up in local memory only, so it can neither
+    * create a copy of another node's runtime nor revive one that was disposed.
+    *
+    * @throws PairingException SESSION_EXPIRED if the runtime is not local or is the wrong type.
+    */
+   public void keepAlive(SheetType sheetType, String runtimeId) throws PairingException {
+      SheetDirectAccessor accessor = switch(sheetType) {
+         case WORKSHEET -> worksheetAccessor;
+         case VIEWSHEET -> viewsheetAccessor;
+      };
+      RuntimeSheet rs = accessor.getSheetLocal(runtimeId);
+      boolean typeOk = sheetType == SheetType.WORKSHEET ? rs instanceof RuntimeWorksheet
+                                                         : rs instanceof RuntimeViewsheet;
+
+      if(!typeOk) {
+         String label = sheetType == SheetType.WORKSHEET ? "Worksheet" : "Viewsheet";
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    label + " runtime not found or expired: " + runtimeId);
+      }
+
+      rs.access(false);
+   }
+
    private RuntimeWorksheet getWorksheetForPairing(String runtimeId, Principal agentUser)
       throws PairingException
    {

@@ -624,6 +624,11 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       return amap.get(runtimeId);
    }
 
+   @Override
+   public RuntimeSheet getSheetLocal(String runtimeId) {
+      return amap.getLocal(runtimeId);
+   }
+
    /**
     * Save the worksheet.
     * @param ws the specified worksheet.
