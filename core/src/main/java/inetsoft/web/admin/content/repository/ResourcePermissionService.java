@@ -213,15 +213,13 @@ public class ResourcePermissionService {
       }
       else if(!tableStyleFolder && ResourceType.TABLE_STYLE == resourceType) {
          // Bug #80959, a table style's permission is stored under its name, like the runtime,
-         // the composer and the permission write use it. The ID does not change on a rename, so
-         // reading by ID showed a renamed style's old grant. The name is tried first, an ID of a
-         // renamed style can equal the name of another style.
+         // the composer and the permission write use it. Bug #81051, the path is a name (the
+         // repository tree path of a style is its name), so it is resolved by exact name only.
+         // Resolving through the ID is wrong, the ID does not change on a rename, so the old
+         // name of a renamed style would resolve to the renamed style and show or write its
+         // grants. When no style has that name the path stays the key.
          LibManager manager = libManagerProvider.getManager();
          XTableStyle tableStyle = manager.getTableStyleByName(path);
-
-         if(tableStyle == null) {
-            tableStyle = manager.getTableStyle(path);
-         }
 
          return tableStyle == null ? path : tableStyle.getName();
       }
