@@ -18,7 +18,9 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XTable;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -104,7 +106,39 @@ class RotatedQueryDuplicateHeaderTest {
                     "item,A,B,C", "Q1,1,2,3", "Q2,10,20,30");
    }
 
+   @Test
+   void selectionSavedByOldCodeForCaseDifferentNamesIsHealed() throws Exception {
+      // what a worksheet saved before the fix holds for A,a: item, A, a (alias a_1)
+      assertRotated(new Object[][] { { "A", 1, 10 }, { "a", 2, 20 } },
+                    rotated -> {
+                       ColumnSelection saved = new ColumnSelection();
+                       saved.addAttribute(ref("item", null));
+                       saved.addAttribute(ref("A", null));
+                       saved.addAttribute(ref("a", "a_1"));
+                       rotated.setColumnSelection(saved);
+                    },
+                    "item,A,a_1", "Q1,1,2", "Q2,10,20");
+   }
+
+   @Test
+   void numericRepeatedNames() throws Exception {
+      assertRotated(new Object[][] { { 5, 1, 10 }, { 5, 2, 20 }, { 6, 3, 30 } },
+                    "item,5,5_1,6", "Q1,1,2,3", "Q2,10,20,30");
+   }
+
+   private static ColumnRef ref(String name, String alias) {
+      ColumnRef ref = new ColumnRef(new AttributeRef(name));
+      ref.setDataType(XSchema.STRING);
+      ref.setAlias(alias);
+      return ref;
+   }
+
    private static void assertRotated(Object[][] rows, String... expected) throws Exception {
+      assertRotated(rows, null, expected);
+   }
+
+   private static void assertRotated(Object[][] rows, java.util.function.Consumer<RotatedTableAssembly> prep,
+                                     String... expected) throws Exception {
       Worksheet ws = new Worksheet();
       Object[][] data = new Object[rows.length + 1][];
       data[0] = new Object[] { "item", "Q1", "Q2" };
@@ -113,7 +147,12 @@ class RotatedQueryDuplicateHeaderTest {
       source.setEmbeddedData(new XEmbeddedTable(
          new String[] { XSchema.STRING, XSchema.INTEGER, XSchema.INTEGER }, data));
       ws.addAssembly(source);
-      ws.addAssembly(new RotatedTableAssembly(ws, "R", source));
+      RotatedTableAssembly rotated = new RotatedTableAssembly(ws, "R", source);
+      ws.addAssembly(rotated);
+
+      if(prep != null) {
+         prep.accept(rotated);
+      }
 
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
       TableLens lens = box.getTableLens("R", AssetQuerySandbox.RUNTIME_MODE,

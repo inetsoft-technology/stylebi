@@ -30,6 +30,8 @@ import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -150,6 +152,7 @@ public class RotatedQuery extends AssetQuery {
       ColumnSelection columns = getTable().getColumnSelection();
       ColumnSelection ncolumns = new ColumnSelection();
       boolean fnull = false;
+      List<ColumnRef> staleColumns = new ArrayList<>();
 
       // fix column selection
       if(table.moreRows(0)) {
@@ -168,7 +171,17 @@ public class RotatedQuery extends AssetQuery {
 
             // keep alias column, avoid creating columnref use alias as attribute which may cause
             // alias column be removed when validate columnselection.
-            if(ocolumn instanceof ColumnRef &&
+            boolean stale = ocolumn instanceof ColumnRef &&
+               Tool.equals(header, ((ColumnRef) ocolumn).getAlias()) &&
+               pointsToOtherColumn(table, ((ColumnRef) ocolumn).getAttribute(), i);
+
+            if(stale) {
+               // saved by code that did not make the header names unique, replace it with a
+               // column of the unique header that keeps its visibility
+               staleColumns.add((ColumnRef) ocolumn);
+            }
+
+            if(ocolumn instanceof ColumnRef && !stale &&
                Tool.equals(header, ((ColumnRef) ocolumn).getAlias()))
             {
                ncolumns.addAttribute(((ColumnRef) ocolumn).clone());
@@ -178,11 +191,27 @@ public class RotatedQuery extends AssetQuery {
                ColumnRef column = new ColumnRef(attr);
                String dtype = Tool.getDataType(table.getColType(i));
                column.setDataType(dtype);
+
+               if(stale) {
+                  column.setVisible(((ColumnRef) ocolumn).isVisible());
+               }
+
                ncolumns.addAttribute(column);
             }
          }
 
          AssetUtil.fixAlias(ncolumns);
+      }
+
+      for(ColumnRef stale : staleColumns) {
+         int idx = columns.indexOfAttribute(stale);
+
+         if(idx >= 0) {
+            ColumnRef column = new ColumnRef(new AttributeRef(stale.getAlias()));
+            column.setDataType(stale.getDataType());
+            column.setVisible(stale.isVisible());
+            columns.setAttribute(idx, column);
+         }
       }
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
@@ -195,6 +224,22 @@ public class RotatedQuery extends AssetQuery {
 
       validateColumnSelection(ncolumns, columns, true, true, false, true);
       getTable().setColumnSelection(getTable().getColumnSelection());
+   }
+
+   /**
+    * Check if the name resolves, case-insensitively and first column wins as the column lookup
+    * does, to a column of the table other than the specified one. A column selection saved
+    * before duplicate header names were made unique holds such a reference (attribute "a",
+    * alias "a_1" for the headers A, a), which would map the alias onto the wrong column.
+    */
+   private static boolean pointsToOtherColumn(TableLens table, String name, int col) {
+      for(int i = 0; i < table.getColCount(); i++) {
+         if(name.equalsIgnoreCase(AssetUtil.format(XUtil.getHeader(table, i)))) {
+            return i != col;
+         }
+      }
+
+      return false;
    }
 
    /**
