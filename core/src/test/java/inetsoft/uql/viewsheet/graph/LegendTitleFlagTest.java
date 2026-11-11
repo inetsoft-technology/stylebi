@@ -96,6 +96,23 @@ class LegendTitleFlagTest {
    }
 
    @Test
+   void typingATitleKeepsAnAuthorsHiddenTitleHidden() {
+      LegendDescriptor desc = new LegendDescriptor();
+      desc.setAuthorTitleVisible(false);
+      desc.setAuthorTitleValue("Brands");
+
+      assertFalse(desc.isTitleVisible());
+      assertTrue(desc.isUserTitleVisible());
+
+      LegendDescriptor rt = new LegendDescriptor();
+      rt.setAuthorTitleVisible(false);
+      rt.setAuthorTitle("Brands");
+
+      assertFalse(rt.isTitleVisible());
+      assertTrue(rt.isUserTitleVisible());
+   }
+
+   @Test
    void typingATitleShowsItAndStampsTheFlag() {
       LegendDescriptor desc = new LegendDescriptor();
       desc.setTitleVisible(false);

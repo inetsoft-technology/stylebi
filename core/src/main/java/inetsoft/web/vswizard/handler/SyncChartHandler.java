@@ -77,6 +77,7 @@ public class SyncChartHandler extends SyncAssemblyHandler {
 
          // sync legend properties
          if(syncLegend) {
+            targetAssemblyInfo.setLegendCrowded(fromAssemblyInfo.isLegendCrowded());
             syncLegendsProperties(fromChart, targetChart);
          }
 

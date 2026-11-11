@@ -269,7 +269,7 @@ public class ChartProcessor {
                              "setTooltipStyleName", String.class, ChartInfo.class, info);
 
       // legend
-      scriptable.addProperty("legendPosition", "getLayout", "setLayout",
+      scriptable.addProperty("legendPosition", "getLayout", "setAuthorLayout",
          int.class, LegendsDescriptor.class, legends);
       scriptable.addProperty("legendTitleColor", "getColor", "setColor",
          Color.class, CompositeTextFormat.class, legends.getTitleTextFormat());
@@ -348,17 +348,17 @@ public class ChartProcessor {
       scriptable.addProperty("y2Title.color", "getColor", "setColor",
          Color.class, CompositeTextFormat.class, y2title.getTextFormat());
 
-      scriptable.addProperty("legend.position", "getLayout", "setLayout",
+      scriptable.addProperty("legend.position", "getLayout", "setAuthorLayout",
          int.class, LegendsDescriptor.class, legends);
       scriptable.addProperty("legend.color", "getColor", "setColor",
          Color.class, CompositeTextFormat.class, legends.getTitleTextFormat());
       scriptable.addProperty("legend.font", "getFont", "setFont", Font.class,
          CompositeTextFormat.class, legends.getTitleTextFormat());
 
-      scriptable.addProperty("colorLegend.title", "getTitle", "setTitle",
+      scriptable.addProperty("colorLegend.title", "getTitle", "setAuthorTitle",
          String.class, LegendDescriptor.class, colorLegend);
       scriptable.addProperty("colorLegend.titleVisible", "isTitleVisible",
-         "setTitleVisible", boolean.class, LegendDescriptor.class, colorLegend);
+         "setAuthorTitleVisible", boolean.class, LegendDescriptor.class, colorLegend);
       scriptable.addProperty("colorLegend.color", "getColor", "setColor",
          Color.class, CompositeTextFormat.class,
          colorLegend.getContentTextFormat());
@@ -371,10 +371,10 @@ public class ChartProcessor {
       scriptable.addProperty("colorLegend.noNull", "isNotShowNull",
          "setNotShowNull", boolean.class, LegendDescriptor.class, colorLegend);
 
-      scriptable.addProperty("shapeLegend.title", "getTitle", "setTitle",
+      scriptable.addProperty("shapeLegend.title", "getTitle", "setAuthorTitle",
          String.class, LegendDescriptor.class, shapeLegend);
       scriptable.addProperty("shapeLegend.titleVisible", "isTitleVisible",
-         "setTitleVisible", boolean.class, LegendDescriptor.class, shapeLegend);
+         "setAuthorTitleVisible", boolean.class, LegendDescriptor.class, shapeLegend);
       scriptable.addProperty("shapeLegend.color", "getColor", "setColor",
          Color.class, CompositeTextFormat.class,
          shapeLegend.getContentTextFormat());
@@ -387,10 +387,10 @@ public class ChartProcessor {
       scriptable.addProperty("shapeLegend.noNull", "isNotShowNull",
          "setNotShowNull", boolean.class, LegendDescriptor.class, shapeLegend);
 
-      scriptable.addProperty("sizeLegend.title", "getTitle", "setTitle",
+      scriptable.addProperty("sizeLegend.title", "getTitle", "setAuthorTitle",
          String.class, LegendDescriptor.class, sizeLegend);
       scriptable.addProperty("sizeLegend.titleVisible", "isTitleVisible",
-         "setTitleVisible", boolean.class, LegendDescriptor.class, sizeLegend);
+         "setAuthorTitleVisible", boolean.class, LegendDescriptor.class, sizeLegend);
       scriptable.addProperty("sizeLegend.color", "getColor", "setColor",
          Color.class, CompositeTextFormat.class,
          sizeLegend.getContentTextFormat());

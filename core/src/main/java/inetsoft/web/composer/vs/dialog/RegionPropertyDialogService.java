@@ -229,6 +229,7 @@ public class RegionPropertyDialogService {
       ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
       regionHandler.updateLegendFormatDialogModel(value, cinfo, chartArea, descriptor, index,
                                                   VizContext.of(chartAssemblyInfo));
+      chartAssemblyInfo.reseedLegendTitles();
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);

@@ -51,9 +51,9 @@ public class LegendScriptable extends PropertyScriptable {
     */
    private void init() {
       try {
-         addProperty("title", "getTitle", "setTitle", String.class,
+         addProperty("title", "getTitle", "setAuthorTitle", String.class,
                      LegendDescriptor.class);
-         addProperty("titleVisible", "isTitleVisible", "setTitleVisible",
+         addProperty("titleVisible", "isTitleVisible", "setAuthorTitleVisible",
                      boolean.class, LegendDescriptor.class);
          addProperty("color", "getColor", "setColor", Color.class,
                      LegendDescriptor.class);
