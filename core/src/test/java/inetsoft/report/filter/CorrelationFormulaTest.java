@@ -17,10 +17,20 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.mv.data.FormulaInfo;
+import inetsoft.uql.XConstants;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -197,5 +207,256 @@ class CorrelationFormulaTest {
       f.addValue(new double[] { 9 });
       f.addValue(new double[] { 9, inetsoft.util.Tool.NULL_DOUBLE });
       assertEquals(0.9981, (Double) f.getResult(), 1e-3);
+   }
+
+   private static final double EPS = 1e-12;
+
+   private static void pairs(Formula formula, Object[]... pairs) {
+      for(Object[] pair : pairs) {
+         formula.addValue(pair);
+      }
+   }
+
+   private static Object[] p(Object x, Object y) {
+      return new Object[] { x, y };
+   }
+
+   private static void assertUnsupported(Executable call) {
+      assertEquals("Unsupported method called!",
+                   assertThrows(RuntimeException.class, call).getMessage());
+   }
+
+   private static boolean isBlank(Object value) {
+      return value instanceof String && ((String) value).trim().isEmpty();
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-coefficient
+   @Test
+   void nameResultTypeAndSecondaryColumn() {
+      CorrelationFormula correl = new CorrelationFormula(2);
+      assertEquals(XConstants.CORRELATION_FORMULA, correl.getName());
+      assertEquals(Double.class, correl.getResultType());
+      assertArrayEquals(new int[] { 2 }, correl.getSecondaryColumns());
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-coefficient
+   @Test
+   void unrelatedGeneralAndMixedTypePairs() {
+      CorrelationFormula correl = new CorrelationFormula(2);
+
+      // unrelated columns
+      pairs(correl, p(1, 2), p(2, 5), p(3, 1), p(4, 5), p(5, 2));
+      assertEquals(0.0, (Double) correl.getResult(), EPS);
+      assertFalse(correl.isNull());
+
+      // a general case: r = (n*sxy - sx*sy) / sqrt((n*sxx - sx^2) * (n*syy - sy^2)) = 12/sqrt(1040)
+      correl.reset();
+      pairs(correl, p(1, 2), p(2, 7), p(3, 4), p(4, 5));
+      assertEquals(12 / Math.sqrt(1040), (Double) correl.getResult(), EPS);
+
+      // numbers of any type and numeric text are the same pair
+      correl.reset();
+      pairs(correl, p(1, 2L), p(2.0, "4"), p("3", 6f));
+      assertEquals(1.0, (Double) correl.getResult(), EPS);
+
+      // reset starts over: the earlier pairs do not count
+      correl.reset();
+      pairs(correl, p(1, 3), p(2, 2), p(3, 1));
+      assertEquals(-1.0, (Double) correl.getResult(), EPS);
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-no-numeric-input-null
+   @Test
+   void noNumericInput_isNull() {
+      CorrelationFormula correl = new CorrelationFormula(2);
+
+      // the default-result option turns "no result" into 0.0
+      correl.setDefaultResult(true);
+      assertTrue(correl.isDefaultResult());
+      assertEquals(0.0, (Double) correl.getResult());
+      assertTrue(correl.isNull());
+      correl.setDefaultResult(false);
+
+      // only nulls
+      pairs(correl, p(null, null), p(null, null), p(null, null), p(null, null));
+      assertNull(correl.getResult());
+      assertTrue(correl.isNull());
+
+      // date pairs are not numbers
+      correl.reset();
+      Timestamp a = Timestamp.valueOf("2024-06-12 10:30:00");
+      Timestamp b = Timestamp.valueOf("2024-07-01 08:00:00");
+      pairs(correl, p(a, b), p(b, a), p(a, a));
+      assertNull(correl.getResult());
+      assertTrue(correl.isNull());
+
+      // a value that is not a pair array is ignored
+      correl.addValue((Object) null);
+      correl.addValue((Object) "12");
+      correl.addValue((Object) new double[] { 1.0, 2.0 });
+      assertNull(correl.getResult());
+      assertTrue(correl.isNull());
+
+      // reset returns a used formula to no result
+      pairs(correl, p(1, 2), p(2, 4));
+      assertNotNull(correl.getResult());
+      correl.reset();
+      assertNull(correl.getResult());
+      assertTrue(correl.isNull());
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-skips-incomplete-pairs
+   @Test
+   void nullOrTextMember_skipsPair() {
+      CorrelationFormula whole = new CorrelationFormula(2);
+      pairs(whole, p(1, 2), p(2, 7), p(3, 4), p(4, 5));
+      Double expected = (Double) whole.getResult();
+      assertEquals(12 / Math.sqrt(1040), expected, EPS);
+
+      // pairs with a null or text member add nothing, wherever they sit
+      CorrelationFormula mixed = new CorrelationFormula(2);
+      pairs(mixed, p(null, null), p(1, 2), p(null, 9), p(2, 7), p(8, null), p("a", 5),
+            p(3, 4), p(5, "b"), p(4, 5), p(null, null));
+      assertEquals(expected, mixed.getResult());
+
+      // a text member that is a number counts
+      CorrelationFormula text = new CorrelationFormula(2);
+      pairs(text, p("1", 2), p(2, "7"), p(3, 4), p("4", "5"));
+      assertEquals(expected, text.getResult());
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-zero-variance
+   @Test
+   void zeroVariance_constantSecondColumnOrSinglePair() {
+      CorrelationFormula correl = new CorrelationFormula(2);
+
+      // a constant second column: no variance, so no coefficient
+      pairs(correl, p(1, 5), p(2, 5), p(3, 5));
+      assertNull(correl.getResult());
+
+      // a single pair has no variance either
+      correl.reset();
+      pairs(correl, p(2, 3));
+      assertNull(correl.getResult());
+
+      // the default-result option gives 0.0 instead
+      correl.setDefaultResult(true);
+      assertEquals(0.0, (Double) correl.getResult());
+      correl.reset();
+      pairs(correl, p(1, 5), p(2, 5), p(3, 5));
+      assertEquals(0.0, (Double) correl.getResult());
+
+      // with variance the option changes nothing
+      correl.reset();
+      pairs(correl, p(1, 2), p(2, 4), p(3, 6));
+      assertEquals(1.0, (Double) correl.getResult(), EPS);
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-primitive-pair-path
+   @Test
+   void doubleArrayPair_nullOrTooShortAddsNothing() {
+      CorrelationFormula correl = new CorrelationFormula(2);
+
+      // a null array and an array with fewer than two members add nothing
+      correl.addValue((double[]) null);
+      correl.addValue(new double[0]);
+      correl.addValue(new double[] { 3 });
+      assertTrue(correl.isNull());
+      assertNull(correl.getResult());
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-primitive-pair-path,
+   // gap:report.summary-formulas.common#second-column-formulas-need-pairs
+   @Test
+   void singleNumberAddValue_isUnsupported() {
+      CorrelationFormula correl = new CorrelationFormula(2);
+
+      // the single-number forms are not supported by a two-column formula
+      assertUnsupported(() -> correl.addValue(1.5));
+      assertUnsupported(() -> correl.addValue(1));
+      assertUnsupported(() -> correl.addValue(1L));
+      assertUnsupported(() -> correl.addValue(1f));
+      assertUnsupported(() -> correl.addValue((short) 1));
+   }
+
+   // gap:report.summary-formulas.bivariate#correlation-primitive-pair-path
+   @Test
+   void doubleArrayPair_nullMarkerInFirstMember_skipsPair() {
+      // MVRow -> FormulaInfo2.addValue and CalcFieldFormula.addValue pass {primary, secondary}
+      CorrelationFormula correl = new CorrelationFormula(2);
+      correl.addValue(new double[] { 1, 2 });
+      correl.addValue(new double[] { 2, 4 });
+      correl.addValue(new double[] { 3, 6 });
+
+      // a pair with a null marker is skipped, as the Object form skips a null member
+      correl.addValue(new double[] { Tool.NULL_DOUBLE, 9 });
+      assertEquals(1.0, (Double) correl.getResult(), EPS);
+   }
+
+   // Bug #80701: blank text pairs change nothing, and other lists are unchanged
+   @Test
+   void blankTextPairs_changeNothingInRandomLists() {
+      Random random = new Random(80701L);
+      Object[] pool = { 1, 2.5, -3, 10L, "4", "-7.5", " 8 ", "", "  ", "abc", null };
+
+      for(int i = 0; i < 400; i++) {
+         List<Object[]> all = new ArrayList<>();
+         List<Object[]> clean = new ArrayList<>();
+         int size = random.nextInt(8);
+
+         for(int j = 0; j < size; j++) {
+            Object[] pair = p(pool[random.nextInt(pool.length)], pool[random.nextInt(pool.length)]);
+            all.add(pair);
+
+            if(!isBlank(pair[0]) && !isBlank(pair[1])) {
+               clean.add(pair);
+            }
+         }
+
+         CorrelationFormula withBlanks = new CorrelationFormula(2);
+         CorrelationFormula noBlanks = new CorrelationFormula(2);
+         all.forEach(withBlanks::addValue);
+         clean.forEach(noBlanks::addValue);
+         assertEquals(noBlanks.getResult(), withBlanks.getResult(),
+                      Arrays.deepToString(all.toArray()));
+      }
+   }
+
+   // Bug #80700: the primitive pair of a summary column is added as one pair
+   @Test
+   void doubleArrayPair_sameAsObjectPairForImperfectData() {
+      // FormulaInfo2 fills {primary, secondary} for the two column indexes the formula names
+      double[][] rows = { { 1, 2 }, { 2, 7 }, { 3, 4 }, { 4, 5 } };
+      CorrelationFormula primitive = new CorrelationFormula(2);
+      CorrelationFormula object = new CorrelationFormula(2);
+
+      for(double[] row : rows) {
+         primitive.addValue(row);
+         object.addValue(p(row[0], row[1]));
+      }
+
+      assertEquals(object.getResult(), primitive.getResult());
+      assertEquals(0.3721, (Double) primitive.getResult(), 1e-4);
+
+      // a short array is still ignored
+      primitive.addValue(new double[] { 1 });
+      assertEquals(object.getResult(), primitive.getResult());
+   }
+
+   // Bug #80700: a materialized view row feeds Correlation one pair
+   @Test
+   void materializedViewRow_feedsOnePair() {
+      // GroupedTableBlock builds FormulaInfo over the measure indexes of the MV row, and
+      // FormulaInfo2 hands the formula {primary, secondary}
+      FormulaInfo correl = FormulaInfo.create(new CorrelationFormula(), new int[] { 3, 1 });
+      // measure columns of the row: 0 unused, 1 secondary, 2 unused, 3 primary
+      double[][] rows = { { 0, 2, 0, 1 }, { 0, 7, 0, 2 }, { 0, 4, 0, 3 }, { 0, 5, 0, 4 },
+                          { 0, 9, 0, Tool.NULL_DOUBLE } };
+
+      for(double[] row : rows) {
+         correl.addValue(row);
+      }
+
+      assertEquals(0.3721, (Double) correl.getFormula().getResult(), 1e-4);
    }
 }
