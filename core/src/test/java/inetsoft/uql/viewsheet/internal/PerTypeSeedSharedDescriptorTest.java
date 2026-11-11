@@ -438,7 +438,8 @@ class PerTypeSeedSharedDescriptorTest {
       int seededBorder = legends.getBorder();
       assertNotEquals(from.getBorderColor(), seededColor, "premise: the colours differ");
       assertNotEquals(from.getBorder(), seededBorder, "premise: the borders differ");
-      from.setLayout(LegendsDescriptor.BOTTOM);
+      // an author's position, which the target's seed leaves alone
+      from.setAuthorLayout(LegendsDescriptor.BOTTOM);
       assertNotEquals(LegendsDescriptor.BOTTOM, legends.getLayout(), "premise: the layouts differ");
 
       syncPreview(original, target);
@@ -480,7 +481,8 @@ class PerTypeSeedSharedDescriptorTest {
       int seededBorder = legends.getBorder();
       assertNotEquals(from.getBorderColor(), seededColor, "premise: the colours differ");
       assertNotEquals(from.getBorder(), seededBorder, "premise: the borders differ");
-      from.setLayout(LegendsDescriptor.BOTTOM);
+      // an author's position, which the target's seed leaves alone
+      from.setAuthorLayout(LegendsDescriptor.BOTTOM);
       assertNotEquals(LegendsDescriptor.BOTTOM, legends.getLayout(), "premise: the layouts differ");
 
       syncPreview(original, target);
