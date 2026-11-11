@@ -49,4 +49,49 @@ class DynamicValueFullEqualsTest {
    void differentDesignValueIsNotFullEqual() {
       assertFalse(new DynamicValue("v").fullEquals(new DynamicValue("w")));
    }
+
+   // FullHashObject contract: fullEquals true => fullHashCode equal.
+   private static DynamicValue withRValue(Object rvalue) {
+      DynamicValue val = new DynamicValue("v");
+      val.setRValue(rvalue);
+      return val;
+   }
+
+   private static void assertContract(Object r1, Object r2) {
+      DynamicValue a = withRValue(r1);
+      DynamicValue b = withRValue(r2);
+
+      assertTrue(a.fullEquals(b));
+      assertEquals(a.fullHashCode(), b.fullHashCode());
+   }
+
+   @Test
+   void equalArrayRuntimeValuesHaveSameFullHashCode() {
+      assertContract(new String[] { "a", "b" }, new String[] { "a", "b" });
+      assertContract(new int[] { 1, 2 }, new int[] { 1, 2 });
+      assertContract(new Object[] { new int[] { 1 }, "x" }, new Object[] { new int[] { 1 }, "x" });
+      assertContract(new Object[] { 1, 2 }, new Object[] { 1.0, 2.0 });
+   }
+
+   @Test
+   void equalNumbersOfDifferentTypesHaveSameFullHashCode() {
+      assertContract(1, 1.0);
+      assertContract(1L, 1.0f);
+      assertContract(0.0, -0.0);
+   }
+
+   @Test
+   void numbersBeyondDoublePrecisionKeepContract() {
+      assertContract((1L << 53) + 1, 1L << 53);
+   }
+
+   @Test
+   void differentArrayRuntimeValuesAreNotFullEqual() {
+      assertFalse(withRValue(new String[] { "a" }).fullEquals(withRValue(new String[] { "b" })));
+   }
+
+   @Test
+   void nullRuntimeValueHashIsStable() {
+      assertEquals(withRValue(null).fullHashCode(), withRValue(null).fullHashCode());
+   }
 }
