@@ -3212,6 +3212,23 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Save a legend count's verdict and re-seed the legend position and titles from it.
+    * @return true when the design legend layout changed.
+    */
+   public boolean applyLegendCount(boolean crowded) {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+      int layout = legends == null ? 0 : legends.getLayout();
+      VizContext ctx = VizContext.of(this);
+
+      setLegendCrowded(crowded);
+      clearLegendCountPending();
+      seedLegendPlacement(ctx, ResolvedChartType.of(getVSChartInfo()));
+      seedLegendTitles(ctx);
+
+      return legends != null && legends.getLayout() != layout;
+   }
+
+   /**
     * The key the per-type seed last ran for, or null before the first observation.
     */
    public ResolvedChartType getSeededType() {

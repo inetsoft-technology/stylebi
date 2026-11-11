@@ -306,6 +306,44 @@ class LegendPlacementSeedTest {
    }
 
    @Test
+   void aCrowdedCountMovesAnUnflaggedLegendRight() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      seed(info);
+      assertEquals(LegendsDescriptor.TOP, design(info).getLayout(), "premise");
+      assertTrue(info.isLegendCountPending(), "premise");
+
+      assertTrue(info.applyLegendCount(true));
+
+      assertEquals(LegendsDescriptor.RIGHT, design(info).getLayout());
+      assertEquals(LegendsDescriptor.RIGHT, runtime(info).getLayout());
+      assertTrue(info.isLegendCrowded());
+      assertTrue(design(info).getColorLegendDescriptor().isTitleVisible());
+
+      if(runtime(info).getColorLegendDescriptor() != null) {
+         assertTrue(runtime(info).getColorLegendDescriptor().isTitleVisible());
+      }
+
+      assertFalse(info.isLegendCountPending());
+   }
+
+   @Test
+   void aCountThatChangesNothingReturnsFalse() {
+      gateOn();
+      ChartVSAssemblyInfo info = boundBar();
+      seed(info);
+      assertEquals(LegendsDescriptor.TOP, design(info).getLayout(), "premise");
+      assertTrue(info.isLegendCountPending(), "premise");
+
+      assertFalse(info.applyLegendCount(false));
+
+      assertEquals(LegendsDescriptor.TOP, design(info).getLayout());
+      assertFalse(info.isLegendCrowded());
+      assertFalse(design(info).getColorLegendDescriptor().isTitleVisible());
+      assertFalse(info.isLegendCountPending());
+   }
+
+   @Test
    void aTypedTitleStaysOnATopLegend() {
       gateOn();
       ChartVSAssemblyInfo info = boundBar();

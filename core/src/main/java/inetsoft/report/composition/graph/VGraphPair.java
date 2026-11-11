@@ -212,7 +212,13 @@ public class VGraphPair {
       ProfileUtils.addExecutionBreakDownRecord(box.getID(),
                                                ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
             try {
+               legendRecount = false;
                initGraph0(box, cname, maxsize, export, scaleFont, forceExpand);
+
+               // the legend count moved the legend; draw again from the saved position
+               if(legendRecount) {
+                  initGraph0(box, cname, maxsize, export, scaleFont, forceExpand);
+               }
             }
             catch(MessageException messageException) {
                failure = messageException;
@@ -637,6 +643,14 @@ public class VGraphPair {
       }
 
       if(cancelled) {
+         return;
+      }
+
+      // only a composer draw takes a requested legend count, once per init
+      if(!legendRecount && box.getMode() == Viewsheet.SHEET_DESIGN_MODE &&
+         ainfo.needsLegendCount() && ainfo.applyLegendCount(LegendEntryCount.crowded(egraph)))
+      {
+         legendRecount = true;
          return;
       }
 
@@ -2846,6 +2860,8 @@ public class VGraphPair {
    // set before completed, so a thread that sees completed also sees the failure
    private volatile Throwable failure;
    private boolean cscript = false;
+   // set when a legend count changed the saved layout, so initGraph draws once more
+   private boolean legendRecount = false;
    private boolean isStructureChanged = false;
    private ViewsheetSandbox vbox;
    private String vsrc;
