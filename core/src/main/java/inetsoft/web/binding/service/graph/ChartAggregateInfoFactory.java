@@ -24,8 +24,10 @@ import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
+import inetsoft.util.Tool;
 import inetsoft.web.binding.model.graph.*;
 import inetsoft.web.binding.model.graph.aesthetic.ColorFrameModel;
+import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
 import inetsoft.web.binding.model.graph.aesthetic.TextLayoutModel;
 import inetsoft.web.binding.model.graph.aesthetic.TextureFrameModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -219,7 +221,11 @@ public abstract class ChartAggregateInfoFactory<A extends ChartAggregateRef>
             visualService.updateVisualFrameWrapper(owrapper, scFrameModel);
 
          if(nwrapper instanceof StaticColorFrameWrapper) {
-           ((StaticColorFrameWrapper) nwrapper).setDefaultColor(new Color(0x7030a0));
+            Color total = scFrameModel instanceof StaticColorModel ?
+               Tool.getColorFromHexString(((StaticColorModel) scFrameModel).getDefaultColor()) :
+               null;
+            ((StaticColorFrameWrapper) nwrapper).setDefaultColor(
+               total != null ? total : new Color(0x7030a0));
          }
 
          ref.setSummaryColorFrameWrapper(nwrapper);

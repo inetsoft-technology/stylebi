@@ -184,6 +184,29 @@ describe("ColorFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
 
       expect(document.querySelector("static-color-pane")).toBeTruthy();
    });
+
+   it("a modern candle's colour field opens the Up and Down pane", async () => {
+      const bindingModel = TestUtils.createMockChartBindingModel();
+      bindingModel.chartType = GraphTypes.CHART_CANDLE;
+      bindingModel.yfields = [TestUtils.createMockChartAggregateRef("Sum(close)")];
+      bindingModel.colorFrame = new StaticColorModel();
+      const up = new StaticColorModel();
+      up.color = "#1c857b";
+      const down = new StaticColorModel();
+      down.color = "#ad6119";
+      bindingModel.upColorFrame = up;
+      bindingModel.downColorFrame = down;
+      const { container, fixture } = await renderColorFieldMc(bindingModel);
+
+      await openColorDropdown(container, fixture);
+
+      expect(document.querySelector("combined-color-pane")).toBeTruthy();
+      expect(document.querySelector("static-color-pane")).toBeFalsy();
+      const text = document.querySelector("combined-color-pane").textContent;
+      expect(text).toContain("Up");
+      expect(text).toContain("Down");
+      expect(document.querySelectorAll("combined-color-pane static-color-editor").length).toBe(2);
+   });
 });
 
 describe("ColorFieldMc — chart-type guards [Group 4, Risk 2]", () => {

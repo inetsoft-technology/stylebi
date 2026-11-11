@@ -324,6 +324,28 @@ public class ChartBindingModel extends BindingModel implements ChartAestheticMod
       return colorFrame;
    }
 
+   /**
+    * Get the up-direction color frame, present only while direction colors draw.
+    */
+   public ColorFrameModel getUpColorFrame() {
+      return upColorFrame;
+   }
+
+   public void setUpColorFrame(ColorFrameModel frame) {
+      this.upColorFrame = frame;
+   }
+
+   /**
+    * Get the down-direction color frame, present only while direction colors draw.
+    */
+   public ColorFrameModel getDownColorFrame() {
+      return downColorFrame;
+   }
+
+   public void setDownColorFrame(ColorFrameModel frame) {
+      this.downColorFrame = frame;
+   }
+
    @Override
    public void setShapeFrame(ShapeFrameModel frame) {
       this.shapeFrame = frame;
@@ -628,6 +650,8 @@ public class ChartBindingModel extends BindingModel implements ChartAestheticMod
    private List<AestheticInfo> textFields = new ArrayList<>();
    private TextLayoutModel textLayout;
    private ColorFrameModel colorFrame;
+   private ColorFrameModel upColorFrame;
+   private ColorFrameModel downColorFrame;
    private ShapeFrameModel shapeFrame;
    private LineFrameModel lineFrame;
    private TextureFrameModel textureFrame;
