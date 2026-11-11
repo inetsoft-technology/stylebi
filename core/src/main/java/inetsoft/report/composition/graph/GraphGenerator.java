@@ -4598,6 +4598,12 @@ public abstract class GraphGenerator {
             {
                elem.setColorFrame(color);
             }
+            // a modern brush target's Total keeps its own colour, receding on the all-data layer
+            else if(companionBrushing && color != null && isBrusingTarget() &&
+                    elem.getColorFrame() == null)
+            {
+               elem.setColorFrame(createBrushingTargetColorFrame(all, color));
+            }
             // for brush source summary, always apply gray color
             else if(isBrushingSource()) {
                if(companionBrushing && color != null) {
