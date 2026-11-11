@@ -19,7 +19,6 @@ package inetsoft.report;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -129,14 +128,21 @@ class LayoutToolTest {
       assertEquals("say \"hi\"", escapeColName("say \"hi\""));
    }
 
-   // Known defect #81085: getFieldNameByScript() ends the name at the first quote and bracket, so a
-   // column name that contains them is cut. The name must come back whole.
-   @Disabled("known defect #81085, a column name containing a quote and a bracket is cut")
+   // #81085: getFieldNameByScript() must return the whole, real column name (the caller matches it
+   // against the table's columns) for every character escapeColName escapes, not only ' and ].
    @ParameterizedTest
-   @ValueSource(strings = { "a']b", "Sales ['USD']" })
+   @ValueSource(strings = { "plain", "a]b", "a'b", "a']b", "Sales ['USD']", "a@b", "a,b", "a?b",
+                            "a{b}", "a=b;c&d", "a'@']b" })
    void getFieldNameByScriptKeepsAWholeColumnName(String name) throws Exception {
       String script = "data['" + escapeColName(name) + "@g:$g']";
-      assertEquals(escapeColName(name), LayoutTool.getFieldNameByScript(script));
+      assertEquals(name, LayoutTool.getFieldNameByScript(script));
+   }
+
+   @Test
+   void getFieldNameByScriptWithoutGroupAndNonDataScript() throws Exception {
+      assertEquals("a']b", LayoutTool.getFieldNameByScript("data['" + escapeColName("a']b") + "']"));
+      assertEquals(null, LayoutTool.getFieldNameByScript("foo"));
+      assertEquals(null, LayoutTool.getFieldNameByScript(null));
    }
 
    // Current behavior, UNCONFIRMED whether intended: a backslash in the name is not escaped.
