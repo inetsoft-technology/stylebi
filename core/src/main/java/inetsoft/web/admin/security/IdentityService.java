@@ -3314,6 +3314,21 @@ public class IdentityService {
          }
       }
 
+      // a user set inactive can't sign in again, so its open sessions end like a deleted user's
+      // (Bug #81089). Done once the new status is saved, so that no sign-in can slip in between.
+      // Only the active to inactive change counts, a save that keeps the status keeps the
+      // sessions. A rename or password change above has already logged the old identity out.
+      if(!loggedOut && oldUser != null && oldUser.isActive() && !user.isActive() &&
+         Tool.equals(oldUser.getName(), user.getName()))
+      {
+         try {
+            logoutSession(oIdentity);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to end the sessions of the inactive user {}", oIdentity, e);
+         }
+      }
+
       return user;
    }
 

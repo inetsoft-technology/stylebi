@@ -1,7 +1,7 @@
 # Permission Test Matrix — 区三/区四：认证上下文与特殊组织默认行为
 
 **关联规格：** `docs/superpowers/specs/2026-06-25-permission-test-architecture-design.md`
-**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态评估后确认 `[不补]`，Login As 分析中发现一个认证层 bug（密码校验用错了用户，导致操作者与目标密码不同时登录直接失败，已验证，**Bug #75613**，[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复并合并，commit `9b02e3953`），`checkLoginAs()` 权限门槛已落地，`LOGIN_AS` action 授权与 `checkLoginAs()` 的组合门槛也已在 `BasicAuthFilterHttpTest` 补齐，跨组织 Login As 的架构顾虑已核实为按设计工作（非新风险），同组织/跨组织端到端身份切换、密码校验对象、操作者密码错误路径均已随 PR #4222 落地（`SecurityEngineAuthenticationTest`，方法名见下方"Login As 详细场景"小节），见 `2026-06-30-permission-test-phase2.md`；区四新增 `exposeDefaultOrgToAll` host-org 全局共享 Viewsheet 的完整行为矩阵分析（Repository 展示范围、依赖资源可见性边界、Portal/EM/Composer 差异化限制、clone-org 场景），6 条描述规则均已用源码核实；生效范围（org 专属属性隔离）、写入限制（Composer Save As 预取拒绝）、关联操作限制（VSO 导出拒绝）三项已补齐测试（`PermissionMatrixSpecialTest`/`SaveViewsheetDialogServiceTest`/`VSExportServiceTest`），clone-org 场景、Repository 树可枚举性、Composer 内数据可见性评估后均确认 `[不补]`（前两者已有静态证据+现有测试泛化覆盖，Composer 内数据可见性是未证实的细节、非已验证越权，为此单独搭建集成级渲染管线测试收益不成比例），见下方"host-org 全局共享 Viewsheet 详细场景"小节。
+**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态（登录拒绝已有契约测试；禁用结束 session 见 Bug #81089），Login As 分析中发现一个认证层 bug（密码校验用错了用户，导致操作者与目标密码不同时登录直接失败，已验证，**Bug #75613**，[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复并合并，commit `9b02e3953`），`checkLoginAs()` 权限门槛已落地，`LOGIN_AS` action 授权与 `checkLoginAs()` 的组合门槛也已在 `BasicAuthFilterHttpTest` 补齐，跨组织 Login As 的架构顾虑已核实为按设计工作（非新风险），同组织/跨组织端到端身份切换、密码校验对象、操作者密码错误路径均已随 PR #4222 落地（`SecurityEngineAuthenticationTest`，方法名见下方"Login As 详细场景"小节），见 `2026-06-30-permission-test-phase2.md`；区四新增 `exposeDefaultOrgToAll` host-org 全局共享 Viewsheet 的完整行为矩阵分析（Repository 展示范围、依赖资源可见性边界、Portal/EM/Composer 差异化限制、clone-org 场景），6 条描述规则均已用源码核实；生效范围（org 专属属性隔离）、写入限制（Composer Save As 预取拒绝）、关联操作限制（VSO 导出拒绝）三项已补齐测试（`PermissionMatrixSpecialTest`/`SaveViewsheetDialogServiceTest`/`VSExportServiceTest`），clone-org 场景、Repository 树可枚举性、Composer 内数据可见性评估后均确认 `[不补]`（前两者已有静态证据+现有测试泛化覆盖，Composer 内数据可见性是未证实的细节、非已验证越权，为此单独搭建集成级渲染管线测试收益不成比例），见下方"host-org 全局共享 Viewsheet 详细场景"小节。
 **姊妹文档：** 区一 `permission-matrix-resources.md`、区二 `permission-matrix-actions.md`。
 
 图例：✓ = allowed　✗ = denied　— = n/a
@@ -22,7 +22,7 @@
 | 场景 | 触发条件 | 核心断言 | 测试状态 |
 |---|---|---|---|
 | **Google OAuth SSO** | Google OAuth SSO（`googleUser`）| 认证成功后权限解析与本地用户一致；org 归属、role 映射正确落地；不因认证来源差异绕过权限检查 | `[M9]`（enterprise 侧认证链路已落地，15 个 `@Test` 全部通过，具体方法名见下方"Google OAuth SSO 详细场景"小节；community 侧回归护栏未补，评估为可选） |
-| **账号非活跃状态** | 用户账号被禁用（inactive / disabled）| 登录被拒；已有 session 不会因账号被禁用立即失效——只在下次重新登录时生效 | `[不补]`（详见下方"账号非活跃状态"小节，登录拒绝已有测试覆盖，session 不立即失效是确认的设计行为） |
+| **账号非活跃状态** | 用户账号被禁用（inactive / disabled）| 登录被拒；账号由启用改为禁用（`IdentityService.setUserInfo()`）时已有 session 随即被结束（`logoutSession`，Bug #81089）；public API 的 JWT 无状态，不在此列 | `[M9]`（详见下方"账号非活跃状态"小节，登录拒绝已有测试覆盖；禁用结束 session 由 `IdentityServiceDeactivateUserSessionTest` 覆盖） |
 | **Login As 代理登录** | siteAdmin / 持有 `LOGIN_AS` Security Action 的用户切换到目标用户身份 | 代理期间权限以**目标用户**的授权为准，而非操作者本身；退出代理后恢复原身份权限；`LOGIN_AS` Action 本身受区二 Security Actions 管控（For Org √）| `[M9]`（详见下方"Login As 详细场景"小节——权限门槛可测、同组织/跨组织身份切换、密码校验对象、操作者密码错误路径均已随 **Bug #75613**（[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复并合并）落地） |
 
 每个场景通路测试只需验证：
@@ -32,12 +32,12 @@
 
 > org self-signup 的组织落地/默认权限场景不放在这里——测的是"落地哪个 org、该 org 默认给什么权限"，跟本区"认证能否被触达"是不同维度，见下方区四场景表（评估后确认 `[不补]`）。
 
-### 账号非活跃状态（评估后确认 `[不补]`）
+### 账号非活跃状态
 
-拆成两半，两半都不需要在 `PermissionMatrixSpecialTest.java` 里新增代码：
+拆成两半，两半都不需要在 `PermissionMatrixSpecialTest.java` 里新增代码（登录拒绝已有契约测试；session 结束由 `IdentityServiceDeactivateUserSessionTest` 覆盖）：
 
 - **登录时拒绝——已有测试覆盖，无需重复**：`community/core/src/test/java/inetsoft/sree/security/provider/AuthenticationProviderContractTest.java` 的 `C10 authenticate_inactiveUser_returnsFalse()` 是跨 Provider 共享契约测试（File/Database/LDAP 各自的测试类都继承它，每个 provider 实现都会跑一遍），断言"inactive 用户即使密码正确也不能通过 `authenticate()`"；`FileAuthenticationProviderTest.java` 还有一条更具体的 `[Auth: inactive]` 用例断言同样的结论。`FileAuthenticationProvider.authenticate()`（L339）：`if(null == uobj || !uobj.isActive()) { return false; }`，一路往上（`AuthenticationService`/`SecurityEngine.authenticate()`）principal 保持 `null`，登录失败——跟密码错误走同一条失败路径，没有专门的"账号已禁用"提示。
-- **已登录 session 不会立即失效——确认是设计行为，不是待测缺口**：`InvalidateSessionFilter` 是唯一看起来相关的机制，但它调用的 `SecurityEngine.isActiveUser(Principal)` 实际检查的是"principal 是否还在 `SecurityEngine.users` 这个当前登录会话缓存 map 里、且身份对得上"，**不读 `User.isActive()` 这个持久化字段**——方法名容易让人误以为是查账号禁用状态。管理端"编辑用户"把 `active` 改成 `false` 的代码（`IdentityService.setUserInfo()`）也没有任何踢下线/清缓存的动作。已跟用户确认：账号被禁用只在下次重新登录时生效，已登录的 session 不会被立即踢下线，这是预期行为。
+- **已登录 session 在账号被禁用时随即结束（Bug #81089 起；此前文档记录的是"已跟用户确认只在下次登录时生效"，该口头确认没有对应工单，已被 #81089 推翻）**：`InvalidateSessionFilter` 调用的 `SecurityEngine.isActiveUser(Principal)` 仍只检查 principal 是否在 `SecurityEngine.users` 登录缓存里、不读 `User.isActive()`；所以禁用必须主动踢出 session：管理端"编辑用户"和 public API `PUT /api/public/security/users/{user}` 都经 `IdentityService.setUserInfo()`，当该用户原为 active 而保存为 inactive 时，在保存完成之后调用 `logoutSession(<用户身份>)`（与删除用户同一个方法，覆盖集群所有节点的登录缓存）。只有 active→inactive 这一次变化触发：inactive→inactive、active→active、inactive→active、以及 API 省略 `active`（保持原值）都不会踢人。改名同时禁用时，改名分支已经在改名前踢掉旧身份的 session，不再重复。已知限制：public API 的 JWT 无状态（`JoseJwtService.getPrincipal` 只验签名和有效期，约 6 小时），已签发的 token 在过期前仍可用；`Organization.isActive()` 在登录和过滤器里没有任何强制。
 
 ### Login As 详细场景
 
