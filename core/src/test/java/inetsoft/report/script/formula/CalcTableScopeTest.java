@@ -183,7 +183,8 @@ public class CalcTableScopeTest {
       return Stream.of(
          Arguments.of("[1,name]:[3,name]", null, null, 3.0, 2.0),
          Arguments.of(objData, "id", null, 4.0, 3.0),
-         Arguments.of(null, null, null, null, null)
+         // nothing to count is 0, as CountFormula/DistinctCountFormula on the crosstab path (#81084)
+         Arguments.of(null, null, null, 0.0, 0.0)
       );
    }
 
@@ -440,30 +441,50 @@ public class CalcTableScopeTest {
       Object apply(CalcTableScope scope, Object[] values);
    }
 
+   private static final Date DATE_1 = new Date(2023 - 1900, 0, 10);
+   private static final Date DATE_2 = new Date(2024 - 1900, 5, 20);
+   private static final Date DATE_3 = new Date(2025 - 1900, 11, 31);
+
    private static final Object[][] AGGREGATE_INPUTS = {
       { 1, 2, 3, 4 }, { 1, null, 3 }, { null, null }, { 5 }, { -2, -2, 3 }, { 1.5, 2.5 },
-      { 2, 2, 3, 3 }, { "a", "b", "a" }, { 0, 0 }
+      { 2, 2, 3, 3 }, { "a", "b", "a" }, { 0, 0 },
+      // null next to numbers: the script Mode drops nulls, the crosstab Mode counts them (#81084)
+      { 1, null, null }, { 1, 1, null, null, null },
+      // numeric looking strings (e.g. a CSV column read as strings)
+      { "1", "2" }, { "1", "1", "2" },
+      // strings with a null
+      { "a", null, "a" },
+      // dates
+      { DATE_1, DATE_2, DATE_3 }
    };
 
-   // Differences found so far: key is "aggregate|values", value is {script, crosstab}. They are
-   // pinned as current behavior, unconfirmed whether intended (Redmine #81084).
+   // Differences left, key is "aggregate|values" (prefixed "fill|" when fill blank with zero is
+   // on), value is {script, crosstab}; pinned as current behavior (Redmine #81084). A null and a
+   // NaN are compared as the same "no value", see format().
+   //  - median of strings: the crosstab median of non-numeric strings is an artifact of
+   //    NumericComparer (equal for any two strings), i.e. the middle in insertion order for an odd
+   //    count and null for an even count. The script median (NaN, no numeric value) is right, but
+   //    MedianFormula is shared with every other crosstab/chart, so it is not changed here.
+   //  - median of dates: the crosstab returns the middle date, the script median is numeric only.
+   //  - fill blank with zero, max/min/median of nothing: the crosstab gives 0, the script no value.
+   //  - mode of numeric looking strings: the script gives the number, the crosstab the string.
+   //  - mode of numbers with nulls: the crosstab Mode counts null as a value, the script drops it.
    private static final Map<String, String[]> KNOWN_PATH_DIFFERENCES = new HashMap<>();
 
    static {
-      String nul = "[null, null]";
-      String str = "[a, b, a]";
-      KNOWN_PATH_DIFFERENCES.put("sum|" + str, new String[] { "0.0000", "null" });
-      KNOWN_PATH_DIFFERENCES.put("average|" + nul, new String[] { "NaN", "null" });
-      KNOWN_PATH_DIFFERENCES.put("average|" + str, new String[] { "NaN", "null" });
-      KNOWN_PATH_DIFFERENCES.put("count|" + nul, new String[] { "null", "0.0000" });
-      KNOWN_PATH_DIFFERENCES.put("countDistinct|" + nul, new String[] { "null", "0.0000" });
-      KNOWN_PATH_DIFFERENCES.put("product|" + nul, new String[] { "NaN", "null" });
-      KNOWN_PATH_DIFFERENCES.put("median|" + str, new String[] { "NaN", "b" });
-      KNOWN_PATH_DIFFERENCES.put("mode|" + str, new String[] { "-Infinity", "a" });
-      KNOWN_PATH_DIFFERENCES.put("stdev|" + nul, new String[] { "NaN", "null" });
-      KNOWN_PATH_DIFFERENCES.put("var|" + nul, new String[] { "NaN", "null" });
-      KNOWN_PATH_DIFFERENCES.put("popvar|" + nul, new String[] { "NaN", "null" });
-      KNOWN_PATH_DIFFERENCES.put("popstdev|" + nul, new String[] { "NaN", "null" });
+      for(String prefix : new String[] { "", "fill|" }) {
+         KNOWN_PATH_DIFFERENCES.put(prefix + "median|[a, b, a]", new String[] { "null", "b" });
+         String dates = Arrays.toString(new Object[] { DATE_1, DATE_2, DATE_3 });
+         KNOWN_PATH_DIFFERENCES.put(prefix + "median|" + dates, new String[] { "null", DATE_2.toString() });
+         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 2]", new String[] { "1.0000", "1" });
+         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 1, 2]", new String[] { "1.0000", "1" });
+         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, null, null]", new String[] { "1.0000", "null" });
+         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 1, null, null, null]", new String[] { "1.0000", "null" });
+      }
+
+      for(String name : new String[] { "max", "min", "median" }) {
+         KNOWN_PATH_DIFFERENCES.put("fill|" + name + "|[null, null]", new String[] { "null", "0.0000" });
+      }
    }
 
    private static Stream<Arguments> provideScriptCrosstabCases() {
@@ -487,9 +508,11 @@ public class CalcTableScopeTest {
           (s, v) -> s.populationStandardDeviation(v, null, null));
       List<Arguments> list = new ArrayList<>();
 
-      for(Arguments a : formulas.values()) {
-         for(Object[] values : AGGREGATE_INPUTS) {
-            list.add(Arguments.of(a.get()[0], a.get()[1], a.get()[2], values));
+      for(boolean fill : new boolean[] { false, true }) {
+         for(Arguments a : formulas.values()) {
+            for(Object[] values : AGGREGATE_INPUTS) {
+               list.add(Arguments.of(a.get()[0], a.get()[1], a.get()[2], values, fill));
+            }
          }
       }
 
@@ -505,11 +528,14 @@ public class CalcTableScopeTest {
    @ParameterizedTest
    @MethodSource("provideScriptCrosstabCases")
    void scriptAndCrosstabPathsAgree(String name, Supplier<Formula> formula,
-                                    ScriptAggregate script, Object[] values)
+                                    ScriptAggregate script, Object[] values, boolean fill)
    {
-      String key = name + "|" + Arrays.toString(values);
-      String viaScript = format(script.apply(calcTableScope, values.clone()));
-      String viaCrosstab = format(crosstabValue(formula.get(), values));
+      String key = (fill ? "fill|" : "") + name + "|" + Arrays.toString(values);
+      calcTableLens.setFillBlankWithZero(fill);
+      String viaScript = format(script.apply(new CalcTableScope(calcTableLens), values.clone()));
+      Formula crosstabFormula = formula.get();
+      crosstabFormula.setDefaultResult(fill);
+      String viaCrosstab = format(crosstabValue(crosstabFormula, values));
       String[] known = KNOWN_PATH_DIFFERENCES.get(key);
 
       if(known == null) {
@@ -548,10 +574,14 @@ public class CalcTableScopeTest {
       return null;
    }
 
+   /**
+    * NaN is the script path's "no value" (so that javascript does not read it as 0, #53008), null
+    * is the crosstab's; both are shown as an empty cell, so they are the same here.
+    */
    private static String format(Object value) {
       if(value instanceof Number) {
          double d = ((Number) value).doubleValue();
-         return Double.isNaN(d) ? "NaN" : String.format(Locale.ROOT, "%.4f", d);
+         return Double.isNaN(d) ? "null" : String.format(Locale.ROOT, "%.4f", d);
       }
 
       return value == null ? "null" : value.toString();

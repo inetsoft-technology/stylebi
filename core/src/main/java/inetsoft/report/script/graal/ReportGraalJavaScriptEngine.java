@@ -307,21 +307,21 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
             if(lens == null || lens.getClass().isArray() && (Array.getLength(lens) == 0 ||
                Arrays.stream(((Object[]) lens)).filter(len -> len != null).collect(Collectors.toList()).size() == 0))
             {
-               // sum/count's default value should be 0 for scripting. (62630)
-               if(sum instanceof SumFormula || sum instanceof CountFormula ||
-                  sum instanceof DistinctCountFormula)
-               {
-                  // drop through to null
-               }
-               // if null is returned and used in calculation (e.g. 100 * average(...)),
-               // it's converted to 0 in js and resulting in 0 instead of null. returning
-               // NaN ensures it's not treated as 0 in subsequent calculations. (53008)
-               else if(sum.getResultType() != null && Number.class.isAssignableFrom(sum.getResultType()))
-               {
-                  return Double.NaN;
-               }
+               // count/distinct count of nothing is 0 (same as CountFormula and
+               // DistinctCountFormula on the crosstab path), so fall through to compute it. (#81084)
+               if(!(sum instanceof CountFormula) && !(sum instanceof DistinctCountFormula)) {
+                  // sum of nothing is no value (same as SumFormula), drop through to null.
+                  // if null is returned and used in calculation (e.g. 100 * average(...)),
+                  // it's converted to 0 in js and resulting in 0 instead of null. returning
+                  // NaN ensures it's not treated as 0 in subsequent calculations. (53008)
+                  if(!(sum instanceof SumFormula) && sum.getResultType() != null &&
+                     Number.class.isAssignableFrom(sum.getResultType()))
+                  {
+                     return Double.NaN;
+                  }
 
-               return null;
+                  return null;
+               }
             }
          }
 
@@ -329,6 +329,12 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
             return CalcMath.none(lens);
          }
          else if("sum".equals(func)) {
+            // no numeric value (e.g. strings): no value (0 if default result), as SumFormula on
+            // the crosstab path. CalcMath.sum() returns 0 for it. (#81084)
+            if(sum != null && CalcUtil.convertToDoubleArray(JavaScriptEngine.split(lens)).length == 0) {
+               return formulaResult(sum, JavaScriptEngine.split(lens));
+            }
+
             return CalcMath.sum(lens);
          }
          else if("average".equals(func)) {
@@ -372,6 +378,15 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
             return CalcStat.median(lens);
          }
          else if("mode".equals(func)) {
+            Object[] arr = JavaScriptEngine.split(lens);
+
+            // non-numeric values (e.g. strings) have a mode too, as ModeFormula on the crosstab
+            // path. CalcStat.mode() ignores them (-Infinity if none is numeric). (#81084)
+            if(sum != null && !isAllNumeric(arr)) {
+               // nulls are dropped as CalcStat.mode() does; ModeFormula would count them.
+               return formulaResult(sum, Arrays.stream(arr).filter(Objects::nonNull).toArray());
+            }
+
             return CalcStat.mode(lens);
          }
          else if(sum != null && isFuncSupported(func)) {
@@ -496,6 +511,27 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
       }
 
       return sum.getResult();
+   }
+
+   /**
+    * Compute an aggregate by the formula, the same way as the crosstab path.
+    */
+   private static Object formulaResult(Formula formula, Object[] values) {
+      for(Object value : values) {
+         formula.addValue(value);
+      }
+
+      Object result = formula.getResult();
+      // CalcMath/CalcStat functions return double
+      return result instanceof Number ? (Object) ((Number) result).doubleValue() : result;
+   }
+
+   /**
+    * Check if every non-null value is a number or can be converted to a number.
+    */
+   private static boolean isAllNumeric(Object[] values) {
+      long nonNull = Arrays.stream(values).filter(Objects::nonNull).count();
+      return CalcUtil.convertToDoubleArray(values).length == nonNull;
    }
 
    /**
