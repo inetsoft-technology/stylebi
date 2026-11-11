@@ -403,6 +403,38 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Get the alignment of a top or bottom legend row against the plot: 0 for the default layout,
+    * or GraphConstants.LEFT_ALIGNMENT, CENTER_ALIGNMENT or RIGHT_ALIGNMENT.
+    */
+   public int getAlignment() {
+      return alignment.get();
+   }
+
+   /**
+    * Set the alignment of a top or bottom legend row against the plot.
+    * @param alignment 0, or GraphConstants.LEFT_ALIGNMENT, CENTER_ALIGNMENT or RIGHT_ALIGNMENT
+    */
+   public void setAlignment(int alignment) {
+      setAlignment(alignment, CompositeValue.Type.USER);
+   }
+
+   /**
+    * Set the alignment of a top or bottom legend row against the plot.
+    * @param alignment 0, or GraphConstants.LEFT_ALIGNMENT, CENTER_ALIGNMENT or RIGHT_ALIGNMENT
+    * @param type the type of value to set: DEFAULT, CSS, USER
+    */
+   public void setAlignment(int alignment, CompositeValue.Type type) {
+      this.alignment.setValue(alignment, type);
+   }
+
+   /**
+    * Whether the author set the legend alignment.
+    */
+   public boolean hasAlignmentUserValue() {
+      return alignment.hasUserValue();
+   }
+
+   /**
     * Whether the legend padding carries an opinion: an author's value or a stylesheet's.
     */
    public boolean hasPaddingValue() {
@@ -475,6 +507,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          des.borderColor = (CompositeValue<Color>) borderColor.clone();
          des.border = (CompositeValue<Integer>) border.clone();
          des.gap = (CompositeValue<Integer>) gap.clone();
+         des.alignment = (CompositeValue<Integer>) alignment.clone();
          des.padding = (CompositeValue<Insets>) padding.clone();
 
          return des;
@@ -516,6 +549,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          && Tool.equals(preferredSize, desc.preferredSize)
          && userLayout == desc.userLayout
          && Tool.equals(gap, desc.gap)
+         && Tool.equals(alignment, desc.alignment)
          && Tool.equals(padding, desc.padding);
    }
 
@@ -551,6 +585,12 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       writer.print(" gap=\"" + gap + "\"");
       GapZeroMarker.write(writer, "gapZero", gap);
       writer.print(" padding=\"" + padding + "\"");
+      String align = alignment.toString();
+
+      // an unset value writes nothing, so a classic chart's XML is unchanged
+      if(!align.isEmpty()) {
+         writer.print(" alignment=\"" + align + "\"");
+      }
    }
 
    /**
@@ -634,6 +674,10 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       if((val = Tool.getAttribute(tag, "padding")) != null) {
          padding.parse(val);
       }
+
+      if((val = Tool.getAttribute(tag, "alignment")) != null) {
+         alignment.parse(val);
+      }
    }
 
    /**
@@ -688,7 +732,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
 
    /**
     * The tiered value behind one of the legends' look properties, by field name: borderColor,
-    * border, gap or padding.
+    * border, gap, padding or alignment.
     */
    public CompositeValue<?> chromeValue(String field) {
       switch(field) {
@@ -700,6 +744,8 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          return gap;
       case "padding":
          return padding;
+      case "alignment":
+         return alignment;
       default:
          throw new IllegalArgumentException("Not a legends look property: " + field);
       }
@@ -710,11 +756,12 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       border.resetValue(type);
       gap.resetValue(type);
       padding.resetValue(type);
+      alignment.resetValue(type);
    }
 
    // the values whose default tier a marked chart saves
    List<CompositeValue<?>> savedDefaults() {
-      return List.of(borderColor, border);
+      return List.of(borderColor, border, alignment);
    }
 
    private CompositeValue<Color> borderColor = new CompositeValue<>(Color.class,
@@ -730,6 +777,7 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    private boolean userLayout = false;
    private CompositeTextFormat fmt;
    private CompositeValue<Integer> gap = new CompositeValue<>(Integer.class, 0);
+   private CompositeValue<Integer> alignment = new CompositeValue<>(Integer.class, 0);
    private CompositeValue<Insets> padding = new CompositeValue<>(Insets.class, null);
 
    private static final Logger LOG = LoggerFactory.getLogger(LegendsDescriptor.class);

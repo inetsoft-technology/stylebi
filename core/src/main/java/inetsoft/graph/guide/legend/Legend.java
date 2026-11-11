@@ -489,6 +489,9 @@ public abstract class Legend extends BoundedContainer {
     * Layout items, set its size and position.
     */
    private void layoutItems() {
+      // a later pass can change ncol, which shapes the cached items
+      itemsArr = null;
+
       // in VLegendItem, when paint the item, has logic to move the item to
       // padding left 5 pixels, the logic should move here, because if in the
       // logic is in VLegendItem, then the bounds set for the item is wrong, and

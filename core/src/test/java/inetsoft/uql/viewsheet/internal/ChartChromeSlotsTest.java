@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.aesthetic.SpectralColorFrame;
@@ -296,6 +297,24 @@ class ChartChromeSlotsTest {
          assertNull(legend.getPosition());
          assertNull(legend.getPlotPosition());
       }
+   }
+
+   @Test
+   void alignmentIsATieredLegendSlot() {
+      ChartVSAssemblyInfo info = chart();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      legends.setAlignment(GraphConstants.RIGHT_ALIGNMENT);
+
+      ChromeSlot slot = find(info, "chart:legends:alignment");
+      assertTrue(slot.isAuthorSet(info));
+      assertFalse(slot.objectLevel());
+      assertTrue(slot.residueEligible());
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, slot.authorValue(info));
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, slot.resolvedValue(info));
+
+      slot.reset(info, fresh(VizMark.MODERN_LIGHT));
+      assertFalse(legends.hasAlignmentUserValue());
+      assertFalse(slot.isAuthorSet(info));
    }
 
    @Test

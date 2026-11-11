@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.LegendSpec;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.internal.GDefaults;
@@ -1269,6 +1270,82 @@ class SeedChromeDefaultsTest {
       info.seedChromeDefaults(VizContext.of(info));
       assertEquals(StyleConstants.DOUBLE_LINE, rlegends.getBorder(), "a script's value");
       assertEquals(StyleConstants.NONE, legends(info).getBorder(), "the design copy");
+   }
+
+   // ---- the legend alignment ------------------------------------------------------------------
+
+   @Test
+   void aModernLegendStartsAtThePlot() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      ChartDescriptor rdesc = new ChartDescriptor();
+      info.setRTChartDescriptor(rdesc);
+      info.seedChromeDefaults(VizContext.of(info));
+
+      for(LegendsDescriptor legends : new LegendsDescriptor[] {
+         legends(info), rdesc.getLegendsDescriptor() })
+      {
+         assertEquals(GraphConstants.LEFT_ALIGNMENT, legends.getAlignment());
+         assertEquals(GraphConstants.LEFT_ALIGNMENT,
+                      legends.chromeValue("alignment").get(CompositeValue.Type.DEFAULT));
+         assertFalse(legends.hasAlignmentUserValue());
+      }
+   }
+
+   @Test
+   void aClassicLegendHasNoAlignment() {
+      gateOff();
+      ChartVSAssemblyInfo classic = newChart();
+      assertEquals(0, legends(classic).getAlignment());
+      assertFalse(legendsTag(writeXml(classic)).contains("alignment"), "a classic chart");
+
+      gateOn();
+      ChartVSAssemblyInfo reverted = newChart();
+      ChartDescriptor rdesc = new ChartDescriptor();
+      reverted.setRTChartDescriptor(rdesc);
+      reverted.seedChromeDefaults(VizContext.of(reverted));
+      reverted.setVizMark(null);
+      reverted.seedChromeDefaults(VizContext.of(reverted));
+
+      assertEquals(0, legends(reverted).getAlignment());
+      assertEquals(0, rdesc.getLegendsDescriptor().getAlignment(), "the runtime copy");
+      assertFalse(legendsTag(writeXml(reverted)).contains("alignment"), "a reverted chart");
+   }
+
+   @Test
+   void anAuthorAlignmentOutranksTheSeed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      legends(info).setAlignment(GraphConstants.RIGHT_ALIGNMENT);
+
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, legends(info).getAlignment(), "modern re-seed");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, legends(info).getAlignment(), "revert");
+      assertTrue(legends(info).hasAlignmentUserValue());
+   }
+
+   @Test
+   void theSeededAlignmentTravelsInTheAsset() throws Exception {
+      gateOn();
+      LegendsDescriptor loaded = legends(roundTrip(newChart()));
+      assertEquals(GraphConstants.LEFT_ALIGNMENT, loaded.getAlignment());
+      assertFalse(loaded.hasAlignmentUserValue());
+
+      // a default tier gives way to the next default write; an author's would not
+      loaded.setAlignment(0, CompositeValue.Type.DEFAULT);
+      assertEquals(0, loaded.getAlignment(),
+                   "a seeded alignment must not come back as the author's");
+   }
+
+   // the legends element's own attributes
+   private static String legendsTag(String xml) {
+      int start = xml.indexOf("<legendsDescriptor");
+      int end = xml.indexOf(">", start);
+      assertTrue(start >= 0 && end > start, "a legends descriptor was written");
+      return xml.substring(start, end);
    }
 
    @Test
