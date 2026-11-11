@@ -285,6 +285,39 @@ class VSTableConverterTest {
       assertTrue(header);
    }
 
+   // row grand total (FOOTER of the row side): the summary cells have no row group
+   @Test
+   void rowGrandTotalCellsHaveNoRowGroup() {
+      List<TableCellBinding> cells = summaryCells(totalsLayout());
+      assertTrue(hasSummary(cells, TableCellBinding.DEFAULT_GROUP, "channel"));
+      assertTrue(hasSummary(cells, TableCellBinding.DEFAULT_GROUP, "region"));
+      assertTrue(hasSummary(cells, TableCellBinding.DEFAULT_GROUP, TableCellBinding.DEFAULT_GROUP));
+   }
+
+   // Current behavior, unconfirmed whether intended: the "Grand Total" label of the row grand
+   // total is not kept. The crosstab layout has it at the first cell of the last row, but the
+   // row span of the outer row dimension (copied from the crosstab rows) covers that row in the
+   // converted layout, and the cells in a span are cleared. Only the column header "Grand Total"
+   // remains.
+   @Test
+   void rowGrandTotalLabelIsNotKept() {
+      TableLayout layout = totalsLayout();
+      int labels = 0;
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            TableCellBinding b = (TableCellBinding) layout.getCellBinding(r, c);
+
+            if(b != null && b.getType() == CellBinding.BIND_TEXT && "Grand Total".equals(b.getValue())) {
+               labels++;
+               assertEquals(0, r, "the only label left is the column header in the first row");
+            }
+         }
+      }
+
+      assertEquals(1, labels);
+   }
+
    // all summary cells keep the aggregate column and formula, none expands
    @Test
    void everySummaryCellKeepsColumnFormulaAndNoExpansion() {
