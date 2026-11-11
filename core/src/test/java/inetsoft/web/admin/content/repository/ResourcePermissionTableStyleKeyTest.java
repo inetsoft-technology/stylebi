@@ -69,9 +69,22 @@ class ResourcePermissionTableStyleKeyTest {
    }
 
    @Test
-   void idPathIsNormalizedToTheName() {
-      style("old", "new");
-      assertEquals("new", key("old", false));
+   void oldNameOfARenamedStyleStaysTheRawPath() {
+      // Bug #81051, T1 was renamed to T1x (ID stays T1), the old name must not resolve to T1x
+      style("T1", "T1x");
+      assertEquals("T1", key("T1", false));
+   }
+
+   @Test
+   void folderNameIsResolvedByExactName() {
+      style("f~s", "f~s");
+      assertEquals("f~s", key("f~s", false));
+   }
+
+   @Test
+   void nonexistentNameStaysTheRawPath() {
+      style("T1", "T1x");
+      assertEquals("nonexistent", key("nonexistent", false));
    }
 
    @Test
