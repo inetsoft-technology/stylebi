@@ -3586,8 +3586,20 @@ public class LayoutTool {
       return col;
    }
 
+   /**
+    * Get the column name from a script like data['name@group:$value'].
+    *
+    * @return the real column name (without the escape backslashes written by escapeColName),
+    * or null if the script is not a data[] expression.
+    */
    public static String getFieldNameByScript(String value) {
       String prefix = "data['";
+      // an escaped char (\' \@ \, ...) in the name must not be taken for a delimiter below
+      boolean encoded = value != null && value.indexOf('\\') >= 0;
+
+      if(encoded) {
+         value = NamedCellRange.encodeEscaped(value);
+      }
 
       if(value != null && !value.startsWith(prefix)) {
          value = getOriginalColumn(value);
@@ -3640,7 +3652,7 @@ public class LayoutTool {
             }
          }
 
-         return fname;
+         return encoded ? NamedCellRange.decodeEscaped(fname) : fname;
       }
 
       return null;
