@@ -29,6 +29,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
+import inetsoft.uql.viewsheet.internal.VSChartDirectionColors;
 import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.*;
@@ -410,6 +411,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       validateInvertedChart(newInfo);
       copyGeneralValues(info, newInfo);
+      copyDirectionFrames(info, newInfo);
       fixShapeField(newInfo, newInfo, getChartType(newInfo, ref));
       fixSizeField(newInfo, getChartType(newInfo, ref));
       fixSizeFrame(newInfo);
@@ -564,6 +566,24 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       ninfo.setMeasureMapType(oinfo.getMapType());
       ninfo.setAxisDescriptor(info.getAxisDescriptor());
       ninfo.setAxisDescriptor2(info.getAxisDescriptor2());
+   }
+
+   /**
+    * Copy the up and down colours between candle, stock and waterfall, which share their meaning.
+    */
+   private void copyDirectionFrames(ChartInfo oinfo, ChartInfo ninfo) {
+      if(!VSChartDirectionColors.isDirectionType(oldType) ||
+         !VSChartDirectionColors.isDirectionType(newType) ||
+         !(oinfo instanceof AbstractChartInfo ochart) ||
+         !(ninfo instanceof AbstractChartInfo nchart))
+      {
+         return;
+      }
+
+      StaticColorFrameWrapper up = ochart.getUpColorFrameWrapper();
+      StaticColorFrameWrapper down = ochart.getDownColorFrameWrapper();
+      nchart.setUpColorFrameWrapper(up == null ? null : (StaticColorFrameWrapper) up.clone());
+      nchart.setDownColorFrameWrapper(down == null ? null : (StaticColorFrameWrapper) down.clone());
    }
 
    /**

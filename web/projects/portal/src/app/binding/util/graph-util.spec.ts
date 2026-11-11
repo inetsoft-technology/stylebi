@@ -69,13 +69,13 @@ describe("GraphUtil.getVisualFrames direction frames", () => {
       expect(frames[1].frame).toBe(model.downColorFrame);
    });
 
-   it("getVisualFrames lists Increase, Decrease and Summary for a waterfall", () => {
+   it("getVisualFrames lists Increase, Decrease and Total for a waterfall", () => {
       const model = binding(GraphTypes.CHART_WATERFALL, true);
       const aref = <ChartAggregateRef> model.yfields[0];
 
       const frames = GraphUtil.getVisualFrames("colorFrame", model);
 
-      expect(frames.map(f => f.name)).toEqual(["Increase", "Decrease", "Summary"]);
+      expect(frames.map(f => f.name)).toEqual(["Increase", "Decrease", "Total"]);
       expect(frames[0].frame).toBe(model.upColorFrame);
       expect(frames[1].frame).toBe(model.downColorFrame);
       expect(frames[2].summary).toBe(true);

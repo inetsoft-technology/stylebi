@@ -38,7 +38,7 @@
 | Q2 | An author's (USER) or stylesheet (CSS) **single colour** on a candle, stock or waterfall stays a single colour. Direction colours draw only while that single colour has neither tier. The reset copy clears `userColor` (80398), so it draws direction colours. |
 | Q3 | A **waterfall with a colour dimension** keeps the dimension's colours. It is a visual stack (`GraphGenerator:3826-3831`). |
 | Q4 | A modern **candle that already has a colour dimension** keeps series colours, permanently. |
-| Q5 | **Up and down are two new stored frames on the chart**, seeded and saved, and written only when non-null. The legacy pass removes a frame that holds only a seeded DEFAULT. They draw through one base frame installed before highlight and brushing, exempt from the 0.75 darkening. The colour pane shows `[Up, Down]` (candle, stock) or `[Increase, Decrease, Summary]` (waterfall) only while direction colours draw. |
+| Q5 | **Up and down are two new stored frames on the chart**, seeded and saved, and written only when non-null. The legacy pass removes a frame that holds only a seeded DEFAULT. They draw through one base frame installed before highlight and brushing, exempt from the 0.75 darkening. The colour pane shows `[Up, Down]` (candle, stock) or `[Increase, Decrease, Total]` (waterfall) only while direction colours draw. |
 | R9 | The token set follows the mark (light or dark), not the page behind the card. |
 
 **One rule:** direction colours draw only on a **marked** chart whose resolved type is candle, stock or waterfall, and only when all of these hold:
@@ -336,8 +336,8 @@ S2-6, S2-7, Q5, C3, C4, Review Focus 4.
 
 **Decision.**
 - **What the server sends.** The up and down frame models only while `draws` holds, from `ChartInfoModelBuilder`, which has `getVizContext()`.
-- **What the client shows.** When both are present, the colour pane lists them in place of the single colour. For a waterfall it also lists the measure's existing "Summary" entry.
-- **Labels.** "Up" and "Down", or "Increase" and "Decrease" on a waterfall. They are plain literals, as "Summary" is today (`graph-util.ts:977`).
+- **What the client shows.** When both are present, the colour pane lists them in place of the single colour. For a waterfall it also lists the measure's summary frame, labelled "Total" (owner ruling Q5; the classic pane keeps "Summary").
+- **Labels.** "Up" and "Down", or "Increase" and "Decrease" on a waterfall. They are plain literals, as "Summary" is today. The waterfall summary entry reads "Total" (`graph-util.ts:977`).
 - **Reset.** It reuses S2a's rule unchanged.
 
 **Files:**
@@ -356,7 +356,7 @@ S2-6, S2-7, Q5, C3, C4, Review Focus 4.
 - **`GraphUtil.getVisualFrames("colorFrame", …)`.** When `bindingModel.upColorFrame && bindingModel.downColorFrame`, return:
   - `{name: "Up"|"Increase", frame: up}`
   - `{name: "Down"|"Decrease", frame: down}`
-  - for a waterfall with a measure, the existing `{name: "Summary", summary: true, frame: aref.summaryColorFrame}`
+  - for a waterfall with a measure, `{name: "Total", summary: true, frame: aref.summaryColorFrame}`
 - **`ColorFieldMc.getFrames`.** Gets the same early branch after the `colorField` check.
 
 - [ ] **Step 1: Write the failing tests.**
@@ -372,7 +372,7 @@ S2-6, S2-7, Q5, C3, C4, Review Focus 4.
     - `aClassicApplyStillWritesPurple`: model default `#7030A0`, or none.
   - In `graph-util.spec.ts`:
     - `getVisualFrames lists Up and Down for a candle with direction frames`
-    - `getVisualFrames lists Increase, Decrease and Summary for a waterfall`
+    - `getVisualFrames lists Increase, Decrease and Total for a waterfall`
     - `getVisualFrames is unchanged without them`
   - In `color-field-mc.component.tl.spec.ts`: `a modern candle's colour field opens the Up and Down pane`.
 
@@ -396,7 +396,7 @@ S2-6, S2-7, Q5, C3, C4, Review Focus 4.
   - an author single colour
   - a colour dimension
   - the reset copy
-  - the colour pane's Up/Down and Increase/Decrease/Summary, and Reset there
+  - the colour pane's Up/Down and Increase/Decrease/Total, and Reset there
   - PNG and PDF exports
   - brushing a candle
 

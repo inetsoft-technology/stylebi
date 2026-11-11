@@ -264,19 +264,15 @@ public abstract class ChartInfoModelBuilder {
 
    // the up and down frames reach the editor only while direction colors draw
    private void loadDirectionFrames(ChartBindingModel model, ChartInfo cinfo) {
-      if(!(cinfo instanceof AbstractChartInfo) ||
-         !VSChartDirectionColors.draws(getVizContext(), cinfo))
-      {
+      if(!VSChartDirectionColors.draws(getVizContext(), cinfo)) {
          return;
       }
 
+      // draws() holds only with both frames stored
       AbstractChartInfo info = (AbstractChartInfo) cinfo;
-
-      if(info.getUpColorFrameWrapper() != null && info.getDownColorFrameWrapper() != null) {
-         model.setUpColorFrame(visualService.createVisualFrameModel(info.getUpColorFrameWrapper()));
-         model.setDownColorFrame(
-            visualService.createVisualFrameModel(info.getDownColorFrameWrapper()));
-      }
+      model.setUpColorFrame(visualService.createVisualFrameModel(info.getUpColorFrameWrapper()));
+      model.setDownColorFrame(
+         visualService.createVisualFrameModel(info.getDownColorFrameWrapper()));
    }
 
    private void updateDirectionFrames(ChartBindingModel model, ChartInfo ncinfo) {

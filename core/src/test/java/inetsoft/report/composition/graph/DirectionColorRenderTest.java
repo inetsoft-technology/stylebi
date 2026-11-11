@@ -220,6 +220,22 @@ class DirectionColorRenderTest {
    }
 
    @Test
+   void aMarkedCandleWithoutStoredColoursDrawsItsSingleColour() {
+      CandleVSChartInfo cinfo = candle(new CandleVSChartInfo(), true);
+      ChartVSAssemblyInfo assemblyInfo = seeded(cinfo, VizMark.MODERN_LIGHT);
+      // as a chart marked before the stored colours existed
+      assemblyInfo.getVSChartInfo().setUpColorFrameWrapper(null);
+      assemblyInfo.getVSChartInfo().setDownColorFrameWrapper(null);
+      Render r = render(assemblyInfo, null,
+                        new DefaultDataSet(rows(cinfo, RISE, FALL, RISE2)));
+      GraphElement elem = r.graph.getElement(0);
+
+      // slot 1, darkened as on any candle
+      assertEquals(new Color(0x036CBF), colorAt(r, elem, 0));
+      assertEquals(new Color(0x036CBF), colorAt(r, elem, 1));
+   }
+
+   @Test
    void aMultiStyleWaterfallWithALineKeepsItsColours() {
       DefaultVSChartInfo winfo = new DefaultVSChartInfo();
       VSChartAggregateRef value = styled(agg("V"), GraphTypes.CHART_WATERFALL);

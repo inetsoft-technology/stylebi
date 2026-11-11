@@ -37,10 +37,14 @@ import inetsoft.web.binding.model.SortOptionModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
 import inetsoft.web.binding.service.graph.ChartAestheticService;
+import inetsoft.web.binding.service.graph.ChartAggregateInfoFactory;
+import inetsoft.web.binding.service.graph.ChartRefModelFactory;
 import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
 import inetsoft.web.binding.service.graph.aesthetic.ColorFrameModelFactory;
+import inetsoft.web.binding.service.graph.aesthetic.TextureFrameModelFactory;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactory;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
 import org.junit.jupiter.api.AfterEach;
@@ -148,10 +152,55 @@ class ChartInfoModelBuilderDirectionTest {
       assertEquals(new Color(0x1C857B), updated.getUpColorFrameWrapper().getColor());
    }
 
+   @Test
+   void aModernWaterfallSendsUpAndDown() {
+      ChartBindingModel model = bind(modernWaterfall(), MODERN);
+
+      assertEquals("#1C857B",
+                   ((StaticColorModel) model.getUpColorFrame()).getDefaultColor().toUpperCase());
+      assertEquals("#AD6119",
+                   ((StaticColorModel) model.getDownColorFrame()).getDefaultColor().toUpperCase());
+
+      StaticColorModel total = summary(model);
+      assertTrue(total.isSummary());
+      assertEquals("#767676", total.getDefaultColor().toUpperCase());
+   }
+
+   @Test
+   void aResetOfTheTotalClearsTheAuthorsColour() {
+      DefaultVSChartInfo info = modernWaterfall();
+      totalOf(info).setUserColor(new Color(0x00AA00));
+      ChartBindingModel model = bind(info, MODERN);
+      StaticColorModel total = summary(model);
+      assertEquals("#00AA00", total.getColor().toUpperCase(), "premise: the author's Total");
+      total.setColor(total.getDefaultColor());
+      total.setChanged(false);
+      // only the measure goes back through the paste
+      model.setXFields(new ArrayList<>());
+
+      DefaultVSChartInfo ncinfo = (DefaultVSChartInfo) info.clone();
+      builder(MODERN).updateChartInfo(model, info, ncinfo, new ChartDescriptor());
+
+      StaticColorFrameWrapper updated = totalOf(ncinfo);
+      assertNull(updated.getUserColor());
+      assertEquals(new Color(0x767676), updated.getColor());
+   }
+
    // ---- harness -----------------------------------------------------------------------------
 
-   private static ChartBindingModel bind(CandleVSChartInfo info, VizContext ctx) {
+   private static ChartBindingModel bind(ChartInfo info, VizContext ctx) {
       return builder(ctx).createChartBinding(info, new PlotDescriptor(), false);
+   }
+
+   // the Total's model on the waterfall's measure
+   private static StaticColorModel summary(ChartBindingModel model) {
+      ChartAggregateRefModel measure = (ChartAggregateRefModel) model.getYFields().get(0);
+      return (StaticColorModel) measure.getSummaryColorFrame();
+   }
+
+   private static StaticColorFrameWrapper totalOf(ChartInfo info) {
+      ChartAggregateRef measure = (ChartAggregateRef) info.getYField(0);
+      return (StaticColorFrameWrapper) measure.getSummaryColorFrameWrapper();
    }
 
    private static CandleVSChartInfo update(ChartBindingModel model, CandleVSChartInfo info) {
@@ -168,15 +217,31 @@ class ChartInfoModelBuilderDirectionTest {
    }
 
    private static ChartInfoModelBuilder builder(VizContext ctx) {
-      ChartRefModelFactoryService refService = mock(ChartRefModelFactoryService.class);
-      when(refService.createRefModel(any(), any(), any())).thenAnswer(inv ->
-         inv.getArgument(0) instanceof ChartAggregateRef ? new ChartAggregateRefModel() :
-            new ChartDimensionRefModel());
       List<VisualFrameModelFactory<?, ?>> factories = new ArrayList<>();
       factories.add(new ColorFrameModelFactory.StaticColorFrameFactory());
+      factories.add(new TextureFrameModelFactory.StaticTextureFrameModelFactory());
+      VisualFrameModelFactoryService visualService = new VisualFrameModelFactoryService(factories);
+      ChartAestheticService aesService = mock(ChartAestheticService.class);
 
-      return new ChartInfoModelBuilder(refService, mock(ChartAestheticService.class), null,
-                                       new VisualFrameModelFactoryService(factories))
+      // a measure pastes through the real factory, so the Total's model reaches its frame
+      ChartAggregateInfoFactory.VSChartAggregateInfoFactory aggFactory =
+         new ChartAggregateInfoFactory.VSChartAggregateInfoFactory(visualService, null);
+      aggFactory.setChartAestheticService(aesService);
+      List<ChartRefModelFactory<?, ?>> refFactories = List.of(aggFactory);
+      ChartRefModelFactoryService pasteService = new ChartRefModelFactoryService(refFactories);
+
+      ChartRefModelFactoryService refService = mock(ChartRefModelFactoryService.class);
+      when(refService.createRefModel(any(), any(), any())).thenAnswer(inv -> {
+         ChartRefModel model = inv.getArgument(0) instanceof ChartAggregateRef ?
+            new ChartAggregateRefModel() : new ChartDimensionRefModel();
+         model.setOriginal(inv.getArgument(2));
+         return model;
+      });
+      when(refService.pasteChartRef(any(), any())).thenAnswer(inv ->
+         inv.getArgument(1) instanceof ChartAggregateRefModel ?
+            pasteService.pasteChartRef(inv.getArgument(0), inv.getArgument(1)) : null);
+
+      return new ChartInfoModelBuilder(refService, aesService, null, visualService)
       {
          @Override
          protected VizContext getVizContext() {
@@ -196,15 +261,28 @@ class ChartInfoModelBuilderDirectionTest {
    }
 
    private static CandleVSChartInfo modernCandle() {
+      return (CandleVSChartInfo) modern(candle());
+   }
+
+   private static DefaultVSChartInfo modernWaterfall() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.addXField(dim("state"));
+      info.addYField(agg("v"));
+      info.setChartType(GraphTypes.CHART_WATERFALL);
+      return (DefaultVSChartInfo) modern(info);
+   }
+
+   // the chart on a marked assembly, with its seed
+   private static VSChartInfo modern(VSChartInfo cinfo) {
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
       vs.addAssembly(chart);
       chart.getVSAssemblyInfo().initDefaultFormat();
       ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
-      ainfo.setVSChartInfo(candle());
+      ainfo.setVSChartInfo(cinfo);
       ainfo.setVizMark(VizMark.MODERN_LIGHT);
       VizModernizeUtil.reseedAfterRestore(ainfo);
-      CandleVSChartInfo info = (CandleVSChartInfo) ainfo.getVSChartInfo();
+      VSChartInfo info = ainfo.getVSChartInfo();
       assertNotNull(info.getUpColorFrameWrapper(), "premise: seeded");
       return info;
    }

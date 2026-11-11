@@ -1006,7 +1006,7 @@ export class GraphUtil {
          const aref = <ChartAggregateRef> arefs.find(ref => !(<ChartAggregateRef> ref).discrete);
 
          if(aref) {
-            frameMap.push({name: "Summary",
+            frameMap.push({name: "Total",
                            summary: true,
                            frame: forAll ? aggr.summaryColorFrame : aref.summaryColorFrame});
          }
