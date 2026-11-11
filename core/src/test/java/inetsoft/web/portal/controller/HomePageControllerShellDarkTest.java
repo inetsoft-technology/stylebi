@@ -81,6 +81,7 @@ class HomePageControllerShellDarkTest {
 
       assertEquals(Boolean.FALSE, model.getModel().get("shellDark"));
       assertNull(response.getCookie(ShellDarkMode.COOKIE));
+      assertEquals("../codemirror-eclipse.css", model.getModel().get("scriptThemeCssPath"));
    }
 
    @Test
@@ -93,6 +94,7 @@ class HomePageControllerShellDarkTest {
       Cookie cookie = response.getCookie(ShellDarkMode.COOKIE);
       assertNotNull(cookie);
       assertEquals("1", cookie.getValue());
+      assertEquals("../codemirror-darcula.css", model.getModel().get("scriptThemeCssPath"));
    }
 
    @Test

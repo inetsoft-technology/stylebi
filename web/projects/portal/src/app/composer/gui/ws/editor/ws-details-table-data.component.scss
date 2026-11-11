@@ -103,7 +103,7 @@
   position: relative;
   z-index: 0;
   outline: none;
-  background: white;
+  background: var(--inet-dark-input-bg-color, white);
 }
 
 .resize-handle {

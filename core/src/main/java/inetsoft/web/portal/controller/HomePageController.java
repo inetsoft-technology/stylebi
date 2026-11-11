@@ -120,7 +120,8 @@ public class HomePageController {
       model.addObject("linkUri", linkUri);
       model.addObject("customTheme", customTheme);
       model.addObject("shellDark", shellDark);
-      model.addObject("scriptThemeCssPath", customThemesManager.getScriptThemeCssPath(true));
+      model.addObject("scriptThemeCssPath", shellDark ?
+         ShellDarkMode.SCRIPT_THEME_CSS_PATH : customThemesManager.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
       model.addObject("customLoadingLogo", SreeEnv.getProperty("portal.customLoadingLogo"));
       model.addObject("customCss", SreeEnv.getProperty("portal.customCss"));

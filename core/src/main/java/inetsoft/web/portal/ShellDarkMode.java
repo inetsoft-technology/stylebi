@@ -19,6 +19,7 @@ package inetsoft.web.portal;
 
 import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.UserEnv;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -72,6 +73,12 @@ public final class ShellDarkMode {
    public static final String COOKIE = "inetsoft.shellDark";
 
    private static final int COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+   /**
+    * Script editor theme for a dark shell. A dark shell never has a custom theme, so it replaces
+    * the default light editor theme only.
+    */
+   public static final String SCRIPT_THEME_CSS_PATH = "../" + CustomTheme.ScriptTheme.DARCULA.getFileName();
 
    private ShellDarkMode() {
    }

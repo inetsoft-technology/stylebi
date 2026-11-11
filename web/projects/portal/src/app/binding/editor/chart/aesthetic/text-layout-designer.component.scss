@@ -238,9 +238,9 @@
    font-size: 0.78rem;
    line-height: 18px;
    box-sizing: border-box;
-   border: 1px solid rgba(0, 0, 0, 0.25);
+   border: 1px solid var(--inet-dark-input-border-color, rgba(0, 0, 0, 0.25));
    border-radius: 0.2rem;
-   background: rgba(255, 255, 255, 0.75);
+   background: var(--inet-dark-input-bg-color, rgba(255, 255, 255, 0.75));
 
    &:focus {
       border-color: var(--inet-primary-color, #0d6efd);

@@ -36,6 +36,7 @@ $dark-surface-canvas: #1C1B1F;
 $dark-surface-default: #252428;
 $dark-surface-subtle: #2D2B30;
 $dark-surface-hover: #37353B;
+$dark-surface-raised: #3A383D;
 $dark-selected-bg: #45424B;
 $dark-border-default: #49454F;
 $dark-border-strong: #5E5A66;
@@ -188,6 +189,21 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-overlay-hover-bg-color: rgba(255, 255, 255, 0.08);
   --inet-focus-ring-color: rgba(229, 138, 42, 0.45);
 
+  // Dark-only roles. Components write var(--inet-dark-<role>, <light literal>), so the light
+  // shell keeps its literal and only a dark shell supplies a value. See $dark-only-tokens.
+  --inet-dark-surface-color: var(--inet-shell-surface-default);
+  --inet-dark-surface-subtle-color: var(--inet-shell-surface-subtle);
+  --inet-dark-surface-hover-color: var(--inet-shell-surface-hover);
+  --inet-dark-border-color: var(--inet-shell-border-default);
+  --inet-dark-border-strong-color: var(--inet-shell-border-strong);
+  --inet-dark-input-bg-color: var(--inet-input-bg-color);
+  --inet-dark-input-border-color: var(--inet-input-border-color);
+  --inet-dark-text-color: var(--inet-text-color);
+  --inet-dark-icon-color: var(--inet-icon-color);
+  --inet-dark-stroke-color: var(--inet-text-strong-color);
+  --inet-dark-drag-indicator-bg: rgba(28, 27, 31, 0.7);
+  --inet-dark-drag-indicator-text-color: var(--inet-text-muted-color);
+
   // Bootstrap primitives that _bootstrap-override.scss does not bridge to a token
   --bs-body-color-rgb: #{rgb-triplet($dark-text-default)};
   --bs-body-bg-rgb: #{rgb-triplet($dark-surface-canvas)};
@@ -242,16 +258,62 @@ $dark-ws-row-hover-bg: #302D27;
   --bs-dark-text-emphasis: #{$dark-text-default};
   --bs-dark-border-subtle: #{$dark-border-default};
 
+  // CKEditor 5 (email and schedule message editors). Its palette is a set of root variables.
+  --ck-color-base-foreground: var(--inet-shell-surface-subtle);
+  --ck-color-base-background: var(--inet-input-bg-color);
+  --ck-color-base-border: var(--inet-default-border-color);
+  --ck-color-base-text: var(--inet-text-color);
+  --ck-color-base-active: var(--inet-primary-color);
+  --ck-color-base-active-focus: var(--inet-primary-color-dark);
+  --ck-color-focus-border: var(--inet-primary-color);
+  --ck-color-focus-outer-shadow: var(--inet-focus-ring-color);
+  --ck-color-text: var(--inet-text-color);
+  --ck-color-shadow-drop: rgba(0, 0, 0, 0.4);
+  --ck-color-shadow-drop-active: rgba(0, 0, 0, 0.5);
+  --ck-color-shadow-inner: rgba(0, 0, 0, 0.3);
+  --ck-color-button-default-background: transparent;
+  --ck-color-button-default-hover-background: var(--inet-shell-surface-hover);
+  --ck-color-button-default-active-background: var(--inet-shell-selected-bg-color);
+  --ck-color-button-on-background: var(--inet-shell-selected-bg-color);
+  --ck-color-button-on-hover-background: var(--inet-shell-surface-hover);
+  --ck-color-button-on-active-background: var(--inet-shell-selected-bg-color);
+  --ck-color-button-on-color: var(--inet-text-strong-color);
+  --ck-color-dropdown-panel-background: var(--inet-dropdown-bg-color);
+  --ck-color-dropdown-panel-border: var(--inet-default-border-color);
+  --ck-color-panel-background: var(--inet-dropdown-bg-color);
+  --ck-color-panel-border: var(--inet-default-border-color);
+  --ck-color-input-background: var(--inet-input-bg-color);
+  --ck-color-input-border: var(--inet-input-border-color);
+  --ck-color-input-text: var(--inet-input-text-color);
+  --ck-color-input-disabled-background: var(--inet-input-disabled-bg-color);
+  --ck-color-input-disabled-border: var(--inet-input-border-color);
+  --ck-color-input-disabled-text: var(--inet-text-subtle-color);
+  --ck-color-list-background: var(--inet-dropdown-bg-color);
+  --ck-color-list-button-hover-background: var(--inet-shell-surface-hover);
+  --ck-color-list-button-on-background: var(--inet-shell-selected-bg-color);
+  --ck-color-list-button-on-background-focus: var(--inet-shell-selected-bg-color);
+  --ck-color-list-button-on-text: var(--inet-text-strong-color);
+  --ck-color-toolbar-background: var(--inet-shell-surface-subtle);
+  --ck-color-toolbar-border: var(--inet-default-border-color);
+  --ck-color-tooltip-background: #{$dark-surface-raised};
+  --ck-color-tooltip-text: var(--inet-text-strong-color);
+  --ck-color-labeled-field-label-background: var(--inet-dialog-bg-color);
+  --ck-color-dialog-background: var(--inet-dialog-bg-color);
+  --ck-color-engine-placeholder-text: var(--inet-text-subtle-color);
+  --ck-color-link-default: var(--inet-link-color);
+
   // Bootstrap component images and filters that embed a light-mode color
-  --bs-btn-close-filter: invert(1) grayscale(100%) brightness(200%);
   --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
 }
 
 /***
  * Rules whose light values Bootstrap and the global helpers bake in at build time. Each maps to the
  * token the light shell already uses for the same surface, so the dark block above drives them.
+ *
+ * :where() keeps each rule at the specificity of the rule it replaces, so state rules (focus,
+ * validation, disabled) that win in the light shell still win here.
  */
-.shell-dark {
+:where(.shell-dark) {
   // inputs: Bootstrap writes $input-border-color and $input-disabled-bg as literals
   .form-control,
   .condition-field-combo-toggle.disabled,
@@ -322,6 +384,18 @@ $dark-ws-row-hover-bg: #302D27;
     border-color: var(--inet-shell-border-strong);
   }
 
+  // Bootstrap draws tooltips with the emphasis text color as the fill (black in the light shell).
+  // Inverted here it would be a light box, so a dark shell uses a raised dark surface instead.
+  .tooltip {
+    --bs-tooltip-bg: #{$dark-surface-raised};
+    --bs-tooltip-color: var(--inet-text-strong-color);
+    --bs-tooltip-opacity: 1;
+  }
+
+  .tooltip-inner {
+    border: 1px solid var(--inet-shell-border-strong);
+  }
+
   .stepper-float-label .stepper-float-label__text {
     background: var(--inet-dialog-bg-color);
   }
@@ -333,5 +407,115 @@ $dark-ws-row-hover-bg: #302D27;
 
   .selection-box {
     background-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
+/***
+ * Dashboard content
+ *
+ * A dashboard follows its own mark, never the shell (dark-mode.md, "The model in three sentences").
+ * Inside the dashboard canvas, wherever assemblies are drawn (see $dashboard-content), the light
+ * shell tokens are restored, so content and its authoring overlays render exactly as they do in a
+ * light shell. Dark-marked assemblies keep drawing from the viz dark tokens (.viz-dark).
+ */
+// The composer canvas, the portal viewer, the visualization recommender preview and the chart
+// editor preview. Only the assembly area: the editors' own bars and panes are shell.
+$dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
+$dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, border-color,
+  border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
+  drag-indicator-bg, drag-indicator-text-color;
+
+:root.shell-dark :is(#{$dashboard-content}) {
+  color-scheme: light;
+  @include inet-runtime-tokens;
+
+  // back to each component's light literal
+  @each $role in $dark-only-tokens {
+    --inet-dark-#{$role}: initial;
+  }
+  @include inet-bootstrap-bridge;
+
+  // Bootstrap values the dark block overrides that the bridge does not restore
+  --bs-body-color-rgb: #{to-rgb($body-color)};
+  --bs-body-bg-rgb: #{to-rgb($body-bg)};
+  --bs-emphasis-color: #{$body-emphasis-color};
+  --bs-emphasis-color-rgb: #{to-rgb($body-emphasis-color)};
+  --bs-secondary-color-rgb: #{to-rgb($body-secondary-color)};
+  --bs-secondary-bg: #{$body-secondary-bg};
+  --bs-secondary-bg-rgb: #{to-rgb($body-secondary-bg)};
+  --bs-tertiary-color: #{$body-tertiary-color};
+  --bs-tertiary-color-rgb: #{to-rgb($body-tertiary-color)};
+  --bs-tertiary-bg: #{$body-tertiary-bg};
+  --bs-tertiary-bg-rgb: #{to-rgb($body-tertiary-bg)};
+  --bs-light: #{$light};
+  --bs-light-rgb: #{to-rgb($light)};
+  --bs-white-rgb: #{to-rgb($white)};
+  --bs-link-color: #{$link-color};
+  --bs-link-color-rgb: #{to-rgb($link-color)};
+  --bs-link-hover-color: #{$link-hover-color};
+  --bs-link-hover-color-rgb: #{to-rgb($link-hover-color)};
+  --bs-code-color: #{$code-color};
+  --bs-highlight-color: #{$mark-color};
+  --bs-highlight-bg: #{$mark-bg};
+  --bs-border-color-translucent: #{$border-color-translucent};
+  --bs-box-shadow: #{$box-shadow};
+  --bs-box-shadow-sm: #{$box-shadow-sm};
+  --bs-box-shadow-lg: #{$box-shadow-lg};
+  --bs-box-shadow-inset: #{$box-shadow-inset};
+  @each $color, $value in $theme-colors-bg-subtle {
+    --bs-#{$color}-bg-subtle: #{$value};
+  }
+  @each $color, $value in $theme-colors-text {
+    --bs-#{$color}-text-emphasis: #{$value};
+  }
+  @each $color, $value in $theme-colors-border-subtle {
+    --bs-#{$color}-border-subtle: #{$value};
+  }
+  --bs-navbar-toggler-icon-bg: #{escape-svg($navbar-light-toggler-icon-bg)};
+}
+
+// the rules above whose dark value is not a token
+:where(.shell-dark) :where(#{$dashboard-content}) {
+  .form-select {
+    --bs-form-select-bg-img: #{escape-svg($form-select-indicator)};
+  }
+
+  .form-control:disabled,
+  .condition-field-combo-toggle.disabled:disabled,
+  .form-select:disabled,
+  .form-floating > textarea:disabled ~ label::after {
+    background-color: $input-disabled-bg;
+  }
+
+  .form-floating > .form-control:disabled ~ label,
+  .form-floating > :disabled ~ label {
+    color: $form-floating-label-disabled-color;
+  }
+
+  .blockquote-footer {
+    color: $blockquote-footer-color;
+  }
+
+  .form-range:focus::-webkit-slider-thumb,
+  .form-range:focus::-moz-range-thumb {
+    box-shadow: $form-range-thumb-focus-box-shadow;
+  }
+
+  .accordion {
+    --bs-accordion-btn-icon: #{escape-svg($accordion-button-icon)};
+    --bs-accordion-btn-active-icon: #{escape-svg($accordion-button-active-icon)};
+  }
+
+  .bg-gray4 {
+    background-color: $inet-gray4;
+  }
+
+  .hover-bg-white-border {
+    background: white;
+    border-color: black;
+  }
+
+  .selection-box {
+    background-color: rgba($inet-offwhite2, 0.4);
   }
 }

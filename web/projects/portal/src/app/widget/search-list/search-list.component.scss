@@ -21,8 +21,8 @@
   position: absolute;
   left: 0;
   top: -20px;
-  border: 1px solid rgb(80, 80, 80);
-  background-color: rgb(245, 245, 245);
+  border: 1px solid var(--inet-dark-border-strong-color, rgb(80, 80, 80));
+  background-color: var(--inet-dark-surface-subtle-color, rgb(245, 245, 245));
 }
 
 .list-search-input {
@@ -32,7 +32,7 @@
   position: absolute;
   left: 0;
   top: 0;
-  background-color: rgb(245, 245, 245);
+  background-color: var(--inet-dark-surface-subtle-color, rgb(245, 245, 245));
 }
 
 .list-search-close {
