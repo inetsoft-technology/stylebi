@@ -127,6 +127,61 @@ class ChartColorTypeSeedTest {
    }
 
    @Test
+   void aChartChangedToATreeTakesSlotOneNodes() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      seed(info);
+      assertNotNull(info.getVizMark(), "premise: a marked chart");
+
+      toTree(info);
+
+      assertEquals(EDGE, chartColor(info).getDefaultColor(), "premise: the type seed ran");
+      assertEquals(MODERN_1, nodeColor(info).getDefaultColor());
+   }
+
+   @Test
+   void aDarkChartChangedToATreeTakesTheDarkSlotOne() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_DARK);
+      seed(info);
+
+      toTree(info);
+
+      assertEquals(new Color(0x4FA5FF), nodeColor(info).getDefaultColor());
+   }
+
+   @Test
+   void aClassicChartChangedToATreeKeepsTheClassicNodes() {
+      gateOff();
+      ChartVSAssemblyInfo info = newChart();
+      seed(info);
+      assertNull(info.getVizMark(), "premise: a classic chart");
+
+      toTree(info);
+
+      assertEquals(LEGACY_1, nodeColor(info).getDefaultColor());
+   }
+
+   @Test
+   void anAuthorNodeColourIsLeftAloneByTheTypeSeed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      info.setVSChartInfo(tree());
+      seed(info);
+      nodeColor(info).setUserColor(Color.RED);
+
+      ChartInfo converted = new ChangeChartTypeProcessor(
+         GraphTypes.CHART_TREE, GraphTypes.CHART_NETWORK, false, false, null,
+         info.getVSChartInfo(), false, info.getChartDescriptor(), VizContext.of(info)).process();
+      info.setVSChartInfo((VSChartInfo) converted);
+      info.reseedIfResolvedTypeChanged();
+
+      assertEquals(Color.RED, nodeColor(info).getUserColor());
+      assertEquals(MODERN_1, nodeColor(info).getDefaultColor());
+   }
+
+   @Test
    void aModernPolygonMapTakesTheTint() {
       gateOn();
       ChartVSAssemblyInfo info = newChart();
@@ -414,6 +469,21 @@ class ChartColorTypeSeedTest {
 
    private static StaticColorFrameWrapper chartColor(ChartVSAssemblyInfo info) {
       return (StaticColorFrameWrapper) info.getVSChartInfo().getColorFrameWrapper();
+   }
+
+   private static StaticColorFrameWrapper nodeColor(ChartVSAssemblyInfo info) {
+      return (StaticColorFrameWrapper)
+         ((RelationVSChartInfo) info.getVSChartInfo()).getNodeColorFrameWrapper();
+   }
+
+   // the type picker on a new chart: a fresh relation info, then the type-change seed
+   private static void toTree(ChartVSAssemblyInfo info) {
+      ChartInfo converted = new ChangeChartTypeProcessor(
+         info.getVSChartInfo().getChartType(), GraphTypes.CHART_TREE, false, false, null,
+         info.getVSChartInfo(), false, info.getChartDescriptor(), VizContext.of(info)).process();
+      assertInstanceOf(RelationVSChartInfo.class, converted, "premise: a fresh relation info");
+      info.setVSChartInfo((VSChartInfo) converted);
+      info.reseedIfResolvedTypeChanged();
    }
 
    // parent to child
