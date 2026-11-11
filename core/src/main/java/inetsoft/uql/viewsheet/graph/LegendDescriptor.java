@@ -167,9 +167,15 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       showAuthorText(title);
    }
 
+   // typed text is the author's; it shows only a title the seed hid, never one the author hid
    private void showAuthorText(String text) {
       if(!Tool.isEmptyString(text)) {
-         setAuthorTitleVisible(true);
+         boolean show = !titleVisible && !userTitleVisible;
+         userTitleVisible = true;
+
+         if(show) {
+            titleVisible = true;
+         }
       }
    }
 

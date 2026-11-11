@@ -149,22 +149,41 @@ public class LegendFormatDialogModel implements Serializable {
                                              VizContext ctx)
    {
       final String title = generalPaneModel.getTitleValue();
+      final boolean wasTitleVisible = legendDesc.isTitleVisible();
 
       if(title == null) {
          legendDesc.setTitleValue("");
       }
       else if(legendDesc.getTitleValue() != null || !Tool.equals(titleName, title)) {
-         legendDesc.setTitleValue(title);
+         // re-applying the same text is not an edit
+         if(Tool.equals(legendDesc.getTitleValue(), title)) {
+            legendDesc.setTitleValue(title);
+         }
+         else {
+            legendDesc.setAuthorTitleValue(title);
+         }
       }
 
-      legendDesc.setTitleVisible(generalPaneModel.isVisible());
+      if(generalPaneModel.isVisible() != wasTitleVisible) {
+         legendDesc.setAuthorTitleVisible(generalPaneModel.isVisible());
+      }
+
       legendsDesc.setBorder(generalPaneModel.getStyle(), false);
       Color color = Tool.getColorFromHexString(generalPaneModel.getFillColor());
 
       if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor(), ctx))) {
          legendsDesc.setBorderColor(color, false);
       }
-      legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);
+      final String position = generalPaneModel.getPosition();
+
+      if(position != null) {
+         final int layout = getIndexByName(LEGEND_POSITIONS, position) + 1;
+
+         if(layout != legendsDesc.getLayout()) {
+            legendsDesc.setAuthorLayout(layout);
+         }
+      }
+
       legendDesc.setNotShowNull(generalPaneModel.isNotShowNull());
       legendDesc.setSymbolSize(generalPaneModel.getSymbolSize());
 
