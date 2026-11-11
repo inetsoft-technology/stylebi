@@ -41,6 +41,11 @@ class HashJoinTable extends JoinTable {
       super(leftTable, rightTable, leftCols, rightCols, joinType,
             includeRightJoinCols, maxRows);
 
+      // the arguments failed the sanity checks, the table is empty and complete
+      if(isInvalid()) {
+         return;
+      }
+
       idxmaps = new Object2IntMap[leftCols.length];
 
       for(int i = 0; i < idxmaps.length; i++) {

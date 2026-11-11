@@ -42,6 +42,11 @@ class MergeJoinTable extends JoinTable {
       super(
          leftTable, rightTable, leftCols, rightCols, joinType, includeRightJoinCols,
          maxRows);
+
+      // the arguments failed the sanity checks, the table is empty and complete
+      if(isInvalid()) {
+         return;
+      }
       joinThread = new JoinThread(leftTable, rightTable, leftCols, rightCols, joinType);
 
       // if this is called from JavaScriptEngine.exec() or a condition filter, the script
