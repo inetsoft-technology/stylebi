@@ -154,4 +154,19 @@ class SheetKeepAliveServiceTest {
       assertNull(timed.resolve(s.sessionToken(), OWNER),
                  "a keep-alive must not extend the pairing session's lifetime");
    }
+
+   @Test
+   void expiredPairingSessionIsNotFoundAndRuntimeUntouched() {
+      AtomicLong now = new AtomicLong(1_000_000L);
+      SheetSessionService timed = new SheetSessionService(now::get);
+      SheetKeepAliveService svc = new SheetKeepAliveService(timed, new SheetRuntimeAccess(ws, vs));
+      JoinSession s = timed.open("rt-6", OWNER, SheetType.WORKSHEET, null, null, null);
+
+      now.addAndGet(SheetSessionService.TTL_MILLIS + 1);
+
+      PairingException e = assertThrows(PairingException.class,
+                                        () -> svc.keepAlive(s.sessionToken(), ALICE));
+      assertEquals(PairingException.Kind.SESSION_EXPIRED, e.getKind());
+      verifyNoInteractions(ws, vs);
+   }
 }

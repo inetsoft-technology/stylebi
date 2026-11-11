@@ -34,5 +34,9 @@ public interface SheetDirectAccessor {
     * {@link #getSheetDirect}, never falls back to the distributed cache, so it cannot create a
     * copy of another node's sheet or revive one that was just disposed.
     */
-   RuntimeSheet getSheetLocal(String runtimeId);
+   default RuntimeSheet getSheetLocal(String runtimeId) {
+      // Fail closed: an accessor that cannot tell what is local must not fall back to
+      // getSheetDirect, which reloads from the distributed cache.
+      return null;
+   }
 }
