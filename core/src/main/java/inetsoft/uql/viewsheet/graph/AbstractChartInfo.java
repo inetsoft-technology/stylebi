@@ -107,6 +107,34 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    }
 
    /**
+    * Get the up-direction color frame, or null when the chart has none.
+    */
+   public StaticColorFrameWrapper getUpColorFrameWrapper() {
+      return upFrame;
+   }
+
+   /**
+    * Set the up-direction color frame.
+    */
+   public void setUpColorFrameWrapper(StaticColorFrameWrapper wrapper) {
+      this.upFrame = wrapper;
+   }
+
+   /**
+    * Get the down-direction color frame, or null when the chart has none.
+    */
+   public StaticColorFrameWrapper getDownColorFrameWrapper() {
+      return downFrame;
+   }
+
+   /**
+    * Set the down-direction color frame.
+    */
+   public void setDownColorFrameWrapper(StaticColorFrameWrapper wrapper) {
+      this.downFrame = wrapper;
+   }
+
+   /**
     * Get the size frame wrapper.
     * @return the size frame wrapper.
     */
@@ -2310,6 +2338,14 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
             obj.cFrame = (ColorFrameWrapper) cFrame.clone();
          }
 
+         if(upFrame != null) {
+            obj.upFrame = (StaticColorFrameWrapper) upFrame.clone();
+         }
+
+         if(downFrame != null) {
+            obj.downFrame = (StaticColorFrameWrapper) downFrame.clone();
+         }
+
          if(spFrame != null) {
             obj.spFrame = (ShapeFrameWrapper) spFrame.clone();
          }
@@ -2430,6 +2466,12 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       ColorFrameWrapper cFrame2 = chartInfo.cFrame;
 
       if(!Tool.equals(cFrame, cFrame2)) {
+         return false;
+      }
+
+      if(!Tool.equals(upFrame, chartInfo.upFrame) ||
+         !Tool.equals(downFrame, chartInfo.downFrame))
+      {
          return false;
       }
 
@@ -2636,6 +2678,18 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          writer.print("<colorVisualFrame>");
          cFrame.writeXML(writer);
          writer.print("</colorVisualFrame>");
+      }
+
+      if(upFrame != null) {
+         writer.print("<upColorVisualFrame>");
+         upFrame.writeXML(writer);
+         writer.print("</upColorVisualFrame>");
+      }
+
+      if(downFrame != null) {
+         writer.print("<downColorVisualFrame>");
+         downFrame.writeXML(writer);
+         writer.print("</downColorVisualFrame>");
       }
 
       if(spFrame != null) {
@@ -2932,6 +2986,20 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
       if(node != null) {
          cFrame = (ColorFrameWrapper) VisualFrameWrapper.createVisualFrame(
+            Tool.getFirstChildNode(node));
+      }
+
+      node = Tool.getChildNodeByTagName(elem, "upColorVisualFrame");
+
+      if(node != null) {
+         upFrame = (StaticColorFrameWrapper) VisualFrameWrapper.createVisualFrame(
+            Tool.getFirstChildNode(node));
+      }
+
+      node = Tool.getChildNodeByTagName(elem, "downColorVisualFrame");
+
+      if(node != null) {
+         downFrame = (StaticColorFrameWrapper) VisualFrameWrapper.createVisualFrame(
             Tool.getFirstChildNode(node));
       }
 
@@ -4061,6 +4129,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private AestheticRef textField;
    private List<AestheticRef> textLayoutFields = new ArrayList<>();
    private ColorFrameWrapper cFrame;
+   private StaticColorFrameWrapper upFrame;
+   private StaticColorFrameWrapper downFrame;
    private SizeFrameWrapper sFrame;
    private ShapeFrameWrapper spFrame;
    private TextureFrameWrapper tFrame;
