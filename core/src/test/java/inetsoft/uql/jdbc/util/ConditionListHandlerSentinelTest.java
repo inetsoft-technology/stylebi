@@ -109,7 +109,8 @@ class ConditionListHandlerSentinelTest {
 
       synchronized(sql) {
          sql.setSQLString("select t.v from t");
-         sql.wait();
+         // bounded wait so a parse failure does not hang the whole surefire fork
+         sql.wait(30000);
       }
 
       ConditionList list = new ConditionList();
