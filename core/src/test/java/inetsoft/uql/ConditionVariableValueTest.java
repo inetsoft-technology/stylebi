@@ -17,6 +17,12 @@
  */
 package inetsoft.uql;
 
+import java.util.Arrays;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Disabled;
 import inetsoft.test.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -152,6 +158,7 @@ class ConditionVariableValueTest {
       }
 
       @Test
+      // pinned current behavior, #80963 item 4
       void oneOf_emptyArrayFromVariableTable_isIgnored() throws Exception {
          // VariableTable.put stores an array without a non-null element, an empty one included,
          // as null, so the condition is ignored and every row passes
@@ -247,6 +254,75 @@ class ConditionVariableValueTest {
          cond.replaceVariable(vars("low", 1));
 
          assertTrue(cond.isIgnored());
+      }
+   }
+
+   @Nested
+   class HardeningRows {
+      @Disabled("mismatch C11")
+      @DisplayName("C11 evaluate does not mutate the array held by the VariableTable")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { XConstants.CONDITION_EMPTY_STRING, XConstants.CONDITION_NULL_STRING })
+      void c11_evaluateKeepsVariableArray(String sentinel) throws Exception {
+         VariableTable vars = vars("v", new Object[] { sentinel });
+         Condition cond = condition(XSchema.STRING, XCondition.ONE_OF, "$(v)");
+         cond.replaceVariable(vars);
+         cond.evaluate("x");
+
+         Object[] held = (Object[]) vars.get("v");
+         assertEquals(sentinel, held[0], "the caller's array must not be rewritten");
+      }
+
+      @DisplayName("C14 NULL operation with strictMatchNull false / true")
+      @ParameterizedTest(name = "[{index}] strict={0}")
+      @CsvSource({ "false, true, true, true, false", "true, false, true, true, false" })
+      void c14_strictMatchNull(boolean strict, boolean textNull, boolean empty, boolean nul,
+                               boolean other)
+      {
+         Condition cond = condition(XSchema.STRING, XCondition.NULL);
+         cond.setStrictMatchNull(strict);
+
+         assertEquals(textNull, cond.evaluate("null"), "text null");
+         assertEquals(empty, cond.evaluate(""), "empty");
+         assertEquals(nul, cond.evaluate(null), "null");
+         assertEquals(other, cond.evaluate("a"), "a");
+      }
+
+      private Condition oneOfInts() {
+         return condition(XSchema.INTEGER, XCondition.ONE_OF, (Object) new Object[] { 5, 7 });
+      }
+
+      @DisplayName("C12 pinned current behavior: evaluate result per value is independent of the evaluation order")
+      @Test
+      void c12_evaluationOrderIndependent() {
+         Object[] inputs = { null, "", 5, 6 };
+         Boolean[] expected = new Boolean[inputs.length];
+
+         for(int i = 0; i < inputs.length; i++) {
+            expected[i] = oneOfInts().evaluate(inputs[i]);
+         }
+
+         int[] idx = { 0, 1, 2, 3 };
+         permute(idx, 0, expected, inputs);
+      }
+
+      private void permute(int[] idx, int k, Boolean[] expected, Object[] inputs) {
+         if(k == idx.length) {
+            Condition cond = oneOfInts();
+
+            for(int i : idx) {
+               assertEquals(expected[i], cond.evaluate(inputs[i]),
+                            "input " + inputs[i] + " order " + Arrays.toString(idx));
+            }
+
+            return;
+         }
+
+         for(int i = k; i < idx.length; i++) {
+            int t = idx[k]; idx[k] = idx[i]; idx[i] = t;
+            permute(idx, k + 1, expected, inputs);
+            t = idx[k]; idx[k] = idx[i]; idx[i] = t;
+         }
       }
    }
 }

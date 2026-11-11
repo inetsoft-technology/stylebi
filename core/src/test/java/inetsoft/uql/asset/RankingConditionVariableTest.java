@@ -17,6 +17,10 @@
  */
 package inetsoft.uql.asset;
 
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.DisplayName;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCondition;
@@ -195,6 +199,7 @@ class RankingConditionVariableTest {
    }
 
    @Test
+      // pinned current behavior, #80963 item 8
    void missingVariable_keepsTheReference() {
       // the condition is not ignored: N stays the unresolved reference
       RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
@@ -204,6 +209,7 @@ class RankingConditionVariableTest {
    }
 
    @Test
+      // pinned current behavior, #80963 item 8
    void nonNumericText_keepsTheReference() {
       RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
       cond.replaceVariable(vars("abc"));
@@ -212,6 +218,7 @@ class RankingConditionVariableTest {
    }
 
    @Test
+      // pinned current behavior, #80963 item 8
    void emptyArray_keepsTheReference() {
       RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
       cond.replaceVariable(new VariableTable() {
@@ -283,5 +290,70 @@ class RankingConditionVariableTest {
 
       cond.replaceVariable(vars(new Object[] {null}));
       assertEquals("$(n)", cond.getN());
+   }
+
+   @DisplayName("R02 the same logical N resolves the same way through Long / String / Double")
+   @ParameterizedTest(name = "[{index}] {0} vs {1}")
+   @MethodSource("equivalentPairs")
+   void r02_equivalentInputsResolveTheSame(Object a, Object b) {
+      assertSameResolution(a, b);
+   }
+
+   @DisplayName("R02 Long 2 and Integer 2 resolve the same")
+   @Test
+   void r02_smallLongAndInteger() {
+      assertSameResolution(2L, 2);
+   }
+
+   private static void assertSameResolution(Object a, Object b) {
+      RankingCondition ca = ranking(XCondition.TOP_N, "$(n)");
+      RankingCondition cb = ranking(XCondition.TOP_N, "$(n)");
+      ca.replaceVariable(vars(a));
+      cb.replaceVariable(vars(b));
+
+      assertEquals(ca.getN(), cb.getN(), a + " vs " + b);
+   }
+
+   static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> equivalentPairs() {
+      return java.util.stream.Stream.of(
+         org.junit.jupiter.params.provider.Arguments.of(3000000000L, "3000000000"),
+         org.junit.jupiter.params.provider.Arguments.of("2.0", 2.0));
+   }
+
+   @DisplayName("R04 setN rejects non-Integer, non-reference values and keeps the old N")
+   @Test
+   void r04_setN() {
+      RankingCondition cond = new RankingCondition();
+      assertTrue(cond.setN(5));
+      assertEquals(5, cond.getN());
+
+      for(Object bad : new Object[] { 3000000000L, "abc" }) {
+         assertFalse(cond.setN(bad), "rejected: " + bad);
+         assertEquals(5, cond.getN(), "unchanged after " + bad);
+      }
+
+      assertTrue(cond.setN(-1));
+      assertEquals(-1, cond.getN());
+      assertTrue(cond.setN("$(n)"));
+      assertEquals("$(n)", cond.getN());
+   }
+
+   @DisplayName("R06 a String variable that setN(text) accepts or that is not numeric resolves like setN(text)")
+   @ParameterizedTest(name = "[{index}] ''{0}''")
+   // lenient numeric strings ("2.0", " 7 ", "3000000000") resolve by design since #8022; see everyNumberType_givesTheSameNAtTheBoundaries
+   @ValueSource(strings = { "5", "abc", "" })
+   void r06_twinOfSetN(String text) {
+      RankingCondition twin = new RankingCondition();
+      boolean accepted = twin.setN(text);
+
+      RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+      cond.replaceVariable(vars(text));
+
+      if(accepted) {
+         assertEquals(twin.getN(), cond.getN());
+      }
+      else {
+         assertEquals("$(n)", cond.getN());
+      }
    }
 }

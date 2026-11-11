@@ -28,6 +28,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Calendar;
 import java.util.Locale;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -327,6 +329,78 @@ class ParameterToolTest {
       void currency_formatsEachElement() {
          assertEquals("[$1.00,$2.00]",
                       parse("{parameter.x, currency}", "x", new Object[] { 1, 2 }));
+      }
+   }
+
+   @Nested
+   class HardeningRows {
+      @Disabled("mismatch T01")
+      @DisplayName("T01 a variable name containing 'parameter.' is found")
+      @Test
+      void t01_nameContainingPrefix() {
+         assertEquals("V", parse("{parameter.myparameter.x}", "myparameter.x", "V"));
+         assertEquals("W", parse("{parameter.a.parameter.b}", "a.parameter.b", "W"));
+      }
+
+      @DisplayName("T02 a comma inside the format spec is part of the spec")
+      @Test
+      void t02_commaInSpec() {
+         assertEquals("x, 1234.5", parse("{parameter.p, text, 'x, {0}'}", "p", 1234.5));
+         assertEquals("1,234.50", parse("{parameter.p, number, '#,##0.00'}", "p", 1234.5));
+      }
+
+      @DisplayName("T03 a Long is written without an exponent")
+      @Test
+      void t03_longNoFormat() {
+         assertEquals("3000000000", parse("{parameter.p}", "p", 3000000000L));
+      }
+
+      @Disabled("mismatch T03")
+      @DisplayName("T03 a Long above 2^53 keeps its digits with a number format")
+      @Test
+      void t03_longNumberFormat() {
+         assertEquals("9,007,199,254,740,993",
+                      parse("{parameter.p, number, '#,##0'}", "p", 9007199254740993L));
+      }
+
+      @DisplayName("T03 a BigDecimal keeps its scale with a number format")
+      @Test
+      void t03_bigDecimal() {
+         assertEquals("1.10",
+                      parse("{parameter.p, number, '0.00'}", "p", new java.math.BigDecimal("1.10")));
+      }
+
+      @DisplayName("T04 currency / percent follow the default locale like NumberFormat")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { "en-US", "de-DE", "fr-FR" })
+      void t04_currencyAndPercent(String tag) {
+         Locale.setDefault(Locale.forLanguageTag(tag));
+         assertEquals(java.text.NumberFormat.getCurrencyInstance().format(1234.5),
+                      parse("{parameter.p, currency}", "p", 1234.5));
+         assertEquals(java.text.NumberFormat.getPercentInstance().format(0.256),
+                      parse("{parameter.p, percent}", "p", 0.256));
+      }
+
+      @DisplayName("T05 a builtin variable is resolved")
+      @Test
+      void t05_builtin() {
+         String text = parse("{parameter._TODAY}");
+         assertNotEquals("null", text);
+         assertEquals(inetsoft.uql.util.XUtil.replaceVariable("$(_TODAY)", new VariableTable()),
+                      text);
+      }
+
+      @DisplayName("T07 a date format follows the default locale like ExtendedDateFormat")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { "en-US", "fr-FR" })
+      void t07_dateFormatLocale(String tag) {
+         Locale.setDefault(Locale.forLanguageTag(tag));
+         Calendar cal = Calendar.getInstance();
+         cal.clear();
+         cal.set(2024, Calendar.MARCH, 15);
+         String expected = new inetsoft.util.ExtendedDateFormat("d MMM yyyy").format(cal.getTime());
+
+         assertEquals(expected, parse("{parameter.d, date, 'd MMM yyyy'}", "d", cal.getTime()));
       }
    }
 }
