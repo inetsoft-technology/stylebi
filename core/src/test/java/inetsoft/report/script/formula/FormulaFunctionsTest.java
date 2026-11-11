@@ -275,9 +275,9 @@ public class FormulaFunctionsTest {
          Arguments.of(four, "maxrows=-2", new Object[] { 3, 4 }),
          Arguments.of(four, "maxrows=10", new Object[] { 1, 2, 3, 4 }),
          Arguments.of(four, "maxrows=0", new Object[] { 1, 2, 3, 4 }),
-         // current behavior, unconfirmed: the kept rows are sorted again with sort2 (default
-         // ascending), so sort=desc,maxrows=2 returns 3,4 and not 4,3
-         Arguments.of(four, "sort=desc,maxrows=2", new Object[] { 3, 4 }),
+         // the kept rows are re-sorted in the sort direction when sort2 is not given
+         // (#81071), so sort=desc,maxrows=2 returns 4,3
+         Arguments.of(four, "sort=desc,maxrows=2", new Object[] { 4, 3 }),
          Arguments.of(four, "sort=desc,sort2=desc,maxrows=2", new Object[] { 4, 3 })
       );
    }
