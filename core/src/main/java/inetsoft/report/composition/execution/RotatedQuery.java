@@ -84,8 +84,47 @@ public class RotatedQuery extends AssetQuery {
       table = AssetQuery.shuckOffFormat(table);
       RotatedTableLens rotated = new RotatedTableLens(table, 1);
       // limit number of columns so we don't get a table with thousands of cols
-      table = rotated;
+      table = makeHeadersUnique(rotated);
       return table;
+   }
+
+   /**
+    * Make the header names of the rotated table unique. The header names are the values of
+    * the first column of the source, which may repeat. The column selection and the column
+    * lookup are both keyed by name (the lookup case-insensitively), so repeated names would
+    * drop or mix up columns. Only the repeated names are renamed, with the same rule as
+    * {@link AssetUtil#fixAlias(ColumnSelection)} (A, A_1, A_2); other headers are untouched.
+    */
+   private static TableLens makeHeadersUnique(TableLens rotated) {
+      if(!rotated.moreRows(0)) {
+         return rotated;
+      }
+
+      int count = rotated.getColCount();
+      ColumnSelection names = new ColumnSelection();
+
+      for(int i = 0; i < count; i++) {
+         String header = AssetUtil.format(XUtil.getHeader(rotated, i));
+         names.addAttribute(new ColumnRef(new AttributeRef(header)), false);
+      }
+
+      AssetTableLens result = null;
+
+      AssetUtil.fixAlias(names);
+
+      for(int i = 0; i < count; i++) {
+         String alias = ((ColumnRef) names.getAttribute(i)).getAlias();
+
+         if(alias != null) {
+            if(result == null) {
+               result = new AssetTableLens(rotated);
+            }
+
+            result.setObject(0, i, alias);
+         }
+      }
+
+      return result == null ? rotated : result;
    }
 
    /**
