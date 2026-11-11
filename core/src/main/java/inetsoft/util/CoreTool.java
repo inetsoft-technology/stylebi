@@ -1438,22 +1438,7 @@ public class CoreTool {
             catch(Exception ex) {
                double dval = parseDouble(val);
 
-               // a double cannot tell Long.MIN_VALUE - 1 from Long.MIN_VALUE, so check the
-               // exact decimal text when it is plain numeric text
-               java.math.BigDecimal exact;
-
-               try {
-                  // skip the exact check for huge values (also bounds BigDecimal work)
-                  exact = Math.abs(dval) < 0x1p64 ? new java.math.BigDecimal(val.trim()) : null;
-               }
-               catch(NumberFormatException ignore) {
-                  exact = null;
-               }
-
-               boolean inRange = exact != null ?
-                  exact.toBigInteger().bitLength() < Long.SIZE : dval >= -0x1p63 && dval < 0x1p63;
-
-               if(!inRange) {
+               if(!isLongRange(val, dval)) {
                   throw new NumberFormatException("Value out of range for long: " + val);
                }
 
@@ -1568,6 +1553,34 @@ public class CoreTool {
       }
 
       return dval;
+   }
+
+   /**
+    * Check if the numeric text (already parsed as dval) fits the range of long. Only values
+    * near +-2^63 need the exact decimal check, because a double cannot tell
+    * Long.MIN_VALUE - 1 from Long.MIN_VALUE. Everything else is decided in O(1) from dval,
+    * so BigDecimal.toBigInteger() is never applied to text like "1e-999999999".
+    */
+   private static boolean isLongRange(String str, double dval) {
+      double abs = Math.abs(dval);
+
+      if(abs < 0x1p62) {
+         return true;
+      }
+
+      if(!(abs < 0x1p64)) {
+         // too large, infinite or NaN
+         return false;
+      }
+
+      try {
+         // |value| is within [2^62, 2^64), so the integer part has at most 20 digits
+         return new java.math.BigDecimal(str.trim()).toBigInteger().bitLength() < Long.SIZE;
+      }
+      catch(NumberFormatException ignore) {
+         // e.g. a trailing percent sign, parsed by parseDouble
+         return dval >= -0x1p63 && dval < 0x1p63;
+      }
    }
 
    private static double parseDouble(String str) {

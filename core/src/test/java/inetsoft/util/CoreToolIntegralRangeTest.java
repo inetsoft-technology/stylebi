@@ -20,6 +20,8 @@ package inetsoft.util;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -77,5 +79,37 @@ class CoreToolIntegralRangeTest {
       assertEquals(5, CoreTool.getData("integer", "5.7"));
       assertEquals((byte) -5, CoreTool.getData("byte", "-5.7"));
       assertEquals(5.7, CoreTool.getData("long", "5.7"));
+   }
+
+   @Test
+   void longExtremeExponentsAreFastAndKeepLegacyResult() {
+      // BigDecimal.toBigInteger() on these would take seconds to forever
+      assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+         assertEquals(0.0, CoreTool.getData("long", "1e-100000000"));
+         assertEquals(0.0, CoreTool.getData("long", "1e-999999999"));
+         assertEquals(-0.0, CoreTool.getData("long", "-1e-999999999"));
+         assertNull(CoreTool.getData("long", "1e999999999"));
+         assertNull(CoreTool.getData("long", "-1e999999999"));
+         assertNull(CoreTool.getData("long", "1e30"));
+      });
+   }
+
+   @Test
+   void longBoundaryWithDecimalSyntax() {
+      assertEquals(9.223372036854775807E18, CoreTool.getData("long", "9223372036854775807.5"));
+      assertNull(CoreTool.getData("long", "9223372036854775808.0"));
+      assertNull(CoreTool.getData("long", "9.223372036854775808E18"));
+      assertEquals(-9.223372036854775808E18, CoreTool.getData("long", "-9223372036854775808.5"));
+      assertNull(CoreTool.getData("long", "-9223372036854775809.0"));
+      assertEquals(1.0E18, CoreTool.getData("long", "1e18"));
+   }
+
+   @Test
+   void narrowTypesExtremeExponentsAreFast() {
+      assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+         assertEquals(0, CoreTool.getData("integer", "1e-999999999"));
+         assertNull(CoreTool.getData("integer", "1e999999999"));
+         assertEquals((byte) 0, CoreTool.getData("byte", "1e-999999999"));
+      });
    }
 }
