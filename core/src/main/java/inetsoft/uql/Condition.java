@@ -741,8 +741,8 @@ public class Condition extends AbstractCondition {
                   result = ((String) value).startsWith((String) obj);
                }
                else {
-                  String value2 = ((String) value).toLowerCase();
-                  String obj2 = ((String) obj).toLowerCase();
+                  String value2 = ((String) value).toLowerCase(Locale.ROOT);
+                  String obj2 = ((String) obj).toLowerCase(Locale.ROOT);
                   result = value2.startsWith(obj2);
                }
             }
@@ -771,8 +771,8 @@ public class Condition extends AbstractCondition {
                   result = ((String) value).contains((String) obj);
                }
                else {
-                  String value2 = ((String) value).toLowerCase();
-                  String obj2 = ((String) obj).toLowerCase();
+                  String value2 = ((String) value).toLowerCase(Locale.ROOT);
+                  String obj2 = ((String) obj).toLowerCase(Locale.ROOT);
                   result = value2.contains(obj2);
                }
             }
