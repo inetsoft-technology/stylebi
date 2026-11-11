@@ -161,6 +161,8 @@ public class CalcTableScopeTest {
          Arguments.of(objData, "id", "id=3", 3.0),
          // Test case 3: test array obj, group  and condition are useless
          Arguments.of(new Object[]{3, 7, 8}, null, null, 6.0),
+         // single row
+         Arguments.of(new Object[]{5}, null, null, 5.0),
          // Test case 4: The array is empty
          Arguments.of(null, null, null, Double.NaN)
       );
@@ -202,6 +204,8 @@ public class CalcTableScopeTest {
          Arguments.of("[1,date]:[3,date]", null, null, date_2025, date_2021),
          Arguments.of(objData, "date", null, date_2026, date_2021),
          Arguments.of(new Object[]{3, 1, 9}, null, null, 9, 1),
+         // single row
+         Arguments.of(new Object[]{7}, null, null, 7, 7),
          Arguments.of(null, null, null, null, null)
       );
    }
@@ -218,6 +222,8 @@ public class CalcTableScopeTest {
          Arguments.of("[1,id]:[3,id]", null, null, 6.0),
          Arguments.of(objData, "id", "id < 3", 4.0),
          Arguments.of(new Object[]{3, 7, 9}, null, null, 189.0),
+         // single row
+         Arguments.of(new Object[]{4}, null, null, 4.0),
          Arguments.of(null, null, null, Double.NaN)
       );
    }
