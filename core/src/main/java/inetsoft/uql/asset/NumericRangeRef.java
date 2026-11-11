@@ -449,7 +449,7 @@ public class NumericRangeRef extends ExpressionRef implements AssetObject,
             sb.append("else ");
          }
 
-         sb.append("if(").append(field).append(" ").append(lowerOp).append(" ").append(arr[arr.length - 1]).append(") {\n");
+         sb.append("if(").append(field).append(" ").append(lowerOp).append(" ").append(arr[arr.length - 1]).append(" && ").append(field).append(" != null) {\n");
          sb.append("   \"").append(Tool.escapeJavascript(label)).append("\";\n");
          sb.append("}\n");
       }
