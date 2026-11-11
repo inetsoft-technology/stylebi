@@ -105,6 +105,9 @@ class DistinctCountFormulaTest {
    // -----------------------------------------------------------------------
 
    // gap:report.summary-formulas.count#count-no-values-is-zero
+   // Pending #80953 question 2: an empty Distinct Count is 0 and never null, unlike the other
+   // formulas. The developer recommends keeping 0 (SQL COUNT(DISTINCT) over no rows); not
+   // decided yet, so this asserts the current behavior
    @Test
    void getResult_noValues_returnsZero() {
       DistinctCountFormula distinct = new DistinctCountFormula();
@@ -200,6 +203,40 @@ class DistinctCountFormulaTest {
       assertEquals(0.0, zeroDistinct.getDoubleResult());
       zeroDistinct.setDefaultResult(true);
       assertEquals(0.0, zeroDistinct.getResult());
+   }
+
+   // Test Case #80957, #80953 question 5: a typed column reaches the formula through the
+   // primitive overloads (FormulaAgent), an Object column through addValue(Object). Within one
+   // type both paths give the same value. Whether 1 and 1.0 in one mixed Object column are the
+   // same value is still open in #80953 (the developer advised not to pin it), so mixed types
+   // are not asserted here
+   @Test
+   void addValue_primitiveAndObjectOfOneType_areTheSameValue() {
+      DistinctCountFormula distinct = new DistinctCountFormula();
+      distinct.addValue(7);
+      distinct.addValue((Object) Integer.valueOf(7));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue(7L);
+      distinct.addValue((Object) Long.valueOf(7L));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue((short) 7);
+      distinct.addValue((Object) Short.valueOf((short) 7));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue(7.5f);
+      distinct.addValue((Object) Float.valueOf(7.5f));
+      assertEquals(1, distinct.getResult());
+
+      distinct.reset();
+      distinct.addValue(7.5);
+      distinct.addValue((Object) Double.valueOf(7.5));
+      distinct.addValue(new double[] { 7.5 });
+      assertEquals(1, distinct.getResult());
    }
 
    private static void addAll(Formula formula, Object... values) {

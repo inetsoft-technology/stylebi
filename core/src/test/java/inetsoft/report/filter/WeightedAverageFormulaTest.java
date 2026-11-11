@@ -297,6 +297,33 @@ class WeightedAverageFormulaTest {
       }
    }
 
+   // Test Case #80957: negative weights (not covered by the 13.8 tests). The weights are summed
+   // with their sign, so the result is sum(value * weight) / sum(weight)
+   @Test
+   void getResult_negativeWeights_dividesBySignedWeightSum() {
+      // (10 * 3 + 20 * -1) / (3 - 1) = 10 / 2
+      WeightedAverageFormula weighted = new WeightedAverageFormula(1);
+      addPairs(weighted, pair(10, 3), pair(20, -1));
+      assertEquals(5.0, weighted.getResult());
+      assertEquals(5.0, weighted.getDoubleResult());
+
+      // only negative weights: (10 * -1 + 20 * -3) / (-1 - 3) = -70 / -4, as with 1 and 3
+      weighted.reset();
+      addPairs(weighted, pair(10, -1), pair(20, -3));
+      assertEquals(17.5, weighted.getResult());
+
+      // a negative weight sum: (10 * 1 + 20 * -3) / (1 - 3) = -50 / -2, outside the values
+      weighted.reset();
+      addPairs(weighted, pair(10, 1), pair(20, -3));
+      assertEquals(25.0, weighted.getResult());
+
+      // the double array form
+      weighted.reset();
+      weighted.addValue(new double[] { 10.0, 3.0 });
+      weighted.addValue(new double[] { 20.0, -1.0 });
+      assertEquals(5.0, weighted.getResult());
+   }
+
    private static void addPairs(Formula formula, Object[]... pairs) {
       for(Object[] pair : pairs) {
          formula.addValue((Object) pair);
