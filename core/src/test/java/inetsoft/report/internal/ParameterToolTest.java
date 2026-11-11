@@ -267,6 +267,42 @@ class ParameterToolTest {
       }
 
       @Test
+      void hugeExponentString_staysOnTheDoublePath() {
+         long start = System.nanoTime();
+         String out = parse(GROUPED, "x", "1E+100000000");
+
+         assertTrue(out.length() < 50, "output length " + out.length());
+         assertTrue(System.nanoTime() - start < 5_000_000_000L);
+         assertTrue(parse(GROUPED, "x", "1e400").length() < 50);
+         assertTrue(parse(GROUPED, "x", "1E-100000000").length() < 50);
+      }
+
+      @Test
+      void exponentString_withinBound_isExact() {
+         assertEquals("12,345,678,901,234,567,890", parse(GROUPED, "x", "1.234567890123456789E+19"));
+      }
+
+      @Test
+      void longDecimalString_keepsItsFraction() {
+         assertEquals("1,234,567,890,123,456.79",
+                      parse("{parameter.x, number, '#,##0.00'}", "x", "1234567890123456.789"));
+      }
+
+      @Test
+      void stringWithWhitespace_isTrimmed() {
+         assertEquals("9,007,199,254,740,993", parse(GROUPED, "x", "  9007199254740993 "));
+      }
+
+      @Test
+      void negativeRoundedToZero_onTheExactPath_hasNoMinusSign() {
+         assertEquals("0.00", parse("{parameter.x, number, '0.00'}", "x",
+                                    new BigDecimal("-0.0000123456789012345678")));
+         // not tiny enough to be zero: keeps its sign as on the double path
+         assertEquals("-0.01", parse("{parameter.x, number, '0.00'}", "x",
+                                     new BigDecimal("-0.0123456789012345678")));
+      }
+
+      @Test
       void unitSuffix_stillUsesTheUnit() {
          assertEquals("9,007,199B", parse("{parameter.x, number, '#,##0B'}", "x",
                                                     9007199254740993L));

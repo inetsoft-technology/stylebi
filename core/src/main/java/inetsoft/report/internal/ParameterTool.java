@@ -307,6 +307,14 @@ public class ParameterTool {
          return null;
       }
 
+      // a huge exponent (e.g. a "1E+100000000" URL parameter) would print every digit; leave
+      // such values to the double path as before
+      if(exact.precision() - exact.scale() > MAX_EXACT_DIGITS ||
+         Math.abs(exact.scale()) > MAX_EXACT_DIGITS)
+      {
+         return null;
+      }
+
       double value = exact.doubleValue();
 
       // unchanged by the conversion: keep the double path (and its negative zero handling)
@@ -325,6 +333,13 @@ public class ParameterTool {
             "MMW#".equals(decimal.getSimplePattern()))
          {
             return null;
+         }
+
+         // avoid "-0", as ExtendedDecimalFormat does for a double
+         if(exact.signum() < 0 &&
+            exact.negate().compareTo(BigDecimal.valueOf(1, decimal.getMaximumFractionDigits() + 2)) < 0)
+         {
+            exact = BigDecimal.ZERO;
          }
 
          format = decimal;
@@ -384,6 +399,8 @@ public class ParameterTool {
       return format.format(value);
    }
 
+   // the most integer digits / fraction digits an exact value may have to skip the double path
+   private static final int MAX_EXACT_DIGITS = 40;
    private static final String TEXT_PARAMETER_PREFIX = "{parameter.";
    private static final String TEXT_PARAMETER_END = "}";
    private static final String PARAMETER_PREFIX = "parameter.";
