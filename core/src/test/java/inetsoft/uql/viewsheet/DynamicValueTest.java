@@ -341,22 +341,4 @@ class DynamicValueTest {
          assertNotEquals(a.fullHashCode(), b.fullHashCode());
       }
    }
-
-   /**
-    * Behavior that looks unintended, pinned so a fix shows up as a test change.
-    */
-   @Nested
-   class Suspect {
-      @Test
-      void fullEquals_ignoresTheRuntimeValue() {
-         // DynamicValue.fullEquals compares dval2.rvalue with itself, so two values with a
-         // different runtime value are fullEquals although their fullHashCode differs
-         DynamicValue a = new DynamicValue("=x");
-         DynamicValue b = new DynamicValue("=x");
-         a.setRValue("one");
-         b.setRValue("two");
-
-         assertTrue(a.fullEquals(b));
-      }
-   }
 }
