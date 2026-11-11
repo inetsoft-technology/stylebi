@@ -1421,9 +1421,22 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
 
          // all terms range over the rows where both columns are not null, so a pair
          // with one missing value is left out (Bug #81095)
-         return "(" + pairCovariance(column, col2) + ") / NULLIF("
-            + pairStdDev(column, col2) + " * "
-            + pairStdDev(col2, column) + ", 0)";
+         return "(" + pairCovariance(column, col2) + ") / " + guardedDenominator(
+            pairVariance(column, col2), pairVariance(col2, column));
+      }
+
+      /**
+       * Get the denominator, sqrt(varx * vary), as NULL when either population variance is not
+       * positive. A group with one row, or with a constant x or y, has zero variance, and the
+       * division by zero fails the whole query on most databases (Derby, PostgreSQL, SQL
+       * Server...). The raw-sum variance of a constant column of inexact doubles can even come
+       * out slightly negative, which fails the SQRT. The in-memory CorrelationFormula returns
+       * null for all of these, so the result must not depend on the pushdown (Bug #81096).
+       * The outer NULLIF covers a product of two tiny variances that underflows to 0.
+       */
+      private static String guardedDenominator(String varx, String vary) {
+         return "NULLIF(SQRT(CASE WHEN (" + varx + ") > 0 AND (" + vary + ") > 0 THEN ((" +
+            varx + ") * (" + vary + ")) END), 0)";
       }
 
       /**
@@ -1442,12 +1455,10 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2,
                                      AggregateHelper helper) {
-         return "(" + COVARIANCE.getExpressionSub(column, col2, helper) +
-            ") / (" + POPULATION_STANDARD_DEVIATION
-            .getExpressionSub(column, null, helper) +
-            " * " + POPULATION_STANDARD_DEVIATION
-            .getExpressionSub(col2, null, helper) +
-            ")";
+         return "(" + COVARIANCE.getExpressionSub(column, col2, helper) + ") / " +
+            guardedDenominator(
+               POPULATION_VARIANCE.getExpressionSub(column, null, helper),
+               POPULATION_VARIANCE.getExpressionSub(col2, null, helper));
       }
 
       /**
@@ -3033,13 +3044,21 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
     * The result is NULL if there is no such row.
     */
    private static String pairStdDev(String x, String y) {
+      return "SQRT(" + pairVariance(x, y) + ")";
+   }
+
+   /**
+    * Population variance of x over the rows where both columns are not null. The result is
+    * NULL if there is no such row.
+    */
+   private static String pairVariance(String x, String y) {
       String n = "NULLIF(" + pairCount(x, y) + ", 0)";
       String sum = pairSum(x, y);
       String sumsq = "SUM(CASE WHEN " + pairParens(y) + " IS NOT NULL THEN (0.0E0+" +
          pairParens(x) + ") * (0.0E0+" + pairParens(x) + ") END)";
 
-      return "SQRT(((0.0E0+" + sumsq + ") * " + n + " - ((0.0E0 + " + sum + ") * " + sum +
-         " ))/((0.0E0 + " + n + ") * " + n + "))";
+      return "((0.0E0+" + sumsq + ") * " + n + " - ((0.0E0 + " + sum + ") * " + sum +
+         " ))/((0.0E0 + " + n + ") * " + n + ")";
    }
 
    // surround with parens for expression
