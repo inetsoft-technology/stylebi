@@ -138,7 +138,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
             return;
          }
 
-         sendUnauthorized(httpResponse, "Unauthorized");
+         sendUnauthorized(httpResponse, "Unauthorized", e.getReason());
          return;
       }
       catch(Exception e) {
@@ -241,7 +241,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          jwt = SignedJWT.parse(token);
       }
       catch(ParseException e) {
-         throw new WizAuthenticationException("Invalid JWT format");
+         throw new WizAuthenticationException("Invalid JWT format", Reason.MALFORMED);
       }
 
       // Verify signature
@@ -253,11 +253,12 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          valid = jwt.verify(verifier);
       }
       catch(JOSEException e) {
-         throw new WizAuthenticationException("Signature verification failed: " + e.getMessage());
+         throw new WizAuthenticationException(
+            "Signature verification failed: " + e.getMessage(), Reason.MALFORMED);
       }
 
       if(!valid) {
-         throw new WizAuthenticationException("Invalid token signature");
+         throw new WizAuthenticationException("Invalid token signature", Reason.SIGNATURE_INVALID);
       }
 
       // Validate claims
@@ -267,28 +268,32 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          claims = jwt.getJWTClaimsSet();
       }
       catch(ParseException e) {
-         throw new WizAuthenticationException("Failed to parse token claims");
+         throw new WizAuthenticationException("Failed to parse token claims", Reason.MALFORMED);
       }
 
       // Check expiration
       Date expirationTime = claims.getExpirationTime();
 
-      if(expirationTime == null || expirationTime.before(new Date())) {
-         throw new WizAuthenticationException("Token has expired");
+      if(expirationTime == null) {
+         throw new WizAuthenticationException("Token missing expiration", Reason.MALFORMED);
+      }
+
+      if(expirationTime.before(new Date())) {
+         throw new WizAuthenticationException("Token has expired", Reason.EXPIRED);
       }
 
       // Check audience
       List<String> audience = claims.getAudience();
 
       if(audience == null || !containsValidAudience(audience)) {
-         throw new WizAuthenticationException("Invalid token audience");
+         throw new WizAuthenticationException("Invalid token audience", Reason.AUDIENCE_INVALID);
       }
 
       // Extract user identity
       String subject = claims.getSubject();
 
       if(subject == null || subject.isEmpty()) {
-         throw new WizAuthenticationException("Token missing subject");
+         throw new WizAuthenticationException("Token missing subject", Reason.MALFORMED);
       }
 
       // Get organization ID
@@ -447,12 +452,23 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
     * Sends an unauthorized response.
     */
    private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
+      sendUnauthorized(response, message, null);
+   }
+
+   /**
+    * Sends an unauthorized response, optionally with a coarse, non-sensitive rejection reason so
+    * clients can tell an expired login from a rejected one (bug #81086).
+    */
+   private void sendUnauthorized(HttpServletResponse response, String message, Reason reason)
+      throws IOException
+   {
       response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       response.setContentType("application/json");
       response.setCharacterEncoding("UTF-8");
       // Escape special characters to prevent JSON injection
       String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"");
-      response.getWriter().write("{\"error\":\"" + escaped + "\"}");
+      String reasonJson = reason == null ? "" : ",\"reason\":\"" + reason.code + "\"";
+      response.getWriter().write("{\"error\":\"" + escaped + "\"" + reasonJson + "}");
    }
 
    /**
@@ -482,8 +498,39 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
     * Exception thrown when WIZ service authentication fails.
     */
    public static class WizAuthenticationException extends Exception {
-      public WizAuthenticationException(String message) {
+      /**
+       * @param reason the coarse rejection reason sent to the client, or null for a server-side
+       *               fault that is not a token problem.
+       */
+      public WizAuthenticationException(String message, Reason reason) {
          super(message);
+         this.reason = reason;
       }
+
+      public WizAuthenticationException(String message) {
+         this(message, null);
+      }
+
+      public Reason getReason() {
+         return reason;
+      }
+
+      private final Reason reason;
+   }
+
+   /**
+    * Coarse reason a bearer token was rejected, written to the 401 body as "reason".
+    */
+   public enum Reason {
+      EXPIRED("token-expired"),
+      SIGNATURE_INVALID("token-signature-invalid"),
+      AUDIENCE_INVALID("token-audience-invalid"),
+      MALFORMED("token-malformed");
+
+      Reason(String code) {
+         this.code = code;
+      }
+
+      private final String code;
    }
 }

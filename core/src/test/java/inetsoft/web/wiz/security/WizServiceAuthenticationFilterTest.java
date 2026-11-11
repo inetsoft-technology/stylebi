@@ -310,6 +310,133 @@ class WizServiceAuthenticationFilterTest {
       verify(chain, never()).doFilter(any(), any());
    }
 
+   // ── Bug #81086: the 401 body carries a coarse reason ──────────────────────
+
+   private static final String REASON_PREFIX = "{\"error\":\"Unauthorized\",\"reason\":\"";
+
+   @Test
+   void doFilter_expiredToken_reportsTokenExpired() throws Exception {
+      assertEquals(REASON_PREFIX + "token-expired\"}",
+                   rejectedBody(signed(keyPair, "wiz-service", "alice", -3600L)));
+   }
+
+   @Test
+   void doFilter_otherKeyToken_reportsSignatureInvalid() throws Exception {
+      assertEquals(REASON_PREFIX + "token-signature-invalid\"}",
+                   rejectedBody(signed(otherKey(), "wiz-service", "alice", 3600L)));
+   }
+
+   @Test
+   void doFilter_otherKeyAndExpired_reportsSignatureInvalid() throws Exception {
+      // signature is verified before expiry
+      assertEquals(REASON_PREFIX + "token-signature-invalid\"}",
+                   rejectedBody(signed(otherKey(), "wiz-service", "alice", -3600L)));
+   }
+
+   @Test
+   void doFilter_wrongAudience_reportsAudienceInvalid() throws Exception {
+      assertEquals(REASON_PREFIX + "token-audience-invalid\"}",
+                   rejectedBody(signed(keyPair, "someone-else", "alice", 3600L)));
+   }
+
+   @Test
+   void doFilter_missingSubject_reportsMalformed() throws Exception {
+      assertEquals(REASON_PREFIX + "token-malformed\"}",
+                   rejectedBody(signed(keyPair, "wiz-service", null, 3600L)));
+   }
+
+   @Test
+   void doFilter_missingExpiration_reportsMalformed() throws Exception {
+      JWTClaimsSet claims = new JWTClaimsSet.Builder()
+         .subject("alice").audience(List.of("wiz-service")).build();
+      SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims);
+      jwt.sign(new RSASSASigner(keyPair.getPrivate()));
+      assertEquals(REASON_PREFIX + "token-malformed\"}", rejectedBody(jwt.serialize()));
+   }
+
+   @Test
+   void doFilter_garbageToken_reportsMalformed() throws Exception {
+      assertEquals(REASON_PREFIX + "token-malformed\"}", rejectedBody("not-a-real-jwt"));
+   }
+
+   @Test
+   void doFilter_hs256Token_reportsMalformed() throws Exception {
+      JWTClaimsSet claims = new JWTClaimsSet.Builder()
+         .subject("alice").audience(List.of("wiz-service"))
+         .expirationTime(new Date(System.currentTimeMillis() + 3600_000L)).build();
+      SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+      jwt.sign(new com.nimbusds.jose.crypto.MACSigner(new byte[32]));
+      assertEquals(REASON_PREFIX + "token-malformed\"}", rejectedBody(jwt.serialize()));
+   }
+
+   @Test
+   void doFilter_keyPairNotInitialized_sendsNoReason() throws Exception {
+      ReflectionTestUtils.setField(filter, "ssoKeyPair", null);
+      MockHttpServletRequest request = wizPathRequest();
+      request.addHeader("Authorization", "Bearer abc.def.ghi");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      try(MockedStatic<PasswordEncryption> peMock = mockStatic(PasswordEncryption.class)) {
+         PasswordEncryption encryption = mock(PasswordEncryption.class);
+         peMock.when(PasswordEncryption::newInstance).thenReturn(encryption);
+         when(encryption.getSSOKeyPair()).thenReturn(null);
+         filter.doFilter(request, response, chain);
+      }
+
+      assertEquals(401, response.getStatus());
+      assertEquals("{\"error\":\"Unauthorized\"}", response.getContentAsString());
+   }
+
+   @Test
+   void doFilter_unexpectedException_keepsAuthenticationErrorBodyWithoutReason() throws Exception {
+      ReflectionTestUtils.setField(filter, "ssoKeyPair", null);
+      MockHttpServletRequest request = wizPathRequest();
+      request.addHeader("Authorization", "Bearer abc.def.ghi");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      try(MockedStatic<PasswordEncryption> peMock = mockStatic(PasswordEncryption.class)) {
+         PasswordEncryption encryption = mock(PasswordEncryption.class);
+         peMock.when(PasswordEncryption::newInstance).thenReturn(encryption);
+         when(encryption.getSSOKeyPair()).thenThrow(new RuntimeException("boom"));
+         filter.doFilter(request, response, chain);
+      }
+
+      assertEquals(401, response.getStatus());
+      assertEquals("{\"error\":\"Authentication error\"}", response.getContentAsString());
+   }
+
+   private String rejectedBody(String token) throws Exception {
+      MockHttpServletRequest request = wizPathRequest();
+      request.addHeader("Authorization", "Bearer " + token);
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      filter.doFilter(request, response, chain);
+      assertEquals(401, response.getStatus());
+      verify(chain, never()).doFilter(any(), any());
+      return response.getContentAsString();
+   }
+
+   private static KeyPair otherKey() throws Exception {
+      KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+      generator.initialize(2048);
+      return generator.generateKeyPair();
+   }
+
+   private static String signed(KeyPair kp, String aud, String sub, long expOffsetSeconds)
+      throws Exception
+   {
+      JWTClaimsSet.Builder b = new JWTClaimsSet.Builder()
+         .audience(List.of(aud))
+         .expirationTime(new Date(System.currentTimeMillis() + expOffsetSeconds * 1000L));
+
+      if(sub != null) {
+         b.subject(sub);
+      }
+
+      SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), b.build());
+      jwt.sign(new RSASSASigner(kp.getPrivate()));
+      return jwt.serialize();
+   }
+
    // ── helpers ────────────────────────────────────────────────────────────────
 
    private static MockHttpServletRequest wizPathRequest() {
