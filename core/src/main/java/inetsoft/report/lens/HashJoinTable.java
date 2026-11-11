@@ -138,9 +138,7 @@ class HashJoinTable extends JoinTable {
             IntIterator iter = leftall.intIterator();
 
             while(iter.hasNext()) {
-               addRow(iter.next(), -1);
-
-               if(checkMaxRows()) {
+               if(addRowWithinLimit(iter.next(), -1)) {
                   break;
                }
             }
@@ -148,9 +146,7 @@ class HashJoinTable extends JoinTable {
             iter = rightall.intIterator();
 
             while(iter.hasNext()) {
-               addRow(-1, iter.next());
-
-               if(checkMaxRows()) {
+               if(addRowWithinLimit(-1, iter.next())) {
                   break;
                }
             }
@@ -391,9 +387,7 @@ class HashJoinTable extends JoinTable {
                         int leftRow = scanLeft ? row : i;
                         int rightRow = scanLeft ? i : row;
 
-                        joinTable.addRow(leftRow, rightRow);
-
-                        if(checkMaxRows()) {
+                        if(joinTable.addRowWithinLimit(leftRow, rightRow)) {
                            break OUTER;
                         }
                      }
