@@ -103,6 +103,16 @@ class ParameterToolTest {
       }
 
       @Test
+      void nameContainingPrefix_isLookedUpByItsFullName() {
+         // Bug #81109: only the leading "parameter." is the prefix, not every occurrence
+         assertEquals("5", parse("{parameter.myparameter.x}", "myparameter.x", 5, "myx", 9));
+         assertEquals("5|6", parse("{parameter.a.parameter.b}|{parameter.parameter.c}",
+                                   "a.parameter.b", 5, "parameter.c", 6));
+         assertEquals("1,234.50", parse("{parameter.myparameter.x, number, '#,##0.00'}",
+                                         "myparameter.x", 1234.5));
+      }
+
+      @Test
       void textWithoutParameter_isUnchanged() {
          assertEquals("hello", parse("hello", "x", 1));
       }

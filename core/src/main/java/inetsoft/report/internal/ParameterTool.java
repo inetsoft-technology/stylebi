@@ -180,7 +180,8 @@ public class ParameterTool {
       }
 
       String paraName = strs[0].trim();
-      paraName = paraName.replace(PARAMETER_PREFIX, "");
+      // strip only the leading prefix; the variable name itself may contain "parameter."
+      paraName = paraName.substring(PARAMETER_PREFIX.length());
       Object paraValue = null;
 
       try {
