@@ -273,4 +273,84 @@ class StackRangeTest {
 
       assertNotEquals(r1, r2);
    }
+
+   // ---- Group field with stackNegative=false: running totals (81070) ----
+
+   private double[] groupRange(boolean stackNeg, String gfield, Object[]... rows) {
+      Object[][] all = new Object[rows.length + 1][];
+      all[0] = new Object[]{"g", "v"};
+      System.arraycopy(rows, 0, all, 1, rows.length);
+      StackRange range = new StackRange();
+      range.setGroupField(gfield);
+      range.setStackNegative(stackNeg);
+      return range.calculate(ds(all), new String[]{"v"}, null);
+   }
+
+   @Test
+   void groupNoStackNegativeUsesRunningTotalPeak() {
+      // NJ peaks at 300 (final 100), NY peaks at 400 (final 100)
+      double[] r = groupRange(false, "g",
+         new Object[]{"NJ", 200.0}, new Object[]{"NJ", 100.0},
+         new Object[]{"NJ", -150.0}, new Object[]{"NJ", -50.0},
+         new Object[]{"NY", 400.0}, new Object[]{"NY", -300.0});
+      assertEquals(0.0, r[0]);
+      assertEquals(400.0, r[1]);
+   }
+
+   @Test
+   void groupNoStackNegativeUsesRunningTotalDip() {
+      double[] r = groupRange(false, "g",
+         new Object[]{"X", -200.0}, new Object[]{"X", 50.0},
+         new Object[]{"Y", 30.0}, new Object[]{"Y", 20.0});
+      assertEquals(-200.0, r[0]);
+      assertEquals(50.0, r[1]);
+   }
+
+   @Test
+   void groupNoStackNegativeOnlyNegatives() {
+      double[] r = groupRange(false, "g",
+         new Object[]{"X", -100.0}, new Object[]{"X", -50.0},
+         new Object[]{"Y", -20.0});
+      assertEquals(-150.0, r[0]);
+      assertEquals(0.0, r[1]);
+   }
+
+   @Test
+   void groupNoStackNegativeAllPositive() {
+      double[] r = groupRange(false, "g",
+         new Object[]{"X", 20.0}, new Object[]{"X", 30.0},
+         new Object[]{"Y", 5.0});
+      assertEquals(0.0, r[0]);
+      assertEquals(50.0, r[1]);
+   }
+
+   @Test
+   void groupNoStackNegativeSingleRowGroups() {
+      double[] r = groupRange(false, "g",
+         new Object[]{"X", -30.0}, new Object[]{"Y", 20.0});
+      assertEquals(-30.0, r[0]);
+      assertEquals(20.0, r[1]);
+   }
+
+   @Test
+   void groupStackNegativeTrueUnchanged() {
+      // positives and negatives stacked separately: [-300, 400]
+      double[] r = groupRange(true, "g",
+         new Object[]{"NJ", 200.0}, new Object[]{"NJ", 100.0},
+         new Object[]{"NJ", -150.0}, new Object[]{"NJ", -50.0},
+         new Object[]{"NY", 400.0}, new Object[]{"NY", -300.0});
+      assertEquals(-300.0, r[0]);
+      assertEquals(400.0, r[1]);
+   }
+
+   @Test
+   void noGroupFieldNoStackNegativeUnchanged() {
+      // no group field: cumulative total over all rows, as before the fix
+      double[] r = groupRange(false, null,
+         new Object[]{"NJ", 200.0}, new Object[]{"NJ", 100.0},
+         new Object[]{"NJ", -150.0}, new Object[]{"NJ", -50.0},
+         new Object[]{"NY", 400.0}, new Object[]{"NY", -300.0});
+      assertEquals(100.0, r[0]);
+      assertEquals(500.0, r[1]);
+   }
 }
