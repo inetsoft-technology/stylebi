@@ -195,6 +195,8 @@ final class ChartChromeSlots {
                 (info, frame) -> info.getVSChartInfo().setColorFrame(frame));
          frames("chart:node:frame", CHART.then(c -> c instanceof RelationChartInfo ?
             ((RelationChartInfo) c).getNodeColorFrameWrapper() : null), null);
+         frames("chart:up", CHART.then(VSChartInfo::getUpColorFrameWrapper), null);
+         frames("chart:down", CHART.then(VSChartInfo::getDownColorFrameWrapper), null);
       }
 
       void flags() {
@@ -264,6 +266,8 @@ final class ChartChromeSlots {
             text(key + ":title", aggr.then(ChartAggregateRef::getTitleDescriptor)
                .then(TitleDescriptor::getTextFormat), true);
             frames(key + ":frame", aggr.then(ChartAggregateRef::getColorFrameWrapper), null);
+            frames(key + ":summary", aggr.then(ChartAggregateRef::getSummaryColorFrameWrapper),
+                   null);
          }
 
          if(item instanceof AestheticRef) {

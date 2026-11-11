@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
+import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.data.BoxDataSet;
@@ -3177,6 +3178,87 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedNodeColor(getVSChartInfo(), ctx);
       // modern only; the classic value stays in legacySmoothLines()
       seedSmoothLines(ctx, type);
+      seedDirectionColors(ctx, type);
+      seedSummaryColors(ctx);
+   }
+
+   // up and down frames follow the resolved type; whether they draw is decided at render
+   private void seedDirectionColors(VizContext ctx, ResolvedChartType type) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      if(ctx.modern && VSChartDirectionColors.isDirectionType(type.type())) {
+         StaticColorFrameWrapper up = info.getUpColorFrameWrapper();
+         StaticColorFrameWrapper down = info.getDownColorFrameWrapper();
+
+         if(up == null) {
+            up = new StaticColorFrameWrapper();
+            info.setUpColorFrameWrapper(up);
+         }
+
+         if(down == null) {
+            down = new StaticColorFrameWrapper();
+            info.setDownColorFrameWrapper(down);
+         }
+
+         up.setDefaultColor(VSChartPaletteDefaults.directionUp(ctx));
+         down.setDefaultColor(VSChartPaletteDefaults.directionDown(ctx));
+      }
+      else {
+         if(isSeedOnly(info.getUpColorFrameWrapper())) {
+            info.setUpColorFrameWrapper(null);
+         }
+
+         if(isSeedOnly(info.getDownColorFrameWrapper())) {
+            info.setDownColorFrameWrapper(null);
+         }
+      }
+   }
+
+   // a frame holding no author or stylesheet colour
+   private static boolean isSeedOnly(StaticColorFrameWrapper wrapper) {
+      return wrapper != null && wrapper.getUserColor() == null &&
+         !(wrapper.getVisualFrame() instanceof StaticColorFrame &&
+           ((StaticColorFrame) wrapper.getVisualFrame()).getCssColor() != null);
+   }
+
+   // the waterfall Total, on every aggregate so a measure that becomes a waterfall holds it
+   private void seedSummaryColors(VizContext ctx) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      for(boolean runtime : new boolean[]{ false, true }) {
+         for(ChartRef ref : info.getBindingRefs(runtime)) {
+            if(!(ref instanceof ChartAggregateRef)) {
+               continue;
+            }
+
+            ColorFrameWrapper summary = ((ChartAggregateRef) ref).getSummaryColorFrameWrapper();
+
+            if(!(summary instanceof StaticColorFrameWrapper)) {
+               continue;
+            }
+
+            StaticColorFrameWrapper sw = (StaticColorFrameWrapper) summary;
+            Color current = sw.getDefaultColor();
+            boolean neutral = VSChartPaletteDefaults.isNeutralToken(current);
+
+            if(ctx.modern) {
+               if(neutral || CLASSIC_TOTAL.equals(current)) {
+                  sw.setDefaultColor(VSChartPaletteDefaults.directionNeutral(ctx));
+               }
+            }
+            else if(neutral) {
+               sw.setDefaultColor(CLASSIC_TOTAL);
+            }
+         }
+      }
    }
 
    // the chart-level colour, which relation edges, maps and radar draw; default tier only
@@ -3542,4 +3624,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private transient ResolvedChartType seededType;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
+   // the classic waterfall Total
+   private static final Color CLASSIC_TOTAL = new Color(0x7030A0);
 }

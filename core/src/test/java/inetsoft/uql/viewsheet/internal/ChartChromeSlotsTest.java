@@ -405,6 +405,53 @@ class ChartChromeSlotsTest {
    }
 
    @Test
+   void theResetCopyClearsAuthorDirectionAndTotalColours() {
+      ChartVSAssemblyInfo candle = chart();
+      CandleVSChartInfo cinfo = new CandleVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_CANDLE);
+      StaticColorFrameWrapper up = new StaticColorFrameWrapper();
+      StaticColorFrameWrapper down = new StaticColorFrameWrapper();
+      up.setUserColor(Color.RED);
+      down.setUserColor(Color.BLUE);
+      cinfo.setUpColorFrameWrapper(up);
+      cinfo.setDownColorFrameWrapper(down);
+      candle.setVSChartInfo(cinfo);
+
+      ChartVSAssemblyInfo waterfall = chart();
+      DefaultVSChartInfo winfo = new DefaultVSChartInfo();
+      winfo.setChartType(GraphTypes.CHART_WATERFALL);
+      VSChartAggregateRef total = aggregate("Sales");
+      StaticColorFrameWrapper summary =
+         (StaticColorFrameWrapper) total.getSummaryColorFrameWrapper();
+      summary.setUserColor(Color.GREEN);
+      winfo.addYField(total);
+      waterfall.setVSChartInfo(winfo);
+
+      resetAll(candle, fresh(VizMark.MODERN_LIGHT));
+      resetAll(waterfall, fresh(VizMark.MODERN_LIGHT));
+
+      assertNull(up.getUserColor());
+      assertNull(down.getUserColor());
+      assertNull(summary.getUserColor());
+      assertFalse(up.isChanged());
+      assertFalse(summary.isChanged());
+   }
+
+   @Test
+   void theResetCopyClearsAnAuthorSingleColour() {
+      ChartVSAssemblyInfo candle = chart();
+      CandleVSChartInfo cinfo = new CandleVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_CANDLE);
+      StaticColorFrameWrapper single = (StaticColorFrameWrapper) cinfo.getColorFrameWrapper();
+      single.setUserColor(Color.RED);
+      candle.setVSChartInfo(cinfo);
+
+      resetAll(candle, fresh(VizMark.MODERN_LIGHT));
+
+      assertNull(single.getUserColor());
+   }
+
+   @Test
    void aResetLeavesTheColourFramesUnchanged() {
       AuthoredColors authored = authoredColors();
 
