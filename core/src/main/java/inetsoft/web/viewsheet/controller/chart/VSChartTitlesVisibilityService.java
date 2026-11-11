@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.event.chart.VSChartTitlesVisibilityEvent;
@@ -208,15 +209,17 @@ public class VSChartTitlesVisibilityService extends VSChartControllerService<VSC
       }
    }
 
-   private void showTitles(ChartVSAssemblyInfo info, boolean maxMode) {
+   static void showTitles(ChartVSAssemblyInfo info, boolean maxMode) {
       ChartInfo chartInfo = info.getVSChartInfo();
       ChartDescriptor chartDescriptor = info.getChartDescriptor();
-      showDescriptorTitles(chartDescriptor, maxMode);
+      // max mode follows the normal visibility under modern, so both are written
+      boolean maxModeOnly = maxMode && !VizContext.of(info).modern;
+      showDescriptorTitles(chartDescriptor, maxModeOnly);
 
       //also change the runtime values if they exist, since the values from the runtime
       //chart descriptor are usually used if it exists
       if(info.getRTChartDescriptor() != null) {
-         showDescriptorTitles(info.getRTChartDescriptor(), maxMode);
+         showDescriptorTitles(info.getRTChartDescriptor(), maxModeOnly);
       }
 
       if(chartInfo instanceof MergedVSChartInfo) {
@@ -228,7 +231,7 @@ public class VSChartTitlesVisibilityService extends VSChartControllerService<VSC
                   TitleDescriptor title = ((ChartAggregateRef) field).getTitleDescriptor();
                   title.setMaxModeVisible(true);
 
-                  if(!maxMode) {
+                  if(!maxModeOnly) {
                      title.setVisible(true);
                   }
                }
@@ -237,7 +240,7 @@ public class VSChartTitlesVisibilityService extends VSChartControllerService<VSC
       }
    }
 
-   private void showDescriptorTitles(ChartDescriptor chartDescriptor, boolean maxMode) {
+   static void showDescriptorTitles(ChartDescriptor chartDescriptor, boolean maxMode) {
       TitlesDescriptor titlesDesc = chartDescriptor.getTitlesDescriptor();
       TitleDescriptor xtitle = titlesDesc.getXTitleDescriptor();
       TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();

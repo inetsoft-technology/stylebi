@@ -18,8 +18,10 @@
 package inetsoft.report.internal.graph;
 
 import inetsoft.report.composition.graph.GraphTypeUtil;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 
 import java.awt.*;
 import java.util.List;
@@ -43,8 +45,17 @@ public class SwapXYBindingProcessor extends ChangeChartProcessor {
     * Create a processor.
     */
    public SwapXYBindingProcessor(ChartInfo info, ChartDescriptor desc) {
+      this(info, desc, VizContext.LEGACY);
+   }
+
+   /**
+    * Create a processor.
+    * @param ctx the chart's context; under modern the author's title visibility moves with it.
+    */
+   public SwapXYBindingProcessor(ChartInfo info, ChartDescriptor desc, VizContext ctx) {
       this.cinfo = info;
       this.desc = desc;
+      this.vizContext = ctx;
    }
 
    public void process() {
@@ -74,15 +85,8 @@ public class SwapXYBindingProcessor extends ChangeChartProcessor {
          TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();
          TitleDescriptor y2title = titlesDesc.getY2TitleDescriptor();
 
-         String xtitle0 = xtitle.getTitleValue();
-         String ytitle0 = ytitle.getTitleValue();
-         String x2title0 = x2title.getTitleValue();
-         String y2title0 = y2title.getTitleValue();
-
-         xtitle.setTitleValue(ytitle0);
-         ytitle.setTitleValue(xtitle0);
-         x2title.setTitleValue(y2title0);
-         y2title.setTitleValue(x2title0);
+         swapTitles(xtitle, ytitle);
+         swapTitles(x2title, y2title);
 
          // swap band color and size
          PlotDescriptor pdesc = desc.getPlotDescriptor();
@@ -208,6 +212,37 @@ public class SwapXYBindingProcessor extends ChangeChartProcessor {
          .replace("))swapped_to_", ",");
    }
 
+   // the text's author flag moves with it, and under modern the author's visibility too
+   private void swapTitles(TitleDescriptor a, TitleDescriptor b) {
+      String text = a.getTitleValue();
+      boolean userTitle = a.isUserTitle();
+
+      a.setTitleValue(b.getTitleValue());
+      a.setUserTitle(b.isUserTitle());
+      b.setTitleValue(text);
+      b.setUserTitle(userTitle);
+
+      if(vizContext.modern) {
+         Boolean visible = userVisible(a);
+         setUserVisible(a, userVisible(b));
+         setUserVisible(b, visible);
+      }
+   }
+
+   private static Boolean userVisible(TitleDescriptor title) {
+      return title.hasVisibleUserValue() ? title.isVisible() : null;
+   }
+
+   private static void setUserVisible(TitleDescriptor title, Boolean visible) {
+      if(visible == null) {
+         title.resetVisible(CompositeValue.Type.USER);
+      }
+      else {
+         title.setVisible(visible);
+      }
+   }
+
    private ChartInfo cinfo;
    private ChartDescriptor desc;
+   private VizContext vizContext = VizContext.LEGACY;
 }

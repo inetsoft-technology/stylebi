@@ -129,6 +129,13 @@ public class VSCloseObjectWizardService {
             if(originalAssembly != null) {
                String originalName = originalModel.getOriginalName();
                WizardRecommenderUtil.repointAdhocFilterTableName(vs, originalName, originalName);
+
+               // it shares the temp chart's descriptor, which holds that chart's type's values
+               if(originalAssembly instanceof ChartVSAssembly chart) {
+                  ChartVSAssembly tempChart = tempInfo.getTempChart();
+                  chart.getChartInfo().reseedTypeDefaults(
+                     tempChart != null && tempChart.getVSAssemblyInfo().getVizMark() != null);
+               }
             }
 
             temporaryInfoService.destroyTemporary(vsId, principal);

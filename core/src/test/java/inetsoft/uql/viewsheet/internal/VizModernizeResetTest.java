@@ -26,10 +26,19 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.AxisDescriptor;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.TextFormat;
+import inetsoft.uql.viewsheet.graph.TitleDescriptor;
+import inetsoft.uql.viewsheet.graph.TitlesDescriptor;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.util.DataSpace;
 import inetsoft.util.css.CSSDictionary;
 import org.junit.jupiter.api.*;
@@ -656,6 +665,201 @@ class VizModernizeResetTest {
       assertEquals(today, FormatChromeSlots.familyOf(cell));
       assertEquals(Font.BOLD, cell.getStyle());
       assertEquals(16, cell.getSize());
+   }
+
+   @Test
+   void theResetCopyHidesTitlesAndValueLinesTheAuthorShowed() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      VSChartAggregateRef sales = aggregate("Sales");
+      bindBar(chart, sales);
+      assertEquals(VizMark.MODERN_LIGHT, chart.getVizMark(), "premise: a marked bar");
+      List<TitleDescriptor> titles = axisTitles(chart);
+
+      for(TitleDescriptor title : titles) {
+         assertFalse(title.isVisible(), "premise: the bar's seed hid it");
+         title.setVisible(true);
+      }
+
+      List<AxisDescriptor> valueAxes =
+         List.of(chart.getVSChartInfo().getAxisDescriptor(), sales.getAxisDescriptor());
+
+      for(AxisDescriptor axis : valueAxes) {
+         assertFalse(axis.isLineVisible(), "premise: the bar's seed took the value line");
+         axis.setAuthorLineVisible(true);
+      }
+
+      VizModernizeUtil.resetToModern(vs);
+
+      for(int i = 0; i < titles.size(); i++) {
+         assertFalse(titles.get(i).hasVisibleUserValue(), "title " + i);
+         assertFalse(titles.get(i).isVisible(), "title " + i);
+      }
+
+      for(int i = 0; i < valueAxes.size(); i++) {
+         assertFalse(valueAxes.get(i).isUserLineVisible(), "axis " + i);
+         assertFalse(valueAxes.get(i).isLineVisible(), "axis " + i);
+      }
+   }
+
+   @Test
+   void aTypedTitleStaysVisibleOnTheResetCopy() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindBar(chart, aggregate("Sales"));
+      TitleDescriptor x = axisTitles(chart).get(0);
+      x.setAuthorTitleValue("Revenue");
+      assertTrue(x.hasVisibleUserValue(), "premise: typing showed the seeded-off title");
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertEquals("Revenue", x.getTitleValue());
+      assertFalse(x.hasVisibleUserValue(), "the author's show is cleared");
+      assertTrue(x.isVisible(), "the seed keeps a typed title");
+   }
+
+   @Test
+   void theResetCopyKeepsAnAxisTheAuthorHid() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindBar(chart, aggregate("Sales"));
+      AxisDescriptor state = chart.getVSChartInfo().getXField(0).getAxisDescriptor();
+      // as hiding the axis writes it
+      state.setAuthorLineVisible(false);
+      state.setLabelVisible(false);
+      AxisDescriptor value = chart.getVSChartInfo().getAxisDescriptor();
+      value.setAuthorLineVisible(true);
+      assertTrue(value.isLabelVisible(), "premise: the value axis shows its labels");
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertFalse(state.isLineVisible(), "the hidden axis stays hidden");
+      assertTrue(state.isUserLineVisible());
+      assertFalse(state.isLabelVisible());
+      assertFalse(value.isUserLineVisible(), "a shown value line is still cleared");
+      assertFalse(value.isLineVisible(), "and the seed takes it");
+   }
+
+   @Test
+   void aTitleTheAuthorHidFollowsTheSeedInMaxModeOnTheResetCopy() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bind(chart, GraphTypes.CHART_PARETO, aggregate("Sales"));
+      TitleDescriptor x = axisTitles(chart).get(0);
+      assertTrue(x.isVisible(), "premise: a pareto's seed shows it");
+      // as the titles service hides it outside max mode
+      x.setMaxModeVisible(false);
+      x.setVisible(false);
+      assertFalse(x.isMaxModeVisible(VizContext.of(chart)), "premise");
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertTrue(x.isVisible());
+      assertTrue(x.isMaxModeVisible(VizContext.of(chart)));
+   }
+
+   @Test
+   void theResetCopyKeepsACategoryLineTheAuthorTurnedOff() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindBar(chart, aggregate("Sales"));
+      AxisDescriptor state = chart.getVSChartInfo().getXField(0).getAxisDescriptor();
+      state.setAuthorLineVisible(false);
+      assertTrue(state.isLabelVisible(), "premise: the axis still shows its labels");
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertFalse(state.isLineVisible());
+      assertTrue(state.isUserLineVisible());
+   }
+
+   @Test
+   void theResetCopyKeepsAValueAxisTheAuthorHid() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      AxisDescriptor axis = bindScatter(chart).getAxisDescriptor();
+      assertTrue(axis.isLineVisible(), "premise: a scatter's seed draws its value lines");
+      // as hiding the axis writes it
+      axis.setMaxModeLineVisible(false);
+      axis.setMaxModeLabelVisible(false);
+      axis.setAuthorLineVisible(false);
+      axis.setLabelVisible(false);
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertFalse(axis.isLineVisible());
+      assertTrue(axis.isUserLineVisible());
+      assertFalse(axis.isLabelVisible());
+      assertFalse(axis.isMaxModeLineVisible(VizContext.of(chart)));
+   }
+
+   @Test
+   void aValueLineHiddenInMaxModeFollowsTheSeedOnTheResetCopy() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      VSChartAggregateRef sales = bindScatter(chart);
+      List<AxisDescriptor> valueAxes =
+         List.of(chart.getVSChartInfo().getAxisDescriptor(), sales.getAxisDescriptor());
+
+      for(AxisDescriptor axis : valueAxes) {
+         assertTrue(axis.isLineVisible(), "premise: a scatter's seed draws its value lines");
+         // as the axis dialog writes an untick in modern max mode
+         axis.setMaxModeLineVisible(false);
+         assertFalse(axis.isMaxModeLineVisible(VizContext.of(chart)), "premise");
+      }
+
+      VizModernizeUtil.resetToModern(vs);
+
+      for(int i = 0; i < valueAxes.size(); i++) {
+         assertTrue(valueAxes.get(i).isLineVisible(), "axis " + i);
+         assertTrue(valueAxes.get(i).isMaxModeLineVisible(VizContext.of(chart)), "axis " + i);
+      }
+   }
+
+   // a Sales-by-Profit scatter, seeded under the chart's mark; returns the Y measure
+   private static VSChartAggregateRef bindScatter(ChartVSAssemblyInfo chart) {
+      VSChartAggregateRef sales = aggregate("Sales");
+      chart.getVSChartInfo().addXField(aggregate("Profit"));
+      chart.getVSChartInfo().addYField(sales);
+      chart.getVSChartInfo().setChartType(GraphTypes.CHART_POINT);
+      chart.seedChromeDefaults(VizContext.of(chart));
+      return sales;
+   }
+
+   private static void bindBar(ChartVSAssemblyInfo chart, VSChartAggregateRef measure) {
+      bind(chart, GraphTypes.CHART_BAR, measure);
+   }
+
+   // a state-by-measure chart, seeded under the chart's mark
+   private static void bind(ChartVSAssemblyInfo chart, int type, VSChartAggregateRef measure) {
+      VSChartDimensionRef state = new VSChartDimensionRef(new AttributeRef(null, "State"));
+      state.setDataType(XSchema.STRING);
+      state.setGroupColumnValue("State");
+      chart.getVSChartInfo().addXField(state);
+      chart.getVSChartInfo().addYField(measure);
+      chart.getVSChartInfo().setChartType(type);
+      chart.seedChromeDefaults(VizContext.of(chart));
+   }
+
+   private static VSChartAggregateRef aggregate(String name) {
+      VSChartAggregateRef aggr = new VSChartAggregateRef();
+      aggr.setDataRef(new AttributeRef(null, name));
+      aggr.setColumnValue(name);
+      aggr.setFormula(AggregateFormula.SUM);
+      return aggr;
+   }
+
+   private static List<TitleDescriptor> axisTitles(ChartVSAssemblyInfo chart) {
+      TitlesDescriptor titles = chart.getChartDescriptor().getTitlesDescriptor();
+      return List.of(titles.getXTitleDescriptor(), titles.getX2TitleDescriptor(),
+                     titles.getYTitleDescriptor(), titles.getY2TitleDescriptor());
    }
 
    private static Font axisLabelFont(ChartVSAssemblyInfo chart) {

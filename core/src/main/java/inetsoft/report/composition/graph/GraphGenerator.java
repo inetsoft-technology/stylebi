@@ -1157,7 +1157,7 @@ public abstract class GraphGenerator {
                   }
                }
 
-               if(!GDefaults.DEFAULT_TEXT_COLOR.equals(textSpec.getColor()) || highlight != null) {
+               if(isTextColorSet(fmt2, textSpec) || highlight != null) {
                   elem.setAutoTextColor(false);
                }
             }
@@ -1366,15 +1366,27 @@ public abstract class GraphGenerator {
       }
    }
 
+   // modern: an author or stylesheet colour turns the automatic one off; classic: any non-default
+   private boolean isTextColorSet(CompositeTextFormat fmt, TextSpec spec) {
+      if(vizContext.modern) {
+         return fmt != null && (fmt.getUserDefinedFormat().isColorDefined() ||
+            !VSUtil.isIgnoreCSSFormat() && fmt.getCSSFormat().isColorDefined());
+      }
+
+      return !GDefaults.DEFAULT_TEXT_COLOR.equals(spec.getColor());
+   }
+
    private void initRelationElement(PlotDescriptor plotdesc, RelationElement elem) {
       // set source format
       String sdim = elem.getSourceDim();
       Format fmt = getDefaultFormat(sdim);
       ChartRef sourceRef = info.getFieldByName(sdim, false);
       CompositeTextFormat fmt2 = GraphFormatUtil.getTextFormat(info, sourceRef, plotdesc, false);
+      CompositeTextFormat sourceFmt = fmt2;
       // relation highlights defined on source/target instead of textfield.
       HighlightGroup highlight = getTextHighlightGroup(sourceRef, null);
       TextSpec textSpec = GraphUtil.getTextSpec(fmt2, fmt, highlight);
+      TextSpec sourceSpec = textSpec;
       setNodeTextBackground(plotdesc, textSpec, elem);
       elem.setTextSpec(sdim, textSpec);
       boolean applyAestheticsToSource = plotdesc.isApplyAestheticsToSource() &&
@@ -1541,9 +1553,9 @@ public abstract class GraphGenerator {
          processSizeLegend(desc.getLegendsDescriptor(), var, frame, false);
       }
 
-      // we don't track whether the color has changed so just check if it's default.
-      // will need to add a flag and a ui button to reset otherwise.
-      if(!GDefaults.DEFAULT_TEXT_COLOR.equals(textSpec.getColor()) ||
+      // classic compares with the default colour; modern asks whether the author set one
+      if(isTextColorSet(fmt2, textSpec) ||
+         (vizContext.modern && isTextColorSet(sourceFmt, sourceSpec)) ||
          highlight != null || highlight2 != null)
       {
          elem.setAutoTextColor(false);
@@ -2665,7 +2677,15 @@ public abstract class GraphGenerator {
       fmt = fmt == null && fld != null ? getDefaultFormat(ChartAggregateRef.getBaseName(fld)) : fmt;
       // modern chrome: unify the axis line with the gridlines when it is still the legacy default
       axis.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(axisD.getLineColor(), ctx));
-      axis.setLineVisible(!maxMode && axisD.isLineVisible() || maxMode && axisD.isMaxModeLineVisible());
+      axis.setLineVisible(!maxMode && axisD.isLineVisible() ||
+                          maxMode && axisD.isMaxModeLineVisible(ctx));
+
+      if(ctx.modern && !axisD.isUserLineVisible() && !axisD.isLineVisible() &&
+         (!maxMode || axisD.isMaxModeLineVisible()))
+      {
+         seededOffLines.add(axis);
+      }
+
       axis.setTickVisible(axisD.isTicksVisible());
       axis.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));
       axis.setLabelVisible(!maxMode && axisD.isLabelVisible() || maxMode && axisD.isMaxModeLabelVisible());
@@ -4324,14 +4344,14 @@ public abstract class GraphGenerator {
    // Get the first visible axis line color. The scales are ordered from the inner-most
    // to outer-most in the facet.
    private Color getLineColor(List<Scale> scales) {
-      return scales.stream().filter(s -> s.getAxisSpec().isLineVisible())
+      return scales.stream().filter(s -> isLineShown(s.getAxisSpec()))
          .map(s -> s.getAxisSpec().getLineColor()).findFirst().orElse(null);
    }
 
    /**
     * Check if the inner axis line is visible.
     */
-   private static boolean isAxisLineVisible(Coordinate outer, Coordinate[] coords, String type) {
+   private boolean isAxisLineVisible(Coordinate outer, Coordinate[] coords, String type) {
       for(Coordinate coord : coords) {
          if(coord instanceof RectCoord) {
             if(isAxisLineVisible((RectCoord) coord, type)) {
@@ -4348,17 +4368,22 @@ public abstract class GraphGenerator {
       return true;
    }
 
-   private static boolean isAxisLineVisible(RectCoord rect, String type) {
+   private boolean isAxisLineVisible(RectCoord rect, String type) {
       return type.equals("x") && isAxisLineVisible(rect.getScaleAt(Coordinate.BOTTOM_AXIS)) ||
          type.equals("y") && isAxisLineVisible(rect.getScaleAt(Coordinate.LEFT_AXIS));
    }
 
-   private static boolean isAxisLineVisible(Scale scale) {
+   private boolean isAxisLineVisible(Scale scale) {
       if(scale == null || scale.getFields().length == 0) {
          return false;
       }
 
-      return scale.getAxisSpec().isLineVisible();
+      return isLineShown(scale.getAxisSpec());
+   }
+
+   // a line off only because of the modern seed still counts for the facet separators
+   private boolean isLineShown(AxisSpec spec) {
+      return spec.isLineVisible() || seededOffLines.contains(spec);
    }
 
    /**
@@ -6303,7 +6328,8 @@ public abstract class GraphGenerator {
       boolean titleOK = labels.size() > 0;
 
       if((title != null && title.length() > 0) &&
-         ((!maxMode && titleDesc.isVisible()) || (maxMode && titleDesc.isMaxModeVisible())))
+         ((!maxMode && titleDesc.isVisible()) ||
+          (maxMode && titleDesc.isMaxModeVisible(vizContext))))
       {
          boolean isfmt  = Pattern.matches(".*\\{[0-9]+\\}.*", title);
 
@@ -6325,7 +6351,8 @@ public abstract class GraphGenerator {
       }
 
       if(titleOK &&
-         ((!maxMode && titleDesc.isVisible()) || (maxMode && titleDesc.isMaxModeVisible())))
+         ((!maxMode && titleDesc.isVisible()) ||
+          (maxMode && titleDesc.isMaxModeVisible(vizContext))))
       {
          StringBuilder buffer = new StringBuilder();
 
@@ -7654,6 +7681,7 @@ public abstract class GraphGenerator {
     * assembly; the report constructor knows there is none.
     */
    protected final VizContext vizContext;
+   private final Set<AxisSpec> seededOffLines = Collections.newSetFromMap(new IdentityHashMap<>());
    protected EGraph graph; // element graph
    protected DataSet adata; // all data if brushing exists, null otherwise
    protected DataSet odata; // normal data

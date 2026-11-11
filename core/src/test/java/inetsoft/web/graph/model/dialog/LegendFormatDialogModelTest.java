@@ -17,6 +17,7 @@
  */
 package inetsoft.web.graph.model.dialog;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.test.*;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
@@ -276,6 +277,38 @@ public class LegendFormatDialogModelTest {
       assertEquals(new Insets(5, 5, 5, 5), ticked.getPadding(), "ticked");
    }
 
+   @Test
+   public void anUnchangedBorderStoresNoAuthorValueSoMovingInPlaceFramesIt() {
+      VizContext ctx = modernAt("compact");
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.initDefaultFormat(ctx);
+      assertEquals(StyleConstants.NONE, legends.getBorder(), "premise: unframed");
+      LegendFormatGeneralPaneModel pane = generalPane(legends, ctx);
+      pane.setStyle(legends.getBorder());
+      pane.setPosition("In Place");
+
+      submit(legends, pane, ctx);
+      // the next render
+      legends.initDefaultFormat(ctx);
+
+      assertEquals(StyleConstants.THIN_LINE, legends.getBorder());
+   }
+
+   @Test
+   public void aChangedBorderIsTheAuthors() {
+      VizContext ctx = modernAt("compact");
+      LegendsDescriptor legends = new LegendsDescriptor();
+      legends.initDefaultFormat(ctx);
+      LegendFormatGeneralPaneModel pane = generalPane(legends, ctx);
+      pane.setStyle(StyleConstants.DOUBLE_LINE);
+      pane.setPosition("Right");
+
+      submit(legends, pane, ctx);
+      legends.initDefaultFormat(ctx);
+
+      assertEquals(StyleConstants.DOUBLE_LINE, legends.getBorder());
+   }
+
    private static void assertPane(PaddingPaneModel pane, int top, int left, int bottom, int right,
                                   Boolean followsDefault)
    {
@@ -288,11 +321,24 @@ public class LegendFormatDialogModelTest {
 
    /** Runs the dialog's OK with the given padding pane; every other field is left as shown. */
    private static void ok(LegendsDescriptor legends, PaddingPaneModel padding, VizContext ctx) {
-      LegendFormatGeneralPaneModel pane = new LegendFormatGeneralPaneModel();
+      LegendFormatGeneralPaneModel pane = generalPane(legends, ctx);
       pane.setPosition("");
+      pane.setPadding(padding);
+      submit(legends, pane, ctx);
+   }
+
+   private static LegendFormatGeneralPaneModel generalPane(LegendsDescriptor legends,
+                                                           VizContext ctx)
+   {
+      LegendFormatGeneralPaneModel pane = new LegendFormatGeneralPaneModel();
       pane.setFillColor("#ffffff");
       pane.setGap(VSChartChromeDefaults.resolveLegendGap(legends.getGap(), legends.hasGapValue(), ctx));
-      pane.setPadding(padding);
+      return pane;
+   }
+
+   private static void submit(LegendsDescriptor legends, LegendFormatGeneralPaneModel pane,
+                              VizContext ctx)
+   {
       LegendFormatDialogModel dialog = new LegendFormatDialogModel();
       dialog.setLegendFormatGeneralPaneModel(pane);
       dialog.setLegendScalePaneModel(new LegendScalePaneModel());

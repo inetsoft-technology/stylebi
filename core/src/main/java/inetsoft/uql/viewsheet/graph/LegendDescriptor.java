@@ -68,14 +68,18 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    }
 
    public void initDefaultFormat(VizContext ctx) {
+      initDefaultFormat(ctx, LegendsDescriptor.RIGHT);
+   }
+
+   /** The owning legends' layout decides the fill. */
+   public void initDefaultFormat(VizContext ctx, int layout) {
       TextFormat deffmt = fmt.getDefaultFormat();
       deffmt.setColor(ctx.modern ?
                          VSChartChromeDefaults.labelColor(ctx) : GDefaults.DEFAULT_TEXT_COLOR);
       // font follows "is a viewsheet chart", not the modern gate
       deffmt.setFont(ctx != VizContext.LEGACY ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
-      deffmt.setBackground(ctx.modern ?
-                              VSChartChromeDefaults.legendBackground(ctx) : Color.WHITE);
+      deffmt.setBackground(VSChartChromeDefaults.legendFill(ctx, layout));
       deffmt.setAlpha(50);
    }
 

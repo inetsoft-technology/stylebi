@@ -1612,12 +1612,16 @@ public class GraphBuilder {
     * Check if is have hidden axis or not.
     */
    private boolean isAxisHidden() {
+      boolean modern = assembly != null && VizContext.of(assembly.getVSAssemblyInfo()).modern;
+      return isAxisHidden(cinfo, model.isMaxMode(), modern);
+   }
+
+   static boolean isAxisHidden(ChartInfo cinfo, boolean maxMode, boolean modern) {
       if(cinfo == null) {
          return false;
       }
 
       AxisDescriptor axis;
-      boolean maxMode = model.isMaxMode();
 
       if(cinfo instanceof VSChartInfo || GraphTypeUtil.isScatterMatrix(cinfo)) {
          axis = cinfo.getAxisDescriptor();
@@ -1644,7 +1648,7 @@ public class GraphBuilder {
             if(fields[i] != null) {
                axis = fields[i].getAxisDescriptor();
 
-               if(isAxisHidden(axis, maxMode)) {
+               if(isAxisHidden(axis, maxMode, modern)) {
                   return true;
                }
             }
@@ -1653,13 +1657,13 @@ public class GraphBuilder {
          if(GraphTypes.isMekko(cinfo.getRTChartType())) {
             axis = cinfo.getAxisDescriptor();
 
-            if(isAxisHidden(axis, maxMode)) {
+            if(isAxisHidden(axis, maxMode, modern)) {
                return true;
             }
 
             axis = cinfo.getAxisDescriptor2();
 
-            if(isAxisHidden(axis, maxMode)) {
+            if(isAxisHidden(axis, maxMode, modern)) {
                return true;
             }
          }
@@ -1671,7 +1675,7 @@ public class GraphBuilder {
             if(fields[i] != null && isRealDimension(fields[i], realMeasures)) {
                axis = fields[i].getAxisDescriptor();
 
-               if(isAxisHidden(axis, maxMode)) {
+               if(isAxisHidden(axis, maxMode, modern)) {
                   return true;
                }
             }
@@ -1679,13 +1683,13 @@ public class GraphBuilder {
 
          axis = cinfo.getAxisDescriptor();
 
-         if(isAxisHidden(axis, maxMode)) {
+         if(isAxisHidden(axis, maxMode, modern)) {
             return true;
          }
 
          axis = cinfo.getAxisDescriptor2();
 
-         if(isAxisHidden(axis, maxMode)) {
+         if(isAxisHidden(axis, maxMode, modern)) {
             return true;
          }
       }
@@ -1693,8 +1697,11 @@ public class GraphBuilder {
       return false;
    }
 
-   private boolean isAxisHidden(AxisDescriptor axis, boolean maxMode) {
-      return (!maxMode && (!axis.isLineVisible() || !axis.isLabelVisible())) ||
+   private static boolean isAxisHidden(AxisDescriptor axis, boolean maxMode, boolean modern) {
+      // under modern a line the seed turned off is not hidden
+      boolean lineOff = !axis.isLineVisible() && (!modern || axis.isUserLineVisible());
+
+      return (!maxMode && (lineOff || !axis.isLabelVisible())) ||
          (maxMode && (!axis.isMaxModeLineVisible() || !axis.isMaxModeLabelVisible()));
    }
 
@@ -1702,29 +1709,33 @@ public class GraphBuilder {
     * Check if is have hidden title or not.
     */
    private boolean isTitleHidden() {
-      return isTitleHidden(chartDesc, cinfo, model.isMaxMode());
+      VizContext ctx = assembly == null ?
+         VizContext.LEGACY : VizContext.of(assembly.getVSAssemblyInfo());
+      return isTitleHidden(chartDesc, cinfo, model.isMaxMode(), ctx);
    }
 
-   public static boolean isTitleHidden(ChartDescriptor chartDesc, ChartInfo cinfo, boolean maxMode) {
+   public static boolean isTitleHidden(ChartDescriptor chartDesc, ChartInfo cinfo, boolean maxMode,
+                                       VizContext ctx)
+   {
       TitlesDescriptor titlesDesc = chartDesc.getTitlesDescriptor();
       TitleDescriptor xtitle = titlesDesc.getXTitleDescriptor();
       TitleDescriptor x2title = titlesDesc.getX2TitleDescriptor();
       TitleDescriptor ytitle = titlesDesc.getYTitleDescriptor();
       TitleDescriptor y2title = titlesDesc.getY2TitleDescriptor();
 
-      if(isTitleHidden(xtitle, maxMode, cinfo.getXFieldCount() > 0)) {
+      if(isTitleHidden(xtitle, maxMode, cinfo.getXFieldCount() > 0, ctx)) {
          return true;
       }
 
-      if(isTitleHidden(x2title, maxMode, cinfo.getXFieldCount() > 0)) {
+      if(isTitleHidden(x2title, maxMode, cinfo.getXFieldCount() > 0, ctx)) {
          return true;
       }
 
-      if(isTitleHidden(ytitle, maxMode, cinfo.getYFieldCount() > 0)) {
+      if(isTitleHidden(ytitle, maxMode, cinfo.getYFieldCount() > 0, ctx)) {
          return true;
       }
 
-      if(isTitleHidden(y2title, maxMode, cinfo.getYFieldCount() > 0)) {
+      if(isTitleHidden(y2title, maxMode, cinfo.getYFieldCount() > 0, ctx)) {
          return true;
       }
 
@@ -1736,7 +1747,7 @@ public class GraphBuilder {
                if(fields[i] instanceof ChartAggregateRef) {
                   TitleDescriptor title = ((ChartAggregateRef) fields[i]).getTitleDescriptor();
 
-                  if(isTitleHidden(title, maxMode, true)) {
+                  if(isTitleHidden(title, maxMode, true, ctx)) {
                      return true;
                   }
                }
@@ -1747,19 +1758,21 @@ public class GraphBuilder {
       return false;
    }
 
-   private static boolean isTitleHidden(TitleDescriptor title, boolean maxMode, boolean hasBinding) {
+   private static boolean isTitleHidden(TitleDescriptor title, boolean maxMode, boolean hasBinding,
+                                        VizContext ctx)
+   {
       // map titles (latitude/longitude) are always hidden. only show title if map facet.
       if(!hasBinding) {
          return false;
       }
 
-      return maxMode ? !title.isMaxModeVisible() : !title.isVisible();
+      return maxMode ? !title.isMaxModeVisible(ctx) : !title.isVisible();
    }
 
    /**
     * Check if is a real dimension.
     */
-   private boolean isRealDimension(ChartRef ref, ChartRef[] realMeasures) {
+   private static boolean isRealDimension(ChartRef ref, ChartRef[] realMeasures) {
       if(GraphUtil.isDimension(ref)) {
          return true;
       }

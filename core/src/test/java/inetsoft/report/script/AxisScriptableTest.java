@@ -142,4 +142,43 @@ public class AxisScriptableTest {
       axisScriptable.putMember("font", mock(PropertyDescriptor.class));
       assertNull(axisScriptable.getMember("font"));
    }
+
+   @Test
+   void scriptLineVisibleStampsTheAuthorFlag() {
+      AxisDescriptor axis = new AxisDescriptor();
+      axisScriptable = new AxisScriptable(chartWithDimensionAxis(axis), "state");
+
+      axisScriptable.putMember("lineVisible", false);
+
+      assertFalse(axis.isLineVisible());
+      assertTrue(axis.isUserLineVisible());
+   }
+
+   @Test
+   void scriptAssigningTheCurrentLineStampsNothing() {
+      AxisDescriptor shownOn = new AxisDescriptor();
+      AxisDescriptor before = shownOn.clone();
+      new AxisScriptable(chartWithDimensionAxis(shownOn), "state").putMember("lineVisible", true);
+
+      assertFalse(shownOn.isUserLineVisible(), "a line already on");
+      // the render compares runtime and design descriptors by content
+      assertTrue(before.equalsContent(shownOn), "a line already on is unchanged");
+
+      AxisDescriptor seededOff = new AxisDescriptor();
+      seededOff.setLineVisible(false);
+      new AxisScriptable(chartWithDimensionAxis(seededOff), "state").putMember("lineVisible", false);
+
+      assertFalse(seededOff.isLineVisible());
+      assertFalse(seededOff.isUserLineVisible(), "a seeded line already off");
+   }
+
+   // a chart whose "state" dimension owns the given axis descriptor
+   private ChartInfo chartWithDimensionAxis(AxisDescriptor axis) {
+      ChartInfo info = mock(ChartInfo.class);
+      ChartDimensionRef ref = mock(ChartDimensionRef.class);
+      when(info.isSeparatedGraph()).thenReturn(false);
+      when(ref.getAxisDescriptor()).thenReturn(axis);
+      when(info.getFieldByName("state", true)).thenReturn(ref);
+      return info;
+   }
 }

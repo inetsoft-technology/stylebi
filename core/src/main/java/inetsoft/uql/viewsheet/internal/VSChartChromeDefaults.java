@@ -18,6 +18,8 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.internal.GDefaults;
+import inetsoft.report.StyleConstants;
+import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 
 import java.awt.Color;
 import java.awt.Insets;
@@ -57,12 +59,29 @@ public final class VSChartChromeDefaults {
    }
 
    /**
-    * Legend background default: a dark surface in dark mode so the light legend text stays legible;
-    * white otherwise (light modern and legacy unchanged). Seeded only when the context is modern,
-    * matching how label/title colors are applied.
+    * A framed legend's background: a dark surface in dark mode so the light legend text stays
+    * legible; white otherwise (light modern and legacy unchanged).
     */
    public static Color legendBackground(VizContext ctx) {
       return ctx.dark ? LEGEND_BG_DARK : Color.WHITE;
+   }
+
+   /**
+    * Whether a legend draws its border and fill: always on a classic chart, and on a modern one
+    * only when it floats over the plot.
+    */
+   public static boolean legendFramed(VizContext ctx, int layout) {
+      return !ctx.modern || layout == LegendsDescriptor.IN_PLACE;
+   }
+
+   /** The legend border style for the context and legend layout. */
+   public static int legendBorder(VizContext ctx, int layout) {
+      return legendFramed(ctx, layout) ? StyleConstants.THIN_LINE : StyleConstants.NONE;
+   }
+
+   /** The legend fill for the context and legend layout; null draws none. */
+   public static Color legendFill(VizContext ctx, int layout) {
+      return legendFramed(ctx, layout) ? legendBackground(ctx) : null;
    }
 
    /**

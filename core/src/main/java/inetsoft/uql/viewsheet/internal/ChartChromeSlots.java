@@ -31,11 +31,11 @@ import java.util.*;
 import java.util.function.*;
 
 /**
- * Builds the look slots of a chart's design descriptors: text formats, plot and legend values,
- * axis lines, the shape flags the mark seeds, and the author's colours. Keys name the descriptor,
- * or a ref's list, index and name, so a clone yields the same keys - except after a separate or
- * multi-style toggle, where shared descriptors can give the clone extra keys. Callers that
- * compare a clone iterate the original's slots and apply each to the clone.
+ * Builds the look slots of a chart's design descriptors: text formats, axis title visibility, plot
+ * and legend values, axis lines, the shape flags the mark seeds, and the author's colours. Keys
+ * name the descriptor, or a ref's list, index and name, so a clone yields the same keys - except
+ * after a separate or multi-style toggle, where shared descriptors can give the clone extra keys.
+ * Callers that compare a clone iterate the original's slots and apply each to the clone.
  */
 final class ChartChromeSlots {
    enum TextProperty {
@@ -125,6 +125,11 @@ final class ChartChromeSlots {
             .then(TitleDescriptor::getTextFormat), true);
          text("chart:title:y2", titles.then(TitlesDescriptor::getY2TitleDescriptor)
             .then(TitleDescriptor::getTextFormat), true);
+         // the author's show or hide; the text stays
+         titleVisible("chart:title:x", titles.then(TitlesDescriptor::getXTitleDescriptor));
+         titleVisible("chart:title:x2", titles.then(TitlesDescriptor::getX2TitleDescriptor));
+         titleVisible("chart:title:y", titles.then(TitlesDescriptor::getYTitleDescriptor));
+         titleVisible("chart:title:y2", titles.then(TitlesDescriptor::getY2TitleDescriptor));
 
          if(PLOT.apply(source) != null) {
             text("chart:plot:text", PLOT.then(PlotDescriptor::getTextFormat), false);
@@ -156,13 +161,13 @@ final class ChartChromeSlots {
             return;
          }
 
-         axis("chart:axis", CHART.then(VSChartInfo::getAxisDescriptor));
-         axis("chart:axis2", CHART.then(VSChartInfo::getAxisDescriptor2));
+         axis("chart:axis", CHART.then(VSChartInfo::getAxisDescriptor), true);
+         axis("chart:axis2", CHART.then(VSChartInfo::getAxisDescriptor2), true);
          axis("chart:radar", CHART.then(c -> c instanceof RadarChartInfo ?
-            ((RadarChartInfo) c).getLabelAxisDescriptor() : null));
+            ((RadarChartInfo) c).getLabelAxisDescriptor() : null), false);
 
-         refs("chart:x", VSChartInfo::getXFields);
-         refs("chart:y", VSChartInfo::getYFields);
+         refs("chart:x", VSChartInfo::getXFields, true);
+         refs("chart:y", VSChartInfo::getYFields, true);
          refs("chart:group", VSChartInfo::getGroupFields);
          refs("chart:aes", c -> c.getAestheticRefs(false));
          refs("chart:node", c -> c instanceof RelationChartInfo ? new Object[] {
@@ -172,8 +177,8 @@ final class ChartChromeSlots {
          refs("chart:field", VSChartInfo::getFields);
 
          // runtime copies a loaded or cloned chart holds apart from the fields above
-         refs("chart:rt:x", VSChartInfo::getRTXFields);
-         refs("chart:rt:y", VSChartInfo::getRTYFields);
+         refs("chart:rt:x", VSChartInfo::getRTXFields, true);
+         refs("chart:rt:y", VSChartInfo::getRTYFields, true);
          refs("chart:rt:group", VSChartInfo::getRTGroupFields);
          refs("chart:rt:aes", c -> c.getAestheticRefs(true));
          refs("chart:rt:geo", c -> c instanceof VSMapInfo ? ((VSMapInfo) c).getRTGeoFields() : null);
@@ -212,8 +217,14 @@ final class ChartChromeSlots {
             }, null));
       }
 
-      // every entry of a list, addressed by its index
       private void refs(String prefix, Function<VSChartInfo, Object[]> list) {
+         refs(prefix, list, false);
+      }
+
+      // every entry of a list, addressed by its index
+      private void refs(String prefix, Function<VSChartInfo, Object[]> list,
+                        boolean lineSeeded)
+      {
          Object[] items = list.apply(CHART.apply(source));
 
          for(int i = 0; items != null && i < items.length; i++) {
@@ -222,17 +233,19 @@ final class ChartChromeSlots {
                Object[] all = list.apply(c);
                return all != null && index < all.length ? all[index] : null;
             });
-            ref(prefix + "[" + i + "]=" + nameOf(items[i]), item);
+            ref(prefix + "[" + i + "]=" + nameOf(items[i]), item, lineSeeded);
          }
       }
 
-      private void ref(String key, Loc<?> loc) {
+      private void ref(String key, Loc<?> loc, boolean lineSeeded) {
          Object item = loc.apply(source);
 
          if(item instanceof ChartRef) {
             Loc<ChartRef> ref = loc.then(r -> r instanceof ChartRef ? (ChartRef) r : null);
             text(key + ":text", ref.then(ChartRef::getTextFormat), false);
-            axis(key + ":axis", ref.then(ChartRef::getAxisDescriptor));
+            // only a value axis; a category line stays the author's
+            axis(key + ":axis", ref.then(ChartRef::getAxisDescriptor),
+                 lineSeeded && ((ChartRef) item).isMeasure());
          }
 
          if(item instanceof ChartAggregateRef) {
@@ -252,7 +265,7 @@ final class ChartChromeSlots {
             text(key + ":legend", aes.then(AestheticRef::getLegendDescriptor)
                .then(LegendDescriptor::getContentTextFormat), true);
             placement(key + ":legend:placement", aes.then(AestheticRef::getLegendDescriptor));
-            ref(key + ":data", aes.then(AestheticRef::getDataRef));
+            ref(key + ":data", aes.then(AestheticRef::getDataRef), false);
             frames(key + ":frame", aes.then(AestheticRef::getVisualFrameWrapper), (info, frame) -> {
                AestheticRef target = aes.apply(info);
 
@@ -263,7 +276,8 @@ final class ChartChromeSlots {
          }
       }
 
-      private void axis(String key, Loc<AxisDescriptor> loc) {
+      // lineSeeded: a value axis the line seed writes
+      private void axis(String key, Loc<AxisDescriptor> loc, boolean lineSeeded) {
          AxisDescriptor axis = loc.apply(source);
 
          if(!first(axis)) {
@@ -292,6 +306,50 @@ final class ChartChromeSlots {
                to.setLineColor(from.getLineColor());
             }
          }));
+
+         if(!lineSeeded) {
+            return;
+         }
+
+         // a cleared flag lets the next seed write the line
+         Loc<Boolean> flag = loc.then(AxisDescriptor::isUserLineVisible);
+         Loc<Boolean> line = loc.then(AxisDescriptor::isLineVisible);
+         slots.add(ChromeSlot.tiered(
+            key + ":lineVisible", false, true,
+            info -> Boolean.TRUE.equals(flag.on(info)),
+            info -> false,
+            line::on,
+            line::on,
+            info -> {
+               AxisDescriptor target = loc.on(info);
+
+               if(target != null) {
+                  target.setUserLineVisible(false);
+               }
+            },
+            (info, fresh) -> {
+               AxisDescriptor target = loc.on(info);
+
+               // an axis the author hid stays hidden
+               if(target != null && (target.isLineVisible() || target.isLabelVisible())) {
+                  target.setUserLineVisible(false);
+                  // max mode then follows the seeded line
+                  target.setMaxModeLineVisible(true);
+               }
+            }));
+      }
+
+      private void titleVisible(String site, Loc<TitleDescriptor> title) {
+         slots.add(valueSlot(site + ":visible", title.then(t -> t.chromeValue("visible")),
+            (info, fresh) -> {
+               TitleDescriptor target = title.on(info);
+
+               // a hide also wrote max mode, which then follows the seed again
+               if(target != null) {
+                  target.resetVisible(CompositeValue.Type.USER);
+                  target.setMaxModeVisible(true);
+               }
+            }));
       }
 
       // a new chart's legend has no size or place of its own
@@ -493,6 +551,12 @@ final class ChartChromeSlots {
    }
 
    private static ChromeSlot valueSlot(String key, Loc<CompositeValue<?>> loc) {
+      return valueSlot(key, loc, null);
+   }
+
+   private static ChromeSlot valueSlot(String key, Loc<CompositeValue<?>> loc,
+                                       BiConsumer<VSAssemblyInfo, VSAssemblyInfo> reset)
+   {
       return ChromeSlot.tiered(
          key, false, true,
          info -> {
@@ -515,7 +579,7 @@ final class ChartChromeSlots {
                value.resetValue(CompositeValue.Type.USER);
             }
          },
-         null);
+         reset);
    }
 
    private static ChromeSlot paletteSlot(String key, Loc<CategoricalColorFrame> loc,

@@ -290,7 +290,7 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
     * @param axisDesc The descriptor to set the new information on.
     * @param sourceDesc The descriptor which contains the source information.
     */
-   private void copyAxisAttributes(AxisDescriptor axisDesc, AxisDescriptor sourceDesc) {
+   void copyAxisAttributes(AxisDescriptor axisDesc, AxisDescriptor sourceDesc) {
       CompositeTextFormat sourceFormat = sourceDesc.getAxisLabelTextFormat();
       TextFormat sformat = sourceFormat.getUserDefinedFormat();
       CompositeTextFormat targetFormat = axisDesc.getAxisLabelTextFormat();
@@ -314,6 +314,7 @@ public class ChangeSeparateStatusProcessor extends ChangeChartProcessor {
       axisDesc.setTicksVisible(sourceDesc.isTicksVisible());
       axisDesc.setLineColor(sourceDesc.getLineColor());
       axisDesc.setLineVisible(sourceDesc.isLineVisible());
+      axisDesc.setUserLineVisible(sourceDesc.isUserLineVisible());
       axisDesc.setMinimum(sourceDesc.getMinimum());
       axisDesc.setMaximum(sourceDesc.getMaximum());
       axisDesc.setIncrement(sourceDesc.getIncrement());

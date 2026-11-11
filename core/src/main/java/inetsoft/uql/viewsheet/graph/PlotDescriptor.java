@@ -1916,7 +1916,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
 
    // values whose default tier can be saved
    List<CompositeValue<?>> savedDefaults() {
-      return List.of(xGridColor, yGridColor, facetColor, diagonalColor, quadrantColor);
+      return List.of(xGridColor, yGridColor, facetColor, diagonalColor, quadrantColor,
+                     xGridStyle);
    }
 
    private CompositeTextFormat fmt;

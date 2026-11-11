@@ -21,6 +21,7 @@ import inetsoft.graph.aesthetic.*;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.DataRef;
@@ -585,24 +586,32 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          }
       }
 
-      if(desc != null) {
-         desc.getTitlesDescriptor().getXTitleDescriptor().setVisible(false);
-         desc.getTitlesDescriptor().getX2TitleDescriptor().setVisible(false);
-         desc.getTitlesDescriptor().getYTitleDescriptor().setVisible(false);
-         desc.getTitlesDescriptor().getY2TitleDescriptor().setVisible(false);
-      }
+      setMapTitlesVisible(desc, false, vizContext);
    }
 
    /**
     * Called when changing from a map to a regular chart.
     */
    private void changeFromMap() {
-      if(desc != null) {
-         desc.getTitlesDescriptor().getXTitleDescriptor().setVisible(true);
-         desc.getTitlesDescriptor().getX2TitleDescriptor().setVisible(true);
-         desc.getTitlesDescriptor().getYTitleDescriptor().setVisible(true);
-         desc.getTitlesDescriptor().getY2TitleDescriptor().setVisible(true);
+      setMapTitlesVisible(desc, true, vizContext);
+   }
+
+   /**
+    * Set the axis titles' visibility for a change to or from a map.
+    */
+   static void setMapTitlesVisible(ChartDescriptor desc, boolean visible, VizContext ctx) {
+      if(desc == null) {
+         return;
       }
+
+      // under modern the per-type seed decides, so only the default tier is written
+      CompositeValue.Type tier = ctx.modern ? CompositeValue.Type.DEFAULT :
+         CompositeValue.Type.USER;
+      TitlesDescriptor titles = desc.getTitlesDescriptor();
+      titles.getXTitleDescriptor().setVisible(visible, tier);
+      titles.getX2TitleDescriptor().setVisible(visible, tier);
+      titles.getYTitleDescriptor().setVisible(visible, tier);
+      titles.getY2TitleDescriptor().setVisible(visible, tier);
    }
 
    /**

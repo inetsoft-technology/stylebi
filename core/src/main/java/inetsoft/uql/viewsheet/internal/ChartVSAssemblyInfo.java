@@ -136,15 +136,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          setPadding(defaultPadding(ctx));
       }
 
-      // the title lane's rule and its text colour. No background write on either branch: this
-      // type's own title composite has never carried one, so the modern lane is unfilled by
-      // construction and the legacy branch has nothing to restore
+      // the title's text colour. A chart title carries no rule on either branch, so both rule
+      // fields are cleared to drop one an earlier seed wrote. No background write: this type's
+      // title composite has never carried one
       VSCompositeFormat titleFormat = getFormatInfo().getFormat(TITLEPATH);
 
       if(titleFormat != null) {
          VSFormat def = titleFormat.getDefaultFormat();
-         def.setBordersValue(ctx.modern ? VSTitleChromeDefaults.titleRuleBorders() : null);
-         def.setBorderColorsValue(ctx.modern ? VSTitleChromeDefaults.titleRuleColors(ctx) : null);
+         def.setBordersValue(null);
+         def.setBorderColorsValue(null);
          def.setForegroundValue(
             ctx.modern ? VSTitleChromeDefaults.titleForegroundValue(ctx) : null);
          // getForeground() falls back to the fg field when fgval yields nothing, so the legacy
@@ -159,10 +159,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // on both branches or Revert would destroy the author's value instead of restore doing it
          if(!isUserBarCornerRadius()) {
             plotDesc.setBarCornerRadius(0.3);
-         }
-
-         if(!isUserSmoothLines()) {
-            plotDesc.setSmoothLines(true);
          }
 
          // the plot's structural lines. Seeded rather than resolved at render so they travel in
@@ -216,6 +212,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          getChartDescriptor().getLegendsDescriptor().setBorderColor(
             GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
       }
+
+      // the legend frame, on both branches, so a re-seed without a render holds the right tier
+      seedLegendBorder(getChartDescriptor(), ctx);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedLegendBorder(getRTChartDescriptor(), ctx);
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
@@ -364,6 +365,99 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       return false;
+   }
+
+   // smoothing that differs from the type's classic default is the author's
+   private boolean derivedUserSmoothLines() {
+      PlotDescriptor plot = plotOf(desc);
+      return plot != null && plot.isSmoothLines() != legacySmoothLines();
+   }
+
+   // the legends' layout decides; the render re-resolves it after a layout change
+   private static void seedLegendBorder(ChartDescriptor desc, VizContext ctx) {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+
+      if(legends != null) {
+         legends.setBorder(VSChartChromeDefaults.legendBorder(ctx, legends.getLayout()),
+                           CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   /**
+    * Re-seed a marked chart's axis lines for its current type.
+    */
+   public void reseedAxisLines() {
+      if(getVizMark() != null) {
+         seedAxisLines(VizContext.of(this), ResolvedChartType.of(getVSChartInfo()));
+      }
+   }
+
+   private void seedAxisLines(VizContext ctx, ResolvedChartType type) {
+      VSChartInfo info = getVSChartInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      boolean v = ctx.modern ? VSChartTypeDefaults.valueAxisLineVisible(type) : true;
+      seedAxisLine(info.getAxisDescriptor(), v);
+      seedAxisLine(info.getAxisDescriptor2(), v);
+      // script-made runtime copies, which the render prefers
+      seedAxisLine(info.getRTAxisDescriptor(), v);
+      seedAxisLine(info.getRTAxisDescriptor2(), v);
+
+      // the runtime refs too, as an update clones them before the type re-seed runs
+      for(ChartRef[] refs : new ChartRef[][] { info.getXFields(), info.getYFields(),
+                                               info.getRTXFields(), info.getRTYFields() }) {
+         for(ChartRef ref : refs == null ? new ChartRef[0] : refs) {
+            if(ref != null) {
+               boolean line = ref.isMeasure() ? v : true;
+               seedAxisLine(ref.getAxisDescriptor(), line);
+
+               if(ref instanceof VSChartRef vref) {
+                  seedAxisLine(vref.getRTAxisDescriptor(), line);
+               }
+            }
+         }
+      }
+   }
+
+   private static void seedAxisLine(AxisDescriptor desc, boolean visible) {
+      if(desc != null && !desc.isUserLineVisible()) {
+         desc.setLineVisible(visible);
+      }
+   }
+
+   private void seedAxisTitles(VizContext ctx, ResolvedChartType type) {
+      seedAxisTitles(getChartDescriptor(), ctx, type);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedAxisTitles(getRTChartDescriptor(), ctx, type);
+   }
+
+   private static void seedAxisTitles(ChartDescriptor desc, VizContext ctx,
+                                      ResolvedChartType type)
+   {
+      TitlesDescriptor titles = desc == null ? null : desc.getTitlesDescriptor();
+
+      if(titles == null) {
+         return;
+      }
+
+      seedAxisTitle(titles.getXTitleDescriptor(), "x", ctx, type);
+      seedAxisTitle(titles.getX2TitleDescriptor(), "x2", ctx, type);
+      seedAxisTitle(titles.getYTitleDescriptor(), "y", ctx, type);
+      seedAxisTitle(titles.getY2TitleDescriptor(), "y2", ctx, type);
+   }
+
+   private static void seedAxisTitle(TitleDescriptor title, String axis, VizContext ctx,
+                                     ResolvedChartType type)
+   {
+      if(title != null) {
+         // an author's text keeps its title
+         boolean visible = !ctx.modern || VSChartTypeDefaults.axisTitleVisible(type, axis)
+            || title.isUserTitle();
+         title.setVisible(visible, CompositeValue.Type.DEFAULT);
+      }
    }
 
    @Override
@@ -1577,7 +1671,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
       writer.print(" userBarCornerRadius=\"" + isUserBarCornerRadius() + "\"");
-      writer.print(" userSmoothLines=\"" + isUserSmoothLines() + "\"");
+      DerivedUserFlag.write(writer, "userSmoothLines", isUserSmoothLines(),
+                            derivedUserSmoothLines());
 
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
@@ -1627,9 +1722,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // mark-appropriate value
       String userBarCornerRadiusProp = Tool.getAttribute(element, "userBarCornerRadius");
       setUserBarCornerRadius("true".equalsIgnoreCase(userBarCornerRadiusProp));
-
-      String userSmoothLinesProp = Tool.getAttribute(element, "userSmoothLines");
-      setUserSmoothLines("true".equalsIgnoreCase(userSmoothLinesProp));
 
       cubeType = Tool.getAttribute(element, "cubeType");
 
@@ -1911,6 +2003,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             dateComparison = dcomparison;
          }
       }
+
+      // after the plot and the chart info, as the derivation reads both
+      userSmoothLines = DerivedUserFlag.parse(Tool.getAttribute(elem, "userSmoothLines"),
+                                              derivedUserSmoothLines());
    }
 
    /**
@@ -1925,6 +2021,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(!Tool.equalsContent(desc, ninfo.desc)) {
          desc = ninfo.desc;
+         // the key travels with the values, so the next update re-seeds a mismatch
+         seededType = ninfo.seededType;
          result = true;
       }
 
@@ -3024,6 +3122,48 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
       // values that depend on the resolved type; written on both branches
+      seedAxisLines(ctx, type);
+      seedAxisTitles(ctx, type);
+      seedXGrid(ctx, type);
+      // modern only; the classic value stays in legacySmoothLines()
+      seedSmoothLines(ctx, type);
+   }
+
+   private void seedXGrid(VizContext ctx, ResolvedChartType type) {
+      int style = ctx.modern ? VSChartTypeDefaults.xGridStyle(type) : StyleConstants.NONE;
+      seedXGrid(getChartDescriptor(), style);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedXGrid(getRTChartDescriptor(), style);
+   }
+
+   private static void seedXGrid(ChartDescriptor desc, int style) {
+      PlotDescriptor plot = desc == null ? null : desc.getPlotDescriptor();
+
+      if(plot != null) {
+         plot.setXGridStyle(style, CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   private void seedSmoothLines(VizContext ctx, ResolvedChartType type) {
+      PlotDescriptor plot = plotOf(getChartDescriptor());
+
+      if(!ctx.modern || isUserSmoothLines() || plot == null) {
+         return;
+      }
+
+      boolean smooth = VSChartTypeDefaults.smoothLines(type.type());
+      PlotDescriptor rplot = plotOf(getRTChartDescriptor());
+
+      // a script-made runtime copy follows unless the script changed its value
+      if(rplot != null && rplot.isSmoothLines() == plot.isSmoothLines()) {
+         rplot.setSmoothLines(smooth);
+      }
+
+      plot.setSmoothLines(smooth);
+   }
+
+   private static PlotDescriptor plotOf(ChartDescriptor desc) {
+      return desc == null ? null : desc.getPlotDescriptor();
    }
 
    /**
@@ -3034,6 +3174,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(getVizMark() != null && seededType != null && !seededType.equals(now)) {
          seedTypeDefaults(VizContext.of(this), now);
+      }
+
+      seededType = now;
+   }
+
+   /**
+    * Re-seed after a descriptor swap; an unmarked chart only when a marked one shared it.
+    */
+   public void reseedTypeDefaults(boolean sharedWithMarked) {
+      ResolvedChartType now = ResolvedChartType.of(cinfo);
+
+      if(getVizMark() != null) {
+         seedTypeDefaults(VizContext.of(this), now);
+      }
+      else if(sharedWithMarked) {
+         seedChromeDefaults(VizContext.of(this));
       }
 
       seededType = now;

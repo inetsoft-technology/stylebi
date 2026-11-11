@@ -299,6 +299,10 @@ public class ChartDescriptor implements AssetObject, ContentObject {
          list.addAll(legendsDesc.savedDefaults());
       }
 
+      if(titlesDesc != null) {
+         list.addAll(titlesDesc.savedDefaults());
+      }
+
       return list;
    }
 

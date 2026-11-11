@@ -260,8 +260,10 @@ public class RegionPropertyDialogService {
       ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
       TitleDescriptor titleDesc = regionHandler.getTitleDescriptor(descriptor, axisType);
       ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
-      TitleArea titleArea = regionHandler.getTitleArea(chartArea, axisType);
-      String oldTitle = (String) titleArea.getChartAreaInfo().getProperty("titlename");
+      // a hidden title has no area; a typed one still reaches the dialog through titleDesc
+      TitleArea titleArea = chartArea == null ? null : regionHandler.getTitleArea(chartArea, axisType);
+      String oldTitle = titleArea == null ? "" :
+         (String) titleArea.getChartAreaInfo().getProperty("titlename");
 
       return new TitleFormatDialogModel(titleDesc, oldTitle,
                                         VizContext.of(chartAssemblyInfo));
