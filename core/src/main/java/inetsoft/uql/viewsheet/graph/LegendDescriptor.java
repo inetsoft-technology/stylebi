@@ -126,6 +126,54 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Whether the author chose to show or hide the title.
+    */
+   public boolean isUserTitleVisible() {
+      return userTitleVisible;
+   }
+
+   public void setUserTitleVisible(boolean userTitleVisible) {
+      this.userTitleVisible = userTitleVisible;
+   }
+
+   /**
+    * Set the title visibility as the author's choice.
+    */
+   public void setAuthorTitleVisible(boolean titleVisible) {
+      this.titleVisible = titleVisible;
+      this.userTitleVisible = true;
+   }
+
+   /**
+    * Whether the design title has text.
+    */
+   public boolean hasTitleText() {
+      return !Tool.isEmptyString(getTitleValue());
+   }
+
+   /**
+    * Set the design title text as the author's; text shows the title.
+    */
+   public void setAuthorTitleValue(String title) {
+      setTitleValue(title);
+      showAuthorText(title);
+   }
+
+   /**
+    * Set the runtime title text as the author's; text shows the title.
+    */
+   public void setAuthorTitle(String title) {
+      setTitle(title);
+      showAuthorText(title);
+   }
+
+   private void showAuthorText(String text) {
+      if(!Tool.isEmptyString(text)) {
+         setAuthorTitleVisible(true);
+      }
+   }
+
+   /**
     * Check if the logarithm scale.
     */
    public boolean isLogarithmicScale() {
@@ -475,7 +523,8 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
       return logScale == des.logScale && reversed == des.reversed &&
          visible == des.visible && notShowNull == des.notShowNull &&
-         titleVisible == des.titleVisible && maxModeVisible == des.maxModeVisible &&
+         titleVisible == des.titleVisible && userTitleVisible == des.userTitleVisible &&
+         maxModeVisible == des.maxModeVisible &&
          symbolSize == des.symbolSize && symbolRoundCorners == des.symbolRoundCorners;
    }
 
@@ -516,6 +565,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       writer.print(" visible=\"" + visible + "\" ");
       writer.print(" maxModeVisible=\"" + maxModeVisible + "\" ");
       writer.print(" titleVisible=\"" + titleVisible + "\" ");
+      DerivedUserFlag.write(writer, "userTitleVisible", userTitleVisible, derivedUserTitleVisible());
       writer.print(" notShowNull=\"" + notShowNull + "\" ");
       writer.print(" includeZero=\"" + includeZero + "\" ");
       writer.print(" symbolSize=\"" + symbolSize + "\" ");
@@ -570,6 +620,14 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    public void parseXML(Element tag) throws Exception {
       parseAttributes(tag);
       parseContents(tag);
+      // after the contents, as the derivation reads the text
+      userTitleVisible = DerivedUserFlag.parse(Tool.getAttribute(tag, "userTitleVisible"),
+                                               derivedUserTitleVisible());
+   }
+
+   // a hidden title or a typed one is a choice every classic creation left unmade
+   private boolean derivedUserTitleVisible() {
+      return !titleVisible || hasTitleText();
    }
 
    /**
@@ -955,6 +1013,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    private boolean visible = true;
    private boolean maxModeVisible = true;
    private boolean titleVisible = true;
+   private boolean userTitleVisible = false;
    private boolean notShowNull = false;
    private boolean includeZero = false;
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;

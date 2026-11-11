@@ -3220,6 +3220,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
       seedLegendPlacement(ctx, type);
+      seedLegendTitles(ctx);
       // values that depend on the resolved type; written on both branches
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
@@ -3428,6 +3429,55 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
    }
 
+   // hides the title of a modern top or bottom legend unless the author chose its visibility
+   private void seedLegendTitles(VizContext ctx) {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+
+      if(legends == null) {
+         return;
+      }
+
+      int layout = legends.getLayout();
+      boolean visible = !ctx.modern || layout != LegendsDescriptor.TOP &&
+         layout != LegendsDescriptor.BOTTOM;
+      Set<LegendDescriptor> all = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(ChartDescriptor chartDesc : new ChartDescriptor[] { desc, rdesc }) {
+         LegendsDescriptor ld = chartDesc == null ? null : chartDesc.getLegendsDescriptor();
+
+         if(ld != null) {
+            all.add(ld.getColorLegendDescriptor());
+            all.add(ld.getShapeLegendDescriptor());
+            all.add(ld.getSizeLegendDescriptor());
+         }
+      }
+
+      VSChartInfo vinfo = getVSChartInfo();
+
+      if(vinfo != null) {
+         for(boolean runtime : new boolean[] { false, true }) {
+            for(AestheticRef aref : vinfo.getAestheticRefs(runtime)) {
+               all.add(aref.getLegendDescriptor());
+            }
+         }
+      }
+
+      for(LegendDescriptor legend : all) {
+         if(legend != null && !legend.isUserTitleVisible()) {
+            legend.setTitleVisible(visible);
+         }
+      }
+   }
+
+   /**
+    * Re-run the legend title seed for the current position, on a marked chart only.
+    */
+   public void reseedLegendTitles() {
+      if(getVizMark() != null) {
+         seedLegendTitles(VizContext.of(this));
+      }
+   }
+
    private static PlotDescriptor plotOf(ChartDescriptor desc) {
       return desc == null ? null : desc.getPlotDescriptor();
    }
@@ -3446,6 +3496,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
       else if(getVizMark() != null && seededLegendKey != null && !seededLegendKey.equals(key)) {
          seedLegendPlacement(VizContext.of(this), now);
+         seedLegendTitles(VizContext.of(this));
          requestLegendCount();
       }
 
