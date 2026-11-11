@@ -1198,13 +1198,15 @@ public class PDFVSExporter extends AbstractVSExporter {
       // grow the page before it is created/filled so a shape shadow at the edge fits
       size = adjustSizeForShapeShadows(viewsheet, size, true);
 
+      helper.setViewsheet(vsheet);
+      helper.createPage(size);
+
+      // PDFPrinter.setClip() starts a page, so it must come after createPage() sets the
+      // dashboard-sized page. Calling it before leaves an extra blank default-size page. (#81058)
       if(isAllHidden(viewsheet, box)) {
          helper.getPrinter().
             setClip(new Rectangle(0, 0, size.width, size.height));
       }
-
-      helper.setViewsheet(vsheet);
-      helper.createPage(size);
 
       final TableDataPath dataPath = new TableDataPath(-1, TableDataPath.OBJECT);
       final VSCompositeFormat format = viewsheet.getFormatInfo().getFormat(dataPath);
