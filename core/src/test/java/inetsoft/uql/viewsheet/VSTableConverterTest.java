@@ -294,6 +294,28 @@ class VSTableConverterTest {
       assertTrue(hasSummary(cells, TableCellBinding.DEFAULT_GROUP, TableCellBinding.DEFAULT_GROUP));
    }
 
+   // a crosstab whose aggregates were removed after the layout was made is converted as a plain
+   // table: the detail cells expand vertically and have no group
+   @Test
+   void crosstabWithoutAggregatesConvertsAsPlainTable() {
+      TableLayout layout = convert(new String[] { "year" }, new String[] { "region" }, null,
+         ci -> { }, f -> { }, ci -> ci.setAggregateInfo(new AggregateInfo()));
+      int cells = 0;
+
+      for(int c = 0; c < layout.getColCount(); c++) {
+         TableCellBinding b = (TableCellBinding) layout.getCellBinding(1, c);
+
+         if(b != null) {
+            cells++;
+            assertEquals(TableCellBinding.EXPAND_V, b.getExpansion());
+            assertEquals(TableCellBinding.DEFAULT_GROUP, b.getRowGroup());
+            assertEquals(TableCellBinding.DEFAULT_GROUP, b.getColGroup());
+         }
+      }
+
+      assertTrue(cells > 0, "no detail cell in the second row");
+   }
+
    // all summary cells keep the aggregate column and formula, none expands
    @Test
    void everySummaryCellKeepsColumnFormulaAndNoExpansion() {
@@ -400,6 +422,17 @@ class VSTableConverterTest {
                                       Consumer<VSCrosstabInfo> customizer,
                                       Consumer<CrossTabFilter> filterCustomizer)
    {
+      return convert(rowDims, colDims, topNDim, customizer, filterCustomizer, cinfo -> { });
+   }
+
+   /**
+    * @param beforeConvert runs after the crosstab layout was generated, before it is converted
+    */
+   private static TableLayout convert(String[] rowDims, String[] colDims, String topNDim,
+                                      Consumer<VSCrosstabInfo> customizer,
+                                      Consumer<CrossTabFilter> filterCustomizer,
+                                      Consumer<VSCrosstabInfo> beforeConvert)
+   {
       Viewsheet vs = new Viewsheet();
       CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
       VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
@@ -473,6 +506,7 @@ class VSTableConverterTest {
       filterCustomizer.accept(meta);
       TableLayout olayout = VSLayoutTool.generateLayout(crosstab, meta, vs);
       assertEquals(TableLayout.CROSSTAB, olayout.getMode());
+      beforeConvert.accept(cinfo);
       TableLayout nlayout = VSTableConverter.changeTableMode(crosstab, olayout, TableLayout.CALC);
       assertEquals(TableLayout.CALC, nlayout.getMode());
       return nlayout;
