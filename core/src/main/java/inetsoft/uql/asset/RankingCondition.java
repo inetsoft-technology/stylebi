@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.util.Objects;
 
 /**
@@ -183,16 +184,53 @@ public class RankingCondition extends AbstractCondition implements AssetObject {
             }
 
             if(userv instanceof Number) {
-               n = ((Number) userv).intValue();
+               n = toRankingN((Number) userv);
             }
             else if(userv instanceof String) {
-               n = Integer.valueOf((String) userv);
+               n = toRankingN(new BigDecimal(((String) userv).trim()));
             }
          }
          catch(Exception ex) {
             LOG.debug("Failed to parse variable value: " + name, ex);
          }
       }
+   }
+
+   /**
+    * Convert a variable value to the ranking n. The fractional part is dropped and the value is
+    * clamped to [0, Integer.MAX_VALUE], so a value outside the int range (e.g. a Long) never
+    * wraps to a negative n, whatever the numeric type of the variable.
+    * @throws NumberFormatException if the value is NaN.
+    */
+   private static Integer toRankingN(Number value) {
+      BigDecimal dec;
+
+      if(value instanceof Double || value instanceof Float) {
+         double dval = value.doubleValue();
+
+         if(Double.isNaN(dval)) {
+            throw new NumberFormatException("NaN");
+         }
+
+         if(Double.isInfinite(dval)) {
+            return dval > 0 ? Integer.MAX_VALUE : 0;
+         }
+
+         dec = BigDecimal.valueOf(dval);
+      }
+      else {
+         dec = value instanceof BigDecimal ? (BigDecimal) value : new BigDecimal(value.toString());
+      }
+
+      if(dec.signum() <= 0) {
+         return 0;
+      }
+
+      if(dec.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) >= 0) {
+         return Integer.MAX_VALUE;
+      }
+
+      return dec.intValue();
    }
 
    /**

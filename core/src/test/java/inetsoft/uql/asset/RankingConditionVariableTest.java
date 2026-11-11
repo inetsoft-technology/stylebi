@@ -27,6 +27,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -94,11 +97,92 @@ class RankingConditionVariableTest {
    }
 
    @Test
-   void longNumber_isNarrowedToInt() {
+   void longAboveIntRange_isClampedNotWrapped() {
+      for(int op : new int[] { XCondition.TOP_N, XCondition.BOTTOM_N }) {
+         RankingCondition cond = ranking(op, "$(n)");
+         cond.replaceVariable(vars(3000000000L));
+
+         assertEquals(Integer.MAX_VALUE, cond.getN());
+      }
+   }
+
+   @Test
+   void longBelowIntRange_isClampedToZero() {
+      RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+      cond.replaceVariable(vars(-3000000000L));
+
+      assertEquals(0, cond.getN());
+   }
+
+   @Test
+   void negativeInRangeValues_areClampedToZero() {
+      RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+      cond.replaceVariable(vars(-5));
+
+      assertEquals(0, cond.getN());
+
+      cond = ranking(XCondition.TOP_N, "$(n)");
+      cond.replaceVariable(vars("-5"));
+
+      assertEquals(0, cond.getN());
+   }
+
+   @Test
+   void everyNumberType_givesTheSameNAtTheBoundaries() {
+      Object[] huge = { 3000000000L, 3000000000.0, 3e9f, new BigInteger("30000000000"),
+                        new BigDecimal("3000000000.7"), "3000000000", Double.POSITIVE_INFINITY };
+      Object[] hugeNegative = { -3000000000L, -3000000000.0, new BigInteger("-30000000000"),
+                                new BigDecimal("-3000000000.7"), "-3000000000",
+                                Double.NEGATIVE_INFINITY, Long.MIN_VALUE };
+      Object[] exact = { 7, 7L, (short) 7, (byte) 7, 7.0, 7.9f, new BigInteger("7"),
+                         new BigDecimal("7.99"), "7", " 7 ", new java.util.concurrent.atomic.AtomicLong(7) };
+
+      for(Object value : huge) {
+         RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+         cond.replaceVariable(vars(value));
+         assertEquals(Integer.MAX_VALUE, cond.getN(), String.valueOf(value));
+      }
+
+      for(Object value : hugeNegative) {
+         RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+         cond.replaceVariable(vars(value));
+         assertEquals(0, cond.getN(), String.valueOf(value));
+      }
+
+      for(Object value : exact) {
+         RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+         cond.replaceVariable(vars(value));
+         assertEquals(7, cond.getN(), String.valueOf(value));
+      }
+   }
+
+   @Test
+   void intBoundaries_areKept() {
+      RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+      cond.replaceVariable(vars((long) Integer.MAX_VALUE));
+      assertEquals(Integer.MAX_VALUE, cond.getN());
+
+      cond = ranking(XCondition.TOP_N, "$(n)");
+      cond.replaceVariable(vars(Integer.MAX_VALUE + 1L));
+      assertEquals(Integer.MAX_VALUE, cond.getN());
+   }
+
+   @Test
+   void nan_keepsTheReference() {
+      RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+      cond.replaceVariable(vars(Double.NaN));
+
+      assertEquals("$(n)", cond.getN());
+   }
+
+   @Test
+   void clampedLongN_isNeverNegativeInTheRankingTable() {
+      // the resolved N must be usable as the table's ranking N
       RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
       cond.replaceVariable(vars(3000000000L));
 
-      assertEquals((int) 3000000000L, cond.getN());
+      assertTrue(cond.getN() instanceof Integer);
+      assertTrue((Integer) cond.getN() >= 0);
    }
 
    @Test
