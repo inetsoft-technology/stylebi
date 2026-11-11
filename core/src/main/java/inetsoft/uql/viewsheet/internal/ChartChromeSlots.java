@@ -104,8 +104,19 @@ final class ChartChromeSlots {
                                    legends.then(l -> l.chromeValue(field))));
             }
 
-            slots.add(ChromeSlot.plain("chart:legends:layout", copy(legends,
-               (to, from) -> to.setLayout(from.getLayout()))));
+            slots.add(ChromeSlot.plain("chart:legends:layout", (info, fresh) -> {
+               LegendsDescriptor to = legends.on(info);
+               LegendsDescriptor from = legends.on(fresh);
+
+               if(to != null && from != null) {
+                  to.setLayout(from.getLayout());
+                  to.setUserLayout(false);
+
+                  if(info instanceof ChartVSAssemblyInfo) {
+                     ((ChartVSAssemblyInfo) info).requestLegendCount();
+                  }
+               }
+            }));
             // a size set for the old position does not fit the new one
             slots.add(ChromeSlot.plain("chart:legends:size", copy(legends,
                (to, from) -> to.setPreferredSize(from.getPreferredSize()))));
@@ -115,6 +126,12 @@ final class ChartChromeSlots {
                       legends.then(LegendsDescriptor::getShapeLegendDescriptor));
             placement("chart:legends:size:placement",
                       legends.then(LegendsDescriptor::getSizeLegendDescriptor));
+            legendTitle("chart:legends:color:titleVisible",
+                        legends.then(LegendsDescriptor::getColorLegendDescriptor));
+            legendTitle("chart:legends:shape:titleVisible",
+                        legends.then(LegendsDescriptor::getShapeLegendDescriptor));
+            legendTitle("chart:legends:size:titleVisible",
+                        legends.then(LegendsDescriptor::getSizeLegendDescriptor));
             slots.add(ChromeSlot.plain("chart:legends:roundCorners", copy(legends,
                (to, from) -> to.setRoundCorners(from.isRoundCorners()))));
          }
@@ -278,6 +295,7 @@ final class ChartChromeSlots {
             text(key + ":legend", aes.then(AestheticRef::getLegendDescriptor)
                .then(LegendDescriptor::getContentTextFormat), true);
             placement(key + ":legend:placement", aes.then(AestheticRef::getLegendDescriptor));
+            legendTitle(key + ":legend:titleVisible", aes.then(AestheticRef::getLegendDescriptor));
             ref(key + ":data", aes.then(AestheticRef::getDataRef), false);
             frames(key + ":frame", aes.then(AestheticRef::getVisualFrameWrapper), (info, frame) -> {
                AestheticRef target = aes.apply(info);
@@ -382,6 +400,21 @@ final class ChartChromeSlots {
          }));
       }
 
+      // a typed title keeps its flag; a hide or show without text follows the seed again
+      private void legendTitle(String key, Loc<LegendDescriptor> loc) {
+         if(!firstTitle(loc.apply(source))) {
+            return;
+         }
+
+         slots.add(ChromeSlot.plain(key, (info, fresh) -> {
+            LegendDescriptor legend = loc.on(info);
+
+            if(legend != null && !legend.hasTitleText()) {
+               legend.setUserTitleVisible(false);
+            }
+         }));
+      }
+
       private void frames(String key, Loc<? extends VisualFrameWrapper> wrapper,
                           BiConsumer<ChartVSAssemblyInfo, ColorFrame> replace)
       {
@@ -443,9 +476,14 @@ final class ChartChromeSlots {
          return target != null && seen.add(target);
       }
 
+      private boolean firstTitle(Object target) {
+         return target != null && seenTitles.add(target);
+      }
+
       private final ChartVSAssemblyInfo source;
       private final List<ChromeSlot> slots = new ArrayList<>();
       private final Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+      private final Set<Object> seenTitles = Collections.newSetFromMap(new IdentityHashMap<>());
    }
 
    private static ChromeSlot textSlot(String site, Loc<CompositeTextFormat> loc,
