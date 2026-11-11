@@ -298,6 +298,37 @@ class TabularHandlerTest {
                   "a null table (the runtime reported a failure) must clear the earlier run's value");
    }
 
+   @Test
+   void aRuntimeSettingRunCompletedOnTheCloneSurvivesANullResultAndRerunClearsIt() throws Exception {
+      boolean[] set = { true };
+      TabularHandler handler = new TabularHandler() {
+         @Override
+         public TabularRuntime getRuntime(String type) {
+            return new TabularRuntime() {
+               @Override
+               public XTableNode runQuery(TabularQuery query, VariableTable params) {
+                  query.setRunCompleted(set[0]);
+                  return null;
+               }
+
+               @Override
+               public void testDataSource(TabularDataSource<?> ds, VariableTable params) {
+               }
+            };
+         }
+      };
+
+      TestTabularQuery original = newQuery();
+
+      handler.execute(original, newVars(), principal("admin", "orgA"), null);
+      assertTrue(original.isRunCompleted(),
+                 "a runtime that marked the run completed must not be overwritten by a null table");
+
+      set[0] = false;
+      handler.execute(original, newVars(), principal("admin", "orgA"), null);
+      assertFalse(original.isRunCompleted(), "a rerun must clear the earlier run's value");
+   }
+
    private static Principal principal(String name, String orgID) {
       return new SRPrincipal(
          new IdentityID(name, orgID), new IdentityID[0], new String[0], orgID, 0L);

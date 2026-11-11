@@ -51,6 +51,13 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
                     break;
                 }
 
+                // A response was received and parsed. QueryRunner.run() collapses an empty result
+                // to null, so say here that the run itself completed (see
+                // TabularQuery.isRunCompleted); failures never reach this line.
+                if(!isCancelled()) {
+                   query.setRunCompleted(true);
+                }
+
                if(isUnmatchedRoot(data)) {
                   // the xpath matched zero elements in this response - NoSchemaDocumentParser/
                   // SchemaDocumentParser's root EditableNode was never appended to, so

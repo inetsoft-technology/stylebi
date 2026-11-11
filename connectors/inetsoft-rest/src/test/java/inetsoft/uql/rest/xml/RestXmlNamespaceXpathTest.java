@@ -17,7 +17,9 @@
  */
 package inetsoft.uql.rest.xml;
 
+import com.sun.net.httpserver.HttpServer;
 import inetsoft.report.lens.xnode.XNodeTableLens;
+import inetsoft.uql.rest.HttpHandler;
 import inetsoft.test.*;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.RestRequest;
@@ -27,6 +29,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -73,6 +77,53 @@ public class RestXmlNamespaceXpathTest {
 
       assertNull(table, "an xpath matching zero real elements must report zero rows (a null " +
          "table, per this connector's convention), not fabricate a placeholder row");
+   }
+
+   @Test
+   void zeroMatchXpathMarksTheRunCompleted() throws Exception {
+      final RestXMLQuery query = createQuery("/countries/country");
+      assertNull(createRunner(query).run());
+
+      assertTrue(query.isRunCompleted(), "a response that was parsed but selected nothing is a " +
+         "completed run, so the refusal can say zero rows instead of blaming credentials");
+   }
+
+   @Test
+   void malformedXmlDoesNotMarkTheRunCompleted() throws Exception {
+      final RestXMLQuery query = createQuery("/countries/country");
+      createRunner(query, "<countries><country>").run();
+
+      assertFalse(query.isRunCompleted());
+   }
+
+   @Test
+   void nonSuccessResponsesDoNotMarkTheRunCompleted() throws Exception {
+      for(int status : new int[] { 401, 500 }) {
+         final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+         server.createContext("/", exchange -> {
+            final byte[] body = WORLD_BANK_FIXTURE.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+            exchange.sendResponseHeaders(status, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+         });
+         server.start();
+
+         try {
+            final RestXMLQuery query = createQuery("/wb:countries/wb:country");
+            ((RestXMLDataSource) query.getDataSource()).setURL(
+               "http://127.0.0.1:" + server.getAddress().getPort() + "/v2/country");
+            final XMLRestDataIteratorStrategyFactory factory =
+               new XMLRestDataIteratorStrategyFactory(new HttpHandler());
+
+            new RestXMLQueryRunner(query, factory).run();
+
+            assertFalse(query.isRunCompleted(), "HTTP " + status + " must not read as a completed run");
+         }
+         finally {
+            server.stop(0);
+         }
+      }
    }
 
    @Test

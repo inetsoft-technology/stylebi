@@ -390,8 +390,10 @@ public abstract class TabularQuery extends XQuery {
    }
 
    /**
-    * Whether the connector's runtime handed back a table (possibly empty) on this query's last
-    * execution, rather than null. A runtime that fails (connect, authentication, parse) reports it
+    * Whether this query's last execution ran to completion: the connector's runtime handed back a
+    * table (possibly empty) rather than null, or the runtime set the flag itself on the query it
+    * ran (a runtime that collapses an empty result to null, e.g. Rest.XML, may do so once it has
+    * received and parsed a response). A runtime that fails (connect, authentication, parse) reports it
     * through a thread-local user message and returns null; a request that ran and matched nothing
     * returns an empty, non-null table. That is the only success signal available for connectors
     * that record no response shape, so it is the one a refusal can use to say "ran, selected zero
