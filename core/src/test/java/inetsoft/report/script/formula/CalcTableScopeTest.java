@@ -18,6 +18,7 @@
 
 package inetsoft.report.script.formula;
 
+import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
@@ -39,7 +40,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.Date;
+import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static inetsoft.util.stall.StallTestSupport.assertStallOf;
@@ -161,6 +163,8 @@ public class CalcTableScopeTest {
          Arguments.of(objData, "id", "id=3", 3.0),
          // Test case 3: test array obj, group  and condition are useless
          Arguments.of(new Object[]{3, 7, 8}, null, null, 6.0),
+         // single row
+         Arguments.of(new Object[]{5}, null, null, 5.0),
          // Test case 4: The array is empty
          Arguments.of(null, null, null, Double.NaN)
       );
@@ -202,6 +206,8 @@ public class CalcTableScopeTest {
          Arguments.of("[1,date]:[3,date]", null, null, date_2025, date_2021),
          Arguments.of(objData, "date", null, date_2026, date_2021),
          Arguments.of(new Object[]{3, 1, 9}, null, null, 9, 1),
+         // single row
+         Arguments.of(new Object[]{7}, null, null, 7, 7),
          Arguments.of(null, null, null, null, null)
       );
    }
@@ -218,6 +224,8 @@ public class CalcTableScopeTest {
          Arguments.of("[1,id]:[3,id]", null, null, 6.0),
          Arguments.of(objData, "id", "id < 3", 4.0),
          Arguments.of(new Object[]{3, 7, 9}, null, null, 189.0),
+         // single row
+         Arguments.of(new Object[]{4}, null, null, 4.0),
          Arguments.of(null, null, null, Double.NaN)
       );
    }
@@ -420,6 +428,133 @@ public class CalcTableScopeTest {
    void testNthLargestSmallest(Object n, Object column, String group, String condition, Object expectedLargest, Object expectedSmallest) {
       assertEquals(expectedLargest, calcTableScope.nthLargest(n, column, group, condition));
       assertEquals(expectedSmallest, calcTableScope.nthSmallest(n, column, group, condition));
+   }
+
+   // ---- script path against crosstab path ----
+   // A freehand table is evaluated either by the script path (CalcMath/CalcStat) or, when its
+   // layout allows, by a crosstab (report.filter formulas); see CalcTableVSAQuery. The same
+   // aggregate must give the same value on both paths, so the expected value is the other path's
+   // result, not a hand written value.
+
+   private interface ScriptAggregate {
+      Object apply(CalcTableScope scope, Object[] values);
+   }
+
+   private static final Object[][] AGGREGATE_INPUTS = {
+      { 1, 2, 3, 4 }, { 1, null, 3 }, { null, null }, { 5 }, { -2, -2, 3 }, { 1.5, 2.5 },
+      { 2, 2, 3, 3 }, { "a", "b", "a" }, { 0, 0 }
+   };
+
+   // Differences found so far: key is "aggregate|values", value is {script, crosstab}. They are
+   // pinned as current behavior, unconfirmed whether intended (Redmine #81084).
+   private static final Map<String, String[]> KNOWN_PATH_DIFFERENCES = new HashMap<>();
+
+   static {
+      String nul = "[null, null]";
+      String str = "[a, b, a]";
+      KNOWN_PATH_DIFFERENCES.put("sum|" + str, new String[] { "0.0000", "null" });
+      KNOWN_PATH_DIFFERENCES.put("average|" + nul, new String[] { "NaN", "null" });
+      KNOWN_PATH_DIFFERENCES.put("average|" + str, new String[] { "NaN", "null" });
+      KNOWN_PATH_DIFFERENCES.put("count|" + nul, new String[] { "null", "0.0000" });
+      KNOWN_PATH_DIFFERENCES.put("countDistinct|" + nul, new String[] { "null", "0.0000" });
+      KNOWN_PATH_DIFFERENCES.put("product|" + nul, new String[] { "NaN", "null" });
+      KNOWN_PATH_DIFFERENCES.put("median|" + str, new String[] { "NaN", "b" });
+      KNOWN_PATH_DIFFERENCES.put("mode|" + str, new String[] { "-Infinity", "a" });
+      KNOWN_PATH_DIFFERENCES.put("stdev|" + nul, new String[] { "NaN", "null" });
+      KNOWN_PATH_DIFFERENCES.put("var|" + nul, new String[] { "NaN", "null" });
+      KNOWN_PATH_DIFFERENCES.put("popvar|" + nul, new String[] { "NaN", "null" });
+      KNOWN_PATH_DIFFERENCES.put("popstdev|" + nul, new String[] { "NaN", "null" });
+   }
+
+   private static Stream<Arguments> provideScriptCrosstabCases() {
+      Map<String, Arguments> formulas = new LinkedHashMap<>();
+      add(formulas, "sum", SumFormula::new, (s, v) -> s.sum(v, null, null));
+      add(formulas, "average", AverageFormula::new, (s, v) -> s.average(v, null, null));
+      add(formulas, "count", CountFormula::new, (s, v) -> s.count(v, null, null));
+      add(formulas, "countDistinct", DistinctCountFormula::new,
+          (s, v) -> s.countDistinct(v, null, null));
+      add(formulas, "max", MaxFormula::new, (s, v) -> s.max(v, null, null));
+      add(formulas, "min", MinFormula::new, (s, v) -> s.min(v, null, null));
+      add(formulas, "product", ProductFormula::new, (s, v) -> s.product(v, null, null));
+      add(formulas, "median", MedianFormula::new, (s, v) -> s.median(v, null, null));
+      add(formulas, "mode", ModeFormula::new, (s, v) -> s.mode(v, null, null));
+      add(formulas, "stdev", StandardDeviationFormula::new,
+          (s, v) -> s.standardDeviation(v, null, null));
+      add(formulas, "var", VarianceFormula::new, (s, v) -> s.variance(v, null, null));
+      add(formulas, "popvar", PopulationVarianceFormula::new,
+          (s, v) -> s.populationVariance(v, null, null));
+      add(formulas, "popstdev", PopulationStandardDeviationFormula::new,
+          (s, v) -> s.populationStandardDeviation(v, null, null));
+      List<Arguments> list = new ArrayList<>();
+
+      for(Arguments a : formulas.values()) {
+         for(Object[] values : AGGREGATE_INPUTS) {
+            list.add(Arguments.of(a.get()[0], a.get()[1], a.get()[2], values));
+         }
+      }
+
+      return list.stream();
+   }
+
+   private static void add(Map<String, Arguments> map, String name, Supplier<Formula> formula,
+                           ScriptAggregate script)
+   {
+      map.put(name, Arguments.of(name, formula, script));
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideScriptCrosstabCases")
+   void scriptAndCrosstabPathsAgree(String name, Supplier<Formula> formula,
+                                    ScriptAggregate script, Object[] values)
+   {
+      String key = name + "|" + Arrays.toString(values);
+      String viaScript = format(script.apply(calcTableScope, values.clone()));
+      String viaCrosstab = format(crosstabValue(formula.get(), values));
+      String[] known = KNOWN_PATH_DIFFERENCES.get(key);
+
+      if(known == null) {
+         assertEquals(viaScript, viaCrosstab, key);
+      }
+      else {
+         String changed = "a known script/crosstab difference changed for " + key +
+            ": update or remove it in KNOWN_PATH_DIFFERENCES, and close #81084 when the paths agree";
+         assertEquals(known[0], viaScript, changed);
+         assertEquals(known[1], viaCrosstab, changed);
+      }
+   }
+
+   /** The value a crosstab with one row group computes for {@code values}. */
+   private static Object crosstabValue(Formula formula, Object[] values) {
+      Object[][] data = new Object[values.length + 1][];
+      data[0] = new Object[] { "g", "v" };
+
+      for(int i = 0; i < values.length; i++) {
+         data[i + 1] = new Object[] { "G", values[i] };
+      }
+
+      DefaultTableLens base = new DefaultTableLens(data);
+      base.setHeaderRowCount(1);
+      CrossTabFilter crosstab = new CrossTabFilter(base, new int[] { 0 }, new int[0],
+                                                   new int[] { 1 }, new Formula[] { formula });
+      crosstab.moreRows(Integer.MAX_VALUE);
+
+      for(int r = 0; r < crosstab.getRowCount(); r++) {
+         if("G".equals(crosstab.getObject(r, 0))) {
+            return crosstab.getObject(r, crosstab.getColCount() - 1);
+         }
+      }
+
+      fail("no crosstab row for the group");
+      return null;
+   }
+
+   private static String format(Object value) {
+      if(value instanceof Number) {
+         double d = ((Number) value).doubleValue();
+         return Double.isNaN(d) ? "NaN" : String.format(Locale.ROOT, "%.4f", d);
+      }
+
+      return value == null ? "null" : value.toString();
    }
 
    private static Stream<Arguments> provideNthMostFrequentTestCases() {

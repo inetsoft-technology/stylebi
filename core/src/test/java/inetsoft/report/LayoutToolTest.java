@@ -19,9 +19,12 @@ package inetsoft.report;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -106,6 +109,46 @@ class LayoutToolTest {
 
       TableCellBinding cell = new TableCellBinding(CellBinding.BIND_COLUMN, "None(Month(ndate))");
       assertEquals("None(Month(ndate))", getGroupColumnName(base, cell));
+   }
+
+   // escapeColName (#75665): ? @ { } , = ; & and ' get a leading backslash, nothing else does.
+   private static final String BS = String.valueOf((char) 92);
+
+   @ParameterizedTest
+   @ValueSource(strings = { "?", "@", "{", "}", ",", "=", ";", "&", "'" })
+   void escapeColNameEscapesEachSpecialCharacter(String special) throws Exception {
+      assertEquals("a" + BS + special + "b", escapeColName("a" + special + "b"));
+   }
+
+   @Test
+   void escapeColNameLeavesOtherNamesUntouched() throws Exception {
+      assertEquals("YYYY" + BS + ", MMM D", escapeColName("YYYY, MMM D"));
+      assertEquals("a b", escapeColName("a b"));
+      assertEquals("", escapeColName(""));
+      assertEquals("年度" + BS + ",金额", escapeColName("年度,金额"));
+      assertEquals("say \"hi\"", escapeColName("say \"hi\""));
+   }
+
+   // Known defect #81085: getFieldNameByScript() ends the name at the first quote and bracket, so a
+   // column name that contains them is cut. The name must come back whole.
+   @Disabled("known defect #81085, a column name containing a quote and a bracket is cut")
+   @ParameterizedTest
+   @ValueSource(strings = { "a']b", "Sales ['USD']" })
+   void getFieldNameByScriptKeepsAWholeColumnName(String name) throws Exception {
+      String script = "data['" + escapeColName(name) + "@g:$g']";
+      assertEquals(escapeColName(name), LayoutTool.getFieldNameByScript(script));
+   }
+
+   // Current behavior, UNCONFIRMED whether intended: a backslash in the name is not escaped.
+   @Test
+   void escapeColNameDoesNotEscapeBackslash() throws Exception {
+      assertEquals("a" + BS + "b", escapeColName("a" + BS + "b"));
+   }
+
+   private static String escapeColName(String name) throws Exception {
+      Method method = LayoutTool.class.getDeclaredMethod("escapeColName", String.class);
+      method.setAccessible(true);
+      return (String) method.invoke(null, name);
    }
 
    private static String getGroupColumnName(TableLens base, TableCellBinding cell) throws Exception {
