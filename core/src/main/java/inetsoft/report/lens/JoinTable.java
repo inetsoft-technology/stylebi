@@ -105,8 +105,8 @@ abstract class JoinTable extends PagedTableLens {
                                    rightTable.getHeaderRowCount());
 
          for(int i = 0; i < headerRows && leftTable.moreRows(i) && rightTable.moreRows(i); i++) {
+            // header rows do not count against the join.table.maxrows limit
             addRow(i, i);
-            dataRowCnt++;
          }
 
          flushPending();
@@ -659,6 +659,21 @@ abstract class JoinTable extends PagedTableLens {
 
    protected boolean isCaseSensitive() {
       return csensitive;
+   }
+
+   /**
+    * Add a joined data row unless the max rows limit is already reached, and check the limit.
+    * The check and the add are atomic, so concurrent scanner threads cannot go over the limit.
+    * @return true if the limit is reached and no more rows should be added.
+    */
+   protected synchronized boolean addRowWithinLimit(int leftRow, int rightRow) {
+      if(dataRowCnt >= maxRows) {
+         maxAlert = true;
+         return true;
+      }
+
+      addRow(leftRow, rightRow);
+      return checkMaxRows();
    }
 
    protected boolean checkMaxRows() {
