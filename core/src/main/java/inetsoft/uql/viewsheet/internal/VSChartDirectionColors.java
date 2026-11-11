@@ -36,7 +36,7 @@ public final class VSChartDirectionColors {
 
    /**
     * True for a marked chart of a direction type with no colour field and no author or
-    * stylesheet single colour; a stock chart also needs its Open field.
+    * stylesheet single colour; a stock chart also needs its Open field, a waterfall one measure.
     */
    public static boolean draws(VizContext ctx, ChartInfo info) {
       if(ctx == null || !ctx.modern || info == null) {
@@ -52,7 +52,8 @@ public final class VSChartDirectionColors {
       ColorFrameWrapper single;
 
       if(GraphTypes.isWaterfall(type)) {
-         ChartAggregateRef measure = firstMeasure(info);
+         // the frame replaces the chart's, which a second measure would read too
+         ChartAggregateRef measure = onlyMeasure(info);
 
          if(measure == null || measure.getColorField() != null) {
             return false;
@@ -84,13 +85,20 @@ public final class VSChartDirectionColors {
          ((StaticColorFrame) wrapper.getVisualFrame()).getCssColor() == null;
    }
 
-   private static ChartAggregateRef firstMeasure(ChartInfo info) {
+   // the chart's measure, or null when it has none or more than one
+   private static ChartAggregateRef onlyMeasure(ChartInfo info) {
+      ChartAggregateRef only = null;
+
       for(ChartRef ref : info.getModelRefs(false)) {
          if(ref instanceof ChartAggregateRef) {
-            return (ChartAggregateRef) ref;
+            if(only != null) {
+               return null;
+            }
+
+            only = (ChartAggregateRef) ref;
          }
       }
 
-      return null;
+      return only;
    }
 }

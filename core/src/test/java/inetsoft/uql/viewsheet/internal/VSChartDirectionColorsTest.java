@@ -135,6 +135,27 @@ class VSChartDirectionColorsTest {
       assertFalse(VSChartDirectionColors.draws(MODERN, other));
    }
 
+   @Test
+   void aWaterfallWithASecondMeasureDoesNot() {
+      DefaultVSChartInfo info = new DefaultVSChartInfo();
+      info.setMultiStyles(true);
+      info.addXField(dim("state"));
+      info.addYField(styled(agg("v"), GraphTypes.CHART_WATERFALL));
+      assertEquals(GraphTypes.CHART_WATERFALL, ResolvedChartType.of(info).type(),
+                   "premise: resolves as a waterfall");
+      assertTrue(VSChartDirectionColors.draws(MODERN, info),
+                 "premise: the waterfall measure alone draws");
+
+      info.addYField(styled(agg("w"), GraphTypes.CHART_LINE));
+      assertFalse(VSChartDirectionColors.draws(MODERN, info));
+   }
+
+   private static VSChartAggregateRef styled(VSChartAggregateRef agg, int type) {
+      agg.setChartType(type);
+      agg.setRTChartType(type);
+      return agg;
+   }
+
    private static <T extends CandleVSChartInfo> T candle(T info) {
       info.addXField(dim("date"));
       info.setOpenField(agg("open"));

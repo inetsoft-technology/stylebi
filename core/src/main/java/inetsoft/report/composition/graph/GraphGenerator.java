@@ -52,6 +52,7 @@ import inetsoft.uql.viewsheet.graph.TextLayout;
 import inetsoft.uql.viewsheet.graph.TextLayoutItem;
 import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
+import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.css.CSSDictionary;
@@ -338,6 +339,12 @@ public abstract class GraphGenerator {
             }
             catch(Exception ex) {
             }
+         }
+
+         // the base frame, so highlight and brushing wrap the direction colours
+         if(VSChartDirectionColors.draws(vizContext, info)) {
+            setColorFrame(createDirectionColorFrame());
+            directionColors = true;
          }
 
          applyHighlight();
@@ -4766,8 +4773,10 @@ public abstract class GraphGenerator {
          case GraphTypes.CHART_BOXPLOT:
             ColorFrame frame = getColorFrame(elem);
 
-            // darken color for line and points so they stand out more
-            if(!info.isColorChanged(elem.getVars()) && !GraphTypeUtil.isHeatMap(info) && dateComparison == null) {
+            // darken color for line and points so they stand out more; direction colours draw as is
+            if(!info.isColorChanged(elem.getVars()) && !GraphTypeUtil.isHeatMap(info) &&
+               dateComparison == null && !directionColors)
+            {
                // multi element should not share a darken color frame
                ColorFrame color0 = (ColorFrame) (all ? acolor : frame).clone();
                setColorFrameBrightness(elem, frame, color0);
@@ -7172,6 +7181,30 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * The up and down colours from the chart's stored frames, or the tokens where it has none.
+    */
+   private ColorFrame createDirectionColorFrame() {
+      AbstractChartInfo chart = info instanceof AbstractChartInfo ? (AbstractChartInfo) info : null;
+      Color up = colorOf(chart == null ? null : chart.getUpColorFrameWrapper(),
+                         VSChartPaletteDefaults.directionUp(vizContext));
+      Color down = colorOf(chart == null ? null : chart.getDownColorFrameWrapper(),
+                           VSChartPaletteDefaults.directionDown(vizContext));
+
+      if(info instanceof CandleChartInfo) {
+         CandleChartInfo candle = (CandleChartInfo) info;
+         return new DirectionColorFrame(up, down, GraphUtil.getName(candle.getRTOpenField()),
+                                        GraphUtil.getName(candle.getRTCloseField()));
+      }
+
+      return new DirectionColorFrame(up, down);
+   }
+
+   private static Color colorOf(StaticColorFrameWrapper wrapper, Color token) {
+      Color color = wrapper == null ? null : wrapper.getColor();
+      return color != null ? color : token;
+   }
+
+   /**
     * Set the color frame for the un-brushed (all) data.
     */
    protected void setAllColorFrame(ColorFrame color) {
@@ -7743,6 +7776,7 @@ public abstract class GraphGenerator {
    protected Color brushHLColor = BrushingColor.getHighlightColor();
    protected Color brushDimColor = BrushingColor.getDimColor();
    protected boolean companionBrushing;
+   private boolean directionColors; // up and down colours replace the single colour
    protected boolean maxMode = false;
    private transient Viewsheet vs;
 
