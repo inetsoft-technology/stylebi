@@ -24,6 +24,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Calendar;
 import java.util.Locale;
 
@@ -184,6 +186,91 @@ class ParameterToolTest {
       @Test
       void missingParameterWithFormat_isWrittenAsTextNull() {
          assertEquals("null", parse("{parameter.x, number, '0.0'}"));
+      }
+   }
+
+   /**
+    * Bug #81113: integral and decimal values beyond 2^53 lost digits (converted to double first).
+    */
+   @Nested
+   class ExactNumbers {
+      private static final String GROUPED = "{parameter.x, number, '#,##0'}";
+
+      @Test
+      void long_keepsEveryDigit() {
+         assertEquals("9,007,199,254,740,993", parse(GROUPED, "x", 9007199254740993L));
+         assertEquals("9,223,372,036,854,775,807", parse(GROUPED, "x", Long.MAX_VALUE));
+         assertEquals("-9,007,199,254,740,993", parse(GROUPED, "x", -9007199254740993L));
+      }
+
+      @Test
+      void bigInteger_keepsEveryDigit() {
+         assertEquals("123,456,789,012,345,678,901,234",
+                      parse(GROUPED, "x", new BigInteger("123456789012345678901234")));
+      }
+
+      @Test
+      void bigDecimal_keepsEveryDigit() {
+         assertEquals("9,007,199,254,740,993",
+                      parse(GROUPED, "x", new BigDecimal("9007199254740993")));
+         assertEquals("9,007,199,254,740,993.12",
+                      parse("{parameter.x, number, '#,##0.00'}", "x",
+                            new BigDecimal("9007199254740993.123")));
+      }
+
+      @Test
+      void string_keepsEveryDigit() {
+         // a viewer URL parameter arrives as a string
+         assertEquals("9,007,199,254,740,993", parse(GROUPED, "x", "9007199254740993"));
+      }
+
+      @Test
+      void noGroupingSpec_keepsEveryDigit() {
+         assertEquals("9007199254740993", parse("{parameter.x, number, '0'}", "x",
+                                                  9007199254740993L));
+      }
+
+      @Test
+      void percentAndCurrency_keepEveryDigit() {
+         assertEquals("$9,007,199,254,740,993.00",
+                      parse("{parameter.x, currency}", "x", 9007199254740993L));
+         assertEquals("900,719,925,474,099,300%",
+                      parse("{parameter.x, percent}", "x", 9007199254740993L));
+      }
+
+      @Test
+      void arrayElements_keepEveryDigit() {
+         assertEquals("[9,007,199,254,740,993,1]",
+                      parse(GROUPED, "x", new Object[] { 9007199254740993L, 1L }));
+      }
+
+      @Test
+      void smallValues_areUnchanged() {
+         assertEquals("1,234", parse(GROUPED, "x", 1234L));
+         assertEquals("1,234", parse(GROUPED, "x", 1234));
+         assertEquals("1,235", parse(GROUPED, "x", 1234.5));
+         assertEquals("-1,234", parse(GROUPED, "x", new BigDecimal("-1234")));
+         assertEquals("1.01", parse("{parameter.x, number, '0.00'}", "x", new BigDecimal("1.005")));
+         assertEquals("1,234.50", parse("{parameter.x, number, '#,##0.00'}", "x", 1234.5f));
+      }
+
+      @Test
+      void negativeRoundedToZero_hasNoMinusSign() {
+         assertEquals("0.00", parse("{parameter.x, number, '0.00'}", "x", new BigDecimal("-0.0001")));
+         assertEquals("0.00", parse("{parameter.x, number, '0.00'}", "x", -0.0001));
+      }
+
+      @Test
+      void doubleBeyondPrecision_isStillADouble() {
+         // a Double has no more digits than it holds, nothing to recover
+         assertEquals("9,007,199,254,740,992", parse(GROUPED, "x", 9007199254740993d));
+      }
+
+      @Test
+      void unitSuffix_stillUsesTheUnit() {
+         assertEquals("9,007,199B", parse("{parameter.x, number, '#,##0B'}", "x",
+                                                    9007199254740993L));
+         assertEquals("1,234K", parse("{parameter.x, number, '#,##0K'}", "x", 1234000L));
       }
    }
 

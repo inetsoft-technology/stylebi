@@ -23,6 +23,8 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.VariableTable;
 import inetsoft.util.*;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.text.NumberFormat;
 import java.util.*;
 
@@ -266,6 +268,13 @@ public class ParameterTool {
          }
       }
       else if(isNumberFormat(fmt)) {
+         // a value beyond what a double holds (e.g. a Long over 2^53) keeps its digits
+         String exact = formatExactValue(para, fmt, spec);
+
+         if(exact != null) {
+            return exact;
+         }
+
          double value = Double.NaN;
 
          try {
@@ -282,6 +291,76 @@ public class ParameterTool {
       }
 
       return valueString;
+   }
+
+   /**
+    * Format a Long/BigInteger/BigDecimal (or the decimal string of one) without converting it to
+    * double, when the double would not hold the same digits.
+    *
+    * @return the formatted value, or null if the double conversion is exact (the caller formats
+    * it as before), the value is not such a number, or the format needs the double path.
+    */
+   private String formatExactValue(Object para, String fmt, String spec) {
+      BigDecimal exact = toBigDecimal(para);
+
+      if(exact == null) {
+         return null;
+      }
+
+      double value = exact.doubleValue();
+
+      // unchanged by the conversion: keep the double path (and its negative zero handling)
+      if(!Double.isInfinite(value) && new BigDecimal(Double.toString(value)).compareTo(exact) == 0) {
+         return null;
+      }
+
+      NumberFormat format;
+
+      if(PARAMETER_NUMBER_FORMAT.equals(fmt)) {
+         ExtendedDecimalFormat decimal = new ExtendedDecimalFormat(spec);
+         String[] symbols = decimal.getExtendedSymbols();
+
+         // a K/M/B or user suffix divides the number, which the plain decimal format does not do
+         if(!" ".equals(symbols[0]) || !symbols[1].isEmpty() ||
+            "MMW#".equals(decimal.getSimplePattern()))
+         {
+            return null;
+         }
+
+         format = decimal;
+      }
+      else if(PARAMETER_CURRENCY_FORMAT.equals(fmt)) {
+         format = NumberFormat.getCurrencyInstance();
+      }
+      else {
+         format = NumberFormat.getPercentInstance();
+      }
+
+      return format.format(exact);
+   }
+
+   private BigDecimal toBigDecimal(Object para) {
+      if(para instanceof BigDecimal) {
+         return (BigDecimal) para;
+      }
+      else if(para instanceof BigInteger) {
+         return new BigDecimal((BigInteger) para);
+      }
+      else if(para instanceof Long || para instanceof Integer || para instanceof Short ||
+         para instanceof Byte)
+      {
+         return BigDecimal.valueOf(((Number) para).longValue());
+      }
+      else if(para instanceof String) {
+         try {
+            return new BigDecimal(((String) para).trim());
+         }
+         catch(NumberFormatException ex) {
+            return null;
+         }
+      }
+
+      return null;
    }
 
    private boolean isNumberFormat(String fmt) {
