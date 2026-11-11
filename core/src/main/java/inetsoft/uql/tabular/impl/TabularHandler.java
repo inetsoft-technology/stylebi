@@ -113,10 +113,11 @@ public class TabularHandler extends XHandler {
       // it cancels a query -- see TabularQuery.getTimedOutSeconds.
       oquery.setTimedOutSeconds(((TabularQuery) query).getTimedOutSeconds());
 
-      // Whether the runtime returned a table at all (null means it failed and reported through a
-      // user message). Taken before the column-count branch below, which treats an empty table and
-      // null alike -- see TabularQuery.isRunCompleted.
-      oquery.setRunCompleted(tbl != null);
+      // Whether the run completed: the runtime returned a table at all (null means it failed and
+      // reported through a user message), or it set the flag on the clone itself because it got a
+      // response but collapsed an empty result to null. Taken before the column-count branch
+      // below, which treats an empty table and null alike -- see TabularQuery.isRunCompleted.
+      oquery.setRunCompleted(tbl != null || ((TabularQuery) query).isRunCompleted());
 
       if(tbl != null && tbl.getColCount() > 0) {
          int max = TabularUtil.getMaxRows(query, params);
