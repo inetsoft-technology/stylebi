@@ -353,6 +353,66 @@ public class ViewsheetAssemblyAgentController {
                               null, null);
    }
 
+   /**
+    * Request body for the open-sheet endpoint.
+    *
+    * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
+    *                         connection the opened sheet reuses
+    * @param type             {@code viewsheet} or {@code worksheet}
+    * @param path             the saved asset's repository path, e.g. {@code "Sales/Dashboard"}
+    * @param scope            {@code global} (default) or {@code user}
+    * @param force            worksheets only: close the worksheet session already held instead of
+    *                         refusing
+    */
+   public record OpenSheetRequest(String fromSessionToken, String type, String path, String scope,
+                                  Boolean force) {}
+
+   /**
+    * {@code open_viewsheet} / {@code open_worksheet}. Opens a SAVED viewsheet or worksheet by path
+    * into a new runtime and pairs the caller to it through the ALREADY-PAIRED session named by
+    * {@code fromSessionToken}, with the same permission checks as the Composer's own Open (see
+    * {@link SheetOpenService#openSavedSheet}). The asset is named only by {@code type}, {@code path}
+    * and {@code scope}; no identifier string or entry property is accepted from the caller.
+    */
+   @PostMapping("/api/wiz/v1/agent/sheet/open")
+   public JoinResponse openSheet(@RequestBody OpenSheetRequest body, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(body == null) {
+         throw new PairingException("Provide fromSessionToken, type and path.");
+      }
+
+      String type = body.type() == null ? "" : body.type().trim().toLowerCase(Locale.ROOT);
+      SheetType sheetType;
+
+      if("viewsheet".equals(type)) {
+         sheetType = SheetType.VIEWSHEET;
+      }
+      else if("worksheet".equals(type)) {
+         sheetType = SheetType.WORKSHEET;
+      }
+      else {
+         throw new PairingException(
+            "'type' must be \"viewsheet\" or \"worksheet\" (got \"" + body.type() + "\").");
+      }
+
+      JoinSession session;
+
+      try {
+         session = openService.openSavedSheet(body.fromSessionToken(), user, sheetType, body.path(),
+                                              body.scope(), Boolean.TRUE.equals(body.force()));
+      }
+      catch(IllegalArgumentException e) {
+         throw new PairingException(e.getMessage(), e);
+      }
+
+      return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity(),
+                              session.sheetType().name().toLowerCase(), session.editorContext(),
+                              body.path().trim(), null);
+   }
+
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/model")
    public ViewsheetModel model(@PathVariable String sessionToken, Principal user)
       throws PairingException

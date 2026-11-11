@@ -18,16 +18,8 @@
 
 package inetsoft.web.wiz.controller;
 
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.*;
-import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.erm.vpm.VpmProcessor;
-import inetsoft.web.RecycleUtils;
-import inetsoft.web.admin.sheet.Sheet;
 import inetsoft.web.admin.sheet.ws.WorksheetService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -36,7 +28,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -61,76 +52,8 @@ public class WorksheetListController {
 
    @GetMapping(value = "/v1/worksheets", produces = MediaType.APPLICATION_JSON_VALUE)
    public List<WorksheetListEntry> listWorksheets(Principal principal) throws Exception {
-      List<WorksheetListEntry> result = new ArrayList<>();
-      List<Sheet> sheets = worksheetService.getWorksheets(principal).getSheets();
-
-      if(sheets == null) {
-         return result;
-      }
-
-      boolean noPermission = SreeEnv.getProperty("security.provider").equals("") &&
-         !VpmProcessor.useVpmSecurity();
-
-      for(Sheet sheet : sheets) {
-         String path = sheet.getPath();
-
-         if(path == null || path.startsWith(RecycleUtils.RECYCLE_BIN_FOLDER + "/")) {
-            continue;
-         }
-
-         try {
-            AssetEntry entry = AssetEntry.createAssetEntry(sheet.getAsset());
-
-            if(!noPermission && !isRunnable(entry, principal)) {
-               continue;
-            }
-         }
-         catch(Exception e) {
-            LOG.debug("Skipping worksheet {} due to error: {}", path, e.getMessage());
-            continue;
-         }
-
-         if(sheet.isGlobal()) {
-            result.add(new WorksheetListEntry(path, sheet.getLabel(), "global", null));
-         }
-         else {
-            String owner = sheet.getUser() == null ? null : sheet.getUser().getName();
-            result.add(new WorksheetListEntry(path, sheet.getLabel(), "user", owner));
-         }
-      }
-
-      return result;
-   }
-
-   /**
-    * Applies the checks {@code XUtil.runQuery} makes for a {@code ws:} reference, which the flat
-    * listing does not: the private-tree READ/My Dashboards check, and the READ walk over the
-    * worksheet and each of its parent folders.
-    */
-   private boolean isRunnable(AssetEntry entry, Principal principal) throws Exception {
-      if(entry.getScope() == AssetRepository.USER_SCOPE) {
-         try {
-            assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ, true);
-            return true;
-         }
-         catch(Exception e) {
-            return false;
-         }
-      }
-
-      AssetEntry parent = entry;
-
-      while(principal != null && parent != null && !parent.isRoot()) {
-         if(!SecurityEngine.getSecurity().checkPermission(
-            principal, ResourceType.ASSET, parent.getPath(), ResourceAction.READ))
-         {
-            return false;
-         }
-
-         parent = parent.getParent();
-      }
-
-      return true;
+      return SheetListSupport.list(worksheetService.getWorksheets(principal).getSheets(), principal,
+                                   assetRepository, WorksheetListEntry::new);
    }
 
    public record WorksheetListEntry(String path, String label, String scope, String owner) {
@@ -138,5 +61,4 @@ public class WorksheetListController {
 
    private final WorksheetService worksheetService;
    private final AssetRepository assetRepository;
-   private static final Logger LOG = LoggerFactory.getLogger(WorksheetListController.class);
 }

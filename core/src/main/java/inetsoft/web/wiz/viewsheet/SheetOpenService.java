@@ -28,8 +28,10 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.PairingUtil;
@@ -152,32 +154,7 @@ public class SheetOpenService {
             "You do not have permission to open this Data Worksheet in Visual Composer.");
       }
 
-      JoinSession held = sheetSessions.findOpen(vsSession.ownerIdentity(), SheetType.WORKSHEET);
-
-      if(held != null) {
-         if(!force) {
-            throw new IllegalArgumentException(
-               "A worksheet session is already open (runtimeId=" + held.runtimeId() + "). Call " +
-               "detach_sheet to close it, or -- if detach_sheet reports nothing connected because " +
-               "this held session is not in this client's local state -- call open_base_worksheet " +
-               "again with force:true to close it and open this one instead.");
-         }
-
-         // Best-effort: the caller is discarding this session either way, so a session the server
-         // has already forgotten (or that close() otherwise cannot fully act on) must not block
-         // the open that follows.
-         sheetSessions.close(held.sessionToken());
-
-         // close() does not broadcast (controllers do), so the discarded session's Composer tab
-         // would keep its agent icon until the session TTL. Bug #80372.
-         try {
-            broadcast.sendAgentInactive(held);
-         }
-         catch(Exception ex) {
-            LOG.warn("Held session closed, but notifying the tab bar failed (runtimeId={})",
-                     held.runtimeId(), ex);
-         }
-      }
+      releaseHeldWorksheetSession(vsSession.ownerIdentity(), force, "open_base_worksheet");
 
       if(vsSession.socketSessionId() == null) {
          throw new IllegalArgumentException(
@@ -221,6 +198,236 @@ public class SheetOpenService {
       broadcast.sendToComposer(vsSession.socketSessionId(), command);
 
       return wsSession;
+   }
+
+   /**
+    * Closes the worksheet session already held for {@code ownerIdentity}, when {@code force} is
+    * set, or refuses naming it. Shared by every open path that mints a worksheet session, so a
+    * second open can never silently strand the first one.
+    *
+    * @param toolName the tool to name in the refusal, so the caller knows which call to repeat
+    */
+   private void releaseHeldWorksheetSession(String ownerIdentity, boolean force, String toolName) {
+      JoinSession held = sheetSessions.findOpen(ownerIdentity, SheetType.WORKSHEET);
+
+      if(held == null) {
+         return;
+      }
+
+      if(!force) {
+         throw new IllegalArgumentException(
+            "A worksheet session is already open (runtimeId=" + held.runtimeId() + "). Call " +
+            "detach_sheet to close it, or -- if detach_sheet reports nothing connected because " +
+            "this held session is not in this client's local state -- call " + toolName +
+            " again with force:true to close it and open this one instead.");
+      }
+
+      // Best-effort: the caller is discarding this session either way, so a session the server
+      // has already forgotten (or that close() otherwise cannot fully act on) must not block
+      // the open that follows.
+      sheetSessions.close(held.sessionToken());
+
+      // close() does not broadcast (controllers do), so the discarded session's Composer tab
+      // would keep its agent icon until the session TTL. Bug #80372.
+      try {
+         broadcast.sendAgentInactive(held);
+      }
+      catch(Exception ex) {
+         LOG.warn("Held session closed, but notifying the tab bar failed (runtimeId={})",
+                  held.runtimeId(), ex);
+      }
+   }
+
+   /**
+    * {@code open_viewsheet} / {@code open_worksheet}. Opens a SAVED viewsheet or worksheet,
+    * named by {@code path}/{@code scope}, into a new runtime and pairs the caller to it by reusing
+    * the ACTING session's already-live browser socket -- the mechanism {@link #createViewsheet}
+    * and {@link #createWorksheet} use, applied to an existing asset instead of a blank one.
+    *
+    * <p><b>Security model.</b> Unlike {@link #openBaseWorksheet}, which can only follow a viewsheet
+    * to its own base, this lets the caller name any asset. The gate is therefore the same pair the
+    * Composer's own Open applies, and nothing the caller supplies can weaken it:
+    * <ul>
+    *   <li>the acting session is resolved for the agent's own identity (the pairing proved the
+    *       agent is the same logical user as the sheet's owner);</li>
+    *   <li>{@code WORKSHEET}/{@code VIEWSHEET} {@code ACCESS} is required for the type;</li>
+    *   <li>the {@link AssetEntry} is built HERE from (type, path, scope) only -- never parsed from
+    *       a client-supplied identifier -- so the entry properties that switch the per-asset READ
+    *       check off ({@code isDashboard}, {@code openAutoSaved}) can never be set by a caller;</li>
+    *   <li>{@code scope=user} always resolves to the CALLER's own private tree and organization;</li>
+    *   <li>the open itself ({@code getSheet(permission=true)}) enforces per-asset READ.</li>
+    * </ul>
+    *
+    * <p>Every call opens a NEW runtime; it does not attach to a runtime already open on the same
+    * asset, so opening an asset the user already has in a Composer tab gives two independent
+    * copies.
+    *
+    * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
+    *                         connection the new session reuses
+    * @param type             {@link SheetType#VIEWSHEET} or {@link SheetType#WORKSHEET}
+    * @param path             the asset's repository path, e.g. {@code "Sales/Dashboard"}
+    * @param scope            {@code "global"} (default) or {@code "user"}
+    * @param force            worksheets only: close a worksheet session already held for this
+    *                         identity instead of refusing
+    * @throws IllegalArgumentException on every refusal, with a message naming the specific
+    *                                  problem and, where there is one, the next tool to call.
+    */
+   public JoinSession openSavedSheet(String fromSessionToken, Principal user, SheetType type,
+                                     String path, String scope, boolean force) throws Exception
+   {
+      if(type == null) {
+         throw new IllegalArgumentException("The sheet type must be viewsheet or worksheet.");
+      }
+
+      String typeName = type.name().toLowerCase();
+      String toolName = "open_" + typeName;
+
+      if(path == null || path.isBlank()) {
+         throw new IllegalArgumentException(
+            "Provide a 'path' naming the saved " + typeName + " to open " +
+            "(e.g. \"Sales/Dashboard\").");
+      }
+
+      WizUtil.requireNoCaret(path, "path");
+      int assetScope = WizUtil.resolveAssetScope(scope);
+      String assetPath = normalizeAssetPath(path);
+
+      JoinSession actingSession = sheetSessions.resolve(fromSessionToken, agentKey(user));
+
+      if(actingSession == null) {
+         throw new IllegalArgumentException(
+            "Invalid or expired session: " + fromSessionToken + ". Open the " + typeName +
+            " from another connected sheet's session, or ask the user for a fresh pairing code " +
+            "and run connect_sheet again.");
+      }
+
+      // Same laundering hazard createViewsheet/createWorksheet guard against: a pane-scoped
+      // session is a write handle for ONE script location and must not mint a whole-sheet one.
+      if(actingSession.editorContext() != null) {
+         throw new IllegalArgumentException(
+            "This session is scoped to one script location, not to the whole sheet, so it " +
+            "cannot open another " + typeName + ": doing so would turn a single-expression grant " +
+            "into a whole-sheet write handle. Ask the user to re-pair from the sheet toolbar " +
+            "('Connect to Claude') and call " + toolName + " from that session.");
+      }
+
+      if(actingSession.socketSessionId() == null) {
+         throw new IllegalArgumentException(
+            "The connected session has no active browser connection to open the " + typeName +
+            " in; ask the user to re-pair (run connect_sheet again) before calling " +
+            toolName + ".");
+      }
+
+      boolean isViewsheet = type == SheetType.VIEWSHEET;
+      boolean canOpen = securityProvider.checkPermission(
+         user, isViewsheet ? ResourceType.VIEWSHEET : ResourceType.WORKSHEET, "*",
+         ResourceAction.ACCESS);
+
+      if(!canOpen) {
+         throw new IllegalArgumentException(
+            "You do not have permission to open a " +
+            (isViewsheet ? "viewsheet" : "Data Worksheet") + " in Visual Composer.");
+      }
+
+      IdentityID caller = IdentityID.getIdentityIDFromKey(agentKey(user));
+
+      if(caller == null) {
+         throw new IllegalArgumentException("Cannot resolve the calling user's identity.");
+      }
+
+      // Built from scratch, with no property map: see the security model above. The user-scope
+      // owner and the organization are the caller's own, never taken from the request.
+      AssetEntry entry = new AssetEntry(
+         assetScope, isViewsheet ? AssetEntry.Type.VIEWSHEET : AssetEntry.Type.WORKSHEET,
+         assetPath, assetScope == AssetRepository.USER_SCOPE ? caller : null, caller.orgID);
+
+      if(!isViewsheet) {
+         releaseHeldWorksheetSession(actingSession.ownerIdentity(), force, toolName);
+      }
+
+      // Open as the BROWSER's principal, not the agent's (see openBaseWorksheet): the browser's
+      // later attach to the runtime dies on "Invalid user found" otherwise. An expired acting
+      // runtime does not matter here -- the asset is named explicitly -- so fall back to the
+      // agent's own principal, as createWorksheet does.
+      RuntimeSheet actingSheet;
+
+      try {
+         actingSheet = runtimeAccess.getSheetForPairing(
+            actingSession.sheetType(), actingSession.runtimeId(), user);
+      }
+      catch(PairingException e) {
+         if(e.getKind() != PairingException.Kind.SESSION_EXPIRED) {
+            throw e;
+         }
+
+         actingSheet = null;
+      }
+
+      Principal browserUser = actingSheet == null ? user : actingSheet.getUser();
+      String runtimeId;
+
+      try {
+         runtimeId = isViewsheet ? viewsheetService.openViewsheet(entry, browserUser, false) :
+            worksheetService.openWorksheet(entry, browserUser);
+      }
+      catch(Exception e) {
+         // Missing asset, no READ permission and an asset of the other type all land here and are
+         // deliberately indistinguishable, so the call cannot be used to probe for assets the
+         // caller may not read.
+         LOG.debug("Unable to open saved {} '{}' (scope={})", typeName, assetPath, assetScope, e);
+         throw new IllegalArgumentException(
+            "no " + typeName + " named '" + assetPath + "' was found in the " +
+            (assetScope == AssetRepository.USER_SCOPE ? "user" : "global") +
+            " scope, or you lack permission to read it. Use " +
+            (isViewsheet ? "list_viewsheets" : "list_worksheets") + " to see what you can open.",
+            e);
+      }
+
+      if(runtimeId == null) {
+         throw new IllegalArgumentException(
+            "no " + typeName + " named '" + assetPath + "' could be opened.");
+      }
+
+      JoinSession session = sheetSessions.open(runtimeId, actingSession.ownerIdentity(), type,
+                                               actingSession.socketSessionId(),
+                                               actingSession.socketUserName(), null);
+
+      OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
+         .assetId(entry.toIdentifier())
+         .viewsheet(isViewsheet)
+         .runtimeId(runtimeId)
+         .agentActive(true)
+         .closeRuntimeOnTabClose(true)
+         .agentOwnerLabel(PairingUtil.label(session.ownerIdentity()))
+         .build();
+
+      broadcast.sendToComposer(actingSession.socketSessionId(), command);
+
+      return session;
+   }
+
+   /**
+    * Trims the path, accepts either separator and a leading one, and refuses a {@code ..} segment,
+    * so a path can only name a descendant of the scope root it is resolved under.
+    */
+   private static String normalizeAssetPath(String path) {
+      String normalized = path.trim().replace('\\', '/');
+
+      while(normalized.startsWith("/")) {
+         normalized = normalized.substring(1);
+      }
+
+      for(String segment : normalized.split("/")) {
+         if("..".equals(segment)) {
+            throw new IllegalArgumentException("'path' must not contain '..' segments.");
+         }
+      }
+
+      if(normalized.isEmpty()) {
+         throw new IllegalArgumentException("'path' must name an asset, not the repository root.");
+      }
+
+      return normalized;
    }
 
    /**
