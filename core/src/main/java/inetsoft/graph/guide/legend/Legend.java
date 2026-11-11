@@ -19,6 +19,8 @@ package inetsoft.graph.guide.legend;
 
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.GDefaults;
@@ -550,8 +552,10 @@ public abstract class Legend extends BoundedContainer {
       // For stack bar graphs, where the items have been reversed, we should
       // also reverse the order in which they are laid out.
       boolean reversed = isReversed();
+      // a mark-order row reads left to right over the reversed items
+      boolean rightToLeft = reversed && (verticalLayout || !graph.isLegendInMarkOrder());
       int colIndex;
-      int colInc = reversed ? -1 : 1;
+      int colInc = rightToLeft ? -1 : 1;
       List<LegendItem> items = new ArrayList<>(this.items);
 
       if(reversed) {
@@ -559,7 +563,7 @@ public abstract class Legend extends BoundedContainer {
       }
 
       for(int i = 0; i < rowCount; i++) {
-         colIndex = reversed ? ncol - 1 : 0;
+         colIndex = rightToLeft ? ncol - 1 : 0;
 
          for(int j = 0; j < ncol; j++, colIndex += colInc) {
             int idx = i * incX + colIndex * incY;
@@ -659,12 +663,31 @@ public abstract class Legend extends BoundedContainer {
     * Indicates whether the Legend items should be in reverse order.
     */
    private boolean isReversed() {
+      boolean inMarkOrder = graph.isLegendInMarkOrder();
       // ignore fake categorical frame.
       // only reverse for vertical legend layout
       return (frame instanceof CategoricalFrame || frame instanceof StackedMeasuresFrame) &&
          frame.getField() != null &&
-         (verticalLayout || ncol == 1) &&
+         (verticalLayout || ncol == 1 ||
+            inMarkOrder && ncol > 1 && !isRotated(graph.getCoordinate())) &&
          !GTool.isPolar(graph.getCoordinate()) && elem != null && elem.isStack();
+   }
+
+   /**
+    * Check whether the coordinate (or the first inner coordinate of a facet) is rotated.
+    */
+   private static boolean isRotated(Coordinate coord) {
+      while(coord instanceof FacetCoord) {
+         Coordinate[] inner = ((FacetCoord) coord).getInnerCoordinates();
+
+         if(inner == null || inner.length == 0) {
+            break;
+         }
+
+         coord = inner[0];
+      }
+
+      return coord != null && GTool.getRotation(coord.getCoordTransform()) != 0;
    }
 
    /**
