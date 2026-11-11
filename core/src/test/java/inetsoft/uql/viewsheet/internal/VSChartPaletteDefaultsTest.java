@@ -560,6 +560,56 @@ class VSChartPaletteDefaultsTest {
       }
    }
 
+   @Test
+   void directionTokensFollowTheMark() {
+      assertEquals(new Color(0x1C857B), VSChartPaletteDefaults.directionUp(LIGHT));
+      assertEquals(new Color(0xAD6119), VSChartPaletteDefaults.directionDown(LIGHT));
+      assertEquals(new Color(0x767676), VSChartPaletteDefaults.directionNeutral(LIGHT));
+      assertEquals(new Color(0x3FBFB2), VSChartPaletteDefaults.directionUp(DARK));
+      assertEquals(new Color(0xE8954A), VSChartPaletteDefaults.directionDown(DARK));
+      assertEquals(new Color(0xA8A5AD), VSChartPaletteDefaults.directionNeutral(DARK));
+      assertTrue(VSChartPaletteDefaults.isNeutralToken(new Color(0x767676)));
+      assertTrue(VSChartPaletteDefaults.isNeutralToken(new Color(0xA8A5AD)));
+      assertFalse(VSChartPaletteDefaults.isNeutralToken(new Color(0x1C857B)));
+      assertFalse(VSChartPaletteDefaults.isNeutralToken(null));
+   }
+
+   @Test
+   void directionTokensClearThreeToOneOnTheCard() {
+      assertContrast(LIGHT, 3.76, 3.92, 3.81);
+      assertContrast(DARK, 5.81, 5.51, 5.40);
+   }
+
+   private static void assertContrast(VizContext ctx, double up, double down, double neutral) {
+      Color card = VSObjectChromeDefaults.cardComposite(ctx);
+      double[] actual = {
+         contrast(VSChartPaletteDefaults.directionUp(ctx), card),
+         contrast(VSChartPaletteDefaults.directionDown(ctx), card),
+         contrast(VSChartPaletteDefaults.directionNeutral(ctx), card) };
+      double[] expected = { up, down, neutral };
+
+      for(int i = 0; i < 3; i++) {
+         assertTrue(actual[i] >= 3.0, "token " + i + " is " + actual[i]);
+         assertEquals(expected[i], actual[i], 0.01, "token " + i);
+      }
+   }
+
+   private static double contrast(Color a, Color b) {
+      double la = luminance(a);
+      double lb = luminance(b);
+      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+   }
+
+   private static double luminance(Color c) {
+      double[] v = { c.getRed() / 255.0, c.getGreen() / 255.0, c.getBlue() / 255.0 };
+
+      for(int i = 0; i < 3; i++) {
+         v[i] = v[i] <= 0.03928 ? v[i] / 12.92 : Math.pow((v[i] + 0.055) / 1.055, 2.4);
+      }
+
+      return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+   }
+
    private static Color[] fallback(String name) throws Exception {
       Field field = VSChartPaletteDefaults.class.getDeclaredField(name);
       field.setAccessible(true);

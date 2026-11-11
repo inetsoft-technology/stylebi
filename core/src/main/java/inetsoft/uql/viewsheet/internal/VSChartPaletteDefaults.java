@@ -221,6 +221,26 @@ public final class VSChartPaletteDefaults {
       return ctx != null && ctx.modern ? new TealColorFrame() : new BluesColorFrame();
    }
 
+   /** The colour of a rising candle, stock bar or waterfall step on the mark's card. */
+   public static Color directionUp(VizContext ctx) {
+      return ctx != null && ctx.dark ? DIRECTION_UP_DARK : DIRECTION_UP;
+   }
+
+   /** The colour of a falling candle, stock bar or waterfall step on the mark's card. */
+   public static Color directionDown(VizContext ctx) {
+      return ctx != null && ctx.dark ? DIRECTION_DOWN_DARK : DIRECTION_DOWN;
+   }
+
+   /** The neutral colour, such as a waterfall Total, on the mark's card. */
+   public static Color directionNeutral(VizContext ctx) {
+      return ctx != null && ctx.dark ? DIRECTION_NEUTRAL_DARK : DIRECTION_NEUTRAL;
+   }
+
+   /** True for either neutral token. */
+   public static boolean isNeutralToken(Color c) {
+      return DIRECTION_NEUTRAL.equals(c) || DIRECTION_NEUTRAL_DARK.equals(c);
+   }
+
    /**
     * The companion of a slot: the authored palette when one declares this index, otherwise the
     * rule applied to the base. A null or absent authored entry falls through to derivation - the
@@ -434,6 +454,12 @@ public final class VSChartPaletteDefaults {
    private static final Set<String> MODERN_HIDDEN =
       Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24", "Blue", "Green", "Red", "Orange", "Gray");
    private static final Map<String, Memo> MEMO = new ConcurrentHashMap<>();
+   private static final Color DIRECTION_UP = new Color(0x1C857B);
+   private static final Color DIRECTION_UP_DARK = new Color(0x3FBFB2);
+   private static final Color DIRECTION_DOWN = new Color(0xAD6119);
+   private static final Color DIRECTION_DOWN_DARK = new Color(0xE8954A);
+   private static final Color DIRECTION_NEUTRAL = new Color(0x767676);
+   private static final Color DIRECTION_NEUTRAL_DARK = new Color(0xA8A5AD);
    private static final Color[] NO_COMPANIONS = new Color[0];
    private static final Color[] LEGACY_FALLBACK =
       CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
