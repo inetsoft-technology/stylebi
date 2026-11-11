@@ -516,6 +516,7 @@ public class FormulaTableLens extends AbstractTableLens
             // this scriptable is reused for all rows of target
             tableRow = new TableRow2(this, hrows, ncols, target);
             tableRow.thisScope.setBuiltinDate(builtinDate);
+            tableRow.thisScope.setFormulas(Arrays.asList(formulas));
             iterator = new TableIteratorScriptable();
             senv.addTopLevelParentScope(iterator);
             senv.addTopLevelParentScope(tableRow);
