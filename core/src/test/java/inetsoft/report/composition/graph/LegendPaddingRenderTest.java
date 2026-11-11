@@ -17,6 +17,8 @@
  */
 package inetsoft.report.composition.graph;
 
+import inetsoft.graph.EGraph;
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.LegendSpec;
 import inetsoft.graph.element.GraphElement;
@@ -114,6 +116,26 @@ class LegendPaddingRenderTest {
       assertEquals(0, legendGap(null, "compact", LegendsDescriptor.TOP));
    }
 
+   @Test
+   void aModernUnsizedLegendGetsTheCap() {
+      assertEquals(0.3, graph(VizMark.MODERN_LIGHT, null, null, null,
+                              GraphConstants.RIGHT, null).getLegendMaxRatio(), 1e-9);
+      assertEquals(0.25, graph(VizMark.MODERN_LIGHT, null, null, null,
+                               GraphConstants.TOP, null).getLegendMaxRatio(), 1e-9);
+   }
+
+   @Test
+   void anAuthorSizedLegendKeepsTodaysCap() {
+      assertEquals(0, graph(VizMark.MODERN_LIGHT, null, null, null, GraphConstants.RIGHT,
+                            new java.awt.Dimension(150, 100)).getLegendMaxRatio(), 1e-9);
+   }
+
+   @Test
+   void aClassicLegendKeepsTodaysCap() {
+      assertEquals(0, graph(null, null, null, null, GraphConstants.RIGHT, null)
+         .getLegendMaxRatio(), 1e-9);
+   }
+
    /**
     * The padding each legend site hands its frame, on a bar chart of one dimension by one
     * measure: the color legend, the shape legend (a bar's texture frame) and the size legend.
@@ -131,6 +153,16 @@ class LegendPaddingRenderTest {
 
    private static List<LegendSpec> legendSpecs(VizMark mark, String density, Insets author,
                                                Insets stylesheet, int layout)
+   {
+      GraphElement elem = graph(mark, density, author, stylesheet, layout, null).getElement(0);
+
+      return Arrays.asList(elem.getColorFrame().getLegendSpec(),
+                           elem.getTextureFrame().getLegendSpec(),
+                           elem.getSizeFrame().getLegendSpec());
+   }
+
+   private static EGraph graph(VizMark mark, String density, Insets author, Insets stylesheet,
+                               int layout, java.awt.geom.Dimension2D size)
    {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Total" };
@@ -157,6 +189,10 @@ class LegendPaddingRenderTest {
          legends.setAuthorLayout(layout);
       }
 
+      if(size != null) {
+         legends.setPreferredSize(size);
+      }
+
       if(stylesheet != null) {
          legends.setPadding(stylesheet, CompositeValue.Type.CSS);
       }
@@ -173,12 +209,8 @@ class LegendPaddingRenderTest {
       vs.getViewsheetInfo().setVizDensity(density);
       assemblyInfo.setViewsheet(vs);
 
-      GraphElement elem = GraphGenerator.getGenerator(
+      return GraphGenerator.getGenerator(
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
-         XSourceInfo.NONE, null).createEGraph().getElement(0);
-
-      return Arrays.asList(elem.getColorFrame().getLegendSpec(),
-                           elem.getTextureFrame().getLegendSpec(),
-                           elem.getSizeFrame().getLegendSpec());
+         XSourceInfo.NONE, null).createEGraph();
    }
 }

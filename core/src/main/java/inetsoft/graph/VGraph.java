@@ -239,6 +239,7 @@ public class VGraph extends BoundedContainer {
    private void createLegends(EGraph graph) {
       this.legendLayout = graph.getLegendLayout();
       this.legendPreferredSize = graph.getLegendPreferredSize();
+      this.legendMaxRatio = graph.getLegendMaxRatio();
 
       if(legendLayout == GraphConstants.NONE || coord.getParentCoordinate() != null) {
          return;
@@ -630,12 +631,12 @@ public class VGraph extends BoundedContainer {
          if(legendLayout == GraphConstants.LEFT ||
             legendLayout == GraphConstants.RIGHT)
          {
-            asize = new DimensionD(w / 2, h);
+            asize = new DimensionD(w * (legendMaxRatio > 0 ? legendMaxRatio : 0.5), h);
          }
          else if(legendLayout == GraphConstants.TOP ||
                  legendLayout == GraphConstants.BOTTOM)
          {
-            asize = new DimensionD(w, h / 2);
+            asize = new DimensionD(w, h * (legendMaxRatio > 0 ? legendMaxRatio : 0.5));
          }
 
          vlegends.setLayoutSize(asize);
@@ -687,9 +688,12 @@ public class VGraph extends BoundedContainer {
             }
 
             vlegendsw = legendW;
-            legendPercent = Math.min(legendPercent, 0.5);
+            legendPercent = Math.min(legendPercent, legendMaxRatio > 0 ? legendMaxRatio : 0.5);
             vlegendsh = legendPercent * legendH;
-            vlegendsh = Math.max(vlegendsh, vlegends.getMinHeight());
+
+            if(legendMaxRatio <= 0) {
+               vlegendsh = Math.max(vlegendsh, vlegends.getMinHeight());
+            }
          }
          else {
             if(legendsSize > 0) {
@@ -700,9 +704,12 @@ public class VGraph extends BoundedContainer {
             }
 
             vlegendsh = legendH;
-            legendPercent = Math.min(legendPercent, 0.5);
+            legendPercent = Math.min(legendPercent, legendMaxRatio > 0 ? legendMaxRatio : 0.5);
             vlegendsw = legendPercent * legendW;
-            vlegendsw = Math.max(vlegendsw, vlegends.getMinWidth());
+
+            if(legendMaxRatio <= 0) {
+               vlegendsw = Math.max(vlegendsw, vlegends.getMinWidth());
+            }
          }
 
          boolean affectx = legendLayout == GraphConstants.RIGHT;
@@ -1934,6 +1941,7 @@ public class VGraph extends BoundedContainer {
    private Rectangle2D contentBounds;
    private int legendLayout = GraphConstants.RIGHT;
    private double legendPreferredSize = 0;
+   private double legendMaxRatio = 0;
 
    private transient PlotWidth pwidth;
    private transient PlotHeight pheight;
