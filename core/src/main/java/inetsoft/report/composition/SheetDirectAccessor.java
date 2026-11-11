@@ -28,4 +28,11 @@ public interface SheetDirectAccessor {
     * per-session matches() check. Returns null if the id is not in the local cache.
     */
    RuntimeSheet getSheetDirect(String runtimeId);
+
+   /**
+    * Return the RuntimeSheet only if it is resident in this node's own memory. Unlike
+    * {@link #getSheetDirect}, never falls back to the distributed cache, so it cannot create a
+    * copy of another node's sheet or revive one that was just disposed.
+    */
+   RuntimeSheet getSheetLocal(String runtimeId);
 }

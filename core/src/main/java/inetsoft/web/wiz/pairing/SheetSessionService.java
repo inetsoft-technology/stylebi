@@ -160,6 +160,18 @@ public class SheetSessionService {
       return refreshed;
    }
 
+   /**
+    * Like {@link #resolve} but does not refresh the TTL: returns the session iff present,
+    * unexpired and owned by agentIdentity, else null. For callers that must not extend the
+    * session's lifetime (the keep-alive).
+    */
+   public JoinSession peek(String token, String agentIdentity) {
+      if (token == null) return null;
+      JoinSession s = sessions.get(token);
+      if (s == null || s.isExpired(clock.getAsLong()) || !s.ownerIdentity().equals(agentIdentity)) return null;
+      return s;
+   }
+
    public void close(String token) {
       if(token != null) {
          sessions.remove(token);

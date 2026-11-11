@@ -134,6 +134,22 @@ public class RuntimeSheetCache
       return local.containsValue(value);
    }
 
+   /**
+    * Returns the sheet resident in this node's local memory, or null. Unlike {@link #get}, never
+    * falls back to the distributed cache, so it cannot load a copy that belongs to another node
+    * or bring back a sheet that was just removed.
+    */
+   public RuntimeSheet getLocal(String id) {
+      lock.readLock().lock();
+
+      try {
+         return local.get(id);
+      }
+      finally {
+         lock.readLock().unlock();
+      }
+   }
+
    @Override
    public RuntimeSheet get(Object key) {
       if(key instanceof String id) {
