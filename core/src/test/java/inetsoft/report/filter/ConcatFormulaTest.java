@@ -17,10 +17,16 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+
+import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -425,5 +431,215 @@ public class ConcatFormulaTest {
       formula.reset();
       formula.addValue("b");
       assertEquals("b", formula.getResult());
+   }
+
+   // Bug #80621: only blank strings give one empty entry each, and the formula has a result
+   @Test
+   void addValue_onlyEmptyStrings_oneEmptyEntryEach() {
+      formula.addValue("");
+      formula.addValue("");
+      assertEquals(",", formula.getResult());
+      assertFalse(formula.isNull());
+   }
+
+   // Bug #80621: sequences that did not start with a blank string are unchanged
+   @Test
+   void addValue_randomSequences_changedOnlyByALeadingBlank() {
+      Object[] pool = { null, "", " ", "a", "b,c", 7, 2.5, 3L, new Timestamp(0L) };
+      Random random = new Random(80621L);
+      int compared = 0;
+      int changed = 0;
+
+      for(int i = 0; i < 3000; i++) {
+         Object[] values = new Object[random.nextInt(7)];
+
+         for(int j = 0; j < values.length; j++) {
+            values[j] = pool[random.nextInt(pool.length)];
+         }
+
+         ConcatFormula concat = new ConcatFormula();
+         concat.setDefaultResult(random.nextBoolean());
+
+         for(Object value : values) {
+            concat.addValue(value);
+         }
+
+         Object actual = concat.getResult();
+
+         // the result of the formula before the fix, copied here
+         Object before = baseConcat(values, concat.isDefaultResult());
+
+         // one entry per non-null value
+         StringBuilder entries = new StringBuilder();
+         int count = 0;
+
+         for(Object value : values) {
+            if(value != null) {
+               entries.append(count++ > 0 ? "," : "").append(value);
+            }
+         }
+
+         assertEquals(count == 0 ? (concat.isDefaultResult() ? null : "") : entries.toString(),
+                      actual, Arrays.toString(values));
+
+         if(Objects.equals(before, actual)) {
+            compared++;
+         }
+         else {
+            changed++;
+            // the result differs only when a blank string was written before any other text
+            assertTrue(startsWithBlank(values), Arrays.toString(values));
+         }
+      }
+
+      assertTrue(compared > 1000);
+      assertTrue(changed > 100);
+   }
+
+   // -----------------------------------------------------------------------
+   // name, arrival order, mixed values, the default result
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.text#concat-comma-separated
+   @Test
+   void getName_returnsConcatFormula() {
+      assertEquals(XConstants.CONCAT_FORMULA, formula.getName());
+   }
+
+   // gap:report.summary-formulas.text#concat-comma-separated
+   @Test
+   void addValue_mixedValues_joinedInArrivalOrder() {
+      // arrival order, not sorted
+      formula.addValue("c");
+      formula.addValue("a");
+      formula.addValue("b");
+      assertEquals("c,a,b", formula.getResult());
+
+      // numbers and a date use their toString
+      formula.reset();
+      Timestamp when = Timestamp.valueOf("2024-06-12 10:30:00");
+      formula.addValue(Integer.valueOf(3));
+      formula.addValue(Double.valueOf(4.5));
+      formula.addValue(when);
+      assertEquals("3,4.5,2024-06-12 10:30:00.0", formula.getResult());
+
+      // the primitive forms append the same way
+      formula.reset();
+      formula.addValue(7);
+      formula.addValue(8L);
+      formula.addValue((short) 9);
+      formula.addValue(1.5f);
+      formula.addValue(2.5);
+      formula.addValue(new double[] { 6.5, 99 });
+      assertEquals("7,8,9,1.5,2.5,6.5", formula.getResult());
+
+      // a primitive null marker is skipped
+      formula.reset();
+      formula.addValue(1);
+      formula.addValue(Tool.NULL_INTEGER);
+      formula.addValue(Tool.NULL_DOUBLE);
+      formula.addValue(Tool.NULL_LONG);
+      formula.addValue(Tool.NULL_FLOAT);
+      formula.addValue(Tool.NULL_SHORT);
+      formula.addValue(new double[] { Tool.NULL_DOUBLE });
+      formula.addValue(2);
+      assertEquals("1,2", formula.getResult());
+
+      // a clone starts empty but keeps the default-result option
+      formula.setDefaultResult(true);
+      ConcatFormula copy = (ConcatFormula) formula.clone();
+      assertTrue(copy.isDefaultResult());
+      assertTrue(copy.isNull());
+      assertNull(copy.getResult());
+      assertEquals("1,2", formula.getResult());
+   }
+
+   // gap:report.summary-formulas.text#concat-skips-null
+   @Test
+   void addValue_leadingNullsAndBlankStrings_noLeadingCommaAndBlanksKept() {
+      // a leading null leaves no leading comma
+      formula.addValue((Object) null);
+      formula.addValue((Object) null);
+      formula.addValue("x");
+      assertEquals("x", formula.getResult());
+
+      // blank strings are kept as entries
+      formula.reset();
+      formula.addValue("a");
+      formula.addValue("");
+      formula.addValue(" ");
+      formula.addValue((Object) null);
+      formula.addValue("b");
+      assertEquals("a,, ,b", formula.getResult());
+   }
+
+   // gap:report.summary-formulas.text#concat-default-result-null
+   @Test
+   void getResult_defaultResultTrue_nullUntilAValueAndAfterReset() {
+      assertFalse(formula.isDefaultResult());
+      formula.setDefaultResult(true);
+      assertTrue(formula.isDefaultResult());
+
+      assertNull(formula.getResult());
+      assertTrue(formula.isNull());
+
+      // a value turns the result back into the joined string
+      formula.addValue("a");
+      assertEquals("a", formula.getResult());
+
+      // reset returns to no result, null again, the option is kept
+      formula.reset();
+      assertNull(formula.getResult());
+
+      // only nulls added is still no result
+      formula.addValue((Object) null);
+      assertNull(formula.getResult());
+
+      // without the option the same empty formula gives the empty string
+      formula.setDefaultResult(false);
+      assertEquals("", formula.getResult());
+   }
+
+   // gap:report.summary-formulas.text#concat-no-double-result
+   @Test
+   void getDoubleResult_withOrWithoutValues_throwsUnsupportedMethod() {
+      RuntimeException empty = assertThrows(RuntimeException.class, formula::getDoubleResult);
+      assertEquals("Unsupported method called!", empty.getMessage());
+
+      // still unsupported with values, even numeric ones
+      formula.addValue(Integer.valueOf(1));
+      formula.addValue(Integer.valueOf(2));
+      RuntimeException full = assertThrows(RuntimeException.class, formula::getDoubleResult);
+      assertEquals("Unsupported method called!", full.getMessage());
+      assertEquals("1,2", formula.getResult());
+   }
+
+   private static boolean startsWithBlank(Object[] values) {
+      for(Object value : values) {
+         if(value != null) {
+            return value.toString().isEmpty();
+         }
+      }
+
+      return false;
+   }
+
+   // ConcatFormula.addValue(Object) and getResult before Bug #80621
+   private static Object baseConcat(Object[] values, boolean def) {
+      StringBuilder buf = new StringBuilder();
+      int cnt = 0;
+
+      for(Object value : values) {
+         if(value != null) {
+            if(buf.length() > 0) {
+               buf.append(",");
+            }
+
+            cnt++;
+            buf.append(value);
+         }
+      }
+
+      return cnt == 0 ? (def ? null : "") : buf.toString();
    }
 }
