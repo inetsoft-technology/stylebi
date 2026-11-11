@@ -6,6 +6,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -136,6 +138,44 @@ class VSChartChromeDefaultsTest {
       assertEquals(0x4A484F, rgb(VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR, VizContext.ofGate())));
       // a user/format.css color is preserved
       assertEquals(0x123456, rgb(VSChartChromeDefaults.resolveLegendBorderColor(new Color(0x123456), VizContext.ofGate())));
+   }
+
+   @Test
+   void aTopOrBottomLegendGapIsOneStepLarger() {
+      String[] modes = { "dense", "compact", "comfortable" };
+      int[] side = { 10, 14, 18 };
+
+      for(int i = 0; i < modes.length; i++) {
+         VizContext ctx = modernOn(modes[i]);
+
+         for(int layout : new int[] { LegendsDescriptor.TOP, LegendsDescriptor.BOTTOM }) {
+            assertEquals(side[i] + 4,
+                         VSChartChromeDefaults.resolveLegendGap(0, false, ctx, layout),
+                         modes[i] + " layout " + layout);
+         }
+
+         for(int layout : new int[] { LegendsDescriptor.RIGHT, LegendsDescriptor.LEFT,
+                                      LegendsDescriptor.IN_PLACE })
+         {
+            assertEquals(side[i], VSChartChromeDefaults.resolveLegendGap(0, false, ctx, layout),
+                         modes[i] + " layout " + layout);
+         }
+
+         assertEquals(7, VSChartChromeDefaults.resolveLegendGap(
+            7, true, ctx, LegendsDescriptor.TOP), "an opinion is kept");
+      }
+
+      assertEquals(7, VSChartChromeDefaults.resolveLegendGap(
+         7, false, VizContext.LEGACY, LegendsDescriptor.TOP), "a legacy context is kept");
+   }
+
+   private static VizContext modernOn(String density) {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity(density);
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      vs.addAssembly(chart);
+      chart.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      return VizContext.of(chart.getVSAssemblyInfo());
    }
 
    private static int rgb(Color c) {

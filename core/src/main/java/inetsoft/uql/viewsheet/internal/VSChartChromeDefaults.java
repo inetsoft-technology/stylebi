@@ -173,8 +173,16 @@ public final class VSChartChromeDefaults {
     * between the legend area and the content, so the descriptor carries the density's total minus
     * that 2. Do not "correct" the values without also removing VGraph's constant.
     */
-   public static int resolveLegendGap(int current, boolean hasOpinion, VizContext ctx) {
-      return ctx.modern && !hasOpinion ? legendGapForMode(ctx.density) : current;
+   public static int resolveLegendGap(int current, boolean hasOpinion, VizContext ctx,
+                                      int layout)
+   {
+      if(!ctx.modern || hasOpinion) {
+         return current;
+      }
+
+      // a top or bottom legend sits one density step further from the plot
+      boolean horizontal = layout == LegendsDescriptor.TOP || layout == LegendsDescriptor.BOTTOM;
+      return legendGapForMode(ctx.density) + (horizontal ? 4 : 0);
    }
 
    // gap scale per density, px; compact is the shipped value. Each legend value is 2 under its

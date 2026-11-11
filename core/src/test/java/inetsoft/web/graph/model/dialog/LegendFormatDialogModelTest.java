@@ -142,6 +142,29 @@ public class LegendFormatDialogModelTest {
       assertFalse(legends.isUserLayout());
    }
 
+   @Test
+   void theDialogShowsTheTopGap() {
+      ChartVSAssemblyInfo info = seededBar();
+      info.getViewsheet().getViewsheetInfo().setVizDensity("compact");
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout(), "premise: a seeded top legend");
+
+      inetsoft.report.composition.region.ChartArea area =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.ChartArea.class);
+      inetsoft.report.composition.region.LegendsArea legendsArea =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.LegendsArea.class);
+      org.mockito.Mockito.when(area.getLegendsArea()).thenReturn(legendsArea);
+      org.mockito.Mockito.when(legendsArea.getLegendAreas())
+         .thenReturn(new inetsoft.report.composition.region.LegendArea[0]);
+
+      LegendFormatDialogModel dialog = new LegendFormatDialogModel(
+         info.getVSChartInfo(), legends, legends.getColorLegendDescriptor(), area,
+         new java.util.ArrayList<>(), "color", null, "Color", true, false, false,
+         VizContext.of(info));
+
+      assertEquals(18, dialog.getLegendFormatGeneralPaneModel().getGap());
+   }
+
    // a bar chart seeded under the modern mark, its legend at the top
    private static ChartVSAssemblyInfo seededBar() {
       Viewsheet vs = new Viewsheet();
@@ -175,7 +198,7 @@ public class LegendFormatDialogModelTest {
       pane.setTitleValue(legend.getTitleValue());
       pane.setFillColor("#ffffff");
       pane.setGap(VSChartChromeDefaults.resolveLegendGap(
-         legends.getGap(), legends.hasGapValue(), VizContext.ofGate()));
+         legends.getGap(), legends.hasGapValue(), VizContext.ofGate(), legends.getLayout()));
 
       if(legends.getLayout() >= 1) {
          pane.setPosition(new String[] {"Top", "Right", "Bottom", "Left", "In Place"}[
@@ -484,7 +507,8 @@ public class LegendFormatDialogModelTest {
    {
       LegendFormatGeneralPaneModel pane = new LegendFormatGeneralPaneModel();
       pane.setFillColor("#ffffff");
-      pane.setGap(VSChartChromeDefaults.resolveLegendGap(legends.getGap(), legends.hasGapValue(), ctx));
+      pane.setGap(VSChartChromeDefaults.resolveLegendGap(legends.getGap(), legends.hasGapValue(), ctx,
+         legends.getLayout()));
       return pane;
    }
 

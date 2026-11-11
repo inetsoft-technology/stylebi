@@ -84,7 +84,7 @@ public class LegendFormatDialogModel implements Serializable {
       generalPaneModel.setNotShowNullVisible(dimension && field != null);
       generalPaneModel.setSymbolSize(legendDesc.getSymbolSize());
       generalPaneModel.setGap(VSChartChromeDefaults.resolveLegendGap(
-         legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx));
+         legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx, legendsDesc.getLayout()));
       generalPaneModel.setGapFollowsDefault(gapFollowsDefault(legendsDesc, ctx));
       generalPaneModel.setPadding(paddingPane(legendsDesc, ctx));
       generalPaneModel.setRoundCorners(legendsDesc.isRoundCorners());
@@ -194,7 +194,8 @@ public class LegendFormatDialogModel implements Serializable {
          // store only a real edit, exactly as this pane behaved before the option existed
          if(generalPaneModel.getGap() !=
             VSChartChromeDefaults.resolveLegendGap(
-               legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx))
+               legendsDesc.getGap(), legendsDesc.hasGapValue(), ctx,
+               legendsDesc.getLayout()))
          {
             legendsDesc.setGap(generalPaneModel.getGap());
          }
