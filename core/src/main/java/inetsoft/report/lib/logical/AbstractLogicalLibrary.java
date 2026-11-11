@@ -129,7 +129,10 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    @Override
    public void load(PhysicalLibrary library, LoadOptions options) throws IOException {
       ReadWriteLock lock = getLock();
+      LibManager.diag("load wait-lock prefix=" + getAssetPrefix() + " init=" + options.init());
       lock.writeLock().lock();
+      LibManager.diag("load got-lock prefix=" + getAssetPrefix() + " entries=" +
+                      getNameToEntryMap().size() + " pendingTx=" + transactions.size());
 
       try {
          final Map<String, LogicalLibraryEntry<T>> loadingMap = new HashMap<>();
@@ -202,6 +205,12 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
          }
 
          if(options.init()) {
+            LibManager.diag("load clear prefix=" + getAssetPrefix() + " droppingEntries=" +
+                            getNameToEntryMap().size() + " droppingTx=" + transactions.size() +
+                            " pendingTx=" + transactions.stream()
+                               .map(t -> t.type() + ":" + t.identifier())
+                               .collect(Collectors.toList()) + " snapshotSize=" +
+                            loadingMap.size());
             clear();
          }
 

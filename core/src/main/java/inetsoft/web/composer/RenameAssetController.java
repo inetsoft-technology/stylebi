@@ -199,8 +199,11 @@ public class RenameAssetController {
 
          if(entry.isScript()) {
             manager.renameScript(entry.getName(), nentry.getName());
+            inetsoft.report.LibManager.diag("RenameAssetController script rename before save");
             manager.save();
+            inetsoft.report.LibManager.diag("RenameAssetController script rename after save, before movePermission");
             movePermission(ResourceType.SCRIPT, entry.getName(), nentry.getName());
+            inetsoft.report.LibManager.diag("RenameAssetController script rename after movePermission");
          }
          else if(entry.isTableStyle()) {
             String oname = entry.getProperty("styleName");

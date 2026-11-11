@@ -135,6 +135,8 @@ public class LibManager implements AutoCloseable {
     *
     */
    protected synchronized void init() {
+      diag("init enter org=" + orgID);
+
       try {
          final String storageId = getStorageId(orgID);
          OrganizationManager.runInOrgScope(orgID, () -> {
@@ -156,6 +158,7 @@ public class LibManager implements AutoCloseable {
       }
       finally {
          setInitializing(false);
+         diag("init exit org=" + orgID);
       }
    }
 
@@ -324,6 +327,7 @@ public class LibManager implements AutoCloseable {
    }
 
    public void setScript(String name, ScriptEntry script) {
+      diag("setScript enter name=" + name + " org=" + orgID);
       final int id = scripts.put(name, script);
       fireActionEvent(name, id);
    }
@@ -334,6 +338,7 @@ public class LibManager implements AutoCloseable {
     * @param newName new name of the script function.
     */
    public void renameScript(String oldName, String newName) {
+      diag("renameScript enter " + oldName + " -> " + newName + " org=" + orgID);
       if(scripts.rename(oldName, newName)) {
          RenameInfo rinfo = new RenameInfo(oldName, newName, RenameInfo.SCRIPT_FUNCTION);
          rinfo.setUpdateStorage(true);
@@ -349,6 +354,7 @@ public class LibManager implements AutoCloseable {
     * @param name the specified script function name.
     */
    public void removeScript(String name) {
+      diag("removeScript enter name=" + name + " org=" + orgID);
       scripts.remove(name);
       fireActionEvent(name, SCRIPT_REMOVED);
       sendClusterMessage(name);
@@ -558,7 +564,9 @@ public class LibManager implements AutoCloseable {
     * Save the library contents to the library file.
     */
    public synchronized void save() throws Exception {
+      diag("save enter org=" + orgID + " scriptTx=" + scripts.hasTransactions());
       BlobStorage<Metadata> storage = getStorage();
+      diagInSave = true;
       storage.removeListener(changeListener);
 
       try {
@@ -568,9 +576,13 @@ public class LibManager implements AutoCloseable {
       finally {
          ts = storage.getLastModified().toEpochMilli();
          storage.addListener(changeListener);
+         diagReattachNano = System.nanoTime();
+         diagInSave = false;
+         diag("save listener re-attached org=" + orgID);
       }
 
       sendClusterMessage(null);
+      diag("save exit org=" + orgID);
    }
 
    /**
@@ -664,17 +676,29 @@ public class LibManager implements AutoCloseable {
    private final BlobStorage.Listener<Metadata> changeListener = new BlobStorage.Listener<>() {
       @Override
       public void blobAdded(BlobStorage.Event<Metadata> event) {
+         diagBlobEvent("ADDED", event);
          fireEvent(event.getMapName(), event.getNewValue().getLastModified().toEpochMilli());
       }
 
       @Override
       public void blobUpdated(BlobStorage.Event<Metadata> event) {
+         diagBlobEvent("UPDATED", event);
          fireEvent(event.getMapName(), event.getNewValue().getLastModified().toEpochMilli());
       }
 
       @Override
       public void blobRemoved(BlobStorage.Event<Metadata> event) {
+         diagBlobEvent("REMOVED", event);
          fireEvent(event.getMapName(), System.currentTimeMillis());
+      }
+
+      private void diagBlobEvent(String type, BlobStorage.Event<Metadata> event) {
+         long since = diagReattachNano == 0L ? -1L :
+            (System.nanoTime() - diagReattachNano) / 1000000L;
+         String bp = event.getNewValue() != null ? event.getNewValue().getPath() :
+            event.getOldValue() != null ? event.getOldValue().getPath() : null;
+         diag("blobEvent " + type + " path=" + bp + " map=" + event.getMapName() + " inSave=" + diagInSave +
+              " msSinceSaveReattach=" + since);
       }
 
       private void fireEvent(String mapName, long timestamp) {
@@ -685,6 +709,7 @@ public class LibManager implements AutoCloseable {
                   String orgID = storageName.substring(0, storageName.length() - "__library".length());
 
                   if(!Tool.isEmptyString(orgID)) {
+                     diag("debounce fires -> init org=" + orgID);
                      init();
                      fireActionEvent("", SCRIPT_RELOADED);
                   }
@@ -749,6 +774,17 @@ public class LibManager implements AutoCloseable {
    }
 
    private synchronized void reloadLibrary() {
+      diag("reloadLibrary enter org=" + orgID);
+
+      try {
+         reloadLibrary0();
+      }
+      finally {
+         diag("reloadLibrary exit org=" + orgID);
+      }
+   }
+
+   private synchronized void reloadLibrary0() {
       String storeID = getStorageId(orgID);
       BlobStorage<Metadata> storage = blobStorageManager.getStorage(storeID, false);
 
@@ -777,6 +813,8 @@ public class LibManager implements AutoCloseable {
          String orgID = change.getOrgID();
 
          if(change.getPropertyName().equals("LibManager") && Tool.equals(orgID, this.orgID)) {
+            diag("clusterMessage -> reload isLocal=" + event.isLocal() + " sender=" +
+                 event.getSender() + " newValue=" + change.getNewValue());
             fireActionEvent((String)change.getNewValue(), SCRIPT_MODIFIED);
             reloadLibrary();
          }
@@ -804,6 +842,15 @@ public class LibManager implements AutoCloseable {
    private final Debouncer<String> debouncer;
 
    private static final Logger LOG = LoggerFactory.getLogger(LibManager.class);
+
+   // Bug #81057 TEMPORARY diagnostic logging, do not merge
+   public static void diag(String msg) {
+      LOG.info("B81057-DIAG millis={} nano={} thread={} {}", System.currentTimeMillis(),
+               System.nanoTime(), Thread.currentThread().getName(), msg);
+   }
+
+   private volatile boolean diagInSave = false;
+   private volatile long diagReattachNano = 0L;
 
    public static final class Metadata implements Serializable {
       public String getPath() {
