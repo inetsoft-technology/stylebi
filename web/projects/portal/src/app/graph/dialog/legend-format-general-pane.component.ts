@@ -142,6 +142,20 @@ export class LegendFormatGeneralPane implements OnInit, OnDestroy {
       }));
    }
 
+   alignmentChoices: string[] = ["Start", "Center", "End"];
+   alignmentLabels: string[] = ["_#(js:Start)", "_#(js:Center)", "_#(js:End)"];
+   get alignmentSelectOptions(): CustomSelectOption<string>[] {
+      return this.alignmentChoices.map((alignment, index) => ({
+         label: this.alignmentLabels[index],
+         value: alignment
+      }));
+   }
+
+   get alignmentVisible(): boolean {
+      return this.model.alignment != null &&
+         (this.model.position === "Top" || this.model.position === "Bottom");
+   }
+
    initForm(): void {
       this.form.addControl("symbolSize", new UntypedFormControl(this.model.symbolSize, [
          Validators.min(6),

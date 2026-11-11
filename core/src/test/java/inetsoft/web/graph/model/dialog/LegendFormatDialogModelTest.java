@@ -165,6 +165,62 @@ public class LegendFormatDialogModelTest {
       assertEquals(18, dialog.getLegendFormatGeneralPaneModel().getGap());
    }
 
+   @Test
+   void aModernTopLegendShowsStart() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+
+      assertEquals("Start", builtDialog(info, legends).getLegendFormatGeneralPaneModel()
+         .getAlignment());
+   }
+
+   @Test
+   void aClassicLegendShowsCenterAndApplyWritesNothing() {
+      ChartVSAssemblyInfo info = seededBar();
+      info.setVizMark(null);
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      legends.setAlignment(0, CompositeValue.Type.DEFAULT);
+      assertEquals(0, legends.getAlignment(), "premise: unset");
+      LegendFormatGeneralPaneModel pane =
+         builtDialog(info, legends).getLegendFormatGeneralPaneModel();
+      assertEquals("Center", pane.getAlignment());
+
+      apply(info, legends, legends.getColorLegendDescriptor(), pane);
+
+      assertEquals(0, legends.getAlignment());
+      assertFalse(legends.hasAlignmentUserValue());
+   }
+
+   @Test
+   void pickingEndWritesTheAuthorValue() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendFormatGeneralPaneModel pane =
+         builtDialog(info, legends).getLegendFormatGeneralPaneModel();
+      pane.setAlignment("End");
+
+      apply(info, legends, legends.getColorLegendDescriptor(), pane);
+
+      assertEquals(inetsoft.graph.GraphConstants.RIGHT_ALIGNMENT, legends.getAlignment());
+      assertTrue(legends.hasAlignmentUserValue());
+   }
+
+   private static LegendFormatDialogModel builtDialog(ChartVSAssemblyInfo info,
+                                                      LegendsDescriptor legends)
+   {
+      inetsoft.report.composition.region.ChartArea area =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.ChartArea.class);
+      inetsoft.report.composition.region.LegendsArea legendsArea =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.LegendsArea.class);
+      org.mockito.Mockito.when(area.getLegendsArea()).thenReturn(legendsArea);
+      org.mockito.Mockito.when(legendsArea.getLegendAreas())
+         .thenReturn(new inetsoft.report.composition.region.LegendArea[0]);
+      return new LegendFormatDialogModel(
+         info.getVSChartInfo(), legends, legends.getColorLegendDescriptor(), area,
+         new java.util.ArrayList<>(), "color", null, "Color", true, false, false,
+         VizContext.of(info));
+   }
+
    // a bar chart seeded under the modern mark, its legend at the top
    private static ChartVSAssemblyInfo seededBar() {
       Viewsheet vs = new Viewsheet();

@@ -18,6 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../common/services/ui-context.service";
@@ -53,6 +54,7 @@ let createModel: () => LegendFormatGeneralPaneModel = () => {
       style: 0,
       fillColor: "",
       position: "",
+      alignment: "Start",
       visible: false,
       notShowNull: false,
       notShowNullVisible: false,
@@ -162,6 +164,35 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
       fixture.detectChanges();
       return fixture;
    }
+
+   it("shows the alignment select for a top legend", async () => {
+      const model = createModel();
+      model.position = "Top";
+      const fixture = await render(model);
+
+      expect(fixture.nativeElement.querySelector('[data-test="legend-alignment"]')).toBeTruthy();
+   });
+
+   it("hides it for a right legend", async () => {
+      const model = createModel();
+      model.position = "Right";
+      const fixture = await render(model);
+
+      expect(fixture.nativeElement.querySelector('[data-test="legend-alignment"]')).toBeNull();
+   });
+
+   it("writes the chosen alignment to the model", async () => {
+      const model = createModel();
+      model.position = "Bottom";
+      const fixture = await render(model);
+      const select = fixture.debugElement.query(By.css('[data-test="legend-alignment"]'))
+         .componentInstance;
+
+      select.selectOption(select.options[2]);
+      fixture.detectChanges();
+
+      expect(model.alignment).toBe("End");
+   });
 
    it("captions the legend padding 'Row Spacing' and 'Side Indent'", async () => {
       const fixture = await render(createModel());
