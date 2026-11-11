@@ -91,6 +91,28 @@ class ParameterServiceTest {
          // VariableTable.put stores an array without a non-null element as null
          assertNull(read("x", strs()).get("x"));
       }
+
+      // Bug #81111, client JSON {"p": null} deserializes to a null value array
+      @Test
+      void nullValueArray_isStoredAsNullAndKeepsOtherParameters() throws Exception {
+         Map<String, String[]> parameters = new LinkedHashMap<>();
+         parameters.put("p", null);
+         parameters.put("q", strs("15"));
+
+         VariableTable vars = new ParameterService(null).readParameters(parameters);
+
+         assertNull(vars.get("p"));
+         assertEquals("15", vars.get("q"));
+      }
+
+      @Test
+      void nullValueArray_withTypeIsStoredAsNull() throws Exception {
+         Map<String, String[]> parameters = new LinkedHashMap<>();
+         parameters.put("p", null);
+         parameters.put("p.__type__", strs("integer"));
+
+         assertNull(new ParameterService(null).readParameters(parameters).get("p"));
+      }
    }
 
    @Nested
