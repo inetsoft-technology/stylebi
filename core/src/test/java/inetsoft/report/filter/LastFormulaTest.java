@@ -17,6 +17,7 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -254,5 +255,111 @@ public class LastFormulaTest {
       assertTrue(formula.isDefaultResult());
       formula.setDefaultResult(false);
       assertFalse(formula.isDefaultResult());
+   }
+
+   // -----------------------------------------------------------------------
+   // ties, pairs that are skipped, secondary column, result type
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.min-max#last-by-second-column
+   @Test
+   void addValue_tiedDimension_laterRowWins() {
+      LastFormula last = new LastFormula(1);
+      addPairs(last, pair("a", 5), pair("b", 5), pair("c", 1));
+      assertEquals("b", last.getResult());
+
+      last.reset();
+      addPairs(last, pair("a", 1), pair("b", 4), pair("c", 4));
+      assertEquals("c", last.getResult());
+
+      // the double array form: {measure, by}
+      last.reset();
+      last.addValue(new double[] { 10, 9 });
+      last.addValue(new double[] { 20, 9 });
+      last.addValue(new double[] { 30, 1 });
+      assertEquals(20.0, last.getResult());
+   }
+
+   // gap:report.summary-formulas.min-max#first-last-ignore-non-pairs
+   @Test
+   void addValue_nonPairsAndNullMeasures_skipped() {
+      LastFormula last = new LastFormula(1);
+      last.addValue((Object) null);
+      last.addValue("not a pair");
+      assertTrue(last.isNull());
+
+      // a pair whose measure is null is skipped, even with the largest By value
+      addPairs(last, pair(5, 2), pair(null, 9));
+      assertEquals(5, last.getResult());
+
+      // the double array form skips a null measure
+      LastFormula lastDoubles = new LastFormula(1);
+      lastDoubles.addValue(new double[] { Tool.NULL_DOUBLE, 1 });
+      assertTrue(lastDoubles.isNull());
+      lastDoubles.addValue(new double[] { 5, 2 });
+      lastDoubles.addValue(new double[] { Tool.NULL_DOUBLE, 3 });
+      assertEquals(5.0, lastDoubles.getResult());
+   }
+
+   // gap:report.summary-formulas.common#second-column-formulas-need-pairs
+   @Test
+   void addValueSingleValue_throwsUnsupportedMethod() {
+      LastFormula pairFormula = new LastFormula(3);
+      assertArrayEquals(new int[] { 3 }, pairFormula.getSecondaryColumns());
+
+      // one value alone has no second column to go with it
+      for(Runnable single : new Runnable[] {
+         () -> pairFormula.addValue(1.0), () -> pairFormula.addValue(1.0f),
+         () -> pairFormula.addValue(1L), () -> pairFormula.addValue(1),
+         () -> pairFormula.addValue((short) 1)})
+      {
+         RuntimeException ex = assertThrows(RuntimeException.class, single::run);
+         assertEquals("Unsupported method called!", ex.getMessage());
+      }
+   }
+
+   // gap:report.summary-formulas.common#result-type-defaults-to-input-type
+   @Test
+   void getResultType_takesTheInputType_returnsNull() {
+      assertNull(formula.getResultType());
+   }
+
+   // -----------------------------------------------------------------------
+   // percentage of total
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.min-max#first-last-percentage-of-total
+   @Test
+   void getResult_percentageOfTotal_returnsRatio() {
+      LastFormula last = new LastFormula(1);
+      last.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      last.setTotal(20);
+      addPairs(last, pair(5.0, 2), pair(8.0, 1), pair(1.0, 3));
+      assertEquals(0.05, last.getResult());
+      assertEquals(1.0, last.getOriginalResult());
+
+      // a total of 0 and a negative total give 0
+      last.setTotal(0);
+      assertEquals(0.0, last.getResult());
+      last.setTotal(-20);
+      assertEquals(0.0, last.getResult());
+
+      // a measure that is not a number gives 0
+      LastFormula lastText = new LastFormula(1);
+      lastText.setPercentageType(XConstants.PERCENTAGE_OF_GRANDTOTAL);
+      lastText.setTotal(10);
+      addPairs(lastText, pair("a", 1), pair("b", 2));
+      assertEquals(0.0, lastText.getResult());
+      assertEquals("b", lastText.getOriginalResult());
+   }
+
+   private static void addPairs(Formula formula, Object[]... pairs) {
+      for(Object[] pair : pairs) {
+         formula.addValue((Object) pair);
+      }
+   }
+
+   private static Object[] pair(Object measure, Object by) {
+      return new Object[] { measure, by };
    }
 }

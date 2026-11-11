@@ -29,6 +29,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Random;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -402,5 +407,221 @@ public class NthSmallestFormulaTest {
             SreeEnv.setProperty("formula.parse.number", old);
          }
       }
+   }
+
+   // Bug #80738: with numeric parsing off the strings are text and the blank is left alone
+   @Test
+   void addValue_numericStringsWithBlank_parseNumberOff_ranksBlankSmallest() {
+      withProperty("formula.parse.number", "false", () -> {
+         NthSmallestFormula textSmallest = new NthSmallestFormula(1);
+         addAll(textSmallest, "9", "", "10");
+         assertEquals("", textSmallest.getResult());
+      });
+   }
+
+   // Bug #80738: Nth Smallest skips a blank string like Sum
+   @Test
+   void addValue_blankStrings_skippedForCloneAndReset() {
+      // a clone keeps the values that were kept
+      NthSmallestFormula smallest = new NthSmallestFormula(2);
+      addAll(smallest, "7", "", "2", "4");
+      NthSmallestFormula copy = (NthSmallestFormula) smallest.clone();
+      assertEquals("4", smallest.getResult());
+      assertEquals("4", copy.getResult());
+
+      // reset starts over
+      smallest.reset();
+      assertTrue(smallest.isNull());
+      addAll(smallest, "", "8");
+      assertFalse(smallest.isNull());
+   }
+
+   // Bug #80738: blank strings change nothing, and other lists are unchanged
+   @Test
+   void addValue_randomListsWithBlanks_sameAsWithoutBlanks() {
+      Random random = new Random(80738L);
+      int compared = 0;
+
+      for(int i = 0; i < 3000; i++) {
+         // some lists are longer than 32 values
+         int size = i % 4 == 0 ? 33 + random.nextInt(8) : random.nextInt(12);
+         List<Object> values = new ArrayList<>();
+         List<Object> noBlanks = new ArrayList<>();
+
+         for(int j = 0; j < size; j++) {
+            Object value = random.nextDouble() < 0.25 ? (random.nextBoolean() ? "" : "  ")
+               : random.nextBoolean() ? Integer.toString(random.nextInt(21) - 10)
+               : Double.toString(random.nextInt(2000) / 10.0 - 100);
+            values.add(value);
+
+            if(!((String) value).trim().isEmpty()) {
+               noBlanks.add(value);
+            }
+         }
+
+         int n = 1 + random.nextInt(6);
+         NthSmallestFormula smallest = new NthSmallestFormula(n);
+         NthSmallestFormula smallestNoBlanks = new NthSmallestFormula(n);
+
+         for(Object v : values) {
+            smallest.addValue(v);
+         }
+
+         for(Object v : noBlanks) {
+            smallestNoBlanks.addValue(v);
+         }
+
+         String msg = values + " n=" + n;
+         assertEquals(smallestNoBlanks.getResult(), smallest.getResult(), msg);
+
+         // a list with no blank gives what the algorithm before the fix gives, copied here
+         assertEquals(baseNth(noBlanks, n, true), smallest.getResult(), msg);
+         compared++;
+      }
+
+      assertEquals(3000, compared);
+   }
+
+   // -----------------------------------------------------------------------
+   // distinct values, dates, text, N out of range
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.min-max#nth-smallest-distinct-values
+   @Test
+   void getResult_valuesWithDuplicates_ranksDistinctValues() {
+      Object[] doubles = { 3.6, -9.3, 6.0, 10.0, 6.0, 10.0 };
+
+      // -9.3, 3.6, 6, 10: duplicates count once
+      Object[] expected = { -9.3, 3.6, 6.0, 10.0 };
+
+      for(int n = 1; n <= 4; n++) {
+         NthSmallestFormula formula = new NthSmallestFormula(n);
+         addAll(formula, doubles);
+         assertEquals(expected[n - 1], formula.getResult(), "n=" + n);
+      }
+
+      // integers
+      NthSmallestFormula ints = new NthSmallestFormula(2);
+      addAll(ints, 8, 3, 3, 5);
+      assertEquals(5, ints.getResult());
+
+      // text
+      NthSmallestFormula text1 = new NthSmallestFormula(1);
+      NthSmallestFormula text2 = new NthSmallestFormula(2);
+      addAll(text1, "pear", "apple", "fig", "apple");
+      addAll(text2, "pear", "apple", "fig", "apple");
+      assertEquals("apple", text1.getResult());
+      assertEquals("fig", text2.getResult());
+
+      // dates
+      long day = 86_400_000L;
+      long base = 1_700_000_000_000L;
+      Date d1 = new Date(base);
+      Date d2 = new Date(base + 2 * day);
+      Date d3 = new Date(base + 5 * day);
+      NthSmallestFormula dates1 = new NthSmallestFormula(1);
+      NthSmallestFormula dates2 = new NthSmallestFormula(2);
+      addAll(dates1, d3, d1, d2);
+      addAll(dates2, d3, d1, d2);
+      assertEquals(d1, dates1.getResult());
+      assertEquals(d2, dates2.getResult());
+   }
+
+   // gap:report.summary-formulas.min-max#nth-text-values
+   @Test
+   void getResult_textAndNumericStrings_ranked() {
+      NthSmallestFormula small1 = new NthSmallestFormula(1);
+      NthSmallestFormula small2 = new NthSmallestFormula(2);
+      addAll(small1, "9", "10");
+      addAll(small2, "9", "10");
+      assertEquals("9", small1.getResult());
+      assertEquals("10", small2.getResult());
+
+      // text orders as text
+      NthSmallestFormula textSmall = new NthSmallestFormula(1);
+      addAll(textSmall, "kiwi", "apple", "pear");
+      assertEquals("apple", textSmall.getResult());
+   }
+
+   // gap:report.summary-formulas.min-max#nth-n-below-one-defaults-to-one
+   @Test
+   void constructor_nBelowOne_ranksLikeOne() {
+      int[] counts = { 0, -3 };
+
+      for(int n : counts) {
+         NthSmallestFormula smallest = new NthSmallestFormula(n);
+         addAll(smallest, 4, 9, 2, 9);
+         assertEquals(2, smallest.getResult(), "smallest n=" + n);
+      }
+   }
+
+   // Nth formulas return null for an N beyond the distinct count
+   @Test
+   void getResult_nBeyondDistinctCount_nullOrZeroWithDefaultResult() {
+      NthSmallestFormula smallest = new NthSmallestFormula(3);
+      addAll(smallest, 1, 2, 2);
+      assertNull(smallest.getResult());
+
+      // with the default result: 0
+      smallest.setDefaultResult(true);
+      assertEquals(0, smallest.getResult());
+   }
+
+   private static void addAll(Formula formula, Object... values) {
+      for(Object value : values) {
+         formula.addValue(value);
+      }
+   }
+
+   private static void withProperty(String name, String value, Runnable action) {
+      String old = SreeEnv.getProperty(name);
+
+      try {
+         SreeEnv.setProperty(name, value);
+         action.run();
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove(name);
+         }
+         else {
+            SreeEnv.setProperty(name, old);
+         }
+      }
+   }
+
+   // NthLargestFormula.addValue(Object) and getResult for numeric strings before the fix
+   private static Object baseNth(List<Object> values, int n, boolean smallest) {
+      java.util.Vector<Object> vs = new java.util.Vector<>();
+
+      for(Object value : values) {
+         Object v = value;
+
+         for(int i = vs.size() - 1; i >= 0; i--) {
+            double a = Double.parseDouble((String) v);
+            double b = Double.parseDouble((String) vs.elementAt(i));
+            int c = smallest ? Double.compare(b, a) : Double.compare(a, b);
+
+            if(c == 0) {
+               v = null;
+               break;
+            }
+            else if(c < 0) {
+               vs.insertElementAt(v, i + 1);
+               v = null;
+               break;
+            }
+         }
+
+         if(v != null) {
+            vs.insertElementAt(v, 0);
+         }
+
+         if(vs.size() > n) {
+            vs.setSize(n);
+         }
+      }
+
+      return vs.size() >= n ? vs.elementAt(n - 1) : null;
    }
 }

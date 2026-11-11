@@ -17,6 +17,8 @@
  */
 package inetsoft.report.filter;
 
+import inetsoft.report.StyleConstants;
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Date;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -40,6 +44,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 public class AverageFormulaTest {
+
+   private static final double DELTA = 1e-9;
+   private static final String KEEP_TYPE = "formula.avg.keep.type";
 
    private AverageFormula formula;
 
@@ -351,5 +358,262 @@ public class AverageFormulaTest {
       formula.addValue("");
       formula.addValue(" ");
       assertTrue(formula.isNull());
+   }
+
+   // -----------------------------------------------------------------------
+   // mixed inputs, ported from the 13.8 summary formula tests
+   // -----------------------------------------------------------------------
+
+   // gap:report.summary-formulas.arithmetic#average-arithmetic-mean
+   @Test
+   void getResult_integers_averagedAsDoubles() {
+      addAll(formula, 1, 2);
+      assertEquals(1.5, formula.getResult());
+      formula.addValue(6);
+      assertEquals(3.0, formula.getResult());
+
+      // numeric strings are averaged the same way
+      formula.reset();
+      addAll(formula, "1", "2");
+      assertEquals(1.5, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#average-arithmetic-mean
+   @Test
+   void addValue_datesTextAndNull_notCounted() {
+      addAll(formula, new Date(1_000_000L), new Date(2_000_000L), 10);
+      assertEquals(10.0, formula.getResult());
+
+      formula.reset();
+      addAll(formula, "4", "abc", null, 8);
+      assertEquals(6.0, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#average-arithmetic-mean
+   @Test
+   void addValue_allPrimitiveOverloadsWithNullSentinels_returnsAverage() {
+      // the primitive overloads and the double array, and their null markers
+      formula.addValue(2.5);
+      formula.addValue(1.5f);
+      formula.addValue(3L);
+      formula.addValue((short) 5);
+      formula.addValue(4);
+      formula.addValue(new double[] { 9.0, 100.0 });
+      formula.addValue(Tool.NULL_DOUBLE);
+      formula.addValue(Tool.NULL_FLOAT);
+      formula.addValue(Tool.NULL_LONG);
+      formula.addValue(Tool.NULL_SHORT);
+      formula.addValue(Tool.NULL_INTEGER);
+      assertEquals(25.0 / 6, asDouble(formula.getResult()), DELTA);
+   }
+
+   // gap:report.summary-formulas.arithmetic#average-arithmetic-mean
+   @Test
+   void clone_negativeValues_cloneAveragesOnItsOwn() {
+      addAll(formula, -4, 2, -10);
+      assertEquals(-4.0, formula.getResult());
+      Formula copy = (Formula) formula.clone();
+      copy.addValue(24);
+      assertEquals(3.0, copy.getResult());
+      assertEquals(-4.0, formula.getResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#average-keeps-integer-type
+   @Test
+   void getResult_keepTypeProperty_truncatesIntegerAverage() {
+      withProperty(KEEP_TYPE, "true", () -> {
+         // integer values truncate to a whole number, toward zero. StyleBI returns the truncated
+         // value as a Long (Bug #70172); 13.8 returns it as a Double such as 1.0
+         AverageFormula integers = new AverageFormula();
+         addAll(integers, 1, 2);
+         assertEquals(1L, integers.getResult());
+
+         integers.reset();
+         addAll(integers, -1, -2);
+         assertEquals(-1L, integers.getResult());
+
+         AverageFormula longs = new AverageFormula();
+         addAll(longs, 1L, 2L, 2L);
+         assertEquals(1L, longs.getResult());
+
+         AverageFormula shorts = new AverageFormula();
+         addAll(shorts, (short) 7, (short) 8);
+         assertEquals(7L, shorts.getResult());
+
+         // the primitive overloads keep the type as well
+         AverageFormula primitive = new AverageFormula();
+         primitive.addValue(1);
+         primitive.addValue(2);
+         assertEquals(1L, primitive.getResult());
+         assertEquals(1.5, primitive.getDoubleResult());
+
+         // mixed types, in either order, are not truncated
+         AverageFormula mixed = new AverageFormula();
+         addAll(mixed, 1, 2.0);
+         assertEquals(1.5, mixed.getResult());
+
+         AverageFormula mixedOtherWay = new AverageFormula();
+         addAll(mixedOtherWay, 2.0, 1);
+         assertEquals(1.5, mixedOtherWay.getResult());
+
+         AverageFormula mixedIntegers = new AverageFormula();
+         addAll(mixedIntegers, 1, 2L);
+         assertEquals(1.5, mixedIntegers.getResult());
+
+         // doubles are never truncated
+         AverageFormula doubles = new AverageFormula();
+         addAll(doubles, 1.0, 2.0);
+         assertEquals(1.5, doubles.getResult());
+
+         // a percentage of the total is not truncated
+         AverageFormula percentage = new AverageFormula();
+         addAll(percentage, 1, 2);
+         asPercentage(percentage, 3);
+         assertEquals(0.5, asDouble(percentage.getResult()), DELTA);
+      });
+
+      // without the property the average of integers has the fraction
+      withProperty(KEEP_TYPE, "false", () -> {
+         AverageFormula integers = new AverageFormula();
+         addAll(integers, 1, 2);
+         assertEquals(1.5, integers.getResult());
+
+         AverageFormula primitive = new AverageFormula();
+         primitive.addValue(1);
+         primitive.addValue(2);
+         assertEquals(1.5, primitive.getResult());
+
+         AverageFormula longs = new AverageFormula();
+         addAll(longs, 1L, 2L);
+         assertEquals(1.5, longs.getResult());
+      });
+   }
+
+   // gap:report.summary-formulas.arithmetic#average-no-values-is-null
+   @Test
+   void addValue_nullsInEveryOverload_remainsNull() {
+      assertFalse(formula.isDefaultResult());
+
+      // only nulls, in each overload
+      addAll(formula, null, null, null, null);
+      formula.addValue(Tool.NULL_DOUBLE);
+      formula.addValue(Tool.NULL_FLOAT);
+      formula.addValue(Tool.NULL_LONG);
+      formula.addValue(Tool.NULL_SHORT);
+      formula.addValue(Tool.NULL_INTEGER);
+      formula.addValue((double[]) null);
+      formula.addValue(new double[0]);
+      assertTrue(formula.isNull());
+      assertNull(formula.getResult());
+
+      // the default-result flag turns null into 0
+      formula.setDefaultResult(true);
+      assertTrue(formula.isDefaultResult());
+      assertEquals(0.0, formula.getResult());
+      assertTrue(formula.isNull());
+
+      // a value ends it, and a reset starts over
+      formula.addValue(4);
+      assertFalse(formula.isNull());
+      assertEquals(4.0, formula.getResult());
+      formula.reset();
+      assertTrue(formula.isNull());
+      formula.setDefaultResult(false);
+      assertNull(formula.getResult());
+      assertEquals(0.0, formula.getDoubleResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#percentage-negative-total
+   @Test
+   void getResult_negativePercentageTotal_returnsNegativeShare() {
+      addAll(formula, 13.0, null, null, 19.0);
+      asPercentage(formula, -100);
+      assertEquals(-0.16, asDouble(formula.getResult()), DELTA);
+      assertEquals(-0.16, formula.getDoubleResult(), DELTA);
+      assertEquals(16.0, formula.getOriginalResult());
+   }
+
+   // gap:report.summary-formulas.arithmetic#percentage-total-zero-is-null
+   @Test
+   void getResult_percentageTotalZero_returnsNull() {
+      addAll(formula, 10.0, -11.9, 11.9, -10.0, 10.0, -10.0);
+      asPercentage(formula, 0);
+      assertNull(formula.getResult());
+      assertEquals(0.0, formula.getDoubleResult());
+      assertEquals(0.0, asDouble(formula.getOriginalResult()), DELTA);
+
+      // a total of 0.0 is 0 as well, and the default-result flag gives 0 instead of null
+      formula.setTotal(0.0);
+      assertNull(formula.getResult());
+      formula.setDefaultResult(true);
+      assertEquals(0.0, formula.getResult());
+      formula.setDefaultResult(false);
+
+      // a different total is a real percentage again
+      formula.setTotal(10);
+      assertNotNull(formula.getResult());
+   }
+
+   // gap:report.summary-formulas.common#formula-reused-after-reset
+   @Test
+   void reset_afterClone_eachCopyKeepsItsOwnValues() {
+      Formula fresh = (Formula) formula.clone();
+      formula.addValue(4.0);
+      formula.addValue(6.0);
+      assertFalse(formula.isNull());
+      Object first = formula.getResult();
+      assertNotNull(first);
+
+      // a clone is its own copy
+      Formula copy = (Formula) formula.clone();
+      assertEquals(first, copy.getResult());
+      copy.addValue(100.0);
+      copy.addValue(-50.0);
+      assertEquals(first, formula.getResult());
+      assertNotEquals(first, copy.getResult());
+
+      // reset starts over, and it can take another group
+      formula.reset();
+      assertEquals(fresh.isNull(), formula.isNull());
+      assertEquals(fresh.getResult(), formula.getResult());
+      formula.addValue(4.0);
+      formula.addValue(6.0);
+      assertEquals(first, formula.getResult());
+
+      // the copy was not reset by it
+      assertNotEquals(first, copy.getResult());
+   }
+
+   private static void addAll(Formula formula, Object... values) {
+      for(Object value : values) {
+         formula.addValue(value);
+      }
+   }
+
+   private static void asPercentage(PercentageFormula formula, Object total) {
+      formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GROUP);
+      formula.setTotal(total);
+   }
+
+   private static double asDouble(Object result) {
+      assertInstanceOf(Double.class, result);
+      return (Double) result;
+   }
+
+   private static void withProperty(String name, String value, Runnable action) {
+      String old = SreeEnv.getProperty(name);
+
+      try {
+         SreeEnv.setProperty(name, value);
+         action.run();
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove(name);
+         }
+         else {
+            SreeEnv.setProperty(name, old);
+         }
+      }
    }
 }
