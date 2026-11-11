@@ -16,7 +16,9 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <modal-header [title]="'_#(Create Visualization)'" (onCancel)="cancel()"></modal-header>
-<div class="modal-body">
+<!-- The dialog opens on its own, so start focus on the body rather than the close button, which
+     would otherwise show a keyboard focus ring before the user has done anything. -->
+<div class="modal-body" tabindex="-1" ngbAutofocus>
     <div class="step-item font-weight-bold normal-step"
          [class.current-step]="isCurrentStep(StepIndex.CONNECT_TO_OR_UPLOAD)"
          [class.active]="isCurrentStep(StepIndex.CONNECT_TO_OR_UPLOAD)"

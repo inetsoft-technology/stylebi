@@ -103,3 +103,8 @@
     font-weight: 400;
   }
 }
+
+// initial focus target only (ngbAutofocus), not a control
+.modal-body:focus {
+  outline: none;
+}
