@@ -378,11 +378,81 @@ class ConditionTest {
    }
 
    @Test
-   void like_questionMarkWildcard_matchesSingleChar() {
+   void like_underscoreWildcard_matchesSingleChar() {
+      Condition cond = new Condition(XSchema.STRING);
+      cond.setOperation(XCondition.LIKE);
+      cond.addValue("hell_");
+      assertTrue(cond.evaluate("hello"));
+      assertFalse(cond.evaluate("hell"));
+      assertFalse(cond.evaluate("helloo"));
+   }
+
+   @Test
+   void like_questionMark_isLiteral() {
       Condition cond = new Condition(XSchema.STRING);
       cond.setOperation(XCondition.LIKE);
       cond.addValue("hell?");
-      assertTrue(cond.evaluate("hello"));
+      assertFalse(cond.evaluate("hello"));
+      assertTrue(cond.evaluate("hell?"));
+   }
+
+   // Same rows as a database LIKE gives for these patterns (Bug #81114): '_' is a single-char
+   // wildcard, '?' is a literal.
+   private static java.util.List<String> likeRows(String pattern, boolean negated) {
+      Condition cond = new Condition(XSchema.STRING);
+      cond.setOperation(XCondition.LIKE);
+      cond.setNegated(negated);
+      cond.addValue(pattern);
+      java.util.List<String> rows = new java.util.ArrayList<>();
+
+      for(String row : new String[] { "a?c", "a_c", "abc", "axc", "ac", "abbc" }) {
+         if(cond.evaluate(row)) {
+            rows.add(row);
+         }
+      }
+
+      return rows;
+   }
+
+   @Test
+   void like_underscore_matchesExactlyOneChar() {
+      assertEquals(java.util.List.of("a?c", "a_c", "abc", "axc"), likeRows("a_c", false));
+   }
+
+   @Test
+   void like_questionMark_matchesOnlyLiteralQuestionMark() {
+      assertEquals(java.util.List.of("a?c"), likeRows("a?c", false));
+   }
+
+   @Test
+   void like_percentAndUnderscoreCombined() {
+      assertEquals(java.util.List.of("a?c", "a_c", "abc", "axc", "abbc"), likeRows("a%_c", false));
+      assertEquals(java.util.List.of("ac"), likeRows("a%_c", true));
+   }
+
+   @Test
+   void like_negated_invertsUnderscoreMatch() {
+      assertEquals(java.util.List.of("ac", "abbc"), likeRows("a_c", true));
+      assertEquals(java.util.List.of("a_c", "abc", "axc", "ac", "abbc"), likeRows("a?c", true));
+   }
+
+   @Test
+   void like_regexMetacharsStayLiteral() {
+      for(String lit : new String[] { "a.c", "a+c", "a*c", "(x)", "[x]", "^$", "a|c", "a{1}c" }) {
+         Condition cond = new Condition(XSchema.STRING);
+         cond.setOperation(XCondition.LIKE);
+         cond.addValue(lit);
+         assertTrue(cond.evaluate(lit), lit);
+         assertFalse(cond.evaluate("abc"), lit);
+      }
+   }
+
+   @Test
+   void like_nullValue_neverMatches() {
+      Condition cond = new Condition(XSchema.STRING);
+      cond.setOperation(XCondition.LIKE);
+      cond.addValue("a_c");
+      assertFalse(cond.evaluate(null));
    }
 
    @Test
@@ -412,9 +482,17 @@ class ConditionTest {
    }
 
    @Test
-   void getLikePattern_questionMarkBecomesSingleCharWildcard() {
-      java.util.regex.Pattern p = Condition.getLikePattern("a?b", true);
+   void getLikePattern_underscoreBecomesSingleCharWildcard() {
+      java.util.regex.Pattern p = Condition.getLikePattern("a_b", true);
       assertTrue(p.matcher("axb").find());
+      assertFalse(p.matcher("ab").find());
+   }
+
+   @Test
+   void getLikePattern_questionMarkIsLiteral() {
+      java.util.regex.Pattern p = Condition.getLikePattern("a?b", true);
+      assertTrue(p.matcher("a?b").find());
+      assertFalse(p.matcher("axb").find());
       assertFalse(p.matcher("ab").find());
    }
 

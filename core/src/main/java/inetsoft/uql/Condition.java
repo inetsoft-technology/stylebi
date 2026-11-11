@@ -822,6 +822,11 @@ public class Condition extends AbstractCondition {
       return isNegated() ? !result : result;
    }
 
+   /**
+    * Translate a LIKE pattern to a regex, with the same wildcards as the SQL LIKE operator:
+    * '%' matches any string and '_' matches a single character. Every other character,
+    * including '?', is matched literally.
+    */
    public static Pattern getLikePattern(String obj, boolean caseSensitive) {
       StringBuilder regex = new StringBuilder();
       regex.append('^');
@@ -834,8 +839,14 @@ public class Condition extends AbstractCondition {
             regex.append(".*");
             break;
 
-         case '?':
+         case '_':
             regex.append(".");
+            break;
+
+         case '?':
+            // '?' is not a LIKE wildcard (SQL treats it as a literal); escape it so it is
+            // not read as a regex quantifier
+            regex.append("\\?");
             break;
 
          case '\\':
