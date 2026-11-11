@@ -228,7 +228,7 @@ public class SubMV implements Cloneable {
       BitSet res = null;
 
       // special handling for between condition
-      if(and && (res = getBetween(set)) != null) {
+      if(and && (res = getBetween(set, delete)) != null) {
          return res;
       }
 
@@ -305,7 +305,7 @@ public class SubMV implements Cloneable {
     * Special processing for between conditions. A between condition can be
     * handled by an index in one call instead of two.
     */
-   private BitSet getBetween(XSet cond) {
+   private BitSet getBetween(XSet cond, boolean delete) {
       if(cond.getChildCount() != 2) {
          return null;
       }
@@ -357,8 +357,18 @@ public class SubMV implements Cloneable {
             boolean cnull = "true".equals(cond1.getAttribute("containsNull"));
             long from = getCondValue(right1, rtdims[idx], cnull);
             long to = getCondValue(right2, rtdims[idx], cnull);
-            return rtdims[idx].getRows(from, leftInclusive, to,
-                                       rightInclusive, cnull);
+            BitSet rows = rtdims[idx].getRows(from, leftInclusive, to, rightInclusive, cnull);
+
+            // same rule as a single comparison (bug #81043): the incremental delete also removes
+            // the null rows, unless a bound is null or empty (mapped to the null key)
+            if(delete && right1 != null && !"".equals(right1) && right2 != null &&
+               !"".equals(right2) && !isNullKey(rtdims[idx], from, cnull) &&
+               !isNullKey(rtdims[idx], to, cnull))
+            {
+               rows = addDeleteNullRows(rtdims[idx], rows, cnull);
+            }
+
+            return rows;
          }
       }
 
@@ -447,13 +457,14 @@ public class SubMV implements Cloneable {
          long key = getCondValue(val, rtdims[idx], cnull);
          BitSet rows = rtdims[idx].getRows(op, key, cond.isIsNot(), cnull);
 
-         // 'not equal' is the two ranges around the value, which never contain null. A query
-         // drops null for it (bug #79870), but the MV creation keeps only the rows where the
-         // negated delete condition ('= value') is true, which never includes null, so the
-         // incremental delete must remove the null rows too (bug #80570). Not for a null or
-         // empty value: the dictionary (MV.fixFilter) has already mapped it to the null key,
-         // creation keeps the null rows for it and they must stay.
-         if(delete && "=".equals(op) && cond.isIsNot() && val != null && !"".equals(val) &&
+         // A comparison against a non-null value is true or unknown (null) for the null rows. The
+         // MV creation keeps only the rows where the negated delete condition is true, so null
+         // rows are never kept for it, but the index ranges (and the query path since #79870) do
+         // not contain them. The incremental delete must remove the null rows too (bugs #80570,
+         // #81043). Not for 'is null' (two-valued), and not for a null or empty value: the
+         // dictionary (MV.fixFilter) has already mapped it to the null key, creation keeps the
+         // null rows for it and they must stay.
+         if(delete && !"null".equals(op) && val != null && !"".equals(val) &&
             !isNullKey(rtdims[idx], key, cnull))
          {
             rows = addDeleteNullRows(rtdims[idx], rows, cnull);
@@ -477,7 +488,7 @@ public class SubMV implements Cloneable {
    }
 
    /**
-    * Add the rows containing null to the rows deleted by a 'not equal' delete condition.
+    * Add the rows containing null to the rows deleted by a comparison delete condition.
     * @param cnull true if the dimension column contains null.
     */
    private static BitSet addDeleteNullRows(XDimIndex dim, BitSet rows, boolean cnull) {
