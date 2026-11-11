@@ -18,6 +18,7 @@
 package inetsoft.report.composition.graph;
 
 import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.LegendSpec;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
@@ -106,12 +107,30 @@ class LegendPaddingRenderTest {
                    legendPaddings(VizMark.MODERN_LIGHT, "comfortable", null, null));
    }
 
+   @Test
+   void aModernTopLegendSpecCarriesTheLargerGap() {
+      assertEquals(18, legendGap(VizMark.MODERN_LIGHT, "compact", LegendsDescriptor.TOP));
+      assertEquals(14, legendGap(VizMark.MODERN_LIGHT, "compact", LegendsDescriptor.RIGHT));
+      assertEquals(0, legendGap(null, "compact", LegendsDescriptor.TOP));
+   }
+
    /**
     * The padding each legend site hands its frame, on a bar chart of one dimension by one
     * measure: the color legend, the shape legend (a bar's texture frame) and the size legend.
     */
    private static List<Insets> legendPaddings(VizMark mark, String density, Insets author,
                                               Insets stylesheet)
+   {
+      return legendSpecs(mark, density, author, stylesheet, 0).stream()
+         .map(LegendSpec::getPadding).collect(java.util.stream.Collectors.toList());
+   }
+
+   private static int legendGap(VizMark mark, String density, int layout) {
+      return legendSpecs(mark, density, null, null, layout).get(0).getGap();
+   }
+
+   private static List<LegendSpec> legendSpecs(VizMark mark, String density, Insets author,
+                                               Insets stylesheet, int layout)
    {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Total" };
@@ -134,6 +153,10 @@ class LegendPaddingRenderTest {
       ChartDescriptor chartDesc = new ChartDescriptor();
       LegendsDescriptor legends = chartDesc.getLegendsDescriptor();
 
+      if(layout != 0) {
+         legends.setAuthorLayout(layout);
+      }
+
       if(stylesheet != null) {
          legends.setPadding(stylesheet, CompositeValue.Type.CSS);
       }
@@ -154,8 +177,8 @@ class LegendPaddingRenderTest {
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,
          XSourceInfo.NONE, null).createEGraph().getElement(0);
 
-      return Arrays.asList(elem.getColorFrame().getLegendSpec().getPadding(),
-                           elem.getTextureFrame().getLegendSpec().getPadding(),
-                           elem.getSizeFrame().getLegendSpec().getPadding());
+      return Arrays.asList(elem.getColorFrame().getLegendSpec(),
+                           elem.getTextureFrame().getLegendSpec(),
+                           elem.getSizeFrame().getLegendSpec());
    }
 }

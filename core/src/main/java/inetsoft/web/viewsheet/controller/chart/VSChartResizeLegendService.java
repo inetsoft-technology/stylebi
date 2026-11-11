@@ -90,7 +90,7 @@ public class VSChartResizeLegendService extends VSChartControllerService<VSChart
                // adding the marker back would land the legend short of where it was dragged
                int gap = VSChartChromeDefaults.resolveLegendGap(
                   legendsDes.getGap(), legendsDes.hasGapValue(),
-                  VizContext.of(chartState.getChartAssemblyInfo()));
+                  VizContext.of(chartState.getChartAssemblyInfo()), legendsDes.getLayout());
 
                setDockedSize(legendsDes, width, height, gap);
             }

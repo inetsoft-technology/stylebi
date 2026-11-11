@@ -1758,7 +1758,7 @@ public abstract class GraphGenerator {
          legend.setVisible(!isSparkline() && !donutTotal &&
                            (maxMode ? colorDesc.isMaxModeVisible() : colorDesc.isVisible()));
          legend.setGap(VSChartChromeDefaults.resolveLegendGap(
-            legends.getGap(), legends.hasGapValue(), vizContext));
+            legends.getGap(), legends.hasGapValue(), vizContext, legends.getLayout()));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
 
@@ -1839,7 +1839,7 @@ public abstract class GraphGenerator {
          legend.setVisible(!isSparkline() &&
                               (maxMode ? shapeDesc.isMaxModeVisible() : shapeDesc.isVisible()));
          legend.setGap(VSChartChromeDefaults.resolveLegendGap(
-            legends.getGap(), legends.hasGapValue(), vizContext));
+            legends.getGap(), legends.hasGapValue(), vizContext, legends.getLayout()));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
       }
@@ -1876,7 +1876,7 @@ public abstract class GraphGenerator {
                                // size legend missing after brushing. (57608, 57623, 57646)
                                nodeSize));
          legend.setGap(VSChartChromeDefaults.resolveLegendGap(
-            legends.getGap(), legends.hasGapValue(), vizContext));
+            legends.getGap(), legends.hasGapValue(), vizContext, legends.getLayout()));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
 

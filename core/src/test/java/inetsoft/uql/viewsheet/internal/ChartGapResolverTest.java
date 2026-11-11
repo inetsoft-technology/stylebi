@@ -72,17 +72,17 @@ class ChartGapResolverTest {
    @Test
    void legendGapTakesTheTunableShareOfTheSpecValue() {
       // 16px total minus VGraph.GAP's fixed 2
-      assertEquals(14, VSChartChromeDefaults.resolveLegendGap(0, false, modern));
+      assertEquals(14, VSChartChromeDefaults.resolveLegendGap(0, false, modern, LegendsDescriptor.RIGHT));
    }
 
    @Test
    void legendGapIsUnchangedWhenLegacy() {
-      assertEquals(0, VSChartChromeDefaults.resolveLegendGap(0, false, LEGACY));
+      assertEquals(0, VSChartChromeDefaults.resolveLegendGap(0, false, LEGACY, LegendsDescriptor.RIGHT));
    }
 
    @Test
    void legendGapKeepsAnAuthorValue() {
-      assertEquals(20, VSChartChromeDefaults.resolveLegendGap(20, true, modern));
+      assertEquals(20, VSChartChromeDefaults.resolveLegendGap(20, true, modern, LegendsDescriptor.RIGHT));
    }
 
    @Test
@@ -125,12 +125,12 @@ class ChartGapResolverTest {
       LegendsDescriptor legends = new LegendsDescriptor();
 
       int shown = VSChartChromeDefaults.resolveLegendGap(
-         legends.getGap(), legends.hasGapValue(), modern);
+         legends.getGap(), legends.hasGapValue(), modern, legends.getLayout());
       applyLegendGap(legends, shown, modern);
 
       assertEquals(0, legends.getGap(), "the descriptor still carries no opinion");
       assertEquals(14, VSChartChromeDefaults.resolveLegendGap(
-         legends.getGap(), legends.hasGapValue(), modern));
+         legends.getGap(), legends.hasGapValue(), modern, legends.getLayout()));
    }
 
    @Test
@@ -141,7 +141,7 @@ class ChartGapResolverTest {
 
       assertEquals(24, legends.getGap());
       assertEquals(24, VSChartChromeDefaults.resolveLegendGap(
-                      legends.getGap(), legends.hasGapValue(), modern),
+                      legends.getGap(), legends.hasGapValue(), modern, legends.getLayout()),
                    "an author value is returned unchanged");
    }
 
@@ -154,7 +154,7 @@ class ChartGapResolverTest {
 
       assertEquals(0, legends.getGap(), "an unopinionated chart is back at the unset marker");
       assertEquals(14, VSChartChromeDefaults.resolveLegendGap(
-                      legends.getGap(), legends.hasGapValue(), modern),
+                      legends.getGap(), legends.hasGapValue(), modern, legends.getLayout()),
                    "clearing the author tier resolves again");
    }
 
@@ -170,7 +170,7 @@ class ChartGapResolverTest {
 
       assertEquals(20, legends.getGap(), "the stylesheet's gap comes back");
       assertEquals(20, VSChartChromeDefaults.resolveLegendGap(
-                      legends.getGap(), legends.hasGapValue(), modern),
+                      legends.getGap(), legends.hasGapValue(), modern, legends.getLayout()),
                    "and the resolver leaves it alone");
    }
 
@@ -183,7 +183,7 @@ class ChartGapResolverTest {
 
       assertTrue(legends.hasGapValue(), "a USER-tier zero still carries an opinion");
       assertEquals(0, VSChartChromeDefaults.resolveLegendGap(
-         legends.getGap(), legends.hasGapValue(), modern));
+         legends.getGap(), legends.hasGapValue(), modern, legends.getLayout()));
    }
 
    @Test
@@ -195,7 +195,7 @@ class ChartGapResolverTest {
 
       assertTrue(legends.hasGapValue(), "a non-zero CSS value implies an opinion");
       assertEquals(20, VSChartChromeDefaults.resolveLegendGap(
-         legends.getGap(), legends.hasGapValue(), modern),
+         legends.getGap(), legends.hasGapValue(), modern, legends.getLayout()),
          "the CSS gap is honoured, not overridden by the resolver's default");
    }
 
@@ -230,7 +230,8 @@ class ChartGapResolverTest {
       assertEquals(12, VSChartChromeDefaults.resolveAxisLabelGap(0, false, comfortable));
       assertEquals(6, VSChartChromeDefaults.resolveAxisTitleGap(0, false, true, comfortable));
       assertEquals(12, VSChartChromeDefaults.resolveAxisTitleGap(0, false, false, comfortable));
-      assertEquals(18, VSChartChromeDefaults.resolveLegendGap(0, false, comfortable));
+      assertEquals(18, VSChartChromeDefaults.resolveLegendGap(0, false, comfortable,
+                                                                 LegendsDescriptor.RIGHT));
       assertEquals(new Insets(1, 6, 2, 6),
                    VSChartChromeDefaults.resolveLegendPadding(null, false, comfortable));
    }
@@ -285,7 +286,7 @@ class ChartGapResolverTest {
    /** Mirrors LegendFormatDialogModel's write guard for the gap. */
    private static void applyLegendGap(LegendsDescriptor legends, int edited, VizContext ctx) {
       if(edited != VSChartChromeDefaults.resolveLegendGap(
-         legends.getGap(), legends.hasGapValue(), ctx))
+         legends.getGap(), legends.hasGapValue(), ctx, legends.getLayout()))
       {
          legends.setGap(edited);
       }
