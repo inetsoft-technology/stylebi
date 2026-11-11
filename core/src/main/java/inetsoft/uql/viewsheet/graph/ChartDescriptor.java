@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.graph;
 
 import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.XDimensionRef;
@@ -285,6 +286,27 @@ public class ChartDescriptor implements AssetObject, ContentObject {
       }
 
       return null;
+   }
+
+   List<CompositeValue<?>> savedDefaults() {
+      List<CompositeValue<?>> list = new ArrayList<>();
+
+      if(plotDesc != null) {
+         list.addAll(plotDesc.savedDefaults());
+      }
+
+      if(legendsDesc != null) {
+         list.addAll(legendsDesc.savedDefaults());
+      }
+
+      return list;
+   }
+
+   /**
+    * Set whether the registered values save their default tier.
+    */
+   public void setSaveDefaults(boolean save) {
+      savedDefaults().forEach(v -> v.setSaveDefault(save));
    }
 
    /**

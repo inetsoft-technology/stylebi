@@ -657,6 +657,12 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       gap.resetValue(type);
       padding.resetValue(type);
    }
+
+   // the values whose default tier a marked chart saves
+   List<CompositeValue<?>> savedDefaults() {
+      return List.of(borderColor);
+   }
+
    private CompositeValue<Color> borderColor = new CompositeValue<>(Color.class,
                                                                     GDefaults.DEFAULT_LINE_COLOR);
    private CompositeValue<Integer> border = new CompositeValue<>(Integer.class,

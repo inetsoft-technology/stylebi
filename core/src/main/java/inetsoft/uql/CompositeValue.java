@@ -83,6 +83,13 @@ public class CompositeValue<T> implements Cloneable, Serializable {
       return userDefined;
    }
 
+   /**
+    * Set whether toString writes the default tier.
+    */
+   public void setSaveDefault(boolean saveDefault) {
+      this.saveDefault = saveDefault;
+   }
+
    public void resetValue(Type type) {
       if(type == Type.CSS) {
          resetCssValue();

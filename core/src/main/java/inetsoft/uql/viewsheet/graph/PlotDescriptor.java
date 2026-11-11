@@ -1914,6 +1914,11 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       wordCloudFontScale.resetValue(type);
    }
 
+   // values whose default tier can be saved
+   List<CompositeValue<?>> savedDefaults() {
+      return List.of(xGridColor, yGridColor, facetColor, diagonalColor, quadrantColor);
+   }
+
    private CompositeTextFormat fmt;
    private int trendline = StyleConstants.NONE;
    private Color trendLineColor = GDefaults.DEFAULT_TARGET_LINE_COLOR;

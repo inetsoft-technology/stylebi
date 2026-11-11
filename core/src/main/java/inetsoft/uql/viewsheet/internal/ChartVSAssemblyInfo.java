@@ -178,6 +178,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // colour at all - it ran on every render and overwrote this
          plotDesc.getTextFormat().getDefaultFormat()
             .setColor(VSChartChromeDefaults.titleColor(ctx));
+
+         getChartDescriptor().getLegendsDescriptor().setBorderColor(
+            VSChartChromeDefaults.legendBorderColor(ctx), CompositeValue.Type.DEFAULT);
       }
       else {
          // Revert calls this with an unmarked context and needs the legacy values written, not
@@ -209,10 +212,19 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             CompositeValue.Type.DEFAULT);
 
          plotDesc.getTextFormat().getDefaultFormat().setColor(GDefaults.DEFAULT_TEXT_COLOR);
+
+         getChartDescriptor().getLegendsDescriptor().setBorderColor(
+            GDefaults.DEFAULT_LINE_COLOR, CompositeValue.Type.DEFAULT);
       }
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
+      // only a marked chart saves its seeded tiers
+      getChartDescriptor().setSaveDefaults(ctx.modern);
+
+      ResolvedChartType now = ResolvedChartType.of(getVSChartInfo());
+      seedTypeDefaults(ctx, now);
+      seededType = now;
    }
 
    @Override
@@ -1292,6 +1304,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Let the chart descriptor save its default tiers only while this chart is marked.
+    */
+   public void syncSavedDefaults() {
+      if(desc != null) {
+         desc.setSaveDefaults(getVizMark() != null);
+      }
+   }
+
+   /**
     * Set the runtime chart descriptor.
     * @param rdesc the specified chart descriptor.
     */
@@ -1687,6 +1708,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       if(desc != null) {
+         // a descriptor swapped in without a re-seed follows this chart's mark
+         syncSavedDefaults();
          desc.writeXML(writer);
       }
 
@@ -2247,6 +2270,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          VSChartInfo clone = dcInfo == null ? cinfo : cinfo.clone();
          clone.update(vs, columns, !cinfo.isMultiStyles(), dim, source.getSource(), dcInfo);
          cinfo = clone;
+         reseedIfResolvedTypeChanged();
          removeUselessChildRefs();
          chartTree.updateHierarcy(cinfo, cube, cubeType);
          updateSelections();
@@ -2991,6 +3015,30 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       this.userSmoothLines = userSmoothLines;
    }
 
+   /**
+    * The key the per-type seed last ran for, or null before the first observation.
+    */
+   public ResolvedChartType getSeededType() {
+      return seededType;
+   }
+
+   protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
+      // values that depend on the resolved type; written on both branches
+   }
+
+   /**
+    * Re-run the per-type seed when a marked chart's resolved type changed; otherwise only record.
+    */
+   public void reseedIfResolvedTypeChanged() {
+      ResolvedChartType now = ResolvedChartType.of(cinfo);
+
+      if(getVizMark() != null && seededType != null && !seededType.equals(now)) {
+         seedTypeDefaults(VizContext.of(this), now);
+      }
+
+      seededType = now;
+   }
+
    @Override
    public Insets getTitlePadding() {
       return titleInfo.getPadding();
@@ -3226,6 +3274,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private DynamicValue2 summarySortVal;
    private boolean userBarCornerRadius = false;
    private boolean userSmoothLines = false;
+   // not saved, not serialized; a clone carries it
+   private transient ResolvedChartType seededType;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);
 }
