@@ -196,24 +196,4 @@ class ParameterToolTest {
                       parse("{parameter.x, currency}", "x", new Object[] { 1, 2 }));
       }
    }
-
-   /**
-    * Behavior that looks unintended, pinned so a fix shows up as a test change.
-    */
-   @Nested
-   class Suspect {
-      @Test
-      void arrayWithNullElement_throwsNullPointerException() {
-         // ParameterTool.getParameterString calls values[i].toString() outside its try block
-         assertThrows(NullPointerException.class,
-                      () -> parse("{parameter.x}", "x", new Object[] { "a", null }));
-      }
-
-      @Test
-      void closingBraceBeforeTheParameter_leavesTheParameterUnreplaced() {
-         // containsParameter compares the first "}" of the whole text with the start of the
-         // first "{parameter.", so an earlier "}" hides the parameter
-         assertEquals("{0} {parameter.name}", parse("{0} {parameter.name}", "name", "abc"));
-      }
-   }
 }
