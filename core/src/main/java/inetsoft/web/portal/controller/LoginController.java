@@ -26,6 +26,7 @@ import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
+import inetsoft.web.portal.ShellDarkMode;
 import inetsoft.web.portal.model.LocaleModel;
 import inetsoft.web.portal.model.LoginBannerModel;
 import inetsoft.web.security.RequestedUrlValidator;
@@ -96,7 +97,13 @@ public class LoginController {
       // this page, but the subsequent requests will be unauthenticated, so if the current user has
       // a theme assigned, it will end up trying to load theme-variables.css from the "default"
       // theme, which doesn't exist. To avoid this, just check if the global theme is custom.
-      model.addObject("customTheme", isCustomTheme(request));
+      boolean customTheme = isCustomTheme(request);
+      model.addObject("customTheme", customTheme);
+      // the user is not known yet: follow the mode the portal last resolved for this browser,
+      // otherwise the default of the organization the login page is served for
+      String shellDarkOrgID = SUtil.isMultiTenant() ? SUtil.getLoginOrganization(request) : null;
+      model.addObject("shellDark",
+                      ShellDarkMode.isLoginDark(request, shellDarkOrgID, customTheme));
 
       if(welcomePage != null) {
          LoginBannerModel loginBanner = new LoginBannerModel();
