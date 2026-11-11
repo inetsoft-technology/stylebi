@@ -164,16 +164,18 @@ class WizDocSearchControllerTest {
    }
 
    @Test
-   void returns503NamingBothPropertiesWhenNoAssistantIsConfigured() throws Exception {
+   void usesTheHostedSearchWithoutTheCallersTokenWhenNoAssistantIsConfigured() throws Exception {
       setBody(request, "{\"query\":\"q\"}");
       configureAssistant(null);
+      when(gateway.post(any(), any(), any(), any(), anyBoolean()))
+         .thenReturn(new AssistantDocSearchGateway.Response(200, "{\"matches\":[]}"));
 
       controller.search(request, response);
 
-      assertEquals(503, response.getStatus());
-      assertTrue(response.getContentAsString().contains("chat.app.internal.url"));
-      assertTrue(response.getContentAsString().contains("chat.app.server.url"));
-      verifyNoInteractions(gateway);
+      assertEquals(200, response.getStatus());
+      // Verified TLS (false = not the operator's own assistant) and no StyleBI bearer token.
+      verify(gateway).post(DocSearchTarget.HOSTED_DOCS_URL, "/api/doc-search",
+                           "{\"query\":\"q\"}", null, false);
    }
 
    @Test

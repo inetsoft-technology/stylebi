@@ -35,6 +35,20 @@ class DocSearchTargetTest {
    }
 
    @Test
+   void theHostedDefaultIsAWellFormedHttpsBaseUrl() {
+      java.net.URI uri = java.net.URI.create(DocSearchTarget.HOSTED_DOCS_URL);
+      assertEquals("https", uri.getScheme());
+      assertNotNull(uri.getHost());
+      assertFalse(DocSearchTarget.HOSTED_DOCS_URL.endsWith("/"));
+
+      DocSearchTarget t = DocSearchTarget.resolve(null, null, null, DocSearchTarget.HOSTED_DOCS_URL)
+         .orElseThrow();
+      assertEquals(Source.HOSTED_DEFAULT, t.source());
+      assertFalse(t.source().forwardsCallerToken());
+      assertFalse(t.source().usesAssistantTls());
+   }
+
+   @Test
    void docsUrlWinsOverEverything() {
       DocSearchTarget t = resolve(" https://docs.example.com ", "https://i", "https://s", HOSTED);
       assertEquals("https://docs.example.com", t.baseUrl());
