@@ -41,6 +41,7 @@ public class LegendGroup extends BoundedContainer {
     */
    public LegendGroup(VisualFrame[] frames, EGraph graph) {
       this.layout = graph.getLegendLayout();
+      this.maxRatio = graph.getLegendMaxRatio() > 0 ? graph.getLegendMaxRatio() : 0.5;
       Set added = new HashSet();
 
       for(int i = 0; i < frames.length; i++) {
@@ -219,8 +220,8 @@ public class LegendGroup extends BoundedContainer {
       double[] psizes = new double[ratios.length];
       double mtotal = 0;
       double ptotal = 0;
-      double maxw = isLR ? w / 2 : w;
-      double maxh = isLR ? h : h / 2;
+      double maxw = isLR ? w * maxRatio : w;
+      double maxh = isLR ? h : h * maxRatio;
 
       for(int i = 0; i < getVisualCount(); i++) {
          Legend legend = (Legend) getVisual(i);
@@ -460,4 +461,5 @@ public class LegendGroup extends BoundedContainer {
    private Dimension2D asize; // available size
    private double[] ratios = new double[0];
    private int layout; // legend layout
+   private double maxRatio = 0.5; // legend size cap as a ratio of the graph
 }
