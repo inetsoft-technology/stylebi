@@ -22,6 +22,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartDirectionColors;
 import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.internal.VizContext;
@@ -243,6 +244,7 @@ public abstract class ChartInfoModelBuilder {
       model.setPointLine(plot.isPointLine());
       model.setStackMeasures(plot.isStackMeasures());
       fixColorChanged(model, getVizContext());
+      loadDirectionFrames(model, cinfo);
 
       // Populate text layout
       model.setTextLayout(TextLayoutModel.fromDomain(plot.getTextLayout()));
@@ -258,6 +260,41 @@ public abstract class ChartInfoModelBuilder {
       model.setTextFields(tfs);
 
       return model;
+   }
+
+   // the up and down frames reach the editor only while direction colors draw
+   private void loadDirectionFrames(ChartBindingModel model, ChartInfo cinfo) {
+      if(!(cinfo instanceof AbstractChartInfo) ||
+         !VSChartDirectionColors.draws(getVizContext(), cinfo))
+      {
+         return;
+      }
+
+      AbstractChartInfo info = (AbstractChartInfo) cinfo;
+
+      if(info.getUpColorFrameWrapper() != null && info.getDownColorFrameWrapper() != null) {
+         model.setUpColorFrame(visualService.createVisualFrameModel(info.getUpColorFrameWrapper()));
+         model.setDownColorFrame(
+            visualService.createVisualFrameModel(info.getDownColorFrameWrapper()));
+      }
+   }
+
+   private void updateDirectionFrames(ChartBindingModel model, ChartInfo ncinfo) {
+      if(!(ncinfo instanceof AbstractChartInfo)) {
+         return;
+      }
+
+      AbstractChartInfo info = (AbstractChartInfo) ncinfo;
+
+      if(model.getUpColorFrame() != null && info.getUpColorFrameWrapper() != null) {
+         info.setUpColorFrameWrapper(visualService.updateVisualFrameWrapper(
+            info.getUpColorFrameWrapper(), model.getUpColorFrame()));
+      }
+
+      if(model.getDownColorFrame() != null && info.getDownColorFrameWrapper() != null) {
+         info.setDownColorFrameWrapper(visualService.updateVisualFrameWrapper(
+            info.getDownColorFrameWrapper(), model.getDownColorFrame()));
+      }
    }
 
    // check for default color and set color changed.
@@ -381,6 +418,7 @@ public abstract class ChartInfoModelBuilder {
       ncinfo.setPathField(refService.pasteChartRef(ocinfo, model.getPathField()));
       ncinfo.updateChartType(!model.isMultiStyles());
       aesService.updateVisualFrames(model, ocinfo, ncinfo);
+      updateDirectionFrames(model, ncinfo);
       GraphUtil.fixVisualFrames(ncinfo, getVizContext());
       AestheticInfo ainfo = model.getColorField();
 

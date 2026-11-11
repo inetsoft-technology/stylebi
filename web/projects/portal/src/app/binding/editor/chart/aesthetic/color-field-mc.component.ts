@@ -82,6 +82,11 @@ export class ColorFieldMc extends AestheticFieldMc {
          return _frames;
       }
 
+      if(this.bindingModel.upColorFrame && this.bindingModel.downColorFrame) {
+         return GraphUtil.getVisualFrames("colorFrame", this.bindingModel, this.aggr)
+            .map(item => <ColorFrameModel> item.frame);
+      }
+
       if(this.aggr) {
          if(!this.isMixedField()) {
             if(!this.aggr.colorFrame) {
