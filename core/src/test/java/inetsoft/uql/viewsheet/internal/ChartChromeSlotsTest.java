@@ -259,7 +259,8 @@ class ChartChromeSlotsTest {
                    "a plain slot does nothing without a fresh instance");
 
       resetAll(info, fresh(VizMark.MODERN_LIGHT));
-      assertEquals(LegendsDescriptor.RIGHT, legends.getLayout());
+      // the fresh modern chart is seeded with its top legend
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout());
       assertTrue(legends.isRoundCorners());
       assertFalse(legends.chromeValue("borderColor").hasUserValue());
    }
@@ -286,7 +287,8 @@ class ChartChromeSlotsTest {
 
       resetAll(info, fresh);
 
-      assertEquals(LegendsDescriptor.RIGHT, legends.getLayout());
+      // the fresh modern chart is seeded with its top legend
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout());
       assertNull(legends.getPreferredSize());
 
       for(LegendDescriptor legend : new LegendDescriptor[] { color, bound }) {

@@ -144,7 +144,10 @@ class LegendPlacementStateTest {
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
       chart.getVSAssemblyInfo().initDefaultFormat();
-      return (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+      // creation asks for a count; these tests start with none pending
+      info.clearLegendCountPending();
+      return info;
    }
 
    private static String writeXml(ChartVSAssemblyInfo info) {

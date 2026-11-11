@@ -40,7 +40,9 @@ import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
 import inetsoft.uql.viewsheet.graph.TextFormat;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1559,6 +1561,14 @@ class SeedChromeDefaultsTest {
       gateOn();
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = chartOn(vs);
+      VSChartDimensionRef region = new VSChartDimensionRef(new AttributeRef(null, "region"));
+      region.setGroupColumnValue("region");
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setDataRef(region);
+      chart.getVSChartInfo().setColorField(colorRef);
+      ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).reseedLegendPlacement();
+      assertEquals(LegendsDescriptor.TOP, legends(chart.getChartInfo()).getLayout(),
+                   "premise: the modern legend is on top");
       String state = writeState(chart);
       assertTrue(chartDescriptorXml(state).contains("^^DEF^^"),
                  "premise: the bookmark carries the modern tiers");
@@ -1583,6 +1593,7 @@ class SeedChromeDefaultsTest {
       assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info), "data-label ink");
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(info).getBorderColor(), "legend border");
       assertEquals(StyleConstants.THIN_LINE, legends(info).getBorder(), "legend border style");
+      assertEquals(LegendsDescriptor.RIGHT, legends(info).getLayout(), "legend position");
       assertTrue(chart.getVSChartInfo().getAxisDescriptor().isLineVisible(), "value-axis line");
       assertTrue(xTitle(info).isVisible(), "x axis title");
       assertTrue(yTitle(info).isVisible(), "y axis title");

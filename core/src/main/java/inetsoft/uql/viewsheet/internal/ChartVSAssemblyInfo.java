@@ -114,6 +114,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // super seeded the title composite this method just replaced; re-run against the real one.
       // The hook is a set of unconditional writes, so running it twice changes nothing else
       seedChromeDefaults(VizContext.of(this));
+      requestLegendCount();
    }
 
    @Override
@@ -238,6 +239,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       ResolvedChartType now = ResolvedChartType.of(getVSChartInfo());
       seedTypeDefaults(ctx, now);
       seededType = now;
+      seededLegendKey = VSChartTypeDefaults.legendBindingKey(getVSChartInfo());
    }
 
    @Override
@@ -2075,6 +2077,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          desc = ninfo.desc;
          // the key travels with the values, so the next update re-seeds a mismatch
          seededType = ninfo.seededType;
+         seededLegendKey = ninfo.seededLegendKey;
          result = true;
       }
 
@@ -2085,7 +2088,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       // a copy never loses a request
       legendCountPending = legendCountPending || ninfo.legendCountPending;
-      seededLegendKey = ninfo.seededLegendKey;
 
       if(!Tool.equalsContent(rdesc, ninfo.rdesc)) {
          rdesc = ninfo.rdesc;
@@ -3217,6 +3219,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    protected void seedTypeDefaults(VizContext ctx, ResolvedChartType type) {
+      seedLegendPlacement(ctx, type);
       // values that depend on the resolved type; written on both branches
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
@@ -3401,6 +3404,30 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       plot.setSmoothLines(smooth);
    }
 
+   // writes the position while the author has not chosen one; legacy keeps the classic right
+   private void seedLegendPlacement(VizContext ctx, ResolvedChartType type) {
+      int layout = ctx.modern ?
+         VSChartTypeDefaults.legendLayout(type, VSChartTypeDefaults.colorRamp(getVSChartInfo()),
+                                          isLegendCrowded()) : LegendsDescriptor.RIGHT;
+
+      for(ChartDescriptor chartDesc : new ChartDescriptor[] { desc, rdesc }) {
+         LegendsDescriptor legends = chartDesc == null ? null : chartDesc.getLegendsDescriptor();
+
+         if(legends != null && !legends.isUserLayout()) {
+            legends.setLayout(layout);
+         }
+      }
+   }
+
+   /**
+    * Re-run the legend position seed for the current resolved type, on a marked chart only.
+    */
+   public void reseedLegendPlacement() {
+      if(getVizMark() != null) {
+         seedLegendPlacement(VizContext.of(this), ResolvedChartType.of(getVSChartInfo()));
+      }
+   }
+
    private static PlotDescriptor plotOf(ChartDescriptor desc) {
       return desc == null ? null : desc.getPlotDescriptor();
    }
@@ -3411,11 +3438,19 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    public void reseedIfResolvedTypeChanged() {
       ResolvedChartType now = ResolvedChartType.of(cinfo);
 
+      List<String> key = VSChartTypeDefaults.legendBindingKey(cinfo);
+
       if(getVizMark() != null && seededType != null && !seededType.equals(now)) {
          seedTypeDefaults(VizContext.of(this), now);
+         requestLegendCount();
+      }
+      else if(getVizMark() != null && seededLegendKey != null && !seededLegendKey.equals(key)) {
+         seedLegendPlacement(VizContext.of(this), now);
+         requestLegendCount();
       }
 
       seededType = now;
+      seededLegendKey = key;
    }
 
    /**
@@ -3432,6 +3467,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
 
       seededType = now;
+      seededLegendKey = VSChartTypeDefaults.legendBindingKey(cinfo);
    }
 
    @Override

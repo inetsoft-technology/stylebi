@@ -191,6 +191,14 @@ public final class VizModernizeUtil {
          }
       }
 
+      if(mark != null) {
+         for(VSAssemblyInfo info : targets) {
+            if(info instanceof ChartVSAssemblyInfo chart) {
+               chart.requestLegendCount();
+            }
+         }
+      }
+
       int seeded = seedAll(vs, mark, targets, true, true);
 
       if(seeded > 0) {

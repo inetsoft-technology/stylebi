@@ -241,6 +241,8 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       }
 
       nlegendsDescriptor.setLayout(olegendsDescriptor.getLayout());
+      // the author's choice travels, so the target's seed leaves it
+      nlegendsDescriptor.setUserLayout(olegendsDescriptor.isUserLayout());
 
       if(oColorField != null && nColorField != null) {
          syncLegendProperties(olegendsDescriptor.getColorLegendDescriptor(),
