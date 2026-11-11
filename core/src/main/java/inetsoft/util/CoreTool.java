@@ -1416,8 +1416,7 @@ public class CoreTool {
                return Byte.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (byte) dval;
+               return (byte) parseIntegral(val, Byte.MIN_VALUE, Byte.MAX_VALUE);
             }
          case CODE_CHARACTER:
             return val.charAt(0);
@@ -1430,23 +1429,42 @@ public class CoreTool {
                return Integer.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (int) dval;
+               return (int) parseIntegral(val, Integer.MIN_VALUE, Integer.MAX_VALUE);
             }
          case CODE_LONG:
             try {
                return Long.valueOf(val);
             }
             catch(Exception ex) {
-               return parseDouble(val);
+               double dval = parseDouble(val);
+
+               // a double cannot tell Long.MIN_VALUE - 1 from Long.MIN_VALUE, so check the
+               // exact decimal text when it is plain numeric text
+               java.math.BigDecimal exact;
+
+               try {
+                  // skip the exact check for huge values (also bounds BigDecimal work)
+                  exact = Math.abs(dval) < 0x1p64 ? new java.math.BigDecimal(val.trim()) : null;
+               }
+               catch(NumberFormatException ignore) {
+                  exact = null;
+               }
+
+               boolean inRange = exact != null ?
+                  exact.toBigInteger().bitLength() < Long.SIZE : dval >= -0x1p63 && dval < 0x1p63;
+
+               if(!inRange) {
+                  throw new NumberFormatException("Value out of range for long: " + val);
+               }
+
+               return dval;
             }
          case CODE_SHORT:
             try {
                return Short.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (short) dval;
+               return (short) parseIntegral(val, Short.MIN_VALUE, Short.MAX_VALUE);
             }
          case CODE_DATE:
             Date date;
@@ -1533,6 +1551,23 @@ public class CoreTool {
       }
 
       return val;
+   }
+
+   /**
+    * Parse a decimal or out-of-int-syntax number for a narrower integral type. The fraction
+    * is truncated, but a value outside [min, max] (or NaN) is rejected instead of wrapped
+    * or saturated by the narrowing cast.
+    * @throws NumberFormatException if the value is not a number or is out of range.
+    */
+   private static double parseIntegral(String str, double min, double max) {
+      double dval = parseDouble(str);
+      double truncated = dval < 0 ? Math.ceil(dval) : Math.floor(dval);
+
+      if(!(truncated >= min && truncated <= max)) {
+         throw new NumberFormatException("Value out of range: " + str);
+      }
+
+      return dval;
    }
 
    private static double parseDouble(String str) {
