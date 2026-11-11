@@ -1416,8 +1416,7 @@ public class CoreTool {
                return Byte.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (byte) dval;
+               return (byte) parseIntegral(val, Byte.MIN_VALUE, Byte.MAX_VALUE);
             }
          case CODE_CHARACTER:
             return val.charAt(0);
@@ -1430,23 +1429,27 @@ public class CoreTool {
                return Integer.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (int) dval;
+               return (int) parseIntegral(val, Integer.MIN_VALUE, Integer.MAX_VALUE);
             }
          case CODE_LONG:
             try {
                return Long.valueOf(val);
             }
             catch(Exception ex) {
-               return parseDouble(val);
+               double dval = parseDouble(val);
+
+               if(!isLongRange(val, dval)) {
+                  throw new NumberFormatException("Value out of range for long: " + val);
+               }
+
+               return dval;
             }
          case CODE_SHORT:
             try {
                return Short.valueOf(val);
             }
             catch(Exception ex) {
-               double dval = parseDouble(val);
-               return (short) dval;
+               return (short) parseIntegral(val, Short.MIN_VALUE, Short.MAX_VALUE);
             }
          case CODE_DATE:
             Date date;
@@ -1533,6 +1536,51 @@ public class CoreTool {
       }
 
       return val;
+   }
+
+   /**
+    * Parse a decimal or out-of-int-syntax number for a narrower integral type. The fraction
+    * is truncated, but a value outside [min, max] (or NaN) is rejected instead of wrapped
+    * or saturated by the narrowing cast.
+    * @throws NumberFormatException if the value is not a number or is out of range.
+    */
+   private static double parseIntegral(String str, double min, double max) {
+      double dval = parseDouble(str);
+      double truncated = dval < 0 ? Math.ceil(dval) : Math.floor(dval);
+
+      if(!(truncated >= min && truncated <= max)) {
+         throw new NumberFormatException("Value out of range: " + str);
+      }
+
+      return dval;
+   }
+
+   /**
+    * Check if the numeric text (already parsed as dval) fits the range of long. Only values
+    * near +-2^63 need the exact decimal check, because a double cannot tell
+    * Long.MIN_VALUE - 1 from Long.MIN_VALUE. Everything else is decided in O(1) from dval,
+    * so BigDecimal.toBigInteger() is never applied to text like "1e-999999999".
+    */
+   private static boolean isLongRange(String str, double dval) {
+      double abs = Math.abs(dval);
+
+      if(abs < 0x1p62) {
+         return true;
+      }
+
+      if(!(abs < 0x1p64)) {
+         // too large, infinite or NaN
+         return false;
+      }
+
+      try {
+         // |value| is within [2^62, 2^64), so the integer part has at most 20 digits
+         return new java.math.BigDecimal(str.trim()).toBigInteger().bitLength() < Long.SIZE;
+      }
+      catch(NumberFormatException ignore) {
+         // e.g. a trailing percent sign, parsed by parseDouble
+         return dval >= -0x1p63 && dval < 0x1p63;
+      }
    }
 
    private static double parseDouble(String str) {
