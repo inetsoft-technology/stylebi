@@ -1419,11 +1419,11 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             }
          }
 
-         return "(" + COVARIANCE.getExpression(column, col2, helper) +
-            ") / ("
-            + POPULATION_STANDARD_DEVIATION.getExpression(column, null, helper) +
-            " * "
-            + POPULATION_STANDARD_DEVIATION.getExpression(col2, null, helper) + ")";
+         // all terms range over the rows where both columns are not null, so a pair
+         // with one missing value is left out (Bug #81095)
+         return "(" + pairCovariance(column, col2) + ") / NULLIF("
+            + pairStdDev(column, col2) + " * "
+            + pairStdDev(col2, column) + ", 0)";
       }
 
       /**
@@ -1523,13 +1523,8 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
             }
          }
 
-         return "(0.0+" + SUMWT.getExpression(column, col2, helper) + ") / "
-            + COUNT_ALL.getExpression(column, null, helper)+ " - (0.0+ " +
-            SUM.getExpression(column, null, helper) + ") * ((0.0 + " +
-            SUM.getExpression(col2, null, helper)
-            + ") / ((0.0 + " +
-            COUNT_ALL.getExpression(column, null, helper) + ") * " +
-            COUNT_ALL.getExpression(column, null, helper) + "))";
+         // all terms range over the rows where both columns are not null (Bug #81095)
+         return pairCovariance(column, col2);
       }
 
       /**
@@ -2990,6 +2985,61 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       catch(CloneNotSupportedException ex) {
          return null;
       }
+   }
+
+   /**
+    * Parenthesize a column or expression unless it is a plain (qualified) name, so that
+    * an expression argument keeps its precedence inside CASE and arithmetic.
+    */
+   private static String pairParens(String col) {
+      if(col == null || col.matches("[\\w.$#@]+") || isField(col)) {
+         return col;
+      }
+
+      return "(" + col + ")";
+   }
+
+   /**
+    * Count of the rows where both columns are not null.
+    */
+   private static String pairCount(String x, String y) {
+      return "COUNT(CASE WHEN " + pairParens(y) + " IS NOT NULL THEN " + pairParens(x) +
+         " END)";
+   }
+
+   /**
+    * Sum of x over the rows where y is not null (SUM skips the rows where x is null).
+    */
+   private static String pairSum(String x, String y) {
+      return "SUM(CASE WHEN " + pairParens(y) + " IS NOT NULL THEN " + pairParens(x) +
+         " END)";
+   }
+
+   /**
+    * Population covariance over the rows where both columns are not null. The result is
+    * NULL if there is no such row. 0.0E0 (DOUBLE) so that integer columns are not
+    * truncated by DECIMAL division.
+    */
+   private static String pairCovariance(String x, String y) {
+      String n = "NULLIF(" + pairCount(x, y) + ", 0)";
+
+      return "(0.0E0+SUM(" + pairParens(x) + " * " + pairParens(y) + ")) / " + n +
+         " - (0.0E0+ " + pairSum(x, y) + ") * ((0.0E0 + " + pairSum(y, x) +
+         ") / ((0.0E0 + " + n + ") * " + n + "))";
+   }
+
+   /**
+    * Population standard deviation of x over the rows where both columns are not null.
+    * The result is NULL if there is no such row.
+    */
+   private static String pairStdDev(String x, String y) {
+      String n = "NULLIF(" + pairCount(x, y) + ", 0)";
+      String sum = pairSum(x, y);
+      String sumsq = "SUM(CASE WHEN " + pairParens(y) + " IS NOT NULL THEN (0.0E0+" +
+         pairParens(x) + ") * (0.0E0+" + pairParens(x) + ") END)";
+
+      return "SQRT(((0.0E0+" + sumsq + ") * " + n + " - ((0.0E0 + " + sum + ") * " + sum +
+         " ))/((0.0E0 + " + n + ") * " + n + "))";
    }
 
    // surround with parens for expression
