@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.aesthetic.LinearColorFrame;
@@ -230,6 +231,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedLegendBorder(getChartDescriptor(), ctx);
       // a script-made runtime copy, which the render prefers; its user tier stays
       seedLegendBorder(getRTChartDescriptor(), ctx);
+      seedLegendAlignment(getChartDescriptor(), ctx);
+      seedLegendAlignment(getRTChartDescriptor(), ctx);
 
       // seedPalette is total across the mark, so no ctx.modern check is needed here
       seedColorPalette(ctx);
@@ -429,6 +432,16 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       if(legends != null) {
          legends.setBorder(VSChartChromeDefaults.legendBorder(ctx, legends.getLayout()),
                            CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   // a modern top or bottom legend starts at the plot's left edge; unset is today's layout
+   private static void seedLegendAlignment(ChartDescriptor desc, VizContext ctx) {
+      LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
+
+      if(legends != null) {
+         legends.setAlignment(ctx.modern ? GraphConstants.LEFT_ALIGNMENT : 0,
+                              CompositeValue.Type.DEFAULT);
       }
    }
 

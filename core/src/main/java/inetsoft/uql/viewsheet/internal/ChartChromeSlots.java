@@ -78,7 +78,9 @@ final class ChartChromeSlots {
       "xGridColor", "yGridColor", "xGridStyle", "yGridStyle", "diagonalColor", "quadrantColor",
       "facetColor", "bgColor", "emptyColor", "paretoLineColor"
    };
-   private static final String[] LEGENDS_VALUES = { "borderColor", "border", "gap", "padding" };
+   private static final String[] LEGENDS_VALUES = {
+      "borderColor", "border", "gap", "padding", "alignment"
+   };
 
    private static final class Walk {
       Walk(ChartVSAssemblyInfo source) {

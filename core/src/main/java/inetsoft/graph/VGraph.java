@@ -240,6 +240,7 @@ public class VGraph extends BoundedContainer {
       this.legendLayout = graph.getLegendLayout();
       this.legendPreferredSize = graph.getLegendPreferredSize();
       this.legendMaxRatio = graph.getLegendMaxRatio();
+      this.legendAlignment = graph.getLegendAlignment();
 
       if(legendLayout == GraphConstants.NONE || coord.getParentCoordinate() != null) {
          return;
@@ -761,6 +762,14 @@ public class VGraph extends BoundedContainer {
 
       // fit coord
       fitCoord(coordx, coordy, coordw, coordh);
+
+      // align the legend row to the plot, known only after the fit; moving along x changes no size
+      if(vlegends != null && legendAlignment != 0 &&
+         (legendLayout == GraphConstants.TOP || legendLayout == GraphConstants.BOTTOM))
+      {
+         vlegends.setAlignRange(plotx, plotx + plotw);
+         vlegends.layout();
+      }
 
       // x title
       if(xTitle != null) {
@@ -1942,6 +1951,7 @@ public class VGraph extends BoundedContainer {
    private int legendLayout = GraphConstants.RIGHT;
    private double legendPreferredSize = 0;
    private double legendMaxRatio = 0;
+   private int legendAlignment = 0;
 
    private transient PlotWidth pwidth;
    private transient PlotHeight pheight;

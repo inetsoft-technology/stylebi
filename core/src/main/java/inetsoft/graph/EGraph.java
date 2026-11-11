@@ -250,6 +250,22 @@ public class EGraph implements Cloneable, Serializable {
    }
 
    /**
+    * Get the alignment of a top or bottom legend row against the plot, 0 for the default layout.
+    */
+   public int getLegendAlignment() {
+      return legendAlignment;
+   }
+
+   /**
+    * Set the alignment of a top or bottom legend row against the plot.
+    * @param alignment GraphConstants.LEFT_ALIGNMENT, CENTER_ALIGNMENT or RIGHT_ALIGNMENT, or 0
+    *                  for the default layout.
+    */
+   public void setLegendAlignment(int alignment) {
+      this.legendAlignment = alignment;
+   }
+
+   /**
     * Get the preferred width or height of the legends.
     */
    @TernMethod(url = "#cshid=EGraphGetLegendPreferredSize")
@@ -571,6 +587,7 @@ public class EGraph implements Cloneable, Serializable {
       legendLayout = GraphConstants.RIGHT;
       legendPreferredSize = null;
       legendMaxRatio = 0;
+      legendAlignment = 0;
       xTitleSpec = new TitleSpec();
       yTitleSpec = new TitleSpec();
       x2TitleSpec = new TitleSpec();
@@ -671,6 +688,7 @@ public class EGraph implements Cloneable, Serializable {
    private int legendLayout;
    private Double legendPreferredSize;
    private double legendMaxRatio;
+   private int legendAlignment;
    private TitleSpec xTitleSpec;
    private TitleSpec yTitleSpec;
    private TitleSpec x2TitleSpec;

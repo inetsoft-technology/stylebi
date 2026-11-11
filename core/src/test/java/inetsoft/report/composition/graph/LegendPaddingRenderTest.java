@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.uql.viewsheet.internal.VizModernizeUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -136,6 +137,28 @@ class LegendPaddingRenderTest {
          .getLegendMaxRatio(), 1e-9);
    }
 
+   @Test
+   void aModernTopLegendCarriesTheSeededAlignment() {
+      EGraph graph = graph(VizMark.MODERN_LIGHT, null, null, null, 0, null, true);
+      assertEquals(GraphConstants.TOP, graph.getLegendLayout(), "premise: the seeded position");
+      assertEquals(GraphConstants.LEFT_ALIGNMENT, graph.getLegendAlignment());
+   }
+
+   @Test
+   void anAuthorSideLegendCarriesNoAlignment() {
+      EGraph graph = graph(VizMark.MODERN_LIGHT, null, null, null, GraphConstants.RIGHT, null,
+                           true);
+      assertEquals(GraphConstants.RIGHT, graph.getLegendLayout(), "premise: the author's position");
+      assertEquals(0, graph.getLegendAlignment());
+   }
+
+   @Test
+   void aClassicLegendCarriesNoAlignment() {
+      EGraph graph = graph(null, null, null, null, GraphConstants.TOP, null, true);
+      assertEquals(GraphConstants.TOP, graph.getLegendLayout(), "premise: a row legend");
+      assertEquals(0, graph.getLegendAlignment());
+   }
+
    /**
     * The padding each legend site hands its frame, on a bar chart of one dimension by one
     * measure: the color legend, the shape legend (a bar's texture frame) and the size legend.
@@ -163,6 +186,13 @@ class LegendPaddingRenderTest {
 
    private static EGraph graph(VizMark mark, String density, Insets author, Insets stylesheet,
                                int layout, java.awt.geom.Dimension2D size)
+   {
+      return graph(mark, density, author, stylesheet, layout, size, false);
+   }
+
+   // seed runs the chart's creation seed for its mark before the graph is built
+   private static EGraph graph(VizMark mark, String density, Insets author, Insets stylesheet,
+                               int layout, java.awt.geom.Dimension2D size, boolean seed)
    {
       Object[][] rows = new Object[7][];
       rows[0] = new Object[]{ "State", "Total" };
@@ -208,6 +238,10 @@ class LegendPaddingRenderTest {
       Viewsheet vs = new Viewsheet();
       vs.getViewsheetInfo().setVizDensity(density);
       assemblyInfo.setViewsheet(vs);
+
+      if(seed) {
+         VizModernizeUtil.reseedAfterRestore(assemblyInfo);
+      }
 
       return GraphGenerator.getGenerator(
          assemblyInfo, null, new DefaultDataSet(rows), new VariableTable(), null,

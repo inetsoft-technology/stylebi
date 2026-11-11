@@ -1267,17 +1267,20 @@ public abstract class GraphGenerator {
          Dimension2D psize = legends.getPreferredSize();
          legends.setPreferredSize(psize);
          GraphUtil.setLegendOptions(graph, legends);
+         int layout = graph.getLegendLayout();
+         boolean row = layout == GraphConstants.TOP || layout == GraphConstants.BOTTOM;
 
          if(vizContext.modern && psize == null) {
-            int layout = graph.getLegendLayout();
-
             if(layout == GraphConstants.LEFT || layout == GraphConstants.RIGHT) {
                graph.setLegendMaxRatio(0.3);
             }
-            else if(layout == GraphConstants.TOP || layout == GraphConstants.BOTTOM) {
+            else if(row) {
                graph.setLegendMaxRatio(0.25);
             }
          }
+
+         // only a top or bottom row aligns
+         graph.setLegendAlignment(row ? legends.getAlignment() : 0);
       }
 
       // for separator chart, we must use measure to get chart type
