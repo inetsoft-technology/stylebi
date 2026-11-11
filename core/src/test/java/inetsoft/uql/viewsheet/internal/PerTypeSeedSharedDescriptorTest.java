@@ -319,6 +319,45 @@ class PerTypeSeedSharedDescriptorTest {
       assertTrue(info.isUserBarCornerRadius(), "corner radius flag");
    }
 
+   // ---- a marked chart on a classic dashboard: the temp and final charts are unmarked --------
+
+   @Test
+   void aMarkedOriginalsSaveOnAClassicDashboardTakesTheClassicGrid() {
+      gateOn();
+      ChartVSAssembly original = pointOn(new Viewsheet(), "Chart1");
+      assertEquals(StyleConstants.THIN_LINE, defaultXGrid(original.getChartDescriptor()),
+                   "premise: the marked point seed drew an x grid");
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly temp = new ChartVSAssembly(vs, VSWizardConstants.TEMP_CHART_NAME);
+      ChartVSAssembly target = pointOn(vs, "Chart2");
+      assertNull(temp.getVSAssemblyInfo().getVizMark(), "premise: an unmarked temp chart");
+      assertNull(target.getVSAssemblyInfo().getVizMark(), "premise: an unmarked target");
+
+      save(original, target, temp);
+
+      assertEquals(StyleConstants.NONE, defaultXGrid(target.getChartDescriptor()));
+   }
+
+   @Test
+   void aMarkedOriginalsSaveOnAClassicDashboardGetsTheClassicCurves() {
+      gateOn();
+      ChartVSAssembly original = chartOn(new Viewsheet(), "Chart1", GraphTypes.CHART_AREA,
+                                         refs(dim("state")), refs(agg("v")));
+      assertFalse(original.getChartDescriptor().getPlotDescriptor().isSmoothLines(),
+                  "premise: a modern area is straight");
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly temp = new ChartVSAssembly(vs, VSWizardConstants.TEMP_CHART_NAME);
+      ChartVSAssembly target = chartOn(vs, "Chart2", GraphTypes.CHART_AREA,
+                                       refs(dim("state")), refs(agg("v")));
+
+      save(original, target, temp);
+
+      assertTrue(target.getChartDescriptor().getPlotDescriptor().isSmoothLines());
+      assertFalse(target.getChartInfo().isUserSmoothLines());
+   }
+
    // ---- a classic dashboard: the temp chart is unmarked too, so nothing is seeded ------------
 
    @Test

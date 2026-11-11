@@ -17,14 +17,21 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
+import inetsoft.graph.AxisSpec;
+import inetsoft.graph.EGraph;
+import inetsoft.graph.coord.RectCoord;
+import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
@@ -171,8 +178,8 @@ class VSChartAxesVisibilityServiceTest {
    }
 
    @Test
-   void showAllInMaxModeLeavesTheAuthorsNormalLineAlone() {
-      ChartVSAssemblyInfo info = bar(true);
+   void showAllInMaxModeOnAClassicChartLeavesTheNormalAxisAlone() {
+      ChartVSAssemblyInfo info = bar(false);
       VSChartInfo cinfo = info.getVSChartInfo();
       AxisDescriptor state = cinfo.getXField(0).getAxisDescriptor();
       VSChartAxesVisibilityService.setVisible(state, false, false);
@@ -182,7 +189,78 @@ class VSChartAxesVisibilityServiceTest {
       assertTrue(state.isMaxModeLineVisible());
       assertTrue(state.isMaxModeLabelVisible());
       assertFalse(state.isLineVisible());
+      assertFalse(state.isLabelVisible());
       assertTrue(state.isUserLineVisible());
+   }
+
+   @Test
+   void showAllInMaxModeOnAModernChartShowsTheAxesInBothModes() {
+      ChartVSAssemblyInfo info = bar(true);
+      VSChartInfo cinfo = info.getVSChartInfo();
+      AxisDescriptor value = valueAxis(cinfo);
+      AxisDescriptor state = cinfo.getXField(0).getAxisDescriptor();
+      VSChartAxesVisibilityService.setVisible(value, false, false);
+      VSChartAxesVisibilityService.setVisible(state, false, false);
+
+      VSChartAxesVisibilityService.showAllAxes(info, cinfo, true);
+
+      assertTrue(state.isLineVisible(), "the category baseline");
+      assertFalse(value.isLineVisible(), "the value axis takes its seed");
+
+      for(AxisDescriptor axis : new AxisDescriptor[] { value, state }) {
+         assertTrue(axis.isLabelVisible());
+         assertTrue(axis.isMaxModeLabelVisible());
+         assertTrue(axis.isMaxModeLineVisible());
+         assertFalse(axis.isUserLineVisible());
+      }
+   }
+
+   @Test
+   void showAllInMaxModeDrawsAHiddenCategoryAxisAgain() {
+      for(boolean marked : new boolean[] { true, false }) {
+         ChartVSAssemblyInfo info = bar(marked);
+         String kind = marked ? "modern" : "classic";
+         VSChartInfo cinfo = info.getVSChartInfo();
+         VSChartAxesVisibilityService.setVisible(cinfo.getXField(0).getAxisDescriptor(), false,
+                                                 false);
+         AxisSpec hidden = maxModeAxes(info, BAR_ROWS)[0];
+         assertFalse(hidden.isLineVisible(), "premise: the hidden baseline, " + kind);
+         assertFalse(hidden.isLabelVisible(), "premise: the hidden labels, " + kind);
+
+         VSChartAxesVisibilityService.showAllAxes(info, cinfo, true);
+
+         AxisSpec shown = maxModeAxes(info, BAR_ROWS)[0];
+         assertTrue(shown.isLineVisible(), "the baseline, " + kind);
+         assertTrue(shown.isLabelVisible(), "the labels, " + kind);
+      }
+   }
+
+   @Test
+   void showAllInMaxModeDrawsAModernScattersHiddenLinesAgain() {
+      ChartVSAssemblyInfo info = scatter();
+      VSChartInfo cinfo = info.getVSChartInfo();
+
+      for(AxisSpec axis : maxModeAxes(info, SCATTER_ROWS)) {
+         assertTrue(axis.isLineVisible(), "premise: a modern scatter draws both lines");
+      }
+
+      for(AxisDescriptor axis : new AxisDescriptor[] {
+         cinfo.getXField(0).getAxisDescriptor(), cinfo.getYField(0).getAxisDescriptor(),
+         cinfo.getAxisDescriptor(), cinfo.getAxisDescriptor2() })
+      {
+         VSChartAxesVisibilityService.setVisible(axis, false, false);
+      }
+
+      for(AxisSpec axis : maxModeAxes(info, SCATTER_ROWS)) {
+         assertFalse(axis.isLineVisible(), "premise: the hidden lines");
+      }
+
+      VSChartAxesVisibilityService.showAllAxes(info, cinfo, true);
+
+      for(AxisSpec axis : maxModeAxes(info, SCATTER_ROWS)) {
+         assertTrue(axis.isLineVisible(), "the line");
+         assertTrue(axis.isLabelVisible(), "the labels");
+      }
    }
 
    @Test
@@ -227,6 +305,29 @@ class VSChartAxesVisibilityServiceTest {
       seed(info);
       assertEquals(marked, modern(info), "premise: the chart's mark");
       return info;
+   }
+
+   // a seeded, marked scatter of Sum(w) by Sum(v): two continuous axes
+   private ChartVSAssemblyInfo scatter() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      bind(info, GraphTypes.CHART_POINT, refs(agg("w")), refs(agg("v")));
+      seed(info);
+      assertTrue(modern(info), "premise: the chart's mark");
+      return info;
+   }
+
+   // the x and y axes a maximized render draws, after the service's runtime reset
+   private static AxisSpec[] maxModeAxes(ChartVSAssemblyInfo info, Object[][] rows) {
+      VSChartInfo cinfo = info.getVSChartInfo();
+      cinfo.clearRuntime();
+      cinfo.updateChartType(false);
+      info.getViewsheet().setMaxMode(true);
+      EGraph graph = GraphGenerator.getGenerator(
+         info, null, new DefaultDataSet(rows), new VariableTable(), null, XSourceInfo.NONE,
+         null).createEGraph();
+      RectCoord coord = (RectCoord) graph.getCoordinate();
+      return new AxisSpec[] { coord.getXScale().getAxisSpec(), coord.getYScale().getAxisSpec() };
    }
 
    // the bar is separated, so a hide on the value axis picks the measure's own descriptor
@@ -294,4 +395,12 @@ class VSChartAxesVisibilityServiceTest {
       agg.setFormula(AggregateFormula.SUM);
       return agg;
    }
+
+   private static final Object[][] BAR_ROWS = {
+      { "state", "Sum(v)" }, { "CA", 100.0 }, { "NY", 200.0 }, { "TX", 300.0 }
+   };
+
+   private static final Object[][] SCATTER_ROWS = {
+      { "Sum(w)", "Sum(v)" }, { 1.0, 100.0 }, { 2.0, 200.0 }, { 3.0, 300.0 }
+   };
 }

@@ -72,6 +72,7 @@ public class SyncChartHandler extends SyncAssemblyHandler {
          // the copied plot holds the source's per-type values, maybe the temp chart's
          ChartVSAssembly tempChart = tempInfo.getTempChart();
          targetAssemblyInfo.reseedTypeDefaults(
+            fromAssemblyInfo.getVizMark() != null ||
             tempChart != null && tempChart.getVSAssemblyInfo().getVizMark() != null);
 
          // sync legend properties

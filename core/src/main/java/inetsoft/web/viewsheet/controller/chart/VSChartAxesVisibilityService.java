@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.viewsheet.event.chart.VSChartAxesVisibilityEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -183,12 +184,15 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
    }
 
    static void showAllAxes(ChartVSAssemblyInfo info, VSChartInfo chartInfo, boolean maxMode) {
+      boolean modern = VizContext.of(info).modern;
+      // max mode follows the normal line under modern, so both are written
+      boolean maxModeOnly = maxMode && !modern;
       ChartRef[][] fields = {chartInfo.getBindingRefs(false), chartInfo.getBindingRefs(true)};
 
       for(ChartRef[] arr : fields) {
          for(ChartRef field : arr) {
             if(field != null) {
-               setVisible(field.getAxisDescriptor(), true, maxMode);
+               setVisible(field.getAxisDescriptor(), true, maxModeOnly);
             }
          }
       }
@@ -197,19 +201,19 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
 
       for(ChartRef field : rtDCRefs) {
          if(field != null) {
-            setVisible(field.getAxisDescriptor(), true, maxMode);
+            setVisible(field.getAxisDescriptor(), true, maxModeOnly);
          }
       }
 
-      setVisible(chartInfo.getAxisDescriptor(), true, maxMode);
-      setVisible(chartInfo.getAxisDescriptor2(), true, maxMode);
+      setVisible(chartInfo.getAxisDescriptor(), true, maxModeOnly);
+      setVisible(chartInfo.getAxisDescriptor2(), true, maxModeOnly);
 
       if(chartInfo instanceof RadarVSChartInfo) {
-         setVisible(((RadarVSChartInfo) chartInfo).getLabelAxisDescriptor(), true, maxMode);
+         setVisible(((RadarVSChartInfo) chartInfo).getLabelAxisDescriptor(), true, maxModeOnly);
       }
 
       // the shown lines take the chart type's modern look again
-      if(info.getVizMark() != null && !maxMode) {
+      if(modern) {
          info.reseedAxisLines();
       }
    }

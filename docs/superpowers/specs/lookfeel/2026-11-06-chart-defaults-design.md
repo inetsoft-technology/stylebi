@@ -218,6 +218,7 @@ There is no migration on load: the epic is unreleased.
 - Every export (PDF, PNG, SVG, Excel, PowerPoint) draws through `GraphGenerator`, so drawing rules apply there too. Excel keeps its opaque card (TC D16).
 - **In an older build:**
   - V items arrive and draw. Those saved as a DEFAULT tier (chart descriptor values) last only until that build writes the asset, and an import writes it (M3).
+  - User flags saved only where the parse would derive them wrongly (`userLineVisible`, `userTitle`, `userSmoothLines`; M4) are dropped the same way. The next open derives them again, so the seeded value counts as the author's and no later re-seed or Revert replaces it: a seeded-off value line, a seeded straight area, and a title the wizard typed, which then stays visible on a modern chart. This is accepted, like the DEFAULT tier.
   - N items are ignored.
   - D items fall back to the old rule.
   - C items arrive as ordinary bindings.
