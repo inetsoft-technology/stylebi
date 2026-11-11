@@ -327,7 +327,7 @@ public abstract class GraphGenerator {
          boolean global = !info.isMultiAesthetic();
          String vsrc = GraphUtil.getVisualSource(chart);
 
-         cstrategy = new VSColorFrameStrategy(info);
+         cstrategy = new VSColorFrameStrategy(info, vizContext);
          cvisitor = new VSFrameVisitor(info, fdata, cstrategy, global, vdata, cubeType, vsrc,
             sourceType, dateComparison, getFrameInitializer());
 
@@ -338,6 +338,12 @@ public abstract class GraphGenerator {
             }
             catch(Exception ex) {
             }
+         }
+
+         // the base frame, so highlight and brushing wrap the direction colours
+         if(VSChartDirectionColors.draws(vizContext, info)) {
+            setColorFrame(createDirectionColorFrame());
+            directionColors = true;
          }
 
          applyHighlight();
@@ -480,7 +486,7 @@ public abstract class GraphGenerator {
       DataSet fdata = adata == null ? odata : adata;
       // create color frame
       boolean sep = !info.isMultiAesthetic();
-      cstrategy = new VSColorFrameStrategy(info);
+      cstrategy = new VSColorFrameStrategy(info, VizContext.LEGACY);
       cvisitor = new VSFrameVisitor(info, fdata, cstrategy, sep, data,
                                     null, vsrc, sourceType, getFrameInitializer());
 
@@ -1873,6 +1879,11 @@ public abstract class GraphGenerator {
             legends.getGap(), legends.hasGapValue(), vizContext));
          legend.setPadding(VSChartChromeDefaults.resolveLegendPadding(
             legends.getPadding(), legends.hasPaddingValue(), vizContext));
+
+         if(vizContext.modern) {
+            legend.setSymbolFallbackColor(VSChartChromeDefaults.labelColor(vizContext));
+            legend.setSymbolBorderColor(VSChartChromeDefaults.gridlineColor(vizContext));
+         }
       }
    }
 
@@ -2900,6 +2911,16 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * Check if the author set the label colour of a y axis, read from the descriptor and label
+    * format the axis is built with.
+    */
+   boolean isAuthorAxisLabelColor(Scale yscale) {
+      AxisDescriptor ydesc = getAxisDescriptor(yscale, "y");
+      CompositeTextFormat format = getAxisLabelFormat(ydesc, yscale.getFields(), false);
+      return format != null && format.getUserDefinedFormat().isColorDefined();
+   }
+
+   /**
     * If using default format and un-rotated label, allow abbreviation.
     * @param hor true if this axis is horizontal
     */
@@ -3375,6 +3396,31 @@ public abstract class GraphGenerator {
       return GraphFormatUtil.getDefaultFormat(data, info, desc, cols);
    }
 
+   // the chart's own colour frame, which applyBrushing puts last in its composite
+   private static ColorFrame unbrushedFrame(ColorFrame frame) {
+      if(frame instanceof CompositeColorFrame composite && composite.getFrameCount() > 0) {
+         return (ColorFrame) composite.getFrame(composite.getFrameCount() - 1);
+      }
+
+      return frame;
+   }
+
+   // a frame with no colour field, which a modern pareto line replaces with its own colour
+   private static boolean isStaticFrame(ColorFrame frame) {
+      return frame instanceof StaticColorFrame || frame instanceof MultiMeasureColorFrame;
+   }
+
+   // the modern pareto line colour on a brushed chart: faded on a target's all-data layer
+   private Color brushedParetoLineColor(boolean all) {
+      Color line = desc.getPlotDescriptor().getParetoLineColor();
+
+      if(!isBrusingTarget()) {
+         return line;
+      }
+
+      return createBrushingTargetColorFrame(all, new StaticColorFrame(line)).getColor((Object) null);
+   }
+
    /**
     * Get color frame for pareto chart.
     * @param names the measure name.
@@ -3382,6 +3428,8 @@ public abstract class GraphGenerator {
     */
    private StaticColorFrame getParetoColorFrame(String[] names, boolean all) {
       Color c = null;
+      // a modern line takes its own colour, brushed or not; a classic one follows the bars
+      boolean modernLine = vizContext.modern;
 
       if(names.length > 0) {
          ColorFrame pcolor = all ? acolor : getColorFrame(null);
@@ -3391,7 +3439,14 @@ public abstract class GraphGenerator {
                c = desc.getPlotDescriptor().getParetoLineColor();
             }
             else if(pcolor != null && (isBrusingTarget() || isBrushingSource())) {
-               c = pcolor.getColor(data, names[0], 0);
+               // a modern line keeps its own colour, receding on a target's all-data layer
+               c = companionBrushing && isStaticFrame(unbrushedFrame(pcolor)) ?
+                  brushedParetoLineColor(all) : pcolor.getColor(data, names[0], 0);
+            }
+            else if(modernLine &&
+                    (pcolor instanceof StaticColorFrame || pcolor instanceof MultiMeasureColorFrame))
+            {
+               c = desc.getPlotDescriptor().getParetoLineColor();
             }
             else if(pcolor instanceof StaticColorFrame) {
                c = ((StaticColorFrame) pcolor).getColor();
@@ -3758,6 +3813,11 @@ public abstract class GraphGenerator {
          line.setHint("_pareto_", "true");
          line.setCollisionModifier(GraphElement.STACK_SYMMETRIC);
          line.setColorFrame(getParetoColorFrame(names, all));
+
+         if(vizContext.modern) {
+            line.setSizeFrame(new StaticSizeFrame(2));
+         }
+
          line.setStackNegative(false);
          line.setStackGroup(false);
          bar.setCollisionModifier(GraphElement.STACK_SYMMETRIC);
@@ -4538,6 +4598,12 @@ public abstract class GraphGenerator {
             {
                elem.setColorFrame(color);
             }
+            // a modern brush target's Total keeps its own colour, receding on the all-data layer
+            else if(companionBrushing && color != null && isBrusingTarget() &&
+                    elem.getColorFrame() == null)
+            {
+               elem.setColorFrame(createBrushingTargetColorFrame(all, color));
+            }
             // for brush source summary, always apply gray color
             else if(isBrushingSource()) {
                if(companionBrushing && color != null) {
@@ -4739,8 +4805,10 @@ public abstract class GraphGenerator {
          case GraphTypes.CHART_BOXPLOT:
             ColorFrame frame = getColorFrame(elem);
 
-            // darken color for line and points so they stand out more
-            if(!info.isColorChanged(elem.getVars()) && !GraphTypeUtil.isHeatMap(info) && dateComparison == null) {
+            // darken color for line and points so they stand out more; direction colours draw as is
+            if(!info.isColorChanged(elem.getVars()) && !GraphTypeUtil.isHeatMap(info) &&
+               dateComparison == null && !directionColors)
+            {
                // multi element should not share a darken color frame
                ColorFrame color0 = (ColorFrame) (all ? acolor : frame).clone();
                setColorFrameBrightness(elem, frame, color0);
@@ -5480,6 +5548,8 @@ public abstract class GraphGenerator {
       if(!applyColor) {
          ColorFrame colors = elem.getColorFrame();
 
+         Color[] palette = VSChartPaletteDefaults.staticPalette(vizContext);
+
          if(colors instanceof MultiMeasureColorFrame) {
             // apply color to image icon if there are more than one color
             // (e.g. for multiple measure)
@@ -5489,7 +5559,7 @@ public abstract class GraphGenerator {
             if(!applyColor) {
                if(info.isMultiAesthetic()) {
                   // or if color has changed.
-                  applyColor = !colors.getColor(elem.getVar(0)).equals(CategoricalColorFrame.COLOR_PALETTE.get(0));
+                  applyColor = !colors.getColor(elem.getVar(0)).equals(palette[0]);
                }
                else {
                   // must cast to MultiMeasureColorFrame to call getColor(int), otherwise it
@@ -5500,7 +5570,7 @@ public abstract class GraphGenerator {
                   // (on combined-color-pane) for their corresponding index, so we compare
                   // the color with the color at that index. (59286)
                   applyColor = !mcolors.getColor(measureIdx)
-                     .equals(CategoricalColorFrame.COLOR_PALETTE.get(measureIdx));
+                     .equals(palette[measureIdx % palette.length]);
                }
             }
          }
@@ -7143,6 +7213,23 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * The up and down colours from the chart's stored frames, which draws() requires.
+    */
+   private ColorFrame createDirectionColorFrame() {
+      AbstractChartInfo chart = (AbstractChartInfo) info;
+      Color up = chart.getUpColorFrameWrapper().getColor();
+      Color down = chart.getDownColorFrameWrapper().getColor();
+
+      if(info instanceof CandleChartInfo) {
+         CandleChartInfo candle = (CandleChartInfo) info;
+         return new DirectionColorFrame(up, down, GraphUtil.getName(candle.getRTOpenField()),
+                                        GraphUtil.getName(candle.getRTCloseField()));
+      }
+
+      return DirectionColorFrame.forWaterfall(up, down);
+   }
+
+   /**
     * Set the color frame for the un-brushed (all) data.
     */
    protected void setAllColorFrame(ColorFrame color) {
@@ -7714,6 +7801,7 @@ public abstract class GraphGenerator {
    protected Color brushHLColor = BrushingColor.getHighlightColor();
    protected Color brushDimColor = BrushingColor.getDimColor();
    protected boolean companionBrushing;
+   private boolean directionColors; // up and down colours replace the single colour
    protected boolean maxMode = false;
    private transient Viewsheet vs;
 

@@ -207,7 +207,11 @@ class ChartDescriptorSavedDefaultsTest {
       Object current = field.get(CompositeValue.Type.DEFAULT);
       Object sentinel;
 
-      if(current instanceof Color c) {
+      if(current == null) {
+         // a colour whose classic default is null
+         sentinel = new Color(0x123456);
+      }
+      else if(current instanceof Color c) {
          sentinel = new Color(~c.getRGB() & 0xFFFFFF);
       }
       else if(current instanceof Boolean b) {
@@ -221,7 +225,7 @@ class ChartDescriptorSavedDefaultsTest {
       }
       else {
          return fail("no sentinel for registered field type " +
-                     (current == null ? "null" : current.getClass().getName()));
+                     current.getClass().getName());
       }
 
       field.setValue(sentinel, CompositeValue.Type.DEFAULT);

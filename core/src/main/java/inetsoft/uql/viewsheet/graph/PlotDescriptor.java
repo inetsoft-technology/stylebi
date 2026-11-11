@@ -977,6 +977,25 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Get the empty color of one tier.
+    */
+   public Color getEmptyColor(CompositeValue.Type type) {
+      return emptyColor.get(type);
+   }
+
+   /**
+    * Get the empty color an author or the CSS set, or null when neither did.
+    */
+   public Color getAuthoredEmptyColor() {
+      // a defined user tier shadows the CSS tier, even when it is null
+      if(emptyColor.hasUserValue()) {
+         return emptyColor.get(CompositeValue.Type.USER);
+      }
+
+      return emptyColor.hasCssValue() ? emptyColor.get(CompositeValue.Type.CSS) : null;
+   }
+
+   /**
     * Set the empty color of the plot
     * @param emptyColor empty color of the plot
     */
@@ -1870,7 +1889,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
 
    /**
     * The tiered value behind one of the plot's look properties, by field name: xGridColor,
-    * yGridColor, xGridStyle, yGridStyle, diagonalColor, quadrantColor, facetColor or bgColor.
+    * yGridColor, xGridStyle, yGridStyle, diagonalColor, quadrantColor, facetColor, bgColor, emptyColor
+    * or paretoLineColor.
     */
    public CompositeValue<?> chromeValue(String field) {
       switch(field) {
@@ -1890,6 +1910,10 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          return facetColor;
       case "bgColor":
          return bgColor;
+      case "emptyColor":
+         return emptyColor;
+      case "paretoLineColor":
+         return paretoLineColor;
       default:
          throw new IllegalArgumentException("Not a plot look property: " + field);
       }
@@ -1917,7 +1941,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    // values whose default tier can be saved
    List<CompositeValue<?>> savedDefaults() {
       return List.of(xGridColor, yGridColor, facetColor, diagonalColor, quadrantColor,
-                     xGridStyle);
+                     xGridStyle, emptyColor, paretoLineColor);
    }
 
    private CompositeTextFormat fmt;

@@ -19,6 +19,8 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 
 import java.awt.*;
 import java.util.List;
@@ -35,9 +37,17 @@ public class VSColorFrameStrategy implements VSFrameStrategy {
     * Create an instance of VSColorFrameStrategy.
     */
    public VSColorFrameStrategy(ChartInfo info) {
+      this(info, VizContext.LEGACY);
+   }
+
+   /**
+    * Create an instance of VSColorFrameStrategy that picks from the chart's own palette.
+    */
+   public VSColorFrameStrategy(ChartInfo info, VizContext ctx) {
       super();
 
       this.info = info;
+      this.ctx = ctx;
    }
 
    /**
@@ -99,7 +109,7 @@ public class VSColorFrameStrategy implements VSFrameStrategy {
    {
       Color[] colors = new Color[frames.length];
       Set<Color> usedColors = new HashSet<>();
-      Color[] acolors = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
+      Color[] acolors = VSChartPaletteDefaults.staticPalette(ctx);
       List<Color> negColors = new ArrayList<>();
       List hidden = new ArrayList();
 
@@ -144,5 +154,10 @@ public class VSColorFrameStrategy implements VSFrameStrategy {
       return colors[0];
    }
 
+   public VizContext getVizContext() {
+      return ctx;
+   }
+
    private ChartInfo info;
+   private final VizContext ctx;
 }

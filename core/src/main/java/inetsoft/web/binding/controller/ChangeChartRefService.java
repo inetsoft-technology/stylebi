@@ -99,7 +99,7 @@ public class ChangeChartRefService {
       clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone, principal);
       ChartVSAssemblyInfo info = clone.getChartInfo();
       new ChangeChartProcessor().fixSizeFrame(info.getVSChartInfo());
-      fixStaticColorFrame(info.getVSChartInfo(), event);
+      fixStaticColorFrame(info.getVSChartInfo(), event, VizContext.of(info));
 
       ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
       vs = assembly.getViewsheet();
@@ -263,7 +263,9 @@ public class ChangeChartRefService {
    /**
     * Fix static color for the edit xy aggregate chartref.
     */
-   private void fixStaticColorFrame(ChartInfo cinfo, ChangeChartRefEvent event) {
+   private void fixStaticColorFrame(ChartInfo cinfo, ChangeChartRefEvent event,
+                                    VizContext ctx)
+   {
       OriginalDescriptor odesc = event.getRefOriginalDescriptor();
 
       if(odesc == null) {
@@ -284,7 +286,7 @@ public class ChangeChartRefService {
       }
 
       if(ref instanceof ChartAggregateRef) {
-         GraphUtil.fixStaticColorFrame(ref, cinfo, (ChartAggregateRef) ref);
+         GraphUtil.fixStaticColorFrame(ref, cinfo, (ChartAggregateRef) ref, ctx);
       }
    }
 

@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel;
 
@@ -61,7 +62,8 @@ public class ChartAdvancedPaneModel implements Serializable {
          return;
       }
 
-      chartPlotOptionsPaneModel = new ChartPlotOptionsPaneModel(info, plotDesc);
+      chartPlotOptionsPaneModel = new ChartPlotOptionsPaneModel(
+         info, plotDesc, VizContext.of(chartAssemblyInfo));
 
       // design-time info has no DC runtime state, so barCornerRadiusVisible is false
       // for non-bar charts even when DC will convert them to bars at runtime.

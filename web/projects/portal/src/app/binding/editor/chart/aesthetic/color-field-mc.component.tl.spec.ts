@@ -184,6 +184,58 @@ describe("ColorFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
 
       expect(document.querySelector("static-color-pane")).toBeTruthy();
    });
+
+   it("a modern candle's colour field opens the Up and Down pane", async () => {
+      const bindingModel = TestUtils.createMockChartBindingModel();
+      bindingModel.chartType = GraphTypes.CHART_CANDLE;
+      bindingModel.yfields = [TestUtils.createMockChartAggregateRef("Sum(close)")];
+      bindingModel.colorFrame = new StaticColorModel();
+      const up = new StaticColorModel();
+      up.color = "#1c857b";
+      const down = new StaticColorModel();
+      down.color = "#ad6119";
+      bindingModel.upColorFrame = up;
+      bindingModel.downColorFrame = down;
+      const { container, fixture } = await renderColorFieldMc(bindingModel);
+
+      await openColorDropdown(container, fixture);
+
+      expect(document.querySelector("combined-color-pane")).toBeTruthy();
+      expect(document.querySelector("static-color-pane")).toBeFalsy();
+      const text = document.querySelector("combined-color-pane").textContent;
+      expect(text).toContain("Up");
+      expect(text).toContain("Down");
+      expect(document.querySelectorAll("combined-color-pane static-color-editor").length).toBe(2);
+   });
+
+   it("a modern waterfall's colour field lists Increase, Decrease and Total", async () => {
+      const bindingModel = TestUtils.createMockChartBindingModel();
+      bindingModel.chartType = GraphTypes.CHART_WATERFALL;
+      bindingModel.rtchartType = GraphTypes.CHART_WATERFALL;
+      const measure = TestUtils.createMockChartAggregateRef("Sum(v)");
+      measure.colorFrame = new StaticColorModel();
+      const total = new StaticColorModel();
+      total.color = "#767676";
+      measure.summaryColorFrame = total;
+      bindingModel.yfields = [measure];
+      bindingModel.colorFrame = new StaticColorModel();
+      const up = new StaticColorModel();
+      up.color = "#1c857b";
+      const down = new StaticColorModel();
+      down.color = "#ad6119";
+      bindingModel.upColorFrame = up;
+      bindingModel.downColorFrame = down;
+      const { container, fixture } = await renderColorFieldMc(bindingModel);
+
+      await openColorDropdown(container, fixture);
+
+      const text = document.querySelector("combined-color-pane").textContent;
+      expect(text).toContain("Increase");
+      expect(text).toContain("Decrease");
+      expect(text).toContain("Total");
+      expect(text).not.toContain("Summary");
+      expect(document.querySelectorAll("combined-color-pane static-color-editor").length).toBe(3);
+   });
 });
 
 describe("ColorFieldMc — chart-type guards [Group 4, Risk 2]", () => {

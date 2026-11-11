@@ -40,6 +40,8 @@ export interface ChartAestheticModel {
    textFields?: AestheticInfo[];
    textLayout?: TextLayoutModel;
    colorFrame: ColorFrameModel;
+   upColorFrame?: ColorFrameModel;
+   downColorFrame?: ColorFrameModel;
    shapeFrame: ShapeFrameModel;
    lineFrame: LineFrameModel;
    textureFrame: TextureFrameModel;
@@ -56,6 +58,8 @@ export class ChartBindingModel extends BindingModel implements ChartAestheticMod
    textFields?: AestheticInfo[];
    textLayout?: TextLayoutModel;
    colorFrame: ColorFrameModel;
+   upColorFrame?: ColorFrameModel;
+   downColorFrame?: ColorFrameModel;
    shapeFrame: ShapeFrameModel;
    lineFrame: LineFrameModel;
    textureFrame: TextureFrameModel;

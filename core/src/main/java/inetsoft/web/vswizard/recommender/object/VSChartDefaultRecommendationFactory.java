@@ -95,7 +95,7 @@ public final class VSChartDefaultRecommendationFactory implements VSChartRecomme
       //infos = infos.stream().limit(12).collect(Collectors.toList());
       VSChartRecommendation chart = new VSChartRecommendation();
       chart.setSubTypes(getSubTypes(infos));
-      infos.forEach(info -> fixChartInfo((VSChartInfo) info, temp));
+      infos.forEach(info -> fixChartInfo((VSChartInfo) info, temp, ctx));
       chart.setChartInfos(infos);
 
       return infos.size() > 0 ? chart : null;
@@ -104,16 +104,16 @@ public final class VSChartDefaultRecommendationFactory implements VSChartRecomme
    /**
     * Callback to modify the list of chart infos
     */
-   private void fixChartInfo(VSChartInfo info, VSChartInfo temp) {
-      fixStaticColorFrame(info);
+   private void fixChartInfo(VSChartInfo info, VSChartInfo temp, VizContext ctx) {
+      fixStaticColorFrame(info, ctx);
       copyAggregateInfo(info, temp);
       copyMeasureMapType(info, temp);
    }
 
-   private void fixStaticColorFrame(ChartInfo info) {
+   private void fixStaticColorFrame(ChartInfo info, VizContext ctx) {
       ChartRef[] arefs = info.getModelRefs(false);
 
-      GraphUtil.fixStaticColorFrame(Arrays.asList(arefs), null, null);
+      GraphUtil.fixStaticColorFrame(Arrays.asList(arefs), null, null, ctx);
       GraphUtil.syncWorldCloudColor(info);
    }
 

@@ -45,6 +45,11 @@ public class VSChartAggregateRef extends VSAggregateRef
    implements ChartAggregateRef, VSChartRef, HyperlinkRef, HighlightRef
 {
    /**
+    * The classic waterfall Total colour.
+    */
+   public static final Color DEFAULT_SUMMARY_COLOR = new Color(0x7030A0);
+
+   /**
     * Create a VSChartAggregateRef.
     */
    public VSChartAggregateRef() {
@@ -57,7 +62,7 @@ public class VSChartAggregateRef extends VSAggregateRef
       lframe = new StaticLineFrameWrapper();
       tframe = new StaticTextureFrameWrapper();
       scframe = new StaticColorFrameWrapper();
-      ((StaticColorFrameWrapper) scframe).setDefaultColor(new Color(0x7030a0));
+      ((StaticColorFrameWrapper) scframe).setDefaultColor(DEFAULT_SUMMARY_COLOR);
       stframe = new StaticTextureFrameWrapper();
       zframe = new StaticSizeFrameWrapper();
    }

@@ -300,6 +300,14 @@ public class GraphUtil {
     * Get the User specific color for Map shapes which contain data.
     */
    public static Color getMapDefaultColor() {
+      return getMapDefaultColor(VizContext.LEGACY);
+   }
+
+   /**
+    * Get the color for Map shapes which contain data: the server property when set, else the
+    * region color of the context.
+    */
+   public static Color getMapDefaultColor(VizContext ctx) {
       String defaultColor = SreeEnv.getProperty("map.default.color");
 
       if(defaultColor != null) {
@@ -315,12 +323,11 @@ public class GraphUtil {
          }
          catch(Exception ex) {
             LOG.debug("Failed to determine color for set value: " + defaultColor, ex);
-
-            return MAP_DEFAULT_COLOR;
          }
       }
 
-      return MAP_DEFAULT_COLOR;
+      return ctx != null && ctx.modern ?
+         VSChartPaletteDefaults.mapRegionColor(ctx) : MAP_DEFAULT_COLOR;
    }
 
    /**
@@ -328,8 +335,10 @@ public class GraphUtil {
     * data.
     */
    public static Color getMapEmptyColor(PlotDescriptor plotDesc) {
-      if(plotDesc != null && plotDesc.getEmptyColor() != null) {
-         return plotDesc.getEmptyColor();
+      Color authored = plotDesc == null ? null : plotDesc.getAuthoredEmptyColor();
+
+      if(authored != null) {
+         return authored;
       }
 
       String emptyColor = SreeEnv.getProperty("map.empty.color");
@@ -344,12 +353,13 @@ public class GraphUtil {
          }
          catch(Exception ex) {
             LOG.debug("Failed to determine color for set value: " + emptyColor, ex);
-
-            return MAP_EMPTY_DATA_COLOR;
          }
       }
 
-      return MAP_EMPTY_DATA_COLOR;
+      // the seeded tier of a marked chart, below an admin's server property
+      Color seeded = plotDesc == null ? null :
+         plotDesc.getEmptyColor(CompositeValue.Type.DEFAULT);
+      return seeded != null ? seeded : MAP_EMPTY_DATA_COLOR;
    }
 
    /**
@@ -1047,12 +1057,21 @@ public class GraphUtil {
     * @param ref the object which should be fixed.
     */
    public static void fixStaticColorFrame(Object ref, ChartInfo info, ChartAggregateRef movedRef) {
+      fixStaticColorFrame(ref, info, movedRef, VizContext.LEGACY);
+   }
+
+   /**
+    * Fix the static color frame, picking from the context's static palette.
+    */
+   public static void fixStaticColorFrame(Object ref, ChartInfo info, ChartAggregateRef movedRef,
+                                          VizContext ctx)
+   {
       StaticColorFrameWrapper temp;
 
       if(ref instanceof List<?>) {
          List<?> vref = (List<?>) ref;
          Set<Color> usedColors = new HashSet<>();
-         Color[] clrs = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
+         Color[] clrs = VSChartPaletteDefaults.staticPalette(ctx);
 
          for(int i = 0; i < vref.size(); i++) {
             if(GraphUtil.isDimension((DataRef) vref.get(i))) {
@@ -1067,16 +1086,23 @@ public class GraphUtil {
       }
       else if(ref instanceof ChartAggregateRef) {
          fixDuplicateColor((ChartAggregateRef) ref, info != null ? info.getModelRefs(false) : null,
-                           movedRef, false);
+                           movedRef, false, ctx);
       }
    }
 
    public static void fixDuplicateColor(ChartAggregateRef ref, ChartRef[] arefs,
                                         ChartAggregateRef movedRef, boolean runtimeUpdate)
    {
+      fixDuplicateColor(ref, arefs, movedRef, runtimeUpdate, VizContext.LEGACY);
+   }
+
+   public static void fixDuplicateColor(ChartAggregateRef ref, ChartRef[] arefs,
+                                        ChartAggregateRef movedRef, boolean runtimeUpdate,
+                                        VizContext ctx)
+   {
       StaticColorFrameWrapper frame;
       Set<Color> usedColors = new HashSet<>();
-      Color[] clrs = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
+      Color[] clrs = VSChartPaletteDefaults.staticPalette(ctx);
       int aggrIdx = 0;
 
       if(arefs != null) {

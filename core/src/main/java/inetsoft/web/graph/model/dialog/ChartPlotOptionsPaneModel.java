@@ -26,6 +26,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -43,6 +44,10 @@ public class ChartPlotOptionsPaneModel implements Serializable {
    }
 
    public ChartPlotOptionsPaneModel(ChartInfo info, PlotDescriptor plotDesc) {
+      this(info, plotDesc, VizContext.LEGACY);
+   }
+
+   public ChartPlotOptionsPaneModel(ChartInfo info, PlotDescriptor plotDesc, VizContext ctx) {
       initPlotComVisible(info);
       getPlotCheckBoxsSelected(plotDesc);
       getPlotBinding(info, plotDesc);
@@ -94,7 +99,7 @@ public class ChartPlotOptionsPaneModel implements Serializable {
          info.getChartType() == GraphTypes.CHART_MEKKO;
       this.mapEmptyColorVisible = GraphTypes.isGeo(info.getChartType());
       this.borderColorVisible = isBorderColorVisible(info);
-      this.paretoLineColorVisible = isParetoLineColorVisible(info);
+      this.paretoLineColorVisible = isParetoLineColorVisible(info, ctx);
       this.webMap = plotDesc.isWebMap();
       this.webMapVisible = SreeEnv.getProperty("webmap.service") != null &&
          GraphTypes.isGeo(info.getChartType());
@@ -144,7 +149,12 @@ public class ChartPlotOptionsPaneModel implements Serializable {
    }
 
    public static boolean isParetoLineColorVisible(ChartInfo info) {
-      return GraphTypes.isPareto(info.getChartType()) && info.getColorField() != null;
+      return isParetoLineColorVisible(info, VizContext.LEGACY);
+   }
+
+   public static boolean isParetoLineColorVisible(ChartInfo info, VizContext ctx) {
+      return GraphTypes.isPareto(info.getChartType()) &&
+         (info.getColorField() != null || ctx.modern);
    }
 
    public static boolean isFillGapWithDashVisible(ChartInfo info, PlotDescriptor plot) {

@@ -960,6 +960,12 @@ export class GraphUtil {
       }
 
       let arefs: ChartRef[] = GraphUtil.getModelRefs(bindingModel);
+
+      if(propertyName == "colorFrame" && bindingModel.upColorFrame &&
+         bindingModel.downColorFrame)
+      {
+         return GraphUtil.getDirectionFrames(bindingModel, arefs, aggr);
+      }
       // get visualframes from right aggregate for multistyle waterfall chart.
       let visualForAllAggr: boolean = GraphUtil.isAllChartAggregate(aggr) &&
          GraphUtil.isWaterfall(bindingModel);
@@ -979,6 +985,30 @@ export class GraphUtil {
                               frame: visualForAllAggr ? aggr.summaryColorFrame
                               : aref.summaryColorFrame});
             }
+         }
+      }
+
+      return frameMap;
+   }
+
+   // up and down frames of a chart that draws direction colors, and the waterfall total
+   private static getDirectionFrames(bindingModel: ChartBindingModel, arefs: ChartRef[],
+                                     aggr?: ChartAggregateRef): any[]
+   {
+      const waterfall = GraphUtil.isWaterfall(bindingModel);
+      const frameMap: any[] = [
+         {name: waterfall ? "Increase" : "Up", frame: bindingModel.upColorFrame},
+         {name: waterfall ? "Decrease" : "Down", frame: bindingModel.downColorFrame}
+      ];
+
+      if(waterfall) {
+         const forAll = GraphUtil.isAllChartAggregate(aggr);
+         const aref = <ChartAggregateRef> arefs.find(ref => !(<ChartAggregateRef> ref).discrete);
+
+         if(aref) {
+            frameMap.push({name: "Total",
+                           summary: true,
+                           frame: forAll ? aggr.summaryColorFrame : aref.summaryColorFrame});
          }
       }
 
