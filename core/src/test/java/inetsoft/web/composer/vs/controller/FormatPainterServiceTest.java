@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.report.TableDataPath;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -69,12 +70,12 @@ class FormatPainterServiceTest {
                                          objectModelService, bindingService,
                                          vsLayoutService);
 
-      when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class)))
+      lenient().when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class)))
          .thenReturn(rvs);
-      when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
-      doNothing().when(graphPair).waitInit();
-      when(viewsheetSandbox.getVGraphPair(anyString(), anyBoolean(), nullable(Dimension.class)))
+      lenient().when(rvs.getViewsheet()).thenReturn(viewsheet);
+      lenient().when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
+      lenient().doNothing().when(graphPair).waitInit();
+      lenient().when(viewsheetSandbox.getVGraphPair(anyString(), anyBoolean(), nullable(Dimension.class)))
          .thenReturn(graphPair);
 
       chart = new ChartVSAssembly(viewsheet, "Chart1");
@@ -84,7 +85,7 @@ class FormatPainterServiceTest {
       ChartDescriptor chartDescriptor = new ChartDescriptor();
       chart.setChartDescriptor(chartDescriptor);
 
-      when(viewsheet.getAssembly("Chart1")).thenReturn(chart);
+      lenient().when(viewsheet.getAssembly("Chart1")).thenReturn(chart);
    }
 
    @Test
@@ -337,6 +338,59 @@ class FormatPainterServiceTest {
       event.setFormat(format);
       event.setReset(reset);
       return event;
+   }
+
+   @Test
+   void getFormatToleratesUnloadablePresenterOnText() throws Exception {
+      assertUnloadablePresenterTolerated(new TextVSAssembly(viewsheet, "Text1"), "Text1");
+   }
+
+   @Test
+   void getFormatToleratesUnloadablePresenterOnTable() throws Exception {
+      assertUnloadablePresenterTolerated(new TableVSAssembly(viewsheet, "Table1"), "Table1");
+   }
+
+   @Test
+   void getFormatReportsLoadablePresenterWithLabel() throws Exception {
+      SetCurrentFormatCommand cmd =
+         readObjectFormat(new TextVSAssembly(viewsheet, "Text1"), "Text1",
+                          "inetsoft.report.painter.BooleanPresenter");
+
+      assertEquals("inetsoft.report.painter.BooleanPresenter",
+                   cmd.getModel().getPresenter());
+      assertNotEquals("inetsoft.report.painter.BooleanPresenter",
+                      cmd.getModel().getPresenterLabel());
+   }
+
+   private void assertUnloadablePresenterTolerated(VSAssembly assembly, String name)
+      throws Exception
+   {
+      String cls = "com.acme.NoSuchPresenter";
+      SetCurrentFormatCommand cmd = readObjectFormat(assembly, name, cls);
+
+      assertEquals(cls, cmd.getModel().getPresenter());
+      assertEquals(cls, cmd.getModel().getPresenterLabel());
+      assertFalse(cmd.getModel().isPresenterHasDescriptors());
+   }
+
+   private SetCurrentFormatCommand readObjectFormat(VSAssembly assembly, String name,
+                                                    String presenterClass)
+      throws Exception
+   {
+      TableDataPath path = new TableDataPath(-1, TableDataPath.OBJECT);
+      VSCompositeFormat fmt = new VSCompositeFormat();
+      fmt.getUserDefinedFormat().setPresenter(
+         new inetsoft.report.internal.table.PresenterRef(presenterClass));
+      assembly.getVSAssemblyInfo().getFormatInfo().setFormat(path, fmt);
+      lenient().when(viewsheet.getAssembly(name)).thenReturn(assembly);
+
+      GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
+      event.setName(name);
+
+      service.getFormat("Viewsheet1", event, null, dispatcher);
+
+      verify(dispatcher).sendCommand(argCaptor.capture());
+      return argCaptor.getValue();
    }
 
    @Captor ArgumentCaptor<SetCurrentFormatCommand> argCaptor;

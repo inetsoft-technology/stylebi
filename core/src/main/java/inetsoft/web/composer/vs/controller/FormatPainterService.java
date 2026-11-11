@@ -62,6 +62,8 @@ import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -77,6 +79,8 @@ import java.util.stream.Stream;
 @Service
 @ClusterProxy
 public class FormatPainterService {
+   private static final Logger LOG = LoggerFactory.getLogger(FormatPainterService.class);
+
    public FormatPainterService(CoreLifecycleService coreLifecycleService,
                                   ChartRegionHandler regionHandler,
                                   ViewsheetService viewsheetService,
@@ -305,13 +309,14 @@ public class FormatPainterService {
             try {
                presenterLabel = format.getPresenter().createPresenter().getDisplayName();
                presenter = format.getPresenter().createPresenter().getClass().getName();
+               hasDescriptors = format.getPresenter().getPropertyDescriptors() != null
+                  && format.getPresenter().getPropertyDescriptors().length > 0;
             }
             catch(Exception ex) {
+               LOG.debug("Failed to get presenter: {}", format.getPresenter().getName(), ex);
                presenter = presenterLabel = format.getPresenter().getName();
+               hasDescriptors = false;
             }
-
-            hasDescriptors = format.getPresenter().getPropertyDescriptors() != null
-               && format.getPresenter().getPropertyDescriptors().length > 0;
          }
       }
 
