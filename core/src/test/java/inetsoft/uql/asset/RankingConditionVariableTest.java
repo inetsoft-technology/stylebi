@@ -21,6 +21,7 @@ import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -246,5 +247,41 @@ class RankingConditionVariableTest {
       RankingCondition cond = ranking(XCondition.TOP_N, "$(_USER_)");
 
       assertEquals(0, cond.getAllVariables().length);
+   }
+
+   @Test
+   void getAllVariables_variableNameHasNoDefaultValue() {
+      RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+
+      UserVariable var = cond.getAllVariables()[0];
+
+      assertEquals(XSchema.INTEGER, var.getTypeNode().getType());
+      assertNotNull(var.getValueNode());
+      assertNull(var.getValueNode().getValue());
+      assertEquals("n", var.getValueNode().getVariable());
+   }
+
+   @Test
+   void getAllVariables_userVariableHasNoDefaultValue() {
+      UserVariable uvar = new UserVariable();
+      uvar.setName("n");
+      uvar.setTypeNode(XSchema.createPrimitiveType(XSchema.INTEGER));
+      RankingCondition cond = ranking(XCondition.TOP_N, uvar);
+
+      UserVariable var = cond.getAllVariables()[0];
+
+      assertNull(var.getValueNode().getValue());
+      assertEquals("n", var.getValueNode().getVariable());
+   }
+
+   @Test
+   void replaceVariable_nullValueKeepsVariable() {
+      RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
+
+      cond.replaceVariable(vars(null));
+      assertEquals("$(n)", cond.getN());
+
+      cond.replaceVariable(vars(new Object[] {null}));
+      assertEquals("$(n)", cond.getN());
    }
 }

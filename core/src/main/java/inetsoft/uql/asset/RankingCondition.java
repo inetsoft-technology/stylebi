@@ -246,8 +246,9 @@ public class RankingCondition extends AbstractCondition implements AssetObject {
             return new UserVariable[0];
          }
 
-         XValueNode vnode = XValueNode.createValueNode(AbstractCondition.
-            createDefaultValue(uvar.getTypeNode().getType()), uvar.getName());
+         // no default value: an empty prompt means no value, not 0
+         XValueNode vnode = XValueNode.createValueNode(
+            uvar.getName(), uvar.getTypeNode().getType());
 
          vnode.setVariable(uvar.getName());
          uvar.setValueNode(vnode);
@@ -258,8 +259,6 @@ public class RankingCondition extends AbstractCondition implements AssetObject {
          String name = Condition.getRawValueString(n);
          name = name.substring(2, name.length() - 1);
          UserVariable uvar = new UserVariable();
-         XValueNode vnode = XValueNode.createValueNode(
-            AbstractCondition.createDefaultValue(getType()), name);
 
          if(VariableTable.isBuiltinVariable(name)) {
             return new UserVariable[0];
@@ -267,9 +266,10 @@ public class RankingCondition extends AbstractCondition implements AssetObject {
 
          uvar.setName(name);
          uvar.setAlias(name);
+         // setTypeNode creates a value node without a default value, so the prompt is empty
+         // instead of being pre-filled with 0 (which would apply Top 0)
          uvar.setTypeNode(XSchema.createPrimitiveType(getType()));
-         uvar.setValueNode(vnode);
-         vnode.setVariable(uvar.getName());
+         uvar.getValueNode().setVariable(uvar.getName());
 
          return new UserVariable[] {uvar};
       }

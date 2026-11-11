@@ -3251,6 +3251,10 @@ public abstract class AssetQuery extends PreAssetQuery {
                      LOG.warn("Ranking summary column not found, ignored: " + sref);
                      continue;
                   }
+                  else if(!(ranking.getN() instanceof Number)) {
+                     LOG.warn("Ranking N is not resolved, ignored: " + ranking.getN());
+                     continue;
+                  }
 
                   sumtbl.setTopN(gcol, scol, ((Number) ranking.getN()).intValue(),
                                  ranking.getOperation() == XCondition.BOTTOM_N,
