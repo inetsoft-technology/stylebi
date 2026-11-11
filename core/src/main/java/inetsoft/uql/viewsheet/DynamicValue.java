@@ -24,6 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.Objects;
 
 /**
@@ -183,7 +185,64 @@ public class DynamicValue implements Serializable, Cloneable, FullHashObject {
     */
    @Override
    public int fullHashCode() {
-      return Objects.hash(dvalue, rvalue);
+      return Objects.hash(dvalue, rvalueHashCode(rvalue));
+   }
+
+   /**
+    * Calculate a hash code of a runtime value that is consistent with
+    * {@link Tool#equals(Object, Object)}: arrays by content, numbers by double
+    * value and dates by time.
+    */
+   private static int rvalueHashCode(Object val) {
+      if(val == null) {
+         return 0;
+      }
+
+      if(val.getClass().isArray()) {
+         if(val instanceof Object[]) {
+            int hash = 1;
+
+            for(Object item : (Object[]) val) {
+               hash = 31 * hash + rvalueHashCode(item);
+            }
+
+            return hash;
+         }
+         else if(val instanceof boolean[]) {
+            return Arrays.hashCode((boolean[]) val);
+         }
+         else if(val instanceof byte[]) {
+            return Arrays.hashCode((byte[]) val);
+         }
+         else if(val instanceof char[]) {
+            return Arrays.hashCode((char[]) val);
+         }
+         else if(val instanceof double[]) {
+            return Arrays.hashCode((double[]) val);
+         }
+         else if(val instanceof float[]) {
+            return Arrays.hashCode((float[]) val);
+         }
+         else if(val instanceof int[]) {
+            return Arrays.hashCode((int[]) val);
+         }
+         else if(val instanceof long[]) {
+            return Arrays.hashCode((long[]) val);
+         }
+         else if(val instanceof short[]) {
+            return Arrays.hashCode((short[]) val);
+         }
+      }
+      else if(val instanceof Number) {
+         double dval = ((Number) val).doubleValue();
+         // 0.0 == -0.0 for equals, but their Double hash codes differ
+         return Double.hashCode(dval == 0 ? 0.0 : dval);
+      }
+      else if(val instanceof Date) {
+         return Long.hashCode(((Date) val).getTime());
+      }
+
+      return val.hashCode();
    }
 
    /**
