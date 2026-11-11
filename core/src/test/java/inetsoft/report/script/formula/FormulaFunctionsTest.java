@@ -24,7 +24,6 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.DefaultTable;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -276,9 +275,9 @@ public class FormulaFunctionsTest {
          Arguments.of(four, "maxrows=-2", new Object[] { 3, 4 }),
          Arguments.of(four, "maxrows=10", new Object[] { 1, 2, 3, 4 }),
          Arguments.of(four, "maxrows=0", new Object[] { 1, 2, 3, 4 }),
-         // current behavior, unconfirmed: the kept rows are sorted again with sort2 (default
-         // ascending), so sort=desc,maxrows=2 returns 3,4 and not 4,3
-         Arguments.of(four, "sort=desc,maxrows=2", new Object[] { 3, 4 }),
+         // the kept rows are re-sorted in the sort direction when sort2 is not given
+         // (#81071), so sort=desc,maxrows=2 returns 4,3
+         Arguments.of(four, "sort=desc,maxrows=2", new Object[] { 4, 3 }),
          Arguments.of(four, "sort=desc,sort2=desc,maxrows=2", new Object[] { 4, 3 })
       );
    }
@@ -338,14 +337,74 @@ public class FormulaFunctionsTest {
       assertManualValueKeepsLaterOptions(")");
    }
 
-   // Known defect: Options() stops splitting at a comma after a quote or an open parenthesis, so
-   // the option after such a manual value (here maxrows=2) is read as part of the value and
-   // ignored. Enable when it is fixed (Redmine #81083).
-   @Disabled("known defect #81083, options after a manual value with a quote or ( are ignored")
+   // an unpaired quote or parenthesis in a manual value must not swallow the options after it
+   // (Redmine #81083)
    @ParameterizedTest
-   @ValueSource(strings = { "'", "\"", "(" })
+   @ValueSource(strings = { "'", "\"", "(", ")", "O'", "'Q", "Lee (US", "Say \"hi\"", "A (x)" })
    void testToListManualValueWithQuoteKeepsLaterOptions(String special) {
       assertManualValueKeepsLaterOptions(special);
+   }
+
+   private static DefaultTableLens customerTable(String special) {
+      return new DefaultTableLens(new Object[][] {
+         { "customer", "amount" },
+         { "Smith", 40 }, { special, 50 }, { "Jones", 30 }, { "Lee", 20 }
+      });
+   }
+
+   // field, sorton and maxrows after a manual value with a special character are still read
+   @ParameterizedTest
+   @ValueSource(strings = { "O'Brien", "\"Lee (US", "Lee (US", "a)", "Say \"hi\"" })
+   void testToListTableManualValueKeepsFieldSortonAndMaxrows(String special) {
+      String[] tails = {
+         ",field=customer,sorton=sum(amount),maxrows=2",
+         ",field=customer,sorton=correl(amount,amount),maxrows=2",
+         ",field=customer,sorton2=sum(amount),maxrows=2",
+         ",field=customer,maxrows=2,date=year",
+         ", remainder=Others, sortOthersLast=true,field=customer,maxrows=3"
+      };
+
+      for(String tail : tails) {
+         Object[] actual = (Object[]) FormulaFunctions.toList(
+            customerTable(special), "manualvalues=Lee;" + special + ";Jones;Smith" + tail);
+         Object[] expected = (Object[]) FormulaFunctions.toList(
+            customerTable("Z"), "manualvalues=Lee;Z;Jones;Smith" + tail);
+         assertEquals(expected.length, actual.length, tail + " " + java.util.Arrays.toString(actual));
+
+         for(int i = 0; i < expected.length; i++) {
+            assertEquals(expected[i].toString().replace("Z", special), actual[i].toString(), tail);
+         }
+      }
+   }
+
+   // mapList shares the same option parser
+   @Test
+   void testMapListManualValueWithQuoteKeepsLaterOptions() {
+      Object[] actual = (Object[]) FormulaFunctions.mapList(
+         new Object[] { "b", "a", "c'" }, new Object[] { new String[] { "a" }, "isA" },
+         "manualvalues=c';isA;b,maxrows=2");
+      Object[] expected = (Object[]) FormulaFunctions.mapList(
+         new Object[] { "b", "a", "cx" }, new Object[] { new String[] { "a" }, "isA" },
+         "manualvalues=cx;isA;b,maxrows=2");
+      assertEquals(expected.length, actual.length, java.util.Arrays.toString(actual));
+      assertEquals(2, actual.length);
+   }
+
+   // an escaped comma still stays inside the manual value
+   @Test
+   void testToListManualValueEscapedCommaStaysOneValue() {
+      Object[] result = (Object[]) FormulaFunctions.toList(
+         new Object[] { "x", "a,b", "c" }, "manualvalues=a\\,b;c,maxrows=2");
+      assertArrayEquals(new Object[] { "a,b", "c" }, result);
+   }
+
+   // a quote or parenthesis in a non free-text option still protects its commas
+   @Test
+   void testToListSortonParenthesisStillProtectsComma() {
+      Object[] result = (Object[]) FormulaFunctions.toList(
+         customerTable("O'Brien"),
+         "field=customer,sorton=correl(amount,amount),maxrows=2");
+      assertEquals(2, result.length);
    }
 
    // date option: the date part, as number or name
