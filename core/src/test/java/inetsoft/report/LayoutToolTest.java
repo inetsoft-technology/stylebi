@@ -19,6 +19,7 @@ package inetsoft.report;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -130,7 +131,7 @@ class LayoutToolTest {
 
    // Known defect #81085: getFieldNameByScript() ends the name at the first quote and bracket, so a
    // column name that contains them is cut. The name must come back whole.
-   @org.junit.jupiter.api.Disabled("known defect #81085, a column name containing a quote and a bracket is cut")
+   @Disabled("known defect #81085, a column name containing a quote and a bracket is cut")
    @ParameterizedTest
    @ValueSource(strings = { "a']b", "Sales ['USD']" })
    void getFieldNameByScriptKeepsAWholeColumnName(String name) throws Exception {

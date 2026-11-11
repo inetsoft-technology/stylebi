@@ -516,8 +516,10 @@ public class CalcTableScopeTest {
          assertEquals(viaScript, viaCrosstab, key);
       }
       else {
-         assertEquals(known[0], viaScript, key);
-         assertEquals(known[1], viaCrosstab, key);
+         String changed = "a known script/crosstab difference changed for " + key +
+            ": update or remove it in KNOWN_PATH_DIFFERENCES, and close #81084 when the paths agree";
+         assertEquals(known[0], viaScript, changed);
+         assertEquals(known[1], viaCrosstab, changed);
       }
    }
 

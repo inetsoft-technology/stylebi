@@ -18,27 +18,27 @@
 package inetsoft.uql.viewsheet;
 
 import inetsoft.report.CellBinding;
+import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.CrossTabFilter;
+import inetsoft.report.filter.Formula;
 import inetsoft.report.filter.SumFormula;
+import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-
-import inetsoft.report.TableCellBinding;
-import inetsoft.report.internal.binding.TopNInfo;
-import inetsoft.uql.XCondition;
-import inetsoft.uql.asset.DateRangeRef;
-import inetsoft.uql.schema.XSchema;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -139,7 +139,7 @@ class VSTableConverterTest {
          { "2022", "q2", 20.0 } });
       base.setHeaderRowCount(1);
       TableLens meta = new CrossTabFilter(base, new int[] { 0, 1 }, new int[0],
-         new int[] { 2 }, new inetsoft.report.filter.Formula[] { new SumFormula() });
+         new int[] { 2 }, new Formula[] { new SumFormula() });
       TableLayout olayout = VSLayoutTool.generateLayout(crosstab, meta, vs);
       TableLayout nlayout = VSTableConverter.changeTableMode(crosstab, olayout, TableLayout.CALC);
 
@@ -237,41 +237,44 @@ class VSTableConverterTest {
       return list;
    }
 
-   private static boolean hasSummary(List<TableCellBinding> cells, String rowGroup,
-                                     String colGroup)
+   /** The number of summary cells with this row group and column group. */
+   private static long countSummary(List<TableCellBinding> cells, String rowGroup,
+                                    String colGroup)
    {
-      return cells.stream().anyMatch(b -> Objects.equals(rowGroup, b.getRowGroup()) &&
-         Objects.equals(colGroup, b.getColGroup()));
+      return cells.stream().filter(b -> Objects.equals(rowGroup, b.getRowGroup()) &&
+         Objects.equals(colGroup, b.getColGroup())).count();
    }
 
    // detail summary cell: bound to the innermost row and column group
    @Test
    void detailSummaryCellIsBoundToInnermostGroups() {
       List<TableCellBinding> cells = summaryCells(totalsLayout());
-      assertTrue(hasSummary(cells, "quarter", "channel"));
+      assertEquals(4, countSummary(cells, "quarter", "channel"));
    }
 
    // column sub total (G_FOOTER of the column side): column group is the outer column dimension
    @Test
    void columnSubTotalCellIsBoundToOuterColumnGroup() {
       List<TableCellBinding> cells = summaryCells(totalsLayout());
-      assertTrue(hasSummary(cells, "quarter", "region"));
+      assertEquals(2, countSummary(cells, "quarter", "region"));
    }
 
    // row sub total (G_FOOTER of the row side): row group is the outer row dimension
    @Test
    void rowSubTotalCellIsBoundToOuterRowGroup() {
       List<TableCellBinding> cells = summaryCells(totalsLayout());
-      assertTrue(hasSummary(cells, "year", "channel"));
-      assertTrue(hasSummary(cells, "year", "region"));
+      assertEquals(4, countSummary(cells, "year", "channel"));
+      assertEquals(2, countSummary(cells, "year", "region"));
    }
 
    // grand total: the total column has no column group, and a "Grand Total" header text
    @Test
    void columnGrandTotalCellHasNoColumnGroup() {
       TableLayout layout = totalsLayout();
-      assertTrue(hasSummary(summaryCells(layout), "quarter", TableCellBinding.DEFAULT_GROUP));
-      assertTrue(hasSummary(summaryCells(layout), "year", TableCellBinding.DEFAULT_GROUP));
+      assertEquals(1, countSummary(summaryCells(layout), "quarter",
+                                   TableCellBinding.DEFAULT_GROUP));
+      assertEquals(1, countSummary(summaryCells(layout), "year",
+                                   TableCellBinding.DEFAULT_GROUP));
       boolean header = false;
 
       for(int r = 0; r < layout.getRowCount(); r++) {
@@ -289,9 +292,10 @@ class VSTableConverterTest {
    @Test
    void rowGrandTotalCellsHaveNoRowGroup() {
       List<TableCellBinding> cells = summaryCells(totalsLayout());
-      assertTrue(hasSummary(cells, TableCellBinding.DEFAULT_GROUP, "channel"));
-      assertTrue(hasSummary(cells, TableCellBinding.DEFAULT_GROUP, "region"));
-      assertTrue(hasSummary(cells, TableCellBinding.DEFAULT_GROUP, TableCellBinding.DEFAULT_GROUP));
+      assertEquals(4, countSummary(cells, TableCellBinding.DEFAULT_GROUP, "channel"));
+      assertEquals(2, countSummary(cells, TableCellBinding.DEFAULT_GROUP, "region"));
+      assertEquals(1, countSummary(cells, TableCellBinding.DEFAULT_GROUP,
+                                   TableCellBinding.DEFAULT_GROUP));
    }
 
    // a crosstab whose aggregates were removed after the layout was made is converted as a plain
@@ -502,7 +506,7 @@ class VSTableConverterTest {
       }
 
       CrossTabFilter meta = new CrossTabFilter(base, rowh, colh, new int[] { headers.size() - 1 },
-                                          new inetsoft.report.filter.Formula[] { new SumFormula() });
+                                          new Formula[] { new SumFormula() });
       filterCustomizer.accept(meta);
       TableLayout olayout = VSLayoutTool.generateLayout(crosstab, meta, vs);
       assertEquals(TableLayout.CROSSTAB, olayout.getMode());
