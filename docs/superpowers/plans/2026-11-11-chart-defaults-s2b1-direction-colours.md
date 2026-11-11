@@ -21,14 +21,14 @@
 
 **Builds on:**
 - S0 and S1, open as PRs #7986 and #7987.
-- S2a, the local branch `bug-80455-s2` at `0752422d66`, plan `docs/superpowers/plans/2026-11-10-chart-defaults-s2a-palette-seeds.md`. From its "Interfaces for later slices" this plan uses:
+- S2a, the local branch `bug-80455-s2` at `f38dbd2652` (S2a plus its node-colour fix from the S2a checks), plan `docs/superpowers/plans/2026-11-10-chart-defaults-s2a-palette-seeds.md`. From its "Interfaces for later slices" this plan uses:
   - `VSChartPaletteDefaults.activePalette`, `staticPalette` and `isModernChartColor`
   - `VSObjectChromeDefaults.cardComposite(ctx)`
   - the colour-pane rule that a not-`changed` model whose colour equals its CSS-or-default colour clears the user tier (`StaticColorFrameFactory`)
   - `ChartChromeSlots.frames`
   - `seedTypeDefaults(VizContext, ResolvedChartType)` and `reseedIfResolvedTypeChanged()`
 
-**Verified against:** `bug-80455-s2` at `0752422d66`. Paths are under `core/src/main/java/inetsoft/` unless they start with `core/` or `web/`.
+**Verified against:** `bug-80455-s2` at `f38dbd2652` (S2a plus its node-colour fix from the S2a checks). Paths are under `core/src/main/java/inetsoft/` unless they start with `core/` or `web/`.
 
 ## Owner rulings (2026-11-11)
 
@@ -63,7 +63,7 @@
 
 ## Global Constraints
 
-- **Worktree:** `$WT` is the executor's worktree on branch `bug-80455-s2b1`, cut from `bug-80455-s2` (`0752422d66`). Never work in `E:/StyleBI/stylebi-enterprise/community`.
+- **Worktree:** `$WT` is the executor's worktree on branch `bug-80455-s2b1`, cut from `bug-80455-s2` (`f38dbd2652`). Never work in `E:/StyleBI/stylebi-enterprise/community`.
 - **Git:**
   - Each git command is its own call, `git -C "$WT" ...`.
   - One commit per task, subject `Chart defaults S2b-1, <what changed>`, last line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
