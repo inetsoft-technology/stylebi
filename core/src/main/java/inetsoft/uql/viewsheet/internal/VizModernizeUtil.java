@@ -182,17 +182,13 @@ public final class VizModernizeUtil {
     * as a density change does. Nothing moves when nothing was seeded.
     */
    private static int moveMark(Viewsheet vs, VizMark mark, List<VSAssemblyInfo> targets) {
-      // only content leaving the classic look
       if(mark != null) {
          for(VSAssemblyInfo info : targets) {
+            // only content leaving the classic look
             if(info.getVizMark() == null) {
                clearResidue(info);
             }
-         }
-      }
 
-      if(mark != null) {
-         for(VSAssemblyInfo info : targets) {
             if(info instanceof ChartVSAssemblyInfo chart) {
                chart.requestLegendCount();
             }

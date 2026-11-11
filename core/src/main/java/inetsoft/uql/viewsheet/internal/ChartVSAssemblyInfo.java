@@ -1736,7 +1736,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       DerivedUserFlag.write(writer, "userSmoothLines", isUserSmoothLines(),
                             derivedUserSmoothLines());
 
-      if(legendCrowded) {
+      // a reverted chart writes no verdict
+      if(legendCrowded && getVizMark() != null) {
          writer.print(" legendCrowded=\"true\"");
       }
 
@@ -3229,6 +3230,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
     * @return true when the design legend layout changed.
     */
    public boolean applyLegendCount(boolean crowded) {
+      // only a marked chart keeps a verdict
+      if(getVizMark() == null) {
+         return false;
+      }
+
       LegendsDescriptor legends = desc == null ? null : desc.getLegendsDescriptor();
       int layout = legends == null ? 0 : legends.getLayout();
       VizContext ctx = VizContext.of(this);

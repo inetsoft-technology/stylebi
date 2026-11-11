@@ -222,10 +222,13 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       LegendsDescriptor olegendsDescriptor = odescriptor.getLegendsDescriptor();
       LegendsDescriptor nlegendsDescriptor = ndescriptor.getLegendsDescriptor();
 
+      boolean fromMarked = fromChart.getVSAssemblyInfo().getVizMark() != null;
+      boolean targetMarked = targetChart.getVSAssemblyInfo().getVizMark() != null;
+      // a seeded layout or title travels only between charts of the same mark state
+      boolean seededTravels = fromMarked == targetMarked;
+
       // once either chart is marked, only an author value travels
-      if(targetChart.getVSAssemblyInfo().getVizMark() != null ||
-         fromChart.getVSAssemblyInfo().getVizMark() != null)
-      {
+      if(fromMarked || targetMarked) {
          if(olegendsDescriptor.hasBorderUserValue()) {
             nlegendsDescriptor.setBorder(olegendsDescriptor.getBorder(),
                                          CompositeValue.Type.USER);
@@ -241,36 +244,42 @@ public class SyncChartHandler extends SyncAssemblyHandler {
          nlegendsDescriptor.setBorderColor(olegendsDescriptor.getBorderColor(), false);
       }
 
-      nlegendsDescriptor.setLayout(olegendsDescriptor.getLayout());
-      // the author's choice travels, so the target's seed leaves it
-      nlegendsDescriptor.setUserLayout(olegendsDescriptor.isUserLayout());
+      if(seededTravels || olegendsDescriptor.isUserLayout()) {
+         nlegendsDescriptor.setLayout(olegendsDescriptor.getLayout());
+         // the author's choice travels, so the target's seed leaves it
+         nlegendsDescriptor.setUserLayout(olegendsDescriptor.isUserLayout());
+      }
 
       if(oColorField != null && nColorField != null) {
          syncLegendProperties(olegendsDescriptor.getColorLegendDescriptor(),
                  nlegendsDescriptor.getColorLegendDescriptor(),
-                 oColorField.getFullName().equals(nColorField.getFullName()));
+                 oColorField.getFullName().equals(nColorField.getFullName()), seededTravels);
       }
 
       if(oShapeField != null && nShapeField != null) {
          syncLegendProperties(olegendsDescriptor.getShapeLegendDescriptor(),
                  nlegendsDescriptor.getShapeLegendDescriptor(),
-                 oShapeField.getFullName().equals(nShapeField.getFullName()));
+                 oShapeField.getFullName().equals(nShapeField.getFullName()), seededTravels);
       }
 
       if(oSizeField != null && nSizeField != null) {
          syncLegendProperties(olegendsDescriptor.getSizeLegendDescriptor(),
                  nlegendsDescriptor.getSizeLegendDescriptor(),
-                 oSizeField.getFullName().equals(nSizeField.getFullName()));
+                 oSizeField.getFullName().equals(nSizeField.getFullName()), seededTravels);
       }
    }
 
    private void syncLegendProperties(LegendDescriptor olegendDescriptor,
                                      LegendDescriptor nlegendDescriptor,
-                                     boolean syncAlias)
+                                     boolean syncAlias, boolean seededTravels)
    {
       nlegendDescriptor.setTitleValue(olegendDescriptor.getTitleValue());
-      nlegendDescriptor.setTitleVisible(olegendDescriptor.isTitleVisible());
-      nlegendDescriptor.setUserTitleVisible(olegendDescriptor.isUserTitleVisible());
+
+      if(seededTravels || olegendDescriptor.isUserTitleVisible()) {
+         nlegendDescriptor.setTitleVisible(olegendDescriptor.isTitleVisible());
+         nlegendDescriptor.setUserTitleVisible(olegendDescriptor.isUserTitleVisible());
+      }
+
       nlegendDescriptor.setNotShowNull(olegendDescriptor.isNotShowNull());
       nlegendDescriptor.setLogarithmicScale(olegendDescriptor.isLogarithmicScale());
       nlegendDescriptor.setReversed(olegendDescriptor.isReversed());

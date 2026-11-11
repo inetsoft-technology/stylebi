@@ -52,6 +52,7 @@ Classic charts stay pixel-identical and keep their XML.
   - `userLayout` and `userTitleVisible`, so a seeded top legend counts as the author's
   - `legendCrowded`, so the next re-seed of a crowded chart that build saved puts it back at the top, until a composer count
 - **A stacked-measures legend split into member frames** may have no element (`Legend.findElement`), so it keeps its natural order.
+- **The pending-count marker is not saved.** It is lost when an undo checkpoint is swapped out or a runtime sheet is rebuilt on another node. That draw then keeps the seeded position until the next count (D39).
 
 ## Global Constraints
 
