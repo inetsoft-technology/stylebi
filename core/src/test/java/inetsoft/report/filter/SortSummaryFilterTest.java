@@ -114,8 +114,8 @@ class SortSummaryFilterTest {
       }
    }
 
-   @Disabled("TextComparer.isAsciiOnly treats any BMP character as ASCII, because "
-             + "getBytes(US_ASCII) replaces it with '?', so the collator is bypassed")
+   @Disabled("Bug #81093: TextComparer.isAsciiOnly treats any BMP character as ASCII, "
+             + "so the collator is bypassed")
    @Test
    void sortFilterDistinctAndComparersChineseLocaleUsesPinyinOrder() {
       // Locale.setDefault is JVM-global: it is safe because test classes run one at a time
