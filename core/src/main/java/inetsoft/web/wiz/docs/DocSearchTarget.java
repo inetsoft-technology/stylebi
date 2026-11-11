@@ -107,9 +107,12 @@ public record DocSearchTarget(String baseUrl, Source source) {
    public static final String DOCS_URL_PROPERTY = "assistant.docs.url";
 
    /**
-    * The InetSoft-hosted documentation search. Empty until the hosted instance is deployed
-    * (Feature #80898 step 2); while empty, an installation with no assistant configured simply
-    * has no documentation search.
+    * The InetSoft-hosted documentation search (the assistant's public {@code /api/doc-search}).
+    * An installation with no assistant configured uses it, so the AI plugins get documentation
+    * search with no setup. It is reached over verified TLS and never receives the caller's
+    * bearer token. An air-gapped installation switches it off by setting
+    * {@value #DOCS_URL_PROPERTY} to blank. If the host is down the search fails and the plugins
+    * carry on without it.
     */
-   static final String HOSTED_DOCS_URL = "";
+   static final String HOSTED_DOCS_URL = "https://inetsoft.com:3001";
 }
