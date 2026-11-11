@@ -316,6 +316,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          }
       }
 
+      seedNodeColor(info, ctx);
+   }
+
+   // the relation node frame; a fresh relation info starts it at the classic slot one
+   private void seedNodeColor(VSChartInfo info, VizContext ctx) {
       if(info instanceof RelationChartInfo) {
          reseatStaticDefault(((RelationChartInfo) info).getNodeColorFrameWrapper(), ctx);
       }
@@ -3168,6 +3173,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedXGrid(ctx, type);
       // the legacy branch replaces only a modern value
       seedChartColor(ctx, type);
+      // a position mapping, so a classic value stays on the legacy branch
+      seedNodeColor(getVSChartInfo(), ctx);
       // modern only; the classic value stays in legacySmoothLines()
       seedSmoothLines(ctx, type);
    }
