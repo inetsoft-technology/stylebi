@@ -210,7 +210,10 @@ public class TableStyleController {
       try {
          tableStyleService.checkTableStyleWritePermission(styleName, principal);
          LibManager manager = libManagerProvider.getManager(principal);
-         style = manager.getTableStyle(styleName);
+         // match by exact NAME: getTableStyle(name) looks up the ID first (a renamed or moved
+         // style keeps its old ID) and then fuzzy-matches folder leaves, either of which would
+         // reuse the ID of a different style and overwrite it (Bug #81052)
+         style = manager.getTableStyleByName(styleName);
          String styleId = style == null ? manager.getNextStyleID(name) : style.getID();
          style = new XTableStyle(tableStyleService.getTableModel());
          style.setID(styleId);
