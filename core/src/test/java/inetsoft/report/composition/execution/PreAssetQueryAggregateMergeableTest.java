@@ -197,6 +197,18 @@ class PreAssetQueryAggregateMergeableTest {
       assertFalse(mergeable("oracle", "9.2", "median", XSchema.DOUBLE));
    }
 
+   // the SQL helper learns the version of an Oracle database from the database, and only when the
+   // data source has no version of its own (SQLHelper.getSQLHelper). A data source with a version
+   // (the "version" attribute of its definition) is not asked, the helper has none, and the median
+   // is not pushed down. The product sets the version of a data source only for MySQL, which
+   // reads it from the data source, so this is for a definition that has one for Oracle.
+   // Pins the current behavior.
+   @Test
+   void medianIsNotPushedDownOnOracleWhenTheDataSourceHasAVersionOfItsOwn() throws Exception {
+      // the data source of the fixture has the version 19.0 unless the database reports it
+      assertFalse(mergeable("oracle", "median"));
+   }
+
    // ---- what a database does not support ----
 
    @ParameterizedTest(name = "{1} on sybase")

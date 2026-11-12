@@ -85,12 +85,14 @@ class PreAssetQueryConditionMergeableTest {
    }
 
    /** The condition "column operation value" of an integer column. */
-   private static ConditionItem compare(DataRef column, int operation,
-                                        Object value)
-   {
+   private static ConditionItem compare(DataRef column, int operation, Object... values) {
       AssetCondition condition = new AssetCondition(XSchema.INTEGER);
       condition.setOperation(operation);
-      condition.addValue(value);
+
+      for(Object value : values) {
+         condition.addValue(value);
+      }
+
       return new ConditionItem(column, condition, 0);
    }
 
@@ -205,6 +207,45 @@ class PreAssetQueryConditionMergeableTest {
       // another database takes the "one of"
       assertTrue(where(MergeableFixture.simple("derby"),
                        compare(integer("k"), XCondition.ONE_OF, 1)));
+   }
+
+   // merge() first takes out the conditions that cannot be pushed down one by one
+   // (isConditionItemMergeable), so the others still are, and then asks about the whole list
+   // (isConditionListMergeable). The one-of check for Mongo is only in the second, so a "one of"
+   // is not taken out: the whole list fails and every condition is done in memory, also the one
+   // that could be pushed down. Another condition that cannot be pushed down only keeps itself in
+   // memory. The result is the same, only less is pushed down. Pins the current behavior.
+   @Test
+   void oneOfOnMongoKeepsTheOtherConditionsInMemoryToo() throws Exception {
+      MergeableFixture.Built built = MergeableFixture.simple("derby");
+      built.table.setPreConditionList(list(compare(integer("k"), XCondition.EQUAL_TO, 1),
+                                           compare(integer("k"), XCondition.ONE_OF, 1, 2)));
+      SQLBoundQuery mongo = mongoQuery(built);
+      mongo.merge(new inetsoft.uql.VariableTable());
+
+      assertNull(mongo.getUniformSQL().getWhere());
+      assertEquals(3, mongo.preconds.getSize());
+
+      // the same conditions on another database are both pushed down
+      built = MergeableFixture.simple("derby");
+      built.table.setPreConditionList(list(compare(integer("k"), XCondition.EQUAL_TO, 1),
+                                           compare(integer("k"), XCondition.ONE_OF, 1, 2)));
+      SQLBoundQuery other = built.query();
+      other.merge(new inetsoft.uql.VariableTable());
+
+      assertNotNull(other.getUniformSQL().getWhere());
+      assertEquals(0, other.preconds.getSize());
+
+      // a condition that is not pushed down for another reason is taken out alone
+      built = builtWithScriptColumn("derby");
+      built.table.setPreConditionList(list(
+         compare(integer("k"), XCondition.EQUAL_TO, 1),
+         compare(scriptColumn("twice", "field['k'] * 2"), XCondition.EQUAL_TO, 2)));
+      SQLBoundQuery script = built.query();
+      script.merge(new inetsoft.uql.VariableTable());
+
+      assertNotNull(script.getUniformSQL().getWhere());
+      assertEquals(1, script.preconds.getSize());
    }
 
    // ---- a sub query ----
