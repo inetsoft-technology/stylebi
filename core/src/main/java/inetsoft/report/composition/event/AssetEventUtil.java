@@ -60,6 +60,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.*;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
 /**
@@ -1609,7 +1610,36 @@ public class AssetEventUtil {
          return null;
       }
 
-      boolean runtime = table.isRuntime();
+      return getExceededMsg(table, count, table.isRuntime());
+   }
+
+   /**
+    * Get exceeded max rows message if any, for an explicit execution mode. The two-argument
+    * overload derives the mode from {@link TableAssembly#isRuntime()}, which only reflects a
+    * Composer preview worksheet; a caller that executed the table in runtime mode itself passes
+    * {@code true} so the design-only preview limit is not reported.
+    * @param table the specified table assembly.
+    * @param count the specified table rows count.
+    * @param runtime true if the table was executed in runtime mode.
+    */
+   public static String getExceededMsg(TableAssembly table, int count, boolean runtime) {
+      ExceededLimit limit = getExceededLimit(table, n -> count >= n, runtime);
+      return limit == null ? null : limit.message();
+   }
+
+   /**
+    * Get the row limit the table's result has reached, if any.
+    * @param table   the specified table assembly.
+    * @param reached tests whether the result has at least the given number of rows.
+    * @param runtime true if the table was executed in runtime mode.
+    */
+   public static ExceededLimit getExceededLimit(TableAssembly table, IntPredicate reached,
+                                                boolean runtime)
+   {
+      if(table == null) {
+         return null;
+      }
+
       int dmax = 0;
       int tmax = runtime ? table.getMaxRows() : table.getMaxDisplayRows();
 
@@ -1630,18 +1660,28 @@ public class AssetEventUtil {
          LOG.warn("Invalid value for the maximum row property: " + mstr, ex);
       }
 
-      String exceeded = null;
-
-      if(dmax > 0 && count >= dmax) {
-         exceeded = runtime ?
-            Catalog.getCatalog().getString("composer.ws.preview.query.limit", dmax) :
-            Catalog.getCatalog().getString("composer.ws.preview.limit", dmax);
-      }
-      else if(tmax > 0 && count >= tmax) {
-         exceeded = Catalog.getCatalog().getString("composer.ws.table.limit", tmax);
+      if(dmax > 0 && reached.test(dmax)) {
+         String msg = Catalog.getCatalog().getString(
+            runtime ? "composer.ws.preview.query.limit" : "composer.ws.preview.limit", dmax);
+         return new ExceededLimit(dmax, true, msg);
       }
 
-      return exceeded;
+      if(tmax > 0 && reached.test(tmax)) {
+         return new ExceededLimit(
+            tmax, false, Catalog.getCatalog().getString("composer.ws.table.limit", tmax));
+      }
+
+      return null;
+   }
+
+   /**
+    * A row limit a table's result has reached.
+    * @param limit the number of rows the limit allows.
+    * @param admin true for the query limit set by the administrator or the worksheet preview,
+    *              false for the table's own max rows.
+    * @param message the localized message Composer shows for it.
+    */
+   public record ExceededLimit(int limit, boolean admin, String message) {
    }
 
    /**
