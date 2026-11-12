@@ -3011,34 +3011,39 @@ public class DataSourceRegistry implements MessageListener {
    /**
     * Fire event.
     */
-   protected synchronized void fireEvent(StorageRefreshEvent e) {
+   protected void fireEvent(StorageRefreshEvent e) {
       long nts = e.getLastModified();
-      long currts;
-      if(ts.containsKey(OrganizationManager.getInstance().getCurrentOrgID())) {
-         currts = ts.get(OrganizationManager.getInstance().getCurrentOrgID());
-      }
-      else {
-         currts = 0;
-      }
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      Long cur = ts.get(orgID);
+      long currts = cur != null ? cur : 0;
 
       if(nts != 0 && nts != currts && currts < nts) {
+         // Do not hold the registry monitor while querying the storage. The query may block
+         // on a cluster load, and every synchronized registry method would queue behind it
+         // (Bug #79879).
          long actual = indexedStorage.lastModified(datasourceFilter);
 
-         if(currts < actual) {
-            clearCache();
-            ts.put(OrganizationManager.getInstance().getCurrentOrgID(), nts);
-            PropertyChangeEvent event =
-               new PropertyChangeEvent(this, "DataSourceRegistry", null, null);
-            final List<PropertyChangeListener> refreshedListeners =
-               new ArrayList<>(this.refreshedListeners);
+         synchronized(this) {
+            cur = ts.get(orgID);
+            currts = cur != null ? cur : 0;
 
-            (new GroupedThread() {
-               protected void doRun() {
-                  for(PropertyChangeListener listener : refreshedListeners) {
-                     listener.propertyChange(event);
+            // re-check under the monitor, a concurrent event may have already handled this change
+            if(currts < actual && currts < nts) {
+               clearCache();
+               ts.put(orgID, nts);
+               PropertyChangeEvent event =
+                  new PropertyChangeEvent(this, "DataSourceRegistry", null, null);
+               final List<PropertyChangeListener> refreshedListeners =
+                  new ArrayList<>(this.refreshedListeners);
+
+               (new GroupedThread() {
+                  protected void doRun() {
+                     for(PropertyChangeListener listener : refreshedListeners) {
+                        listener.propertyChange(event);
+                     }
                   }
-               }
-            }).start();
+               }).start();
+            }
          }
       }
    }
