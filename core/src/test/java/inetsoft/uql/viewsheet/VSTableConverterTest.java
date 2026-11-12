@@ -27,21 +27,37 @@ import inetsoft.report.filter.SumFormula;
 import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.XConstants;
+import inetsoft.report.TableDataPath;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.GroupRef;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -408,6 +424,444 @@ class VSTableConverterTest {
       }
    }
 
+   // ---- percentage option remapping by "percentage by" ----
+
+   // the percentage option of a summary cell is remapped to the row or column variant of the
+   // crosstab's "percentage by" setting; the formula name carries the option as a suffix
+   @ParameterizedTest(name = "percentage by {0} with option {1} writes formula {2}")
+   @CsvSource({
+      "1, 1, Sum<8>",
+      "1, 2, Sum<32>",
+      "2, 1, Sum<4>",
+      "2, 2, Sum<16>",
+      "1, 0, Sum"
+   })
+   void percentageOptionIsRemappedByPercentageBy(int by, int option, String formula) {
+      Spec spec = new Spec(new String[] { "year" }, new String[] { "region" });
+      spec.aggs(new Agg("sales", "Sum").percent(option));
+      spec.customizer = ci -> ci.setPercentageByValue(by + "");
+      List<TableCellBinding> cells = summaryCells(spec.run().nlayout);
+      assertFalse(cells.isEmpty());
+
+      for(TableCellBinding b : cells) {
+         assertEquals(formula, b.getFormula());
+      }
+   }
+
+   // ---- special characters in names ----
+
+   // a column name with parentheses and a space is kept whole as the summary value
+   @Test
+   void summaryCellKeepsAggregateColumnNameWithParentheses() {
+      Spec spec = new Spec(new String[] { "year" }, new String[0]);
+      spec.aggs(new Agg("Sales (USD)", "Sum"));
+      List<TableCellBinding> cells = summaryCells(spec.run().nlayout);
+      assertFalse(cells.isEmpty());
+
+      for(TableCellBinding b : cells) {
+         assertEquals("Sales (USD)", b.getValue());
+         assertEquals("Sum", b.getFormula());
+      }
+   }
+
+   // the converted cell name of a dimension is the same as the name a freehand cell gets by
+   // default (TableCellBinding.getValidName)
+   @Disabled("Bug #81255: TopN/Others cell name keeps characters invalid in a script identifier")
+   @Test
+   void dimensionNameWithHyphenGetsTheDefaultCellName() {
+      TableLayout layout = convert(new String[] { "Sales-Region" }, new String[0], null);
+      assertEquals("Sales_Region", groupBinding(layout, "Sales-Region").getCellName());
+   }
+
+   @Disabled("Bug #81255: TopN/Others cell name keeps characters invalid in a script identifier")
+   @ParameterizedTest(name = "dimension named [{0}] gets the default cell name")
+   @ValueSource(strings = { "a/b", "a&b", "Qty(x)", "a\"b", "a,b" })
+   void dimensionNameWithSpecialCharacterGetsTheDefaultCellName(String name) {
+      TableLayout layout = convert(new String[] { name }, new String[0], null);
+      StringBuilder expected = new StringBuilder();
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+         boolean ok = i == 0 ? Character.isJavaIdentifierStart(c) :
+            Character.isJavaIdentifierPart(c);
+         expected.append(ok ? c : '_');
+      }
+
+      assertEquals(expected.toString(), groupBinding(layout, name).getCellName());
+   }
+
+   // ---- several aggregates, titles, two column and N formulas ----
+
+   @Test
+   void eachSummaryCellKeepsItsOwnColumnAndFormula() {
+      Spec spec = new Spec(new String[] { "year" }, new String[0]);
+      spec.aggs(new Agg("sales", "Sum"), new Agg("qty", "Max"));
+      Set<String> pairs = new TreeSet<>();
+
+      for(TableCellBinding b : summaryCells(spec.run().nlayout)) {
+         pairs.add(b.getValue() + "|" + b.getFormula());
+      }
+
+      assertEquals(Set.of("qty|Max", "sales|Sum"), pairs);
+   }
+
+   @Test
+   void aggregateTitleCellsAreTextCells() {
+      Spec spec = new Spec(new String[] { "year" }, new String[0]);
+      spec.aggs(new Agg("sales", "Sum"), new Agg("qty", "Max"));
+      TableLayout layout = spec.run().nlayout;
+      int titles = 0;
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            TableCellBinding b = (TableCellBinding) layout.getCellBinding(r, c);
+
+            if(b != null && b.getBType() != TableCellBinding.SUMMARY &&
+               b.getBType() != TableCellBinding.GROUP && b.getValue() != null &&
+               (b.getValue().contains("sales") || b.getValue().contains("qty")))
+            {
+               titles++;
+               assertEquals(CellBinding.BIND_TEXT, b.getType());
+            }
+         }
+      }
+
+      assertTrue(titles > 0, "no aggregate title cell");
+
+      // every cell of the header row, including the empty corner cell, is a text cell
+      for(int c = 0; c < layout.getColCount(); c++) {
+         TableCellBinding b = (TableCellBinding) layout.getCellBinding(0, c);
+         assertNotNull(b);
+         assertEquals(CellBinding.BIND_TEXT, b.getType(), "header cell " + c);
+      }
+   }
+
+   @Test
+   void twoColumnFormulaSummaryCellKeepsFirstColumn() {
+      Spec spec = new Spec(new String[] { "year" }, new String[0]);
+      spec.aggs(new Agg("sales", "Correlation").second("qty"));
+      List<TableCellBinding> cells = summaryCells(spec.run().nlayout);
+      assertFalse(cells.isEmpty());
+
+      for(TableCellBinding b : cells) {
+         assertEquals("sales", b.getValue());
+         assertEquals("Correlation", b.getFormula());
+      }
+   }
+
+   @Test
+   void nthLargestSummaryCellKeepsTheColumn() {
+      Spec spec = new Spec(new String[] { "year" }, new String[0]);
+      spec.aggs(new Agg("sales", "NthLargest").n("2"));
+      List<TableCellBinding> cells = summaryCells(spec.run().nlayout);
+      assertFalse(cells.isEmpty());
+
+      for(TableCellBinding b : cells) {
+         assertEquals("sales", b.getValue());
+      }
+   }
+
+   // ---- sort, nesting, multi level headers ----
+
+   @Test
+   void descendingRowDimensionKeepsDescendingOrder() {
+      Spec spec = new Spec(new String[] { "year" }, new String[0]);
+      spec.dimTweak = dim -> dim.setOrder(XConstants.SORT_DESC);
+      TableLayout layout = spec.run().nlayout;
+      assertEquals(XConstants.SORT_DESC, groupBinding(layout, "year").getOrderInfo(false).getOrder());
+   }
+
+   @Test
+   void nestedDateRowDimensionKeepsDateColumnAndLevel() {
+      Spec spec = new Spec(new String[] { "Year(date)", "Month(date)" }, new String[0]);
+      spec.dimTweak = dim -> {
+         int level = "Year(date)".equals(dim.getGroupColumnValue()) ?
+            DateRangeRef.YEAR_INTERVAL : DateRangeRef.MONTH_INTERVAL;
+         dim.setGroupColumnValue("date");
+         ((ColumnRef) dim.getDataRef()).setDataType(XSchema.DATE);
+         dim.setDateLevelValue(level + "");
+      };
+      TableLayout layout = spec.run().nlayout;
+      List<TableCellBinding> months = new ArrayList<>();
+
+      for(TableCellBinding b : groupCellsAny(layout)) {
+         if(b.getDateOption() == DateRangeRef.MONTH_INTERVAL) {
+            months.add(b);
+         }
+      }
+
+      assertFalse(months.isEmpty(), "no month cell");
+      TableCellBinding month = months.get(0);
+      assertEquals("Month(date)", month.getValue());
+      assertNotNull(month.getRowGroup());
+      assertNotEquals(TableCellBinding.DEFAULT_GROUP, month.getRowGroup());
+      boolean outer = false;
+
+      for(TableCellBinding b : groupCellsAny(layout)) {
+         outer |= b.getDateOption() == DateRangeRef.YEAR_INTERVAL &&
+            month.getRowGroup().equals(b.getCellName());
+      }
+
+      assertTrue(outer, "the month cell does not refer to the year cell");
+   }
+
+   @Test
+   void multiLevelHeadersChainOuterToInnerCellNames() {
+      String[] rows = { "a", "b", "c" };
+      String[] cols = { "d", "e" };
+      TableLayout layout = convert(rows, cols, null);
+      assertEquals("a", groupCells(layout, "a").get(0).getCellName());
+      assertEquals("a", groupCells(layout, "b").get(0).getRowGroup());
+      assertEquals("b", groupCells(layout, "c").get(0).getRowGroup());
+      assertEquals("d", groupCells(layout, "d").get(0).getCellName());
+      assertEquals("d", groupCells(layout, "e").get(0).getColGroup());
+   }
+
+   // pinned current behavior: a crosstab-mode layout without regions converts to a calc layout
+   // with an empty header region and an empty detail region
+   @Test
+   void pinnedEmptyCrosstabLayoutConvertsToHeaderAndDetailRegions() {
+      TableLayout olayout = new TableLayout();
+      olayout.setMode(TableLayout.CROSSTAB);
+      TableLayout result = VSTableConverter.changeTableMode(null, olayout, TableLayout.CALC);
+      assertEquals(TableLayout.CALC, result.getMode());
+      assertEquals(2, result.getRegionCount());
+      assertEquals(1, result.getRegions(TableDataPath.HEADER).length);
+      assertEquals(1, result.getRegions(TableDataPath.DETAIL).length);
+
+      for(int r = 0; r < result.getRowCount(); r++) {
+         for(int c = 0; c < result.getColCount(); c++) {
+            assertNull(result.getCellBinding(r, c));
+         }
+      }
+   }
+
+   // ---- normal table to freehand ----
+
+   private static TableLayout convertNormalTable(int headerRows, SourceInfo source) {
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(new ColumnRef(new AttributeRef(null, "x")));
+      columns.addAttribute(new ColumnRef(new AttributeRef(null, "y")));
+      ((TableVSAssemblyInfo) table.getInfo()).setColumnSelection(columns);
+      table.setSourceInfo(source);
+      Object[][] data = new Object[headerRows + 2][2];
+
+      for(int r = 0; r < headerRows; r++) {
+         data[r] = new Object[] { "x" + r, "y" + r };
+      }
+
+      data[headerRows] = new Object[] { 1, 2 };
+      data[headerRows + 1] = new Object[] { 3, 4 };
+      DefaultTableLens lens = new DefaultTableLens(data);
+      lens.setHeaderRowCount(headerRows);
+      TableLayout olayout = VSLayoutTool.generateLayout(table, lens, vs);
+      assertEquals(TableLayout.NORMAL, olayout.getMode());
+      return VSTableConverter.changeTableMode(table, olayout, TableLayout.CALC);
+   }
+
+   @Test
+   void normalTableHeaderBecomesTextAndDetailExpandsVertically() {
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, "prefix", "ws1:Query1");
+      TableLayout layout = convertNormalTable(1, source);
+      int headers = 0;
+      int details = 0;
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            TableCellBinding b = (TableCellBinding) layout.getCellBinding(r, c);
+
+            if(b == null) {
+               continue;
+            }
+
+            TableDataPath path = layout.getCellDataPath(r, c);
+
+            if(path.getType() == TableDataPath.HEADER) {
+               headers++;
+               assertEquals(CellBinding.BIND_TEXT, b.getType());
+            }
+            else if(path.getType() == TableDataPath.DETAIL) {
+               details++;
+               assertEquals(TableCellBinding.EXPAND_V, b.getExpansion());
+               assertEquals("ws1:Query1", b.getSource());
+               assertEquals(TableCellBinding.DEFAULT_GROUP, b.getRowGroup());
+               assertEquals(TableCellBinding.DEFAULT_GROUP, b.getColGroup());
+            }
+         }
+      }
+
+      assertTrue(headers > 0, "no header cell");
+      assertTrue(details > 0, "no detail cell");
+   }
+
+   @Test
+   void normalTableWithTwoHeaderRowsHasOneHeaderRegionOfTwoRows() {
+      TableLayout layout = convertNormalTable(2, null);
+      TableLayout.Region[] headers = layout.getRegions(TableDataPath.HEADER);
+      assertEquals(1, headers.length);
+      assertEquals(2, headers[0].getRowCount());
+   }
+
+   // ---- sizes, spans, input immutability ----
+
+   @Test
+   void rowHeightsAndColumnWidthsAreCopied() {
+      Spec spec = new Spec(new String[] { "year" }, new String[] { "region" });
+      spec.layoutTweak = layout -> {
+         for(int r = 0; r < layout.getRowCount(); r++) {
+            layout.setRowHeight(r, 20 + r);
+         }
+
+         for(int c = 0; c < layout.getColCount(); c++) {
+            layout.setColWidth(c, 50 + 10 * c);
+         }
+      };
+      spec.run();
+      assertTrue(spec.nlayout.getRowCount() > 0);
+
+      for(int r = 0; r < spec.nlayout.getRowCount(); r++) {
+         assertEquals(spec.olayout.getRowHeight(r), spec.nlayout.getRowHeight(r));
+      }
+
+      for(int c = 0; c < spec.nlayout.getColCount(); c++) {
+         assertEquals(spec.olayout.getColWidth(c), spec.nlayout.getColWidth(c));
+      }
+   }
+
+   @Test
+   void spansAreCopiedAndBindingsInsideASpanAreCleared() {
+      Spec spec = new Spec(ROWS, new String[0]);
+      spec.customizer = ci -> ci.setMergeSpan(true);
+      spec.run();
+      TableLayout olayout = spec.olayout;
+      TableLayout nlayout = spec.nlayout;
+      int spans = 0;
+
+      for(int r = 0; r < olayout.getRowCount(); r++) {
+         for(int c = 0; c < olayout.getColCount(); c++) {
+            Dimension span = olayout.getSpan(r, c);
+
+            if(span == null) {
+               continue;
+            }
+
+            spans++;
+            assertEquals(span, nlayout.getSpan(r, c));
+
+            if(olayout.getCellBinding(r, c) != null) {
+               assertNotNull(nlayout.getCellBinding(r, c), "first cell of a span lost");
+            }
+
+            for(int rr = r; rr < r + span.height && rr < nlayout.getRowCount(); rr++) {
+               for(int cc = c; cc < c + span.width && cc < nlayout.getColCount(); cc++) {
+                  if(rr != r || cc != c) {
+                     assertNull(nlayout.getCellBinding(rr, cc),
+                                "binding inside a span at " + rr + "," + cc);
+                  }
+               }
+            }
+         }
+      }
+
+      assertTrue(spans > 0, "the crosstab layout has no span");
+   }
+
+   // the Others group follows the dimension order of the runtime headers
+   @Disabled("Bug #81258: fixTopN keeps Others on the outer dimension when design and runtime headers differ")
+   @Test
+   void outerDimensionAtRuntimeTurnsOthersOffWhenDesignHasOnlyThatDimension() {
+      Spec spec = new Spec(ROWS, new String[0]);
+      spec.topNDim = "year";
+      spec.customizer = ci -> {
+         DataRef[] runtime = ci.getRuntimeRowHeaders();
+         ci.setDesignRowHeaders(new DataRef[] { runtime[0] });
+      };
+      TableLayout layout = spec.run().nlayout;
+      assertFalse(groupBinding(layout, "year").getTopN(false).isOthers());
+   }
+
+   // the conversion must not change the layout it reads from
+   @Test
+   void conversionDoesNotChangeTheCrosstabLayout() {
+      List<String> before = new ArrayList<>();
+      Spec spec = new Spec(ROWS, new String[] { "region" });
+      spec.beforeConvert = ci -> { };
+      spec.layoutTweak = layout -> before.addAll(snapshot(layout));
+      spec.run();
+      assertFalse(before.isEmpty());
+      assertEquals(before, snapshot(spec.olayout));
+   }
+
+   private static List<String> snapshot(TableLayout layout) {
+      List<String> list = new ArrayList<>();
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            TableCellBinding b = (TableCellBinding) layout.getCellBinding(r, c);
+
+            list.add(r + "," + c + ":" + (b == null ? "null" : b.getType() + "/" + b.getBType() +
+               "/" + b.getValue() + "/" + b.getCellName() + "/" + b.getRowGroup() + "/" +
+               b.getColGroup() + "/" + b.getExpansion() + "/" + b.getFormula()));
+         }
+      }
+
+      return list;
+   }
+
+   // ---- merged cells and different row / column total settings ----
+
+   @Test
+   void mergedGroupCellsMergeOnTheirOwnCellName() {
+      TableLayout layout = convert(ROWS, new String[0], null, ci -> ci.setMergeSpan(true));
+      int named = 0;
+
+      for(TableCellBinding b : groupCellsAny(layout)) {
+         if(b.getCellName() != null) {
+            named++;
+            assertEquals(b.getCellName(), b.getMergeRowGroup());
+            assertEquals(b.getCellName(), b.getMergeColGroup());
+         }
+      }
+
+      assertTrue(named > 0, "no named group cell");
+   }
+
+   @Test
+   void summaryCellsExistOnlyForTheShownTotals() {
+      TableLayout layout = convert(ROWS, COLS, null, ci -> { }, f -> {
+         f.setSuppressRowGrandTotal(true);
+         f.setSuppressRowGroupTotal(new boolean[] { true, true });
+         f.setSuppressColumnGrandTotal(false);
+         f.setSuppressColumnGroupTotal(new boolean[] { false, false });
+      });
+      List<TableCellBinding> cells = summaryCells(layout);
+      assertEquals(4, countSummary(cells, "quarter", "channel"));
+      assertEquals(2, countSummary(cells, "quarter", "region"));
+      assertEquals(1, countSummary(cells, "quarter", TableCellBinding.DEFAULT_GROUP));
+      assertEquals(0, countSummary(cells, "year", "channel"));
+      assertEquals(0, countSummary(cells, TableCellBinding.DEFAULT_GROUP, "channel"));
+      assertEquals(0, countSummary(cells, TableCellBinding.DEFAULT_GROUP,
+                                   TableCellBinding.DEFAULT_GROUP));
+   }
+
+   private static List<TableCellBinding> groupCellsAny(TableLayout layout) {
+      List<TableCellBinding> list = new ArrayList<>();
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            TableCellBinding b = (TableCellBinding) layout.getCellBinding(r, c);
+
+            if(b != null && b.getBType() == TableCellBinding.GROUP) {
+               list.add(b);
+            }
+         }
+      }
+
+      return list;
+   }
+
    /**
     * Build a crosstab with the given row and column dimensions and Sum(sales), set TopN with
     * Others on {@code topNDim} (if not null), and convert it to a calc layout.
@@ -437,83 +891,180 @@ class VSTableConverterTest {
                                       Consumer<CrossTabFilter> filterCustomizer,
                                       Consumer<VSCrosstabInfo> beforeConvert)
    {
-      Viewsheet vs = new Viewsheet();
-      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
-      VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
-      AggregateInfo ainfo = new AggregateInfo();
-      List<DataRef> rows = new ArrayList<>();
-      List<DataRef> cols = new ArrayList<>();
-      List<String> headers = new ArrayList<>();
+      Spec spec = new Spec(rowDims, colDims);
+      spec.topNDim = topNDim;
+      spec.customizer = customizer;
+      spec.filterCustomizer = filterCustomizer;
+      spec.beforeConvert = beforeConvert;
+      return spec.run().nlayout;
+   }
 
-      for(String name : rowDims) {
-         VSDimensionRef dim = dimension(name, name.equals(topNDim));
-         rows.add(dim);
-         ainfo.addGroup(dim.createGroupRef(null));
-         headers.add(name);
+   /** One aggregate of the crosstab under test. */
+   private static final class Agg {
+      Agg(String column, String formula) {
+         this.column = column;
+         this.formula = formula;
       }
 
-      for(String name : colDims) {
-         VSDimensionRef dim = dimension(name, name.equals(topNDim));
-         cols.add(dim);
-         ainfo.addGroup(dim.createGroupRef(null));
-         headers.add(name);
+      Agg second(String second) {
+         this.second = second;
+         return this;
       }
 
-      VSAggregateRef sales = new VSAggregateRef();
-      sales.setDataRef(new ColumnRef(new AttributeRef(null, "sales")));
-      sales.setColumnValue("sales");
-      sales.setFormulaValue("Sum");
-      ainfo.addAggregate(sales.createAggregateRef(null));
-      headers.add("sales");
+      Agg n(String n) {
+         this.n = n;
+         return this;
+      }
 
-      DataRef[] rowArr = rows.toArray(new DataRef[0]);
-      DataRef[] colArr = cols.toArray(new DataRef[0]);
-      cinfo.setDesignRowHeaders(rowArr);
-      cinfo.setDesignColHeaders(colArr);
-      cinfo.setDesignAggregates(new DataRef[] { sales });
-      cinfo.setRuntimeRowHeaders(rowArr);
-      cinfo.setRuntimeColHeaders(colArr);
-      cinfo.setRuntimeAggregates(new DataRef[] { sales });
-      cinfo.setAggregateInfo(ainfo);
-      customizer.accept(cinfo);
+      Agg percent(int percent) {
+         this.percent = percent;
+         return this;
+      }
 
-      // base data: every dimension has two values, all combinations present, so that sub totals
-      // and grand totals exist when they are not suppressed
-      int ndims = headers.size() - 1;
-      int nrows = 1 << ndims;
-      Object[][] data = new Object[nrows + 1][headers.size()];
-      data[0] = headers.toArray();
+      final String column;
+      final String formula;
+      String second;
+      String n;
+      int percent;
+   }
 
-      for(int r = 0; r < nrows; r++) {
-         for(int c = 0; c < ndims; c++) {
-            data[r + 1][c] = headers.get(c) + (((r >> c) & 1) + 1);
+   /** Everything needed to build a crosstab, its crosstab layout and the converted layout. */
+   private static final class Spec {
+      Spec(String[] rows, String[] cols) {
+         this.rows = rows;
+         this.cols = cols;
+      }
+
+      Spec aggs(Agg... aggs) {
+         this.aggs = List.of(aggs);
+         return this;
+      }
+
+      Spec run() {
+         Viewsheet vs = new Viewsheet();
+         crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
+         VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+         AggregateInfo ainfo = new AggregateInfo();
+         List<DataRef> rowRefs = new ArrayList<>();
+         List<DataRef> colRefs = new ArrayList<>();
+         List<String> headers = new ArrayList<>();
+
+         for(String name : rows) {
+            VSDimensionRef dim = dimension(name, name.equals(topNDim));
+            dimTweak.accept(dim);
+            rowRefs.add(dim);
+            GroupRef group = dim.createGroupRef(null);
+            groupTweak.accept(group);
+            ainfo.addGroup(group);
+            headers.add(name);
          }
 
-         data[r + 1][ndims] = 10.0 * (r + 1);
+         for(String name : cols) {
+            VSDimensionRef dim = dimension(name, name.equals(topNDim));
+            dimTweak.accept(dim);
+            colRefs.add(dim);
+            ainfo.addGroup(dim.createGroupRef(null));
+            headers.add(name);
+         }
+
+         List<DataRef> sums = new ArrayList<>();
+
+         for(Agg agg : aggs) {
+            VSAggregateRef sum = new VSAggregateRef();
+            sum.setDataRef(new ColumnRef(new AttributeRef(null, agg.column)));
+            sum.setColumnValue(agg.column);
+            sum.setFormulaValue(agg.formula);
+
+            if(agg.second != null) {
+               sum.setSecondaryColumnValue(agg.second);
+            }
+
+            if(agg.n != null) {
+               sum.setNValue(agg.n);
+            }
+
+            if(agg.percent != 0) {
+               sum.setPercentageOption(agg.percent);
+            }
+
+            sums.add(sum);
+            ainfo.addAggregate(sum.createAggregateRef(null));
+            headers.add(agg.column);
+         }
+
+         DataRef[] rowArr = rowRefs.toArray(new DataRef[0]);
+         DataRef[] colArr = colRefs.toArray(new DataRef[0]);
+         DataRef[] sumArr = sums.toArray(new DataRef[0]);
+         cinfo.setDesignRowHeaders(rowArr);
+         cinfo.setDesignColHeaders(colArr);
+         cinfo.setDesignAggregates(sumArr);
+         cinfo.setRuntimeRowHeaders(rowArr);
+         cinfo.setRuntimeColHeaders(colArr);
+         cinfo.setRuntimeAggregates(sumArr);
+         cinfo.setAggregateInfo(ainfo);
+         customizer.accept(cinfo);
+
+         // base data: every dimension has two values, all combinations present, so that sub
+         // totals and grand totals exist when they are not suppressed
+         int ndims = rows.length + cols.length;
+         int nrows = 1 << ndims;
+         Object[][] data = new Object[nrows + 1][headers.size()];
+         data[0] = headers.toArray();
+
+         for(int r = 0; r < nrows; r++) {
+            for(int c = 0; c < ndims; c++) {
+               data[r + 1][c] = headers.get(c) + (((r >> c) & 1) + 1);
+            }
+
+            for(int a = 0; a < aggs.size(); a++) {
+               data[r + 1][ndims + a] = 10.0 * (r + 1);
+            }
+         }
+
+         DefaultTableLens base = new DefaultTableLens(data);
+         base.setHeaderRowCount(1);
+         int[] rowh = new int[rows.length];
+         int[] colh = new int[cols.length];
+         int[] measures = new int[aggs.size()];
+         Formula[] formulas = new Formula[aggs.size()];
+
+         for(int i = 0; i < rowh.length; i++) {
+            rowh[i] = i;
+         }
+
+         for(int i = 0; i < colh.length; i++) {
+            colh[i] = rowh.length + i;
+         }
+
+         for(int i = 0; i < measures.length; i++) {
+            measures[i] = ndims + i;
+            formulas[i] = new SumFormula();
+         }
+
+         CrossTabFilter meta = new CrossTabFilter(base, rowh, colh, measures, formulas);
+         filterCustomizer.accept(meta);
+         olayout = VSLayoutTool.generateLayout(crosstab, meta, vs);
+         assertEquals(TableLayout.CROSSTAB, olayout.getMode());
+         layoutTweak.accept(olayout);
+         beforeConvert.accept(cinfo);
+         nlayout = VSTableConverter.changeTableMode(crosstab, olayout, TableLayout.CALC);
+         assertEquals(TableLayout.CALC, nlayout.getMode());
+         return this;
       }
 
-      DefaultTableLens base = new DefaultTableLens(data);
-      base.setHeaderRowCount(1);
-      int[] rowh = new int[rowDims.length];
-      int[] colh = new int[colDims.length];
-
-      for(int i = 0; i < rowh.length; i++) {
-         rowh[i] = i;
-      }
-
-      for(int i = 0; i < colh.length; i++) {
-         colh[i] = rowh.length + i;
-      }
-
-      CrossTabFilter meta = new CrossTabFilter(base, rowh, colh, new int[] { headers.size() - 1 },
-                                          new Formula[] { new SumFormula() });
-      filterCustomizer.accept(meta);
-      TableLayout olayout = VSLayoutTool.generateLayout(crosstab, meta, vs);
-      assertEquals(TableLayout.CROSSTAB, olayout.getMode());
-      beforeConvert.accept(cinfo);
-      TableLayout nlayout = VSTableConverter.changeTableMode(crosstab, olayout, TableLayout.CALC);
-      assertEquals(TableLayout.CALC, nlayout.getMode());
-      return nlayout;
+      final String[] rows;
+      final String[] cols;
+      String topNDim;
+      List<Agg> aggs = List.of(new Agg("sales", "Sum"));
+      Consumer<VSDimensionRef> dimTweak = dim -> { };
+      Consumer<GroupRef> groupTweak = group -> { };
+      Consumer<VSCrosstabInfo> customizer = cinfo -> { };
+      Consumer<CrossTabFilter> filterCustomizer = filter -> { };
+      Consumer<VSCrosstabInfo> beforeConvert = cinfo -> { };
+      Consumer<TableLayout> layoutTweak = layout -> { };
+      CrosstabVSAssembly crosstab;
+      TableLayout olayout;
+      TableLayout nlayout;
    }
 
    private static VSDimensionRef dimension(String name, boolean topNWithOthers) {

@@ -17,8 +17,17 @@
  */
 package inetsoft.report;
 
+import inetsoft.report.internal.binding.OrderInfo;
+import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.script.formula.FormulaFunctions;
+import inetsoft.report.script.formula.NamedCellRange;
 import inetsoft.test.*;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.CalcGroup;
+import inetsoft.uql.schema.XSchema;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,9 +37,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Regression guard for #75747 / #75801: converting a crosstab to a freehand table
@@ -126,13 +138,16 @@ class LayoutToolTest {
       assertEquals("", escapeColName(""));
       assertEquals("年度" + BS + ",金额", escapeColName("年度,金额"));
       assertEquals("say \"hi\"", escapeColName("say \"hi\""));
+      // surrogate pair (U+20000) and CJK without specials are unchanged
+      assertEquals("𠀀年度", escapeColName("𠀀年度"));
    }
 
    // #81085: getFieldNameByScript() must return the whole, real column name (the caller matches it
    // against the table's columns) for every character escapeColName escapes, not only ' and ].
    @ParameterizedTest
    @ValueSource(strings = { "plain", "a]b", "a'b", "a']b", "Sales ['USD']", "a@b", "a,b", "a?b",
-                            "a{b}", "a=b;c&d", "a'@']b" })
+                            "a{b}", "a=b;c&d", "a'@']b", "a:b", "Qty (units)", "say \"hi\"",
+                            "a b", "年度,金额" })
    void getFieldNameByScriptKeepsAWholeColumnName(String name) throws Exception {
       String script = "data['" + escapeColName(name) + "@g:$g']";
       assertEquals(name, LayoutTool.getFieldNameByScript(script));
@@ -145,10 +160,191 @@ class LayoutToolTest {
       assertEquals(null, LayoutTool.getFieldNameByScript(null));
    }
 
-   // Current behavior, UNCONFIRMED whether intended: a backslash in the name is not escaped.
+   // A column name with a backslash before a letter must survive the escapeColName -> script ->
+   // getFieldNameByScript round trip; the oracle is the javadoc of getFieldNameByScript, which
+   // promises the real column name.
+   @Disabled("Not filed (UI rejects backslash in column names; related #81071): escapeColName does not escape a backslash, so the script holds a\\b (JS backspace): "
+      + "actual name read back loses the backslash vs expected a\\b")
    @Test
-   void escapeColNameDoesNotEscapeBackslash() throws Exception {
-      assertEquals("a" + BS + "b", escapeColName("a" + BS + "b"));
+   void getFieldNameByScriptKeepsABackslashInTheColumnName() throws Exception {
+      String name = "a" + BS + "b";
+      String script = "data['" + escapeColName(name) + "@g:$g']";
+      assertEquals(name, LayoutTool.getFieldNameByScript(script));
+   }
+
+   @Disabled("Not filed (UI rejects backslash in column names; related #81071): escapeColName does not escape a backslash, so NamedCellRange decodes the group "
+      + "name a\\b to ab: actual ab vs expected a\\b")
+   @Test
+   void createGroupCondRoundTripsAGroupNameWithABackslash() throws Exception {
+      assertEquals(Set.of("a" + BS + "b"), groupKeys(groupCond(group("a" + BS + "b"), false)));
+   }
+
+   private static GroupRef group(String name) {
+      ColumnRef col = new ColumnRef(new AttributeRef(name));
+      col.setDataType(XSchema.STRING);
+      GroupRef group = new GroupRef(col);
+      group.setOrderInfo(new OrderInfo());
+      return group;
+   }
+
+   private static TopNInfo topN(boolean others) {
+      TopNInfo topn = new TopNInfo();
+      topn.setTopN(3);
+      topn.setTopNSummaryCol(0);
+      topn.setOthers(others);
+      return topn;
+   }
+
+   private static String groupCond(GroupRef group, boolean subtopn) {
+      return LayoutTool.createGroupCond(new CalcGroup[] { group }, new String[] { "g" }, 0, 1,
+                                        subtopn);
+   }
+
+   private static Set<?> groupKeys(String cond) throws Exception {
+      NamedCellRange range = new NamedCellRange("col" + cond);
+      Field field = NamedCellRange.class.getDeclaredField("groupspecs");
+      field.setAccessible(true);
+      return ((Map<?, ?>) field.get(range)).keySet();
+   }
+
+   @Test
+   void createGroupCondForOneGroupIsTheQualifierOfThatGroup() {
+      assertEquals("@region:$region", LayoutTool.createGroupCond(
+         new CalcGroup[] { group("region") }, new String[] { "region" }, 0, 1, false));
+   }
+
+   @Test
+   void createGroupCondListsTheGroupsOfTheRangeInOrder() {
+      CalcGroup[] groups = { group("a"), group("b") };
+      String[] cells = { "a", "b" };
+      assertEquals("@a:$a;b:$b", LayoutTool.createGroupCond(groups, cells, 0, 2, false));
+      // control: only the groups of the range are listed
+      assertEquals("@b:$b", LayoutTool.createGroupCond(groups, cells, 1, 2, false));
+   }
+
+   @Test
+   void createGroupCondIsEmptyForAnEmptyRangeOrNoGroups() {
+      CalcGroup[] groups = { group("a"), group("b") };
+      String[] cells = { "a", "b" };
+      assertEquals("", LayoutTool.createGroupCond(groups, cells, 1, 1, false));
+      assertEquals("", LayoutTool.createGroupCond(null, cells, 1, 1, false));
+      assertEquals("", LayoutTool.createGroupCond(null, cells, 0, 2, false));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "a?b", "a@b", "a{b", "a}b", "a,b", "a=b", "a;b", "a&b", "a'b", "a:b" })
+   void createGroupCondQualifierParsesBackToTheGroupName(String name) throws Exception {
+      assertEquals(Set.of(name), groupKeys(groupCond(group(name), false)));
+   }
+
+   // pinned current behavior: the sub-top-N expression lists the group by its row value
+   @Test
+   void createGroupCondPinsTheSubTopNInGroupsExpression() {
+      GroupRef group = group("g");
+      group.setTopN(topN(false));
+      String cond = groupCond(group, true);
+      assertTrue(cond.endsWith("inGroups([\"g\",rowValue[\"g\"]], \"Others \")"), cond);
+   }
+
+   // pinned current behavior of a top-N group with Others
+   @Test
+   void createGroupCondPinsTheTopNOthersExpression() {
+      GroupRef group = group("g");
+      group.setTopN(topN(true));
+      String cond = groupCond(group, false);
+      assertTrue(cond.startsWith("?("), cond);
+      assertTrue(cond.contains("inArray($g[\"*\"], rowValue[\"g\"])"), cond);
+      // the Others branch selects the rows that are NOT in the top-N list
+      assertTrue(cond.contains("\"Others \" ? !inArray($g[\"*\"], rowValue[\"g\"]) : "), cond);
+      assertTrue(cond.endsWith(" : rowValue[\"g\"] == $g[\".\"])"), cond);
+   }
+
+   // control of the test above: a top-N group without Others adds neither the Others branch nor
+   // the sub-top-N expression
+   @Test
+   void createGroupCondOfATopNGroupWithoutOthersHasNoOthersBranch() {
+      GroupRef group = group("g");
+      group.setTopN(topN(false));
+      assertEquals("@g:$g", groupCond(group, false));
+   }
+
+   // the Others group of a top-N is handled by its own branch; the sub-top-N expression is only
+   // added for a top-N group without Others
+   @Test
+   void createGroupCondDoesNotAddTheSubTopNExpressionForATopNGroupWithOthers() {
+      GroupRef group = group("g");
+      group.setTopN(topN(true));
+      String cond = groupCond(group, true);
+      assertFalse(cond.contains("inGroups("), cond);
+      assertTrue(cond.contains("\"Others \" ? !inArray($g[\"*\"], rowValue[\"g\"]) : "), cond);
+   }
+
+   @Test
+   void createGroupCondAddsTheSubTopNExpressionForATopNGroupWithoutOthers() {
+      GroupRef group = group("g");
+      group.setTopN(topN(false));
+      String cond = groupCond(group, true);
+      assertTrue(cond.startsWith("@g:$g"), cond);
+      assertTrue(cond.contains("inGroups("), cond);
+      assertFalse(cond.contains("inArray("), cond);
+   }
+
+   @Disabled("Bug #81256: addSubTopNCond does not escape a double quote in the cell name")
+   @Test
+   void createGroupCondEscapesADoubleQuoteInTheCellNameOfTheInGroupsPart() {
+      GroupRef group = group("g");
+      group.setTopN(topN(false));
+      String cond = LayoutTool.createGroupCond(new CalcGroup[] { group },
+                                               new String[] { "a\"b" }, 0, 1, true);
+      assertTrue(cond.contains("inGroups([\"a\\\"b\",rowValue[\"g\"]]"), cond);
+   }
+
+   // pinned current behavior of a date group on a part level
+   @Test
+   void createGroupCondPinsTheToListExpressionOfADateGroup() throws Exception {
+      ColumnRef col = new ColumnRef(new AttributeRef("d"));
+      col.setDataType(XSchema.DATE);
+      GroupRef group = new GroupRef(col);
+      OrderInfo order = new OrderInfo();
+      order.setInterval(1, DateRangeRef.MONTH_OF_YEAR_PART);
+      group.setOrderInfo(order);
+      String cond = groupCond(group, false);
+      assertEquals("@=toList(rowValue[\"d\"], \"date=month\"):$g", cond);
+      assertEquals(1, groupKeys(cond).size());
+   }
+
+   // pinned current behavior of a date group at year level
+   @Test
+   void createGroupCondPinsTheRoundDateExpressionOfAYearLevelDateGroup() throws Exception {
+      ColumnRef col = new ColumnRef(new AttributeRef("d"));
+      col.setDataType(XSchema.DATE);
+      GroupRef group = new GroupRef(col);
+      OrderInfo order = new OrderInfo();
+      order.setInterval(1, DateRangeRef.YEAR_INTERVAL);
+      group.setOrderInfo(order);
+      String cond = groupCond(group, false);
+      assertEquals("@=toList(rowValue[\"d\"], \"rounddate=year,interval=1.0\"):$g", cond);
+      assertEquals(1, groupKeys(cond).size());
+   }
+
+   @Test
+   void everyGeneratedDateOptionIsAcceptedByToList() {
+      java.util.Date date = new java.util.Date(1615790710000L);
+
+      for(String option : LayoutTool.DATEOPT.values()) {
+         assertDoesNotThrow(() -> FormulaFunctions.toList(new Object[] { date }, option), option);
+      }
+   }
+
+   @Test
+   void createGroupCondKeepsTheSecondGroupWhenOnlyTheFirstIsTopNOthers() {
+      GroupRef first = group("g1");
+      first.setTopN(topN(true));
+      CalcGroup[] groups = { first, group("g2") };
+      String cond = LayoutTool.createGroupCond(groups, new String[] { "g1", "g2" }, 0, 2, false);
+      assertTrue(cond.startsWith("@g2:$g2?("), cond);
+      assertTrue(cond.contains("$g1[\"*\"]"), cond);
+      assertFalse(cond.contains("$g2[\"*\"]"), cond);
    }
 
    private static String escapeColName(String name) throws Exception {

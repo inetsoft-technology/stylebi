@@ -24,11 +24,13 @@ import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.report.LayoutTool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -60,6 +62,76 @@ public class NamedCellRangeTest {
       } catch (Exception e) {
          fail("Initialization failed: " + e.getMessage());
       }
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, NamedCellRange.GroupSpec> groupSpecs(NamedCellRange range)
+      throws Exception
+   {
+      java.lang.reflect.Field field = NamedCellRange.class.getDeclaredField("groupspecs");
+      field.setAccessible(true);
+      return (Map<String, NamedCellRange.GroupSpec>) field.get(range);
+   }
+
+   private static boolean isSummary(NamedCellRange range) throws Exception {
+      java.lang.reflect.Field field = NamedCellRange.class.getDeclaredField("summary");
+      field.setAccessible(true);
+      return field.getBoolean(range);
+   }
+
+   @Test
+   void parsesSeveralGroupSpecsSeparatedBySemicolons() throws Exception {
+      NamedCellRange range = new NamedCellRange("col@g1:v1;g2:v2");
+      assertEquals("col", range.getColumn());
+      assertEquals(Set.of("g1", "g2"), groupSpecs(range).keySet());
+      assertEquals("v1", groupSpecs(range).get("g1").getValue());
+      assertEquals("v2", groupSpecs(range).get("g2").getValue());
+   }
+
+   @Test
+   void escapedSemicolonStaysInsideTheGroupValue() throws Exception {
+      NamedCellRange range = new NamedCellRange("col@g:v1\\;v2");
+      assertEquals(Set.of("g"), groupSpecs(range).keySet());
+      assertEquals("v1;v2", groupSpecs(range).get("g").getValue());
+   }
+
+   @Test
+   void questionMarkSplitsOffTheCondition() throws Exception {
+      NamedCellRange range = new NamedCellRange("col@g:v?cond");
+      assertEquals(Set.of("g"), groupSpecs(range).keySet());
+      assertEquals("cond", range.getCondition());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "?", "@", "{", "}", ",", "=", ";", "&", "'" })
+   void backslashEscapedSpecialCharacterStaysInTheColumnName(String special) throws Exception {
+      NamedCellRange range = new NamedCellRange("a\\" + special + "b@g:1");
+      assertEquals("a" + special + "b", range.getColumn());
+   }
+
+   @Test
+   void escapedColonInTheGroupNameIsRestoredToAColon() throws Exception {
+      NamedCellRange range = new NamedCellRange("col@a" + LayoutTool.SCRIPT_ESCAPED_COLON + "b:v");
+      assertEquals(Set.of("a:b"), groupSpecs(range).keySet());
+   }
+
+   @Test
+   void summaryAndExpressionFormsAreRecognized() throws Exception {
+      NamedCellRange summary = new NamedCellRange("{sales}@g:v");
+      assertTrue(isSummary(summary));
+      assertFalse(summary.isExpression());
+      assertEquals("sales", summary.getColumn());
+
+      NamedCellRange expression = new NamedCellRange("=expr@g:v");
+      assertTrue(expression.isExpression());
+      assertFalse(isSummary(expression));
+      assertEquals("expr", expression.getColumn());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "plain", "trailing\\", "a;b", "" })
+   void decodeEscapedInvertsEncodeEscaped(String text) {
+      assertEquals(text, NamedCellRange.decodeEscaped(NamedCellRange.encodeEscaped(text)));
    }
 
    @Test

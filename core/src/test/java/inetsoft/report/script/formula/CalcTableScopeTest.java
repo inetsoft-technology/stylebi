@@ -28,7 +28,9 @@ import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.LostSwapFile;
 import inetsoft.util.swap.SwapFileReadException;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -137,8 +140,6 @@ public class CalcTableScopeTest {
       return Stream.of(
          // Test case 1: column is cell range, condition and group are useless
          Arguments.of("[1,id]:[3,id]", null, null, 6.0),
-         // Test case 2: column is lens, used for report script
-         Arguments.of(objData, "id", "id=2", 8.0),   //why is 8.0, should be 4.0
          // Test case 3: test array obj, group  and condition are useless
          Arguments.of(new Object[]{3, 7, 9}, null, null, 19.0),
          // Test case 4: The array is empty
@@ -160,7 +161,7 @@ public class CalcTableScopeTest {
          // Test case 1: column is cell range, condition and group are useless
          Arguments.of("[2,id]:[3,id]", null, null, 2.5),
          // Test case 2: column is lens, used for report script
-         Arguments.of(objData, "id", "id=3", 3.0),
+         Arguments.of(objData, "id", "id==3", 3.0),
          // Test case 3: test array obj, group  and condition are useless
          Arguments.of(new Object[]{3, 7, 8}, null, null, 6.0),
          // single row
@@ -387,6 +388,37 @@ public class CalcTableScopeTest {
       assertEquals(expectedLast, calcTableScope.last(table, column, group, condition));
    }
 
+   @Test
+   void medianOfAnEvenCountIsTheMeanOfTheMiddlePair() {
+      assertEquals(2.5, calcTableScope.median(new Object[] { 1, 2, 3, 4 }, null, null));
+   }
+
+   @Test
+   void medianDoesNotReorderItsInputArray() {
+      Object[] input = { 3, 1, 2 };
+
+      assertEquals(2.0, calcTableScope.median(input, null, null));
+      assertArrayEquals(new Object[] { 3, 1, 2 }, input);
+   }
+
+   @Test
+   void sumWithAConditionAddsOnlyTheMatchingRows() {
+      // the condition is a script expression; ids are 1, 2, 3, 2: the rows with id==2 add up to 4
+      assertEquals(4.0, calcTableScope.sum(objData, "id", "id==2"));
+   }
+
+   @Disabled("Bug #81084: count and countDistinct of an empty array return null on the script " +
+             "path; expected 0.0, as for a null input (testCountAndDistinct)")
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void countAndCountDistinctOfAnEmptyArrayAreZero(boolean fill) {
+      calcTableLens.setFillBlankWithZero(fill);
+      CalcTableScope scope = new CalcTableScope(calcTableLens);
+
+      assertEquals(0.0, scope.count(new Object[0], null, null), "count");
+      assertEquals(0.0, scope.countDistinct(new Object[0], null, null), "countDistinct");
+   }
+
    private static Stream<Arguments> providePthPercentileTestCases() {
       return Stream.of(
          // Median for the range (native Integer cell value) (#75423)
@@ -438,78 +470,121 @@ public class CalcTableScopeTest {
    // result, not a hand written value.
 
    private interface ScriptAggregate {
-      Object apply(CalcTableScope scope, Object[] values);
+      Object apply(CalcTableScope scope, Object values, String column, String condition);
    }
 
    private static final Date DATE_1 = new Date(2023 - 1900, 0, 10);
    private static final Date DATE_2 = new Date(2024 - 1900, 5, 20);
    private static final Date DATE_3 = new Date(2025 - 1900, 11, 31);
 
+   private static final Object[] STRINGS_A_B_A = { "a", "b", "a" };
+   private static final Object[] NUMERIC_STRINGS_1_2 = { "1", "2" };
+   private static final Object[] NUMERIC_STRINGS_1_1_2 = { "1", "1", "2" };
+   private static final Object[] ALL_NULL = { null, null };
+   private static final Object[] DATES = { DATE_1, DATE_2, DATE_3 };
+   private static final Object[] STRING_AMONG_NUMBERS = { "a", 1 };
+   private static final Object[] NUMERIC_STRING_AND_NUMBER = { "1", 2 };
+
    private static final Object[][] AGGREGATE_INPUTS = {
-      { 1, 2, 3, 4 }, { 1, null, 3 }, { null, null }, { 5 }, { -2, -2, 3 }, { 1.5, 2.5 },
-      { 2, 2, 3, 3 }, { "a", "b", "a" }, { 0, 0 },
+      { 1, 2, 3, 4 }, { 1, null, 3 }, ALL_NULL, { 5 }, { -2, -2, 3 }, { 1.5, 2.5 },
+      { 2, 2, 3, 3 }, STRINGS_A_B_A, { 0, 0 },
       // null next to numbers: both Modes drop nulls (#81084, #81181)
       { 1, null, null }, { 1, 1, null, null, null },
       // numeric looking strings (e.g. a CSV column read as strings)
-      { "1", "2" }, { "1", "1", "2" },
+      NUMERIC_STRINGS_1_2, NUMERIC_STRINGS_1_1_2,
       // strings with a null
       { "a", null, "a" },
       // dates
-      { DATE_1, DATE_2, DATE_3 }
+      DATES,
+      // a type mix and an int overflow
+      { 1L, 2.5 }, { Integer.MAX_VALUE, 1 },
+      // a string among numbers
+      NUMERIC_STRING_AND_NUMBER, STRING_AMONG_NUMBERS,
+      { 0.0, 0.0 }
    };
 
-   // Differences left, key is "aggregate|values" (prefixed "fill|" when fill blank with zero is
-   // on), value is {script, crosstab}; pinned as current behavior (Redmine #81084). A null and a
-   // NaN are compared as the same "no value", see format().
-   //  - median of strings: the crosstab median of non-numeric strings is an artifact of
-   //    NumericComparer (equal for any two strings), i.e. the middle in insertion order for an odd
-   //    count and null for an even count. The script median (NaN, no numeric value) is right, but
-   //    MedianFormula is shared with every other crosstab/chart, so it is not changed here.
-   //  - median of dates: the crosstab returns the middle date, the script median is numeric only.
-   //  - fill blank with zero, max/min/median/mode of nothing (an all-null
-   //    group is nothing since #81181): the crosstab gives 0, the script no value.
-   //  - mode of numeric looking strings: the script gives the number, the crosstab the string.
-   private static final Map<String, String[]> KNOWN_PATH_DIFFERENCES = new HashMap<>();
+   // The inputs on which the script path and the crosstab path still give different values
+   // (Redmine #81084), by family. Each family is asserted by its own disabled test below and is
+   // left out of scriptAndCrosstabPathsAgree. A key is built by caseKey.
+   private static final Map<String, Set<String>> KNOWN_MISMATCH_FAMILIES = new HashMap<>();
+
+   private static void mismatch(String family, String aggregate, Object[] values, boolean fill) {
+      KNOWN_MISMATCH_FAMILIES.computeIfAbsent(family, f -> new HashSet<>())
+                             .add(caseKey(aggregate, values, fill));
+   }
 
    static {
-      for(String prefix : new String[] { "", "fill|" }) {
-         KNOWN_PATH_DIFFERENCES.put(prefix + "median|[a, b, a]", new String[] { "null", "b" });
-         String dates = Arrays.toString(new Object[] { DATE_1, DATE_2, DATE_3 });
-         KNOWN_PATH_DIFFERENCES.put(prefix + "median|" + dates, new String[] { "null", DATE_2.toString() });
-         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 2]", new String[] { "1.0000", "1" });
-         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 1, 2]", new String[] { "1.0000", "1" });
+      for(boolean fill : new boolean[] { false, true }) {
+         mismatch("medianOfStrings", "median", STRINGS_A_B_A, fill);
+         mismatch("medianOfDates", "median", DATES, fill);
+         mismatch("modeOfNumericStrings", "mode", NUMERIC_STRINGS_1_2, fill);
+         mismatch("modeOfNumericStrings", "mode", NUMERIC_STRINGS_1_1_2, fill);
+         mismatch("medianOfAStringAmongNumbers", "median", STRING_AMONG_NUMBERS, fill);
+         mismatch("modeOfANumericStringAndANumber", "mode", NUMERIC_STRING_AND_NUMBER, fill);
       }
 
       for(String name : new String[] { "max", "min", "median", "mode" }) {
-         KNOWN_PATH_DIFFERENCES.put("fill|" + name + "|[null, null]", new String[] { "null", "0.0000" });
+         mismatch("fillBlankOfAnAllNullGroup", name, ALL_NULL, true);
       }
    }
 
-   private static Stream<Arguments> provideScriptCrosstabCases() {
+   private static boolean isKnownMismatch(String key) {
+      return KNOWN_MISMATCH_FAMILIES.values().stream().anyMatch(keys -> keys.contains(key));
+   }
+
+   /** Includes the class of each value, so that "1" and 1 are different inputs. */
+   private static String caseKey(String name, Object[] values, boolean fill) {
+      StringBuilder sb = new StringBuilder(fill ? "fill|" : "").append(name).append('|');
+
+      for(Object value : values) {
+         sb.append(value).append(':').append(value == null ? "" : value.getClass().getSimpleName())
+            .append(';');
+      }
+
+      return sb.toString();
+   }
+
+   private static Map<String, Arguments> scriptCrosstabFormulas() {
       Map<String, Arguments> formulas = new LinkedHashMap<>();
-      add(formulas, "sum", SumFormula::new, (s, v) -> s.sum(v, null, null));
-      add(formulas, "average", AverageFormula::new, (s, v) -> s.average(v, null, null));
-      add(formulas, "count", CountFormula::new, (s, v) -> s.count(v, null, null));
+      add(formulas, "sum", SumFormula::new, (s, v, g, c) -> s.sum(v, g, c));
+      add(formulas, "average", AverageFormula::new, (s, v, g, c) -> s.average(v, g, c));
+      add(formulas, "count", CountFormula::new, (s, v, g, c) -> s.count(v, g, c));
       add(formulas, "countDistinct", DistinctCountFormula::new,
-          (s, v) -> s.countDistinct(v, null, null));
-      add(formulas, "max", MaxFormula::new, (s, v) -> s.max(v, null, null));
-      add(formulas, "min", MinFormula::new, (s, v) -> s.min(v, null, null));
-      add(formulas, "product", ProductFormula::new, (s, v) -> s.product(v, null, null));
-      add(formulas, "median", MedianFormula::new, (s, v) -> s.median(v, null, null));
-      add(formulas, "mode", ModeFormula::new, (s, v) -> s.mode(v, null, null));
+          (s, v, g, c) -> s.countDistinct(v, g, c));
+      add(formulas, "max", MaxFormula::new, (s, v, g, c) -> s.max(v, g, c));
+      add(formulas, "min", MinFormula::new, (s, v, g, c) -> s.min(v, g, c));
+      add(formulas, "product", ProductFormula::new, (s, v, g, c) -> s.product(v, g, c));
+      add(formulas, "median", MedianFormula::new, (s, v, g, c) -> s.median(v, g, c));
+      add(formulas, "mode", ModeFormula::new, (s, v, g, c) -> s.mode(v, g, c));
       add(formulas, "stdev", StandardDeviationFormula::new,
-          (s, v) -> s.standardDeviation(v, null, null));
-      add(formulas, "var", VarianceFormula::new, (s, v) -> s.variance(v, null, null));
+          (s, v, g, c) -> s.standardDeviation(v, g, c));
+      add(formulas, "var", VarianceFormula::new, (s, v, g, c) -> s.variance(v, g, c));
       add(formulas, "popvar", PopulationVarianceFormula::new,
-          (s, v) -> s.populationVariance(v, null, null));
+          (s, v, g, c) -> s.populationVariance(v, g, c));
       add(formulas, "popstdev", PopulationStandardDeviationFormula::new,
-          (s, v) -> s.populationStandardDeviation(v, null, null));
+          (s, v, g, c) -> s.populationStandardDeviation(v, g, c));
+      return formulas;
+   }
+
+   private static Stream<Arguments> provideScriptCrosstabCases() {
+      return scriptCrosstabCases(false);
+   }
+
+   private static Stream<Arguments> provideKnownMismatchCases() {
+      return scriptCrosstabCases(true);
+   }
+
+   private static Stream<Arguments> scriptCrosstabCases(boolean mismatches) {
       List<Arguments> list = new ArrayList<>();
 
       for(boolean fill : new boolean[] { false, true }) {
-         for(Arguments a : formulas.values()) {
+         for(Arguments a : scriptCrosstabFormulas().values()) {
             for(Object[] values : AGGREGATE_INPUTS) {
-               list.add(Arguments.of(a.get()[0], a.get()[1], a.get()[2], values, fill));
+               String key = caseKey((String) a.get()[0], values, fill);
+
+               if(isKnownMismatch(key) == mismatches) {
+                  list.add(Arguments.of(a.get()[0], a.get()[1], a.get()[2], values, fill));
+               }
             }
          }
       }
@@ -523,53 +598,198 @@ public class CalcTableScopeTest {
       map.put(name, Arguments.of(name, formula, script));
    }
 
+   /** The two paths' values of the same aggregate over {@code values}, as {script, crosstab}. */
+   private String[] bothPaths(Supplier<Formula> formula, ScriptAggregate script, Object[] values,
+                              boolean fill)
+   {
+      calcTableLens.setFillBlankWithZero(fill);
+      String viaScript = format(script.apply(new CalcTableScope(calcTableLens), values.clone(),
+                                             null, null));
+      Formula crosstabFormula = formula.get();
+      crosstabFormula.setDefaultResult(fill);
+      String viaCrosstab = format(crosstabValue(crosstabFormula, values));
+      return new String[] { viaScript, viaCrosstab };
+   }
+
    @ParameterizedTest
    @MethodSource("provideScriptCrosstabCases")
    void scriptAndCrosstabPathsAgree(String name, Supplier<Formula> formula,
                                     ScriptAggregate script, Object[] values, boolean fill)
    {
-      String key = (fill ? "fill|" : "") + name + "|" + Arrays.toString(values);
+      String[] paths = bothPaths(formula, script, values, fill);
+      assertEquals(paths[0], paths[1], caseKey(name, values, fill));
+   }
+
+   /** Runs only the cases of {@code family}; the other cases of the shared provider are skipped. */
+   private String[] bothPathsOfFamily(String family, String name, Supplier<Formula> formula,
+                                      ScriptAggregate script, Object[] values, boolean fill)
+   {
+      Assumptions.assumeTrue(KNOWN_MISMATCH_FAMILIES.get(family)
+                                .contains(caseKey(name, values, fill)));
+      return bothPaths(formula, script, values, fill);
+   }
+
+   @Disabled("Bug #81084: median of strings: script path gives no value, crosstab path gives the middle " +
+             "string ('b' for a,b,a); expected: both paths give no value")
+   @ParameterizedTest
+   @MethodSource("provideKnownMismatchCases")
+   void medianOfStringsGivesNoValueOnBothPaths(String name, Supplier<Formula> formula,
+                                               ScriptAggregate script, Object[] values,
+                                               boolean fill)
+   {
+      String[] paths = bothPathsOfFamily("medianOfStrings", name, formula, script, values, fill);
+      assertEquals("null", paths[0], "script path");
+      assertEquals("null", paths[1], "crosstab path");
+   }
+
+   @Disabled("Bug #81084: median of dates: script path gives no value, crosstab path gives the middle date; " +
+             "expected: both paths give the middle date")
+   @ParameterizedTest
+   @MethodSource("provideKnownMismatchCases")
+   void medianOfDatesGivesTheMiddleDateOnBothPaths(String name, Supplier<Formula> formula,
+                                                   ScriptAggregate script, Object[] values,
+                                                   boolean fill)
+   {
+      String[] paths = bothPathsOfFamily("medianOfDates", name, formula, script, values, fill);
+      assertEquals(DATE_2.toString(), paths[0], "script path");
+      assertEquals(DATE_2.toString(), paths[1], "crosstab path");
+   }
+
+   @Disabled("Bug #81084: mode of numeric looking strings: script path gives the number (1.0000), crosstab " +
+             "path gives the string (1); expected: the same text on both paths")
+   @ParameterizedTest
+   @MethodSource("provideKnownMismatchCases")
+   void modeOfNumericStringsAgreesOnBothPaths(String name, Supplier<Formula> formula,
+                                              ScriptAggregate script, Object[] values,
+                                              boolean fill)
+   {
+      assertPathsAgree("modeOfNumericStrings", name, formula, script, values, fill);
+   }
+
+   @Disabled("Bug #81084: median of a string among numbers ({a, 1}): script path gives 1.0000, crosstab path " +
+             "gives no value; expected: the same on both paths")
+   @ParameterizedTest
+   @MethodSource("provideKnownMismatchCases")
+   void medianOfAStringAmongNumbersAgreesOnBothPaths(String name, Supplier<Formula> formula,
+                                                     ScriptAggregate script, Object[] values,
+                                                     boolean fill)
+   {
+      assertPathsAgree("medianOfAStringAmongNumbers", name, formula, script, values, fill);
+   }
+
+   @Disabled("Bug #81084: mode of {\"1\", 2}: script path gives 1.0000, crosstab path gives the string (1); " +
+             "expected: the same on both paths")
+   @ParameterizedTest
+   @MethodSource("provideKnownMismatchCases")
+   void modeOfANumericStringAndANumberAgreesOnBothPaths(String name, Supplier<Formula> formula,
+                                                        ScriptAggregate script, Object[] values,
+                                                        boolean fill)
+   {
+      assertPathsAgree("modeOfANumericStringAndANumber", name, formula, script, values, fill);
+   }
+
+   @Disabled("Bug #81084: fill blank with zero, max/min/median/mode of an all-null group: script " +
+             "path gives no value, crosstab path gives 0; expected: the same on both paths")
+   @ParameterizedTest
+   @MethodSource("provideKnownMismatchCases")
+   void fillBlankOfAnAllNullGroupAgreesOnBothPaths(String name, Supplier<Formula> formula,
+                                                   ScriptAggregate script, Object[] values,
+                                                   boolean fill)
+   {
+      assertPathsAgree("fillBlankOfAnAllNullGroup", name, formula, script, values, fill);
+   }
+
+   private void assertPathsAgree(String family, String name, Supplier<Formula> formula,
+                                 ScriptAggregate script, Object[] values, boolean fill)
+   {
+      String[] paths = bothPathsOfFamily(family, name, formula, script, values, fill);
+      assertEquals(paths[0], paths[1], caseKey(name, values, fill));
+   }
+
+   private static final Object[][] GROUPED_ROWS = {
+      { "G1", 1 }, { "G1", 2 }, { "G2", 3 }
+   };
+
+   @ParameterizedTest
+   @MethodSource("provideGroupedCases")
+   void scriptAndCrosstabPathsAgreePerGroup(String name, Supplier<Formula> formula,
+                                            ScriptAggregate script, boolean fill)
+   {
       calcTableLens.setFillBlankWithZero(fill);
-      String viaScript = format(script.apply(new CalcTableScope(calcTableLens), values.clone()));
       Formula crosstabFormula = formula.get();
       crosstabFormula.setDefaultResult(fill);
-      String viaCrosstab = format(crosstabValue(crosstabFormula, values));
-      String[] known = KNOWN_PATH_DIFFERENCES.get(key);
+      Map<String, Object> crosstab = crosstabValuesByGroup(crosstabFormula, GROUPED_ROWS);
+      DefaultTableLens table = groupedTable();
 
-      if(known == null) {
-         assertEquals(viaScript, viaCrosstab, key);
+      for(String group : new String[] { "G1", "G2" }) {
+         String viaScript = format(script.apply(new CalcTableScope(calcTableLens), table, "v",
+                                                "g=='" + group + "'"));
+         assertEquals(format(crosstab.get(group)), viaScript, name + " of group " + group);
       }
-      else {
-         String changed = "a known script/crosstab difference changed for " + key +
-            ": update or remove it in KNOWN_PATH_DIFFERENCES, and close #81084 when the paths agree";
-         assertEquals(known[0], viaScript, changed);
-         assertEquals(known[1], viaCrosstab, changed);
+   }
+
+   private static Stream<Arguments> provideGroupedCases() {
+      List<Arguments> list = new ArrayList<>();
+
+      for(boolean fill : new boolean[] { false, true }) {
+         for(Arguments a : scriptCrosstabFormulas().values()) {
+            list.add(Arguments.of(a.get()[0], a.get()[1], a.get()[2], fill));
+         }
       }
+
+      return list.stream();
+   }
+
+   private static DefaultTableLens groupedTable() {
+      Object[][] data = new Object[GROUPED_ROWS.length + 1][];
+      data[0] = new Object[] { "g", "v" };
+      System.arraycopy(GROUPED_ROWS, 0, data, 1, GROUPED_ROWS.length);
+      DefaultTableLens table = new DefaultTableLens(data);
+      table.setHeaderRowCount(1);
+      return table;
    }
 
    /** The value a crosstab with one row group computes for {@code values}. */
    private static Object crosstabValue(Formula formula, Object[] values) {
-      Object[][] data = new Object[values.length + 1][];
-      data[0] = new Object[] { "g", "v" };
+      Object[][] rows = new Object[values.length][];
 
       for(int i = 0; i < values.length; i++) {
-         data[i + 1] = new Object[] { "G", values[i] };
+         rows[i] = new Object[] { "G", values[i] };
       }
+
+      Map<String, Object> byGroup = crosstabValuesByGroup(formula, rows);
+      assertTrue(byGroup.containsKey("G"), "no crosstab row for the group");
+      return byGroup.get("G");
+   }
+
+   /** The value per row group of a crosstab over {group, value} rows with {@code formula}. */
+   private static Map<String, Object> crosstabValuesByGroup(Formula formula, Object[][] rows) {
+      Object[][] data = new Object[rows.length + 1][];
+      data[0] = new Object[] { "g", "v" };
+      System.arraycopy(rows, 0, data, 1, rows.length);
 
       DefaultTableLens base = new DefaultTableLens(data);
       base.setHeaderRowCount(1);
       CrossTabFilter crosstab = new CrossTabFilter(base, new int[] { 0 }, new int[0],
                                                    new int[] { 1 }, new Formula[] { formula });
       crosstab.moreRows(Integer.MAX_VALUE);
+      Set<Object> groups = new HashSet<>();
+
+      for(Object[] row : rows) {
+         groups.add(row[0]);
+      }
+
+      Map<String, Object> result = new HashMap<>();
 
       for(int r = 0; r < crosstab.getRowCount(); r++) {
-         if("G".equals(crosstab.getObject(r, 0))) {
-            return crosstab.getObject(r, crosstab.getColCount() - 1);
+         Object key = crosstab.getObject(r, 0);
+
+         if(groups.contains(key)) {
+            result.put(key.toString(), crosstab.getObject(r, crosstab.getColCount() - 1));
          }
       }
 
-      fail("no crosstab row for the group");
-      return null;
+      return result;
    }
 
    /**
