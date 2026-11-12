@@ -646,6 +646,27 @@ public class RestJsonQuery extends AbstractRestQuery {
       lookupIgnoreBaseUrl.add(false);
    }
 
+   /**
+    * Grows the lookup list being written until it holds {@code index}. {@link #addLookupQuery()}
+    * is overridable and a subclass may add a lookup without growing every list here (e.g.
+    * EndpointJsonQuery keeps its lookups in lookupEndpoints), so stop as soon as a call leaves
+    * the list unchanged instead of looping forever.
+    *
+    * @return true if the list now holds {@code index}, false if it cannot be extended.
+    */
+   private boolean growLookupList(List<?> list, int index) {
+      while(list.size() <= index) {
+         int size = list.size();
+         addLookupQuery();
+
+         if(list.size() == size) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
    public boolean isAddLookupQueryButtonEnabled() {
       return lookupUrls.size() < EndpointJsonQuery.LOOKUP_QUERY_LIMIT;
    }
@@ -741,8 +762,8 @@ public class RestJsonQuery extends AbstractRestQuery {
 
       if(index >= lookupUrls.size()) {
          if(index < EndpointJsonQuery.LOOKUP_QUERY_LIMIT) {
-            while (lookupUrls.size() <= index) {
-               addLookupQuery();
+            if(!growLookupList(lookupUrls, index)) {
+               return;
             }
          }
          else {
@@ -779,8 +800,8 @@ public class RestJsonQuery extends AbstractRestQuery {
 
       if(index >= lookupJsonPaths.size()) {
          if(index < EndpointJsonQuery.LOOKUP_QUERY_LIMIT) {
-            while (lookupJsonPaths.size() <= index) {
-               addLookupQuery();
+            if(!growLookupList(lookupJsonPaths, index)) {
+               return;
             }
          }
          else {
@@ -817,8 +838,8 @@ public class RestJsonQuery extends AbstractRestQuery {
 
       if(index >= lookupKeys.size()) {
          if(index < EndpointJsonQuery.LOOKUP_QUERY_LIMIT) {
-            while (lookupKeys.size() <= index) {
-               addLookupQuery();
+            if(!growLookupList(lookupKeys, index)) {
+               return;
             }
          }
          else {
@@ -857,8 +878,8 @@ public class RestJsonQuery extends AbstractRestQuery {
    public void setLookupIgnoreBaseUrl(int index, boolean ignoreBaseUrl) {
       if(index >= lookupIgnoreBaseUrl.size()) {
          if(index < EndpointJsonQuery.LOOKUP_QUERY_LIMIT && ignoreBaseUrl) {
-            while (lookupIgnoreBaseUrl.size() <= index) {
-               addLookupQuery();
+            if(!growLookupList(lookupIgnoreBaseUrl, index)) {
+               return;
             }
          }
          else {
