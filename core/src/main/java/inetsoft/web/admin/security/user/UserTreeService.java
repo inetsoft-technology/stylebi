@@ -1003,7 +1003,7 @@ public class UserTreeService {
 
          // Bug #79875, before an id is looked up, an interrupted clone or id change is finished
          // or undone, its half done state would make the id unusable
-         identityService.recoverInterruptedOrganizationOperations(principal);
+         recoverInterruptedOperations(principal);
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
          SecurityProvider securityProvider = securityEngine.getSecurityProvider();
@@ -1102,6 +1102,7 @@ public class UserTreeService {
          return EditOrganizationPaneModel.builder()
             .name(identity.getName())
             .id(identity.getId())
+            .oldId(identity.getId())
             .identityNames(getOrgGroups(provider, newOrgKey.orgID))
             .members(defMembers)
             .roles(new ArrayList<>())
@@ -1233,6 +1234,7 @@ public class UserTreeService {
       return EditOrganizationPaneModel.builder()
          .name(orgID.name)
          .id(orgID.orgID)
+         .oldId(orgID.orgID)
          .status(organization.isActive())
          .locale(locale == null ? "" : locale)
          .identityNames(getOrgGroups(currentProvider, orgID.orgID))
@@ -1412,9 +1414,8 @@ public class UserTreeService {
          // operation on it, the model is stale: its members would be written over the recovered
          // organization
          String requestedOldId = provider.getOrganizationId(model.oldName());
-         IdentityService.checkNotRecovered(
-            identityService.recoverInterruptedOrganizationOperations(principal), requestedOldId,
-            model.id());
+         IdentityService.checkNotRecovered(recoverInterruptedOperations(principal),
+                                           requestedOldId, model.id());
       }
 
       final Organization oldOrg = provider.getOrganization(provider.getOrganizationId(model.oldName()));
@@ -1426,6 +1427,8 @@ public class UserTreeService {
          throw new InvalidOrgException(Catalog.getCatalog().getString(
             "em.security.invalidOrganizationPassed"));
       }
+
+      checkPaneOrganization(model, oldOrg);
 
       // the @PermissionPath on the bare org name resolves against the caller's own org, so a
       // non-site admin must be confined to editing their own current organization here
@@ -1536,6 +1539,32 @@ public class UserTreeService {
       identityService.setIdentityPermissions(
          oldID, newID, ResourceType.SECURITY_ORGANIZATION, principal,
          permittedIdentities, model.id());
+   }
+
+   private List<OrgOperationJournal.Entry> recoverInterruptedOperations(Principal principal) {
+      return identityService == null ? List.of() :
+         identityService.recoverInterruptedOrganizationOperations(principal);
+   }
+
+   /**
+    * Bug #79875, refuses the save of a pane that was loaded for another organization id than the
+    * one the old name resolves to now. The pane was loaded before the id was changed, by another
+    * request or by the recovery of an interrupted change, and its members, that were read while
+    * the change ran, are not the members of the organization any more: the save drops every
+    * member that the pane lacks (the members of an organization whose change was interrupted
+    * are partly moved already, so the pane of it lists few or none).
+    */
+   static void checkPaneOrganization(EditOrganizationPaneModel model, Organization oldOrg)
+      throws MessageException
+   {
+      String loaded = model.oldId();
+
+      if(loaded != null && !loaded.isEmpty() && !loaded.equals(oldOrg.getId())) {
+         throw new MessageException(
+            "The ID of organization " + oldOrg.getName() + " was changed from " + loaded +
+            " to " + oldOrg.getId() + " after this page was loaded. Reload the organization " +
+            "and apply the change again if it is still needed.");
+      }
    }
 
    private void checkDuplicateOrgIDs(EditOrganizationPaneModel model, Organization oldOrg) throws MessageException {
