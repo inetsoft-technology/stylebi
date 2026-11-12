@@ -17,6 +17,11 @@
  */
 package inetsoft.uql;
 
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import inetsoft.test.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -297,6 +302,94 @@ class ConditionVariableOperatorTest {
 
          assertTrue(cond.evaluate(Boolean.TRUE));
          assertFalse(cond.evaluate(Boolean.FALSE));
+      }
+   }
+
+   @Nested
+   class HardeningRows {
+      private java.util.TimeZone oldZone;
+      private java.util.Locale oldLocale;
+
+      @BeforeEach
+      void saveDefaults() {
+         oldZone = java.util.TimeZone.getDefault();
+         oldLocale = java.util.Locale.getDefault();
+      }
+
+      @AfterEach
+      void restoreDefaults() {
+         java.util.TimeZone.setDefault(oldZone);
+         java.util.Locale.setDefault(oldLocale);
+      }
+
+      @DisplayName("C16 DATE_IN this year follows the default time zone")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { "UTC", "America/Los_Angeles", "Pacific/Auckland" })
+      void c16_dateInThisYear(String zone) throws Exception {
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone));
+         java.util.Calendar cal = java.util.Calendar.getInstance();
+         int year = cal.get(java.util.Calendar.YEAR);
+
+         cal.clear();
+         cal.set(year, java.util.Calendar.JANUARY, 1, 0, 0, 0);
+         Date start = cal.getTime();
+         cal.set(year, java.util.Calendar.DECEMBER, 31, 23, 59, 59);
+         Date end = cal.getTime();
+
+         Condition cond = resolved(XSchema.DATE, XCondition.DATE_IN, "$(v)", "this year");
+         assertTrue(cond.evaluate(start), "Jan 1 00:00");
+         assertTrue(cond.evaluate(end), "Dec 31 23:59:59");
+         assertFalse(cond.evaluate(new Date(start.getTime() - 1)), "1 ms before");
+         assertFalse(cond.evaluate(new Date(end.getTime() + 1000)),
+                     "Jan 1 next year 00:00:00");
+      }
+
+      @Disabled("mismatch C17 #81112")
+      @DisplayName("C17 case-insensitive CONTAINS/STARTING_WITH under tr-TR")
+      @ParameterizedTest(name = "[{index}] op {0}")
+      @CsvSource({ "CONTAINS, title", "STARTING_WITH, ti" })
+      void c17_turkishLocale(String op, String text) throws Exception {
+         java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+         int code = op.equals("CONTAINS") ? XCondition.CONTAINS : XCondition.STARTING_WITH;
+         Condition cond = condition(XSchema.STRING, code, text);
+         cond.setCaseSensitive(false);
+         assertTrue(cond.evaluate("TITLE"));
+      }
+
+      @Disabled("mismatch C18 #81118")
+      @DisplayName("C18 numeric equality keeps long precision")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { XSchema.LONG, XSchema.INTEGER })
+      void c18_longPrecision(String type) {
+         Condition cond = condition(type, XCondition.EQUAL_TO, 9007199254740993L);
+         assertFalse(cond.evaluate(9007199254740992L), "different long");
+         assertTrue(cond.evaluate(9007199254740993L), "same long");
+      }
+
+      @DisplayName("C05b CONTAINS honours the caseSensitive flag in memory")
+      @Test
+      void c05b_containsCaseFlag() {
+         Condition insensitive = condition(XSchema.STRING, XCondition.CONTAINS, "A");
+         insensitive.setCaseSensitive(false);
+         Condition sensitive = condition(XSchema.STRING, XCondition.CONTAINS, "A");
+         sensitive.setCaseSensitive(true);
+
+         for(String row : new String[] { "a", "A", "b" }) {
+            assertEquals(!row.equals("b"), insensitive.evaluate(row), "insensitive " + row);
+            assertEquals(row.equals("A"), sensitive.evaluate(row), "sensitive " + row);
+         }
+      }
+
+      @DisplayName("C18b numeric equality of small values")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { XSchema.INTEGER, XSchema.LONG })
+      void c18b_smallValues(String type) {
+         Condition cond = condition(type, XCondition.EQUAL_TO, 42);
+         assertTrue(cond.evaluate(42), "42");
+         assertTrue(cond.evaluate(42L), "42L");
+         assertTrue(cond.evaluate(42.0), "42.0");
+         assertFalse(cond.evaluate(43), "43");
+         assertFalse(cond.evaluate(42.5), "42.5");
       }
    }
 }

@@ -139,4 +139,20 @@ class ParameterToolParsingTest {
       assertEquals("{parameter.a", parse("{parameter.a", "a", "1"));
       assertEquals("tail}", parse("{parameter.a}tail}", "a", ""));
    }
+
+   @org.junit.jupiter.api.DisplayName("T06 pinned current behavior: an empty parameter name is written as text null")
+   @Test
+   void t06_emptyName() {
+      assertEquals("null", parse("{parameter.}"));
+      assertEquals(parse("{parameter.missing}"), parse("{parameter.}"));
+   }
+
+   @org.junit.jupiter.api.DisplayName("T09 hostile values are written literally with a text / number format")
+   @org.junit.jupiter.params.ParameterizedTest(name = "[{index}] ''{0}''")
+   @org.junit.jupiter.params.provider.ValueSource(strings = { "{parameter.x}", "}{", "'", "{0}" })
+   void t09_hostileValues(String value) {
+      assertEquals(value, parse("{parameter.x, text, '{0}'}", "x", value));
+      assertEquals(value, parse("{parameter.x, number, '0.00'}", "x", value));
+      assertEquals(value, parse("{parameter.x}", "x", value));
+   }
 }

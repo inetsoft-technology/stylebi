@@ -17,6 +17,12 @@
  */
 package inetsoft.uql.util;
 
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import org.junit.jupiter.api.Nested;
@@ -213,6 +219,130 @@ class XUtilReplaceVariableValueTest {
          vars.putFormat("d", "yyyy/MM/dd");
 
          assertEquals("2024/03/15", XUtil.replaceVariable("$(d)", vars));
+      }
+   }
+
+   @Nested
+   class HardeningRows {
+      private java.util.TimeZone oldZone;
+      private java.util.Locale oldLocale;
+
+      @BeforeEach
+      void saveDefaults() {
+         oldZone = java.util.TimeZone.getDefault();
+         oldLocale = java.util.Locale.getDefault();
+      }
+
+      @AfterEach
+      void restoreDefaults() {
+         java.util.TimeZone.setDefault(oldZone);
+         java.util.Locale.setDefault(oldLocale);
+      }
+
+      private String formatted(java.util.Date value, String format) {
+         VariableTable vars = new VariableTable();
+         vars.put("d", value);
+         vars.putFormat("d", format);
+         return XUtil.replaceVariable("$(d)", vars);
+      }
+
+      @DisplayName("X01 a Time value as scalar and as a one-element array gives the same text")
+      @Test
+      void x01_timeScalarVsArray() {
+         x01_scalarVsArray("time");
+      }
+
+      @Disabled("mismatch X01 #81117")
+      @DisplayName("X01 a Date / Timestamp value as scalar and as a one-element array gives the same text")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { "date", "timestamp" })
+      void x01_dateScalarVsArray(String kind) {
+         x01_scalarVsArray(kind);
+      }
+
+      private void x01_scalarVsArray(String kind) {
+         long millis = new GregorianCalendar(2024, Calendar.MARCH, 15, 10, 30, 0).getTimeInMillis();
+         Object value = kind.equals("date") ? new java.util.Date(millis) :
+            kind.equals("timestamp") ? new java.sql.Timestamp(millis) : new java.sql.Time(millis);
+
+         assertEquals(replace("$(d)", "d", value), replace("$(d)", "d", (Object) new Object[] { value }));
+      }
+
+      @DisplayName("X02 a date before 1901 is formatted as its local date in every zone")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { "UTC", "America/Los_Angeles", "Pacific/Auckland" })
+      void x02_pre1901(String zone) {
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone));
+         java.util.Date date = new GregorianCalendar(1880, Calendar.MAY, 17).getTime();
+
+         assertEquals("1880-05-17", formatted(date, "yyyy-MM-dd"));
+         assertEquals("05/17/1880", formatted(date, "MM/dd/yyyy"));
+      }
+
+      @DisplayName("X03 a local-midnight date is formatted as its local date in every zone")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { "UTC", "America/Los_Angeles", "Pacific/Auckland" })
+      void x03_zones(String zone) {
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone));
+         java.util.Date date = new GregorianCalendar(2024, Calendar.MARCH, 15).getTime();
+
+         assertEquals("2024-03-15", formatted(date, "yyyy-MM-dd"));
+      }
+
+      @DisplayName("X04(a) a Timestamp with a date-only format")
+      @Test
+      void x04_timestampDateFormat() {
+         java.sql.Timestamp ts = new java.sql.Timestamp(
+            new GregorianCalendar(2024, Calendar.MARCH, 15, 10, 30, 0).getTimeInMillis());
+
+         assertEquals("2024-03-15", formatted(ts, "yyyy-MM-dd"));
+      }
+
+      @DisplayName("X05 a null element is written as empty text, null variables keep the text")
+      @Test
+      void x05_nullElement() {
+         assertEquals("a,,b", replace("$(x)", "x", new Object[] { "a", null, "b" }));
+         assertEquals("$(x)", XUtil.replaceVariable("$(x)", null));
+      }
+
+      @DisplayName("X06 encoding matches Tool.encodeURL per element")
+      @ParameterizedTest(name = "[{index}] ''{0}''")
+      @ValueSource(strings = { "é", "+", "%", "&", "/" })
+      void x06_encode(String value) {
+         assertEquals(inetsoft.util.Tool.encodeURL(value), replaceEncoded("$(x)", true, "x", value));
+         assertEquals(inetsoft.util.Tool.encodeURL(value) + "," + inetsoft.util.Tool.encodeURL("z"),
+                      replaceEncoded("$(x)", true, "x", new Object[] { value, "z" }));
+      }
+
+      @DisplayName("X07 a builtin variable is replaced")
+      @Test
+      void x07_builtin() {
+         assertFalse(replace("$(_TODAY)").contains("$(_TODAY)"));
+      }
+
+      @DisplayName("X08 a date format follows the default locale like SimpleDateFormat")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @ValueSource(strings = { "en-US", "fr-FR" })
+      void x08_formatLocale(String tag) {
+         java.util.Locale locale = java.util.Locale.forLanguageTag(tag);
+         java.util.Locale.setDefault(locale);
+         java.util.Date date = new GregorianCalendar(2024, Calendar.MARCH, 15).getTime();
+
+         assertEquals(new java.text.SimpleDateFormat("d MMM yyyy", locale).format(date),
+                      formatted(date, "d MMM yyyy"));
+      }
+
+      @Disabled("mismatch X09 #81117")
+      @DisplayName("X09 a Date[] with a registered format is formatted per element")
+      @Test
+      void x09_dateArrayWithFormat() {
+         java.util.Date d1 = new GregorianCalendar(2024, Calendar.MARCH, 15).getTime();
+         java.util.Date d2 = new GregorianCalendar(2024, Calendar.MARCH, 16).getTime();
+         VariableTable vars = new VariableTable();
+         vars.put("d", new Object[] { d1, d2 });
+         vars.putFormat("d", "yyyy/MM/dd");
+
+         assertEquals("2024/03/15,2024/03/16", XUtil.replaceVariable("$(d)", vars));
       }
    }
 }

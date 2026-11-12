@@ -17,6 +17,11 @@
  */
 package inetsoft.uql.viewsheet;
 
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -339,6 +344,103 @@ class DynamicValueTest {
          b.setRValue("two");
 
          assertNotEquals(a.fullHashCode(), b.fullHashCode());
+      }
+   }
+
+   @Nested
+   class HardeningRows {
+      @DisplayName("D04 an array runtime value is returned for (false) in either call order")
+      @ParameterizedTest(name = "[{index}] scalar first = {0}")
+      @ValueSource(booleans = { true, false })
+      void d04_cacheOrder(boolean scalarFirst) {
+         DynamicValue value = new DynamicValue("=x", XSchema.COLOR);
+         value.setRValue(new Object[] { 255, 65280 });
+
+         if(scalarFirst) {
+            value.getRuntimeValue(true);
+         }
+         else {
+            value.getRuntimeValue(false);
+            value.getRuntimeValue(true);
+         }
+
+         Object all = value.getRuntimeValue(false);
+         assertInstanceOf(Object[].class, all);
+         assertEquals(2, ((Object[]) all).length);
+      }
+
+      @Disabled("mismatch D05 #81119")
+      @DisplayName("D05 concurrent reads while the runtime value alternates")
+      @Test
+      void d05_concurrentRead() throws Exception {
+         DynamicValue value = new DynamicValue("=x");
+         value.setRValue("a");
+         java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+         java.util.concurrent.ConcurrentLinkedQueue<Throwable> errors =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+         java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(9);
+
+         try {
+            pool.submit(() -> {
+               boolean flip = false;
+
+               while(!stop.get()) {
+                  value.setRValue(flip ? "a" : "b");
+                  flip = !flip;
+               }
+            });
+
+            java.util.List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
+
+            for(int i = 0; i < 8; i++) {
+               futures.add(pool.submit(() -> {
+                  for(int n = 0; n < 20000; n++) {
+                     try {
+                        Object v = value.getRuntimeValue(false);
+                        assertTrue("a".equals(v) || "b".equals(v), "read " + v);
+                     }
+                     catch(Throwable ex) {
+                        errors.add(ex);
+                        return;
+                     }
+                  }
+               }));
+            }
+
+            for(java.util.concurrent.Future<?> f : futures) {
+               f.get(60, java.util.concurrent.TimeUnit.SECONDS);
+            }
+         }
+         finally {
+            stop.set(true);
+            pool.shutdown();
+            if(!pool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS)) {
+               pool.shutdownNow();
+               fail("worker threads did not terminate");
+            }
+         }
+
+         assertTrue(errors.isEmpty(), () -> "first error: " + errors.peek());
+      }
+
+      @Disabled("mismatch D06 #81107")
+      @DisplayName("D06 an integer dynamic value never becomes another number")
+      @ParameterizedTest(name = "[{index}] {0}")
+      @MethodSource("bigValues")
+      void d06_integerConversion(Object runtime) {
+         DynamicValue value = new DynamicValue("=x", XSchema.INTEGER);
+         value.setRValue(runtime);
+         Object v = value.getRuntimeValue(true);
+
+         if(v != null && !runtime.toString().equals(v.toString())) {
+            assertEquals(0, new java.math.BigDecimal(runtime.toString())
+                            .compareTo(new java.math.BigDecimal(v.toString())),
+                         "converted " + v + " from " + runtime);
+         }
+      }
+
+      static java.util.stream.Stream<Object> bigValues() {
+         return java.util.stream.Stream.of(3000000000L, "3000000000");
       }
    }
 }

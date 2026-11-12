@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -93,5 +94,54 @@ class DynamicValueFullEqualsTest {
    @Test
    void nullRuntimeValueHashIsStable() {
       assertEquals(withRValue(null).fullHashCode(), withRValue(null).fullHashCode());
+   }
+
+   @DisplayName("D03 fullEquals edge cases")
+   @Test
+   void d03_edges() {
+      DynamicValue a = new DynamicValue("v");
+      assertFalse(a.fullEquals(null));
+
+      FullHashObject other = new FullHashObject() {
+         @Override
+         public boolean fullEquals(FullHashObject obj) {
+            return false;
+         }
+
+         @Override
+         public int fullHashCode() {
+            return 0;
+         }
+      };
+      assertFalse(a.fullEquals(other));
+
+      DynamicValue b = new DynamicValue("v");
+      assertTrue(a.fullEquals(b), "both runtime values null");
+
+      b.setRValue("x");
+      assertFalse(a.fullEquals(b), "null vs x");
+   }
+
+   @DisplayName("D02b pinned current behavior: small numbers of different Java types are fullEqual with equal hash codes")
+   @Test
+   void d02b_smallNumbers() {
+      Object[] values = { 5, 5L, (short) 5 };
+
+      for(Object x : values) {
+         for(Object y : values) {
+            DynamicValue a = new DynamicValue("v");
+            DynamicValue b = new DynamicValue("v");
+            a.setRValue(x);
+            b.setRValue(y);
+            assertTrue(a.fullEquals(b), x.getClass() + " vs " + y.getClass());
+            assertEquals(a.fullHashCode(), b.fullHashCode());
+         }
+      }
+
+      DynamicValue five = new DynamicValue("v");
+      DynamicValue six = new DynamicValue("v");
+      five.setRValue(5L);
+      six.setRValue(6L);
+      assertFalse(five.fullEquals(six));
    }
 }
