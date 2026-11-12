@@ -989,6 +989,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
             try {
                WSExecution.setAssetQuerySandbox(box);
+               long errorCount = CoreTool.getErrorMessageCount();
                base = getRuntimeTableLens(vars);
 
                if(base == null) {
@@ -999,7 +1000,10 @@ public abstract class AssetQuery extends PreAssetQuery {
                   return base;
                }
 
-               if(key != null) {
+               // a result that came with an error message is not cached: a cache hit does
+               // not replay the message, so the user would see the result without the
+               // reason (bug #81091)
+               if(key != null && CoreTool.getErrorMessageCount() == errorCount) {
                   TableLens cached =
                      AssetDataCache.getCache().setCachedData(key, base, getTable());
 

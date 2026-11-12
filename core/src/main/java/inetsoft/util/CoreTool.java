@@ -4176,12 +4176,27 @@ public class CoreTool {
             msg.setAssemblyName(assemblyName);
          }
 
+         // counted before the duplicate check, so a message that is already pending is
+         // still seen as produced again (bug #81091)
+         if(msg.getLevel() == ConfirmException.ERROR) {
+            ERROR_MESSAGE_COUNT.set(ERROR_MESSAGE_COUNT.get() + 1);
+         }
+
          boolean found = existUserMessage(msg);
 
          if(!found) {
             USER_MESSAGE_LOCAL.get().add(msg);
          }
       }
+   }
+
+   /**
+    * Get the number of error level user messages added on this thread so far, including those
+    * dropped as duplicates of a pending message and those already read or cleared. Compare two
+    * readings to find out if the code between them produced an error message.
+    */
+   public static long getErrorMessageCount() {
+      return ERROR_MESSAGE_COUNT.get();
    }
 
    public static boolean existUserMessage(String msg) {
@@ -4489,6 +4504,7 @@ public class CoreTool {
 
    public static final String FAKE_NULL = "__null__";
    private final static ThreadLocal<List<UserMessage>> USER_MESSAGE_LOCAL = ThreadLocal.withInitial(ArrayList::new);
+   private final static ThreadLocal<Long> ERROR_MESSAGE_COUNT = ThreadLocal.withInitial(() -> 0L);
    private final static ThreadLocal<String> USER_MESSAGE_ASSEMBLY_NAME = ThreadLocal.withInitial(String::new);
    public final static ThreadLocal<Boolean> useDatetimeWithMillisFormat = ThreadLocal.withInitial(() -> false);
    private static String confirmMsg = null;
