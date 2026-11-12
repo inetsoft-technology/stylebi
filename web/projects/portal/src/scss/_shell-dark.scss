@@ -519,3 +519,10 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
     background-color: rgba($inet-offwhite2, 0.4);
   }
 }
+
+// The annotation editor edits dashboard content: its text keeps the annotation's default black, so
+// the editing area keeps CKEditor's light default. An annotation background set by the author is
+// written inline on the wrapper and still wins. Toolbar, menus and inputs use their own variables.
+:where(.shell-dark) rich-text-dialog ckeditor-wrapper {
+  --ck-color-base-background: #fff;
+}
