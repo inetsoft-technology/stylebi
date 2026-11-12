@@ -204,6 +204,14 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-dark-drag-indicator-bg: rgba(28, 27, 31, 0.7);
   --inet-dark-drag-indicator-text-color: var(--inet-text-muted-color);
 
+  // Names some components read with a light fallback, var(--inet-border-color, #d9d4c8), that no
+  // theme defines, so the light shell always uses the fallback. Defined for the dark shell only.
+  --inet-border-color: var(--inet-default-border-color);
+  --inet-cell-bg-color: var(--inet-shell-surface-default);
+  --inet-panel-bg-color: var(--inet-shell-surface-subtle);
+  --inet-main-panel-background: var(--inet-main-panel-bg-color);
+  --inet-hover-bg-color: var(--inet-shell-surface-hover);
+
   // Bootstrap primitives that _bootstrap-override.scss does not bridge to a token
   --bs-body-color-rgb: #{rgb-triplet($dark-text-default)};
   --bs-body-bg-rgb: #{rgb-triplet($dark-surface-canvas)};
@@ -385,6 +393,19 @@ $dark-ws-row-hover-bg: #302D27;
     border-color: var(--inet-shell-border-strong);
   }
 
+  // Bootstrap's button-variant mixin bakes the light button's state colors (hover #d9d9d9,
+  // active #ccc, focus ring 217,217,217). The app maps the resting colors to tokens; these follow.
+  .btn-light,
+  .btn.btn-light-no-bg {
+    --bs-btn-hover-bg: var(--inet-button-light-hover-bg-color);
+    --bs-btn-hover-border-color: var(--inet-button-light-hover-border-color);
+    --bs-btn-focus-shadow-rgb: #{rgb-triplet($dark-border-strong)};
+    --bs-btn-active-bg: var(--inet-shell-selected-bg-color);
+    --bs-btn-active-border-color: var(--inet-shell-border-strong);
+    --bs-btn-disabled-bg: var(--inet-button-light-bg-color);
+    --bs-btn-disabled-border-color: var(--inet-button-light-border-color);
+  }
+
   // Bootstrap draws tooltips with the emphasis text color as the fill (black in the light shell).
   // Inverted here it would be a light box, so a dark shell uses a raised dark surface instead.
   .tooltip {
@@ -422,6 +443,8 @@ $dark-ws-row-hover-bg: #302D27;
 // The composer canvas, the portal viewer, the visualization recommender preview and the chart
 // editor preview. Only the assembly area: the editors' own bars and panes are shell.
 $dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
+// read with a light fallback and defined by no theme; set for the dark shell only (see above)
+$fallback-only-tokens: border-color, cell-bg-color, panel-bg-color, main-panel-background, hover-bg-color;
 $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, border-color,
   border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
   drag-indicator-bg, drag-indicator-text-color;
@@ -433,6 +456,9 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   // back to each component's light literal
   @each $role in $dark-only-tokens {
     --inet-dark-#{$role}: initial;
+  }
+  @each $name in $fallback-only-tokens {
+    --inet-#{$name}: initial;
   }
   @include inet-bootstrap-bridge;
 
@@ -509,6 +535,11 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
 
   .bg-gray4 {
     background-color: $inet-gray4;
+  }
+
+  .btn-light,
+  .btn.btn-light-no-bg {
+    --bs-btn-focus-shadow-rgb: #{to-rgb(mix(color-contrast($light), $light, 15%))};
   }
 
   .hover-bg-white-border {
