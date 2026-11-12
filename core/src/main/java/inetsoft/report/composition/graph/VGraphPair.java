@@ -32,7 +32,9 @@ import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.*;
 import inetsoft.report.*;
+import inetsoft.report.composition.execution.ChartVSAQuery;
 import inetsoft.report.composition.execution.DataMap;
+import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.*;
 import inetsoft.report.filter.DefaultComparer;
@@ -653,6 +655,11 @@ public class VGraphPair {
          int count = LegendEntryCount.count(egraph);
          boolean moved = false;
 
+         // the view's filters don't narrow the count; no legend drawn stays pending
+         if(count > 0 && ChartVSAQuery.isViewFiltered(box, chart)) {
+            count = countBindingLegend(box, cname, ainfo, vars);
+         }
+
          if(count > 0) {
             vbox.lockWrite();
 
@@ -1100,6 +1107,47 @@ public class VGraphPair {
                }
             }
          }
+      }
+   }
+
+   /**
+    * Count the legend drawn from the chart's own bound data. Zero when that data is not
+    * available, which leaves the count pending.
+    */
+   private int countBindingLegend(ViewsheetSandbox box, String cname,
+                                  ChartVSAssemblyInfo ainfo, VariableTable vars)
+   {
+      boolean[] cut = { false };
+      Boolean qcancel = VSAQuery.Q_CANCEL.get();
+
+      try {
+         // leave the chart's other queries running
+         VSAQuery.Q_CANCEL.set(Boolean.FALSE);
+         DataSet data = (DataSet) box.getData(cname, true, DataMap.BINDING, cut);
+
+         if(data == null || cut[0] || cancelled) {
+            return 0;
+         }
+
+         // the creator may change the data set, keep the cached copy
+         data = (DataSet) data.clone();
+         Creator creator;
+
+         synchronized(ainfo.getVSChartInfo()) {
+            creator = new Creator(ainfo, vbox, data, null, null, vars, size);
+         }
+
+         return LegendEntryCount.count(creator.createGraph());
+      }
+      catch(LockRestoreException ex) {
+         throw ex;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to count the legend of {} on its bound data", cname, ex);
+         return 0;
+      }
+      finally {
+         VSAQuery.Q_CANCEL.set(qcancel);
       }
    }
 
