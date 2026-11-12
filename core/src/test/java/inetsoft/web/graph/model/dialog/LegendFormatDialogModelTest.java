@@ -20,9 +20,13 @@ package inetsoft.web.graph.model.dialog;
 import inetsoft.report.StyleConstants;
 import inetsoft.test.*;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
@@ -46,6 +50,233 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(MockitoExtension.class)
 @Tag("core")
 public class LegendFormatDialogModelTest {
+   @Test
+   void anUnchangedApplyStampsNothing() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor legend = legends.getColorLegendDescriptor();
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout(), "premise: a seeded top legend");
+      assertFalse(legend.isTitleVisible(), "premise: a hidden title");
+
+      apply(info, legends, legend, shown(legends, legend));
+
+      assertFalse(legends.isUserLayout());
+      assertFalse(legend.isUserTitleVisible());
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout());
+      assertFalse(legend.isTitleVisible());
+   }
+
+   @Test
+   void changingThePositionStampsTheFlag() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor legend = legends.getColorLegendDescriptor();
+      LegendFormatGeneralPaneModel pane = shown(legends, legend);
+      pane.setPosition("Right");
+
+      apply(info, legends, legend, pane);
+
+      assertTrue(legends.isUserLayout());
+      assertEquals(LegendsDescriptor.RIGHT, legends.getLayout());
+   }
+
+   @Test
+   void typingATitleOnATopLegendShowsIt() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor legend = legends.getColorLegendDescriptor();
+      LegendFormatGeneralPaneModel pane = shown(legends, legend);
+      pane.setTitleValue("Region");
+
+      apply(info, legends, legend, pane);
+
+      assertEquals("Region", legend.getTitleValue());
+      assertTrue(legend.isTitleVisible());
+      assertTrue(legend.isUserTitleVisible());
+   }
+
+   @Test
+   void aClassicHiddenTitleStaysHiddenWhenItsTextChanges() {
+      ChartVSAssemblyInfo info = seededBar();
+      info.setVizMark(null);
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor legend = legends.getColorLegendDescriptor();
+      legend.setAuthorTitleVisible(false);
+      LegendFormatGeneralPaneModel pane = shown(legends, legend);
+      pane.setTitleValue("Region");
+      pane.setVisible(false);
+
+      apply(info, legends, legend, pane);
+
+      assertEquals("Region", legend.getTitleValue());
+      assertFalse(legend.isTitleVisible());
+   }
+
+   @Test
+   void unTickingTheTitleStampsIt() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor legend = legends.getColorLegendDescriptor();
+      legend.setTitleVisible(true);
+      LegendFormatGeneralPaneModel pane = shown(legends, legend);
+      pane.setVisible(false);
+
+      apply(info, legends, legend, pane);
+
+      assertFalse(legend.isTitleVisible());
+      assertTrue(legend.isUserTitleVisible());
+   }
+
+   @Test
+   void aChartWithNoLegendLayoutAppliesWithoutError() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendDescriptor legend = legends.getColorLegendDescriptor();
+      legends.setLayout(LegendsDescriptor.NO_LEGEND);
+      LegendFormatGeneralPaneModel pane = shown(legends, legend);
+      assertNull(pane.getPosition(), "premise: no position is shown");
+
+      assertDoesNotThrow(() -> apply(info, legends, legend, pane));
+
+      assertEquals(LegendsDescriptor.NO_LEGEND, legends.getLayout());
+      assertFalse(legends.isUserLayout());
+   }
+
+   @Test
+   void theDialogShowsTheTopGap() {
+      ChartVSAssemblyInfo info = seededBar();
+      info.getViewsheet().getViewsheetInfo().setVizDensity("compact");
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      assertEquals(LegendsDescriptor.TOP, legends.getLayout(), "premise: a seeded top legend");
+
+      inetsoft.report.composition.region.ChartArea area =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.ChartArea.class);
+      inetsoft.report.composition.region.LegendsArea legendsArea =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.LegendsArea.class);
+      org.mockito.Mockito.when(area.getLegendsArea()).thenReturn(legendsArea);
+      org.mockito.Mockito.when(legendsArea.getLegendAreas())
+         .thenReturn(new inetsoft.report.composition.region.LegendArea[0]);
+
+      LegendFormatDialogModel dialog = new LegendFormatDialogModel(
+         info.getVSChartInfo(), legends, legends.getColorLegendDescriptor(), area,
+         new java.util.ArrayList<>(), "color", null, "Color", true, false, false,
+         VizContext.of(info));
+
+      assertEquals(18, dialog.getLegendFormatGeneralPaneModel().getGap());
+   }
+
+   @Test
+   void aModernTopLegendShowsStart() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+
+      assertEquals("Start", builtDialog(info, legends).getLegendFormatGeneralPaneModel()
+         .getAlignment());
+   }
+
+   @Test
+   void aClassicLegendShowsCenterAndApplyWritesNothing() {
+      ChartVSAssemblyInfo info = seededBar();
+      info.setVizMark(null);
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      legends.setAlignment(0, CompositeValue.Type.DEFAULT);
+      assertEquals(0, legends.getAlignment(), "premise: unset");
+      LegendFormatGeneralPaneModel pane =
+         builtDialog(info, legends).getLegendFormatGeneralPaneModel();
+      assertEquals("Center", pane.getAlignment());
+
+      apply(info, legends, legends.getColorLegendDescriptor(), pane);
+
+      assertEquals(0, legends.getAlignment());
+      assertFalse(legends.hasAlignmentUserValue());
+   }
+
+   @Test
+   void pickingEndWritesTheAuthorValue() {
+      ChartVSAssemblyInfo info = seededBar();
+      LegendsDescriptor legends = info.getChartDescriptor().getLegendsDescriptor();
+      LegendFormatGeneralPaneModel pane =
+         builtDialog(info, legends).getLegendFormatGeneralPaneModel();
+      pane.setAlignment("End");
+
+      apply(info, legends, legends.getColorLegendDescriptor(), pane);
+
+      assertEquals(inetsoft.graph.GraphConstants.RIGHT_ALIGNMENT, legends.getAlignment());
+      assertTrue(legends.hasAlignmentUserValue());
+   }
+
+   private static LegendFormatDialogModel builtDialog(ChartVSAssemblyInfo info,
+                                                      LegendsDescriptor legends)
+   {
+      inetsoft.report.composition.region.ChartArea area =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.ChartArea.class);
+      inetsoft.report.composition.region.LegendsArea legendsArea =
+         org.mockito.Mockito.mock(inetsoft.report.composition.region.LegendsArea.class);
+      org.mockito.Mockito.when(area.getLegendsArea()).thenReturn(legendsArea);
+      org.mockito.Mockito.when(legendsArea.getLegendAreas())
+         .thenReturn(new inetsoft.report.composition.region.LegendArea[0]);
+      return new LegendFormatDialogModel(
+         info.getVSChartInfo(), legends, legends.getColorLegendDescriptor(), area,
+         new java.util.ArrayList<>(), "color", null, "Color", true, false, false,
+         VizContext.of(info));
+   }
+
+   // a bar chart seeded under the modern mark, its legend at the top
+   private static ChartVSAssemblyInfo seededBar() {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      vs.addAssembly(chart);
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      ChartVSAssemblyInfo info = chart.getChartInfo();
+      VSChartInfo cinfo = info.getVSChartInfo();
+      VSChartDimensionRef dim = new VSChartDimensionRef(new AttributeRef(null, "state"));
+      dim.setDataType(XSchema.STRING);
+      dim.setGroupColumnValue("state");
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setDataRef(new AttributeRef(null, "v"));
+      agg.setColumnValue("v");
+      agg.setFormula(AggregateFormula.SUM);
+      cinfo.addXField(dim);
+      cinfo.addYField(agg);
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.reseedLegendPlacement();
+      info.reseedLegendTitles();
+      return info;
+   }
+
+   // the pane the dialog constructor builds from the descriptors
+   private static LegendFormatGeneralPaneModel shown(LegendsDescriptor legends,
+                                                     LegendDescriptor legend)
+   {
+      LegendFormatGeneralPaneModel pane = new LegendFormatGeneralPaneModel();
+      pane.setVisible(legend.isTitleVisible());
+      pane.setTitleValue(legend.getTitleValue());
+      pane.setFillColor("#ffffff");
+      pane.setGap(VSChartChromeDefaults.resolveLegendGap(
+         legends.getGap(), legends.hasGapValue(), VizContext.ofGate(), legends.getLayout()));
+
+      if(legends.getLayout() >= 1) {
+         pane.setPosition(new String[] {"Top", "Right", "Bottom", "Left", "In Place"}[
+            legends.getLayout() - 1]);
+      }
+
+      return pane;
+   }
+
+   private static void apply(ChartVSAssemblyInfo info, LegendsDescriptor legends,
+                             LegendDescriptor legend, LegendFormatGeneralPaneModel pane)
+   {
+      LegendFormatDialogModel dialog = new LegendFormatDialogModel();
+      dialog.setLegendFormatGeneralPaneModel(pane);
+      dialog.setLegendScalePaneModel(new LegendScalePaneModel());
+      AliasPaneModel alias = new AliasPaneModel();
+      alias.setAliasList(new ModelAlias[0]);
+      dialog.setAliasPaneModel(alias);
+      dialog.updateLegendFormatDialogModel(info.getVSChartInfo(), legends, legend, null,
+                                           VizContext.of(info));
+   }
+
    @Test
    public void hasCorrectBorderColor() throws Exception {
       LegendFormatDialogModel legendFormatDialogModel = new LegendFormatDialogModel();
@@ -332,7 +563,8 @@ public class LegendFormatDialogModelTest {
    {
       LegendFormatGeneralPaneModel pane = new LegendFormatGeneralPaneModel();
       pane.setFillColor("#ffffff");
-      pane.setGap(VSChartChromeDefaults.resolveLegendGap(legends.getGap(), legends.hasGapValue(), ctx));
+      pane.setGap(VSChartChromeDefaults.resolveLegendGap(legends.getGap(), legends.hasGapValue(), ctx,
+         legends.getLayout()));
       return pane;
    }
 

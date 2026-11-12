@@ -19,6 +19,8 @@ package inetsoft.graph.guide.legend;
 
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.internal.GDefaults;
@@ -489,6 +491,9 @@ public abstract class Legend extends BoundedContainer {
     * Layout items, set its size and position.
     */
    private void layoutItems() {
+      // a later pass can change ncol, which shapes the cached items
+      itemsArr = null;
+
       // in VLegendItem, when paint the item, has logic to move the item to
       // padding left 5 pixels, the logic should move here, because if in the
       // logic is in VLegendItem, then the bounds set for the item is wrong, and
@@ -547,8 +552,10 @@ public abstract class Legend extends BoundedContainer {
       // For stack bar graphs, where the items have been reversed, we should
       // also reverse the order in which they are laid out.
       boolean reversed = isReversed();
+      // a mark-order row reads left to right over the reversed items
+      boolean rightToLeft = reversed && (verticalLayout || !graph.isLegendInMarkOrder());
       int colIndex;
-      int colInc = reversed ? -1 : 1;
+      int colInc = rightToLeft ? -1 : 1;
       List<LegendItem> items = new ArrayList<>(this.items);
 
       if(reversed) {
@@ -556,7 +563,7 @@ public abstract class Legend extends BoundedContainer {
       }
 
       for(int i = 0; i < rowCount; i++) {
-         colIndex = reversed ? ncol - 1 : 0;
+         colIndex = rightToLeft ? ncol - 1 : 0;
 
          for(int j = 0; j < ncol; j++, colIndex += colInc) {
             int idx = i * incX + colIndex * incY;
@@ -656,12 +663,46 @@ public abstract class Legend extends BoundedContainer {
     * Indicates whether the Legend items should be in reverse order.
     */
    private boolean isReversed() {
+      boolean inMarkOrder = graph.isLegendInMarkOrder();
+
+      // a clustered row keeps its natural order
+      if(inMarkOrder && !verticalLayout && isSingleSegment()) {
+         return false;
+      }
+
       // ignore fake categorical frame.
       // only reverse for vertical legend layout
       return (frame instanceof CategoricalFrame || frame instanceof StackedMeasuresFrame) &&
          frame.getField() != null &&
-         (verticalLayout || ncol == 1) &&
+         (verticalLayout || ncol == 1 ||
+            inMarkOrder && ncol > 1 && !isRotated(graph.getCoordinate())) &&
          !GTool.isPolar(graph.getCoordinate()) && elem != null && elem.isStack();
+   }
+
+   /**
+    * Check whether the legend field is also a dimension of the element, so each stack
+    * holds one segment and the bars read as a cluster.
+    */
+   private boolean isSingleSegment() {
+      String field = frame.getField();
+      return elem != null && field != null && Arrays.asList(elem.getDims()).contains(field);
+   }
+
+   /**
+    * Check whether the coordinate (or the first inner coordinate of a facet) is rotated.
+    */
+   private static boolean isRotated(Coordinate coord) {
+      while(coord instanceof FacetCoord) {
+         Coordinate[] inner = ((FacetCoord) coord).getInnerCoordinates();
+
+         if(inner == null || inner.length == 0) {
+            break;
+         }
+
+         coord = inner[0];
+      }
+
+      return coord != null && GTool.getRotation(coord.getCoordTransform()) != 0;
    }
 
    /**

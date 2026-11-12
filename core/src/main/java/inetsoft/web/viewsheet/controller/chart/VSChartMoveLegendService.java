@@ -25,6 +25,7 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.graph.LegendDescriptor;
 import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.chart.VSChartLegendRelocateEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -62,12 +63,22 @@ public class VSChartMoveLegendService extends VSChartControllerService<VSChartLe
       return null;
    }
 
+   // a move to another edge is the author's choice; dropping in place changes nothing
+   static void stampLayout(LegendsDescriptor legendsDes, ChartVSAssemblyInfo info,
+                           int newLayout)
+   {
+      if(legendsDes.getLayout() != newLayout) {
+         legendsDes.setAuthorLayout(newLayout);
+         info.reseedLegendTitles();
+      }
+   }
+
    private int moveLegend(VSChartLegendRelocateEvent event, VSChartStateInfo chartState) {
       final LegendsDescriptor legendsDes = chartState.getLegendsDes();
       final int layout = legendsDes.getLayout();
       final int newLayout = event.getLegendPosition();
       final int hint = layout != newLayout ? VSAssembly.VIEW_CHANGED : -1;
-      legendsDes.setLayout(newLayout);
+      stampLayout(legendsDes, chartState.getChartAssemblyInfo(), newLayout);
       chartState.getChartAssemblyInfo().setRTChartDescriptor(null);
 
       // only setPosition() if the legend is located in the "center"

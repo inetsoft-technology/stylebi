@@ -32,7 +32,11 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.AxisDescriptor;
+import inetsoft.graph.internal.DimensionD;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.LegendDescriptor;
+import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.TextFormat;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
@@ -718,6 +722,95 @@ class VizModernizeResetTest {
       assertEquals("Revenue", x.getTitleValue());
       assertFalse(x.hasVisibleUserValue(), "the author's show is cleared");
       assertTrue(x.isVisible(), "the seed keeps a typed title");
+   }
+
+   private static void bindWithColor(ChartVSAssemblyInfo chart, int type) {
+      VSChartDimensionRef region = new VSChartDimensionRef(new AttributeRef(null, "Region"));
+      region.setDataType(XSchema.STRING);
+      region.setGroupColumnValue("Region");
+      VSAestheticRef color = new VSAestheticRef();
+      color.setDataRef(region);
+      chart.getVSChartInfo().setColorField(color);
+      bind(chart, type, aggregate("Sales"));
+   }
+
+   private static ChartVSAssemblyInfo classicChart(Viewsheet vs, String name, int type) {
+      ChartVSAssemblyInfo chart = addChart(vs, name);
+      bindWithColor(chart, type);
+      assertNull(chart.getVizMark(), "premise: a classic chart");
+      return chart;
+   }
+
+   private static LegendsDescriptor legends(ChartVSAssemblyInfo chart) {
+      return chart.getChartDescriptor().getLegendsDescriptor();
+   }
+
+   @Test
+   void theResetCopyPutsTheLegendAtTheTypeDefault() {
+      Viewsheet vs = legacySheet();
+      ChartVSAssemblyInfo bar = classicChart(vs, "Chart1", GraphTypes.CHART_BAR);
+      legends(bar).setLayout(LegendsDescriptor.BOTTOM);
+      legends(bar).setUserLayout(true);
+      ChartVSAssemblyInfo pie = classicChart(vs, "Chart2", GraphTypes.CHART_PIE);
+      legends(pie).setLayout(LegendsDescriptor.LEFT);
+      legends(pie).setUserLayout(true);
+
+      gateOn();
+      VizModernizeUtil.resetToModern(vs);
+
+      assertEquals(LegendsDescriptor.TOP, legends(bar).getLayout());
+      assertFalse(legends(bar).isUserLayout());
+      assertTrue(bar.isLegendCountPending());
+      assertEquals(LegendsDescriptor.RIGHT, legends(pie).getLayout());
+      assertFalse(legends(pie).isUserLayout());
+      assertTrue(pie.isLegendCountPending());
+   }
+
+   @Test
+   void theResetCopyDropsAResizedLegendsSize() {
+      Viewsheet vs = legacySheet();
+      ChartVSAssemblyInfo bar = classicChart(vs, "Chart1", GraphTypes.CHART_BAR);
+      legends(bar).setLayout(LegendsDescriptor.RIGHT);
+      legends(bar).setPreferredSize(new DimensionD(0.2, 0.5));
+
+      gateOn();
+      VizModernizeUtil.resetToModern(vs);
+
+      assertNull(legends(bar).getPreferredSize());
+      assertEquals(LegendsDescriptor.TOP, legends(bar).getLayout());
+   }
+
+   @Test
+   void theResetCopyClearsAnAuthorsHiddenLegendTitle() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindWithColor(chart, GraphTypes.CHART_BAR);
+      LegendDescriptor color = legends(chart).getColorLegendDescriptor();
+      assertFalse(color.isTitleVisible(), "premise: the seed hid it on a top legend");
+      color.setAuthorTitleVisible(true);
+      assertTrue(color.isTitleVisible(), "premise: the author showed it");
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertFalse(color.isUserTitleVisible());
+      assertFalse(color.isTitleVisible());
+   }
+
+   @Test
+   void theResetCopyKeepsATypedLegendTitle() {
+      gateOn();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo chart = addChart(vs, "Chart1");
+      bindWithColor(chart, GraphTypes.CHART_BAR);
+      LegendDescriptor color = legends(chart).getColorLegendDescriptor();
+      color.setAuthorTitleValue("Regions");
+      assertTrue(color.hasTitleText(), "premise");
+
+      VizModernizeUtil.resetToModern(vs);
+
+      assertTrue(color.isTitleVisible());
+      assertTrue(color.isUserTitleVisible());
    }
 
    @Test

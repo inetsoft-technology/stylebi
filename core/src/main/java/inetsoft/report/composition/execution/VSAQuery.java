@@ -98,6 +98,7 @@ public abstract class VSAQuery {
          ChartVSAQuery qry = new ChartVSAQuery(box, assembly.getName(), detail);
          qry.setBrush((type & DataMap.BRUSH) != 0);
          qry.setIgnoreRuntimeCondition(type == DataMap.NO_FILTER);
+         qry.setBindingOnly(type == DataMap.BINDING);
          return qry;
       }
       else if(assembly instanceof SelectionListVSAssembly) {

@@ -46,6 +46,20 @@ public class VSChartResizeLegendService extends VSChartControllerService<VSChart
       super(coreLifecycleService, viewsheetService, vsChartAreasServiceProxy);
    }
 
+   // a docked legend's dragged size is the author's choice
+   static void setDockedSize(LegendsDescriptor legendsDes, double width, double height, int gap) {
+      int layout = legendsDes.getLayout();
+
+      if(layout == GraphConstants.RIGHT || layout == GraphConstants.LEFT) {
+         width += gap;
+      }
+      else if(layout == GraphConstants.BOTTOM || layout == GraphConstants.TOP) {
+         height += gap;
+      }
+
+      legendsDes.setAuthorPreferredSize(new DimensionD(width, height));
+   }
+
    @Override
    @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -71,23 +85,14 @@ public class VSChartResizeLegendService extends VSChartControllerService<VSChart
 
                double width = event.getLegendWidth() / maxWidth;
                double height = event.getLegendHeight() / maxHeight;
-               int layout = legendsDes.getLayout();
                // the gap the chart actually renders, not the stored one: on a marked chart the
                // stored gap is the unset marker and the rendered one is the card default, and
                // adding the marker back would land the legend short of where it was dragged
                int gap = VSChartChromeDefaults.resolveLegendGap(
                   legendsDes.getGap(), legendsDes.hasGapValue(),
-                  VizContext.of(chartState.getChartAssemblyInfo()));
+                  VizContext.of(chartState.getChartAssemblyInfo()), legendsDes.getLayout());
 
-               if(layout == GraphConstants.RIGHT || layout == GraphConstants.LEFT) {
-                  width += gap;
-               }
-               else if(layout == GraphConstants.BOTTOM || layout == GraphConstants.TOP) {
-                  height += gap;
-               }
-
-               DimensionD size = new DimensionD(width, height);
-               legendsDes.setPreferredSize(size);
+               setDockedSize(legendsDes, width, height, gap);
             }
             catch(Exception ex) {
                throw new RuntimeException(ex);

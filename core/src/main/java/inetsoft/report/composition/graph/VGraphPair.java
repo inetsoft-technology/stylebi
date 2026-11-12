@@ -32,7 +32,9 @@ import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.*;
 import inetsoft.report.*;
+import inetsoft.report.composition.execution.ChartVSAQuery;
 import inetsoft.report.composition.execution.DataMap;
+import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.*;
 import inetsoft.report.filter.DefaultComparer;
@@ -212,7 +214,13 @@ public class VGraphPair {
       ProfileUtils.addExecutionBreakDownRecord(box.getID(),
                                                ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
             try {
+               legendRecount = false;
                initGraph0(box, cname, maxsize, export, scaleFont, forceExpand);
+
+               // the legend count moved the legend; draw again from the saved position
+               if(legendRecount) {
+                  initGraph0(box, cname, maxsize, export, scaleFont, forceExpand);
+               }
             }
             catch(MessageException messageException) {
                failure = messageException;
@@ -638,6 +646,35 @@ public class VGraphPair {
 
       if(cancelled) {
          return;
+      }
+
+      // a composer draw of real rows takes a requested count; a moved legend re-runs the creators
+      if(!legendRecount && box.getMode() == Viewsheet.SHEET_DESIGN_MODE &&
+         !vs.getViewsheetInfo().isMetadata() && ainfo.needsLegendCount())
+      {
+         int count = LegendEntryCount.count(egraph);
+         boolean moved = false;
+
+         // the view's filters don't narrow the count; no legend drawn stays pending
+         if(count > 0 && ChartVSAQuery.isViewFiltered(box, chart)) {
+            count = countBindingLegend(box, cname, ainfo, vars);
+         }
+
+         if(count > 0) {
+            vbox.lockWrite();
+
+            try {
+               moved = ainfo.applyLegendCount(count > LegendEntryCount.CROWDED_ABOVE);
+            }
+            finally {
+               vbox.unlockWrite();
+            }
+         }
+
+         if(moved) {
+            legendRecount = true;
+            return;
+         }
       }
 
       // get size
@@ -1069,6 +1106,55 @@ public class VGraphPair {
                   VSFrameVisitor.syncCategoricalFrame(frame, data);
                }
             }
+         }
+      }
+   }
+
+   /**
+    * Count the legend drawn from the chart's own bound data. Zero when that data is not
+    * available, which leaves the count pending.
+    */
+   private int countBindingLegend(ViewsheetSandbox box, String cname,
+                                  ChartVSAssemblyInfo ainfo, VariableTable vars)
+   {
+      boolean[] cut = { false };
+      Boolean qcancel = VSAQuery.Q_CANCEL.get();
+
+      try {
+         // leave the chart's other queries running
+         VSAQuery.Q_CANCEL.set(Boolean.FALSE);
+         DataSet data = (DataSet) box.getData(cname, true, DataMap.BINDING, cut);
+
+         if(data == null || cut[0] || cancelled) {
+            return 0;
+         }
+
+         // the creator may change the data set, keep the cached copy
+         data = (DataSet) data.clone();
+         Creator creator;
+
+         synchronized(ainfo.getVSChartInfo()) {
+            creator = new Creator(ainfo, vbox, data, null, null, vars, size);
+         }
+
+         return LegendEntryCount.count(creator.createGraph());
+      }
+      catch(LockRestoreException ex) {
+         throw ex;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to count the legend of {} on its bound data", cname, ex);
+         return 0;
+      }
+      finally {
+         // the full data isn't kept for the next draw
+         box.removeBindingData(cname);
+
+         if(qcancel == null) {
+            VSAQuery.Q_CANCEL.remove();
+         }
+         else {
+            VSAQuery.Q_CANCEL.set(qcancel);
          }
       }
    }
@@ -2846,6 +2932,8 @@ public class VGraphPair {
    // set before completed, so a thread that sees completed also sees the failure
    private volatile Throwable failure;
    private boolean cscript = false;
+   // set when a legend count changed the saved layout, so initGraph draws once more
+   private boolean legendRecount = false;
    private boolean isStructureChanged = false;
    private ViewsheetSandbox vbox;
    private String vsrc;

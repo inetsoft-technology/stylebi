@@ -23,6 +23,7 @@ export interface LegendFormatGeneralPaneModel {
    style: number;
    fillColor: string;
    position: string;
+   alignment?: string;
    visible: boolean;
    notShowNull: boolean;
    notShowNullVisible: boolean;

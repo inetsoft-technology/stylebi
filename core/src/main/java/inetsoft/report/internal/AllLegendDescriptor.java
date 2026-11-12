@@ -94,6 +94,12 @@ public class AllLegendDescriptor extends LegendDescriptor {
    }
 
    @Override
+   public void setAuthorTitleVisible(boolean titleVisible) {
+      applySet("setAuthorTitleVisible", new Object[] {titleVisible},
+               new Class[] {boolean.class});
+   }
+
+   @Override
    public boolean isLogarithmicScale() {
       return (Boolean) applyGet("isLogarithmicScale");
    }
@@ -160,6 +166,12 @@ public class AllLegendDescriptor extends LegendDescriptor {
    }
 
    @Override
+   public void setAuthorTitle(String title) {
+      applySet("setAuthorTitle", new Object[] {title},
+               new Class[] {String.class});
+   }
+
+   @Override
    public String getTitleValue() {
       return (String) applyGet("getTitleValue");
    }
@@ -167,6 +179,12 @@ public class AllLegendDescriptor extends LegendDescriptor {
    @Override
    public void setTitleValue(String title) {
       applySet("setTitleValue", new Object[] {title},
+               new Class[] {String.class});
+   }
+
+   @Override
+   public void setAuthorTitleValue(String title) {
+      applySet("setAuthorTitleValue", new Object[] {title},
                new Class[] {String.class});
    }
 

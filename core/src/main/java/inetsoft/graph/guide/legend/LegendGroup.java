@@ -41,6 +41,8 @@ public class LegendGroup extends BoundedContainer {
     */
    public LegendGroup(VisualFrame[] frames, EGraph graph) {
       this.layout = graph.getLegendLayout();
+      this.maxRatio = graph.getLegendMaxRatio() > 0 ? graph.getLegendMaxRatio() : 0.5;
+      this.alignment = graph.getLegendAlignment();
       Set added = new HashSet();
 
       for(int i = 0; i < frames.length; i++) {
@@ -174,6 +176,10 @@ public class LegendGroup extends BoundedContainer {
 
       refixRatios(w, h, false);
 
+      if(alignment != 0 && alignRange != null && layoutAligned(y + yOffset, w, h)) {
+         return;
+      }
+
       for(int i = 0; i < getVisualCount(); i++) {
          Legend legend = (Legend) getVisual(i);
          double width = w * ratios[i];
@@ -205,6 +211,58 @@ public class LegendGroup extends BoundedContainer {
    }
 
    /**
+    * Place the legends side by side at their content widths against the align range.
+    * @return false if they don't fit in the group's width or the alignment is unknown.
+    */
+   private boolean layoutAligned(double y, double w, double h) {
+      double x0 = alignRange[0];
+      double x1 = alignRange[1];
+      double[] widths = new double[getVisualCount()];
+      double totalw = 0;
+
+      for(int i = 0; i < getVisualCount(); i++) {
+         Legend legend = (Legend) getVisual(i);
+         widths[i] = Math.min(w * ratios[i], legend.getPreferredWidth(h, w));
+         totalw += widths[i];
+      }
+
+      double gx0 = getBounds().getX();
+      double gx1 = gx0 + w;
+
+      if(totalw > w) {
+         return false;
+      }
+
+      double x;
+
+      switch(alignment) {
+      case GraphConstants.LEFT_ALIGNMENT:
+         x = x0;
+         break;
+      case GraphConstants.CENTER_ALIGNMENT:
+         x = x0 + (x1 - x0 - totalw) / 2;
+         break;
+      case GraphConstants.RIGHT_ALIGNMENT:
+         x = x1 - totalw;
+         break;
+      default:
+         return false;
+      }
+
+      // a row wider than the range runs past the plot edge, but stays in the group
+      x = Math.max(gx0, Math.min(x, gx1 - totalw));
+
+      for(int i = 0; i < getVisualCount(); i++) {
+         Legend legend = (Legend) getVisual(i);
+         legend.setBounds(x, y, widths[i], h);
+         legend.layout();
+         x += widths[i];
+      }
+
+      return true;
+   }
+
+   /**
     * Refix the ratios, such as when layout is RIGHT or LEFT to avoid some
     * legends too height to display, but some legends are not height enough to
     * display.
@@ -219,8 +277,8 @@ public class LegendGroup extends BoundedContainer {
       double[] psizes = new double[ratios.length];
       double mtotal = 0;
       double ptotal = 0;
-      double maxw = isLR ? w / 2 : w;
-      double maxh = isLR ? h : h / 2;
+      double maxw = isLR ? w * maxRatio : w;
+      double maxh = isLR ? h : h * maxRatio;
 
       for(int i = 0; i < getVisualCount(); i++) {
          Legend legend = (Legend) getVisual(i);
@@ -409,6 +467,13 @@ public class LegendGroup extends BoundedContainer {
    }
 
    /**
+    * Set the horizontal range a top or bottom legend row aligns to, the plot's extent.
+    */
+   public void setAlignRange(double x0, double x1) {
+      this.alignRange = new double[] { x0, x1 };
+   }
+
+   /**
     * Get the gap limited by the space left in the available size after the legend
     * content min size, so a large gap can't take over the whole legend area.
     */
@@ -460,4 +525,7 @@ public class LegendGroup extends BoundedContainer {
    private Dimension2D asize; // available size
    private double[] ratios = new double[0];
    private int layout; // legend layout
+   private double maxRatio = 0.5; // legend size cap as a ratio of the graph
+   private int alignment; // top or bottom row alignment, 0 for the default layout
+   private double[] alignRange; // x0 and x1 of the row alignment, null until the plot is fitted
 }

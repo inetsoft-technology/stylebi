@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.LegendSpec;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
 import inetsoft.graph.internal.GDefaults;
@@ -40,7 +41,9 @@ import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
 import inetsoft.uql.viewsheet.graph.TextFormat;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1269,6 +1272,82 @@ class SeedChromeDefaultsTest {
       assertEquals(StyleConstants.NONE, legends(info).getBorder(), "the design copy");
    }
 
+   // ---- the legend alignment ------------------------------------------------------------------
+
+   @Test
+   void aModernLegendStartsAtThePlot() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      ChartDescriptor rdesc = new ChartDescriptor();
+      info.setRTChartDescriptor(rdesc);
+      info.seedChromeDefaults(VizContext.of(info));
+
+      for(LegendsDescriptor legends : new LegendsDescriptor[] {
+         legends(info), rdesc.getLegendsDescriptor() })
+      {
+         assertEquals(GraphConstants.LEFT_ALIGNMENT, legends.getAlignment());
+         assertEquals(GraphConstants.LEFT_ALIGNMENT,
+                      legends.chromeValue("alignment").get(CompositeValue.Type.DEFAULT));
+         assertFalse(legends.hasAlignmentUserValue());
+      }
+   }
+
+   @Test
+   void aClassicLegendHasNoAlignment() {
+      gateOff();
+      ChartVSAssemblyInfo classic = newChart();
+      assertEquals(0, legends(classic).getAlignment());
+      assertFalse(legendsTag(writeXml(classic)).contains("alignment"), "a classic chart");
+
+      gateOn();
+      ChartVSAssemblyInfo reverted = newChart();
+      ChartDescriptor rdesc = new ChartDescriptor();
+      reverted.setRTChartDescriptor(rdesc);
+      reverted.seedChromeDefaults(VizContext.of(reverted));
+      reverted.setVizMark(null);
+      reverted.seedChromeDefaults(VizContext.of(reverted));
+
+      assertEquals(0, legends(reverted).getAlignment());
+      assertEquals(0, rdesc.getLegendsDescriptor().getAlignment(), "the runtime copy");
+      assertFalse(legendsTag(writeXml(reverted)).contains("alignment"), "a reverted chart");
+   }
+
+   @Test
+   void anAuthorAlignmentOutranksTheSeed() {
+      gateOn();
+      ChartVSAssemblyInfo info = newChart();
+      legends(info).setAlignment(GraphConstants.RIGHT_ALIGNMENT);
+
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, legends(info).getAlignment(), "modern re-seed");
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.of(info));
+      assertEquals(GraphConstants.RIGHT_ALIGNMENT, legends(info).getAlignment(), "revert");
+      assertTrue(legends(info).hasAlignmentUserValue());
+   }
+
+   @Test
+   void theSeededAlignmentTravelsInTheAsset() throws Exception {
+      gateOn();
+      LegendsDescriptor loaded = legends(roundTrip(newChart()));
+      assertEquals(GraphConstants.LEFT_ALIGNMENT, loaded.getAlignment());
+      assertFalse(loaded.hasAlignmentUserValue());
+
+      // a default tier gives way to the next default write; an author's would not
+      loaded.setAlignment(0, CompositeValue.Type.DEFAULT);
+      assertEquals(0, loaded.getAlignment(),
+                   "a seeded alignment must not come back as the author's");
+   }
+
+   // the legends element's own attributes
+   private static String legendsTag(String xml) {
+      int start = xml.indexOf("<legendsDescriptor");
+      int end = xml.indexOf(">", start);
+      assertTrue(start >= 0 && end > start, "a legends descriptor was written");
+      return xml.substring(start, end);
+   }
+
    @Test
    void theSeededAxisTitleVisibilityTravelsInTheAsset() throws Exception {
       gateOn();
@@ -1559,6 +1638,14 @@ class SeedChromeDefaultsTest {
       gateOn();
       Viewsheet vs = new Viewsheet();
       ChartVSAssembly chart = chartOn(vs);
+      VSChartDimensionRef region = new VSChartDimensionRef(new AttributeRef(null, "region"));
+      region.setGroupColumnValue("region");
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setDataRef(region);
+      chart.getVSChartInfo().setColorField(colorRef);
+      ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).reseedLegendPlacement();
+      assertEquals(LegendsDescriptor.TOP, legends(chart.getChartInfo()).getLayout(),
+                   "premise: the modern legend is on top");
       String state = writeState(chart);
       assertTrue(chartDescriptorXml(state).contains("^^DEF^^"),
                  "premise: the bookmark carries the modern tiers");
@@ -1583,6 +1670,7 @@ class SeedChromeDefaultsTest {
       assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labelInk(info), "data-label ink");
       assertEquals(GDefaults.DEFAULT_LINE_COLOR, legends(info).getBorderColor(), "legend border");
       assertEquals(StyleConstants.THIN_LINE, legends(info).getBorder(), "legend border style");
+      assertEquals(LegendsDescriptor.RIGHT, legends(info).getLayout(), "legend position");
       assertTrue(chart.getVSChartInfo().getAxisDescriptor().isLineVisible(), "value-axis line");
       assertTrue(xTitle(info).isVisible(), "x axis title");
       assertTrue(yTitle(info).isVisible(), "y axis title");
