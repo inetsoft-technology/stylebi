@@ -19,6 +19,8 @@ package inetsoft.graph.guide.legend;
 
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.StackedMeasuresColorFrame;
+import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphElement;
@@ -106,6 +108,66 @@ class StackedLegendOrderTest {
                        "item is off the column grid");
          }
       }
+   }
+
+   @Test
+   void aModernTopLegendOfAClusteredStackKeepsNaturalOrderInOneColumn() {
+      assertEquals("A", topmost(items(GraphConstants.TOP, false, true, true, 40, 3, "X")));
+   }
+
+   @Test
+   void aClassicOneColumnTopLegendIsUnchanged() {
+      assertEquals("C", topmost(items(GraphConstants.TOP, false, false, true, 40, 3, "X")));
+   }
+
+   @Test
+   void stackedMeasuresSubFrameLegendsDrawOnTop() {
+      List<List<Object>> classic = measureLegends(false);
+      List<List<Object>> modern = measureLegends(true);
+      assertEquals(2, classic.size());
+      assertEquals(classic, modern);
+   }
+
+   private static List<List<Object>> measureLegends(boolean inMarkOrder) {
+      Object[][] rows = {
+         { "X", "Region", "Type", "V1", "V2" },
+         { "P", "A", "s", 10, 5 },
+         { "P", "B", "t", 20, 6 },
+         { "Q", "C", "s", 30, 7 },
+      };
+      EGraph graph = new EGraph();
+      IntervalElement elem = new IntervalElement("X", "V1");
+      elem.addVar("V2");
+      elem.setCollisionModifier(GraphElement.MOVE_STACK);
+      StackedMeasuresColorFrame stacked = new StackedMeasuresColorFrame(new StaticColorFrame());
+      stacked.setFrame("V1", new CategoricalColorFrame("Region"));
+      stacked.setFrame("V2", new CategoricalColorFrame("Type"));
+      elem.setColorFrame(stacked);
+      graph.addElement(elem);
+      graph.setCoordinate(new RectCoord(new CategoricalScale("X"), new LinearScale("V1", "V2")));
+      graph.setLegendLayout(GraphConstants.TOP);
+      graph.setLegendInMarkOrder(inMarkOrder);
+      VGraph vg = Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, 600, 300);
+      LegendGroup group = vg.getLegendGroup();
+      List<List<Object>> result = new ArrayList<>();
+
+      for(int i = 0; i < group.getLegendCount(); i++) {
+         Legend legend = group.getLegend(i);
+         List<LegendItem> items = new ArrayList<>();
+
+         for(int j = 0; j < legend.getVisualCount(); j++) {
+            if(legend.getVisual(j) instanceof LegendItem) {
+               items.add((LegendItem) legend.getVisual(j));
+            }
+         }
+
+         items.sort(Comparator.comparingDouble((LegendItem k) -> k.getBounds().getX()));
+         List<Object> values = new ArrayList<>();
+         items.forEach(k -> values.add(k.getValue()));
+         result.add(values);
+      }
+
+      return result;
    }
 
    private static String leftmost(List<LegendItem> items) {
