@@ -205,7 +205,7 @@ class CSVInfoDetectionTest {
    // with the quote handling off the first row is split with String.split, which reads the
    // delimiter as a regular expression: '|' matches the empty string, the row is cut into single
    // characters and a digit in it is a cell of only digits. The same rows with ',' have a header.
-   // Pins the current behavior, which may be unintended.
+   // Pins the current behavior, reported as Bug #81220.
    @Test
    void firstRowOfAPipeFileWithoutQuoteHandlingIsCutIntoCharacters() {
       CSVInfo pipe = guess("\"a|b\"|c1", "\"d|e\"|f2");
