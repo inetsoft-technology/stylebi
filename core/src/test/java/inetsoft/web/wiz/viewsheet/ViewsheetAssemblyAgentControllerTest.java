@@ -592,7 +592,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -643,7 +643,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -697,7 +697,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Overload that exposes {@code broadcast} -- for the detach tab-bar-notification test. */
@@ -741,7 +741,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Feature enabled, {@code sessions} and {@code conditionService} wired -- for the
@@ -789,7 +789,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    private static ViewsheetAssemblyAgentController controllerWithSelectionService(
@@ -835,7 +835,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Feature enabled, only {@code propertyService} wired -- for the property-trio tests. */
@@ -882,7 +882,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Feature enabled, only {@code hyperlinkService} wired -- for the hyperlink-targets test. */
@@ -929,7 +929,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /**
@@ -1299,7 +1299,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Feature enabled, only {@code highlightService} wired -- for the highlight-region tests. */
@@ -1346,7 +1346,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Feature enabled, only {@code hierarchyDimensionService} wired -- for the hierarchy-dimension
@@ -1394,7 +1394,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Feature enabled, {@code sessions}/{@code viewsheetService}/{@code broadcast} wired -- for the save tests. */
@@ -1443,7 +1443,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(
@@ -1492,7 +1492,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          viewsheetPropertyDialogService, null);
+                                          viewsheetPropertyDialogService, null, null);
    }
 
    /** Feature enabled, {@code sessions}/{@code propertyService} wired -- for the
@@ -1542,7 +1542,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /** Same as the two-arg {@code controllerWith(sessions, propertyService)} above, but with
@@ -1592,7 +1592,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    // ---------------------------------------------------------------------------
@@ -3695,7 +3695,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           layoutMutationService, layoutUndoService,
                                           mock(VSBookmarkService.class), mock(VSExportService.class),
                                           mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    private static Principal principal() {
@@ -4013,7 +4013,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class),
                                           mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    // ---------------------------------------------------------------------------
@@ -7142,7 +7142,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), vsBookmarkService,
                                           mock(VSExportService.class), securityEngine,
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    // ---------------------------------------------------------------------------
@@ -8286,7 +8286,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), vsBookmarkService,
                                           exportService, securityEngine,
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 
    /**

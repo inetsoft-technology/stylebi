@@ -292,6 +292,6 @@ class ViewsheetAssemblyAgentControllerSaveFolderTest {
          mock(PrintDeviceLayoutPropertyService.class), mock(LayoutMutationService.class),
          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class),
          mock(SecurityEngine.class), mock(ViewsheetPropertyDialogService.class),
-         registryService);
+         registryService, null);
    }
 }
