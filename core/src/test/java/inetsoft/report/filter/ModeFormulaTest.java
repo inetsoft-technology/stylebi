@@ -17,6 +17,8 @@
  */
 package inetsoft.report.filter;
 
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -107,5 +109,17 @@ class ModeFormulaTest {
       mode.reset();
       assertTrue(mode.isNull());
       assertNull(mode.getResult());
+   }
+
+   @Disabled("Bug #81205, mismatch W8")
+   @Test
+   @DisplayName("W8: the clone of a Mode formula is a Mode formula")
+   void w8_clone_keepsTheFormulaType() {
+      ModeFormula mode = new ModeFormula();
+      addAll(mode, "a", "a", "b");
+      Object copy = mode.clone();
+      assertInstanceOf(ModeFormula.class, copy);
+      assertEquals(mode.getName(), ((Formula) copy).getName());
+      assertEquals("a", ((Formula) copy).getResult());
    }
 }

@@ -27,10 +27,14 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.springframework.test.annotation.DirtiesContext;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -41,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 public class PostProcessorTest {
@@ -282,5 +285,402 @@ public class PostProcessorTest {
                          "field['state']", XSchema.INTEGER);
       assertFalse(t instanceof ColumnMapFilter);
       assertEquals(Arrays.asList(12), values(t));
+   }
+
+   // -----------------------------------------------------------------------
+   // Test Case #80957 hardening (vscalc matrix rows P*, T*)
+   // -----------------------------------------------------------------------
+
+   private static Object[][] one(Object price, Object customerId, Object state, Object city,
+                                 Object orderdate)
+   {
+      return rows(new Object[] { price, customerId, 1, state, city, orderdate });
+   }
+
+   private static Object[][] oneDate(Object orderdate) {
+      return one(1.0, 1, "NY", "Albany", orderdate);
+   }
+
+   private static Object first(Object[][] data, String expression, String type) {
+      return values(calc(data, expression, type)).get(0);
+   }
+
+   private static Object[][] onePrice(Object price) {
+      return one(price, 2, "NY", "Albany", null);
+   }
+
+   @Test
+   @DisplayName("P2: edate clamps to the last day of a leap February")
+   void p2_edate_leapYear() {
+      assertEquals(Timestamp.valueOf("2004-02-29 00:00:00"),
+                   first(oneDate(ts("2003-12-31")), "CALC.edate(field['orderdate'], 2)",
+                         XSchema.TIME_INSTANT));
+   }
+
+   @Test
+   @DisplayName("P3: edate with negative months")
+   void p3_edate_negativeMonths() {
+      assertEquals(ts("2000-02-29"), first(oneDate(ts("2000-03-31")),
+                                           "CALC.edate(field['orderdate'], -1)",
+                                           XSchema.TIME_INSTANT));
+      assertEquals(ts("2000-11-30"), first(oneDate(ts("2001-01-31")),
+                                           "CALC.edate(field['orderdate'], -2)",
+                                           XSchema.TIME_INSTANT));
+   }
+
+   @Test
+   @DisplayName("P4: January 31 plus one month is the end of February")
+   void p4_edate_january31() {
+      assertEquals(ts("2001-02-28"), first(oneDate(ts("2001-01-31")),
+                                           "CALC.edate(field['orderdate'], 1)",
+                                           XSchema.TIME_INSTANT));
+   }
+
+   @Test
+   @DisplayName("P5: edate keeps the time of day")
+   void p5_edate_keepsTimeOfDay() {
+      assertEquals(Timestamp.valueOf("2001-02-28 13:45:10"),
+                   first(oneDate(Timestamp.valueOf("2001-01-31 13:45:10")),
+                         "CALC.edate(field['orderdate'], 1)", XSchema.TIME_INSTANT));
+   }
+
+   @Test
+   @DisplayName("P6: edate takes the months as numeric text")
+   void p6_edate_monthsAsText() {
+      assertEquals(ts("2001-04-15"), first(oneDate(ts("2001-01-15")),
+                                           "CALC.edate(field['orderdate'], '3')",
+                                           XSchema.TIME_INSTANT));
+   }
+
+   @Test
+   @DisplayName("P7: eomonth is the last day of the month the given months away")
+   void p7_eomonth() {
+      assertEquals(ts("2015-06-30"), first(oneDate(ts("2015-07-31")),
+                                           "CALC.eomonth(field['orderdate'], -1)",
+                                           XSchema.TIME_INSTANT));
+      assertEquals(ts("2016-02-29"), first(oneDate(ts("2016-01-15")),
+                                           "CALC.eomonth(field['orderdate'], 1)",
+                                           XSchema.TIME_INSTANT));
+   }
+
+   @Test
+   @DisplayName("P9: date arithmetic of a null date is null")
+   void p9_nullDate_arithmeticIsNull() {
+      Object[][] data = oneDate(null);
+
+      for(String expression : new String[] { "dateAdd('m', 1, field['orderdate'])",
+                                             "CALC.edate(field['orderdate'], 1)",
+                                             "CALC.eomonth(field['orderdate'], 1)" })
+      {
+         assertNull(first(data, expression, XSchema.TIME_INSTANT), expression);
+      }
+   }
+
+   @Disabled("Bug #81204, mismatch P9b")
+   @Test
+   @DisplayName("P9b: the quarter of a null date is null")
+   void p9b_nullDate_quarterIsNull() {
+      assertNull(first(oneDate(null), "CALC.quarter(field['orderdate'])", XSchema.INTEGER));
+   }
+
+   @Test
+   @DisplayName("PIN P9c (current behavior, pending dev #80953): year, month, day and hour " +
+      "of a null date are -1")
+   void p9c_pin_nullDate_partsAreMinusOne() {
+      for(String part : new String[] { "year", "month", "day", "hour" }) {
+         assertEquals(-1, first(oneDate(null), "CALC." + part + "(field['orderdate'])",
+                                XSchema.INTEGER), part);
+      }
+   }
+
+   @Disabled("Bug #81205, mismatch P10")
+   @Test
+   @DisplayName("P10: a declared Integer never turns a value beyond int into a clamped number")
+   void p10_integerBeyondInt_isNotClamped() {
+      Object value = first(onePrice(5000.0), "field['price'] * 1000000", XSchema.INTEGER);
+      assertTrue(value == null || ((Number) value).doubleValue() == 5e9, "value " + value);
+   }
+
+   @Test
+   @DisplayName("P11: a number declared String is its JavaScript text")
+   void p11_numberDeclaredString() {
+      assertEquals("20", first(onePrice(10.0), "field['price'] * 2", XSchema.STRING));
+   }
+
+   @Test
+   @DisplayName("P12: text and numbers declared Boolean")
+   void p12_declaredBoolean_fromTextAndNumbers() {
+      Object[][] data = onePrice(1.0);
+      assertEquals(true, first(data, "'true'", XSchema.BOOLEAN));
+      assertEquals(true, first(data, "1", XSchema.BOOLEAN));
+      assertEquals(true, first(data, "'1'", XSchema.BOOLEAN));
+      assertEquals(false, first(data, "0", XSchema.BOOLEAN));
+      assertEquals(false, first(data, "'false'", XSchema.BOOLEAN));
+      assertEquals(false, first(data, "'no'", XSchema.BOOLEAN));
+   }
+
+   @Test
+   @DisplayName("PIN P12b (current behavior, pending dev #80953): 'yes' declared Boolean is false")
+   void p12b_pin_yesIsFalse() {
+      assertEquals(false, first(onePrice(1.0), "'yes'", XSchema.BOOLEAN));
+   }
+
+   @Test
+   @DisplayName("P13: date and time declared types give the declared class")
+   void p13_declaredDateAndTime() {
+      Timestamp stamp = Timestamp.valueOf("2001-08-15 13:45:10");
+      Object[][] data = oneDate(stamp);
+      Object date = first(data, "field['orderdate']", XSchema.DATE);
+      assertEquals(java.sql.Date.class, date.getClass());
+      assertEquals("2001-08-15", date.toString());
+
+      Object time = first(data, "field['orderdate']", XSchema.TIME);
+      assertEquals(java.sql.Time.class, time.getClass());
+      assertEquals("13:45:10", time.toString());
+
+      assertEquals(stamp, first(data, "field['orderdate']", XSchema.TIME_INSTANT));
+
+      Object added = first(oneDate(ts("2001-08-15")), "dateAdd('d', 1, field['orderdate'])",
+                           XSchema.DATE);
+      assertEquals(java.sql.Date.class, added.getClass());
+      assertEquals("2001-08-16", added.toString());
+   }
+
+   @Test
+   @DisplayName("P14: undefined, NaN, Infinity and null results are null")
+   void p14_undefinedNanInfinityNull_areNull() {
+      for(String type : new String[] { XSchema.DOUBLE, XSchema.INTEGER, XSchema.STRING }) {
+         for(String expression : new String[] { "undefined", "Math.sqrt(-1)", "0/0", "1/0",
+                                                "null" })
+         {
+            assertNull(first(onePrice(1.0), expression, type), type + " " + expression);
+         }
+
+         // an empty text is kept as it is
+         assertEquals("", first(onePrice(1.0), "''", type), type);
+      }
+   }
+
+   @Test
+   @DisplayName("P15: several expression columns in one call")
+   void p15_severalExpressionColumns() {
+      Object[][] data = rows(new Object[] { 10.0, 1, 1, "NY", "Albany", ts("2001-08-15") },
+                             new Object[] { 2.5, 2, 1, "CA", "Fresno", ts("2002-02-01") });
+      List<Class<?>> types = new ArrayList<>();
+      types.add(Double.class);
+      types.add(String.class);
+      types.add(Integer.class);
+      TableLens table = PostProcessor.formula(
+         new DefaultTableLens(data), new String[] { "twice", "bang", "year" },
+         new String[] { "field['price'] * 2", "field['state'] + '!'",
+                        "CALC.year(field['orderdate'])" },
+         new GraalJavaScriptEnv(), null, null, "T", new ArrayList<>(), types, new boolean[3]);
+      table.moreRows(TableLens.EOT);
+      int base = table.getColCount() - 3;
+      assertEquals("twice", table.getObject(0, base));
+      assertEquals("bang", table.getObject(0, base + 1));
+      assertEquals("year", table.getObject(0, base + 2));
+      assertEquals(20.0, table.getObject(1, base));
+      assertEquals("NY!", table.getObject(1, base + 1));
+      assertEquals(2001, table.getObject(1, base + 2));
+      assertEquals(5.0, table.getObject(2, base));
+      assertEquals("CA!", table.getObject(2, base + 1));
+      assertEquals(2002, table.getObject(2, base + 2));
+   }
+
+   @Test
+   @DisplayName("P16: a table without rows and with one row")
+   void p16_emptyAndSingleRow() {
+      assertEquals(0, values(calc(rows(), "field['price'] * 2", XSchema.DOUBLE)).size());
+      assertEquals(Arrays.asList(4.0),
+                   values(calc(onePrice(2.0), "field['price'] * 2", XSchema.DOUBLE)));
+   }
+
+   @Test
+   @DisplayName("P17: quotes, a newline and non-BMP characters pass through the script")
+   void p17_specialCharacters() {
+      String city = "Zoë\nX😀";
+      assertEquals("O'Brien|" + city,
+                   first(one(1.0, 1, "O'Brien", city, null),
+                         "field['state'] + '|' + field['city']", XSchema.STRING));
+   }
+
+   @Test
+   @DisplayName("P18: an integer column declared Double is converted, the same type is mapped")
+   void p18_shortcutVersusConversion() {
+      Object[][] data = rows(new Object[] { 1.0, 3, 1, "NY", "Albany", null },
+                             new Object[] { 7.0, 7, 1, "NY", "Albany", null });
+      TableLens toDouble = calc(data, "field['customer_id']", XSchema.DOUBLE);
+      assertInstanceOf(inetsoft.report.lens.FormulaTableLens.class, toDouble);
+      assertEquals(Arrays.asList(3.0, 7.0), values(toDouble));
+
+      TableLens same = calc(data, "field['customer_id']", XSchema.INTEGER);
+      assertInstanceOf(ColumnMapFilter.class, same);
+      assertEquals(Arrays.asList(3, 7), values(same));
+
+      TableLens toInteger = calc(data, "field['price']", XSchema.INTEGER);
+      assertInstanceOf(inetsoft.report.lens.FormulaTableLens.class, toInteger);
+      assertEquals(Arrays.asList(1, 7), values(toInteger));
+   }
+
+   @Test
+   @DisplayName("P19: a script error in a row fails the table")
+   void p19_scriptErrorOnOneRow() {
+      Object[][] data = rows(new Object[] { 1.0, 1, 1, "NY", "Albany", null },
+                             new Object[] { 1.0, 2, 1, null, "Albany", null });
+      assertThrows(ExpressionFailedException.class,
+                   () -> calc(data, "field['state'].length + 1", XSchema.INTEGER));
+   }
+
+   @Test
+   @DisplayName("P20: a column name with spaces, a dollar sign or a quote")
+   void p20_specialColumnNames() {
+      Object[][] data = { { "Total Price ($)", "O'Brien" }, { 4.0, "x" }, { 6.5, "y" } };
+      List<Class<?>> types = new ArrayList<>();
+      types.add(Double.class);
+      types.add(String.class);
+      TableLens table = PostProcessor.formula(
+         new DefaultTableLens(data), new String[] { "twice", "copy" },
+         new String[] { "field['Total Price ($)'] * 2", "field[\"O'Brien\"]" },
+         new GraalJavaScriptEnv(), null, null, "T", new ArrayList<>(), types, new boolean[2]);
+      table.moreRows(TableLens.EOT);
+      int base = table.getColCount() - 2;
+      assertEquals(8.0, table.getObject(1, base));
+      assertEquals("x", table.getObject(1, base + 1));
+      assertEquals(13.0, table.getObject(2, base));
+      assertEquals("y", table.getObject(2, base + 1));
+   }
+
+   @Test
+   @DisplayName("PIN P21 (current behavior, pending dev #80953): a declared Integer truncates " +
+      "toward zero")
+   void p21_pin_integerTruncatesTowardZero() {
+      assertEquals(Arrays.asList(2, 3, -3, 2),
+                   values(calc(rows(new Object[] { 2.5, 1, 1, "NY", "Albany", null },
+                                    new Object[] { 3.5, 1, 1, "NY", "Albany", null },
+                                    new Object[] { -3.5, 1, 1, "NY", "Albany", null },
+                                    new Object[] { 2.999999, 1, 1, "NY", "Albany", null }),
+                               "field['price']", XSchema.INTEGER)));
+   }
+
+   // T1: the identity cells (declared equals the natural result), one provider
+   @ParameterizedTest(name = "T1 {0}")
+   @MethodSource("identityCells")
+   void t1_identityCells(String type, String expression, Object expected) {
+      Object[][] data = rows(new Object[] { 10.0, 4, 1, "NY", "Albany", ts("2001-08-31") });
+      Object value = values(calc(data, expression, type)).get(0);
+      assertEquals(expected, value);
+   }
+
+   static java.util.stream.Stream<Arguments> identityCells() {
+      return java.util.stream.Stream.of(
+         Arguments.of(XSchema.INTEGER, "field['customer_id'] + 10", 14),
+         Arguments.of(XSchema.DOUBLE, "field['price'] / field['customer_id']", 2.5),
+         Arguments.of(XSchema.STRING, "field['state'] + '_' + field['city']", "NY_Albany"),
+         Arguments.of(XSchema.BOOLEAN, "field['price'] > 5", true),
+         Arguments.of(XSchema.TIME_INSTANT, "dateAdd('d', 4, field['orderdate'])",
+                      Timestamp.valueOf("2001-09-04 00:00:00")),
+         Arguments.of(XSchema.DATE, "dateAdd('d', 4, field['orderdate'])",
+                      java.sql.Date.valueOf("2001-09-04")));
+   }
+
+   @Test
+   @DisplayName("T2: a numeric result declared String or Boolean follows JavaScript")
+   void t2_numericResult_declaredStringAndBoolean() {
+      Object[][] data = one(7.0, 2, "NY", "Albany", null);
+      String expression = "field['price'] / field['customer_id']";
+      assertEquals("3.5", first(data, expression, XSchema.STRING));
+      assertEquals(true, first(data, expression, XSchema.BOOLEAN));
+      // declared Integer truncates (PIN P21)
+      assertEquals(3, first(data, expression, XSchema.INTEGER));
+   }
+
+   @Test
+   @DisplayName("T3: a text result is kept when it cannot be converted, converted when it can")
+   void t3_textResult_perDeclaredType() {
+      Object[][] data = onePrice(1.0);
+
+      for(String type : new String[] { XSchema.INTEGER, XSchema.DOUBLE, XSchema.DATE,
+                                       XSchema.TIME_INSTANT, XSchema.TIME })
+      {
+         assertEquals("abc", first(data, "'abc'", type), type);
+      }
+
+      assertEquals(12.5, first(data, "'12.5'", XSchema.DOUBLE));
+      assertEquals(12, first(data, "'12'", XSchema.INTEGER));
+      assertEquals(true, first(data, "'true'", XSchema.BOOLEAN));
+      assertEquals("2001-08-15", first(data, "'2001-08-15'", XSchema.DATE).toString());
+      assertEquals(ts("2001-08-15"), first(data, "'2001-08-15'", XSchema.TIME_INSTANT));
+      assertEquals(Timestamp.valueOf("2001-08-15 10:20:30"),
+                   first(data, "'2001-08-15 10:20:30'", XSchema.TIME_INSTANT));
+   }
+
+   @Test
+   @DisplayName("PIN T3 (current behavior, pending dev #80953): 'abc' declared Boolean is " +
+      "false and '12.5' declared Integer is 12")
+   void t3_pin_booleanAndIntegerFromText() {
+      Object[][] data = onePrice(1.0);
+      assertEquals(false, first(data, "'abc'", XSchema.BOOLEAN));
+      assertEquals(12, first(data, "'12.5'", XSchema.INTEGER));
+   }
+
+   @Test
+   @DisplayName("T4: a date result declared Double, Integer or String")
+   void t4_dateResult_declaredOtherTypes() {
+      Object[][] data = oneDate(ts("2001-08-15"));
+      assertEquals(2001.0, first(data, "CALC.year(field['orderdate'])", XSchema.DOUBLE));
+      assertEquals(ts("2001-08-15"), first(data, "field['orderdate']", XSchema.INTEGER));
+      assertEquals(ts("2001-08-15"), first(data, "field['orderdate']", XSchema.DOUBLE));
+   }
+
+   @Test
+   @DisplayName("PIN T4 (current behavior, pending dev #80953): a date declared String is " +
+      "the Timestamp text")
+   void t4_pin_dateDeclaredString() {
+      assertEquals("2001-08-15 00:00:00.0",
+                   first(oneDate(ts("2001-08-15")), "field['orderdate']", XSchema.STRING));
+   }
+
+   @Test
+   @DisplayName("T5: a Boolean result declared String is the JavaScript text, other types keep it")
+   void t5_booleanResult_declaredOtherTypes() {
+      Object[][] data = rows(new Object[] { 7.0, 1, 1, "NY", "Albany", null },
+                             new Object[] { 3.0, 1, 1, "NY", "Albany", null });
+      assertEquals(Arrays.asList("true", "false"),
+                   values(calc(data, "field['price'] > 5", XSchema.STRING)));
+      assertEquals(Arrays.asList(true, false),
+                   values(calc(data, "field['price'] > 5", XSchema.INTEGER)));
+      assertEquals(Arrays.asList(true, false),
+                   values(calc(data, "field['price'] > 5", XSchema.DOUBLE)));
+   }
+
+   @Test
+   @DisplayName("T6: a null column and undefined stay null for every declared type")
+   void t6_nullAndUndefined_perDeclaredType() {
+      Object[][] data = oneDate(null);
+
+      for(String type : new String[] { XSchema.INTEGER, XSchema.DOUBLE, XSchema.STRING,
+                                       XSchema.DATE, XSchema.TIME_INSTANT, XSchema.BOOLEAN,
+                                       XSchema.TIME })
+      {
+         assertNull(first(data, "field['orderdate']", type), type + " null column");
+         assertNull(first(data, "undefined", type), type + " undefined");
+      }
+   }
+
+   @Test
+   @DisplayName("PIN T6 (current behavior, pending dev #80953): null * 1 is the number 0 " +
+      "converted to every declared type")
+   void t6_pin_nullTimesOne() {
+      Object[][] data = oneDate(null);
+      assertEquals(0, first(data, "null * 1", XSchema.INTEGER));
+      assertEquals(0.0, first(data, "null * 1", XSchema.DOUBLE));
+      assertEquals("0", first(data, "null * 1", XSchema.STRING));
+      assertEquals(false, first(data, "null * 1", XSchema.BOOLEAN));
+      assertEquals(new java.sql.Date(0).toString(),
+                   first(data, "null * 1", XSchema.DATE).toString());
+      assertEquals(new Timestamp(0), first(data, "null * 1", XSchema.TIME_INSTANT));
+      assertEquals(new java.sql.Time(0).toString(),
+                   first(data, "null * 1", XSchema.TIME).toString());
    }
 }

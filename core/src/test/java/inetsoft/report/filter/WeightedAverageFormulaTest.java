@@ -18,6 +18,8 @@
 package inetsoft.report.filter;
 
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -289,6 +291,69 @@ class WeightedAverageFormulaTest {
       assertNull(weighted.getResult());
       weighted.addValue(new Object[] { 20, 1 });
       assertEquals(20.0, ((Number) weighted.getResult()).doubleValue(), DELTA);
+   }
+
+   @Disabled("mismatch F1, unreachable, not filed")
+   @Test
+   @DisplayName("F1: an Object[] of length 1 is skipped like the double[] twin")
+   void f1_objectArrayOfLengthOne_isSkippedWithoutException() {
+      WeightedAverageFormula weighted = new WeightedAverageFormula(1);
+      assertDoesNotThrow(() -> weighted.addValue(new Object[] { 5 }));
+      assertTrue(weighted.isNull());
+
+      // the double[] twin skips a short array
+      WeightedAverageFormula twin = new WeightedAverageFormula(1);
+      assertDoesNotThrow(() -> twin.addValue(new double[] { 5.0 }));
+      assertTrue(twin.isNull());
+   }
+
+   @Test
+   @DisplayName("F5: Number subclasses other than Double and Integer weigh like numbers")
+   void f5_otherNumberTypes_areWeighted() {
+      WeightedAverageFormula weighted = new WeightedAverageFormula(1);
+      addPairs(weighted, pair(new java.math.BigDecimal("10"), 0.5f), pair(20L, (short) 1));
+      // (10 * 0.5 + 20 * 1) / (0.5 + 1)
+      assertEquals(25.0 / 1.5, asDouble(weighted.getResult()), DELTA);
+   }
+
+   @Test
+   @DisplayName("F6: padded, exponent and signed numeric text parses as a number")
+   void f6_numericTextFormats_parse() {
+      WeightedAverageFormula weighted = new WeightedAverageFormula(1);
+      addPairs(weighted, pair(" 8 ", 1));
+      assertEquals(8.0, asDouble(weighted.getResult()), DELTA);
+
+      weighted.reset();
+      addPairs(weighted, pair("1e3", 1));
+      assertEquals(1000.0, asDouble(weighted.getResult()), DELTA);
+
+      weighted.reset();
+      addPairs(weighted, pair("+5", 1));
+      assertEquals(5.0, asDouble(weighted.getResult()), DELTA);
+   }
+
+   @Test
+   @DisplayName("PIN F6b (current behavior, pending dev #80953): locale-formatted or hex text " +
+      "is skipped silently")
+   void f6b_separatorHexAndArabicDigitText_isSkipped() {
+      for(String text : new String[] { "1,000", "1,5", "0x10", "٣" }) {
+         WeightedAverageFormula weighted = new WeightedAverageFormula(1);
+         addPairs(weighted, pair(text, 1));
+         assertTrue(weighted.isNull(), text);
+         assertNull(weighted.getResult(), text);
+      }
+   }
+
+   @Test
+   @DisplayName("F11: large values with unit weights keep their precision")
+   void f11_largeValues_keepPrecision() {
+      WeightedAverageFormula weighted = new WeightedAverageFormula(1);
+
+      for(int i = 1; i <= 10; i++) {
+         addPairs(weighted, pair(1e9 + i, 1));
+      }
+
+      assertEquals(1e9 + 5.5, asDouble(weighted.getResult()), DELTA);
    }
 
    private static void addAll(Formula formula, Object... values) {
