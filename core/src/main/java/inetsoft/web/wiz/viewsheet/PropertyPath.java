@@ -194,6 +194,44 @@ public final class PropertyPath {
       return current;
    }
 
+   /**
+    * Fails with the standard "'segment' does not exist on X ... Available: ..." message when a
+    * dotted path does not exist, and returns silently when it does. Follows {@code root}'s
+    * runtime classes while the walk stays on real objects (a null intermediate falls back to the
+    * declared getter type); a level that has a setter/wither but no getter counts as existing.
+    *
+    * @param rootType the root's declared class; used for the walk when {@code root} is null.
+    */
+   public static void requireExists(Class<?> rootType, Object root, String path) {
+      String[] segments = segments(path);
+      Class<?> declared = rootType;
+      Object instance = root;
+
+      for(int i = 0; i < segments.length; i++) {
+         Class<?> level = instance != null ? instance.getClass() : declared;
+         Method getter = getterFor(level, segments[i]);
+
+         if(getter == null) {
+            if(setterFor(level, segments[i]) != null || witherFor(level, segments[i]) != null) {
+               return;
+            }
+
+            throw new IllegalArgumentException(
+               "'" + segments[i] + "' does not exist on " + simpleName(level) +
+               " (resolving '" + path + "'). " + available(level));
+         }
+
+         declared = getter.getReturnType();
+
+         try {
+            instance = instance != null ? getter.invoke(instance) : null;
+         }
+         catch(IllegalAccessException | InvocationTargetException e) {
+            instance = null;
+         }
+      }
+   }
+
    /** Readable property names at a level, for error messages and discovery. */
    public static List<String> propertiesOf(Class<?> type) {
       Set<String> names = new TreeSet<>();

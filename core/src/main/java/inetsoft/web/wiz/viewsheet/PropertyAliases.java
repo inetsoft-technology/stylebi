@@ -489,7 +489,32 @@ public final class PropertyAliases {
     * {@code vsScriptPane.onInit} is refused exactly like {@code vsScriptPane} is.
     */
    public static String resolveForWrite(String assemblyType, String key) {
+      return resolveForWrite(assemblyType, key, null, null);
+   }
+
+   /**
+    * {@link #resolveForWrite(String, String)} that first proves a raw dotted key exists on the
+    * dialog model (bug 81050). The refusals below match on the key's suffix/leaf, so without
+    * this a typo'd pane prefix ({@code bogusPaneModel.sizePositionPaneModel.cellHeight}) was
+    * refused as a real read-only field instead of reported as an unknown property. Aliases are
+    * not checked (the registry test already proves them).
+    *
+    * @param modelClass the dialog model's class, or null to skip the existence check.
+    * @param model      the live model instance, or null; when given the walk follows runtime
+    *                   classes (what {@link PropertyPath#get}/{@code set} follow) rather than
+    *                   declared getter types, which can be a supertype of the runtime class.
+    */
+   public static String resolveForWrite(String assemblyType, String key, Class<?> modelClass,
+                                        Object model)
+   {
       String normalizedType = normalize(assemblyType);
+
+      if(modelClass != null && key != null && key.contains(".") &&
+         !forType(assemblyType).aliases().containsKey(key))
+      {
+         PropertyPath.requireExists(modelClass, model, resolve(assemblyType, key));
+      }
+
       String refusal = writeRefusal(normalizedType, key);
 
       if(refusal != null) {
@@ -518,11 +543,19 @@ public final class PropertyAliases {
    public static Map<String, String> resolvePatchForWrite(String assemblyType,
                                                           Collection<String> keys)
    {
+      return resolvePatchForWrite(assemblyType, keys, null, null);
+   }
+
+   /** {@link #resolvePatchForWrite(String, Collection)} with the model existence check. */
+   public static Map<String, String> resolvePatchForWrite(String assemblyType,
+                                                          Collection<String> keys,
+                                                          Class<?> modelClass, Object model)
+   {
       Map<String, String> resolved = new LinkedHashMap<>();
       Map<String, String> keyByPath = new HashMap<>();
 
       for(String key : keys) {
-         String path = resolveForWrite(assemblyType, key);
+         String path = resolveForWrite(assemblyType, key, modelClass, model);
          String first = keyByPath.putIfAbsent(path, key);
 
          if(first != null) {

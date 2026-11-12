@@ -121,7 +121,8 @@ public class SheetPropertyService {
       // refused key anywhere in the patch must not leave the properties before it applied,
       // which would be a partial edit the caller has no way to detect from the error alone.
       Map<String, String> resolved =
-         PropertyAliases.resolvePatchForWrite(SHEET_TYPE, patch.keySet());
+         PropertyAliases.resolvePatchForWrite(
+            SHEET_TYPE, patch.keySet(), PropertyAliases.forType(SHEET_TYPE).modelClass(), null);
       requireOptionRanges(resolved, patch);
 
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {

@@ -2528,4 +2528,53 @@ class PropertyAliasesTest {
          assertFalse(PropertyAliases.forType(type).aliases().containsKey("labelPosition"), type);
       }
    }
+
+   // ── Bug 81050: a typo'd pane prefix is an unknown property, not a read-only field ──────────
+
+   private static String writeWithModel(String type, String key) {
+      return PropertyAliases.resolveForWrite(
+         type, key, PropertyAliases.forType(type).modelClass(), null);
+   }
+
+   @Test
+   void aTypoedPanePrefixIsReportedUnknownNotReadOnly() {
+      for(String[] c : new String[][] {
+         { "slider", "bogusPaneModel.sizePositionPaneModel.cellHeight" },
+         { "slider", "bogusPaneModel.sizePositionPaneModel.locked" },
+         { "text", "bogus.locked" },
+         { "chart", "bogus.chartTargetLinesPaneModel.chartTargets" },
+         { "slider", "bogusPaneModel.foo" } })
+      {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> writeWithModel(c[0], c[1]), c[1]);
+         assertTrue(thrown.getMessage().contains("'bogus"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("does not exist"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("read-only"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("getter/setter"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void realReadOnlyPathsKeepTheirRefusalWhenTheModelIsChecked() {
+      for(String[] c : new String[][] {
+         { "slider", "sliderGeneralPaneModel.sizePositionPaneModel.cellHeight", "read-only" },
+         { "chart", "hierarchyPropertyPaneModel.dimensions", "" },
+         { "crosstab", "hierarchyPropertyPaneModel.dimensions", "" },
+         { "chart", "chartAdvancedPaneModel.chartTargetLinesPaneModel.chartTargets",
+           "add_chart_target_line" },
+         { "sheet", "vsScriptPane.onInit", "" } })
+      {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> writeWithModel(c[0], c[1]), c[0] + " " + c[1]);
+         assertFalse(thrown.getMessage().contains("does not exist"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains(c[2]), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void theModelCheckLeavesAliasesAndRealWritablePathsAlone() {
+      String visible = PropertyAliases.resolve("slider", "visible");
+      assertDoesNotThrow(() -> writeWithModel("slider", "visible"));
+      assertDoesNotThrow(() -> writeWithModel("slider", visible));
+   }
 }

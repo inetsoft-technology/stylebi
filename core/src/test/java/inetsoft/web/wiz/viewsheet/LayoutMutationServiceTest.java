@@ -259,6 +259,150 @@ class LayoutMutationServiceTest {
       assertEquals(pointsBefore, fx.masterRvs.getLayoutPointsSize());
    }
 
+   // ── Bug 81050: refusals raised after the focus switch used to wipe the focused layout's undo ──
+
+   /** Focuses the print layout through a successful edit so the device layout is "another" one. */
+   private static int[] focusPrintLayout(Fixture fx) throws Exception {
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 11)), false);
+      assertTrue(fx.masterRvs.getLayoutPointsSize() > 0);
+      return new int[] { fx.masterRvs.getLayoutPoint(), fx.masterRvs.getLayoutPointsSize() };
+   }
+
+   private static void assertRefusedWithoutSideEffect(Fixture fx, String op,
+                                                      List<Map<String, Object>> objects)
+      throws Exception
+   {
+      int[] expected = focusPrintLayout(fx);
+      assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, op, VSLayoutService.CONTENT,
+                                      objects, false));
+
+      assertEquals(expected[0], fx.masterRvs.getLayoutPoint());
+      assertEquals(expected[1], fx.masterRvs.getLayoutPointsSize());
+      verify(fx.viewsheetService, times(1))
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), eq(AGENT));
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+   }
+
+   @Test
+   void refusedMoveResizeOfUnplacedNameOnAnotherLayoutKeepsTheFocusedLayoutUndo() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+
+      assertRefusedWithoutSideEffect(fx, "move_resize",
+         List.of(Map.of("name", "Table1", "x", 5, "y", 5)));
+   }
+
+   @Test
+   void refusedAddOfUnknownNameOnAnotherLayoutKeepsTheFocusedLayoutUndo() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+
+      assertRefusedWithoutSideEffect(fx, "add",
+         List.of(Map.of("name", "NoSuch", "type", "text", "x", 1, "y", 1)));
+   }
+
+   @Test
+   void refusedAddOfAlreadyPlacedNameOnAnotherLayoutKeepsTheFocusedLayoutUndo() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+      fx.deviceLayoutObjects().add(
+         new VSAssemblyLayout("Table1", new Point(1, 1), new Dimension(10, 10)));
+
+      assertRefusedWithoutSideEffect(fx, "add",
+         List.of(Map.of("name", "Table1", "x", 5, "y", 5)));
+   }
+
+   @Test
+   void refusedAddOfSameNewNameTwiceInOneBatchKeepsTheFocusedLayoutUndo() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      int[] before = focusPrintLayout(fx);
+      // Text2 exists on neither layout; two copies in one batch must be caught before the switch.
+      fx.masterVs.addAssembly(new TextVSAssembly(fx.masterVs, "Text2"));
+      fx.installDeviceLayout();
+      assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Text2", "x", 1, "y", 1),
+                    Map.of("name", "Text2", "x", 2, "y", 2)), false));
+
+      assertEquals(before[0], fx.masterRvs.getLayoutPoint());
+      assertEquals(before[1], fx.masterRvs.getLayoutPointsSize());
+      assertTrue(fx.deviceLayoutObjects().isEmpty(), "the first copy must not be applied either");
+   }
+
+   @Test
+   void refusedSecondObjectOfAMoveResizeBatchLeavesTheFirstUnapplied() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+      fx.deviceLayoutObjects().add(
+         new VSAssemblyLayout("Text1", new Point(7, 8), new Dimension(10, 10)));
+
+      int[] before = focusPrintLayout(fx);
+      assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "move_resize",
+            VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Text1", "x", 99, "y", 99),
+                    Map.of("name", "Table1", "x", 5, "y", 5)), false));
+
+      assertEquals(before[0], fx.masterRvs.getLayoutPoint());
+      assertEquals(before[1], fx.masterRvs.getLayoutPointsSize());
+      assertEquals(new Point(7, 8), fx.deviceLayoutObjects().get(0).getPosition(),
+                   "the first object must not have been moved by a refused batch");
+      verify(fx.viewsheetService, times(1))
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), eq(AGENT));
+      verify(fx.viewsheetService, never()).flushRuntimeSheet(anyString());
+   }
+
+   @Test
+   void refusedTextOnNonTextMoveResizeOnAnotherLayoutKeepsTheFocusedLayoutUndo() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+      fx.deviceLayoutObjects().add(
+         new VSAssemblyLayout("Table1", new Point(1, 1), new Dimension(10, 10)));
+
+      assertRefusedWithoutSideEffect(fx, "move_resize",
+         List.of(Map.of("name", "Table1", "text", "hi")));
+   }
+
+   @Test
+   void refusedPagebreakWithoutPageSizeIsANamedRefusalNotAnNpe() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.getLayoutInfo().getPrintLayout().setPrintInfo(null);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Break1", "type", "pagebreak", "x", 0, "y", 0)), false));
+      assertTrue(thrown.getMessage().contains("page size"), thrown.getMessage());
+   }
+
+   /** Positive control: a successful op on another layout still switches focus and resets undo. */
+   @Test
+   void aSuccessfulOpOnAnotherLayoutStillSwitchesFocusAndResetsTheUndoStack() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+      fx.deviceLayoutObjects().add(
+         new VSAssemblyLayout("Table1", new Point(1, 1), new Dimension(10, 10)));
+
+      focusPrintLayout(fx);
+      fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 5, "y", 6)), false);
+
+      assertEquals(new Point(5, 6), fx.deviceLayoutObjects().get(0).getPosition());
+      verify(fx.viewsheetService, times(2))
+         .openTemporaryViewsheet(anyString(), any(AssetEntry.class), eq(AGENT));
+      verify(fx.viewsheetService, times(1)).flushRuntimeSheet(anyString());
+   }
+
    @Test
    void addRefusesANegativePosition() throws Exception {
       Fixture fx = new Fixture();
