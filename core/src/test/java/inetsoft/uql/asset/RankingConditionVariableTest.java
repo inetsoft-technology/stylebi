@@ -198,8 +198,8 @@ class RankingConditionVariableTest {
       assertEquals(4, cond.getN());
    }
 
+   // pinned current behavior, #80963 item 8
    @Test
-      // pinned current behavior, #80963 item 8
    void missingVariable_keepsTheReference() {
       // the condition is not ignored: N stays the unresolved reference
       RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
@@ -208,8 +208,8 @@ class RankingConditionVariableTest {
       assertEquals("$(n)", cond.getN());
    }
 
+   // pinned current behavior, #80963 item 8
    @Test
-      // pinned current behavior, #80963 item 8
    void nonNumericText_keepsTheReference() {
       RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
       cond.replaceVariable(vars("abc"));
@@ -217,8 +217,8 @@ class RankingConditionVariableTest {
       assertEquals("$(n)", cond.getN());
    }
 
+   // pinned current behavior, #80963 item 8
    @Test
-      // pinned current behavior, #80963 item 8
    void emptyArray_keepsTheReference() {
       RankingCondition cond = ranking(XCondition.TOP_N, "$(n)");
       cond.replaceVariable(new VariableTable() {

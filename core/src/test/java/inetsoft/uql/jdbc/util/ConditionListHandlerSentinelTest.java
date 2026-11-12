@@ -229,8 +229,8 @@ class ConditionListHandlerSentinelTest {
       assertEquals(expectedInSql, sqlRows(op, value), "in SQL");
    }
 
+   // pinned current behavior, #80963 item 7
    @Test
-      // pinned current behavior, #80963 item 7
    void equalTo_nullValue_selectsNullRows() throws Exception {
       // the in-memory NULL operation treats an empty string as null too, SQL IS NULL does not
       check(set(null, ""), set((String) null), XCondition.EQUAL_TO,
@@ -247,8 +247,8 @@ class ConditionListHandlerSentinelTest {
       check(set("null"), XCondition.EQUAL_TO, XConstants.CONDITION_NULL_STRING);
    }
 
+   // pinned current behavior, #80963 item 7
    @Test
-      // pinned current behavior, #80963 item 7
    void oneOf_singleNullValue_selectsNullRows() throws Exception {
       check(set(null, ""), set((String) null), XCondition.ONE_OF,
             new Object[] { XConstants.CONDITION_NULL_VALUE });
@@ -293,14 +293,14 @@ class ConditionListHandlerSentinelTest {
       assertEquals(memory, sql, label + ": memory vs SQL");
    }
 
-   @Disabled("mismatch C01")
+   @Disabled("mismatch C01 #81114")
    @DisplayName("C01 LIKE a_c memory == SQL")
    @Test
    void c01_likeUnderscore() throws Exception {
       assertSame("LIKE a_c", U_ROWS, "u", () -> cond(XCondition.LIKE, false, "a_c"));
    }
 
-   @Disabled("mismatch C02")
+   @Disabled("mismatch C02 #81114")
    @DisplayName("C02 LIKE a?c memory == SQL")
    @Test
    void c02_likeQuestionMark() throws Exception {
@@ -348,7 +348,7 @@ class ConditionListHandlerSentinelTest {
       return op == XCondition.BETWEEN ? cond(op, true, "$(v)", "$(v)") : cond(op, true, "$(v)");
    }
 
-   @Disabled("mismatch C06")
+   @Disabled("mismatch C06 #81115")
    @DisplayName("C06 condition with a missing variable is ignored in memory and SQL")
    @ParameterizedTest(name = "[{index}] op {0}")
    @ValueSource(ints = { XCondition.EQUAL_TO, XCondition.ONE_OF, XCondition.BETWEEN,
@@ -367,7 +367,7 @@ class ConditionListHandlerSentinelTest {
                                         Arguments.of((Object) new Object[] { null }));
    }
 
-   @Disabled("mismatch C07")
+   @Disabled("mismatch C07 #81115")
    @DisplayName("C07 ONE_OF with an all-null / empty array variable is ignored in memory and SQL")
    @ParameterizedTest(name = "[{index}]")
    @MethodSource("nullArrays")
@@ -397,7 +397,7 @@ class ConditionListHandlerSentinelTest {
       assertEquals(memory, sqlRows(st), "SQL");
    }
 
-   @Disabled("mismatch C09")
+   @Disabled("mismatch C09 #80963")
    @DisplayName("C09 BETWEEN NULL_VALUE..a memory == SQL")
    @Test
    void c09_betweenNullValue() throws Exception {
@@ -412,7 +412,7 @@ class ConditionListHandlerSentinelTest {
                  () -> cond(XCondition.BETWEEN, true, "a", XConstants.CONDITION_EMPTY_STRING));
    }
 
-   @Disabled("mismatch C10")
+   @Disabled("mismatch C10 #81116")
    @DisplayName("C10 negated EQUAL_TO memory == SQL")
    @Test
    void c10_negatedEqualTo() throws Exception {
@@ -424,12 +424,10 @@ class ConditionListHandlerSentinelTest {
    }
 
    @DisplayName("C10 negated ONE_OF memory == SQL")
-   @ParameterizedTest(name = "[{index}] op {0}")
-   @ValueSource(ints = { XCondition.ONE_OF })
-   void c10_negated(int op) throws Exception {
-      assertSame("negated " + op, ROWS, "t", () -> {
-         Condition c = op == XCondition.ONE_OF ?
-            cond(op, true, (Object) new Object[] { "a" }) : cond(op, true, "a");
+   @Test
+   void c10_negated() throws Exception {
+      assertSame("negated ONE_OF", ROWS, "t", () -> {
+         Condition c = cond(XCondition.ONE_OF, true, (Object) new Object[] { "a" });
          c.setNegated(true);
          return c;
       });

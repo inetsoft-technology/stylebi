@@ -369,7 +369,7 @@ class DynamicValueTest {
          assertEquals(2, ((Object[]) all).length);
       }
 
-      @Disabled("mismatch D05")
+      @Disabled("mismatch D05 #81119")
       @DisplayName("D05 concurrent reads while the runtime value alternates")
       @Test
       void d05_concurrentRead() throws Exception {
@@ -423,7 +423,7 @@ class DynamicValueTest {
          assertTrue(errors.isEmpty(), () -> "first error: " + errors.peek());
       }
 
-      @Disabled("mismatch D06")
+      @Disabled("mismatch D06 #81107")
       @DisplayName("D06 an integer dynamic value never becomes another number")
       @ParameterizedTest(name = "[{index}] {0}")
       @MethodSource("bigValues")

@@ -334,7 +334,7 @@ class ParameterToolTest {
 
    @Nested
    class HardeningRows {
-      @Disabled("mismatch T01")
+      @Disabled("mismatch T01 #81109")
       @DisplayName("T01 a variable name containing 'parameter.' is found")
       @Test
       void t01_nameContainingPrefix() {
@@ -355,7 +355,7 @@ class ParameterToolTest {
          assertEquals("3000000000", parse("{parameter.p}", "p", 3000000000L));
       }
 
-      @Disabled("mismatch T03")
+      @Disabled("mismatch T03 #81113")
       @DisplayName("T03 a Long above 2^53 keeps its digits with a number format")
       @Test
       void t03_longNumberFormat() {

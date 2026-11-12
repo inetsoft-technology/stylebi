@@ -344,7 +344,7 @@ class ConditionVariableOperatorTest {
                      "Jan 1 next year 00:00:00");
       }
 
-      @Disabled("mismatch C17")
+      @Disabled("mismatch C17 #81112")
       @DisplayName("C17 case-insensitive CONTAINS/STARTING_WITH under tr-TR")
       @ParameterizedTest(name = "[{index}] op {0}")
       @CsvSource({ "CONTAINS, title", "STARTING_WITH, ti" })
@@ -356,7 +356,7 @@ class ConditionVariableOperatorTest {
          assertTrue(cond.evaluate("TITLE"));
       }
 
-      @Disabled("mismatch C18")
+      @Disabled("mismatch C18 #81118")
       @DisplayName("C18 numeric equality keeps long precision")
       @ParameterizedTest(name = "[{index}] {0}")
       @ValueSource(strings = { XSchema.LONG, XSchema.INTEGER })

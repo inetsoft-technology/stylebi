@@ -157,8 +157,8 @@ class ConditionVariableValueTest {
          assertFalse(cond.evaluate("b"));
       }
 
-      @Test
       // pinned current behavior, #80963 item 4
+      @Test
       void oneOf_emptyArrayFromVariableTable_isIgnored() throws Exception {
          // VariableTable.put stores an array without a non-null element, an empty one included,
          // as null, so the condition is ignored and every row passes

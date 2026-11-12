@@ -325,6 +325,7 @@ class VariableTableJsonTypedValueTest {
          top.addBaseTable(base2);
          top.setAsIs("a", true);
          top.setNotIgnoredNull("a");
+         // copyParameterTS has no public accessor; if the field is renamed this test fails by reflection, not by behavior
          java.lang.reflect.Field ts = VariableTable.class.getDeclaredField("copyParameterTS");
          ts.setAccessible(true);
          ts.setLong(top, 123456789L);

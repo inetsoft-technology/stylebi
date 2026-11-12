@@ -252,7 +252,7 @@ class XUtilReplaceVariableValueTest {
          x01_scalarVsArray("time");
       }
 
-      @Disabled("mismatch X01")
+      @Disabled("mismatch X01 #81117")
       @DisplayName("X01 a Date / Timestamp value as scalar and as a one-element array gives the same text")
       @ParameterizedTest(name = "[{index}] {0}")
       @ValueSource(strings = { "date", "timestamp" })
@@ -332,7 +332,7 @@ class XUtilReplaceVariableValueTest {
                       formatted(date, "d MMM yyyy"));
       }
 
-      @Disabled("mismatch X09")
+      @Disabled("mismatch X09 #81117")
       @DisplayName("X09 a Date[] with a registered format is formatted per element")
       @Test
       void x09_dateArrayWithFormat() {
