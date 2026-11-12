@@ -292,6 +292,20 @@ public final class DefaultTableBlock implements XTableBlock, Cloneable {
    }
 
    /**
+    * Get the groups (after <code>init(SubMVQuery)</code>) whose dimension value is the
+    * <code>Double.doubleToLongBits</code> of the value, see <code>MVDecimalColumn</code>.
+    */
+   public boolean[] getBitKeyGroups() {
+      boolean[] bitKeys = new boolean[dmatrix.length];
+
+      for(int i = 0; i < bitKeys.length; i++) {
+         bitKeys[i] = dmatrix[i] instanceof MVDecimalColumn;
+      }
+
+      return bitKeys;
+   }
+
+   /**
     * Get the column from the name.
     */
    private XMVColumn getMVColumn(String name, int start) {
