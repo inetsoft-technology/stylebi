@@ -8,11 +8,16 @@ You must create a Buildx builder instance. This is step is only required once:
 docker buildx create --use --name multiplatform
 ```
 
+The image tag is the version of the base Java image in the Dockerfile's `FROM` line (for
+`eclipse-temurin:21.0.12_8-jdk-noble`, the tag is `21.0.12_8`). The Dockerfile upgrades all
+installed OS packages, so rebuild and push the image periodically, even when the Java version
+has not changed, to pick up OS security fixes. The tag in `docker/pom.xml` stays the same.
+
 To build and push the image, run the following command:
 
 ```shell
 docker buildx build \
-  -t ghcr.io/inetsoft-technology/java:21.0.7_6 \
+  -t ghcr.io/inetsoft-technology/java:21.0.12_8 \
   --platform linux/amd64,linux/arm64 \
   --push \
   src/main/docker

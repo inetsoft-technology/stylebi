@@ -35,7 +35,7 @@ ENV JAVA_CLASSPATH=''
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-dejavu \
   fonts-liberation2 fonts-croscore fonts-freefont-ttf fonts-roboto gettext-base fontconfig \
-  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y ca-certificates \
+  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
   && rm -rf /var/cache/apt/* \
   && rm -rf /var/lib/apt/lists/* \
   && userdel -rf ubuntu \
