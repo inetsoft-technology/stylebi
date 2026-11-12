@@ -51,7 +51,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * a cell that cannot be converted is an error, unless the conversion is forced (it is then null)
  * or the column is a number and the cell is "N/A" or "NA" (null); a date is parsed with the format
  * of the column when there is one (an empty cell, "N/A" and "n/a" are null), and without a format
- * a date that cannot be read is null.
+ * a date that cannot be read is null. The separators of the numbers are the ones of the en_US
+ * locale, which the surefire {@code argLine} of {@code core/pom.xml} fixes ({@code user.language},
+ * {@code user.country}).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },

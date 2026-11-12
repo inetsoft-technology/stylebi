@@ -26,9 +26,14 @@ import inetsoft.uql.XCondition;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.extension.TestExecutionExceptionHandler;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.opentest4j.TestAbortedException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -61,8 +66,31 @@ import static org.junit.jupiter.api.Assertions.*;
 class DateConditionRelativeRangesTest {
    private static final ZoneId ZONE = ZoneId.systemDefault();
 
-   private static void sameDay(LocalDate start) {
-      Assumptions.assumeTrue(start.equals(LocalDate.now()), "the day changed during the test");
+   /**
+    * A test that fails after the day changed while it ran is skipped, not failed: its expected
+    * values were worked out from the day it started on, the code under test read the clock again.
+    */
+   @RegisterExtension
+   final DayChange dayChange = new DayChange();
+
+   static final class DayChange implements BeforeEachCallback, TestExecutionExceptionHandler {
+      private LocalDate start;
+
+      @Override
+      public void beforeEach(ExtensionContext context) {
+         start = LocalDate.now();
+      }
+
+      @Override
+      public void handleTestExecutionException(ExtensionContext context, Throwable thrown)
+         throws Throwable
+      {
+         if(thrown instanceof AssertionError && !start.equals(LocalDate.now())) {
+            throw new TestAbortedException("the day changed during the test", thrown);
+         }
+
+         throw thrown;
+      }
    }
 
    private static Date at(LocalDate day, int hour) {
@@ -109,7 +137,6 @@ class DateConditionRelativeRangesTest {
 
       assertKeeps(first, last, cond);
       assertRange(first, last, cond);
-      sameDay(today);
    }
 
    // ---- a quarter ----
@@ -130,7 +157,6 @@ class DateConditionRelativeRangesTest {
 
       assertKeeps(first, last, cond);
       assertRange(first, last, cond);
-      sameDay(today);
    }
 
    // the years add four quarters each
@@ -143,7 +169,6 @@ class DateConditionRelativeRangesTest {
 
       assertKeeps(first, last, cond);
       assertRange(first, last, cond);
-      sameDay(today);
    }
 
    // ---- a month ----
@@ -157,7 +182,6 @@ class DateConditionRelativeRangesTest {
 
       assertKeeps(month.atDay(1), month.atEndOfMonth(), cond);
       assertRange(month.atDay(1), month.atEndOfMonth(), cond);
-      sameDay(today);
    }
 
    // the years add twelve months each, and the last day of February is the 28th or the 29th
@@ -169,7 +193,6 @@ class DateConditionRelativeRangesTest {
 
       assertKeeps(month.atDay(1), month.atEndOfMonth(), cond);
       assertRange(month.atDay(1), month.atEndOfMonth(), cond);
-      sameDay(today);
    }
 
    @Test
@@ -184,7 +207,6 @@ class DateConditionRelativeRangesTest {
       assertTrue(cond.evaluate(at(LocalDate.of(2024, 2, 29), 12)));
       assertFalse(cond.evaluate(at(LocalDate.of(2024, 3, 1), 0)));
       assertRange(LocalDate.of(2024, 2, 1), LocalDate.of(2024, 2, 29), cond);
-      sameDay(today);
    }
 
    // ---- a week ----
@@ -209,7 +231,6 @@ class DateConditionRelativeRangesTest {
          assertKeeps(firstDay, firstDay.plusDays(6), cond);
          assertRange(firstDay, firstDay.plusDays(6), cond);
       });
-      sameDay(today);
    }
 
    // ---- a number of weeks ----
@@ -231,7 +252,6 @@ class DateConditionRelativeRangesTest {
          assertKeeps(firstDay, lastDay, cond);
          assertRange(firstDay, lastDay, cond);
       });
-      sameDay(today);
    }
 
    @Test
@@ -264,7 +284,6 @@ class DateConditionRelativeRangesTest {
 
       assertKeeps(day, day, cond);
       assertRange(day, day, cond);
-      sameDay(today);
    }
 
    // a negative number is a day to come
@@ -275,7 +294,6 @@ class DateConditionRelativeRangesTest {
 
       assertTrue(cond.evaluate(at(today.plusDays(1), 12)));
       assertFalse(cond.evaluate(at(today, 12)));
-      sameDay(today);
    }
 
    // ---- what every one of them does ----
@@ -298,7 +316,6 @@ class DateConditionRelativeRangesTest {
          assertTrue(cond.toSqlCondition(true).isNegated(), cond.getClass().getSimpleName());
       }
 
-      sameDay(today);
    }
 
    @Test

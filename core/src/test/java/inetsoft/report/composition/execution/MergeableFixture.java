@@ -49,7 +49,11 @@ import static org.mockito.Mockito.when;
  * connection is opened and no SQL is executed.
  */
 final class MergeableFixture {
-   /** The version of the database that the mocked repository reports. */
+   /**
+    * The version of the database that the mocked repository reports. It is per thread: the SQL
+    * helper asks the repository on the thread that builds the query (the test thread), so the
+    * answer has to be set on that thread. A query that asked from another thread would get none.
+    */
    private static final ThreadLocal<String> REPORTED_VERSION = new ThreadLocal<>();
 
    private MergeableFixture() {
@@ -288,7 +292,17 @@ final class MergeableFixture {
             synchronized(usql) {
                usql.setParseSQL(true);
                usql.setSQLString(sql, true);
-               usql.wait(10000);
+               long deadline = System.currentTimeMillis() + 10000;
+
+               while(usql.getParseResult() == UniformSQL.PARSE_INIT) {
+                  long left = deadline - System.currentTimeMillis();
+
+                  if(left <= 0) {
+                     throw new AssertionError("The SQL was not parsed within 10 seconds: " + sql);
+                  }
+
+                  usql.wait(left);
+               }
             }
          }
          else {
