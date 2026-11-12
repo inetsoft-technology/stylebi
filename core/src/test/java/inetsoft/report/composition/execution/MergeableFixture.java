@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
@@ -26,6 +27,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Plugins;
 import inetsoft.util.credential.CredentialService;
@@ -213,6 +215,19 @@ final class MergeableFixture {
          return newTable(name, dataSource(type, null), columns);
       }
 
+      /**
+       * Another table of the worksheet on a data source with the same name as the one of T1 but
+       * another definition (here another URL), as a data source that was changed.
+       */
+      SQLBoundTableAssembly addTableOfChangedDataSource(String name, String type, String url,
+                                                        ColumnRef... columns)
+         throws Exception
+      {
+         JDBCDataSource other = dataSource(type, null);
+         other.setURL(url);
+         return newTable(name, other, columns);
+      }
+
       private SQLBoundTableAssembly newTable(String name, JDBCDataSource ds,
                                              ColumnRef... columns)
          throws Exception
@@ -255,6 +270,128 @@ final class MergeableFixture {
          table.setColumnSelection(selection, true);
          ws.addAssembly(table);
          return table;
+      }
+
+      /**
+       * A table whose SQL was written by the user (as the dialog of a SQL bound table makes it),
+       * on the database. The SQL is parsed, or not.
+       */
+      SQLBoundTableAssembly edited(String name, String type, String sql, boolean parse)
+         throws Exception
+      {
+         JDBCDataSource ds = dataSource(type, null);
+         UniformSQL usql = new UniformSQL();
+         usql.setDataSource(ds);
+
+         if(parse) {
+            // the parse runs in another thread, as when the SQL of a table is edited
+            synchronized(usql) {
+               usql.setParseSQL(true);
+               usql.setSQLString(sql, true);
+               usql.wait(10000);
+            }
+         }
+         else {
+            usql.setParseSQL(false);
+            usql.setSQLString(sql, false);
+         }
+
+         JDBCQuery query = new JDBCQuery();
+         query.setName("mergeable_" + name);
+         query.setUserQuery(true);
+         query.setDataSource(ds);
+         query.setSQLDefinition(usql);
+
+         SQLBoundTableAssembly table = new SQLBoundTableAssembly(ws, name);
+         SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) table.getTableInfo();
+         info.setQuery(query);
+         info.setSourceInfo(
+            new SourceInfo(SourceInfo.PHYSICAL_TABLE, ds.getName(), ds.getName()));
+         table.setSQLEdited(true);
+
+         ColumnSelection selection = new ColumnSelection();
+         selection.addAttribute(integer("k"));
+         selection.addAttribute(integer("v"));
+         table.setColumnSelection(selection, false);
+         table.setColumnSelection(selection, true);
+         ws.addAssembly(table);
+         return table;
+      }
+
+      /** A table with its data in the worksheet: the columns k and v and two rows. */
+      EmbeddedTableAssembly embedded(String name) {
+         EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, name);
+         table.setEmbeddedData(new XEmbeddedTable(
+            new String[] { XSchema.INTEGER, XSchema.INTEGER },
+            new Object[][] { { "k", "v" }, { 1, 10 }, { 2, 20 } }));
+         ws.addAssembly(table);
+         return table;
+      }
+
+      /** The table that mirrors another one. */
+      MirrorTableAssembly mirror(String name, TableAssembly base) {
+         MirrorTableAssembly mirror = new MirrorTableAssembly(ws, name, base);
+         ws.addAssembly(mirror);
+         mirror.update();
+         return mirror;
+      }
+
+      /** {@code left} joined with {@code right} on their first columns, with the operation. */
+      RelationalJoinTableAssembly join(String name, int operation, TableAssembly left,
+                                       TableAssembly right) throws Exception
+      {
+         TableAssemblyOperator operator = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setOperation(operation);
+         op.setLeftTable(left.getName());
+         op.setRightTable(right.getName());
+         op.setLeftAttribute(left.getColumnSelection(false).getAttribute(0));
+         op.setRightAttribute(right.getColumnSelection(false).getAttribute(0));
+         operator.addOperator(op);
+         RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+            ws, name, new TableAssembly[] { left, right },
+            new TableAssemblyOperator[] { operator });
+         ws.addAssembly(join);
+         join.update();
+         initColumns(join);
+         return join;
+      }
+
+      /** {@code top} and {@code bottom} put together: a union, an intersect or a minus. */
+      ConcatenatedTableAssembly concatenate(String name, int operation, TableAssembly top,
+                                            TableAssembly bottom) throws Exception
+      {
+         TableAssemblyOperator operator = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setOperation(operation);
+         op.setLeftTable(top.getName());
+         op.setRightTable(bottom.getName());
+         operator.addOperator(op);
+         ConcatenatedTableAssembly table = new ConcatenatedTableAssembly(
+            ws, name, new TableAssembly[] { top, bottom },
+            new TableAssemblyOperator[] { operator });
+         ws.addAssembly(table);
+         table.update();
+         initColumns(table);
+         return table;
+      }
+
+      /** Give a composed table the default column selection of its bases, as the composer does. */
+      private void initColumns(TableAssembly table) throws Exception {
+         AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+         try {
+            AssetEventUtil.initColumnSelection(box, table);
+         }
+         finally {
+            box.dispose();
+         }
+      }
+
+      /** The query of any table of the worksheet, as the worksheet makes it. */
+      AssetQuery queryOf(TableAssembly table) throws Exception {
+         return AssetQuery.createAssetQuery(table, AssetQuerySandbox.RUNTIME_MODE,
+                                            new AssetQuerySandbox(ws), false, -1L, true, true);
       }
 
       /** A new query of the table: the answer of a query is kept after the first question. */
