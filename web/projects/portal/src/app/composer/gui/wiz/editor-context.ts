@@ -36,3 +36,19 @@ export interface EditorContext {
     */
    pending?: boolean;
 }
+
+/**
+ * Where a viewsheet Condition (filter) or Highlight dialog's condition value lives, for kind ==
+ * "vsConditionValue". `assembly` is the viewsheet assembly that owns the condition (NOT the
+ * worksheet table the condition's field comes from); `highlightName` is the highlight being
+ * edited, or null for the assembly's Conditions (filter) list.
+ */
+export interface VSConditionPairingScope {
+   assembly: string;
+   highlightName: string | null;
+}
+
+/** The `name` of a "vsConditionValue" context: "filter" or "highlight:<highlight name>". */
+export function vsConditionValueName(scope: VSConditionPairingScope): string {
+   return scope.highlightName != null ? "highlight:" + scope.highlightName : "filter";
+}

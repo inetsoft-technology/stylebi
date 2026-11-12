@@ -62,7 +62,7 @@ import { InputTrimDirective } from "../directive/input-trim.directive";
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 import { ViewsheetClientService, ViewsheetCommandMessage } from "../../common/viewsheet-client";
-import { EditorContext } from "../../composer/gui/wiz/editor-context";
+import { EditorContext, VSConditionPairingScope, vsConditionValueName } from "../../composer/gui/wiz/editor-context";
 import { ConnectToClaudeComponent } from "../../composer/gui/wiz/connect-to-claude.component";
 import { FollowFocusService } from "../../composer/gui/wiz/services/follow-focus.service";
 import { matchesAgentScriptRefresh, shouldApplyAgentScriptPush } from "../../composer/gui/wiz/agent-script-refresh";
@@ -161,9 +161,14 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     *  `ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE`'s javadoc. Negation/equal-inclusive
     *  (`!=` vs `=`, `<=` vs `<`) don't change the value COUNT, so the raw `ConditionOperation`
     *  enum is enough to classify this without needing the resolved symbol string the server
-    *  uses. Absent (e.g. a viewsheet condition, which addresses by assembly alone) simply means
-    *  the single-value check never applies. */
+    *  uses. For a viewsheet condition (`vsConditionValue`) it only has to tell "has a value
+    *  slot" from NULL/NOT_NULL, which have none. Absent means neither check passes. */
    @Input() conditionOperation?: ConditionOperation;
+   /** Which viewsheet condition list this dialog's value belongs to, for `vsConditionValue`:
+    *  the owning assembly and the highlight name (null for the filter). Unset outside the
+    *  viewsheet Conditions/Highlight dialogs, which hides the Connect button for a
+    *  viewsheet-hosted condition -- there is then no scope to pair to. */
+   @Input() vsConditionScope?: VSConditionPairingScope;
 
    @Input() grayedOutFields: DataRef[];
    @Input() userAggNames: string[] = [];
@@ -294,8 +299,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    /** Derives the script location this dialog is editing from its own inputs
     *  so a pairing code minted from here scopes the agent session to just
     *  this expression rather than the whole sheet. A viewsheet-hosted
-    *  condition (isVSContext) binds to the assembly's main script context;
-    *  a worksheet-hosted condition binds to the worksheet condition itself. */
+    *  condition (isVSContext) binds to that one condition value of the
+    *  Conditions/Highlight dialog (`vsConditionValue`); a worksheet-hosted
+    *  condition binds to the worksheet condition value. */
    get editorContext(): EditorContext | null {
       // Gated on the transport, NOT on canPair: this getter answers "which location is this
       // dialog editing", which is still a fact when the location happens not to be addressable.
@@ -326,10 +332,19 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       }
 
       if(this.isCondition) {
-         // A viewsheet-hosted condition binds to the assembly's main script context, which is
-         // addressed by assembly alone -- `name` would be rejected there.
+         // A viewsheet-hosted condition is ONE value slot of the Conditions/Highlight dialog, never
+         // the assembly's script. `vsConditionScope` names the owning assembly and which list;
+         // without it, or when it disagrees with `isHighlight` (the BETWEEN/ONE_OF editors
+         // forward both, but fail closed rather than mislabel filter vs highlight), or for an
+         // operator with no value slot, `name` is omitted and `isAddressable` hides the button.
          if(this.isVSContext) {
-            return { kind: "assemblyMain", assembly };
+            const scope = this.vsConditionScope;
+            const consistent = !!scope && (scope.highlightName != null) === this.isHighlight;
+
+            return consistent && FormulaEditorDialog.hasVSValueSlot(this.conditionOperation)
+               ? { kind: "vsConditionValue", assembly: scope.assembly,
+                   name: vsConditionValueName(scope) }
+               : { kind: "vsConditionValue", assembly: scope?.assembly };
          }
 
          // A worksheet-hosted condition: this dialog is ExpressionEditor's, which edits a
@@ -363,7 +378,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     */
    private static readonly COLUMN_ADDRESSED_KINDS =
       ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
-       "calcTableCell"];
+       "calcTableCell", "vsConditionValue"];
 
    /**
     * The operations with exactly one value slot -- the only shape `worksheetConditionValue` may
@@ -375,6 +390,17 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       ConditionOperation.EQUAL_TO, ConditionOperation.LESS_THAN, ConditionOperation.GREATER_THAN,
       ConditionOperation.STARTING_WITH, ConditionOperation.CONTAINS, ConditionOperation.LIKE
    ];
+
+   /**
+    * Whether a viewsheet condition with this operator has a value slot an expression can sit in.
+    * Every operator does (single-value, BETWEEN's two slots, ONE_OF/NOT_ONE_OF) except NULL and
+    * NOT_NULL, which have none and cannot be switched to an Expression. An unknown operator
+    * fails closed.
+    */
+   private static hasVSValueSlot(operation: ConditionOperation | undefined): boolean {
+      return operation != null && operation !== ConditionOperation.NONE &&
+         operation !== ConditionOperation.NULL;
+   }
 
    private static isAddressable(context: EditorContext): boolean {
       if(FormulaEditorDialog.COLUMN_ADDRESSED_KINDS.indexOf(context.kind) < 0) {

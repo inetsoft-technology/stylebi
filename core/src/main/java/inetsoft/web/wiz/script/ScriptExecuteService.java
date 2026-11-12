@@ -173,6 +173,7 @@ public class ScriptExecuteService {
     * instead, which does have the confirmation gate.</p>
     */
    public ScriptExecResult dryRun(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
+      requireRunnable(target);
       String text = readService.read(rvs, target).text();
       DestructiveRef destructive = firstDestructiveReference(text, rvs);
 
@@ -195,6 +196,7 @@ public class ScriptExecuteService {
    public ScriptExecResult runLive(RuntimeViewsheet rvs, ScriptTarget target, boolean confirmed)
       throws PairingException
    {
+      requireRunnable(target);
       String text = readService.read(rvs, target).text();
       DestructiveRef destructive = firstDestructiveReference(text, rvs);
 
@@ -275,6 +277,20 @@ public class ScriptExecuteService {
       }
    }
 
+   /**
+    * Refuses a target that is not a script. Needed ahead of {@link #executeScript} because a
+    * condition value's read is an empty draft, which {@code executeScript} would answer with
+    * ok:true "nothing to execute" for something that never ran. Package-private so the controller
+    * can refuse before the state-refresh wrapper runs.
+    */
+   static void requireRunnable(ScriptTarget target) throws PairingException {
+      if(target.kind() == ScriptTarget.Kind.VS_CONDITION_VALUE) {
+         throw new PairingException(
+            "'" + target + "': a condition expression is not a runnable script. It is a draft " +
+            "in the user's open formula dialog; use update_script to push text into it.");
+      }
+   }
+
    private ScriptExecResult executeScript(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
       String text = readService.read(rvs, target).text();
 
@@ -307,6 +323,8 @@ public class ScriptExecuteService {
          case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
             "A worksheet expression/condition column is not a runnable viewsheet script. " +
             "Use worksheet-chat's edit_expression/edit_condition tools on it instead.");
+         case VS_CONDITION_VALUE -> throw new PairingException(
+            "a condition expression is not a runnable script.");
       };
 
       // Every script location can write to any assembly in the sheet by name (an assembly script

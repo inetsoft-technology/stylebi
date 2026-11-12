@@ -113,6 +113,13 @@ public class ScriptReadService {
       }
 
       EditorContext grant = session.editorContext();
+
+      if(EditorContext.VS_CONDITION_VALUE.equals(grant.kind())) {
+         // The value is the user's open dialog draft, so no enumerated target can match it.
+         ScriptTargetInfo draft = VsConditionValueTargets.targetInfo(grant);
+         return draft == null ? List.of() : List.of(draft);
+      }
+
       return all.stream().filter(info -> matchesGrant(grant, info)).toList();
    }
 
@@ -253,6 +260,12 @@ public class ScriptReadService {
             Viewsheet vs = requireViewsheet(rvs);
             text = calcFields.read(vs, target.assemblyName(), target.name());
             enabled = true;
+         }
+         // Draft-only: the dialog's text is not on the server (see VsConditionValueTargets). A
+         // deleted assembly fails loud instead of describing a dialog that cannot exist.
+         case VS_CONDITION_VALUE -> {
+            requireAssemblyInfo(rvs, target.assemblyName());
+            return VsConditionValueTargets.read(target);
          }
          // A worksheet expression/condition column lives on a RuntimeWorksheet, never a
          // RuntimeViewsheet -- this method structurally cannot serve it. Named explicitly

@@ -46,7 +46,8 @@ class PaneScopeServiceTest {
     */
    private static final List<ScriptTarget.Kind> EXPRESSION_LEVEL_KINDS =
       List.of(ScriptTarget.Kind.CALC_FIELD, ScriptTarget.Kind.WORKSHEET_EXPRESSION,
-              ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
+              ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE,
+              ScriptTarget.Kind.VS_CONDITION_VALUE);
 
    /** The kinds this suite asserts must NOT require one. See {@link #EXPRESSION_LEVEL_KINDS}. */
    private static final List<ScriptTarget.Kind> SHEET_LEVEL_KINDS =

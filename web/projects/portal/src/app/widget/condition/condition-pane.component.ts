@@ -47,6 +47,7 @@ import { ConditionPipe } from "./condition.pipe";
 import { FormsModule } from "@angular/forms";
 import { ConditionItemPane } from "./condition-item-pane.component";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
 
 @Component({
     selector: "condition-pane",
@@ -62,6 +63,10 @@ export class ConditionPane implements OnInit {
    @Input() table: string;
    @Input() runtimeId: string;
    @Input() socketConnection: ViewsheetClientService;
+   /** Which viewsheet condition list this value belongs to (owning assembly and highlight name),
+    *  threaded through to FormulaEditorDialog so its Connect to Claude pairing is scoped to this
+    *  one value. Unset outside the viewsheet Conditions/Highlight dialogs. */
+   @Input() vsConditionScope: VSConditionPairingScope;
    @Input() vsId: string;
    @Input() provider: ConditionItemPaneProvider;
    @Input() onlyOr: boolean = false;

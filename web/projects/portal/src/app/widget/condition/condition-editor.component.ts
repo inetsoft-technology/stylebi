@@ -49,6 +49,7 @@ import { ExpressionEditor } from "./expression-editor.component";
 import { VariableEditor } from "./variable-editor.component";
 import { TopNEditor } from "./top-n-editor.component";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
 
 
 @Component({
@@ -80,6 +81,10 @@ export class ConditionEditor implements OnChanges {
     *  FormulaEditorDialog -- see ExpressionEditor's runtimeId/socketConnection. */
    @Input() runtimeId: string;
    @Input() socketConnection: ViewsheetClientService;
+   /** Which viewsheet condition list this value belongs to (owning assembly and highlight name),
+    *  threaded through to FormulaEditorDialog so its Connect to Claude pairing is scoped to this
+    *  one value. Unset outside the viewsheet Conditions/Highlight dialogs. */
+   @Input() vsConditionScope: VSConditionPairingScope;
    @Input() value: ConditionValue;
    @Input() values: ConditionValue[] = [];
    @Input() isOneOf: boolean = false;

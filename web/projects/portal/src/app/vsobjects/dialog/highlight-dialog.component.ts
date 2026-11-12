@@ -31,6 +31,7 @@ import { VSConditionDialogModel } from "../../common/data/condition/vs-condition
 import { Tool } from "../../../../../shared/util/tool";
 import { TrapInfo } from "../../common/data/trap-info";
 import { VSTrapService } from "../util/vs-trap.service";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 import { AbstractHighlight } from "../../common/abstract-highlight.component";
 import {DataRef} from "../../common/data/data-ref";
 import { VSConditionDialog } from "./vs-condition-dialog.component";
@@ -48,6 +49,8 @@ const CHECK_TRAP_REST_URI: string = "../api/composer/viewsheet/check-highlight-d
 })
 export class HighlightDialog extends AbstractHighlight implements OnInit {
    @Input() runtimeId: string;
+   /** Handed to the nested Conditions dialog, see VSConditionDialog.socketConnection. */
+   @Input() socketConnection: ViewsheetClientService;
    @Input() assemblyName: string;
    @Input() variableValues: string[];
    @Output() onCancel = new EventEmitter<string>();

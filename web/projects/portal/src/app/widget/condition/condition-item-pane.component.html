@@ -69,6 +69,8 @@
               [runtimeId]="runtimeId" [socketConnection]="socketConnection"
               [showUseList]="showUseList"
               [source]="getSource()" [isVSContext]="isVSContext"
+              [operation]="condition.operation" [isHighlight]="isHighlight"
+              [vsConditionScope]="vsConditionScope"
               [(values)]="condition.values"
               [enableBrowseData]="isBrowseDataEnabled()"
               [showOriginalName]="showOriginalName"
@@ -90,6 +92,8 @@
               [(values)]="condition.values"
               [enableBrowseData]="isBrowseDataEnabled()"
               [isVSContext]="isVSContext"
+              [operation]="condition.operation" [isHighlight]="isHighlight"
+              [vsConditionScope]="vsConditionScope"
               [showOriginalName]="showOriginalName"
             (valuesChange)="conditionChanged()"></binary-condition-editor>
           }
@@ -108,6 +112,7 @@
               [runtimeId]="runtimeId" [socketConnection]="socketConnection"
               [source]="getSource()"
               [showUseList]="showUseList" [isVSContext]="isVSContext"
+              [vsConditionScope]="vsConditionScope"
               [showOriginalName]="showOriginalName"
               [value]="condition.values == null ? null : condition.values[0]"
             (valueChange)="onConditionValueChange($event)"></condition-editor>

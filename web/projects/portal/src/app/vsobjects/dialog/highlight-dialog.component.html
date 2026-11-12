@@ -40,6 +40,7 @@
   <vs-condition-dialog
     (onCommit)="close($event)" (onCancel)="dismiss($event)"
     [model]="modalVSConditionDialogModel" [runtimeId]="runtimeId"
+    [socketConnection]="socketConnection" [highlightName]="selectedHighlight?.name"
     [assemblyName]="assemblyName" [variableValues]="variableValues"
     [supportApply]="false" [isHighlight]="true" [resizeable]="true"
     [nonSupportBrowseFields]="model.nonsupportBrowseFields">

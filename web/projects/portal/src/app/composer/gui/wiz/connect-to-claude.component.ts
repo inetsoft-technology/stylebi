@@ -172,11 +172,6 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       return !this.editorContext;
    }
 
-   /** True for a session scoped to one freehand-table cell (the Freehand formula dialog). */
-   get isCellSession(): boolean {
-      return this.editorContext?.kind === "calcTableCell";
-   }
-
    get followFocusEnabled(): boolean {
       return this.followFocusService.isEnabled(this.runtimeId);
    }
@@ -202,6 +197,15 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
       if(target.kind === "calcTableCell") {
          const cell = (target.name || "").split(",");
          return `${target.assembly} → row ${cell[0]}, col ${cell[1]}`;
+      }
+
+      // A condition value's name is "filter" or "highlight:<name>", the grant's wire form.
+      if(target.kind === "vsConditionValue") {
+         const highlight = (target.name || "").startsWith("highlight:")
+            ? target.name.substring("highlight:".length) : null;
+         return highlight != null
+            ? `${target.assembly} → highlight '${highlight}' condition value`
+            : `${target.assembly} → filter condition value`;
       }
 
       const base = target.assembly ? `${target.assembly} → ${target.kind}` : target.kind;
