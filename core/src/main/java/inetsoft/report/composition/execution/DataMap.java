@@ -56,6 +56,11 @@ public class DataMap {
     * Result with drill condition.
     */
    public static final int DRILL_FILTER = 64;
+   /**
+    * Chart data of its own binding, without the selections, zoom, exclusions, brushing,
+    * data tip and drill filters of the view.
+    */
+   public static final int BINDING = 128;
 
    /**
     * Put a result into the map.
@@ -168,5 +173,5 @@ public class DataMap {
 
    private final Map<String, Object> map = new Hashtable<>();
 
-   private static final int[] types = {DETAIL, BRUSH, ZOOM, NORMAL, VSTABLE, NO_FILTER};
+   private static final int[] types = {DETAIL, BRUSH, ZOOM, NORMAL, VSTABLE, NO_FILTER, BINDING};
 }
