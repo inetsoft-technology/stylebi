@@ -48,6 +48,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import inetsoft.web.viewsheet.service.ComposerClientService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -149,6 +150,56 @@ public class SheetAgentBroadcastService {
 
       LOG.info("Pairing broadcast refresh sent (sheetType={}, runtimeId={}, sessionId={})",
                sheetType, runtimeId, sessionId);
+   }
+
+   /**
+    * Tells the browser to drop every assembly that an undo/redo removed or re-parented.
+    *
+    * <p>The refresh broadcast only walks the assemblies that still exist, and the Composer client
+    * removes an object from its canvas solely on {@code RemoveVSObjectCommand}, so without this an
+    * undone add (or a redone remove, or either side of a rename) leaves a ghost. The diff is the
+    * human undo path's own {@link CoreLifecycleService#checkAndRemoveAssemblies}, run against a
+    * capturing dispatcher and forwarded, so container and embedded-viewsheet handling match it.
+    * Call before {@link #broadcastRefresh} so removals precede the refreshes.
+    *
+    * <p>Failures are logged and swallowed: the undo already happened and must not be reported as
+    * failed because the browser could not be told.
+    *
+    * @param before a clone of the viewsheet taken before the undo/redo was applied
+    */
+   public void broadcastRemovedAssemblies(RuntimeViewsheet rvs, String runtimeId,
+                                          Principal owner, Viewsheet before)
+   {
+      String sessionId = rvs.getSocketSessionId();
+      Viewsheet after = rvs.getViewsheet();
+
+      if(sessionId == null || before == null || after == null) {
+         return;
+      }
+
+      String user = rvs.getSocketUserName();
+
+      if(user == null) {
+         user = owner == null ? null : owner.getName();
+      }
+
+      try {
+         List<CommandDispatcher.Command> removals =
+            CapturingCommandDispatcher.withCapturingDispatcher(owner, dispatcher -> {
+               coreLifecycleService.checkAndRemoveAssemblies(before, after, dispatcher);
+               return new ArrayList<>(dispatcher.getCapturedCommands());
+            });
+
+         for(CommandDispatcher.Command removal : removals) {
+            String assembly = removal.getAssembly();
+            sendToBrowser(user, sessionId, runtimeId,
+                          assembly == null || assembly.isEmpty() ? null : assembly,
+                          removal.getCommand());
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send removed-assembly commands (runtimeId={})", runtimeId, e);
+      }
    }
 
    /**
