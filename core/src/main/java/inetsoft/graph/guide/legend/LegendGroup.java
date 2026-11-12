@@ -212,7 +212,7 @@ public class LegendGroup extends BoundedContainer {
 
    /**
     * Place the legends side by side at their content widths against the align range.
-    * @return false if they don't fit in the range or the alignment is unknown.
+    * @return false if they don't fit in the group's width or the alignment is unknown.
     */
    private boolean layoutAligned(double y, double w, double h) {
       double x0 = alignRange[0];
@@ -226,7 +226,10 @@ public class LegendGroup extends BoundedContainer {
          totalw += widths[i];
       }
 
-      if(totalw > x1 - x0) {
+      double gx0 = getBounds().getX();
+      double gx1 = gx0 + w;
+
+      if(totalw > w) {
          return false;
       }
 
@@ -245,6 +248,9 @@ public class LegendGroup extends BoundedContainer {
       default:
          return false;
       }
+
+      // a row wider than the range runs past the plot edge, but stays in the group
+      x = Math.max(gx0, Math.min(x, gx1 - totalw));
 
       for(int i = 0; i < getVisualCount(); i++) {
          Legend legend = (Legend) getVisual(i);

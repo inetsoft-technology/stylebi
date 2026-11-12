@@ -115,6 +115,138 @@ class LegendAlignmentTest {
                        chart(GraphConstants.RIGHT, GraphConstants.LEFT_ALIGNMENT, false));
    }
 
+   @Test
+   void aWiderRowStartsAtThePlotEdgeAndRunsPastIt() {
+      VGraph v = wideRow(GraphConstants.LEFT_ALIGNMENT);
+      assertContentWidthRow(v);
+      assertEquals(expectedX(v, v.getPlotBounds().getX()), rowMinX(v), 0.5);
+      assertTrue(rowMaxX(v) > v.getPlotBounds().getMaxX() - 0.5);
+      assertTrue(rowMaxX(v) <= groupMaxX(v) + 0.5);
+   }
+
+   @Test
+   void aWiderRowEndsAtThePlotEdgeAndExtendsLeft() {
+      VGraph v = wideRow(GraphConstants.RIGHT_ALIGNMENT);
+      assertContentWidthRow(v);
+      assertEquals(expectedX(v, v.getPlotBounds().getMaxX() - rowNeed(v)), rowMinX(v), 0.5);
+      assertTrue(rowMinX(v) < v.getPlotBounds().getX() - 1);
+      assertTrue(rowMinX(v) >= v.getLegendGroup().getBounds().getX() - 0.5);
+   }
+
+   @Test
+   void aWiderRowCentresOnThePlotThenStaysInTheGroup() {
+      VGraph v = wideRow(GraphConstants.CENTER_ALIGNMENT);
+      assertContentWidthRow(v);
+      double want = v.getPlotBounds().getCenterX() - rowNeed(v) / 2;
+      assertEquals(expectedX(v, want), rowMinX(v), 0.5);
+   }
+
+   @Test
+   void aRowWiderThanTheChartFallsBackToToday() {
+      VGraph a = chart(GraphConstants.TOP, GraphConstants.LEFT_ALIGNMENT, true, 60);
+      VGraph b = chart(GraphConstants.TOP, null, true, 60);
+      assertTrue(rowNeed(a) > a.getLegendGroup().getBounds().getWidth(), "premise: row > chart");
+      assertSameLayout(b, a);
+   }
+
+   @Test
+   void aWiderRowStartsExactlyAtThePlotEdgeWhenItFitsToTheGroupEdge() {
+      VGraph v = insetRow(GraphConstants.LEFT_ALIGNMENT);
+      assertContentWidthRow(v);
+      assertEquals(v.getPlotBounds().getX(), rowMinX(v), 0.5);
+      assertTrue(rowMaxX(v) > v.getPlotBounds().getMaxX() + 1);
+      assertTrue(rowMaxX(v) <= groupMaxX(v) + 0.5);
+   }
+
+   @Test
+   void aWiderRowEndsExactlyAtThePlotEdgeWhenItFitsToTheGroupEdge() {
+      VGraph v = insetRow(GraphConstants.RIGHT_ALIGNMENT);
+      assertContentWidthRow(v);
+      assertEquals(v.getPlotBounds().getMaxX(), rowMaxX(v), 0.5);
+      assertTrue(rowMinX(v) < v.getPlotBounds().getX() - 1);
+      assertTrue(rowMinX(v) >= v.getLegendGroup().getBounds().getX() - 0.5);
+   }
+
+   @Test
+   void aWiderRowCentresExactlyOnThePlotWhenItFitsTheGroup() {
+      VGraph v = insetRow(GraphConstants.CENTER_ALIGNMENT);
+      assertContentWidthRow(v);
+      assertEquals(v.getPlotBounds().getCenterX(), (rowMinX(v) + rowMaxX(v)) / 2, 0.5);
+   }
+
+   // a right-axis chart whose row is wider than the plot and fits on both sides of the plot
+   private static VGraph insetRow(int alignment) {
+      for(int w = 100; w <= 460; w += 2) {
+         VGraph v = chart(GraphConstants.TOP, alignment, true, w, true);
+         double need = rowNeed(v);
+         Rectangle2D plot = v.getPlotBounds();
+         Rectangle2D g = v.getLegendGroup().getBounds();
+
+         if(need > plot.getWidth() + 2 && plot.getX() + need <= g.getMaxX() - 2 &&
+            plot.getMaxX() - need >= g.getX() + 2 &&
+            plot.getCenterX() - need / 2 >= g.getX() + 2 &&
+            plot.getCenterX() + need / 2 <= g.getMaxX() - 2)
+         {
+            return v;
+         }
+      }
+
+      fail("no width gives a row wider than the plot that fits around it");
+      return null;
+   }
+
+   // a chart width where the two-legend row is wider than the plot but fits the chart
+   private static VGraph wideRow(int alignment) {
+      for(int w = 100; w <= 460; w += 2) {
+         VGraph v = chart(GraphConstants.TOP, alignment, true, w);
+         double need = rowNeed(v);
+
+         if(need > v.getPlotBounds().getWidth() + 2 &&
+            need <= v.getLegendGroup().getBounds().getWidth() - 2)
+         {
+            return v;
+         }
+      }
+
+      fail("no width gives a row wider than the plot but within the chart");
+      return null;
+   }
+
+   private static void assertContentWidthRow(VGraph v) {
+      assertEquals(rowNeed(v), rowMaxX(v) - rowMinX(v), 0.5, "legends keep their content widths");
+   }
+
+   // the wanted left edge, shifted just enough to keep the row inside the group
+   private static double expectedX(VGraph v, double wanted) {
+      Rectangle2D g = v.getLegendGroup().getBounds();
+      return Math.max(g.getX(), Math.min(g.getMaxX() - rowNeed(v), wanted));
+   }
+
+   private static double rowNeed(VGraph v) {
+      LegendGroup g = v.getLegendGroup();
+      double h = g.getBounds().getHeight();
+      double w = g.getBounds().getWidth();
+      double t = 0;
+
+      for(int i = 0; i < g.getLegendCount(); i++) {
+         t += g.getLegend(i).getPreferredWidth(h, w);
+      }
+
+      return t;
+   }
+
+   private static double rowMinX(VGraph v) {
+      return legend(v, 0).getX();
+   }
+
+   private static double rowMaxX(VGraph v) {
+      return legend(v, v.getLegendGroup().getLegendCount() - 1).getMaxX();
+   }
+
+   private static double groupMaxX(VGraph v) {
+      return v.getLegendGroup().getBounds().getMaxX();
+   }
+
    private static void assertSameLayout(VGraph expected, VGraph actual) {
       LegendGroup group = expected.getLegendGroup();
       assertEquals(group.getLegendCount(), actual.getLegendGroup().getLegendCount());
@@ -132,8 +264,19 @@ class LegendAlignmentTest {
 
    // a null alignment leaves the property untouched; two adds a shape legend
    private static VGraph chart(int layout, Integer alignment, boolean two) {
-      Object[][] rows = { { "State", "Region", "Sales" }, { "NJ", "East", 200 },
-                          { "NY", "East", 3000 }, { "CA", "West", 12000 } };
+      return chart(layout, alignment, two, 400);
+   }
+
+   private static VGraph chart(int layout, Integer alignment, boolean two, int width) {
+      return chart(layout, alignment, two, width, false);
+   }
+
+   // secondary adds a right Y axis, so the plot ends before the group's right edge
+   private static VGraph chart(int layout, Integer alignment, boolean two, int width,
+                               boolean secondary)
+   {
+      Object[][] rows = { { "State", "Region", "Sales", "Total" }, { "NJ", "East", 200, 5000 },
+                          { "NY", "East", 3000, 7000 }, { "CA", "West", 12000, 9000 } };
       EGraph graph = new EGraph();
       IntervalElement elem = new IntervalElement("State", "Sales");
       elem.setColorFrame(new CategoricalColorFrame("State"));
@@ -143,13 +286,20 @@ class LegendAlignmentTest {
       }
 
       graph.addElement(elem);
-      graph.setCoordinate(new RectCoord(new CategoricalScale("State"), new LinearScale("Sales")));
+      RectCoord coord = new RectCoord(new CategoricalScale("State"), new LinearScale("Sales"));
+
+      if(secondary) {
+         graph.addElement(new IntervalElement("State", "Total"));
+         coord.setYScale2(new LinearScale("Total"));
+      }
+
+      graph.setCoordinate(coord);
       graph.setLegendLayout(layout);
 
       if(alignment != null) {
          graph.setLegendAlignment(alignment);
       }
 
-      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, 400, 240);
+      return Plotter.getPlotter(graph).plotAndLayout(new DefaultDataSet(rows), 0, 0, width, 240);
    }
 }
