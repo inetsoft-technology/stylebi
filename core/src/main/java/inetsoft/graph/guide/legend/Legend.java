@@ -669,8 +669,18 @@ public abstract class Legend extends BoundedContainer {
       return (frame instanceof CategoricalFrame || frame instanceof StackedMeasuresFrame) &&
          frame.getField() != null &&
          (verticalLayout || ncol == 1 ||
-            inMarkOrder && ncol > 1 && !isRotated(graph.getCoordinate())) &&
+            inMarkOrder && ncol > 1 && !isRotated(graph.getCoordinate()) &&
+               !isSingleSegment()) &&
          !GTool.isPolar(graph.getCoordinate()) && elem != null && elem.isStack();
+   }
+
+   /**
+    * Check whether the legend field is also a dimension of the element, so each stack
+    * holds one segment and the bars read as a cluster.
+    */
+   private boolean isSingleSegment() {
+      String field = frame.getField();
+      return field != null && Arrays.asList(elem.getDims()).contains(field);
    }
 
    /**
