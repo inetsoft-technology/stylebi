@@ -145,6 +145,10 @@ final class MergeableFixture {
          ds.setDriver("net.sourceforge.jtds.jdbc.Driver");
          ds.setURL("jdbc:jtds:sybase://localhost/test");
       }
+      case "sqlite" -> {
+         ds.setDriver("org.sqlite.JDBC");
+         ds.setURL("jdbc:sqlite:test.db");
+      }
       case "informix" -> {
          ds.setDriver("com.informix.jdbc.IfxDriver");
          ds.setURL("jdbc:informix-sqli://localhost:9088/test:INFORMIXSERVER=ol");
@@ -156,7 +160,9 @@ final class MergeableFixture {
          ds.setProductVersion(null);
       }
 
-      assertEquals(type, SQLHelper.getSQLHelper(ds).getSQLHelperType(), "helper for " + type);
+      // SQLite has no helper of its own, the product knows it by its driver
+      assertEquals("sqlite".equals(type) ? "default" : type,
+                   SQLHelper.getSQLHelper(ds).getSQLHelperType(), "helper for " + type);
       return ds;
    }
 
