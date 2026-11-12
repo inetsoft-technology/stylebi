@@ -454,9 +454,18 @@ public abstract class AbstractSecurityFilter
 
          if(sameClientPrincipals.size() >= maxSessions) {
             sameClientPrincipals.subList(0, sameClientPrincipals.size() - (maxSessions - 1))
-               .forEach(p -> authenticationService.logout(
-                  p, p.getUser().getIPAddress(), SessionRecord.LOGOFF_SESSION_LIMIT, true,
-                  SessionLoggedOutEvent.REASON_LIMIT));
+               .forEach(p -> {
+                  // a failing eviction of an old session must not fail the new user's login
+                  try {
+                     authenticationService.logout(
+                        p, p.getUser().getIPAddress(), SessionRecord.LOGOFF_SESSION_LIMIT, true,
+                        SessionLoggedOutEvent.REASON_LIMIT);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to log out session of {} over the per-client limit",
+                              p.getName(), e);
+                  }
+               });
          }
       }
    }
@@ -464,6 +473,9 @@ public abstract class AbstractSecurityFilter
    /**
     * Determines if a principal from the active list is the login that is being created, which
     * may be a different copy of the same principal.
+    *
+    * <p>A wiz throwaway principal carries the browser login's secure id, so it is intentionally
+    * treated as the same login as that browser login.
     */
    private boolean isSameLogin(SRPrincipal principal, SRPrincipal other) {
       return principal == other ||

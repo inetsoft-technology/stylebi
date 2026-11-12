@@ -83,7 +83,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class SessionLimitEvictionTest {
    static final String IP = "192.168.65.1";
    static Ignite ignite;
@@ -278,6 +278,23 @@ class SessionLimitEvictionTest {
                                     eq(SessionRecord.LOGOFF_SESSION_LIMIT), eq(true),
                                     eq(SessionLoggedOutEvent.REASON_LIMIT));
       verify(auth, never()).logout(any(Principal.class));
+   }
+
+   /** A failing eviction of an old session must not fail the new user's login. */
+   @Test
+   void failingEvictionDoesNotFailTheNewLogin() throws Exception {
+      for(int i = 1; i <= 5; i++) {
+         login("s" + i, true);
+         Thread.sleep(20);
+      }
+
+      doThrow(new IllegalStateException("audit down")).when(auth)
+         .logout(any(Principal.class), anyString(), anyString(), anyBoolean(),
+                 nullable(String.class));
+
+      assertDoesNotThrow(() -> login("s6", true));
+      verify(auth, atLeastOnce()).logout(any(Principal.class), anyString(), anyString(),
+                                         eq(true), eq(SessionLoggedOutEvent.REASON_LIMIT));
    }
 
    private SRPrincipal login(String sid, boolean bound) throws Exception {
