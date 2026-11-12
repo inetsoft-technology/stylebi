@@ -92,6 +92,8 @@ class TextUtilTypeDetectionTest {
    @ParameterizedTest(name = "{0} is {1}")
    @CsvSource(delimiter = '|', value = {
       "12|integer", "-5|integer", "007|integer", "0|integer",
+      // "1,234" (a thousands separator) and 2147483648 (beyond int) are doubles, not integers: pins
+      // the current behavior, which may be unintended (not filed)
       "1.5|double", "-0.25|double", "1,234.5|double", "1,234|double",
       "50%|double", "$12.5|double", "-$3|double", "($3)|double",
       // beyond the range of an int

@@ -44,6 +44,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,7 +66,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class NumericRangeRefBoundaryTest {
-   private static final String URL = "jdbc:derby:memory:numericrange";
+   private static final String URL =
+      "jdbc:derby:memory:numericrange_" + UUID.randomUUID().toString().replace("-", "");
    private static final String OTHERS = "Others";
    /** the probe values, null is the last */
    private static final Double[] PROBES = { 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, null };

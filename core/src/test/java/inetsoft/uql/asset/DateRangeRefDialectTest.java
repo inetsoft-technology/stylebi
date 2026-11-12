@@ -41,6 +41,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -70,7 +71,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class DateRangeRefDialectTest {
-   private static final String URL = "jdbc:derby:memory:daterangedialect";
+   private static final String URL =
+      "jdbc:derby:memory:daterangedialect_" + UUID.randomUUID().toString().replace("-", "");
 
    /** The levels that have a SQL function name: level name to option. */
    private static final Map<String, Integer> LEVELS = new LinkedHashMap<>();

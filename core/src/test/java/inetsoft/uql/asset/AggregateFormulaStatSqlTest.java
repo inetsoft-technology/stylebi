@@ -41,6 +41,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -66,7 +67,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class AggregateFormulaStatSqlTest {
-   private static final String URL = "jdbc:derby:memory:aggregatestat";
+   private static final String URL =
+      "jdbc:derby:memory:aggregatestat_" + UUID.randomUUID().toString().replace("-", "");
 
    /** The helper of a database type, as the query builder gives it to the formula. */
    private static final class DbHelper extends AggregateHelper {

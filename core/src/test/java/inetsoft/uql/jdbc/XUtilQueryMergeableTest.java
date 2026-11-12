@@ -84,7 +84,7 @@ class XUtilQueryMergeableTest {
       JDBCDataSource ds = new JDBCDataSource();
       ds.setName("mergeable_ds");
       ds.setDriver("org.h2.Driver");
-      ds.setURL("jdbc:h2:mem:test");
+      ds.setURL("jdbc:h2:mem:xutilquerymergeable");
       return ds;
    }
 
