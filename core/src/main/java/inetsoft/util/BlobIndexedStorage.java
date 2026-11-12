@@ -403,14 +403,32 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       return ts;
    }
 
+   /**
+    * Gets the indexed storages that a timestamp query has to look at: the storage of the current
+    * organization and of the host (default) organization, restricted to organizations that exist.
+    * Storages of unrelated organizations are deliberately not opened, because opening a storage
+    * blocks on a cluster load and the storage caches are bounded (Bug #79879).
+    */
    private List<BlobStorage<Metadata>> getStorages() {
-      // Iterate through all available orgIDs
       ArrayList<BlobStorage<Metadata>> storages = new ArrayList<>();
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      Set<String> scope = new LinkedHashSet<>();
+      scope.add(OrganizationManager.getInstance().getCurrentOrgID().toLowerCase());
+      String hostOrgID = Organization.getDefaultOrganizationID();
+
+      if(hostOrgID != null) {
+         scope.add(hostOrgID.toLowerCase());
+      }
+
+      Set<String> done = new HashSet<>();
 
       for(String orgID : provider.getOrganizationIDs()) {
-         String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-         storages.add(blobStorageManager.getStorage(storeID, true, changeListener));
+         String lowerID = orgID.toLowerCase();
+
+         if(scope.contains(lowerID) && done.add(lowerID)) {
+            String storeID = lowerID + "__" + "indexedStorage";
+            storages.add(blobStorageManager.getStorage(storeID, true, changeListener));
+         }
       }
 
       return storages;
