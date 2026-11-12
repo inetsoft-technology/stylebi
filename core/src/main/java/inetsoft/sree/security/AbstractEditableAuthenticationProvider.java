@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Skeleton implementation of an editable authentication module.
@@ -149,10 +150,20 @@ public abstract class AbstractEditableAuthenticationProvider
       boolean completed = false;
       String opId = null;
       OrgIdChangeGuard.clear(newOrgID);
+      // Bug #79875, a clone is a long series of writes, so it is recorded before the first one.
+      // An id change is recorded by IdentityService, which also moves the per user data first.
+      // A new organization that already exists is not the clone's to undo, so it is not recorded
+      OrgOperationJournal.Entry journalEntry = null;
 
       try {
          if(guarded) {
             opId = OrgIdChangeGuard.begin(fromId, newOrgID);
+         }
+
+         if(!replace && fromId != null && newOrgID != null && getOrganization(newOrgID) == null) {
+            journalEntry = OrgOperationJournal.getInstance().begin(
+               OrgOperationJournal.Type.CLONE, fromId, newOrgID, null,
+               getCloneTargets(fromOrganization, newOrgID));
          }
 
          copyOrganizationInternal0(fromOrganization, editedNewOrganization, newOrgID, newOrgName,
@@ -161,9 +172,42 @@ public abstract class AbstractEditableAuthenticationProvider
          completed = true;
       }
       finally {
+         if(journalEntry != null) {
+            // a failed clone stays recorded, the next create or edit of an organization undoes it
+            if(completed) {
+               OrgOperationJournal.getInstance().complete(journalEntry.getOpId());
+            }
+            else {
+               OrgOperationJournal.getInstance().markFailed(journalEntry.getOpId());
+            }
+         }
+
          if(guarded) {
             OrgIdChangeGuard.end(opId, fromId, completed);
          }
+      }
+   }
+
+   /**
+    * Gets the data space paths that a clone writes under the new id, the new ids of the paths of
+    * the source organization.
+    */
+   private List<String> getCloneTargets(Organization fromOrganization, String newOrgID) {
+      try {
+         DataSpace space = DataSpace.getDataSpace();
+
+         if(space == null) {
+            return List.of();
+         }
+
+         return Arrays.stream(space.getOrgScopedPaths(fromOrganization))
+            .map(p -> OrgScopedPaths.rewrite(p, fromOrganization.getId(), newOrgID))
+            .collect(Collectors.toList());
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to list the data space paths of organization {}",
+                   fromOrganization.getId(), e);
+         return List.of();
       }
    }
 

@@ -256,6 +256,21 @@ public final class OrgIdChangeGuard {
       return isBlocked(key, getMap().get(key));
    }
 
+   /**
+    * Determines if a change of the organization id is running on a node that is still in the
+    * cluster (Bug #79875). Unlike {@link #isBlocked(String)}, a retired id is not a running
+    * change. The record of a node that left stays in the map, it is not a running change.
+    */
+   public static boolean isActiveOnLiveNode(String orgId) {
+      if(orgId == null || orgId.isEmpty()) {
+         return false;
+      }
+
+      Record record = getMap().get(key(orgId));
+      return record != null && record.active &&
+         (record.node == null || Cluster.getInstance().getClusterNodeIds().contains(record.node));
+   }
+
    private static boolean isBlocked(String key, Record record) {
       if(record == null) {
          return false;

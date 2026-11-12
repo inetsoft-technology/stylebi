@@ -1001,6 +1001,10 @@ public class UserTreeService {
             return null;
          }
 
+         // Bug #79875, before an id is looked up, an interrupted clone or id change is finished
+         // or undone, its half done state would make the id unusable
+         identityService.recoverInterruptedOrganizationOperations(principal);
+
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
          SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          FSOrganization identity;
@@ -1400,6 +1404,13 @@ public class UserTreeService {
    {
       final AuthenticationProvider provider =
          authenticationProviderService.getProviderByName(providerName);
+
+      // Bug #79875, before the organization is looked up, an interrupted clone or id change is
+      // finished or undone
+      if(provider instanceof EditableAuthenticationProvider) {
+         identityService.recoverInterruptedOrganizationOperations(principal);
+      }
+
       final Organization oldOrg = provider.getOrganization(provider.getOrganizationId(model.oldName()));
       IdentityID oldID = new IdentityID( model.oldName(), provider.getOrganizationId(model.oldName())) ;
       IdentityID newID = new IdentityID( model.name(), model.id());
