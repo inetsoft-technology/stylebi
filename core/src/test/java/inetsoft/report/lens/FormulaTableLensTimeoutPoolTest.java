@@ -80,6 +80,11 @@ public class FormulaTableLensTimeoutPoolTest extends FormulaTableLensTimeoutTest
       }
 
       @Override
+      public Object compileCalleeFallback(String cmd) throws Exception {
+         return stops.compiled(cmd, super.compileCalleeFallback(cmd));
+      }
+
+      @Override
       public Object exec(Object script, Object scope, Object rscope, Object target)
          throws Exception
       {

@@ -126,13 +126,15 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       "__scope__." + BindingRootProxy.OWN_LOCALS_MEMBER;
    private static final String NO_LOCALS_VAR = "__inetsoft_no_locals__";
    private static final String DECLARE_FN = "__inetsoft_declare__";
+   // Bug #81047: the helper a rewritten table formula calls (see FormulaCalleeRewriter)
+   private static final String CALLEE_FN = FormulaCalleeRewriter.CALLEE_FN;
    // Names the #77181 reset never emits, whatever the runtime set says: the
    // engine's own wrapper globals (resetting __scope__ breaks every later script).
    private static final Set<String> NEVER_RESET = Set.of(
       "__scope__", HOST_GLOBALS_VAR, RESULT_VAR, VALUE_VAR, HOIST_ERR_VAR,
       BindingRootProxy.LOCALS_MEMBER, BindingRootProxy.OWN_LOCALS_MEMBER, NO_LOCALS_VAR,
       BindingRootProxy.DECLARED_VARS_MEMBER,
-      DECLARE_FN,
+      DECLARE_FN, CALLEE_FN,
       "globalThis", "undefined", "NaN", "Infinity", "eval", "arguments");
 
    // Bug #75625: matches the `this` keyword as an identifier token. Used to decide
@@ -380,12 +382,47 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
       installGlobalFunctions();
       installGlobalScope();
+      installCalleeHelper();
 
       // Bind the __scope__ proxy before installing library functions: their
       // bodies are wrapped in with(__scope__){...} so unqualified names resolve
       // through the proxy at call time (see installLibraryFunctions).
       ensureScopeProxy();
       installLibraryFunctions();
+   }
+
+   /**
+    * Bug #81047: install {@link FormulaCalleeRewriter#CALLEE_FN}{@code (value, name)}: the
+    * value when it is callable, else the global script function {@code name} as an unqualified
+    * identifier would resolve it past the row scope (the exact global first, then the
+    * case-insensitive CALC scope, as {@link BindingRootProxy} does), else the value itself, so
+    * the call fails as it did. Installed before the host globals snapshot, so it is a host
+    * global, and listed in {@link #NEVER_RESET}. Runs on the thread that holds the lock.
+    */
+   private void installCalleeHelper() {
+      Value bindings = context.getBindings("js");
+      bindings.putMember(CALLEE_FN, (org.graalvm.polyglot.proxy.ProxyExecutable) args -> {
+         Value value = args[0];
+
+         if(value.canExecute()) {
+            return value;
+         }
+
+         String name = args[1].asString();
+         Value global = context.getBindings("js");
+
+         if(global.hasMember(name)) {
+            Value func = global.getMember(name);
+
+            if(func.canExecute()) {
+               return func;
+            }
+         }
+
+         ScriptScope calc = calcScope;
+         Object builtin = calc == null ? null : calc.getMember(name);
+         return builtin == null ? value : ScriptValueConverter.toGuest(builtin);
+      });
    }
 
    /**
@@ -980,7 +1017,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    public Object compile(String cmd, boolean fieldOnly) throws Exception {
-      return compile0(cmd, false);
+      return compile0(cmd, false, false);
    }
 
    /**
@@ -991,10 +1028,24 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * source is unchanged.
     */
    public Object compileDeclaredVars(String cmd) throws Exception {
-      return compile0(cmd, true);
+      return compile0(cmd, true, false);
    }
 
-   private Object compile0(String cmd, boolean declaredVars) throws Exception {
+   /**
+    * Bug #81047: compile a table formula run on a row scope, where a column named like a
+    * script function ({@code YEAR}) hides the function for a bare identifier. A bare call
+    * {@code name(args)} of a global function is routed through {@link #installCalleeHelper},
+    * which falls back to the function when the identifier is not callable (see
+    * {@link FormulaCalleeRewriter}); the call or the read is decided by the syntax of each
+    * occurrence. Every other script is compiled by {@link #compile}, whose source is unchanged.
+    */
+   public Object compileCalleeFallback(String cmd) throws Exception {
+      return compile0(cmd, false, true);
+   }
+
+   private Object compile0(String cmd, boolean declaredVars, boolean calleeFallback)
+      throws Exception
+   {
       // Rhino parity: Context.evaluateString(scope, ...) bound the top-level
       // `this` to the scope object, so dashboard scripts routinely reference
       // assembly properties as `this.position`, `this.scaledPosition`, etc. A
@@ -1018,6 +1069,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // the body to strict eval, changing assignment/scope semantics — so remove
       // it to preserve the prior behavior.
       String body = stripStrictDirectives(rewriteJavaLengthCalls(cmd));
+
+      if(calleeFallback) {
+         body = FormulaCalleeRewriter.rewrite(body);
+      }
 
       // Bug #76980: Rhino (language version 0) scoped a top-level `const` like
       // `var` — a property of the executing scope, visible to the rest of the
