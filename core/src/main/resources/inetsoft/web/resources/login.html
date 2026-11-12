@@ -134,6 +134,9 @@
       <div id="sessionExpiredMessage" class="alert alert-warning" style="display: none" aria-live="polite" aria-atomic="true" data-th-text="#{login.session.expired}">
         For your security, you were logged out of the system due to inactivity.
       </div>
+      <div id="sessionLimitMessage" class="alert alert-warning" style="display: none" aria-live="polite" aria-atomic="true" data-th-text="#{login.session.limit}">
+        You were signed out because your account was signed in from too many sessions on this device or network.
+      </div>
     </main>
     <!-- ── end floating card ── -->
 
@@ -207,13 +210,16 @@
        }
 
        var sessionExpired = window.sessionStorage.getItem("inetsoftSessionExpired") == "true";
+       // only the fixed reason code "limit" is honoured; it selects a fixed message, nothing is displayed from storage
+       var sessionEndReason = window.sessionStorage.getItem("inetsoftSessionEndReason") == "limit" ? "limit" : null;
+       window.sessionStorage.removeItem("inetsoftSessionEndReason");
        window.sessionStorage.setItem("inetsoftSessionExpired", "false");
        var defaultErrorMessage = /*[[#{login.error.authenticationFailed}]]*/ "Authentication failed";
        var gatewayErrorMessage = /*[[#{login.error.gateway}]]*/ "Server not available";
        var currentUser = /*[[${currentUser}]]*/ "";
        var onloadError = /*[[${onloadError}]]*/ "";
        initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage,
-           currentUser, onloadError);
+           currentUser, onloadError, sessionEndReason);
     });
     /*]]>*/
   </script>

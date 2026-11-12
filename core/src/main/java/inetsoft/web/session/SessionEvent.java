@@ -26,6 +26,11 @@ import org.springframework.session.Session;
 import java.security.Principal;
 
 public class SessionEvent extends ApplicationEvent {
+   /**
+    * Session attribute that holds the reason the server ended the session.
+    */
+   public static final String END_REASON_ATTRIBUTE = SessionEvent.class.getName() + ".endReason";
+
    public SessionEvent(Object source, Session session) {
       super(source);
 
@@ -36,6 +41,7 @@ public class SessionEvent extends ApplicationEvent {
       this.sessionId = session.getId();
       this.loggedOutAttribute = session.getAttribute(AbstractLogoutFilter.LOGGED_OUT);
       this.principalCookie = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+      this.endReason = session.getAttribute(END_REASON_ATTRIBUTE);
    }
 
    public String getSessionId() {
@@ -44,6 +50,16 @@ public class SessionEvent extends ApplicationEvent {
 
    public Principal getPrincipalCookie() {
       return principalCookie;
+   }
+
+   /**
+    * Gets the reason the session was ended on the server, recorded by
+    * {@link IgniteSessionRepository} before it removed the session.
+    *
+    * @return one of the {@code SessionLoggedOutEvent.REASON_*} codes, or {@code null}.
+    */
+   public String getEndReason() {
+      return endReason instanceof String s ? s : null;
    }
 
    public Object getLoggedOutAttribute() {
@@ -63,4 +79,5 @@ public class SessionEvent extends ApplicationEvent {
    private final String sessionId;
    private final Object loggedOutAttribute;
    private final Principal principalCookie;
+   private final Object endReason;
 }

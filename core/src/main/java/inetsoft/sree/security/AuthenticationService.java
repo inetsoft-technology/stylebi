@@ -493,6 +493,22 @@ public class AuthenticationService {
    public void logout(Principal principal, String remoteHost, String logoffReason,
                       boolean invalidateSession)
    {
+      logout(principal, remoteHost, logoffReason, invalidateSession, null);
+   }
+
+   /**
+    * Signs a user out of the application, adds an audit record, and tells the user's browser why.
+    *
+    * @param principal         the principal that identifies the user to log out.
+    * @param remoteHost        the host name of the user's machine.
+    * @param logoffReason      the reason written to the audit record.
+    * @param invalidateSession {@code true} to invalidate the HTTP session.
+    * @param endReason         one of the {@code SessionLoggedOutEvent.REASON_*} codes passed to the
+    *                          browser when the session is invalidated, or {@code null}.
+    */
+   public void logout(Principal principal, String remoteHost, String logoffReason,
+                      boolean invalidateSession, String endReason)
+   {
       String opType = SessionRecord.OP_TYPE_LOGOFF;
       List<String> userGroup = Arrays.asList(((XPrincipal) principal).getGroups());
       IdentityID[] roles = ((XPrincipal) principal).getRoles();
@@ -514,7 +530,7 @@ public class AuthenticationService {
       sessionRecord.setDuration(diffMillis);
 
       try {
-         logout(principal, invalidateSession);
+         logout(principal, invalidateSession, endReason);
       }
       catch(Exception e) {
          LOG.warn("Failed to log out user", e);
@@ -535,8 +551,13 @@ public class AuthenticationService {
    }
 
    public void logout(Principal principal, boolean invalidateSession) {
+      logout(principal, invalidateSession, null);
+   }
+
+   private void logout(Principal principal, boolean invalidateSession, String endReason) {
       if(principal != null) {
-         eventPublisher.publishEvent(new SessionLoggedOutEvent(this, principal, invalidateSession));
+         eventPublisher.publishEvent(
+            new SessionLoggedOutEvent(this, principal, invalidateSession, endReason));
       }
    }
 

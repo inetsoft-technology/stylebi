@@ -100,6 +100,7 @@ import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SessionLoggedOutEvent;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.util.audit.SessionRecord;
@@ -276,6 +277,52 @@ class IgniteSessionRepositoryTest {
       assertSame(principal, event.getPrincipalCookie(),
                  "the published event must resolve the real principal, not null from the raw " +
                  "MapSession (bug #77178)");
+   }
+
+   /**
+    * Bug #81146: a logout that invalidates the session records its fixed reason code in the
+    * session before removing it, so the SessionDeletedEvent carries it to the browser. A logout
+    * without a code leaves the session unmarked.
+    */
+   @Test
+   void loggedOut_invalidating_recordsTheEndReasonOnThePublishedEvent() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+
+      AtomicReference<SessionDeletedEvent> captured = new AtomicReference<>();
+      cluster.addMessageListener(event -> {
+         if(event.getMessage() instanceof SessionDeletedEvent deletedEvent) {
+            captured.set(deletedEvent);
+         }
+      });
+
+      repository.loggedOut(new SessionLoggedOutEvent(
+         this, principal, true, SessionLoggedOutEvent.REASON_LIMIT));
+
+      assertNotNull(captured.get(), "the removal should publish a SessionDeletedEvent");
+      assertEquals("limit", captured.get().getEndReason());
+   }
+
+   @Test
+   void loggedOut_invalidating_withoutReasonLeavesTheEventUnmarked() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+
+      AtomicReference<SessionDeletedEvent> captured = new AtomicReference<>();
+      cluster.addMessageListener(event -> {
+         if(event.getMessage() instanceof SessionDeletedEvent deletedEvent) {
+            captured.set(deletedEvent);
+         }
+      });
+
+      repository.loggedOut(new SessionLoggedOutEvent(this, principal, true));
+
+      assertNotNull(captured.get());
+      assertNull(captured.get().getEndReason());
    }
 
    /**

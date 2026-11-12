@@ -71,6 +71,14 @@ describe("StompClient close codes", () => {
       expect(reload).not.toHaveBeenCalled();
    });
 
+   it("redirects to the session expired page with the limit reason on 4004", () => {
+      createClient();
+      close(4004);
+      expect(logoutService.sessionExpired).toHaveBeenCalledWith("limit");
+      expect(logoutService.logout).not.toHaveBeenCalled();
+      expect(reload).not.toHaveBeenCalled();
+   });
+
    it("reloads the page on 4003 so a new guest session is created", async () => {
       vi.resetModules();
       const { StompClient: FreshStompClient } = await import("./stomp-client");

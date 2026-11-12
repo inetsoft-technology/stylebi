@@ -141,7 +141,13 @@ public class SessionConnectionService {
             // anonymous, otherwise, allow to reconnect
             CloseStatus status;
 
-            if(!fromLogout && principal != null && !anonymous && securityEnabled) {
+            if(!fromLogout && principal != null && !anonymous && securityEnabled &&
+               SessionLoggedOutEvent.REASON_LIMIT.equals(event.getEndReason()))
+            {
+               // redirect to the login page with the session limit message
+               status = SESSION_LIMIT_EXCEEDED;
+            }
+            else if(!fromLogout && principal != null && !anonymous && securityEnabled) {
                // redirect to the login page with session timeout message
                status = new CloseStatus(4002, "Session timeout");
             }
@@ -278,6 +284,8 @@ public class SessionConnectionService {
    private final AuthenticationChangeListener authenticationChangeListener = this::authenticationChanged;
    private static final Logger LOG = LoggerFactory.getLogger(SessionConnectionService.class);
    static final CloseStatus GUEST_SESSION_EXPIRED = new CloseStatus(4003, "Guest session expired");
+   /** The user was signed out because a newer login exceeded the per-client session limit. */
+   static final CloseStatus SESSION_LIMIT_EXCEEDED = new CloseStatus(4004, "Session limit exceeded");
 
    private static final class WebSocketSessionRef {
       public WebSocketSessionRef(String httpSessionId, String wsSessionId, WebSocketSession session)

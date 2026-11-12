@@ -22,6 +22,7 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SessionLoggedOutEvent;
 import inetsoft.uql.XPrincipal;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.AbstractLogoutFilter;
@@ -113,6 +114,29 @@ class SessionConnectionServiceTest {
       assertEquals(4001, status.getCode());
    }
 
+   // Bug #81146: a limit eviction tells the browser why, with its own close code
+   @Test
+   void limitEvictionClosesWithSessionLimitExceeded() throws Exception {
+      CloseStatus status = closeStatusFor(
+         deleted(principal("admin"), false, SessionLoggedOutEvent.REASON_LIMIT));
+      assertEquals(4004, status.getCode());
+   }
+
+   @Test
+   void unknownEndReasonKeepsTheSessionTimeoutClose() throws Exception {
+      CloseStatus status = closeStatusFor(deleted(principal("admin"), false, "<b>x</b>"));
+      assertEquals(4002, status.getCode());
+   }
+
+   @Test
+   void limitReasonDoesNotOverrideAnExplicitLogoutOrAGuest() throws Exception {
+      assertEquals(4001, closeStatusFor(
+         deleted(principal("admin"), true, SessionLoggedOutEvent.REASON_LIMIT)).getCode());
+      assertEquals(4003, closeStatusFor(
+         deleted(principal(XPrincipal.ANONYMOUS), false,
+                 SessionLoggedOutEvent.REASON_LIMIT)).getCode());
+   }
+
    @Test
    void securityDisabledClosesNormally() throws Exception {
       when(security.isSecurityEnabled()).thenReturn(false);
@@ -152,6 +176,12 @@ class SessionConnectionServiceTest {
 
    private static SessionEvent expired(Principal principal, boolean loggedOut) {
       return new SessionExpiredEvent("test", session(principal, loggedOut));
+   }
+
+   private static SessionEvent deleted(Principal principal, boolean loggedOut, String endReason) {
+      MapSession session = session(principal, loggedOut);
+      session.setAttribute(SessionEvent.END_REASON_ATTRIBUTE, endReason);
+      return new SessionDeletedEvent("test", session);
    }
 
    private static SessionEvent deleted(Principal principal, boolean loggedOut) {

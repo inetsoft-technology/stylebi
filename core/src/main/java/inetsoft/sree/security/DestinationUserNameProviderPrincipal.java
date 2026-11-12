@@ -294,6 +294,34 @@ public class DestinationUserNameProviderPrincipal
       return ts != null ? ts.longValue() : 0;
    }
 
+   /**
+    * Gets the last access time of this login as the HTTP session records it, for a copy that is not
+    * bound to the session. The copies kept in {@link SecurityEngine} are serialized before the
+    * session exists, so their own {@link #getLastAccess()} stays at the login time; the access
+    * listeners (HTTP requests, websocket messages) update the value that is shared through the
+    * session, and this reads it.
+    *
+    * @param httpSessionId the HTTP session ID of this login, i.e. the session of its client info.
+    *
+    * @return the later of this principal's own last access and the session's, so a missing or
+    *         unknown session never makes the login look older than it is.
+    */
+   public long getSessionLastAccess(String httpSessionId) {
+      long own = getLastAccess();
+
+      if(httpSessionId == null || httpSessionId.equals(this.httpSessionId)) {
+         return own;
+      }
+
+      DistributedMap<String, Object> map = IgniteSessionRepository.getSessionAttributeMap(httpSessionId);
+
+      if(map != null && map.get(FIELD_PREFIX + "lastAccess") instanceof Long live) {
+         return Math.max(own, live);
+      }
+
+      return own;
+   }
+
    @Override
    public void setLastAccess(long accessed) {
       super.setLastAccess(accessed);
