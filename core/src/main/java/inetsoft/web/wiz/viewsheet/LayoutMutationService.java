@@ -35,6 +35,9 @@ import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
+import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -121,11 +124,20 @@ public class LayoutMutationService {
    @Autowired
    public LayoutMutationService(LayoutSessionService layoutSessions,
                                  ViewsheetSessionService viewsheetSessions,
-                                 VSLayoutService vsLayoutService)
+                                 VSLayoutService vsLayoutService,
+                                 SheetAgentBroadcastService broadcast)
    {
       this.layoutSessions = layoutSessions;
       this.viewsheetSessions = viewsheetSessions;
       this.vsLayoutService = vsLayoutService;
+      this.broadcast = broadcast;
+   }
+
+   public LayoutMutationService(LayoutSessionService layoutSessions,
+                                 ViewsheetSessionService viewsheetSessions,
+                                 VSLayoutService vsLayoutService)
+   {
+      this(layoutSessions, viewsheetSessions, vsLayoutService, null);
    }
 
    public static final String OP_ADD = "add";
@@ -198,9 +210,11 @@ public class LayoutMutationService {
       switch(op == null ? "" : op) {
       case OP_MOVE_RESIZE:
          moveResize(sessionToken, agent, layoutName, region, objects);
+         pushLayoutRefresh(sessionToken, agent, layoutName);
          return okResult();
       case OP_ADD:
          addObjects(sessionToken, agent, layoutName, region, objects);
+         pushLayoutRefresh(sessionToken, agent, layoutName);
          return okResult();
       case OP_REMOVE:
          return removeObjects(sessionToken, agent, layoutName, region, objects, confirmed);
@@ -263,6 +277,8 @@ public class LayoutMutationService {
                                                                      layoutName);
             assemblyLayout.setTableLayout(tableLayout);
          });
+
+      pushLayoutRefresh(sessionToken, agent, layoutName);
    }
 
    // ── op: move_resize ──────────────────────────────────────────────────────
@@ -683,7 +699,26 @@ public class LayoutMutationService {
             }
          });
 
+      pushLayoutRefresh(sessionToken, agent, layoutName);
       return okResult();
+   }
+
+   /**
+    * Bug #81189: redraws the paired browser's layout designer once the layout write succeeded.
+    * Best effort -- a failed push must never fail the tool call.
+    */
+   private void pushLayoutRefresh(String sessionToken, Principal agent, String layoutName) {
+      if(broadcast == null) {
+         return;
+      }
+
+      try {
+         broadcast.broadcastLayoutRefresh(viewsheetSessions.resolve(sessionToken, agent),
+                                          layoutName, agent);
+      }
+      catch(Exception e) {
+         LOG.warn("Layout designer refresh push failed (layout={})", layoutName, e);
+      }
    }
 
    // ── shared helpers ────────────────────────────────────────────────────────
@@ -814,7 +849,9 @@ public class LayoutMutationService {
       }
    }
 
+   private static final Logger LOG = LoggerFactory.getLogger(LayoutMutationService.class);
    private final LayoutSessionService layoutSessions;
    private final ViewsheetSessionService viewsheetSessions;
    private final VSLayoutService vsLayoutService;
+   private final SheetAgentBroadcastService broadcast;
 }

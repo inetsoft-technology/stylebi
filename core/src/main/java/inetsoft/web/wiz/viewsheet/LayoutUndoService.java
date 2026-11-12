@@ -20,6 +20,9 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -96,11 +99,20 @@ public class LayoutUndoService {
    @Autowired
    public LayoutUndoService(LayoutSessionService layoutSessions,
                              ViewsheetSessionService viewsheetSessions,
-                             VSLayoutService vsLayoutService)
+                             VSLayoutService vsLayoutService,
+                             SheetAgentBroadcastService broadcast)
    {
       this.layoutSessions = layoutSessions;
       this.viewsheetSessions = viewsheetSessions;
       this.vsLayoutService = vsLayoutService;
+      this.broadcast = broadcast;
+   }
+
+   public LayoutUndoService(LayoutSessionService layoutSessions,
+                             ViewsheetSessionService viewsheetSessions,
+                             VSLayoutService vsLayoutService)
+   {
+      this(layoutSessions, viewsheetSessions, vsLayoutService, null);
    }
 
    /**
@@ -145,6 +157,16 @@ public class LayoutUndoService {
       // class doc).
       clone.setViewsheet(layoutClone.apply(clone.getViewsheet()));
 
+      // Bug #81189: redraw the browser's layout designer; a no-op undo above returns before this.
+      if(broadcast != null) {
+         try {
+            broadcast.broadcastLayoutRefresh(master, layoutName, agent);
+         }
+         catch(Exception e) {
+            LOG.warn("Layout designer refresh push failed (layout={})", layoutName, e);
+         }
+      }
+
       return result(true, master);
    }
 
@@ -188,7 +210,9 @@ public class LayoutUndoService {
       abstract AbstractLayout pop(RuntimeViewsheet master);
    }
 
+   private static final Logger LOG = LoggerFactory.getLogger(LayoutUndoService.class);
    private final LayoutSessionService layoutSessions;
    private final ViewsheetSessionService viewsheetSessions;
    private final VSLayoutService vsLayoutService;
+   private final SheetAgentBroadcastService broadcast;
 }
