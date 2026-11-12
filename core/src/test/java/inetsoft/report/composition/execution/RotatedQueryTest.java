@@ -27,6 +27,11 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.GroupRef;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.RotatedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
@@ -219,5 +224,107 @@ class RotatedQueryTest {
       assertEquals(250, columnNames(ws).size());
       assertEquals("item", columnNames(ws).get(0));
       assertEquals("r249", columnNames(ws).get(249));
+   }
+
+   // ---- the names of the columns ----
+
+   // a first column value that is empty is named by the place of its column in the rotated table,
+   // counted from the column of the names (0)
+   @Test
+   void emptyAndBlankNamesAreNamedByTheirColumn() throws Exception {
+      Object[][] data = {
+         { "item", "Q1" },
+         { "A", 1 },
+         { null, 2 },
+         { "  ", 3 },
+         { "D", 4 }
+      };
+      Worksheet ws = worksheet(data, XSchema.STRING, XSchema.INTEGER);
+      List<List<Object>> rows = read(run(box(ws)));
+
+      assertEquals(List.of("item", "A", "Column [2]", "Column [3]", "D"), columnNames(ws));
+      assertEquals(List.of("Q1", 1, 2, 3, 4), rows.get(1));
+   }
+
+   // a number is named by its text, with the number format of the worksheet (two decimals at
+   // least); a date by the date format
+   @Test
+   void numbersAndDatesAreNamedByTheirText() throws Exception {
+      Object[][] numbers = {
+         { "item", "Q1" },
+         { 1.5, 1 },
+         { 2.0, 2 },
+         { 1234567.891, 3 }
+      };
+      Worksheet ws = worksheet(numbers, XSchema.DOUBLE, XSchema.INTEGER);
+      box(ws);
+
+      assertEquals(List.of("item", "1.50", "2.00", "1234567.891"), columnNames(ws));
+
+      Object[][] dates = {
+         { "item", "Q1" },
+         { java.sql.Date.valueOf("2024-02-29"), 1 }
+      };
+      ws = worksheet(dates, XSchema.DATE, XSchema.INTEGER);
+      box(ws);
+
+      assertEquals(List.of("item", "2024-02-29"), columnNames(ws));
+   }
+
+   // ---- the types of the columns ----
+
+   private static List<String> columnTypes(Worksheet ws) {
+      ColumnSelection columns = ((RotatedTableAssembly) ws.getAssembly("R"))
+         .getColumnSelection(false);
+      List<String> types = new ArrayList<>();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         types.add(((ColumnRef) columns.getAttribute(i)).getDataType());
+      }
+
+      return types;
+   }
+
+   // the type of a rotated column is the type of its values: the class of the first value, and
+   // text when another class comes, in whichever row (the check that leaves a different class in
+   // the last row out is for the grand total of a table, a rotated table has none)
+   @Test
+   void typeOfAColumnIsTheTypeOfItsValues() throws Exception {
+      // the rotated columns A, B, C hold the cells of A, B, C in the columns Q1, Q2, Q3
+      Object[][] data = {
+         { "item", "Q1", "Q2", "Q3" },
+         { "A", 1, 2, 3 },
+         { "B", 1, "x", 3 },
+         { "C", 1, 2, "x" }
+      };
+      Worksheet ws = worksheet(data, XSchema.STRING, XSchema.STRING, XSchema.STRING,
+                               XSchema.STRING);
+      box(ws);
+
+      assertEquals(List.of(XSchema.STRING, XSchema.INTEGER, XSchema.STRING, XSchema.STRING),
+                   columnTypes(ws));
+   }
+
+   // ---- on top of a rotated table ----
+
+   // the rows of the rotated table can be grouped: the sum of each column of the original table
+   @Test
+   void rotatedTableCanBeGroupedAndSummed() throws Exception {
+      Worksheet ws = worksheet(ITEMS, ITEM_TYPES);
+      AssetQuerySandbox box = box(ws);
+      RotatedTableAssembly rotated = (RotatedTableAssembly) ws.getAssembly("R");
+      ColumnSelection columns = rotated.getColumnSelection(false);
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(columns.getAttribute("item")));
+      info.addAggregate(new AggregateRef(columns.getAttribute("A"), AggregateFormula.SUM));
+      info.addAggregate(new AggregateRef(columns.getAttribute("B"), AggregateFormula.SUM));
+      rotated.setAggregateInfo(info);
+      box.resetTableLens("R");
+      List<List<Object>> rows = read(run(box));
+
+      // Q1 is 1, 3, 5 and Q2 is 2, 4, 6 for A, B, C
+      assertEquals(3, rows.size());
+      assertEquals(List.of("Q1", 1.0, 3.0), rows.get(1));
+      assertEquals(List.of("Q2", 2.0, 4.0), rows.get(2));
    }
 }

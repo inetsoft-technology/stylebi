@@ -25,6 +25,14 @@ import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.asset.GroupRef;
+import inetsoft.uql.asset.AssetCondition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.UnpivotTableAssembly;
 import inetsoft.uql.asset.Worksheet;
@@ -154,5 +162,77 @@ class UnpivotQueryTest {
          List.of("East", "Q1", "1"), List.of("East", "Q2", "2"), List.of("East", "Q3", "3"),
          List.of("West", "Q1", "4"), List.of("West", "Q2", "5"), List.of("West", "Q3", "6")),
                    read(lens));
+   }
+
+   // ---- on top of an un-pivoted table ----
+
+   private static AssetQuerySandbox unpivoted(Worksheet ws) throws Exception {
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      box.setActive(true);
+      box.refreshColumnSelection("U", true);
+      return box;
+   }
+
+   // the cells of Q1, Q2 and Q3 are in rows now, so they can be grouped by the quarter: the sum
+   // of Q1 is 1 + 4, of Q2 2 + 5 and of Q3 3 + 6
+   @Test
+   void unpivotedTableCanBeGroupedAndSummed() throws Exception {
+      Worksheet ws = worksheet(1);
+      AssetQuerySandbox box = unpivoted(ws);
+      UnpivotTableAssembly u = (UnpivotTableAssembly) ws.getAssembly("U");
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(u.getColumnSelection(false).getAttribute("Dimension")));
+      info.addAggregate(new AggregateRef(u.getColumnSelection(false).getAttribute("Measure"),
+                                         AggregateFormula.SUM));
+      u.setAggregateInfo(info);
+      box.resetTableLens("U");
+      List<List<Object>> rows = read(box.getTableLens("U", AssetQuerySandbox.RUNTIME_MODE,
+                                                      new VariableTable()));
+
+      assertEquals(4, rows.size());
+      assertEquals(List.of("Q1", 5.0), rows.get(1));
+      assertEquals(List.of("Q2", 7.0), rows.get(2));
+      assertEquals(List.of("Q3", 9.0), rows.get(3));
+   }
+
+   // the column that is copied to every row can be grouped too: East 1 + 2 + 3, West 4 + 5 + 6
+   @Test
+   void unpivotedTableCanBeGroupedByTheColumnThatIsKept() throws Exception {
+      Worksheet ws = worksheet(1);
+      AssetQuerySandbox box = unpivoted(ws);
+      UnpivotTableAssembly u = (UnpivotTableAssembly) ws.getAssembly("U");
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(u.getColumnSelection(false).getAttribute("region")));
+      info.addAggregate(new AggregateRef(u.getColumnSelection(false).getAttribute("Measure"),
+                                         AggregateFormula.SUM));
+      u.setAggregateInfo(info);
+      box.resetTableLens("U");
+      List<List<Object>> rows = read(box.getTableLens("U", AssetQuerySandbox.RUNTIME_MODE,
+                                                      new VariableTable()));
+
+      assertEquals(List.of(List.of("East", 6.0), List.of("West", 15.0)), rows.subList(1, 3));
+   }
+
+   // a condition on the Measure column keeps the rows whose cell is more than 2: 3, 4, 5, 6
+   @Test
+   void conditionOnTheMeasureColumnFiltersTheUnpivotedRows() throws Exception {
+      Worksheet ws = worksheet(1);
+      AssetQuerySandbox box = unpivoted(ws);
+      UnpivotTableAssembly u = (UnpivotTableAssembly) ws.getAssembly("U");
+      AssetCondition condition = new AssetCondition(XSchema.INTEGER);
+      condition.setOperation(XCondition.GREATER_THAN);
+      condition.addValue(2);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(u.getColumnSelection(false).getAttribute("Measure"),
+                                    condition, 0));
+      u.setPreConditionList(list);
+      box.resetTableLens("U");
+      List<List<Object>> rows = read(box.getTableLens("U", AssetQuerySandbox.RUNTIME_MODE,
+                                                      new VariableTable()));
+
+      assertEquals(List.of(
+         List.of("region", "Dimension", "Measure"),
+         List.of("East", "Q3", 3),
+         List.of("West", "Q1", 4), List.of("West", "Q2", 5), List.of("West", "Q3", 6)), rows);
    }
 }
