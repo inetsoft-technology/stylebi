@@ -242,7 +242,7 @@ public class FormTableRowService {
    private static String checkSetCell(RuntimeViewsheet rvs, String assemblyName, int row, int col,
                                       String value) throws Exception
    {
-      requireForm(rvs, assemblyName, true);
+      requireForm(rvs, assemblyName);
       requireFormLens(rvs, assemblyName);
       requireCellInRange(rvs, assemblyName, row, col);
 
@@ -487,13 +487,12 @@ public class FormTableRowService {
       return load;
    }
 
-   private static TableVSAssemblyInfo requireForm(RuntimeViewsheet rvs, String assemblyName) {
-      return requireForm(rvs, assemblyName, false);
-   }
-
-   static TableVSAssemblyInfo requireForm(RuntimeViewsheet rvs, String assemblyName,
-                                          boolean cellEdit)
-   {
+   /**
+    * Resolves {@code assemblyName} to a Form table, or refuses. A plain (non-Form) Embedded Table
+    * is refused with a pointer to {@code embedded_table_set_cells}, whichever form_table_*
+    * operation (read, insert, delete, set cell, apply) reached this check.
+    */
+   static TableVSAssemblyInfo requireForm(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
@@ -513,9 +512,10 @@ public class FormTableRowService {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is not a Form table -- enable Table > Form Options > Form " +
             "in the Composer before row edits are possible." +
-            (cellEdit && assembly instanceof EmbeddedTableVSAssembly ?
+            (assembly instanceof EmbeddedTableVSAssembly ?
                " To edit the cells of a plain (non-Form) Embedded Table use " +
-               "embedded_table_set_cells." : ""));
+               "embedded_table_set_cells (it edits existing cells; it cannot insert or " +
+               "delete rows)." : ""));
       }
 
       return info;

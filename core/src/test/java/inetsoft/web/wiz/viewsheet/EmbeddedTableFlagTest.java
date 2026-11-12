@@ -113,27 +113,26 @@ class EmbeddedTableFlagTest {
    }
 
    @Test
-   void formTableSetCellRefusalPointsAPlainEmbeddedTableAtTheCellTool() {
+   void formTableRefusalPointsAPlainEmbeddedTableAtTheCellTool() {
       Viewsheet vs = new Viewsheet();
       vs.addAssembly(new EmbeddedTableVSAssembly(vs, GRID));
       vs.addAssembly(new TableVSAssembly(vs, "Plain"));
       RuntimeViewsheet rvs = runtime(vs);
 
+      // every form_table_* operation (read, insert, delete, set cell, apply) goes through
+      // requireForm, so one refusal covers them all
       IllegalArgumentException embedded = assertThrows(IllegalArgumentException.class,
-         () -> FormTableRowService.requireForm(rvs, GRID, true));
+         () -> FormTableRowService.requireForm(rvs, GRID));
       assertTrue(embedded.getMessage().contains("is not a Form table"), embedded.getMessage());
       assertTrue(embedded.getMessage().contains("embedded_table_set_cells"),
                  embedded.getMessage());
+      assertTrue(embedded.getMessage().contains("cannot insert or delete rows"),
+                 embedded.getMessage());
 
       IllegalArgumentException plain = assertThrows(IllegalArgumentException.class,
-         () -> FormTableRowService.requireForm(rvs, "Plain", true));
+         () -> FormTableRowService.requireForm(rvs, "Plain"));
       assertTrue(plain.getMessage().contains("is not a Form table"), plain.getMessage());
       assertFalse(plain.getMessage().contains("embedded_table_set_cells"), plain.getMessage());
-
-      IllegalArgumentException rowEdit = assertThrows(IllegalArgumentException.class,
-         () -> FormTableRowService.requireForm(rvs, GRID, false));
-      assertFalse(rowEdit.getMessage().contains("embedded_table_set_cells"),
-                  rowEdit.getMessage());
    }
 
    /**
