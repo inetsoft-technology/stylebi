@@ -1045,8 +1045,14 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
                }
 
                resetMV(table, (TableFilter2) data);
-               put(key, data, key.getTimeout());
-               putDependence(key, table);
+
+               // a result that came with an error message is not cached: a cache hit does not
+               // replay the message, and the user would see the bad result without the
+               // reason (bug #81091)
+               if(userMessage == null || userMessage.getLevel() != ConfirmException.ERROR) {
+                  put(key, data, key.getTimeout());
+                  putDependence(key, table);
+               }
             }
          }
          finally {

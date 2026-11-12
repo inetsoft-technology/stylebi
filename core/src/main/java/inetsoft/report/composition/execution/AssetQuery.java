@@ -51,6 +51,7 @@ import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.util.script.graal.pool.SlotClaim;
 import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
@@ -989,6 +990,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
             try {
                WSExecution.setAssetQuerySandbox(box);
+               boolean errorBefore = hasErrorMessage();
                base = getRuntimeTableLens(vars);
 
                if(base == null) {
@@ -999,7 +1001,10 @@ public abstract class AssetQuery extends PreAssetQuery {
                   return base;
                }
 
-               if(key != null) {
+               // a result that came with an error message is not cached: a cache hit does
+               // not replay the message, so the user would see the result without the
+               // reason (bug #81091)
+               if(key != null && (errorBefore || !hasErrorMessage())) {
                   TableLens cached =
                      AssetDataCache.getCache().setCachedData(key, base, getTable());
 
@@ -1093,6 +1098,13 @@ public abstract class AssetQuery extends PreAssetQuery {
       }
 
       return base;
+   }
+
+   /**
+    * Check if an error level user message is pending on this thread.
+    */
+   private static boolean hasErrorMessage() {
+      return !CoreTool.getUserMessages(MessageCommand.Type.ERROR).isEmpty();
    }
 
    /**
