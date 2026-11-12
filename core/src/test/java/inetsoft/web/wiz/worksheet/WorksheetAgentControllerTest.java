@@ -15895,6 +15895,13 @@ class WorksheetAgentControllerTest {
    private Worksheet runAttributesTable(String token, EditRequest req, String[] note)
       throws Exception
    {
+      return runAttributesTable(token, req, note, entity -> attributesOf(entity));
+   }
+
+   private Worksheet runAttributesTable(String token, EditRequest req, String[] note,
+                                        java.util.function.Function<String, XAttribute[]> visible)
+      throws Exception
+   {
       Principal agent = TestPrincipals.user("alice", "host-org");
       XDataModel dataModel = mock(XDataModel.class);
       when(dataModel.getLogicalModel("Order Model")).thenReturn(multiEntityModel());
@@ -15921,13 +15928,34 @@ class WorksheetAgentControllerTest {
          dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
          mock(XRepository.class), mock(QueryManagerService.class));
 
-      EditResponse resp = ctrl.edit(token, req, agent).getBody();
+      EditResponse resp;
+
+      // The visible attributes are the user's VPM view of the model.
+      try(org.mockito.MockedStatic<inetsoft.uql.util.XUtil> xutil =
+             mockStatic(inetsoft.uql.util.XUtil.class, org.mockito.Mockito.CALLS_REAL_METHODS))
+      {
+         xutil.when(() -> inetsoft.uql.util.XUtil.getAttributes(
+               eq("Examples/Orders"), eq("Order Model"), any(), eq(agent), eq(true), eq(true)))
+            .thenAnswer(inv -> visible.apply(inv.getArgument(2)));
+         resp = ctrl.edit(token, req, agent).getBody();
+      }
 
       if(note != null && resp != null) {
          note[0] = resp.note();
       }
 
       return ws;
+   }
+
+   private static XAttribute[] attributesOf(String entity) {
+      List<XAttribute> list = new ArrayList<>();
+      XEntity xe = multiEntityModel().getEntity(entity);
+
+      if(xe != null) {
+         xe.getAttributes().asIterator().forEachRemaining(list::add);
+      }
+
+      return list.toArray(new XAttribute[0]);
    }
 
    private static List<String> modelColumnNames(Worksheet ws, String table) {
@@ -16035,6 +16063,52 @@ class WorksheetAgentControllerTest {
          () -> runAttributesTable("TOK-81176-I",
             attributesRequest("T", List.of(Map.of("ref", "Customer"))), null));
       assertTrue(badRef.getMessage().contains("is not an entity.attribute"), badRef.getMessage());
+   }
+
+   @Test
+   void anAttributeTheUserCannotSeeIsRefusedAndAnEntityWithNoneVisibleOffersNothing81176()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditRequest req = attributesRequest("T", List.of(
+         Map.of("entity", "Supplier", "attribute", "Company")));
+
+      // VPM hides every attribute of Supplier: nothing is visible for it.
+      PairingException none = assertThrows(PairingException.class,
+         () -> runWithVisibility("TOK-81176-N", req, agent, entity -> new XAttribute[0]));
+      assertTrue(none.getMessage().contains("attributes[0]: Supplier.Company is not accessible"),
+                 none.getMessage());
+
+      // Only Name of Customer is visible: Company is refused, Name is built.
+      EditRequest company = attributesRequest("T", List.of(
+         Map.of("entity", "Customer", "attribute", "Company")));
+      PairingException hidden = assertThrows(PairingException.class,
+         () -> runWithVisibility("TOK-81176-O", company, agent,
+            entity -> new XAttribute[] {new XAttribute("Name", "SA.CUSTOMERS", "NAME", XSchema.STRING)}));
+      assertTrue(hidden.getMessage().contains("Customer.Company is not accessible"),
+                 hidden.getMessage());
+   }
+
+   @Test
+   void aVisibilityLookupThatFailsRefusesTheRequest81176() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditRequest req = attributesRequest("T", List.of(
+         Map.of("entity", "Customer", "attribute", "Name")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> runWithVisibility("TOK-81176-P", req, agent, entity -> {
+            throw new IllegalStateException("vpm unavailable");
+         }));
+      assertTrue(ex.getMessage().contains("could not check which attributes of Customer"),
+                 ex.getMessage());
+   }
+
+   /** Runs the request with the user's visible attributes given by {@code visible}. */
+   private Worksheet runWithVisibility(String token, EditRequest req, Principal agent,
+                                       java.util.function.Function<String, XAttribute[]> visible)
+      throws Exception
+   {
+      return runAttributesTable(token, req, null, visible);
    }
 
    @Test

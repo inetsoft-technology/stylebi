@@ -38,8 +38,11 @@ import inetsoft.util.TimedQueue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.erm.XEntity;
+import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.util.XUtil;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
@@ -804,8 +807,8 @@ public class WorksheetEditService {
        * the query would produce no data for it), so only the restore of a removed column of an
        * entity already in the table is accepted.
        */
-      private static void requireModelColumnRestore(String table, String name,
-                                                    TableAssembly t, ColumnSelection cs)
+      private void requireModelColumnRestore(String table, String name,
+                                             TableAssembly t, ColumnSelection cs)
          throws PairingException
       {
          if(!(t instanceof BoundTableAssembly bound) || bound.getSourceInfo() == null ||
@@ -814,13 +817,28 @@ public class WorksheetEditService {
             return;
          }
 
+         XLogicalModel model = null;
+         boolean modelRead = false;
+
          for(int i = 0; i < cs.getAttributeCount(); i++) {
             String entity = cs.getAttribute(i).getEntity();
 
             if(entity != null && !entity.isEmpty() && name.startsWith(entity + ".") &&
                name.length() > entity.length() + 1)
             {
-               return;
+               // The name must also be an attribute of that entity: anything else would be
+               // listed by the table but produce no data. A model that cannot be read cannot
+               // vouch for the name, so it is refused as well.
+               if(!modelRead) {
+                  model = XUtil.getLogicModel(bound.getSourceInfo(), agent);
+                  modelRead = true;
+               }
+
+               XEntity xentity = model == null ? null : model.getEntity(entity);
+
+               if(xentity != null && xentity.getAttribute(name.substring(entity.length() + 1)) != null) {
+                  return;
+               }
             }
          }
 

@@ -1393,25 +1393,29 @@ public class WorksheetAgentController {
                + " (already attributes[" + seen.indexOf(key) + "]).");
          }
 
-         // Attributes the user's VPM hides are not offered (Composer skips them in the drop).
-         Set<String> names = visible.computeIfAbsent(entity.getName(), n -> {
+         // Attributes the user's VPM hides are not offered (Composer skips them in the drop). An
+         // entity with nothing visible, or a visibility that cannot be computed, offers nothing.
+         Set<String> names = visible.get(entity.getName());
+
+         if(names == null) {
+            names = new HashSet<>();
+
             try {
-               Set<String> set = new HashSet<>();
-
                for(XAttribute xa : inetsoft.uql.util.XUtil.getAttributes(
-                  datasourceName, logicalModelName, n, user, true, true))
+                  datasourceName, logicalModelName, entity.getName(), user, true, true))
                {
-                  set.add(xa.getName());
+                  names.add(xa.getName());
                }
-
-               return set;
             }
             catch(Exception ex) {
-               return new HashSet<>();
+               throw new PairingException(at + ": could not check which attributes of "
+                  + entity.getName() + " are accessible: " + ex.getMessage());
             }
-         });
 
-         if(!names.isEmpty() && !names.contains(attr.getName())) {
+            visible.put(entity.getName(), names);
+         }
+
+         if(!names.contains(attr.getName())) {
             throw new PairingException(at + ": " + entity.getName() + "." + attr.getName()
                + " is not accessible to this user.");
          }

@@ -28,6 +28,9 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.XAttribute;
+import inetsoft.uql.erm.XEntity;
+import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
@@ -2424,16 +2427,48 @@ class WorksheetEditServiceTest {
       assertEquals(1, t.getColumnSelection(false).getAttributeCount());
    }
 
-   @Test
-   void addColumnStillRestoresAQualifiedColumnOfAnEntityInTheTable81176() throws Exception {
+   /** A logical model "lm" with entity Order holding Date and Paid. */
+   private static XLogicalModel orderModel() {
+      XEntity order = new XEntity("Order");
+      order.addAttribute(new XAttribute("Date", "SA.ORDERS", "DATE", XSchema.DATE));
+      order.addAttribute(new XAttribute("Paid", "SA.ORDERS", "PAID", XSchema.DOUBLE));
+      XLogicalModel model = new XLogicalModel("lm");
+      model.addEntity(order);
+      return model;
+   }
+
+   private void addColumnOnModelTable(String name, XLogicalModel model) throws Exception {
       Worksheet ws = new Worksheet();
       BoundTableAssembly t = modelTable(ws, "Order.Date");
       ws.addAssembly(t);
       WorksheetEditService svc = serviceFor(ws);
 
-      svc.apply("TOK", TestPrincipals.user("alice", "host-org"),
-                ed -> ed.addColumn("T", "Order.Paid", null));
+      try(org.mockito.MockedStatic<inetsoft.uql.util.XUtil> xutil =
+             mockStatic(inetsoft.uql.util.XUtil.class, org.mockito.Mockito.CALLS_REAL_METHODS))
+      {
+         xutil.when(() -> inetsoft.uql.util.XUtil.getLogicModel(any(), any())).thenReturn(model);
+         svc.apply("TOK", TestPrincipals.user("alice", "host-org"),
+                   ed -> ed.addColumn("T", name, null));
+      }
 
       assertEquals(2, t.getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void addColumnStillRestoresAQualifiedModelAttributeOfAnEntityInTheTable81176() throws Exception {
+      addColumnOnModelTable("Order.Paid", orderModel());
+   }
+
+   @Test
+   void addColumnRefusesAnUnknownAttributeOfAnEntityInTheTable81176() throws Exception {
+      PairingException ex = assertThrows(PairingException.class,
+         () -> addColumnOnModelTable("Order.Bogus", orderModel()));
+      assertTrue(ex.getMessage().contains("add_table with logicalModel and attributes"),
+                 ex.getMessage());
+   }
+
+   @Test
+   void addColumnRefusesAQualifiedNameWhenTheModelCannotBeRead81176() throws Exception {
+      assertThrows(PairingException.class, () -> addColumnOnModelTable("Order.Paid", null));
    }
 }
