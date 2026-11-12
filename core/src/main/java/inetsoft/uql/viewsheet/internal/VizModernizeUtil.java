@@ -187,10 +187,11 @@ public final class VizModernizeUtil {
             // only content leaving the classic look
             if(info.getVizMark() == null) {
                clearResidue(info);
-            }
 
-            if(info instanceof ChartVSAssemblyInfo chart) {
-               chart.requestLegendCount();
+               // a light/dark switch keeps the saved verdict
+               if(info instanceof ChartVSAssemblyInfo chart) {
+                  chart.requestLegendCount();
+               }
             }
          }
       }
