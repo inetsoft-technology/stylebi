@@ -192,7 +192,8 @@ class DateRangeRefDialectTest {
             database, new AttributeRef(null, "c"), DateRangeRef.NONE_INTERVAL);
 
          // ClickHouse and H2 define no date function at all, not even "none", so a column
-         // without a date group is not pushed there either; that looks like an omission
+         // without a date group is not pushed there either; the group is then computed in memory
+         // and the result is the same, only the work is not done by the database
          String expected = "clickhouse".equals(database) || "h2".equals(database) ?
             "" : "field['c']";
          assertEquals(expected, expression, database);

@@ -243,7 +243,7 @@ class DateConditionBuiltinTest {
    // a timestamp is compared with the instant of the start and end, a date with the days. A
    // timestamp earlier in the day of the start is in the pushed down sql (the start is the start
    // of that day) but not in the in-memory evaluation (the start is this time of that day).
-   // Pins the current behavior.
+   // Pins the current behavior, reported as Bug #81178 (also later today, and a java.util.Date).
    @Test
    void timestampEarlierOnTheStartDayIsInSqlButNotInMemory() {
       LocalDateTime before = LocalDateTime.now();
@@ -355,7 +355,8 @@ class DateConditionBuiltinTest {
       sameDay(today);
    }
 
-   // a value out of the range is ignored by the setters, the old one is kept
+   // a value out of the range is ignored by the setters, the old one is kept: a guard against a
+   // wrong call (the xml parser sets the fields directly)
    @Test
    void settersIgnoreValuesOutOfRange() {
       DateCondition.NthQuarterCondition quarter = new DateCondition.NthQuarterCondition(2, 1);

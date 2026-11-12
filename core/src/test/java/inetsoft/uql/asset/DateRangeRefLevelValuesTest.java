@@ -198,7 +198,8 @@ class DateRangeRefLevelValuesTest {
 
    // the constants for am/pm and millisecond exist in XConstants (AM_PM_DATE_GROUP,
    // MILLISECOND_DATE_GROUP, AM_PM_OF_DAY_DATE_GROUP) but getData has no such level and rejects
-   // them. Pins the current behavior.
+   // them. The web client defines the constants but no dialog uses them; the viewsheet script
+   // constants (ChartConstants) list them. Pins the current behavior.
    @Test
    void amPmAndMillisecondAreNotRangeLevels() {
       Timestamp date = ts(DATES[0]);

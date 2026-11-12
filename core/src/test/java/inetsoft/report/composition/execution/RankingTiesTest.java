@@ -144,9 +144,10 @@ class RankingTiesTest {
       assertEquals(List.of("b", "c", "d", "a", "f", "e"), rank(XCondition.TOP_N, 20, false));
    }
 
-   // the "equal" option of the ranking condition is not used by a worksheet table: the viewsheet
-   // top N passes it on (SummaryFilter.setTopN), the worksheet one sets equality kept to false.
-   // Pins the current behavior.
+   // the "equal" option of the ranking condition is not used by a worksheet table, by design: the
+   // viewsheet top N is per group and passes it on (SummaryFilter.setTopN), the worksheet top N is
+   // flat (AssetQuery.getRankingTableLens) and keeps exactly N rows. The condition editor has no
+   // option for ties either.
    @Test
    void equalOptionIsIgnoredByAWorksheetTable() throws Exception {
       assertEquals(List.of("b", "c"), rank(XCondition.TOP_N, 2, true));
