@@ -216,7 +216,10 @@ public class ModernCopyService {
    private static void countLegends(RuntimeViewsheet rvs, Viewsheet vs) {
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
 
-      if(box == null) {
+      // only a composer draw of real rows takes a count
+      if(box == null || vs.getViewsheetInfo().isMetadata() ||
+         box.getMode() != Viewsheet.SHEET_DESIGN_MODE)
+      {
          return;
       }
 
@@ -236,6 +239,10 @@ public class ModernCopyService {
             box.getVGraphPair(name);
          }
          catch(Exception ex) {
+            if(ex instanceof InterruptedException) {
+               Thread.currentThread().interrupt();
+            }
+
             // the count stays pending for the composer's draw
             LOG.debug("Failed to count the legend of {}", name, ex);
          }

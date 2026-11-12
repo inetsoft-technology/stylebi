@@ -179,7 +179,8 @@ public final class VizModernizeUtil {
    /**
     * Stamp and seed the targets, after an unmarked target moving to a modern mark drops its
     * residue. A mark change re-seeds sizes and title lanes, so it re-flushes bottom-tabs children
-    * as a density change does. Nothing moves when nothing was seeded.
+    * as a density change does. Nothing moves when nothing was seeded. A chart leaving the
+    * classic look requests a legend count; one already marked keeps its saved verdict.
     */
    private static int moveMark(Viewsheet vs, VizMark mark, List<VSAssemblyInfo> targets) {
       if(mark != null) {
@@ -188,7 +189,7 @@ public final class VizModernizeUtil {
             if(info.getVizMark() == null) {
                clearResidue(info);
 
-               // a light/dark switch keeps the saved verdict
+               // classic to marked takes a count; marked to marked keeps the saved verdict
                if(info instanceof ChartVSAssemblyInfo chart) {
                   chart.requestLegendCount();
                }
