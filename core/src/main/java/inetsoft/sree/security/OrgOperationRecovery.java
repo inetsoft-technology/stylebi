@@ -52,18 +52,35 @@ public final class OrgOperationRecovery {
     * @return the number of operations that were recovered.
     */
    public static int recover(Actions actions) {
-      return recover(OrgOperationJournal.getInstance(), actions, OrgOperationRecovery::isAbandoned);
+      return recoverEntries(actions).size();
+   }
+
+   /**
+    * Recovers the interrupted operations of the cluster with the default journal.
+    *
+    * @return the records of the operations that were recovered.
+    */
+   public static List<Entry> recoverEntries(Actions actions) {
+      return recoverEntries(OrgOperationJournal.getInstance(), actions,
+                            OrgOperationRecovery::isAbandoned);
    }
 
    static int recover(OrgOperationJournal journal, Actions actions, Abandoned abandoned) {
+      return recoverEntries(journal, actions, abandoned).size();
+   }
+
+   static List<Entry> recoverEntries(OrgOperationJournal journal, Actions actions,
+                                     Abandoned abandoned)
+   {
+      List<Entry> recovered = new ArrayList<>();
+
       // the common case, nothing was interrupted, costs a read of an empty store
       if(journal.list().isEmpty()) {
-         return 0;
+         return recovered;
       }
 
       Lock lock = Cluster.getInstance().getLock(LOCK_NAME);
       lock.lock();
-      int count = 0;
 
       try {
          // read again under the lock, another node may have recovered the operation meanwhile
@@ -83,7 +100,7 @@ public final class OrgOperationRecovery {
                }
 
                journal.complete(entry.getOpId());
-               count++;
+               recovered.add(entry);
             }
             catch(Exception e) {
                // kept, so that the next call tries again. The ids stay refused until then, as
@@ -97,7 +114,7 @@ public final class OrgOperationRecovery {
          lock.unlock();
       }
 
-      return count;
+      return recovered;
    }
 
    /**

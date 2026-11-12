@@ -1408,7 +1408,13 @@ public class UserTreeService {
       // Bug #79875, before the organization is looked up, an interrupted clone or id change is
       // finished or undone
       if(provider instanceof EditableAuthenticationProvider) {
-         identityService.recoverInterruptedOrganizationOperations(principal);
+         // the request edits the organization that the model names. After a recovery of an
+         // operation on it, the model is stale: its members would be written over the recovered
+         // organization
+         String requestedOldId = provider.getOrganizationId(model.oldName());
+         IdentityService.checkNotRecovered(
+            identityService.recoverInterruptedOrganizationOperations(principal), requestedOldId,
+            model.id());
       }
 
       final Organization oldOrg = provider.getOrganization(provider.getOrganizationId(model.oldName()));

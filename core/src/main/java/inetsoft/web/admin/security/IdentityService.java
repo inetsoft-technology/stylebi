@@ -1368,15 +1368,21 @@ public class IdentityService {
       IdentityID[] newUsers = memberModels.stream()
          .filter(member -> member.type() == Identity.USER)
          .filter(newUser -> Arrays.stream(users).noneMatch(oldUser -> oldUser.getName().equals(newUser.identityID().getName())))
+         // Bug #79875, a resumed id change has moved the members already, a member that exists
+         // in the new organization is not new, a blank one would overwrite it when the
+         // identities that are left in the old organization are copied
+         .filter(newUser -> !isMovedMember(newUser, orgID, eprovider))
          .map(IdentityModel::identityID).toArray(IdentityID[]::new);
       IdentityID[] newGroups = memberModels.stream()
          .filter(member -> member.type() == Identity.GROUP)
          .filter(newGroup -> Arrays.stream(groups).noneMatch(oldGroup -> oldGroup.getName().equals(newGroup.identityID().getName())))
+         .filter(newGroup -> !isMovedMember(newGroup, orgID, eprovider))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
       IdentityID[] newRoles = memberModels.stream()
          .filter(member -> member.type() == Identity.ROLE)
          .filter(newRole -> Arrays.stream(roles).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
+         .filter(newRole -> !isMovedMember(newRole, orgID, eprovider))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
       // compare with the edited organization's old id, not the current organization, which differs
@@ -1523,6 +1529,27 @@ public class IdentityService {
          FSRole role = new FSRole(newRoles[i]);
          eprovider.setRole(role.getIdentityID(), role);
       }
+   }
+
+   /**
+    * Determines if a member of the saved model already exists in the organization, as the member
+    * of the id change that is resumed was moved by the part of the change that ran.
+    */
+   private boolean isMovedMember(IdentityModel member, String orgID,
+                                 EditableAuthenticationProvider eprovider)
+   {
+      if(RESUMING.get() == null || member.identityID() == null) {
+         return false;
+      }
+
+      IdentityID id = new IdentityID(member.identityID().getName(), orgID);
+
+      return switch(member.type()) {
+         case Identity.USER -> eprovider.getUser(id) != null;
+         case Identity.GROUP -> eprovider.getGroup(id) != null;
+         case Identity.ROLE -> eprovider.getRole(id) != null;
+         default -> false;
+      };
    }
 
    private void updateRoleForOrg(Organization identity, FSRole role, String orgID, String oldOrgID,
@@ -2567,7 +2594,9 @@ public class IdentityService {
 
          if(type == Identity.ORGANIZATION) {
             // Bug #79875, an interrupted clone or id change makes the new id unusable
-            recoverInterruptedOrganizationOperations(principal);
+            checkNotRecovered(recoverInterruptedOrganizationOperations(principal),
+                              ((Organization) identity).getId(),
+                              ((EditOrganizationPaneModel) model).id());
             checkDefaultOrganizationRename((Organization) identity, (EditOrganizationPaneModel) model);
             OrganizationIdRules.checkRename(((Organization) identity).getId(),
                                             ((EditOrganizationPaneModel) model).id());
@@ -3647,9 +3676,11 @@ public class IdentityService {
     *
     * @return the number of operations that were recovered.
     */
-   public int recoverInterruptedOrganizationOperations(Principal principal) {
+   public List<OrgOperationJournal.Entry> recoverInterruptedOrganizationOperations(
+      Principal principal)
+   {
       try {
-         return OrgOperationRecovery.recover(new OrgOperationRecovery.Actions() {
+         return OrgOperationRecovery.recoverEntries(new OrgOperationRecovery.Actions() {
             @Override
             public void rollForwardRename(OrgOperationJournal.Entry entry) throws Exception {
                resumeOrganizationRename(entry, principal);
@@ -3664,7 +3695,36 @@ public class IdentityService {
       catch(RuntimeException e) {
          // the request goes on, an id that is still blocked is refused with the usual message
          LOG.error("Failed to recover the interrupted organization operations", e);
-         return 0;
+         return List.of();
+      }
+   }
+
+   /**
+    * Bug #79875, stops a request that was built on the state of an organization before an
+    * interrupted operation on it was recovered. The request continues with a model of the
+    * organization as it was, which after the recovery would be written over the recovered
+    * organization (a member that is not in the model is deleted). The recovery itself is done, so
+    * the administrator only has to reload the organization.
+    *
+    * @param recovered the operations that were recovered before the request.
+    * @param orgIds    the ids of the organization that the request edits.
+    *
+    * @throws MessageException if one of the recovered operations is on one of the ids.
+    */
+   public static void checkNotRecovered(List<OrgOperationJournal.Entry> recovered,
+                                        String... orgIds) throws MessageException
+   {
+      for(OrgOperationJournal.Entry entry : recovered) {
+         for(String id : orgIds) {
+            if(entry.involves(id)) {
+               throw new MessageException(
+                  "The interrupted " +
+                  (entry.getType() == OrgOperationJournal.Type.CLONE ? "clone" : "id change") +
+                  " of organization " + entry.getFromId() + " to " + entry.getToId() +
+                  " was completed or undone just now. Reload the organization and apply the " +
+                  "change again if it is still needed.");
+            }
+         }
       }
    }
 
@@ -3687,6 +3747,11 @@ public class IdentityService {
 
       EditOrganizationPaneModel model = fromJson(entry.getPayload());
       Organization fromOrg = eprovider.getOrganization(fromId);
+      LOG.info("Resuming the id change of organization {} to {} ({}): old organization {}, new " +
+               "organization {}, before: {}", fromId, toId, entry.getOpId(),
+               fromOrg != null ? "exists" : "gone",
+               eprovider.getOrganization(toId) != null ? "exists" : "absent",
+               describeOrganizationIdentities(eprovider, fromId, toId));
       String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       String fromName = fromOrg != null ? fromOrg.getName() : fromId;
 
@@ -3714,9 +3779,34 @@ public class IdentityService {
          OrganizationManager.getInstance().setCurrentOrgID(currentOrgId);
       }
 
+      LOG.info("Resumed the id change of organization {} to {} ({}): new organization {}, " +
+               "after: {}", fromId, toId, entry.getOpId(),
+               eprovider.getOrganization(toId) != null ? "exists" : "absent",
+               describeOrganizationIdentities(eprovider, fromId, toId));
       cluster.sendMessage(new IdentityChangedMessage(
          Identity.ORGANIZATION, new IdentityID(model.name(), toId),
          new IdentityID(fromName, fromId)));
+   }
+
+   private static String describeOrganizationIdentities(EditableAuthenticationProvider provider,
+                                                        String fromId, String toId)
+   {
+      try {
+         return "users " + provider.getUsers().length + " (" + countOrg(provider.getUsers(), fromId) +
+            " in " + fromId + ", " + countOrg(provider.getUsers(), toId) + " in " + toId +
+            "), groups (" + countOrg(provider.getGroups(), fromId) + ", " +
+            countOrg(provider.getGroups(), toId) + "), roles (" +
+            countOrg(provider.getRoles(), fromId) + ", " + countOrg(provider.getRoles(), toId) +
+            ")";
+      }
+      catch(RuntimeException e) {
+         return "unknown (" + e + ")";
+      }
+   }
+
+   private static long countOrg(IdentityID[] ids, String orgId) {
+      return ids == null ? 0 : Arrays.stream(ids).filter(i -> Tool.equals(orgId, i.getOrgID()))
+         .count();
    }
 
    /**
@@ -3765,6 +3855,10 @@ public class IdentityService {
          throw new IllegalStateException("There is no editable authentication provider");
       }
 
+      LOG.info("Undoing the clone of organization {} to {} ({}): organization {}, identities: {}",
+               entry.getFromId(), toId, entry.getOpId(),
+               eprovider.getOrganization(toId) != null ? "exists" : "absent",
+               describeOrganizationIdentities(eprovider, entry.getFromId(), toId));
       String opId = OrgIdChangeGuard.isRunning(toId) ? null : OrgIdChangeGuard.begin(toId);
 
       try {
