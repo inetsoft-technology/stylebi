@@ -173,6 +173,22 @@ class LegendTitleFlagTest {
       assertTrue(a.isTitleVisible() && b.isTitleVisible());
    }
 
+   @Test
+   void allLegendDescriptorFansOutTheDialogsTypedTitle() {
+      LegendDescriptor a = new LegendDescriptor();
+      LegendDescriptor b = new LegendDescriptor();
+      a.setTitleVisible(false);
+      b.setTitleVisible(false);
+      AllLegendDescriptor all = new AllLegendDescriptor(List.of(a, b));
+
+      all.setAuthorTitleValue("Brands");
+
+      assertEquals("Brands", a.getTitleValue());
+      assertEquals("Brands", b.getTitleValue());
+      assertTrue(a.isUserTitleVisible() && b.isUserTitleVisible());
+      assertTrue(a.isTitleVisible() && b.isTitleVisible());
+   }
+
    // the XML a build without the flag wrote, read by this one
    private static LegendDescriptor oldFile(LegendDescriptor desc) throws Exception {
       return parse(write(desc).replaceAll(" userTitleVisible=\"[a-z]*\"", ""));
