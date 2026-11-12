@@ -39,12 +39,33 @@ import java.util.List;
  * ({@code "global"}, {@code "user"}, or {@code "report"} / {@code "scope-<n>"} for any other
  * scope). {@code embeddedScope} reuses the vocabulary {@code add_assembly} accepts, because a user
  * dashboard and a global one can share a path. Both are null on every other node.
+ *
+ * <p>{@code maximized} and {@code maxSize} are the assembly's own Maximize ("Show Enlarged")
+ * state, read from its assembly info the way the Viewer does: {@code maximized} is true exactly
+ * when {@code maxSize} is set. Every node carries the pair, so a type that has no Maximize state
+ * reads {@code false}/null rather than leaving the field out. A Selection List inside a maximized
+ * Selection Container reports its own state, not its container's; the container node carries it.
  */
 public record AssemblyNode(String name, String type, int x, int y, int width, int height,
                            int zIndex, String container, boolean visible,
                            List<String> annotationParts, String annotationContent,
                            String selectedPage, List<String> children,
-                           String embeddedPath, String embeddedScope) {
+                           String embeddedPath, String embeddedScope,
+                           boolean maximized, MaxSize maxSize) {
+   /** The enlarged size, as {@code set_assembly_maximized} reports it. */
+   public record MaxSize(int width, int height) {
+   }
+
+   public AssemblyNode(String name, String type, int x, int y, int width, int height,
+                       int zIndex, String container, boolean visible,
+                       List<String> annotationParts, String annotationContent,
+                       String selectedPage, List<String> children,
+                       String embeddedPath, String embeddedScope)
+   {
+      this(name, type, x, y, width, height, zIndex, container, visible, annotationParts,
+           annotationContent, selectedPage, children, embeddedPath, embeddedScope, false, null);
+   }
+
    public AssemblyNode(String name, String type, int x, int y, int width, int height,
                        int zIndex, String container, boolean visible,
                        List<String> annotationParts, String annotationContent,
