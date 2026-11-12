@@ -797,6 +797,8 @@ public class RepletRegistry implements Serializable {
          dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
 
          try {
+            // change-detection digest of the registry file, not a security use.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
             MessageDigest written = MessageDigest.getInstance("MD5");
             // digest of the bytes this copy wrote, so that a commit of another writer landing
             // before the token would be read is not taken for this copy's own

@@ -561,6 +561,8 @@ public class RepositoryTreeController {
 
          if(!SUtil.checkPermission(principal, entry, analyticRepository, ResourceAction.DELETE)) {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+            // audit message text, not SQL.
+            // nosemgrep: java.spring.security.injection.tainted-sql-string.tainted-sql-string
             actionRecord.setActionError("Delete access denied: " + objectName);
             throw new RemoteException("Delete access denied: " + objectName);
          }

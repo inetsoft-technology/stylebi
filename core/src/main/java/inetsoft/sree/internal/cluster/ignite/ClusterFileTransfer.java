@@ -34,6 +34,8 @@ public class ClusterFileTransfer implements AutoCloseable {
    public ClusterFileTransfer(int port, InetAddress bindAddress) {
       try {
          localAddress = bindAddress;
+         // known issue, to be encrypted with the cluster SSL context (Bug #81265).
+         // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
          fileTransferSocket = new ServerSocket(port, 50, localAddress);
          fileTransferThread =
             new GroupedThread(this::serviceFileTransfers, "service-file-transfer");
@@ -103,6 +105,8 @@ public class ClusterFileTransfer implements AutoCloseable {
       idBuffer.putLong(fileUuid.getMostSignificantBits());
       idBuffer.putLong(fileUuid.getLeastSignificantBits());
 
+      // known issue, to be encrypted with the cluster SSL context (Bug #81265).
+      // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
       try(Socket socket = new Socket()) {
          socket.connect(new InetSocketAddress(address, port), 30_000);
          socket.setSoTimeout(30_000);

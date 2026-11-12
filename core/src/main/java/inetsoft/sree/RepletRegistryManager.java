@@ -383,6 +383,8 @@ public class RepletRegistryManager {
          DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
          try {
+            // only used for newDocument(); nothing is parsed with it.
+            // nosemgrep: java.lang.security.audit.xxe.documentbuilderfactory-disallow-doctype-decl-missing.documentbuilderfactory-disallow-doctype-decl-missing
             DocumentBuilder docBuilder = factory.newDocumentBuilder();
             Document document;
 

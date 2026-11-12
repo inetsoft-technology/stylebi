@@ -3240,6 +3240,8 @@ public class CoreTool {
          // @by yuz, save resource about creating DocumentBuilder
          if(builder == null) {
             DocumentBuilderFactory bfactory = DocumentBuilderFactory.newInstance();
+            // only used for newDocument(); parsing goes through the hardened StAX path.
+            // nosemgrep: java.lang.security.audit.xxe.documentbuilderfactory-disallow-doctype-decl-missing.documentbuilderfactory-disallow-doctype-decl-missing
             builder = bfactory.newDocumentBuilder();
          }
          else {
@@ -3406,6 +3408,8 @@ public class CoreTool {
          }
       }
 
+      // the factory is hardened (doctype disallowed, external entities off) when it is created above.
+      // nosemgrep: java.lang.security.audit.xxe.saxparserfactory-disallow-doctype-decl-missing.saxparserfactory-disallow-doctype-decl-missing
       saxParserFactory.newSAXParser().parse(input, handler);
    }
 
@@ -3436,6 +3440,8 @@ public class CoreTool {
          }
       }
 
+      // the factory is hardened (doctype disallowed, external entities off) when it is created above.
+      // nosemgrep: java.lang.security.audit.xxe.documentbuilderfactory-disallow-doctype-decl-missing.documentbuilderfactory-disallow-doctype-decl-missing
       DocumentBuilder builder = docFactory.newDocumentBuilder();
       BufferedReader br = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
       return builder.parse(new InputSource(br));

@@ -4427,6 +4427,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
    private byte[] encrypt(int objnumber, int gennumber, byte[] bytes) {
       if(isEncrypted()) {
          try {
+            // MD5 key derivation is required by the PDF standard security handler.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
             MessageDigest md5 = MessageDigest.getInstance("MD5");
 
             byte[] obj = getReversedByteArray(objnumber);
@@ -4448,6 +4450,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
 
                SecretKeySpec secretKey = new SecretKeySpec(key, "RC4");
 
+               // RC4 is the encryption the PDF standard security handler (V1/R2) specifies.
+               // nosemgrep: java.lang.security.audit.crypto.use-of-rc4.use-of-rc4
                Cipher cipher  = Cipher.getInstance("RC4");
                cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 
@@ -4470,6 +4474,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
 
       if(ownerkey == null && isEncrypted()) {
          try {
+            // MD5 key derivation is required by the PDF standard security handler.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
             MessageDigest md5 = MessageDigest.getInstance("MD5");
 
             String pass = encrypt.getOwnerPassword();
@@ -4489,6 +4495,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
             byte[] padded2 = paddingByteArray(pass.getBytes(), 32, paddingArray);
 
             SecretKeySpec secretKey = new SecretKeySpec(padded, "RC4");
+            // RC4 is the encryption the PDF standard security handler (V1/R2) specifies.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-rc4.use-of-rc4
             Cipher cipher  = Cipher.getInstance("RC4");
             cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 
@@ -4512,6 +4520,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
 
       if(encryptkey == null && isEncrypted() && getOwnerKey() != null) {
          try {
+            // MD5 key derivation is required by the PDF standard security handler.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
             MessageDigest md5 = MessageDigest.getInstance("MD5");
 
             String key = encrypt.getUserPassword();
@@ -4558,6 +4568,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
 
             if(keys != null) {
                SecretKeySpec secretKey = new SecretKeySpec(keys, "RC4");
+               // RC4 is the encryption the PDF standard security handler (V1/R2) specifies.
+               // nosemgrep: java.lang.security.audit.crypto.use-of-rc4.use-of-rc4
                Cipher cipher  = Cipher.getInstance("RC4");
 
                cipher.init(Cipher.ENCRYPT_MODE, secretKey);
@@ -6917,6 +6929,8 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
    private static synchronized boolean isRC4Available() {
       if(RC4_AVAILABLE == null) {
          try {
+            // only checks that an RC4 provider is available.
+            // nosemgrep: java.lang.security.audit.crypto.use-of-rc4.use-of-rc4
             Cipher.getInstance("RC4");
             RC4_AVAILABLE = Boolean.TRUE;
          }

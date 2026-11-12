@@ -1655,6 +1655,8 @@ public class mxUtils {
    {
       StringBuffer result = new StringBuffer(32);
       try {
+         // unused mxGraph helper; not a security use.
+         // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
          MessageDigest md5 = MessageDigest.getInstance("MD5");
          md5.update(text.getBytes());
          Formatter f = new Formatter(result);

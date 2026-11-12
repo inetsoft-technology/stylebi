@@ -258,6 +258,8 @@ public class ImageHashService implements XMLSerializable {
 
    private String computeImageMD5Hash(byte[] imageBytes) throws Exception {
       // Compute MD5 hash
+      // image dedup/cache key, not a security use.
+      // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
       MessageDigest md = MessageDigest.getInstance("MD5");
       byte[] digest = md.digest(imageBytes);
 

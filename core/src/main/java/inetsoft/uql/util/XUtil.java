@@ -4828,6 +4828,8 @@ public final class XUtil {
                "Transformer attribute {} not supported", XMLConstants.ACCESS_EXTERNAL_STYLESHEET);
          }
 
+         // debug pretty-printer of an in-memory DOM; external DTD/stylesheet access is cleared above.
+         // nosemgrep: java.lang.security.audit.xxe.transformerfactory-dtds-not-disabled.transformerfactory-dtds-not-disabled
          Transformer transformer = factory.newTransformer();
          transformer.setOutputProperty(OutputKeys.INDENT, "yes");
          transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
