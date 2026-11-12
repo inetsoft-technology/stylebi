@@ -118,11 +118,12 @@ class ConditionVariableOperatorTest {
       }
 
       @Test
-      void like_questionMarkIsLiteral() throws Exception {
+      void like_percentAndQuestionMarkAreWildcards() throws Exception {
          Condition cond = resolved(XSchema.STRING, XCondition.LIKE, "$(v)", "a%d?");
 
+         assertTrue(cond.evaluate("abcde"));
          assertTrue(cond.evaluate("abcd?"));
-         assertFalse(cond.evaluate("abcde"));
+         assertFalse(cond.evaluate("abcd"));
       }
 
       @Test

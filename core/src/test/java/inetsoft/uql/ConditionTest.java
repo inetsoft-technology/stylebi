@@ -388,16 +388,18 @@ class ConditionTest {
    }
 
    @Test
-   void like_questionMark_isLiteral() {
+   void like_questionMarkWildcard_matchesSingleChar() {
       Condition cond = new Condition(XSchema.STRING);
       cond.setOperation(XCondition.LIKE);
       cond.addValue("hell?");
-      assertFalse(cond.evaluate("hello"));
+      assertTrue(cond.evaluate("hello"));
       assertTrue(cond.evaluate("hell?"));
+      assertFalse(cond.evaluate("hell"));
+      assertFalse(cond.evaluate("helloo"));
    }
 
-   // Same rows as a database LIKE gives for these patterns (Bug #81114): '_' is a single-char
-   // wildcard, '?' is a literal.
+   // Bug #81114: '%' any string, '_' and '?' each one char (same rows on the SQL path, where
+   // '?' is translated to '_').
    private static java.util.List<String> likeRows(String pattern, boolean negated) {
       Condition cond = new Condition(XSchema.STRING);
       cond.setOperation(XCondition.LIKE);
@@ -420,8 +422,9 @@ class ConditionTest {
    }
 
    @Test
-   void like_questionMark_matchesOnlyLiteralQuestionMark() {
-      assertEquals(java.util.List.of("a?c"), likeRows("a?c", false));
+   void like_questionMark_matchesExactlyOneChar_sameRowsAsUnderscore() {
+      assertEquals(java.util.List.of("a?c", "a_c", "abc", "axc"), likeRows("a?c", false));
+      assertEquals(likeRows("a_c", false), likeRows("a?c", false));
    }
 
    @Test
@@ -431,9 +434,9 @@ class ConditionTest {
    }
 
    @Test
-   void like_negated_invertsUnderscoreMatch() {
+   void like_negated_invertsUnderscoreAndQuestionMarkMatch() {
       assertEquals(java.util.List.of("ac", "abbc"), likeRows("a_c", true));
-      assertEquals(java.util.List.of("a_c", "abc", "axc", "ac", "abbc"), likeRows("a?c", true));
+      assertEquals(java.util.List.of("ac", "abbc"), likeRows("a?c", true));
    }
 
    @Test
@@ -489,11 +492,12 @@ class ConditionTest {
    }
 
    @Test
-   void getLikePattern_questionMarkIsLiteral() {
+   void getLikePattern_questionMarkBecomesSingleCharWildcard() {
       java.util.regex.Pattern p = Condition.getLikePattern("a?b", true);
+      assertTrue(p.matcher("axb").find());
       assertTrue(p.matcher("a?b").find());
-      assertFalse(p.matcher("axb").find());
       assertFalse(p.matcher("ab").find());
+      assertFalse(p.matcher("axxb").find());
    }
 
    // ---- NULL: value nullity/emptiness, independent of any comparer -----------------------------

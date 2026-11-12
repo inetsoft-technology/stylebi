@@ -453,6 +453,7 @@ public class ConditionListHandler {
          break;
       case XCondition.LIKE:
          XExpression likeExpression = getExpression(cond, cond.getValue(0), vars);
+         translateLikeWildcards(likeExpression, vars);
          String likeStr = getStripQuotesString(sqlTypes, likeExpression.getValue());
          condnode = new XBinaryCondition(
             field,
@@ -481,6 +482,40 @@ public class ConditionListHandler {
 
       condnode.setIsNot(cond.isNegated());
       return condnode;
+   }
+
+   /**
+    * The in-memory LIKE (Condition.getLikePattern) treats '?' as a single-character wildcard,
+    * like '_'. SQL LIKE only knows '_', so the '?' of a string value is translated to '_'
+    * in the variable table (the same technique as escapeLikeVariable) to select the same
+    * rows. Column expressions, non-string values and SQL expressions are left unchanged.
+    */
+   private void translateLikeWildcards(XExpression expression, VariableTable vars) {
+      Object text = expression.getValue();
+
+      if(!(text instanceof String) || !XExpression.EXPRESSION.equals(expression.getType())) {
+         return;
+      }
+
+      String placeholder = (String) text;
+
+      if(!placeholder.startsWith("$(") || !placeholder.endsWith(")")) {
+         return;
+      }
+
+      String name = placeholder.substring(2, placeholder.length() - 1);
+      Object value;
+
+      try {
+         value = vars.get(name);
+      }
+      catch(Exception ex) {
+         return;
+      }
+
+      if(value instanceof String && ((String) value).indexOf('?') >= 0) {
+         vars.put(name, ((String) value).replace('?', '_'));
+      }
    }
 
    /**
