@@ -421,6 +421,8 @@ class ScheduleManagerExtensionTaskTest {
    void removeTaskCacheOfOrgDropsExtensionTasksAndUnloadsOrgOnly() throws Exception {
       installGeneratedTask(createCycleTask(true));
       loadedOrgs().add(OTHER_ORG);
+      assertTrue(loadedOrgs().contains(ORG), "precondition: org loaded");
+      assertFalse(extensionTaskKeys().isEmpty(), "precondition: extension tasks present");
 
       scheduleManager.removeTaskCacheOfOrg(ORG);
 
@@ -428,6 +430,24 @@ class ScheduleManagerExtensionTaskTest {
       assertTrue(loadedOrgs().contains(OTHER_ORG), "another org must stay loaded");
       assertTrue(extensionTaskKeys().isEmpty(), "extension tasks of the org must be dropped");
       loadedOrgs().remove(OTHER_ORG);
+   }
+
+   @Test
+   void getScheduleTasksReloadsOrgAfterClear() throws Exception {
+      ScheduleExt ext = mock(ScheduleExt.class);
+      ScheduleManager manager = new ScheduleManager(
+         securityEngine, cluster, mock(ScheduleClient.class), mock(DependencyHandler.class));
+      manager.addScheduleExt(ext);
+      when(ext.getTasks(ORG)).thenReturn(List.of());
+      manager.getScheduleTasks(ORG);
+      verify(ext, times(1)).getTasks(ORG);
+
+      manager.getScheduleTasks(ORG);
+      verify(ext, times(1)).getTasks(ORG);
+
+      manager.removeTaskCacheOfOrg(ORG);
+      manager.getScheduleTasks(ORG);
+      verify(ext, times(2)).getTasks(ORG);
    }
 
    @Test
