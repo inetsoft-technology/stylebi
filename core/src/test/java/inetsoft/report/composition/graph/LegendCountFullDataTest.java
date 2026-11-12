@@ -91,7 +91,7 @@ class LegendCountFullDataTest {
       assertEquals(LegendsDescriptor.RIGHT, layout(info));
       assertTrue(info.isLegendCrowded());
       assertFalse(info.isLegendCountPending());
-      assertNotNull(box.getData(CHART, false, DataMap.BINDING), "the bound data was fetched");
+      assertNull(box.getData(CHART, false, DataMap.BINDING), "the full data is not kept");
    }
 
    @Test
@@ -162,7 +162,7 @@ class LegendCountFullDataTest {
       VGraphPair pair = box.getVGraphPair(CHART, true, null);
 
       assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
-      assertNotNull(box.getData(CHART, false, DataMap.BINDING), "premise: the bound data counted");
+      assertNull(box.getData(CHART, false, DataMap.BINDING), "the full data is not kept");
       assertEquals(LegendsDescriptor.TOP, layout(info));
       assertFalse(info.isLegendCrowded());
       assertFalse(info.isLegendCountPending());
@@ -185,7 +185,7 @@ class LegendCountFullDataTest {
 
       assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
       assertEquals(2, LegendEntryCount.count(pair.getEGraph()), "premise: two years drawn");
-      assertNotNull(box.getData(CHART, false, DataMap.BINDING), "premise: the bound data counted");
+      assertNull(box.getData(CHART, false, DataMap.BINDING), "the full data is not kept");
       assertEquals(LegendsDescriptor.TOP, layout(info));
       assertFalse(info.isLegendCrowded());
       assertFalse(info.isLegendCountPending());

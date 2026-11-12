@@ -166,6 +166,18 @@ class DrillLegendKeyTest {
       assertTrue(info.isLegendCountPending());
    }
 
+   @Test
+   void aCloneTakenMidDrillCarriesNoGuard() throws Exception {
+      ChartVSAssemblyInfo info = markedChart();
+      info.guardLegendCountFromDrill();
+      ChartVSAssemblyInfo copy = (ChartVSAssemblyInfo) info.clone();
+
+      copy.getVSChartInfo().setColorField(colorOf(dim("region", XConstants.NONE_DATE_GROUP)));
+      copy.reseedIfResolvedTypeChanged();
+
+      assertTrue(copy.isLegendCountPending());
+   }
+
    private VSChartDrillHandler handler() throws Exception {
       ViewsheetService service = mock(ViewsheetService.class);
       when(service.getViewsheet(any(), any())).thenReturn(mock(RuntimeViewsheet.class));

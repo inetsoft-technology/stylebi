@@ -174,6 +174,35 @@ class LegendAlignmentTest {
       assertEquals(v.getPlotBounds().getCenterX(), (rowMinX(v) + rowMaxX(v)) / 2, 0.5);
    }
 
+   @Test
+   void aWiderRowEndingPastTheGroupsLeftEdgeStartsAtTheEdge() {
+      VGraph v = leftClampRow();
+      assertContentWidthRow(v);
+      assertTrue(v.getPlotBounds().getMaxX() - rowNeed(v) < v.getLegendGroup().getBounds().getX() - 1,
+                 "premise: ending at the plot's right edge would start left of the group");
+      assertEquals(v.getLegendGroup().getBounds().getX(), rowMinX(v), 0.5);
+      assertTrue(rowMaxX(v) <= groupMaxX(v) + 0.5);
+   }
+
+   // a row that fits the group but not between its left edge and the plot's right edge
+   private static VGraph leftClampRow() {
+      for(int w = 100; w <= 460; w += 2) {
+         VGraph v = chart(GraphConstants.TOP, GraphConstants.RIGHT_ALIGNMENT, true, w, true);
+         double need = rowNeed(v);
+         Rectangle2D plot = v.getPlotBounds();
+         Rectangle2D g = v.getLegendGroup().getBounds();
+
+         if(plot.getX() > g.getX() + 2 && need > plot.getMaxX() - g.getX() + 2 &&
+            need <= g.getWidth() - 2)
+         {
+            return v;
+         }
+      }
+
+      fail("no width gives a row that needs the left clamp");
+      return null;
+   }
+
    // a right-axis chart whose row is wider than the plot and fits on both sides of the plot
    private static VGraph insetRow(int alignment) {
       for(int w = 100; w <= 460; w += 2) {

@@ -1699,6 +1699,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             }
          }
 
+         // a clone never carries a guard armed mid-drill
+         info.drillCountGuard = false;
+         info.drillCountPending = false;
+
          return info;
       }
       catch(Exception ex) {

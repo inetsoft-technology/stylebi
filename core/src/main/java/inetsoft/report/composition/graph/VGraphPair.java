@@ -1137,7 +1137,10 @@ public class VGraphPair {
             creator = new Creator(ainfo, vbox, data, null, null, vars, size);
          }
 
-         return LegendEntryCount.count(creator.createGraph());
+         int count = LegendEntryCount.count(creator.createGraph());
+         // the full data isn't kept for the next draw
+         box.removeBindingData(cname);
+         return count;
       }
       catch(LockRestoreException ex) {
          throw ex;
@@ -1147,7 +1150,12 @@ public class VGraphPair {
          return 0;
       }
       finally {
-         VSAQuery.Q_CANCEL.set(qcancel);
+         if(qcancel == null) {
+            VSAQuery.Q_CANCEL.remove();
+         }
+         else {
+            VSAQuery.Q_CANCEL.set(qcancel);
+         }
       }
    }
 

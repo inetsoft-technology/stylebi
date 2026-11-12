@@ -316,7 +316,9 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       }
 
       Worksheet ws = box.getWorksheet();
-      String tname = chart.getTableName();
+      SourceInfo source = chart.getSourceInfo();
+      String tname = source == null || source.isEmpty() ||
+         source.getType() == SourceInfo.VS_ASSEMBLY ? null : source.getSource();
 
       if(ws == null || tname == null) {
          return false;
