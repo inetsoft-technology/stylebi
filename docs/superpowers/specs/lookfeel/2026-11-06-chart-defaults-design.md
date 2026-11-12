@@ -100,9 +100,14 @@ Every item in §5 is one of these kinds:
 **Principle.** Where a rule can be stated as a value of a property that older builds already read, it is built as kind V, even if a drawing rule would be simpler. Example: pie size is seeded into the existing `pieRatio` field at 0.8, instead of computing 80% at draw time. A rule becomes D only when it depends on:
 - the data, such as the diverging ramp
 - the card size, such as the label rule
+- new layout code, such as legend caps, pixel floors and zero lines
 
 The legend's entry count (S3-1) depends on the data, but it is not a drawing rule: the owner ruled on 2026-11-11 that a legend stays where the chart was designed. The count is taken once, when the composer draws the chart after a seed, and the resulting position is saved (kind V).
-- new layout code, such as legend caps, pixel floors and zero lines
+
+**Sizes are drawing rules (owner, 2026-11-12, D44).** Every draw rewrites a chart's default size values (`GraphGenerator.fixSizeFrameValues`) unless the author changed the frame, so a seeded size would be overwritten at the next draw. The modern sizes in S4 are therefore chosen there, under the mark (kind D).
+- The value still lands in the stored frame, so the Size dialog shows what draws.
+- An older build draws its own sizes.
+- This is an exception to D2 and D3 (§4, R11).
 
 ### M3. Seeded values are saved (slice 0)
 
@@ -156,9 +161,14 @@ Facts that make this safe:
   - size frames: `isSizeChanged`
   - shape frames: `VisualFrameWrapper.changed`, `:156`
 - **Files saved before a flag existed.**
-  - When the flag attribute is missing, the flag is derived on parse. A value that differs from every classic creation default of that field counts as the author's. This follows the `userTitleHeight` precedent (SV, "What changed" §1), not the `userBarCornerRadius` "no opinion" precedent.
+  - When the flag attribute is missing, the flag is derived on parse. A value that differs from every classic creation default of that field counts as the author's. This follows the `userTitleHeight` precedent (SV, "What changed" §1).
+  - `userBarCornerRadius` was built on the opposite precedent, where a missing attribute means no opinion. It moves to this rule in S4-1 (owner, D47). Released builds have the radius but neither the flag nor a seed, so a non-zero radius in a file they saved is the author's.
   - Without this, an author's old value-axis line "off" would survive Modernize but be lost on Revert. "Keep my formatting" would also move an author's bottom legend to the top and overwrite an author's `pieRatio`. Both break P6 and MD §2.
-  - Where a field had more than one creation default, every one of them counts as no opinion. The tree corner is 0.3 for trees created since `PlotDescriptor:1962` and 0 in older files.
+  - Where a field had more than one creation default, every one of them counts as no opinion.
+  - The tree corner is the exception (owner, D48).
+    - Every tree created on this branch gets 0.3, modern or classic.
+    - A tree saved by a released build has no corner attribute and draws square.
+    - That square corner counts as the author's, so "Keep my formatting" and Revert both leave it square (S4-11).
   - A flag attribute that is present is read as it is.
 - **Max-mode copies.** `maxModeVisible` (`TitleDescriptor:399`) and `maxModeLineVisible` (`AxisDescriptor:930`) are plain fields with no flag. Under modern they follow `visible` and `lineVisible`. A stored max-mode value that differs from its classic default (true) counts as the author's.
 - **Typed axis titles count as the author's.** See S1-2.
@@ -226,6 +236,7 @@ There is no migration on load: the epic is unreleased.
   - User flags saved only where the parse would derive them wrongly (`userLineVisible`, `userTitle`, `userSmoothLines`; M4) are dropped the same way. The next open derives them again, so the seeded value counts as the author's and no later re-seed or Revert replaces it: a seeded-off value line, a seeded straight area, and a title the wizard typed, which then stays visible on a modern chart. This is accepted, like the DEFAULT tier.
   - N items are ignored.
   - D items fall back to the old rule.
+  - The S4 sizes (D44) draw at that build's own values. Its first draw also rewrites the modern values held in the stored frame.
   - C items arrive as ordinary bindings.
 - Density gaps and legend gaps stay resolved at render (SC §5.5), so they fall back to the old values there. This is accepted and not changed here.
 
@@ -243,6 +254,7 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | R6 | **C7.** The reset copy puts the legend at the type's modern default. | MD D28 and §11.3 (`RIGHT`) |
 | R7 | The reset copy applies creation-time defaults, except the date level (M6). | MD §2 anti-goal "data bindings change" |
 | R8 | The reset copy clears author axis-title visibility and value-axis-line visibility. | MD §5.1 (visibility kept) |
+| R11 | The S4 mark sizes (Gantt bar, bubble, edge, milestone, radar line) are drawing rules chosen under the mark, not seeded values. Ruled 2026-11-12 (D44). | D2 and D3 for these items. Every draw rewrites the default sizes, so a seed could not survive (M2) |
 
 **Where the bundle is overruled instead:**
 
@@ -267,7 +279,8 @@ Ruled by the owner on 2026-11-06. Each overrides the decision named. The older d
 | S1 | Chart chrome | Written with this spec | S0. 80398's slot lists for S1-2, S1-4, S1-5 and S1-8 |
 | S2 | Colour | Later | S0, 80398 |
 | S3 | Legend layout | Later | S0, 80398 |
-| S4 | Mark sizes and corners | Later | S0, 80398 |
+| S4a | Corners and widths: S4-1 to S4-6, and the Gantt bar size | Later | S0, 80398. Stacked on S3 |
+| S4b | The other marks: S4-7 to S4-12 | Later | S4a |
 | S5 | Axis labels and titles | Later | S1 |
 | S6 | Padding and sizing | Later | S4 for the pie ratio flag pattern |
 | S7 | Creation-time defaults | Later | 80398, for the reset path |
@@ -499,38 +512,100 @@ Amended 2026-11-11, after the owner reviewed S3 against the slice 2 head (`e6003
 
 ### S4. Mark sizes and corners
 
+Amended 2026-11-12, after the owner reviewed S4 against the S3 head (`958852a11a`, PR #8081). The owner's rulings are D44 to D50; the design calls made with them are D51 to D62 (§10). Lines in this section are at `958852a11a`.
+
+**Two facts that shape this slice.**
+- **Every draw rewrites the default sizes (D44).**
+  - `GraphGenerator.getFixedInfo` (`:6715`) returns the stored info itself.
+  - So `fixSizeFrameValues` (`:5311-5421`) writes the stored size frames on every draw, unless the author changed the frame (`isSizeChanged`, `:5235`). It writes a static frame's DEFAULT tier (`:5402-5411`) and a linear frame's smallest and largest (`:5419-5420`).
+  - `ChangeChartProcessor.fixSizeFrameValues` (`:407-508`) does the same on a type change. Its switch has no Gantt case, and it puts `CHART_MAP` in the point case.
+  - So every modern size in this slice is a branch in those two switches, chosen under the mark: kind D for travel (M2, M9).
+  - It needs no seed, no reset slot and no residue rule: the first draw after Modernize, Revert or the reset copy writes the right value.
+  - The author wins through `isSizeChanged`. An edit to any value in the Size dialog makes the whole frame the author's, so an untouched modern largest stays after Revert (D44).
+- **The corner is computed in three places**, and all three take the modern rule (D52):
+  - the bar (`BarVO.buildRoundedBarShape:1705-1721`)
+  - the region arc zones (`BarVO.computeArcZones:1793`, used by `GraphBuilder:1394`)
+  - the browser, which redraws hover and selection outlines from the fraction that `ChartRegion` sends (`web/projects/portal/src/app/graph/model/chart-tool.ts` `drawRoundedBar:1725-1747`, `GraphBuilder:1364-1419`)
+
+**Split (D51).** S4a covers S4-1 to S4-6 and the Gantt bar size, stacked on S3. S4b covers S4-7 to S4-12, stacked on S4a.
+
 | # | Item | Bundle | Where | Kind | Notes |
 |---|---|---|---|---|---|
-| S4-1 | Bar corner fraction 0.08 | C22, bar 5, funnel 8 | `ChartVSAssemblyInfo.seedChromeDefaults:159-161` (0.3), read at `GraphGenerator:3940` | V | `userBarCornerRadius` already protects an author's radius. A marked chart keeps 0.3 until its next re-seed (M8). The Gantt pill is this same 0.3. |
-| S4-2 | Corner floor and cap | C22, bar 5b | `BarVO.buildRoundedBarShape:1705-1716`, `arc = min(f × s, s / 2)`, on bounds already in screen space (transformed at `:217`) | D | See "S4-2 corner rule" under this table. |
-| S4-3 | Box plot corner from the bar setting, on all four corners; box width 30% of the slot, between 6 and 28px; a box at least 2px tall | financial box 2 and 2b | `BoxPainter:174-182` (arc = short side / 3, screen space). Width `getBaseWidth = maxw / 3` (`:244`). `SchemaElement` has no corner property | N + D | A new corner property on the schema element, set from the seeded bar radius. Keep the arc in pixels. The white median, whiskers and outliers are unchanged. The filled box is already shipped ungated. |
-| S4-4 | Bar width: 50% of its slot, clamped to 3–32px on screen | C17, bar 1, funnel 8, Gantt 3b | `BarVO.getBarSize:1227-1248` (size 15 of 30 ≈ 51.7%, `GraphGenerator.fixSizeFrameValues`). Slot `RectCoord.getMaxWidth:1049` | D | See "S4-4 bar width" under this table. |
-| S4-5 | Interval bars follow the width rule when Size is bound | bar 7 | `GraphGenerator.fixSizeFrame:5122-5124` (smallest = largest − 1); `SizeFrame` largest 30 | D | The Size measure still sets the bar length. |
-| S4-6 | Waterfall bar at least 2px tall; marimekko segment at least a 1px line | C17 | `BarVO` constructor `:64-70` applies `zeroHeight` only for 0 | D | It must not break the stacked rounding (`computeFullBarBounds:1655-1694`) or the waterfall bridge lines. |
-| S4-7 | Candle body at least 3px with a 1px wick; stock ticks at least 3px each side | C17, candle 4, stock 4 | `SchemaPainter.getSize:113-134` (`MIN_WIDTH` 5, logical units); `StockPainter` `LENGTH=10` (`:159`) | D | The floors apply in screen space. |
-| S4-8 | Largest bubble about 20px across, on point charts and on map points | C17, point 5, geo 4 | `GraphGenerator.fixSizeFrameValues:5254-5264` and `:5278-5280` (largest 15); `PointVO:88` radius = size + minSize/2 | V | 15 is close to a radius (about 30px across), so the seed is about 9. The builder computes the exact value through `PointVO`. Skipped when `isSizeChanged`. |
-| S4-9 | Relation edge width at most about 6px | relation 3 | Edge size frame (default largest 15); `RelationEdgeVO:96` width = size in px | V | The bundle observed about 35px, which largest 15 doesn't explain; check (§7). |
-| S4-10 | Gantt milestone diamond about 10px | Gantt 5 | `GraphGenerator:3897-3909`; size 9 at `:5269` | V | The point-to-pixel conversion is not traced. The builder sets the value that draws about 10px. |
-| S4-11 | Tree node corner 0.08 | relation 5b | `PlotDescriptor.nodeCornerRadius` (plain; 0.3 for every new tree, `:1962`; 0 in old files; no flag) | V + flag | Trees do not take the bar seed. |
-| S4-12 | Radar series line 1.8px; filled radar fill at 30% with a solid outline | radar 5 | Width: default branch `nsize=1`; `LineVO:1014` px = 1 + (size − 1) × 0.5, so 1.8px is size 2.6. Alpha: `PlotDescriptor.alpha` (tiered, −1 = auto), `applyAlpha:1633`. Outline: `AreaVO:259` at alpha × 1.2 | V + D | Seed size 2.6 for radar and alpha 0.3 for filled radar. A solid outline needs an `AreaElement` hint (D). The line chart draws 2px, not 1.8. |
+| S4-1 | Bar corner fraction 0.08 | C22, bar 5, funnel 8 | `ChartVSAssemblyInfo.seedChromeDefaults:162-167` writes 0.3 for every chart type (legacy 0 at `:194-196`). Read at `GraphGenerator:4036-4037` (bar), `:3840-3841` (pareto), `:3885-3889` (waterfall), `:3987-3989` (Gantt) and `:4020-4023` (interval), into `IntervalElement.cornerRadius` (`:717-747`) | V | `userBarCornerRadius` protects an author's radius, and is now derived on parse (D47, "S4-1 corner flag"). A marked chart keeps 0.3 until its next re-seed (M8). The box plot reads the same value (S4-3). |
+| S4-2 | Corner floor and cap | C22, bar 5b | The three places above. Bounds are in screen space when rounded (transformed at `BarVO:217`) | D | See "S4-2 corner rule". |
+| S4-3 | Box plot corner from the bar setting, on all four corners; box width 30% of the slot, between 6 and 28px; a box at least 2px tall | financial box 2 and 2b | `BoxPainter:174-182` passes s/3 as the `RoundRectangle2D` arc width, which is a diameter, so today's radius is s/6. Width `SchemaPainter.getSize:113-134` = maxw/3 + (2/3)·maxw·size/30 at size 5 (`GraphGenerator:5373-5374`), about 44% of the slot. `SchemaElement` has no corner property | D | See "S4-3 box plot". |
+| S4-4 | Bar width: 50% of its slot, clamped to 3–32px on screen | C17, bar 1, funnel 8, Gantt 3b | `BarVO.getBarSize:1227-1248`: size 15 of 30, 51.7% (`GraphGenerator:5319-5329`, pareto `:5344-5350`). Slot `RectCoord.getMaxWidth:1049`. Clusters are placed by `BarVO.dodge:780-892` at `VGraph:156`, before `coord.transform` (`:162`) | D | See "S4-4 bar width". |
+| S4-5 | Interval bars follow the width rule when Size is bound | bar 7 | The Size measure becomes the interval length (`fixIntervalData:5897-5905`). `ChangeChartProcessor.fixSizeFrameValues` sets min = max = 15 (`:425-427`, `:505-507`), then `GraphGenerator.fixSizeFrame:5230-5233` sets smallest = largest − 1 with the frame maximum at 30: 72–73% of the slot | D | Under the mark the width comes from the S4-4 rule, not from the size frame. The Size measure still sets the bar length. |
+| S4-6 | Waterfall bar at least 2px tall; marimekko segment at least a 1px line | C17 | Waterfall: `BarVO`, where `zeroHeight` (`:68-70`) is in logical units and set only by interval. Marimekko: `MekkoVO.paint:80-140` (not `BarVO`); its segments tile the column with 1px white separators | D | The waterfall floor applies after stack rounding, which returns early on a 0 interval (`applyStackRounding:1578-1625`) and derives px per unit from the segment (`computeFullBarBounds:1660`). A step of exactly zero still draws no bar. A shorter step grows from its start in the direction of its change, so it still meets its incoming bridge line (D59). A marimekko segment under about 2px draws as a 1px line in its colour over the separator, and its neighbours keep their size (D50). |
+| S4-7 | Candle body at least 3px with a 1px wick; stock ticks at least 3px each side | C17, candle 4, stock 4 | Body `5 + (maxw − 5)·size/max` in logical units (`SchemaPainter.getSize:113-133`, `MIN_WIDTH` `:191`); wick `CandlePainter:123`; `StockPainter` `LENGTH` 10 (`:159`), stroke `:93` | D | The floors apply in screen space. |
+| S4-8 | Largest bubble 20px across, on point charts and on map points | C17, point 5, geo 4 | radius = size + `GShape.getMinSize()`/2 = size + 2 (`PointVO:88`, `GShape:400`), drawn 2r across, so largest 15 draws 34px. Point case `GraphGenerator:5362-5371`; maps take the default branch (`:5385-5388`), also 1..15 | D (D44) | Largest 8 under the mark (radius 10), in both `fixSizeFrameValues`. Skipped when `isSizeChanged`. Only where Size draws a point shape: a word cloud's Size sets its font size (`PointVO:100-104`) and is outside the 11 families, and the contour charts' static 15 is not a bubble. Both keep their sizes (D58). |
+| S4-9 | Relation edge at most 6px | relation 3 | stroke = size in px (`RelationEdgeVO:93-96`); edges take the default branch, 1..15 | D (D44) | Largest 6. The §7 check is answered: the bundle's capture shows edges of about 15px, which largest 15 explains; "about 35px" was an overestimate. Node size is not capped (D55). |
+| S4-10 | Gantt milestone diamond 10px | Gantt 5 | Size 9 (`GraphGenerator:5377`) gives radius 11, a 22px diamond tip to tip. Element at `:3992-4004` | D (D44) | Size 3 under the mark (radius 5). |
+| S4-11 | Tree node corner 0.08 | relation 5b | `PlotDescriptor.nodeCornerRadius`: plain, 0.3 for every new tree (`:2019-2020`), written by the pane on every Apply (`ChartPlotOptionsPaneModel:250`) and by script (`ChartProcessor:254-255`). Applied only to `CHART_TREE` (`GraphGenerator:1417-1418`); radius = r × short side (`RelationVO.resolveNodeShape:380-397`) | V + flag | See "S4-11 tree corner". Trees do not take the bar seed. |
+| S4-12 | Radar series line 2px; filled radar fill at 30% with a solid outline | radar 5 | Width: default branch, size 1 = 1px (`LineVO.getLineSize:1014-1016`, px = 1 + (size − 1) × 0.5). Alpha: `PlotDescriptor.alpha` (tiered; −1 = auto, which keeps `AreaElement`'s 0.8 from `initBases:75`), `applyAlpha:1666-1677`, not in `savedDefaults()` (`:1942-1945`). Outline: `AreaVO:250-259`, at alpha × 1.2 | D (size) + V (alpha) + D (outline) | Size 3 under the mark: 2px, as line charts draw (D49; the bundle's 1.8px would be the fraction 2.6). The filled-radar outline uses the same size. Alpha 0.3 is seeded per resolved type, and `alpha` joins `savedDefaults()` under S0-1 (D54). Its reset slot covers filled radar only, as a type-conditional slot like `chart:radar` (`ChartChromeSlots:192`). The reset copy keeps an author's alpha on every other type, as MD §5.1 keeps the plot settings. A solid outline needs an `AreaElement` hint. |
 
-**S4-2 corner rule.**
-- Under a modern hint: `min(max(f × s, min(2px, s / 4)), s / 2)` when `f > 0`.
-- Classic charts are unchanged, including when the author set a radius.
-- One change reaches every chart whose bars go through this function:
-  - bar, horizontal bar and interval
-  - pareto and waterfall
-  - Gantt
-- Funnel and 3D bars are skipped before it.
-- **Which ends round:**
-  - Bar and pareto bars (which grow from a baseline) round the free end only.
-  - Interval, waterfall and Gantt round both ends (shipped, VDS).
-  - A stack rounds only its outer end.
+**S4-1 corner flag (D47).**
+- Released builds (`v1.1.x`, `main`) have `barCornerRadius` with a default of 0 and no seed. The `userBarCornerRadius` attribute is newer, and today a missing attribute reads as no opinion (`ChartVSAssemblyInfo:1791-1795`).
+- So Modernize "Keep my formatting" overwrites a released author's radius, and Revert sets it to 0.
+- From S4-1, a missing attribute derives the flag from the value: a non-zero radius is the author's.
+- This branch writes the attribute on every save (`:1739`), so only files saved by a released build lack it.
 
-**S4-4 bar width.**
-- The 50% proportion already holds for bar, waterfall and pareto. Only the pixel clamp is new.
-- It is applied in screen space, per bar, so clustered bars clamp each bar.
-- The Gantt bar is about 68% of its row today (size 20 of 30, `:5268-5269`). Seed 15 under modern. `StaticSizeFrame.size` saves its default, so this is kind V. The clamp then applies.
+**S4-2 corner rule (D52).**
+- **The new rule.** On marked charts, where `f > 0`, the arc is `max(f × s, min(2px, s / 4))` in place of `f × s`.
+  - s is the bar's thickness in screen pixels.
+  - Each branch keeps its own caps. The round-all branch caps the arc at `s / 2`. The free-end branch caps it at `w / 2` and at the bar's length (`h` on a vertical bar, and the transpose for horizontal), so a bar shorter than it is thick gets a smaller corner.
+- **How it reaches the code:**
+  - It is gated by a modern flag that `GraphGenerator` sets on `IntervalElement` next to `cornerRadius`, added to `equalsContent` (M1).
+  - The same rule goes into `computeArcZones` and, through a new `ChartRegion` field, into `chart-tool.ts`, so hover and selection outlines match the drawn bar.
+- **Which charts:**
+  - Classic charts are unchanged, including when the author set a radius.
+  - On a marked chart the floor applies to an author's fraction too. It only raises a corner below 2px. An author's 0 still turns rounding off.
+  - It reaches bar, horizontal bar, interval, pareto, waterfall and Gantt. Funnel, 3D and polar bars are skipped before it (`BarVO:225`).
+- **Which ends round** (shipped, unchanged):
+  - Plain bars round the value end, or all four corners when the author ticks Round All Corners.
+  - Pareto rounds the outer end of the column, and waterfall both ends of it (`applyStackRounding`).
+  - Interval and Gantt round all four corners.
+  - A stack rounds only its outer end. Positive and negative stacks each round their own.
+
+**S4-3 box plot (D46).**
+- **Carrier.** A modern hint on the box plot's `SchemaElement` carries the chart's `barCornerRadius` to `BoxPainter`. `GraphGenerator` sets it where the element is created (`:3860`). Hints already reach the painter (`SchemaPainter.applyAlpha:158`).
+- **Corner:**
+  - Radius `f × s`, with the S4-2 floor and cap, on all four corners, in pixels. At 0.08 it is about half of today's s/6. Classic box plots keep s/6.
+  - The Advanced pane's corner field is shown for marked box plots. Today `ChartPlotOptionsPaneModel:126-130` hides it, so the author can set it only while the chart is another type. An author's 0 gives square boxes.
+- **Width:**
+  - 30% of the slot, clamped to 6–28px on screen. It replaces today's `maxw/3 + (2/3)·maxw·size/30`.
+  - 30% is below that formula's 33% base, so this is a painter rule, not a size value.
+  - An author's size (`isSizeChanged`) keeps today's formula.
+  - The box, median, whiskers and whisker caps (half the box width, `:62`) all derive from one width in logical units (`init()`), so they rescale together.
+  - The painter is also run for regions and bounds (`SchemaVO:221-223`, `:293-294`) and with non-screen transforms (`:63`, dodge `:378-398`). These must agree with the drawn box.
+- **With a Color dimension**, each box takes the width rule on its own, and the boxes sit side by side as today (`SchemaVO.dodge:360-398`, which does not fit them into the slot). Four or more series overflow the slot, where today three do (D57).
+- **Height:** at least 2px, so a region of identical values draws a thin box rather than a hairline.
+- The white median, whiskers and outliers are unchanged. The filled box is already shipped ungated.
+
+**S4-4 bar width (D45, D53).**
+- The 50% proportion already holds for bar, waterfall and pareto (51.7%). Only the pixel clamp is new: 3–32px in screen space, on marked charts, through the S4-2 element flag.
+- **Clustered bars:**
+  - Dodge places the bars before pixel sizes exist, fitting the cluster into the slot with its bars touching.
+  - Each bar is clamped, then the cluster is re-packed around its centre so its bars still touch. This is a layout-time pass.
+- **No clamp** when a Size field is bound or the author set a size (`isSizeChanged`), as for S3's legend caps.
+- **Stacks** clamp with their segments: they share x and width, and `computeFullBarBounds` reads the segment bounds.
+- **Waterfall bridge lines** move with the clamped bars. Today they are placed in slot units when the geometry is built (`IntervalElement:386-391`, `:892-926`).
+- **Faceted charts** rescale cached paths after layout (`VGraph:938-940`, `BarVO:1188-1222`). The clamp must survive that.
+- **The Gantt bar** is 20 of 30 today (68% of its row, `GraphGenerator:5376-5377`). Under the mark it is 15 (D44), and then the clamp applies.
+
+**S4-11 tree corner (D48, D56).**
+- **The flag.** `userNodeCornerRadius` (M4) is stamped only when the pane changes the value, since the pane writes the field on every Apply. The `nodeCornerRadius` script property goes through an author setter, as S3-1's legend position does.
+- **The seed.**
+  - Written in `seedChromeDefaults` on every chart, like the bar corner, while the flag is false: 0.08 modern, 0.3 legacy (this branch's creation default). The field draws only on trees.
+  - The legacy write never changes a classic chart. It already holds 0.3, or (from a released build) it is flagged below.
+- **Old files.**
+  - A missing `nodeCornerRadius` attribute means a released build saved the chart. Rounded tree nodes came with Feature #74787 (`565e05c6e7`), which is not in `main` or `v1.1.x`. Such a tree draws square, and its flag is derived true.
+  - So "Keep my formatting" and Revert both leave it square, and only the reset copy rounds it.
+  - The flag is derived on every chart type, not trees only, because the parse does not know the type (D60). So a released chart later changed into a tree keeps square nodes too, and only the reset copy rounds them. Without the flag, the legacy pass would write 0.3 into that chart, and on a classic dashboard it would turn into a rounded tree where it is square today.
+  - With the attribute present and no flag attribute, 0.3 is no opinion, and any other value is the author's.
+  - The flag is written with `DerivedUserFlag`, so classic XML is unchanged.
+- **Reset.** It joins 80398's slot list (M7). The reset copy clears the flag and seeds 0.08.
+- **No pixel floor in S4.** 0.08 of the default 40×30 box is 2.4px, inside the bundle's "2 to 3px". S6-6 shrinks tree boxes and decides the floor then (D61).
 
 ### S5. Axis labels and titles
 
@@ -568,7 +643,7 @@ Amended 2026-11-11, after the owner reviewed S3 against the slice 2 head (`e6003
 | S6-3 | Radar keeps the density padding from the title, the card edges and the legend | radar 6, C19 | `AbstractParallelCoord.fit:136`, `PolarCoord.fit:532` (no padding input) | D | Check S6-1 first: the card inset may already bound the radar. Long labels must still fit. |
 | S6-4 | Circular network inside the plot, at most 80% of its height | relation 4 | `RelationElement.mxLayout:327-334`: radius 90% of the smaller layout side, minus the node size | D | The overflow itself is the separate bug 02. This item adds only the 80% cap and the padding. |
 | S6-5 | Network graph keeps the density padding | relation 5c | `mxLayout:360-366`, gap `min(20px, 5%)` | D | Not spreading on a large card is the separate bug 03. |
-| S6-6 | Tree opens at its root and scales to the card width, down to a minimum box size, then scrolls | relation 1 | `mxLayout:341-348` (`COMPACT_TREE`, gap 12, `scalePositions` false). The client resets the scroll to 0,0 (`web/projects/portal/src/app/graph/objects/chart-area.component.ts:444-464`) | D | Server fit plus client initial scroll (root at the top, centred). |
+| S6-6 | Tree opens at its root and scales to the card width, down to a minimum box size, then scrolls | relation 1 | `mxLayout:341-348` (`COMPACT_TREE`, gap 12, `scalePositions` false). The client resets the scroll to 0,0 (`web/projects/portal/src/app/graph/objects/chart-area.component.ts:444-464`) | D | Server fit plus client initial scroll (root at the top, centred). A box under 25px takes the 0.08 corner below 2px, so this item decides whether the tree corner gets S4-2's floor (D61). |
 | S6-7 | Contour map fits its extent to the data | point 7 | `MapGenerator:405` `setFullMap(!isZooming())`; web maps already pad 0.05 (`:415`) | D | Only when the author has no zoom, pan or `lonlat` (`PlotDescriptor:1937-1940`). |
 | S6-8 | Pie and donut start at 12 o'clock and run clockwise | pie 2 | `PolarCoord.transformPoint0:402-407` (θ = 0 at 3 o'clock, counter-clockwise); `rotate` (`:168`) is reachable only from script | N | A new start-angle and direction property on the coordinate. The modern default is seeded. This is look, so it follows the mark. The largest-first sort is S7-3. |
 
@@ -635,7 +710,10 @@ The bundle was written without reading the repo's docs, and some of its code pre
 **Wrong facts:**
 - Candle does not darken its colour.
 - The Gantt bar is about 68% of its row, not 60%. Its pill ends come from the modern 0.3 seed.
-- The point bubble's largest size is 15, close to a radius, not 30.
+- The point bubble's largest size is 15, close to a radius, not 30. It draws 34px across (radius = size + 2).
+- Relation edges reach about 15px, not 35px.
+- The box plot box is about 44% of its slot, and its corner radius is a sixth of its short side, not a third.
+- The interval bar's extra thickness comes from a size of 15 with smallest = largest − 1, not from a largest of 30.
 - The waterfall's "alphabetical" order is the default for every dimension.
 - The funnel is sorted by value, not by data order.
 - The tree corner comes from `nodeCornerRadius`, not the bar seed.
@@ -654,7 +732,7 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | Stacked-legend order | S3-4 | The code already reverses vertical stacked legends. Is the observed order really reversed? Record the order of a side legend and of a top legend on a vertical and on a horizontal stacked bar. |
 | Legend overflow | S3-2 | What a legend that hits today's 50% cap does with entries that do not fit, on screen and in a PDF export. The capped modern legend keeps that behaviour. |
 | Gantt tick count | S8-7 | "Dozens" of grid lines at 25 tasks against about 5 ticks from `TimeScale`. |
-| Relation edge width | S4-9 | About 35px observed; largest 15 is expected. |
+| Relation edge width | S4-9 | Answered 2026-11-12: the capture shows edges of about 15px, which largest 15 explains. |
 | Direction-token contrast on the real card | S2-13 | Sample now that #7750 has shipped. |
 
 ## 8. Out of scope
@@ -691,11 +769,13 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - The pre-blend base for the map highlight and the tree tint (S2-4, S8-6).
 - How an author sets a per-level colour on a sunburst or icicle (S2-11).
 - The facet inner-axis exception in S5-1.
-- The exact size values that draw a 20px bubble, a 6px edge and a 10px diamond (S4-8 to S4-10).
+- How the clustered-bar re-pack runs at layout time, and how the width clamp survives a faceted chart's rescale (S4-4).
+- The `ChartRegion` field that carries the corner rule to the browser outline (S4-2).
+- How the box plot's pixel width reaches the painter's logical-unit layout so regions, bounds and dodge agree (S4-3).
 
 ## 10. Decisions
 
-"Owner" means ruled by the owner on 2026-11-06, or on 2026-11-11 from D28 on. "Design" means settled while writing this spec, or while amending S3 for D32 to D42.
+"Owner" means ruled by the owner on 2026-11-06, on 2026-11-11 from D28 on, or on 2026-11-12 from D44 on. "Design" means settled while writing this spec, while amending S3 for D32 to D42, or while amending S4 for D51 to D62.
 
 | # | Decision | Who |
 |---|---|---|
@@ -742,6 +822,25 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D41 | The count's verdict is saved, and the modern placement seed depends only on the resolved type, the Color binding and that verdict. Every re-seed, the viewer's included, reproduces the designed position without counting (D28 with M5) | Design, from the builder check |
 | D42 | A typed legend title counts as the author's and stays visible on a top or bottom legend, on "Keep" and on the reset copy (S1-2 and D26 applied to legends) | Design, from the builder check |
 | D43 | A legend the author resized stays where it is: a resize stamps the layout flag, and an old file with a stored legend size derives it. The reset copy clears both (S3-1) | Owner |
+| D44 | The S4 sizes (Gantt bar 15, largest bubble 8, largest edge 6, milestone 3, radar line 3) are chosen under the mark in both `fixSizeFrameValues`, because every draw rewrites the default sizes. They do not travel to an older build (R11). An edit to any value in the Size dialog makes the whole frame the author's (M2, M9, S4) | Owner, 2026-11-12 |
+| D45 | The 3–32px bar clamp applies per bar, and a cluster is then re-packed around its centre so its bars touch. No clamp with a Size binding or an author's size (S4-4) | Owner, 2026-11-12 |
+| D46 | Box plot: the 0.08 corner (about half of today's), the corner field shown on marked box plots, and a width of 30% of the slot (6–28px) as a painter rule (S4-3) | Owner, 2026-11-12 |
+| D47 | `userBarCornerRadius` is derived on parse: a missing attribute with a non-zero radius is the author's (M4, S4-1) | Owner, 2026-11-12 |
+| D48 | A tree saved by a released build keeps its square corner on "Keep my formatting" and on Revert; the reset copy gives 0.08 (M4, S4-11) | Owner, 2026-11-12 |
+| D49 | Radar series lines are size 3 (2px), as line charts draw, and the filled-radar outline follows (S4-12) | Owner, 2026-11-12 |
+| D50 | A marimekko segment under about 2px draws as a 1px line in its colour over the white separator; its neighbours keep their size (S4-6) | Owner, 2026-11-12 |
+| D51 | S4 is split: S4a (S4-1 to S4-6 and the Gantt bar) stacked on S3, then S4b (S4-7 to S4-12) | Design |
+| D52 | The corner floor is carried by a modern element flag to the bar, the region arc zones and the browser outline. It applies to an author's fraction on marked charts, and the free-end branch keeps its length cap (S4-2) | Design |
+| D53 | Waterfall bridge lines move with the clamped bars; the waterfall's 2px minimum height applies after stack rounding (S4-4, S4-6) | Design |
+| D54 | Filled-radar alpha joins `savedDefaults()` and is seeded 0.3 per resolved type; the solid outline is a new `AreaElement` hint (S4-12) | Design |
+| D55 | Relation node size is not capped; the bundle decided nothing about it (S4-9) | Design |
+| D56 | `userNodeCornerRadius` is written with `DerivedUserFlag`, and the tree corner is seeded on every chart like the bar corner (S4-11) | Design |
+| D57 | With a Color dimension, each box plot box takes the width rule on its own and the boxes sit side by side as today (S4-3) | Design, from the builder check |
+| D58 | The bubble cap applies only where Size draws a point shape: word clouds and contour charts keep their sizes (S4-8) | Design, from the builder check |
+| D59 | A waterfall step of exactly zero draws no bar; a shorter step grows from its start in the direction of its change (S4-6) | Design, from the builder check |
+| D60 | The tree-corner flag is derived on every chart type a released build saved, so a released chart changed into a tree keeps square nodes until the reset copy (S4-11) | Design, from the builder check |
+| D61 | The tree corner takes no pixel floor in S4; S6-6 decides it when it shrinks tree boxes (S4-11, S6-6) | Design, from the builder check |
+| D62 | The filled-radar alpha reset slot is type-conditional: the reset copy keeps an author's alpha on every other type (S4-12, D54) | Design, from the builder check |
 
 ## 11. Testing
 
@@ -757,6 +856,8 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 - **Old files:** an old file's non-default plain value is flagged on parse and survives Modernize, Revert and residue cleanup (M4).
 - **Resolved type:** an AUTO chart that becomes a point chart through its binding gains its point titles and x grid. A type change keeps the author's values (M5).
 - **Classic identity:** every D item renders a classic chart before and after the change and compares the images. Gated graph code must leave classic output unchanged.
+- **Sizes (D44):** after a draw, a classic chart's size frames hold the classic values, a marked chart's hold the modern ones, and a frame the author changed is untouched. Modernize, Revert and the reset copy each draw the right size with no seed.
+- **Corners (S4-2):** the drawn bar, the region arc zones and the browser outline agree on a marked chart (Java and portal tests).
 - **Spring context:** Java tests that reach the seed or the generator need the Spring context set up as `CLAUDE.md` describes.
 - **Manual:**
   - Rebuild the bundle's dashboards from `repro/charts.md` on the built server.
