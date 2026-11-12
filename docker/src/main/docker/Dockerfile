@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-FROM eclipse-temurin:21.0.12_8-jdk-noble
+FROM eclipse-temurin:21.0.13_9-jdk-noble
 
 ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=75.0'
 # DisableExplicitGC keeps System.gc() in plugins/third-party code (and RMI DGC, about once per
@@ -35,7 +35,7 @@ ENV JAVA_CLASSPATH=''
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-dejavu \
   fonts-liberation2 fonts-croscore fonts-freefont-ttf fonts-roboto gettext-base fontconfig \
-  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y ca-certificates \
+  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
   && rm -rf /var/cache/apt/* \
   && rm -rf /var/lib/apt/lists/* \
   && userdel -rf ubuntu \
