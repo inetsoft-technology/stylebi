@@ -220,9 +220,9 @@ class NamedRangeRefGroupsTest {
    }
 
    // The SQL of a group whose only member is a null ends with an empty list, "WHEN x IN ()",
-   // which is a syntax error. Not reported yet.
+   // which is a syntax error (#81236).
    @Test
-   @Disabled("a group of only a null gives 'IN ()' in the SQL expression, not reported yet")
+   @Disabled("#81236: a group of only a null gives IN () in the SQL expression")
    void groupOfOnlyNullInSql() throws Exception {
       NamedRangeRef ref = groups(XSchema.STRING, "Missing", Arrays.asList((Object) null),
                                  "B", values("b"));
@@ -250,9 +250,9 @@ class NamedRangeRefGroupsTest {
    }
 
    // The SQL puts the values and the group name between quotes as they are, so a quote ends the
-   // string: the expression is a syntax error. Not reported yet.
+   // string: the expression is a syntax error (#81235).
    @Test
-   @Disabled("a quote in a value or group name is not escaped in the SQL expression, not reported")
+   @Disabled("#81235: a quote in a value or group name is not escaped in the SQL expression")
    void quoteInAValueOrInAGroupNameInSql() throws Exception {
       NamedRangeRef ref = groups(XSchema.STRING,
                                  "O'Brien family", values("O'Brien", "O'Neil"));
