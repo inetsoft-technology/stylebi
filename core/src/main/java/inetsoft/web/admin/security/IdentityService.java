@@ -1687,7 +1687,15 @@ public class IdentityService {
    }
 
    public void removeStorages(String orgID) throws Exception {
-      removeOldOrgTaskFormScheduleServer(orgID);
+      try {
+         removeOldOrgTaskFormScheduleServer(orgID);
+      }
+      finally {
+         // other nodes keep their own in-memory task caches of the org; clear them even if
+         // the scheduler could not be reached
+         scheduleManager.orgTasksRemoved(orgID);
+      }
+
       dashboardManager.removeDashboardStorage(orgID);
       dependencyStorageService.removeDependencyStorage(orgID);
 
