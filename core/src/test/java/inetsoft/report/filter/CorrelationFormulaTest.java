@@ -20,6 +20,8 @@ package inetsoft.report.filter;
 import inetsoft.mv.data.FormulaInfo;
 import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
@@ -206,7 +208,8 @@ class CorrelationFormulaTest {
       f.addValue(new double[] { 3, 6.5 });
       f.addValue(new double[] { 9 });
       f.addValue(new double[] { 9, inetsoft.util.Tool.NULL_DOUBLE });
-      assertEquals(0.9981, (Double) f.getResult(), 1e-3);
+      // x mean 2, sxx 2; y = 2, 4, 6.5 has syy 61/6 and sxy 4.5 by hand
+      assertEquals(4.5 / Math.sqrt(2 * 61.0 / 6), (Double) f.getResult(), 1e-6);
    }
 
    private static final double EPS = 1e-12;
@@ -299,7 +302,8 @@ class CorrelationFormulaTest {
 
       // reset returns a used formula to no result
       pairs(correl, p(1, 2), p(2, 4));
-      assertNotNull(correl.getResult());
+      // two points on a line
+      assertEquals(1.0, (Double) correl.getResult(), EPS);
       correl.reset();
       assertNull(correl.getResult());
       assertTrue(correl.isNull());
@@ -441,6 +445,158 @@ class CorrelationFormulaTest {
       // a short array is still ignored
       primitive.addValue(new double[] { 1 });
       assertEquals(object.getResult(), primitive.getResult());
+   }
+
+   @Disabled("Not filed (unreachable): a one-member Object[] pair is skipped, as the double[] path does")
+   @Test
+   @DisplayName("An Object[] of length 1 is skipped like the double[] twin")
+   void objectArrayOfLengthOne_isSkippedWithoutException() {
+      CorrelationFormula correl = new CorrelationFormula(2);
+      assertDoesNotThrow(() -> correl.addValue(new Object[] { 5 }));
+      assertTrue(correl.isNull());
+   }
+
+   @Test
+   @DisplayName("Padded, exponent and signed text is the same pair as the number")
+   void numericTextPair_equalsTheNumericPair() {
+      CorrelationFormula text = new CorrelationFormula(2);
+      CorrelationFormula numeric = new CorrelationFormula(2);
+      pairs(text, p(1, 2), p(" 8 ", 7), p("1e3", 5), p("+5", 3), p(4, "+6"));
+      pairs(numeric, p(1, 2), p(8, 7), p(1000, 5), p(5, 3), p(4, 6));
+      assertEquals(numeric.getResult(), text.getResult());
+      assertNotNull(text.getResult());
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): separator, hex and Arabic " +
+      "digit text pairs are skipped")
+   void separatorHexAndArabicDigitText_pairIsSkipped() {
+      CorrelationFormula clean = new CorrelationFormula(2);
+      pairs(clean, p(1, 2), p(2, 7), p(3, 4));
+
+      for(String text : new String[] { "1,000", "1,5", "0x10", "٣" }) {
+         CorrelationFormula withText = new CorrelationFormula(2);
+         pairs(withText, p(1, 2), p(2, 7), p(text, 9), p(3, 4));
+         assertEquals(clean.getResult(), withText.getResult(), text);
+      }
+   }
+
+   private static double corr(double[] xs, double[] ys) {
+      CorrelationFormula f = new CorrelationFormula(2);
+
+      for(int i = 0; i < xs.length; i++) {
+         f.addValue(p(xs[i], ys[i]));
+      }
+
+      return (Double) f.getResult();
+   }
+
+   @Test
+   @DisplayName("Random data, including near-perfect and offset data, stays in [-1, 1]")
+   void randomData_staysWithinBounds() {
+      Random random = new Random(80957L);
+      double[] offsets = { 0, 1e9 };
+
+      for(int round = 0; round < 500; round++) {
+         int n = 3 + random.nextInt(48);
+         double offset = offsets[round % 2];
+         double noise = round % 3 == 0 ? 0 : (round % 3 == 1 ? 1e-9 : 5.0);
+         double[] xs = new double[n];
+         double[] ys = new double[n];
+
+         for(int i = 0; i < n; i++) {
+            // distinct x so the variance is positive; y has a positive slope
+            xs[i] = offset + i * 3 + random.nextDouble();
+            ys[i] = offset + 2 * i + 1 + noise * random.nextDouble();
+         }
+
+         double r = corr(xs, ys);
+         assertFalse(Double.isNaN(r), "round " + round);
+         assertTrue(r >= -1.0 && r <= 1.0, "round " + round + " r=" + r);
+      }
+   }
+
+   @Test
+   @DisplayName("Correlation is symmetric and flips sign under a negative affine change")
+   void symmetryAndAffineInvariance() {
+      Random random = new Random(80958L);
+
+      for(int round = 0; round < 50; round++) {
+         int n = 3 + random.nextInt(20);
+         double[] xs = new double[n];
+         double[] ys = new double[n];
+         double[] xs2 = new double[n];
+         double[] ys2 = new double[n];
+
+         for(int i = 0; i < n; i++) {
+            xs[i] = random.nextGaussian() * 10;
+            ys[i] = random.nextGaussian() * 10 + 0.5 * xs[i];
+            xs2[i] = 2 * xs[i] + 3;
+            ys2[i] = -4 * ys[i] + 1;
+         }
+
+         double r = corr(xs, ys);
+         assertEquals(r, corr(ys, xs), 1e-9);
+         assertEquals(-r, corr(xs2, ys2), 1e-9);
+      }
+   }
+
+   @Test
+   @DisplayName("One million pairs agree with a two-pass reference")
+   void largeN_matchesTwoPassReference() {
+      Random random = new Random(80959L);
+      int n = 1_000_000;
+      double[] xs = new double[n];
+      double[] ys = new double[n];
+      double mx = 0;
+      double my = 0;
+
+      for(int i = 0; i < n; i++) {
+         xs[i] = 100 + random.nextGaussian() * 15;
+         ys[i] = 0.3 * xs[i] + random.nextGaussian() * 5;
+         mx += xs[i];
+         my += ys[i];
+      }
+
+      mx /= n;
+      my /= n;
+      double sxy = 0;
+      double sxx = 0;
+      double syy = 0;
+
+      for(int i = 0; i < n; i++) {
+         sxy += (xs[i] - mx) * (ys[i] - my);
+         sxx += (xs[i] - mx) * (xs[i] - mx);
+         syy += (ys[i] - my) * (ys[i] - my);
+      }
+
+      assertEquals(sxy / Math.sqrt(sxx * syy), corr(xs, ys), 1e-9);
+   }
+
+   @Test
+   @DisplayName("The materialized view correlation agrees with the report formula")
+   void agreesWithMvCompositeCorrelation() {
+      double[] xs = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+      double[] ys = { 2.1, 3.9, 6.2, 7.8, 10.3, 11.9, 14.2, 16.1, 17.8, 20.4 };
+      inetsoft.mv.formula.CompositeCorrelationFormula mv =
+         new inetsoft.mv.formula.CompositeCorrelationFormula(new int[] { 1 });
+      // the partials: sumxy, sumx, sumy, cntx, sumsqx, cnty, sumsqy
+      double sxy = 0;
+      double sx = 0;
+      double sy = 0;
+      double sxx = 0;
+      double syy = 0;
+
+      for(int i = 0; i < xs.length; i++) {
+         sxy += xs[i] * ys[i];
+         sx += xs[i];
+         sy += ys[i];
+         sxx += xs[i] * xs[i];
+         syy += ys[i] * ys[i];
+      }
+
+      mv.addValue(new double[] { sxy, sx, sy, xs.length, sxx, xs.length, syy });
+      assertEquals(corr(xs, ys), ((Number) mv.getResult()).doubleValue(), 1e-9);
    }
 
    // Bug #80700: a materialized view row feeds Correlation one pair

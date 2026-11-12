@@ -21,7 +21,12 @@ import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
+import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -31,7 +36,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -52,7 +56,6 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, AssetQueryExpressionColumnTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class AssetQueryExpressionColumnTest {
@@ -129,6 +132,7 @@ class AssetQueryExpressionColumnTest {
 
       Worksheet concat = ws();
       addExpression(concat, "cityA", "concat(field['city'], 'a')", XSchema.STRING, true, true);
+      Tool.clearUserMessage();
       TableLens t = box(concat).getTableLens("T", RUNTIME);
 
       // one sample row of X placeholders instead of the two real rows
@@ -137,17 +141,246 @@ class AssetQueryExpressionColumnTest {
          assertEquals(1, values.size(), name);
          assertTrue(String.valueOf(values.get(0)).matches("X+"), name + ": " + values);
       }
+
+      // the sample row is 999 / XXXX and the user is told which expression failed
+      assertEquals(Arrays.asList(999), column(t, "customer_id"));
+      assertEquals(Arrays.asList("XXXX"), column(t, "city"));
+      UserMessage message = Tool.getUserMessage();
+      assertNotNull(message);
+      assertTrue(message.getMessage().contains("expression failed"), message.getMessage());
+      assertTrue(message.getMessage().contains("concat is not defined"), message.getMessage());
+   }
+
+   @Test
+   @DisplayName("A plain field expression of the same type is a copy of the column")
+   void plainFieldExpression() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "cityCopy", "field['city']", XSchema.STRING, false, true);
+      assertEquals(Arrays.asList("Albany", "Fresno"),
+                   column(box(ws).getTableLens("T", RUNTIME), "cityCopy"));
+   }
+
+   @Test
+   @DisplayName("A visible expression over a hidden one over a hidden one")
+   void chainOfThreeExpressions() throws Exception {
+      Worksheet ws = ws();
+      // the visible field is listed first, so the hidden ones it needs are added by recursion
+      addExpression(ws, "v", "field['h2'] + field['customer_id']", XSchema.INTEGER, false, true);
+      addExpression(ws, "h2", "field['h1'] * 2", XSchema.INTEGER, false, false);
+      addExpression(ws, "h1", "CALC.quarter(field['orderdate'])", XSchema.INTEGER, false, false);
+      // quarter 3 and 1: 3 * 2 + 3 and 1 * 2 + 10
+      assertEquals(Arrays.asList(9, 12), column(box(ws).getTableLens("T", RUNTIME), "v"));
+   }
+
+   @Disabled("Bug #81206: Two expression columns that refer to each other end in StackOverflowError")
+   @Test
+   @DisplayName("Two expressions that refer to each other fail with a handled error")
+   void circularReference_isAHandledFailure() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "a", "field['b'] + 1", XSchema.INTEGER, false, true);
+      addExpression(ws, "b", "field['a'] + 1", XSchema.INTEGER, false, true);
+      // an exception or a sample table, never a StackOverflowError
+      try {
+         box(ws).getTableLens("T", RUNTIME);
+      }
+      catch(Exception expected) {
+         // handled failure
+      }
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): an expression that refers to " +
+      "itself reads its own column as empty")
+   void pin_selfReference() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "a1", "field['a1'] + 1", XSchema.INTEGER, false, true);
+      Tool.clearUserMessage();
+      assertEquals(Arrays.asList(1, 1), column(box(ws).getTableLens("T", RUNTIME), "a1"));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): a missing column gives null " +
+      "values without a message")
+   void pin_missingColumn() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "bad", "field['nope'] + 1", XSchema.INTEGER, false, true);
+      Tool.clearUserMessage();
+      assertEquals(Arrays.asList(null, null),
+                   column(box(ws).getTableLens("T", RUNTIME), "bad"));
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): an expression named like an " +
+      "existing column is dropped")
+   void pin_expressionNamedLikeAColumn() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "city", "'X'", XSchema.STRING, false, true);
+      TableLens t = box(ws).getTableLens("T", RUNTIME);
+      assertEquals(Arrays.asList("Albany", "Fresno"), column(t, "city"));
+      assertEquals(3, t.getColCount());
+   }
+
+   @Test
+   @DisplayName("Names with a space, a quote, non-ASCII letters and double quotes resolve")
+   void specialNames() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "Total Price", "field['customer_id'] * 2", XSchema.INTEGER, false, true);
+      addExpression(ws, "O'Brien", "field['Total Price'] + 1", XSchema.INTEGER, false, true);
+      addExpression(ws, "ümlautß", "field[\"O'Brien\"] + 1", XSchema.INTEGER, false,
+                    true);
+      addExpression(ws, "say \"hi\"", "field['customer_id'] * 2", XSchema.INTEGER, false, true);
+      addExpression(ws, "next", "field['say \"hi\"'] + 1", XSchema.INTEGER, false, true);
+      TableLens t = box(ws).getTableLens("T", RUNTIME);
+      assertEquals(Arrays.asList(6, 20), column(t, "Total Price"));
+      assertEquals(Arrays.asList(7, 21), column(t, "O'Brien"));
+      assertEquals(Arrays.asList(8, 22), column(t, "ümlautß"));
+      assertEquals(Arrays.asList(6, 20), column(t, "say \"hi\""));
+      assertEquals(Arrays.asList(7, 21), column(t, "next"));
+   }
+
+   @Test
+   @DisplayName("An empty table has the expression column and no rows")
+   void emptyTable() throws Exception {
+      Worksheet ws = ws(new Object[][] { { "customer_id", "city", "orderdate" } });
+      addExpression(ws, "twice", "field['customer_id'] * 2", XSchema.INTEGER, false, true);
+      TableLens t = box(ws).getTableLens("T", RUNTIME);
+      assertEquals(Arrays.asList(), column(t, "twice"));
+      assertEquals(4, t.getColCount());
+   }
+
+   @Test
+   @DisplayName("Five thousand rows read in two batches keep their order")
+   void fiveThousandRows_twoBatches() throws Exception {
+      Object[][] data = new Object[5001][];
+      data[0] = new Object[] { "customer_id", "city", "orderdate" };
+
+      for(int i = 1; i <= 5000; i++) {
+         data[i] = new Object[] { i, "c" + i, Timestamp.valueOf("2001-08-15 00:00:00") };
+      }
+
+      Worksheet ws = ws(data);
+      addExpression(ws, "twice", "field['customer_id'] * 2", XSchema.INTEGER, false, true);
+      TableLens t = box(ws).getTableLens("T", RUNTIME);
+      int col = t.getColCount() - 1;
+      assertTrue(t.moreRows(100));
+      assertEquals(2, t.getObject(1, col));
+      assertEquals(200, t.getObject(100, col));
+      assertFalse(t.moreRows(5001));
+
+      for(int r = 1; r <= 5000; r++) {
+         assertEquals(2 * r, t.getObject(r, col), "row " + r);
+      }
+   }
+
+   @Test
+   @DisplayName("An unset or null parameter reads as undefined, an empty array index fails " +
+      "the table")
+   void missingNullAndEmptyArrayParameter() throws Exception {
+      Worksheet unset = ws();
+      addExpression(unset, "p1", "field['customer_id'] + parameter.offset", XSchema.INTEGER,
+                    false, true);
+      addExpression(unset, "p2", "field['city'] + ' ' + parameter.offset", XSchema.STRING, false,
+                    true);
+      Tool.clearUserMessage();
+      TableLens t = box(unset).getTableLens("T", RUNTIME);
+      assertEquals(Arrays.asList(null, null), column(t, "p1"));
+      assertEquals(Arrays.asList("Albany undefined", "Fresno undefined"), column(t, "p2"));
+      assertNull(Tool.getUserMessage());
+
+      // PIN (class B): an index into an empty array fails the table, the sample row is shown
+      Worksheet empty = ws();
+      addExpression(empty, "p3", "field['city'] + ' ' + parameter.region[0]", XSchema.STRING,
+                    false, true);
+      AssetQuerySandbox box = box(empty);
+      box.getVariableTable().put("region", new Object[0]);
+      Tool.clearUserMessage();
+      TableLens failed = box.getTableLens("T", RUNTIME);
+      assertEquals(Arrays.asList(999), column(failed, "customer_id"));
+      UserMessage message = Tool.getUserMessage();
+      assertNotNull(message);
+      assertTrue(message.getMessage().contains("expression failed"), message.getMessage());
+   }
+
+   @Test
+   @DisplayName("The script part of a SQL expression runs on a table that cannot merge")
+   void scriptPartOfASqlExpression() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "idPlusTen",
+                    "customer_id + 10 /*script field['customer_id'] + 10 script*/",
+                    XSchema.INTEGER, true, true);
+      assertEquals(Arrays.asList(13, 20),
+                   column(box(ws).getTableLens("T", RUNTIME), "idPlusTen"));
+   }
+
+   @Test
+   @DisplayName("A pre and a post condition on an expression column")
+   void conditionOnAnExpressionColumn() throws Exception {
+      for(boolean pre : new boolean[] { true, false }) {
+         Worksheet ws = ws();
+         addExpression(ws, "idPlusTen", "field['customer_id'] + 10", XSchema.INTEGER, false, true);
+         EmbeddedTableAssembly table = (EmbeddedTableAssembly) ws.getAssembly("T");
+         AssetCondition condition = new AssetCondition();
+         condition.setOperation(XCondition.GREATER_THAN);
+         condition.setType(XSchema.INTEGER);
+         condition.addValue(15);
+         ConditionList list = new ConditionList();
+         list.append(new ConditionItem(table.getColumnSelection(false).getAttribute("idPlusTen"),
+                                       condition, 0));
+
+         if(pre) {
+            table.setPreConditionList(list);
+         }
+         else {
+            table.setPostConditionList(list);
+         }
+
+         // only customer 10: 10 + 10 = 20 passes
+         assertEquals(Arrays.asList(20), column(box(ws).getTableLens("T", RUNTIME), "idPlusTen"),
+                      pre ? "pre" : "post");
+      }
+   }
+
+   @Test
+   @DisplayName("The declared type of an expression column is the type of the result column")
+   void declaredTypeEndToEnd() throws Exception {
+      Worksheet ws = ws();
+      addExpression(ws, "d", "field['customer_id'] * 1", XSchema.DOUBLE, false, true);
+      addExpression(ws, "i", "CALC.quarter(field['orderdate'])", XSchema.INTEGER, false, true);
+      addExpression(ws, "s", "field['customer_id'] + ''", XSchema.STRING, false, true);
+      TableLens t = box(ws).getTableLens("T", RUNTIME);
+      assertEquals(Arrays.asList(3.0, 10.0), column(t, "d"));
+      assertEquals(Arrays.asList(3, 1), column(t, "i"));
+      assertEquals(Arrays.asList("3", "10"), column(t, "s"));
+
+      for(int c = 0; c < t.getColCount(); c++) {
+         String name = String.valueOf(t.getObject(0, c));
+
+         if("d".equals(name)) {
+            assertEquals(Double.class, t.getColType(c));
+         }
+         else if("i".equals(name)) {
+            assertEquals(Integer.class, t.getColType(c));
+         }
+         else if("s".equals(name)) {
+            assertEquals(String.class, t.getColType(c));
+         }
+      }
    }
 
    /** An embedded table T: customer_id, city, orderdate. */
    private static Worksheet ws() {
-      Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "T");
-      Object[][] data = {
+      return ws(new Object[][] {
          { "customer_id", "city", "orderdate" },
          { 3, "Albany", Timestamp.valueOf("2001-08-15 00:00:00") },
          { 10, "Fresno", Timestamp.valueOf("2001-02-01 00:00:00") }
-      };
+      });
+   }
+
+   private static Worksheet ws(Object[][] data) {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "T");
       table.setEmbeddedData(new XEmbeddedTable(
          new String[] { XSchema.INTEGER, XSchema.STRING, XSchema.TIME_INSTANT }, data));
       ws.addAssembly(table);

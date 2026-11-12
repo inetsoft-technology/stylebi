@@ -17,12 +17,14 @@
  */
 package inetsoft.report.internal;
 
-import inetsoft.report.filter.Formula;
-import inetsoft.report.filter.Formula2;
+import inetsoft.report.filter.*;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AggregateFormula;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,7 +53,14 @@ class UtilCreateFormulaTest {
    @Test
    void everyUserFormula_createsTheReportFilterImplementation() {
       List<AggregateFormula> formulas = userFormulas();
-      assertTrue(formulas.size() >= 20, "user formulas: " + formulas);
+      // the explicit list of the AggregateFormula constants a user can pick
+      java.util.Set<String> names = new java.util.TreeSet<>();
+      formulas.forEach(f -> names.add(f.getFormulaName()));
+      assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
+         "Average", "Concat", "Correlation", "Count", "Covariance", "DistinctCount", "First",
+         "Last", "Max", "Median", "Min", "Mode", "NthLargest", "NthMostFrequent",
+         "NthSmallest", "PopulationStandardDeviation", "PopulationVariance", "Product",
+         "PthPercentile", "StandardDeviation", "Sum", "Variance", "WeightedAverage")), names);
 
       for(AggregateFormula aform : formulas) {
          Formula formula = Util.createFormula(null, spec(aform));
@@ -105,6 +114,112 @@ class UtilCreateFormulaTest {
       assertEquals(7, ((Number) percentile.getResult()).intValue());
 
       assertNull(Util.createFormula(null, AggregateFormula.AGGREGATE.getFormulaName()));
+   }
+
+   @Test
+   @DisplayName("A percentage suffix sets the percentage type of a percentage formula")
+   void percentageSuffix() {
+      PercentageFormula sum = (PercentageFormula) Util.createFormula(null, "Sum<2>");
+      assertEquals(2, sum.getPercentageType());
+      PercentageFormula count = (PercentageFormula) Util.createFormula(null, "Count<1>");
+      assertEquals(1, count.getPercentageType());
+      PercentageFormula distinct =
+         (PercentageFormula) Util.createFormula(null, "DistinctCount<2>");
+      assertEquals(2, distinct.getPercentageType());
+
+      // a two-column formula has no percentage: the suffix is ignored, the column stays
+      Formula correlation = Util.createFormula(null, "Correlation(3)<2>");
+      assertInstanceOf(CorrelationFormula.class, correlation);
+      assertFalse(correlation instanceof PercentageFormula);
+      assertArrayEquals(new int[] { 3 }, ((Formula2) correlation).getSecondaryColumns());
+
+      // a suffix that is not a number is ignored
+      PercentageFormula ignored = (PercentageFormula) Util.createFormula(null, "Sum<abc>");
+      assertEquals(0, ignored.getPercentageType());
+   }
+
+   @Test
+   @DisplayName("A column name resolves against the table headers")
+   void tableBasedSecondaryColumn() {
+      DefaultTableLens table = new DefaultTableLens(new Object[][] { { "a", "price" },
+                                                                    { 1, 2 } });
+      Formula formula = Util.createFormula(table, "Correlation(price)");
+      assertInstanceOf(CorrelationFormula.class, formula);
+      assertArrayEquals(new int[] { 1 }, ((Formula2) formula).getSecondaryColumns());
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): an unknown formula name gives " +
+      "a SumFormula")
+   void pin_unknownNameGivesSum() {
+      assertInstanceOf(SumFormula.class, Util.createFormula(null, "Bogus"));
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): a column name without a table " +
+      "gives a SumFormula")
+   void pin_columnNameWithoutTableGivesSum() {
+      assertInstanceOf(SumFormula.class, Util.createFormula(null, "Correlation(price)"));
+   }
+
+   @Test
+   @DisplayName("A class name is never instantiated as a formula")
+   void classNameInjection_fallsBackToSum() {
+      for(String name : new String[] { "java.io.File", "java.lang.Runtime",
+                                       InjectionProbe.class.getName() })
+      {
+         Formula formula = Util.createFormula(null, name);
+         assertEquals(SumFormula.class, formula.getClass(), name);
+      }
+
+      // a class that is not a Formula is not even instantiated
+      assertFalse(InjectionProbe.created);
+   }
+
+   /** A class with a public constructor whose side effect shows that it was instantiated. */
+   public static class InjectionProbe {
+      static volatile boolean created;
+
+      public InjectionProbe() {
+         created = true;
+      }
+   }
+
+   @Test
+   @DisplayName("N at or below the boundary falls back to the smallest valid n")
+   void boundaryN() {
+      assertEquals(NthMostFrequentFormula.class,
+                   Util.createFormula(null, "NthMostFrequent(0)").getClass());
+      assertEquals(NthLargestFormula.class,
+                   Util.createFormula(null, "NthLargest(0)").getClass());
+      assertEquals(NthSmallestFormula.class,
+                   Util.createFormula(null, "NthSmallest(0)").getClass());
+      assertEquals(PthPercentileFormula.class,
+                   Util.createFormula(null, "PthPercentile(150)").getClass());
+      assertEquals(PthPercentileFormula.class,
+                   Util.createFormula(null, "PthPercentile(0)").getClass());
+
+      // n = 1 and 0 rank the same
+      Formula zero = Util.createFormula(null, "NthMostFrequent(0)");
+      Formula one = Util.createFormula(null, "NthMostFrequent(1)");
+
+      for(Object v : new Object[] { "a", "a", "b" }) {
+         zero.addValue(v);
+         one.addValue(v);
+      }
+
+      assertEquals("a", zero.getResult());
+      assertEquals("a", one.getResult());
+   }
+
+   @Disabled("Bug #81211: Util.createFormula turns a negative n into a SumFormula")
+   @Test
+   @DisplayName("A negative n is read like n = 1, not as a Sum")
+   void negativeN() {
+      assertEquals(NthMostFrequentFormula.class,
+                   Util.createFormula(null, "NthMostFrequent(-1)").getClass());
+      assertEquals(NthLargestFormula.class,
+                   Util.createFormula(null, "NthLargest(-1)").getClass());
    }
 
    /**

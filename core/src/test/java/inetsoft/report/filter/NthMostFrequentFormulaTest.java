@@ -19,6 +19,8 @@
 package inetsoft.report.filter;
 
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -287,6 +289,72 @@ class NthMostFrequentFormulaTest {
       assertNull(frequent.getResult());
       frequent.setDefaultResult(true);
       assertNull(frequent.getResult());
+   }
+
+   @Disabled("Bug #81215: ModeFormula text getDoubleResult() throws")
+   @Test
+   @DisplayName("GetDoubleResult of a text mode is 0.0, like other non-numeric objects")
+   void doubleResultOfText_isZeroWithoutException() {
+      NthMostFrequentFormula mode = new NthMostFrequentFormula(1);
+      addAll(mode, "abc", "abc", "x");
+      assertEquals("abc", mode.getResult());
+      assertEquals(0.0, mode.getDoubleResult());
+   }
+
+   @Test
+   @DisplayName("The count decides before the case of the text")
+   void textCase_countDecides() {
+      NthMostFrequentFormula mode = new NthMostFrequentFormula(1);
+      addAll(mode, "a", "a", "A");
+      assertEquals("a", mode.getResult());
+
+      NthMostFrequentFormula mode2 = new NthMostFrequentFormula(1);
+      addAll(mode2, "A", "a", "A");
+      assertEquals("A", mode2.getResult());
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): case-different texts with " +
+      "equal counts")
+   void pin_caseDifferentTie() {
+      NthMostFrequentFormula forward = new NthMostFrequentFormula(1);
+      NthMostFrequentFormula reverse = new NthMostFrequentFormula(1);
+      addAll(forward, "B", "B", "a", "a");
+      addAll(reverse, "a", "a", "B", "B");
+      assertEquals(N2_TIE, forward.getResult());
+      assertEquals(N2_TIE, reverse.getResult());
+   }
+
+   private static final String N2_TIE = "B";
+
+   @Test
+   @DisplayName("A tie between values of different types does not depend on arrival order")
+   void mixedTypeTie_isOrderIndependent() {
+      NthMostFrequentFormula first = new NthMostFrequentFormula(1);
+      NthMostFrequentFormula second = new NthMostFrequentFormula(1);
+      addAll(first, 1, "a");
+      addAll(second, "a", 1);
+      assertEquals(1, first.getResult());
+      assertEquals(1, second.getResult());
+   }
+
+   @Test
+   @DisplayName("An n beyond the distinct count, even Integer.MAX_VALUE, gives null")
+   void hugeN_isNull() {
+      NthMostFrequentFormula formula = new NthMostFrequentFormula(Integer.MAX_VALUE);
+      addAll(formula, "a");
+      assertNull(formula.getResult());
+   }
+
+   @Test
+   @DisplayName("Reset keeps n")
+   void resetKeepsN() {
+      NthMostFrequentFormula formula = new NthMostFrequentFormula(2);
+      addAll(formula, "x", "x", "y");
+      formula.reset();
+      assertTrue(formula.isNull());
+      addAll(formula, "a", "a", "b");
+      assertEquals("b", formula.getResult());
    }
 
    private static void addAll(Formula formula, Object... values) {

@@ -25,6 +25,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -122,6 +123,89 @@ class CalculateRefTest {
       assertFalse(detail.equals(aggregate, true));
       assertTrue(detail.equals(aggregate, false));
       assertTrue(detail.equals(calc(true, "field['a']"), true));
+   }
+
+   @Test
+   @DisplayName("Clone keeps the aggregate kind, the flags, the expression and a copy of " +
+      "the data ref")
+   void clone_keepsAggregateKindAndFlags() {
+      CalculateRef ref = calc(false, "field['Sum([a])'] * 2");
+      ref.setFake(true);
+      ref.setDcRuntime(true);
+      CalculateRef copy = (CalculateRef) ref.clone();
+
+      assertNotSame(ref, copy);
+      assertFalse(copy.isBaseOnDetail());
+      assertTrue(copy.isFake());
+      assertTrue(copy.isDcRuntime());
+      assertEquals(XSchema.DOUBLE, copy.getDataType());
+      assertNotSame(ref.getDataRef(), copy.getDataRef());
+      assertEquals("field['Sum([a])'] * 2", ((ExpressionRef) copy.getDataRef()).getExpression());
+      assertTrue(((ExpressionRef) copy.getDataRef()).isOnAggregate());
+   }
+
+   @Test
+   @DisplayName("An expression with CDATA breakers and a name with a quote and non-BMP " +
+      "characters survive the XML round trip")
+   void xmlRoundTrip_cdataBreakersAndSpecialNames() throws Exception {
+      String[] expressions = {
+         "field['a'] + \"]]>\" + '<&>' + \"\\u0001\"",
+         "field['a'] + ']]>' + '<![CDATA[' + 'z'",
+         "'<&>'" };
+
+      for(String expression : expressions) {
+         CalculateRef ref = new CalculateRef(true);
+         ExpressionRef exp = new ExpressionRef(null, "O'Brien \u00fc\uD83D\uDE00");
+         exp.setExpression(expression);
+         ref.setDataType(XSchema.STRING);
+         ref.setDataRef(exp);
+         ExpressionRef back = (ExpressionRef) ((CalculateRef) roundTrip(ref)).getDataRef();
+         assertEquals(expression, back.getExpression(), expression);
+         assertEquals("O'Brien \u00fc\uD83D\uDE00", back.getName());
+      }
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): a raw U+0001 character cannot " +
+      "be written to XML 1.0 and does not come back")
+   void pin_rawControlCharacterIsLost() throws Exception {
+      CalculateRef ref = calc(true, "'x" + (char) 1 + "y'");
+      ExpressionRef back = (ExpressionRef) ((CalculateRef) roundTrip(ref)).getDataRef();
+      assertFalse(back.getExpression().indexOf((char) 1) >= 0);
+      assertNotEquals("'x" + (char) 1 + "y'", back.getExpression());
+   }
+
+   @Test
+   @DisplayName("The sql flag is written only when false and round trips")
+   void sqlFlagRoundTrip() throws Exception {
+      CalculateRef sql = calc(true, "field['a']");
+      assertTrue(sql.isSQL());
+      assertTrue(((CalculateRef) roundTrip(sql)).isSQL());
+
+      CalculateRef script = calc(true, "field['a']");
+      script.setSQL(false);
+      assertFalse(((CalculateRef) roundTrip(script)).isSQL());
+   }
+
+   @Test
+   @DisplayName("Equal refs have the same hash code")
+   void equalRefs_sameHashCode() {
+      assertEquals(calc(true, "field['a']").hashCode(), calc(true, "field['a']").hashCode());
+      assertEquals(calc(false, "field['Sum([a])']"), calc(false, "field['Sum([a])']"));
+      assertEquals(calc(false, "field['Sum([a])']").hashCode(),
+                   calc(false, "field['Sum([a])']").hashCode());
+   }
+
+   @Test
+   @DisplayName("A data type set on an aggregate ref reaches its expression")
+   void aggregateDataType_reachesTheExpression() {
+      CalculateRef ref = new CalculateRef(false);
+      ExpressionRef exp = new ExpressionRef(null, "calc");
+      exp.setExpression("field['Sum([a])']");
+      ref.setDataType(XSchema.STRING);
+      ref.setDataRef(exp);
+      assertEquals(XSchema.STRING, ref.getDataType());
+      assertEquals(XSchema.STRING, ((ExpressionRef) ref.getDataRef()).getDataType());
    }
 
    /** A calculated field named "calc" of type double over the given expression. */

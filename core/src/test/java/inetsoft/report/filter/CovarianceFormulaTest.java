@@ -20,6 +20,8 @@ package inetsoft.report.filter;
 import inetsoft.mv.data.FormulaInfo;
 import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
@@ -299,5 +301,39 @@ class CovarianceFormulaTest {
 
       // covariance of x = 1..4 and y = 2, 7, 4, 5
       assertEquals(0.75, (Double) covar.getFormula().getResult(), EPS);
+   }
+
+   @Disabled("Not filed (unreachable): a one-member Object[] pair is skipped, as the double[] path does")
+   @Test
+   @DisplayName("An Object[] of length 1 is skipped like the double[] twin")
+   void objectArrayOfLengthOne_isSkippedWithoutException() {
+      CovarianceFormula covar = new CovarianceFormula(2);
+      assertDoesNotThrow(() -> covar.addValue(new Object[] { 5 }));
+      assertTrue(covar.isNull());
+   }
+
+   @Test
+   @DisplayName("Padded, exponent and signed text is the same pair as the number")
+   void numericTextPair_equalsTheNumericPair() {
+      CovarianceFormula text = new CovarianceFormula(2);
+      CovarianceFormula numeric = new CovarianceFormula(2);
+      pairs(text, p(1, 2), p(" 8 ", 7), p("1e3", 5), p("+5", 3), p(4, "+6"));
+      pairs(numeric, p(1, 2), p(8, 7), p(1000, 5), p(5, 3), p(4, 6));
+      assertEquals(numeric.getResult(), text.getResult());
+      assertNotNull(text.getResult());
+   }
+
+   @Test
+   @DisplayName("PIN(current behavior, pending dev #80953): separator, hex and Arabic " +
+      "digit text pairs are skipped")
+   void separatorHexAndArabicDigitText_pairIsSkipped() {
+      CovarianceFormula clean = new CovarianceFormula(2);
+      pairs(clean, p(1, 2), p(2, 7), p(3, 4));
+
+      for(String text : new String[] { "1,000", "1,5", "0x10", "٣" }) {
+         CovarianceFormula withText = new CovarianceFormula(2);
+         pairs(withText, p(1, 2), p(2, 7), p(text, 9), p(3, 4));
+         assertEquals(clean.getResult(), withText.getResult(), text);
+      }
    }
 }
