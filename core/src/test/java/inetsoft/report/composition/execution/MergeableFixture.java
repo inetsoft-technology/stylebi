@@ -1,0 +1,238 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.report.composition.execution;
+
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XNode;
+import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.jdbc.*;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.util.Plugins;
+import inetsoft.util.credential.CredentialService;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Builds the worksheet tables of the tests of the push down rules of {@link PreAssetQuery}: a SQL
+ * bound table on a data source of a given database, with a parsed SQL, as the composer builds it.
+ * The rules only look at the definition of the data source (the SQL helper of its driver), no
+ * connection is opened and no SQL is executed.
+ */
+final class MergeableFixture {
+   /** The version of the database that the mocked repository reports. */
+   private static final ThreadLocal<String> REPORTED_VERSION = new ThreadLocal<>();
+
+   private MergeableFixture() {
+   }
+
+   /** The beans a SQL bound query needs: the credential service, the driver types, a cache. */
+   @Configuration
+   @Import(CredentialService.class)
+   static class Config {
+      @Bean
+      public inetsoft.uql.util.Config config(Plugins plugins) {
+         return new inetsoft.uql.util.Config(plugins);
+      }
+
+      // the SQL helper asks the repository for the version of the database when the data source
+      // has none (Oracle, MySQL), and always for Derby
+      @Bean
+      public XRepository repository() throws Exception {
+         XRepository repository = mock(XRepository.class);
+         when(repository.getMetaData(any(), any(), any(), anyBoolean(), any()))
+            .thenAnswer(inv -> {
+               String version = REPORTED_VERSION.get();
+
+               if(version == null) {
+                  return null;
+               }
+
+               XNode node = new XNode();
+               node.setAttribute("DBProductVersion", version);
+               return node;
+            });
+         return repository;
+      }
+
+      @Bean
+      @SuppressWarnings("unchecked")
+      public AssetDataCache assetDataCache() {
+         ObjectProvider<DistributedTableCacheStore> provider = mock(ObjectProvider.class);
+         when(provider.getObject()).thenReturn(mock(DistributedTableCacheStore.class));
+         return new AssetDataCache(mock(DataSourceRegistry.class), provider);
+      }
+   }
+
+   /** A data source of a database; its SQL helper is checked to be the one of that database. */
+   static JDBCDataSource dataSource(String type) {
+      return dataSource(type, null);
+   }
+
+   /**
+    * The same, with the version that the database reports when it is given: the data source then
+    * has no version, so the SQL helper asks the repository for it, as it does for a database that
+    * is connected.
+    */
+   static JDBCDataSource dataSource(String type, String version) {
+      if(version == null) {
+         REPORTED_VERSION.remove();
+      }
+      else {
+         REPORTED_VERSION.set(version);
+      }
+
+      JDBCDataSource ds = new JDBCDataSource();
+      ds.setName("mergeable_" + type.replace(' ', '_'));
+      ds.setProductVersion("19.0");
+      ds.setRequireLogin(false);
+
+      switch(type) {
+      case "derby" -> {
+         ds.setDriver("org.apache.derby.jdbc.EmbeddedDriver");
+         ds.setURL("jdbc:derby:memory:mergeable");
+         ds.setProductVersion("10.17");
+      }
+      case "h2" -> {
+         ds.setDriver("org.h2.Driver");
+         ds.setURL("jdbc:h2:mem:mergeable");
+      }
+      case "postgresql" -> {
+         ds.setDriver("org.postgresql.Driver");
+         ds.setURL("jdbc:postgresql://localhost:5432/test");
+      }
+      case "mysql" -> {
+         ds.setDriver("com.mysql.cj.jdbc.Driver");
+         ds.setURL("jdbc:mysql://localhost/test");
+         ds.setProductVersion("8.0");
+      }
+      case "oracle" -> {
+         ds.setDriver("oracle.jdbc.OracleDriver");
+         ds.setURL("jdbc:oracle:thin:@localhost:1521:test");
+      }
+      case "sql server" -> {
+         ds.setDriver("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+         ds.setURL("jdbc:sqlserver://localhost:1433;databaseName=test");
+      }
+      case "sybase" -> {
+         ds.setDriver("net.sourceforge.jtds.jdbc.Driver");
+         ds.setURL("jdbc:jtds:sybase://localhost/test");
+      }
+      case "informix" -> {
+         ds.setDriver("com.informix.jdbc.IfxDriver");
+         ds.setURL("jdbc:informix-sqli://localhost:9088/test:INFORMIXSERVER=ol");
+      }
+      default -> throw new IllegalArgumentException(type);
+      }
+
+      if(version != null) {
+         ds.setProductVersion(null);
+      }
+
+      assertEquals(type, SQLHelper.getSQLHelper(ds).getSQLHelperType(), "helper for " + type);
+      return ds;
+   }
+
+   static ColumnRef column(String name, String type) {
+      ColumnRef column = new ColumnRef(new AttributeRef("a", name));
+      column.setDataType(type);
+      return column;
+   }
+
+   static ColumnRef integer(String name) {
+      return column(name, XSchema.INTEGER);
+   }
+
+   static ColumnRef string(String name) {
+      return column(name, XSchema.STRING);
+   }
+
+   /** A table T1 with its worksheet, the data source and the columns it selects. */
+   static final class Built {
+      final Worksheet ws = new Worksheet();
+      final SQLBoundTableAssembly table;
+      final JDBCDataSource ds;
+
+      private Built(String type, String version, ColumnRef... columns) throws Exception {
+         ds = dataSource(type, version);
+
+         // the columns are the columns of the table a, as of a table bound to a physical table
+         UniformSQL usql = new UniformSQL();
+         usql.setDataSource(ds);
+         usql.addTable("a", "a");
+         JDBCSelection jselection = (JDBCSelection) usql.getSelection();
+
+         for(ColumnRef column : columns) {
+            String path = "a." + column.getAttribute();
+            jselection.addColumn(path);
+            jselection.setTable(path, "a");
+         }
+
+         JDBCQuery query = new JDBCQuery();
+         query.setName("mergeable");
+         query.setDataSource(ds);
+         query.setSQLDefinition(usql);
+
+         table = new SQLBoundTableAssembly(ws, "T1");
+         SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) table.getTableInfo();
+         info.setQuery(query);
+         info.setSourceInfo(
+            new SourceInfo(SourceInfo.PHYSICAL_TABLE, ds.getName(), ds.getName()));
+
+         ColumnSelection selection = new ColumnSelection();
+
+         for(ColumnRef column : columns) {
+            selection.addAttribute((ColumnRef) column.clone());
+         }
+
+         table.setColumnSelection(selection, false);
+         table.setColumnSelection(selection, true);
+         ws.addAssembly(table);
+      }
+
+      /** A new query of the table: the answer of a query is kept after the first question. */
+      SQLBoundQuery query() throws Exception {
+         return new SQLBoundQuery(AssetQuerySandbox.RUNTIME_MODE, new AssetQuerySandbox(ws),
+                                  table, false, false);
+      }
+   }
+
+   /** A table of the columns k, v (integers) and name (string) of the table a. */
+   static Built simple(String type) throws Exception {
+      return simple(type, null);
+   }
+
+   static Built simple(String type, String version) throws Exception {
+      return new Built(type, version, integer("k"), integer("v"), string("name"));
+   }
+
+   static Built build(String type, ColumnRef... columns) throws Exception {
+      return new Built(type, null, columns);
+   }
+}
