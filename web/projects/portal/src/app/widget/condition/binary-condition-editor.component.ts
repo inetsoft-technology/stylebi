@@ -30,6 +30,8 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { SourceInfo } from "../../binding/data/source-info";
 import { ConditionEditor } from "./condition-editor.component";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
+import { VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
 
 @Component({
     selector: "binary-condition-editor",
@@ -58,6 +60,13 @@ export class BinaryConditionEditor {
    @Input() table: string;
    @Input() runtimeId: string;
    @Input() socketConnection: ViewsheetClientService;
+   /** Forwarded to both hosted condition-editors so each value slot can offer Connect to Claude. */
+   @Input() operation: ConditionOperation;
+   @Input() isHighlight: boolean = false;
+   /** Which viewsheet condition list this value belongs to (owning assembly and highlight name),
+    *  threaded through to FormulaEditorDialog so its Connect to Claude pairing is scoped to this
+    *  one value. Unset outside the viewsheet Conditions/Highlight dialogs. */
+   @Input() vsConditionScope: VSConditionPairingScope;
    @Input() isVSContext = true;
    @Input() showOriginalName: boolean = false;
    @Output() valuesChange: EventEmitter<ConditionValue[]> = new EventEmitter<ConditionValue[]>();

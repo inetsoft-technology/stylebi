@@ -54,6 +54,7 @@ export class TableActionHandler extends AbstractActionHandler {
          (dialog: VSConditionDialog, model: VSConditionDialogModel) => {
             dialog.model = model;
             dialog.runtimeId = runtimeId;
+            dialog.socketConnection = this.context.composer ? this.viewsheetClient : null;
             dialog.assemblyName = absoluteName;
             dialog.variableValues = variableValues;
          }, params, options);
@@ -81,6 +82,7 @@ export class TableActionHandler extends AbstractActionHandler {
          (dialog: HighlightDialog, model: HighlightDialogModel) => {
             dialog.model = model;
             dialog.runtimeId = runtimeId;
+            dialog.socketConnection = this.context.composer ? this.viewsheetClient : null;
             dialog.assemblyName = absoluteName;
             dialog.variableValues = variableValues;
          }, params, options);

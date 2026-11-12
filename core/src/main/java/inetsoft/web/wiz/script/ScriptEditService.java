@@ -23,6 +23,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.script.model.ScriptWriteResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -188,6 +189,11 @@ public class ScriptEditService {
             "'" + target.kind().wireName() + "' is a worksheet-level target; it cannot be " +
             "written through the viewsheet script API. Use WorksheetScriptService (worksheet-chat's " +
             "edit_expression/edit_condition) instead.");
+         // Fail loud for the same reason: a condition value is draft-only and is pushed by
+         // writeConditionValueDraft, never written to the runtime through this method.
+         case VS_CONDITION_VALUE -> throw new PairingException(
+            "'" + target.kind().wireName() + "' is a draft-only target; it is pushed into the " +
+            "user's open dialog, not written through the viewsheet script API.");
       }
 
       // Bug #80447 symptom 1: the canvas-repaint broadcast apply() already issues (per-assembly
@@ -266,7 +272,74 @@ public class ScriptEditService {
          case WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE -> throw new PairingException(
             "'" + target.kind().wireName() + "' is a worksheet-level target with no enable flag; " +
             "it cannot be toggled through the viewsheet script API.");
+         case VS_CONDITION_VALUE -> throw new PairingException(
+            "'vsConditionValue': a condition value has no enable flag; only scripts can be " +
+            "enabled or disabled.");
       }
+   }
+
+   /**
+    * Pushes {@code text} into the user's open Conditions/Highlight formula dialog as a draft.
+    *
+    * <p>Deliberately never touches the runtime viewsheet: no write, no undo checkpoint, no refresh
+    * broadcast, and above all no {@code bumpWriteRevision}. The open dialog holds the revision it
+    * was opened at and echoes it on OK, and {@code VSConditionDialogService.setModel} /
+    * {@code HighlightDialogService} refuse a commit whose revision is stale, so bumping it here
+    * would make the user's own OK fail with a write conflict. The row being edited may not exist
+    * in the runtime yet either.
+    */
+   public ScriptWriteResult writeConditionValueDraft(RuntimeViewsheet rvs, Principal agent,
+                                                     ScriptTarget target, String text)
+      throws PairingException
+   {
+      if(text == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT, "text is required.");
+      }
+
+      if(text.isBlank()) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "The expression is empty: a condition value cannot be blank, it would leave an " +
+            "invalid condition. Nothing was pushed.");
+      }
+
+      ScriptReadService.requireAssemblyInfo(requireViewsheet(rvs), target.assemblyName());
+
+      String problem = conditionSyntaxProblem(text);
+      String warning = null;
+
+      if(problem != null) {
+         if(!EditorContext.parseVsConditionName(target.name()).highlight()) {
+            // A filter expression is always evaluated as JavaScript and its dialog has no
+            // SQL toggle, so a parse error is certain to fail the refresh.
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "The expression does not parse as a JavaScript expression (" + problem +
+               "). Nothing was pushed.");
+         }
+
+         // A highlight's dialog also offers SQL, which the server cannot see and which does not
+         // parse as JavaScript (e.g. $(var)), so only warn.
+         warning = "The draft does not parse as a JavaScript expression (" + problem +
+            "). Ignore this if the expression is SQL; otherwise fix it before the user clicks OK.";
+      }
+
+      boolean sent = broadcast.pushScriptRefresh(rvs, rvs.getID(), agent,
+                                                 target.kind().wireName(), target.assemblyName(),
+                                                 target.name(), text);
+
+      if(!sent) {
+         throw new PairingException(
+            "The formula dialog for " + target + " is not reachable (closed or disconnected), so " +
+            "nothing was pushed. Ask the user to reopen the formula dialog and click Connect to " +
+            "Claude.");
+      }
+
+      return new ScriptWriteResult(true, true, VsConditionValueTargets.note(target, true),
+                                   warning);
+   }
+
+   /** Overridable seam: the script engine is not initialised in unit tests. */
+   String conditionSyntaxProblem(String text) {
+      return VsConditionValueTargets.syntaxProblem(text);
    }
 
    private JoinSession requireSession(String sessionToken, Principal agent) throws PairingException {

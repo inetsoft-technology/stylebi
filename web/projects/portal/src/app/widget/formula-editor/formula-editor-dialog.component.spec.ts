@@ -30,11 +30,12 @@
  * Ruling (overrides the original task brief): the brief's "derives a
  * condition context" test set isCondition=true but never set isVSContext,
  * whose declared default is `true` — so the getter's own condition branch
- * would return "assemblyMain", not "worksheetCondition", and the brief's
+ * would take the viewsheet branch, not the worksheet one, and the brief's
  * test would fail as written. The getter is right, not the test: a
  * viewsheet condition is viewsheet-hosted. Fixed here by setting
  * isVSContext = false to exercise the worksheet branch, with a second test
- * pinning isVSContext = true -> "assemblyMain".
+ * pinning isVSContext = true -> "vsConditionValue" (bug #80459; it used to
+ * pair to the assembly's own script, which is the wrong target).
  */
 
 import { of, throwError } from "rxjs";
@@ -118,13 +119,35 @@ describe("FormulaEditorDialog — editorContext", () => {
          { kind: "worksheetConditionValue", assembly: "Table1" });
    });
 
-   it("derives an assemblyMain context for a viewsheet-hosted condition", () => {
+   /*
+    * Bug #80459: a viewsheet-hosted condition is ONE value slot of the Conditions/Highlight
+    * dialog, not the assembly's script. Without a scope (every other host of this dialog) it
+    * must not fall back to assemblyMain, which would pair to the component's own SCRIPT.
+    */
+   it("derives no addressable context for a viewsheet-hosted condition without a scope", () => {
       const comp = pairedDialog();
       comp.isVSContext = true;
       comp.isCondition = true;
       comp.assemblyName = "Table1";
+      comp.conditionOperation = ConditionOperation.EQUAL_TO;
 
-      expect(comp.editorContext.kind).toBe("assemblyMain");
+      expect(comp.editorContext.kind).toBe("vsConditionValue");
+      expect(comp.editorContext.name).toBeUndefined();
+      expect(comp.canPair).toBe(false);
+   });
+
+   it("derives a vsConditionValue context for a viewsheet-hosted filter condition", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = true;
+      comp.isCondition = true;
+      comp.assemblyName = "Table1";
+      comp.contextTable = "WsTable";
+      comp.conditionOperation = ConditionOperation.EQUAL_TO;
+      comp.vsConditionScope = { assembly: "Table1", highlightName: null };
+
+      expect(comp.editorContext).toEqual(
+         { kind: "vsConditionValue", assembly: "Table1", name: "filter" });
+      expect(comp.canPair).toBe(true);
    });
 
    it("derives a worksheetExpression context for a plain worksheet expression", () => {
@@ -343,10 +366,11 @@ describe("FormulaEditorDialog — canPair suppresses an unaddressable location",
    /* The other half: kinds addressed by assembly alone are unaffected, and a fully addressed
     * column location is still offered. Without these, "suppress everything" would also pass. */
    it("still offers a connect button for an assembly-addressed location", () => {
+      // A plain viewsheet expression is addressed by its assembly's script alone. (A viewsheet
+      // CONDITION used to be this case; since bug #80459 it needs a vsConditionScope.)
       const comp = pairedDialog();
       comp.isVSContext = true;
-      comp.isCondition = true;
-      comp.assemblyName = "Table1";
+      comp.assemblyName = "Chart1";
 
       expect(comp.canPair).toBe(true);
    });

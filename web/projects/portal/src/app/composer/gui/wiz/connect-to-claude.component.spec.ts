@@ -944,6 +944,20 @@ describe("ConnectToClaudeComponent", () => {
          expect(text).not.toMatch(/whole sheet/i);
          expect(text).toContain("Margin");
       });
+
+      // Bug #80459: the grant's wire name ("highlight:<name>") is not what a user should read.
+      it("viewsheet filter condition pane reads as a filter condition value", () => {
+         const text = pair({ kind: "vsConditionValue", assembly: "Table1", name: "filter" });
+         expect(text).toContain("Table1 → filter condition value");
+         expect(text).not.toContain("vsConditionValue");
+      });
+
+      it("viewsheet highlight condition pane names its highlight", () => {
+         const text = pair({ kind: "vsConditionValue", assembly: "Chart1",
+                             name: "highlight:High Sales" });
+         expect(text).toContain("Chart1 → highlight 'High Sales' condition value");
+         expect(text).not.toContain("vsConditionValue");
+      });
    });
 
    describe("Follow Focus toggle + live target indicator (Phase 3)", () => {

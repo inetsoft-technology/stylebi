@@ -31,6 +31,7 @@ import inetsoft.web.wiz.script.model.ScriptContext;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetsResponse;
+import inetsoft.web.wiz.script.model.ScriptWriteResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -207,18 +208,36 @@ public class ViewsheetAgentController {
    public record WriteScriptRequest(String target, String id, String kind, String assembly,
                                     String name, String text) {}
 
-   /** Overwrites the script text at {@code target} and broadcasts a refresh. */
+   /**
+    * Overwrites the script text at {@code target} and broadcasts a refresh.
+    *
+    * <p>Returns {@code null} (an empty 200) for every script kind. A {@code vsConditionValue}
+    * target is branched off BEFORE {@code editService.apply}: it is a draft pushed into the
+    * user's open dialog, and {@code apply} would bump the write revision (failing the user's own
+    * OK with a write conflict), add an undo checkpoint and broadcast a refresh.
+    */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/script")
-   public void writeScript(@PathVariable String sessionToken,
-                           @RequestBody WriteScriptRequest req, Principal user)
+   public ScriptWriteResult writeScript(@PathVariable String sessionToken,
+                                        @RequestBody WriteScriptRequest req, Principal user)
       throws Exception
    {
       requireEnabled();
+      RuntimeViewsheet draftRvs = editService.resolve(sessionToken, user);
+      ScriptTarget draftTarget =
+         target(draftRvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
+
+      if(draftTarget.kind() == ScriptTarget.Kind.VS_CONDITION_VALUE) {
+         requirePaneScope(sessionToken, user, draftTarget);
+         return editService.writeConditionValueDraft(draftRvs, user, draftTarget, req.text());
+      }
+
       editService.apply(sessionToken, user, rvs -> {
          ScriptTarget t = target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
          requirePaneScope(sessionToken, user, t);
          editService.write(rvs, user, t, req.text());
       });
+
+      return null;
    }
 
    public record SetEnabledRequest(String target, String id, String kind, String assembly,
@@ -270,6 +289,7 @@ public class ViewsheetAgentController {
             ScriptTarget t =
                target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
             requirePaneScope(sessionToken, user, t);
+            ScriptExecuteService.requireRunnable(t);
             return stateRefreshService.runAndRefresh(
                rvs, user, "", () -> executeService.dryRun(rvs, t));
          },
@@ -291,6 +311,7 @@ public class ViewsheetAgentController {
             ScriptTarget t =
                target(rvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
             requirePaneScope(sessionToken, user, t);
+            ScriptExecuteService.requireRunnable(t);
             return stateRefreshService.runAndRefresh(
                rvs, user, "", () -> executeService.runLive(rvs, t, req.confirmed()));
          });

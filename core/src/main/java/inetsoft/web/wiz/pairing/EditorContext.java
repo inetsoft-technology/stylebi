@@ -29,7 +29,8 @@ package inetsoft.web.wiz.pairing;
  * <p>{@code kind} is the only required component — it is the wire vocabulary produced by the
  * browser's script panes and formula editor (e.g. {@code "viewsheetOnInit"},
  * {@code "viewsheetOnLoad"}, {@code "assemblyMain"}, {@code "assemblyOnClick"},
- * {@code "calcField"}, {@code "worksheetExpression"}, {@code "worksheetCondition"}).
+ * {@code "calcField"}, {@code "worksheetExpression"}, {@code "worksheetCondition"},
+ * {@code "vsConditionValue"}).
  *
  * <p>{@code assembly} names the assembly the location belongs to, for the kinds that are
  * scoped to one; it is {@code null} for the two whole-viewsheet script kinds
@@ -83,6 +84,44 @@ public record EditorContext(String kind, String assembly, String name, String ta
 
    public static String cellName(int row, int col) {
       return row + "," + col;
+   }
+
+   /**
+    * The wire kind of a pane session scoped to ONE expression-typed condition value of a viewsheet
+    * assembly -- the Condition (filter) or Highlight dialog's formula editor. {@code assembly} is
+    * the viewsheet assembly that owns the condition; {@code name} is {@link #VS_FILTER_NAME} or
+    * {@link #VS_HIGHLIGHT_PREFIX} followed by the highlight's name. Draft-only: the session pushes
+    * text into the user's open formula dialog and never writes the viewsheet. Also a
+    * {@code ScriptTarget.Kind}, so the script endpoints serve it.
+    */
+   public static final String VS_CONDITION_VALUE = "vsConditionValue";
+
+   public static final String VS_FILTER_NAME = "filter";
+   public static final String VS_HIGHLIGHT_PREFIX = "highlight:";
+
+   /** The parsed {@code name} of a {@code vsConditionValue} context; no name for the filter. */
+   public record VsConditionScope(boolean highlight, String highlightName) {
+   }
+
+   /** The scope for {@code "filter"} or {@code "highlight:<non-blank name>"}, else null. */
+   public static VsConditionScope parseVsConditionName(String name) {
+      if(VS_FILTER_NAME.equals(name)) {
+         return new VsConditionScope(false, null);
+      }
+
+      if(name != null && name.startsWith(VS_HIGHLIGHT_PREFIX)) {
+         String highlight = name.substring(VS_HIGHLIGHT_PREFIX.length());
+
+         if(!highlight.isBlank()) {
+            return new VsConditionScope(true, highlight);
+         }
+      }
+
+      return null;
+   }
+
+   public static String vsHighlightName(String highlightName) {
+      return VS_HIGHLIGHT_PREFIX + highlightName;
    }
 
    public EditorContext(String kind, String assembly, String name, String table) {

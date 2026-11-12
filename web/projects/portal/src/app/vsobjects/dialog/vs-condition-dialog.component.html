@@ -22,7 +22,8 @@
   <div class="modal-body" enterSubmit (onEnter)="ok()">
     <condition-pane [provider]="provider" [fields]="model.fields" [table]="model?.tableName"
       [conditionList]="model.conditionList" [isHighlight]="isHighlight"
-      [vsId]="runtimeId"
+      [vsId]="runtimeId" [runtimeId]="runtimeId" [socketConnection]="socketConnection"
+      [vsConditionScope]="pairingScope"
       (conditionListChange)="conditionListChanged($event)"
       (conditionChange)="conditionChanged($event)"
       (junctionChange)="junctionChanged($event)">

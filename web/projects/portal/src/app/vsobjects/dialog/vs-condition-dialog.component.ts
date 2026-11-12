@@ -47,6 +47,8 @@ import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.compon
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
 
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
 
 const CHECK_CONDITION_TRAP_URI = "../api/composer/viewsheet/check-condition-trap/";
 
@@ -64,7 +66,12 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
    @Input() model: VSConditionDialogModel;
    @Input() nonSupportBrowseFields: string[];
    @Input() runtimeId: string;
+   /** Socket of the runtime the dialog edits; with `runtimeId` it lets an Expression value's
+    *  formula dialog offer Connect to Claude. */
+   @Input() socketConnection: ViewsheetClientService;
    @Input() assemblyName: string;
+   /** The highlight being edited, when `isHighlight`; scopes the pairing to that highlight. */
+   @Input() highlightName: string;
    @Input() variableValues: string[];
    @Input() supportApply: boolean = true;
    @Input() isHighlight: boolean = false;
@@ -80,6 +87,9 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
    controller: string = "../api/composer/vs/vs-condition-dialog-model";
    provider: VSConditionItemPaneProvider;
    conditionListCheckpoint: any[];
+   /** Which condition list the pairing is scoped to; built once so the child inputs keep a
+    *  stable identity across change detection. Null hides Connect to Claude. */
+   pairingScope: VSConditionPairingScope = null;
    @ViewChild(ConditionPane) conditionPane: ConditionPane;
 
    constructor(private http: HttpClient,
@@ -93,6 +103,8 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
    }
 
    ngOnInit(): void {
+      this.pairingScope = this.createPairingScope();
+
       if(this.highlightModel) {
          this.model = Tool.clone(this.highlightModel);
       }
@@ -123,6 +135,20 @@ export class VSConditionDialog extends BaseResizeableDialogComponent implements 
          this.conditionListCheckpoint = Tool.clone(this.model.conditionList);
          this.checkConditionTrap(true);
       }
+   }
+
+   private createPairingScope(): VSConditionPairingScope {
+      if(!this.assemblyName) {
+         return null;
+      }
+
+      if(!this.isHighlight) {
+         return { assembly: this.assemblyName, highlightName: null };
+      }
+
+      // a highlight with no name would mint `highlight:`, which no highlight can match
+      return this.highlightName?.trim()
+         ? { assembly: this.assemblyName, highlightName: this.highlightName } : null;
    }
 
    ngAfterViewInit(): void {

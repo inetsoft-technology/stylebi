@@ -101,6 +101,14 @@ public class ScriptContextService {
     *               an onInit/onLoad script coordinates across assemblies by definition.
     */
    public ScriptContext context(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
+      if(target != null && target.kind() == ScriptTarget.Kind.VS_CONDITION_VALUE) {
+         // The default path would answer with the assembly's own script context: plausible, but
+         // not the scope a condition expression evaluates in.
+         throw new PairingException(
+            "'" + target + "' has no scripting context: it is a condition expression draft, not " +
+            "a script.");
+      }
+
       List<AssemblyContext> all = describeAssemblies(rvs);
 
       if(target == null) {

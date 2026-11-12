@@ -54,6 +54,7 @@ export class CalcTableActionHandler extends AbstractActionHandler {
                });
             dialog.model = data;
             dialog.runtimeId = runtimeId;
+            dialog.socketConnection = this.context.composer ? this.viewsheetClient : null;
             dialog.assemblyName = absoluteName;
             dialog.variableValues = variableValues;
          },
@@ -88,6 +89,7 @@ export class CalcTableActionHandler extends AbstractActionHandler {
                });
             dialog.model = data;
             dialog.runtimeId = runtimeId;
+            dialog.socketConnection = this.context.composer ? this.viewsheetClient : null;
             dialog.assemblyName = absoluteName;
             dialog.variableValues = variableValues;
          },

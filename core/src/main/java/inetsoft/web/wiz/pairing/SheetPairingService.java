@@ -27,7 +27,9 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
-import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.ws.dialog.ExpressionNameSupport;
 import inetsoft.web.wiz.binding.CalcTableService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,7 +69,7 @@ public class SheetPairingService {
    static final List<String> RECOGNIZED_KINDS = List.of(
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
       "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
-      EditorContext.CALC_TABLE_CELL);
+      EditorContext.CALC_TABLE_CELL, EditorContext.VS_CONDITION_VALUE);
 
    /**
     * The two assembly-scoped script kinds (as opposed to viewsheetOnInit/viewsheetOnLoad, which
@@ -231,6 +233,11 @@ public class SheetPairingService {
          return;
       }
 
+      if(EditorContext.VS_CONDITION_VALUE.equals(ctx.kind())) {
+         validateVsConditionValueContext(sheetType, rs, ctx);
+         return;
+      }
+
       if("calcField".equals(ctx.kind())) {
          // Addressed by (table, name), not by assembly -- Viewsheet.getCalcField is keyed by
          // table. The current browser wiring sends the table name in `assembly` (mirroring
@@ -301,6 +308,60 @@ public class SheetPairingService {
       if(!found) {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "Assembly not found: " + assembly);
+      }
+   }
+
+   /**
+    * Verifies a {@code vsConditionValue} context: a viewsheet runtime, a {@code "filter"} or
+    * {@code "highlight:<name>"} name, and an assembly that has the matching dialog. Nothing finer
+    * is checked on purpose -- the value being edited is the user's open dialog draft, which need
+    * not exist in the runtime yet (a new condition row, a new or renamed highlight).
+    */
+   private static void validateVsConditionValueContext(SheetType sheetType, RuntimeSheet rs,
+                                                       EditorContext ctx)
+      throws PairingException
+   {
+      if(sheetType != SheetType.VIEWSHEET || !(rs instanceof RuntimeViewsheet rvs) ||
+         rvs.getViewsheet() == null)
+      {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'vsConditionValue' requires a viewsheet runtime");
+      }
+
+      if(isBlank(ctx.assembly())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'vsConditionValue' requires 'assembly'");
+      }
+
+      EditorContext.VsConditionScope scope = EditorContext.parseVsConditionName(ctx.name());
+
+      if(scope == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'vsConditionValue' requires 'name' as \"filter\" or " +
+            "\"highlight:<highlight name>\", got '" + ctx.name() + "'");
+      }
+
+      Assembly a = rvs.getViewsheet().getAssembly(ctx.assembly());
+
+      if(!(a instanceof VSAssembly assembly)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Assembly not found: " + ctx.assembly());
+      }
+
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+
+      // The same assembly types the Conditions and Highlight dialogs commit to
+      // (VSConditionDialogService.setModel / HighlightDialogService.updateHighlights).
+      boolean hasDialog = scope.highlight()
+         ? info instanceof TableDataVSAssemblyInfo || info instanceof ChartVSAssemblyInfo ||
+            info instanceof OutputVSAssemblyInfo
+         : (info instanceof DataVSAssemblyInfo || info instanceof OutputVSAssemblyInfo) &&
+            !(assembly instanceof EmbeddedTableVSAssembly);
+
+      if(!hasDialog) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "'" + ctx.assembly() + "' has no " + (scope.highlight() ? "highlight" : "condition") +
+            " dialog");
       }
    }
 

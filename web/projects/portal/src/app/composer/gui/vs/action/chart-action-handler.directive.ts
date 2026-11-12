@@ -212,6 +212,7 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
          (dialog: HighlightDialog, model: HighlightDialogModel) => {
             dialog.model = model;
             dialog.runtimeId = this._viewsheet.runtimeId;
+            dialog.socketConnection = this.viewsheetClient;
             dialog.assemblyName = this.model.absoluteName;
             dialog.variableValues =
                VSUtil.getVariableList(this._viewsheet.vsObjects, this.model.absoluteName);
@@ -238,6 +239,7 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
          (dialog: VSConditionDialog, model: VSConditionDialogModel) => {
             dialog.model = model;
             dialog.runtimeId = this._viewsheet.runtimeId;
+            dialog.socketConnection = this.viewsheetClient;
             dialog.assemblyName = this.model.absoluteName;
             dialog.variableValues =
                VSUtil.getVariableList(this._viewsheet.vsObjects, this.model.absoluteName);

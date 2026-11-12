@@ -154,6 +154,7 @@ export class TextActionHandlerDirective extends AbstractActionHandler implements
                });
             dialog.model = <VSConditionDialogModel> data;
             dialog.runtimeId = this.vsInfo.runtimeId;
+            dialog.socketConnection = this.vsInfo.socketConnection;
             dialog.assemblyName = this.model.absoluteName;
             dialog.variableValues =
                VSUtil.getVariableList(this.vsInfo.vsObjects, this.model.absoluteName);
@@ -206,6 +207,7 @@ export class TextActionHandlerDirective extends AbstractActionHandler implements
                });
             dialog.model = <HighlightDialogModel> data;
             dialog.runtimeId = this.vsInfo.runtimeId;
+            dialog.socketConnection = this.vsInfo.socketConnection;
             dialog.assemblyName = this.model.absoluteName;
             dialog.variableValues =
                VSUtil.getVariableList(this.vsInfo.vsObjects, null);

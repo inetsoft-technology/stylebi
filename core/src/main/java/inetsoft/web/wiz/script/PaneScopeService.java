@@ -251,9 +251,18 @@ public class PaneScopeService {
          return Objects.equals(grant.assembly(), target.assemblyName());
       }
 
+      if(ASSEMBLY_NAMED_FAMILY.contains(grantedKind)) {
+         // Exact (assembly, name). Deliberately NOT the table/assembly alias above: the assembly
+         // here is always the viewsheet assembly that owns the condition.
+         return Objects.equals(grant.assembly(), target.assemblyName()) &&
+            Objects.equals(grant.name(), target.name());
+      }
+
       // viewsheetOnInit/viewsheetOnLoad carry no assembly/name -- sameDialogFamily already
-      // required an exact kind match, which is the whole identity for these.
-      return true;
+      // required an exact kind match, which is the whole identity for these. Every other kind
+      // must be classified above; one that is not matches nothing rather than everything.
+      return grantedKind == ScriptTarget.Kind.VIEWSHEET_ON_INIT ||
+         grantedKind == ScriptTarget.Kind.VIEWSHEET_ON_LOAD;
    }
 
    /**
@@ -315,6 +324,7 @@ public class PaneScopeService {
                (grant.table() != null ? grant.table() : grant.assembly()) + "." + grant.name() +
                "'";
             case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK -> "the script of '" + grant.assembly() + "'";
+            case VS_CONDITION_VALUE -> vsConditionDescription(grant.assembly(), grant.name());
             default -> "'" + grantedKind.wireName() + "'";
          };
       }
@@ -336,8 +346,21 @@ public class PaneScopeService {
             "worksheet condition value on '" + target.assemblyName() + "." + target.name() + "'";
          case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK ->
             "'" + target.kind().wireName() + "' on '" + target.assemblyName() + "'";
+         case VS_CONDITION_VALUE -> vsConditionDescription(target.assemblyName(), target.name());
          default -> "'" + target.kind().wireName() + "'";
       };
+   }
+
+   private static String vsConditionDescription(String assembly, String name) {
+      EditorContext.VsConditionScope scope = EditorContext.parseVsConditionName(name);
+
+      if(scope == null) {
+         return "'vsConditionValue' on '" + assembly + "'";
+      }
+
+      return scope.highlight()
+         ? "the expression value of highlight '" + scope.highlightName() + "' on '" + assembly + "'"
+         : "the expression value of the filter condition on '" + assembly + "'";
    }
 
    /**
@@ -355,6 +378,9 @@ public class PaneScopeService {
             "its condition editor and click Connect Agent.";
          case WORKSHEET_CONDITION_VALUE -> "a worksheet condition's value has no name at sheet " +
             "level — open its condition editor and click Connect Agent.";
+         case VS_CONDITION_VALUE -> "a viewsheet condition value has no name at sheet level - " +
+            "open the Conditions (or Highlight) dialog, set the value type to Expression, click " +
+            "the f icon and click Connect to Claude.";
          default -> "'" + kind.wireName() + "' has no identity at sheet level — open it in its " +
             "own editor and click Connect Agent.";
       };
@@ -387,6 +413,13 @@ public class PaneScopeService {
    private static final Set<ScriptTarget.Kind> COLUMN_ADDRESSED_FAMILY = EnumSet.of(
       ScriptTarget.Kind.CALC_FIELD, ScriptTarget.Kind.WORKSHEET_EXPRESSION,
       ScriptTarget.Kind.WORKSHEET_CONDITION, ScriptTarget.Kind.WORKSHEET_CONDITION_VALUE);
+
+   /**
+    * Kinds addressed by (viewsheet assembly, name) exactly, with no table alias -- see
+    * {@link ScriptTarget.Kind#VS_CONDITION_VALUE}.
+    */
+   private static final Set<ScriptTarget.Kind> ASSEMBLY_NAMED_FAMILY =
+      EnumSet.of(ScriptTarget.Kind.VS_CONDITION_VALUE);
 
    private final boolean strict;
 }

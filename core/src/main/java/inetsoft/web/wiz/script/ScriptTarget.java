@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.PairingException;
 
 import java.nio.charset.StandardCharsets;
@@ -37,7 +38,7 @@ import java.util.Set;
 public final class ScriptTarget {
    public enum Location {
       VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD,
-      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE
+      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE
    }
 
    /**
@@ -102,7 +103,18 @@ public final class ScriptTarget {
        * built and tested for whole-sheet sessions and direct worksheet-chat tool calls, which
        * genuinely do mean "replace the whole condition".
        */
-      WORKSHEET_CONDITION_VALUE("worksheetConditionValue", Location.WORKSHEET_CONDITION_VALUE);
+      WORKSHEET_CONDITION_VALUE("worksheetConditionValue", Location.WORKSHEET_CONDITION_VALUE),
+
+      /**
+       * ONE expression-typed value slot of a viewsheet assembly's Condition (filter) or Highlight
+       * dialog. Draft-only: {@code assemblyName()} is the viewsheet assembly that owns the
+       * condition and {@code name()} is {@code "filter"} or {@code "highlight:<highlight name>"}
+       * (see {@link inetsoft.web.wiz.pairing.EditorContext#parseVsConditionName}). Names the open
+       * dialog's working copy, which the server cannot see, so it is served only by the
+       * draft-push path of {@code ScriptEditService}/{@code ScriptReadService} and never reads or
+       * writes the runtime viewsheet.
+       */
+      VS_CONDITION_VALUE("vsConditionValue", Location.VS_CONDITION_VALUE);
 
       Kind(String wireName, Location location) {
          this.wireName = wireName;
@@ -160,7 +172,7 @@ public final class ScriptTarget {
       private static boolean isExpressionLevel(Location location) {
          return switch(location) {
             case CALC_FIELD, WORKSHEET_EXPRESSION, WORKSHEET_CONDITION,
-               WORKSHEET_CONDITION_VALUE -> true;
+               WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE -> true;
             case VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK -> false;
          };
       }
@@ -261,6 +273,22 @@ public final class ScriptTarget {
             "editor; this session is bound to a whole viewsheet.");
       }
 
+      if(kind == Kind.VS_CONDITION_VALUE) {
+         if(assemblyName == null || assemblyName.isBlank()) {
+            throw new PairingException(
+               "kind 'vsConditionValue' requires 'assembly' - the table/chart/... that owns the " +
+               "condition.");
+         }
+
+         if(EditorContext.parseVsConditionName(name) == null) {
+            throw new PairingException(
+               "kind 'vsConditionValue' requires 'name': \"filter\" or \"highlight:<highlight " +
+               "name>\".");
+         }
+
+         return new ScriptTarget(kind, assemblyName, name);
+      }
+
       if(COLUMN_ADDRESSED_KINDS.contains(kind)) {
          if(assemblyName == null || assemblyName.isBlank()) {
             throw new PairingException(
@@ -279,7 +307,7 @@ public final class ScriptTarget {
       if(name != null && !name.isBlank()) {
          throw new PairingException(
             "kind '" + kind.wireName() + "' takes no 'name'; only " +
-            String.join(", ", COLUMN_ADDRESSED_KINDS.stream().map(Kind::wireName).sorted().toList()) +
+            String.join(", ", NAMED_KINDS.stream().map(Kind::wireName).sorted().toList()) +
             " are addressed by one.");
       }
 
@@ -540,6 +568,7 @@ public final class ScriptTarget {
          // Same reasoning as CALC_FIELD/WORKSHEET_EXPRESSION/WORKSHEET_CONDITION above: no
          // legacy parseable form, display string only.
          case WORKSHEET_CONDITION_VALUE -> "worksheetConditionValue:" + assemblyName + ":" + name;
+         case VS_CONDITION_VALUE -> "vsConditionValue:" + assemblyName + ":" + name;
       };
    }
 
@@ -551,6 +580,11 @@ public final class ScriptTarget {
    private static final Set<Kind> COLUMN_ADDRESSED_KINDS =
       EnumSet.of(Kind.CALC_FIELD, Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION,
          Kind.WORKSHEET_CONDITION_VALUE);
+
+   /** Every kind that takes a {@code name}: the column-addressed ones plus the condition value. */
+   private static final Set<Kind> NAMED_KINDS = EnumSet.of(Kind.CALC_FIELD,
+      Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION, Kind.WORKSHEET_CONDITION_VALUE,
+      Kind.VS_CONDITION_VALUE);
 
    private final Kind kind;
    private final Location location;

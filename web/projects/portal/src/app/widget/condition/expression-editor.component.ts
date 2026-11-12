@@ -36,6 +36,7 @@ import { DataRef } from "../../common/data/data-ref";
 import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
 import { FormsModule } from "@angular/forms";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
 
 
 @Component({
@@ -72,6 +73,10 @@ export class ExpressionEditor implements OnChanges, OnDestroy {
     *  these through) simply means no Connect button, same as everywhere else this pattern is used. */
    @Input() runtimeId: string;
    @Input() socketConnection: ViewsheetClientService;
+   /** Which viewsheet condition list this value belongs to (owning assembly and highlight name),
+    *  threaded through to FormulaEditorDialog so its Connect to Claude pairing is scoped to this
+    *  one value. Unset outside the viewsheet Conditions/Highlight dialogs. */
+   @Input() vsConditionScope: VSConditionPairingScope;
    @Output() valueChange = new EventEmitter<ExpressionValue>();
    @ViewChild("formulaEditorDialog") formulaEditorDialog: TemplateRef<any>;
    expressionType: ExpressionType;

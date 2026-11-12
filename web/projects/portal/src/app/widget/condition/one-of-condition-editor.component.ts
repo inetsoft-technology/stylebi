@@ -41,6 +41,8 @@ import { ConditionValuePipe } from "./condition-value.pipe";
 
 import { ConditionEditor } from "./condition-editor.component";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { ConditionOperation } from "../../common/data/condition/condition-operation";
+import { VSConditionPairingScope } from "../../composer/gui/wiz/editor-context";
 
 @Component({
     selector: "one-of-condition-editor",
@@ -65,6 +67,13 @@ export class OneOfConditionEditor implements OnInit, OnChanges {
    @Input() table: string;
    @Input() runtimeId: string;
    @Input() socketConnection: ViewsheetClientService;
+   /** Forwarded to the hosted condition-editor so the value slot can offer Connect to Claude. */
+   @Input() operation: ConditionOperation;
+   @Input() isHighlight: boolean = false;
+   /** Which viewsheet condition list this value belongs to (owning assembly and highlight name),
+    *  threaded through to FormulaEditorDialog so its Connect to Claude pairing is scoped to this
+    *  one value. Unset outside the viewsheet Conditions/Highlight dialogs. */
+   @Input() vsConditionScope: VSConditionPairingScope;
    @Input() showUseList: boolean;
    @Input() values: ConditionValue[];
    @Input() source: SourceInfo;

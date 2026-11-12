@@ -48,6 +48,10 @@ public final class ScriptGrammar {
     * <p>{@link ScriptTarget.Kind#WORKSHEET_CONDITION_VALUE} is included for the same reason and
     * servable by the same {@code WorksheetScriptService}, narrower than
     * {@code WORKSHEET_CONDITION}: see its javadoc for why the two are not interchangeable.
+    *
+    * <p>{@link ScriptTarget.Kind#VS_CONDITION_VALUE} (Bug #80459) is included too: viewsheet-side,
+    * pane-scoped and draft-only -- {@code read_script} answers an empty pending draft and
+    * {@code update_script} pushes into the user's open formula dialog without writing the sheet.
     */
    public static List<String> supportedKinds() {
       return Arrays.stream(ScriptTarget.Kind.values())
