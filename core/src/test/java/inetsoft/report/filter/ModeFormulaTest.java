@@ -111,10 +111,10 @@ class ModeFormulaTest {
       assertNull(mode.getResult());
    }
 
-   @Disabled("Bug #81205, mismatch W8")
+   @Disabled("Bug #81205: ModeFormula.clone() returns a NthMostFrequentFormula")
    @Test
-   @DisplayName("W8: the clone of a Mode formula is a Mode formula")
-   void w8_clone_keepsTheFormulaType() {
+   @DisplayName("The clone of a Mode formula is a Mode formula")
+   void clone_keepsTheFormulaType() {
       ModeFormula mode = new ModeFormula();
       addAll(mode, "a", "a", "b");
       Object copy = mode.clone();

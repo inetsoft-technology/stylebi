@@ -126,9 +126,9 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("R1: clone keeps the aggregate kind, the flags, the expression and a copy of " +
+   @DisplayName("Clone keeps the aggregate kind, the flags, the expression and a copy of " +
       "the data ref")
-   void r1_clone_keepsAggregateKindAndFlags() {
+   void clone_keepsAggregateKindAndFlags() {
       CalculateRef ref = calc(false, "field['Sum([a])'] * 2");
       ref.setFake(true);
       ref.setDcRuntime(true);
@@ -145,9 +145,9 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("R2: an expression with CDATA breakers and a name with a quote and non-BMP " +
+   @DisplayName("An expression with CDATA breakers and a name with a quote and non-BMP " +
       "characters survive the XML round trip")
-   void r2_xmlRoundTrip_cdataBreakersAndSpecialNames() throws Exception {
+   void xmlRoundTrip_cdataBreakersAndSpecialNames() throws Exception {
       String[] expressions = {
          "field['a'] + \"]]>\" + '<&>' + \"\\u0001\"",
          "field['a'] + ']]>' + '<![CDATA[' + 'z'",
@@ -166,9 +166,9 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("PIN R2 (current behavior, pending dev #80953): a raw U+0001 character cannot " +
+   @DisplayName("PIN(current behavior, pending dev #80953): a raw U+0001 character cannot " +
       "be written to XML 1.0 and does not come back")
-   void r2_pin_rawControlCharacterIsLost() throws Exception {
+   void pin_rawControlCharacterIsLost() throws Exception {
       CalculateRef ref = calc(true, "'x" + (char) 1 + "y'");
       ExpressionRef back = (ExpressionRef) ((CalculateRef) roundTrip(ref)).getDataRef();
       assertFalse(back.getExpression().indexOf((char) 1) >= 0);
@@ -176,8 +176,8 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("R3: the sql flag is written only when false and round trips")
-   void r3_sqlFlagRoundTrip() throws Exception {
+   @DisplayName("The sql flag is written only when false and round trips")
+   void sqlFlagRoundTrip() throws Exception {
       CalculateRef sql = calc(true, "field['a']");
       assertTrue(sql.isSQL());
       assertTrue(((CalculateRef) roundTrip(sql)).isSQL());
@@ -188,8 +188,8 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("R4: equal refs have the same hash code")
-   void r4_equalRefs_sameHashCode() {
+   @DisplayName("Equal refs have the same hash code")
+   void equalRefs_sameHashCode() {
       assertEquals(calc(true, "field['a']").hashCode(), calc(true, "field['a']").hashCode());
       assertEquals(calc(false, "field['Sum([a])']"), calc(false, "field['Sum([a])']"));
       assertEquals(calc(false, "field['Sum([a])']").hashCode(),
@@ -197,8 +197,8 @@ class CalculateRefTest {
    }
 
    @Test
-   @DisplayName("R5: a data type set on an aggregate ref reaches its expression")
-   void r5_aggregateDataType_reachesTheExpression() {
+   @DisplayName("A data type set on an aggregate ref reaches its expression")
+   void aggregateDataType_reachesTheExpression() {
       CalculateRef ref = new CalculateRef(false);
       ExpressionRef exp = new ExpressionRef(null, "calc");
       exp.setExpression("field['Sum([a])']");

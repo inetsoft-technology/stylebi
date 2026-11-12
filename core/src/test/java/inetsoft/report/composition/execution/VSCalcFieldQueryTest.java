@@ -52,8 +52,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * How the viewsheet calculated fields reach the queries (Test Case #80957, vscalc matrix rows
- * V*, K*, T9 and T10): {@code VSAQuery.appendCalcFields} and the removal of the unused ones,
+ * How the viewsheet calculated fields reach the queries (Test Case #80957):
+ * {@code VSAQuery.appendCalcFields} and the removal of the unused ones,
  * a detail or aggregate calculated field in a freehand (calc) table, and the declared type of
  * an aggregate calculated field in a crosstab. The viewsheet, its sandbox and the queries are
  * real; only the data of the base worksheet table is embedded. Expected values are computed by
@@ -290,8 +290,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("V1: only the detail or only the aggregate calc fields are appended")
-   void v1_detailVersusAggregate() throws Exception {
+   @DisplayName("Only the detail or only the aggregate calc fields are appended")
+   void detailVersusAggregate() throws Exception {
       initCityAb();
       addCalc("d1", true, "field['a'] + 1", XSchema.INTEGER);
       addCalc("a1", false, "field['Sum([a])']", XSchema.DOUBLE);
@@ -308,8 +308,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("V2: a calc field replaces a column of the same name")
-   void v2_sameNameColumnIsReplaced() throws Exception {
+   @DisplayName("A calc field replaces a column of the same name")
+   void sameNameColumnIsReplaced() throws Exception {
       initCityAb();
       addCalc("calc", true, "field['a'] + 1", XSchema.INTEGER);
       TableAssembly table = baseTable("D");
@@ -331,8 +331,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("V3: every calc field is appended to a cube table")
-   void v3_cubeTable() throws Exception {
+   @DisplayName("Every calc field is appended to a cube table")
+   void cubeTable() throws Exception {
       initCityAb();
       addCalc("d1", true, "field['a'] + 1", XSchema.INTEGER);
       TableAssembly cube = baseTable(Assembly.CUBE_VS + "D");
@@ -341,8 +341,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("V4: rangeOnly appends the Range@ calc fields only")
-   void v4_rangeOnly() throws Exception {
+   @DisplayName("RangeOnly appends the Range@ calc fields only")
+   void rangeOnly() throws Exception {
       initCityAb();
       addCalc("plain", true, "field['a'] + 1", XSchema.INTEGER);
       addCalc("Range@b", true, "field['b'] + 1", XSchema.INTEGER);
@@ -353,9 +353,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN V5 (current behavior, deliberate, Bug #81207 not a bug): the clone added to " +
+   @DisplayName("PIN(current behavior, deliberate, Bug #81207 not a bug): the clone added to " +
       "the column selection must be visible, so the viewsheet's own ref becomes visible")
-   void v5_pin_appendMakesTheViewsheetRefVisible() throws Exception {
+   void pin_appendMakesTheViewsheetRefVisible() throws Exception {
       initCityAb();
       CalculateRef calc = addCalc("d1", true, "field['a'] + 1", XSchema.INTEGER);
       calc.setVisible(false);
@@ -430,8 +430,8 @@ class VSCalcFieldQueryTest {
    private static final String[] OK = { "ok", "field['a'] + 1", XSchema.INTEGER };
 
    @Test
-   @DisplayName("V6: an unused failing detail calc field is removed, a used one fails the query")
-   void v6_unusedFailingCalcIsNotExecuted() throws Exception {
+   @DisplayName("An unused failing detail calc field is removed, a used one fails the query")
+   void unusedFailingCalcIsNotExecuted() throws Exception {
       TableAssembly unused = prunedTable("a", BAD, OK);
       assertEquals(Arrays.asList("a", "b", "c", "d"), childColumns(unused));
       Tool.clearUserMessage();
@@ -445,9 +445,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN V6b (current behavior, pending dev #80953): a used failing calc field " +
+   @DisplayName("PIN(current behavior, pending dev #80953): a used failing calc field " +
       "gives the sample row 999 and an 'expression failed' message")
-   void v6b_pin_usedFailingCalcGivesTheSampleRow() throws Exception {
+   void pin_usedFailingCalcGivesTheSampleRow() throws Exception {
       TableAssembly used = prunedTable("bad", BAD, OK);
       Tool.clearUserMessage();
       assertEquals(Arrays.asList(999), run(used));
@@ -457,8 +457,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("V7: a chain of unused calc fields is removed together, a used end keeps the chain")
-   void v7_chainRemoval() throws Exception {
+   @DisplayName("A chain of unused calc fields is removed together, a used end keeps the chain")
+   void chainRemoval() throws Exception {
       String[] a = { "A", "field['a'].foo()", XSchema.INTEGER };
       String[] b = { "B", "field['A'] + 1", XSchema.INTEGER };
       TableAssembly unused = prunedTable("a", a, b);
@@ -492,8 +492,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("K1: a detail calc field in a freehand detail cell")
-   void k1_detailCalcInFreehandCell() throws Exception {
+   @DisplayName("A detail calc field in a freehand detail cell")
+   void detailCalcInFreehandCell() throws Exception {
       initCityAb();
       addCalc("d1", true, "field['a'] * 2", XSchema.INTEGER);
       TableLens lens = freehand(detailCell("d1"));
@@ -506,8 +506,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("K2: an aggregate calc field in a freehand summary cell")
-   void k2_aggregateCalcInFreehandCell() throws Exception {
+   @DisplayName("An aggregate calc field in a freehand summary cell")
+   void aggregateCalcInFreehandCell() throws Exception {
       initCityAb();
       ratioFreehand(XSchema.DOUBLE);
       TableLens lens = freehand(groupCell("city"), summaryCell("a", "Sum"),
@@ -521,8 +521,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("K3: the temporary crosstab takes only the aggregate calc fields, with formula None")
-   void k3_temporaryCrosstabAggregates() throws Exception {
+   @DisplayName("The temporary crosstab takes only the aggregate calc fields, with formula None")
+   void temporaryCrosstabAggregates() throws Exception {
       initCityAb();
       addCalc("d1", true, "field['a'] * 2", XSchema.INTEGER);
       ratioFreehand(XSchema.DOUBLE);
@@ -538,8 +538,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN K4 (current behavior, pending dev #80953): a zero or 0 / 0 ratio is empty")
-   void k4_pin_divideByZeroIsEmpty() throws Exception {
+   @DisplayName("PIN(current behavior, pending dev #80953): a zero or 0 / 0 ratio is empty")
+   void pin_divideByZeroIsEmpty() throws Exception {
       init(new String[] { XSchema.STRING, XSchema.INTEGER, XSchema.INTEGER },
            new Object[][] { { "city", "a", "b" }, { "A", 3, 0 }, { "A", 6, 0 }, { "B", 1, 1 },
                             { "C", 0, 0 } });
@@ -551,10 +551,10 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(null, 1.0, null), numbers(column(rows, 3)));
    }
 
-   @Disabled("mismatch K5, fixture-only, not filed")
+   @Disabled("Not filed (fixture only): a chain of detail calcs in a freehand table adds the numbers instead of concatenating strings")
    @Test
-   @DisplayName("K5: a detail calc field that refers to a hidden one")
-   void k5_chainOfDetailCalcs() throws Exception {
+   @DisplayName("A detail calc field that refers to a hidden one")
+   void chainOfDetailCalcs() throws Exception {
       init(new String[] { XSchema.INTEGER, XSchema.TIME_INSTANT },
            new Object[][] { { "customer_id", "orderdate" },
                             { 3, Timestamp.valueOf("2001-08-15 00:00:00") },
@@ -572,9 +572,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("K5 (partial): multiplying the chain only passes because the declared Integer " +
-      "calc returns a String in a freehand cell (see K7), so `+` would concatenate; not full K5 coverage")
-   void k5_chainOfDetailCalcs_multiplied() throws Exception {
+   @DisplayName("Multiplying the chain only passes because the declared Integer " +
+      "calc returns a String in a freehand cell, so `+` would concatenate; not full coverage of the chain")
+   void chainOfDetailCalcs_multiplied() throws Exception {
       init(new String[] { XSchema.INTEGER, XSchema.TIME_INSTANT },
            new Object[][] { { "customer_id", "orderdate" },
                             { 3, Timestamp.valueOf("2001-08-15 00:00:00") },
@@ -591,10 +591,10 @@ class VSCalcFieldQueryTest {
       assertEquals(Arrays.asList(18.0, 20.0, 8.0), numbers(column(body(lens, 1), 0)));
    }
 
-   @Disabled("mismatch K6, fixture-only, not filed")
+   @Disabled("Not filed (fixture only): an unused failing detail calc in a freehand table must not replace the result with the sample row")
    @Test
-   @DisplayName("K6: an unused failing calc field is not executed in a freehand table")
-   void k6_unusedFailingCalcInFreehand() throws Exception {
+   @DisplayName("An unused failing calc field is not executed in a freehand table")
+   void unusedFailingCalcInFreehand() throws Exception {
       init(new String[] { XSchema.INTEGER, XSchema.INTEGER },
            new Object[][] { { "a", "b" }, { 1, 2 }, { 5, 6 } });
       addCalc("bad", true, "field['a'].foo()", XSchema.INTEGER);
@@ -604,10 +604,10 @@ class VSCalcFieldQueryTest {
       assertNull(Tool.getUserMessage());
    }
 
-   @Disabled("mismatch K7, fixture-only, not filed")
+   @Disabled("Not filed (fixture only): a detail calc declared Integer returns a number in a freehand cell")
    @Test
-   @DisplayName("K7: a detail calc field declared Integer is an Integer in a freehand cell")
-   void k7_declaredTypeOfDetailCalc() throws Exception {
+   @DisplayName("A detail calc field declared Integer is an Integer in a freehand cell")
+   void declaredTypeOfDetailCalc() throws Exception {
       initCityAb();
       addCalc("d1", true, "field['a'] * 2", XSchema.INTEGER);
       TableLens lens = freehand(detailCell("d1"));
@@ -615,9 +615,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN K7 (current behavior, pending dev #80953): the declared type of an " +
+   @DisplayName("PIN(current behavior, pending dev #80953): the declared type of an " +
       "aggregate calc field is ignored in a freehand cell")
-   void k7_pin_aggregateCalcDeclaredType() throws Exception {
+   void pin_aggregateCalcDeclaredType() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.STRING }) {
          tearDown();
          initCityAb();
@@ -630,7 +630,7 @@ class VSCalcFieldQueryTest {
    }
 
    // -----------------------------------------------------------------------
-   // T9 and T10: the declared type of an aggregate calc field in a crosstab
+   // the declared type of an aggregate calc field in a crosstab
    // -----------------------------------------------------------------------
 
    private static VSAggregateRef aggregate(String column, String formula, String type) {
@@ -661,9 +661,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN T9 (current behavior, pending dev #80953): the declared type of an " +
+   @DisplayName("PIN(current behavior, pending dev #80953): the declared type of an " +
       "aggregate calc field is ignored in a crosstab")
-   void t9_pin_declaredTypeIgnored() throws Exception {
+   void pin_declaredTypeIgnored() throws Exception {
       for(String type : new String[] { XSchema.INTEGER, XSchema.DOUBLE, XSchema.STRING }) {
          tearDown();
          initCityAb();
@@ -677,8 +677,8 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("T9: a text result of an aggregate calc field stays text")
-   void t9_textResult() throws Exception {
+   @DisplayName("A text result of an aggregate calc field stays text")
+   void textResult() throws Exception {
       for(String type : new String[] { XSchema.STRING, XSchema.DOUBLE }) {
          tearDown();
          initCityAb();
@@ -693,9 +693,9 @@ class VSCalcFieldQueryTest {
    }
 
    @Test
-   @DisplayName("PIN T10 (current behavior, pending dev #80953): a date aggregate calc field " +
+   @DisplayName("PIN(current behavior, pending dev #80953): a date aggregate calc field " +
       "stays a Timestamp and a comparison stays a Boolean, whatever type is declared")
-   void t10_pin_dateAndBooleanDeclaredTypes() throws Exception {
+   void pin_dateAndBooleanDeclaredTypes() throws Exception {
       for(String type : new String[] { XSchema.DATE, XSchema.TIME_INSTANT, XSchema.STRING }) {
          tearDown();
          init(new String[] { XSchema.STRING, XSchema.TIME_INSTANT },
@@ -738,9 +738,9 @@ class VSCalcFieldQueryTest {
          Arguments.of("PopulationVariance", 4.0), Arguments.of("PopulationStandardDeviation", 2.0));
    }
 
-   @ParameterizedTest(name = "A12 {0}")
+   @ParameterizedTest(name = "aggregate child: {0}")
    @MethodSource("aggregateCalcFormulas")
-   void a12_aggregateCalcOverEveryFormula_inACrosstab(String formula, double expected)
+   void aggregateCalcOverEveryFormula_inACrosstab(String formula, double expected)
       throws Exception
    {
       initGroupOfEight();
@@ -762,10 +762,10 @@ class VSCalcFieldQueryTest {
       assertEquals(expected, ((Number) values.get(1)).doubleValue(), 1e-9, label);
    }
 
-   @Disabled("Bug #81202, mismatch A13")
-   @ParameterizedTest(name = "A13 {0}")
+   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
+   @ParameterizedTest(name = "aggregate name in lower case: {0}")
    @MethodSource("aggregateCalcFormulas")
-   void a13_aggregateNameInOtherCase_matchesLikeTheNameWrittenByTheDialog(String formula,
+   void aggregateNameInOtherCase_matchesLikeTheNameWrittenByTheDialog(String formula,
                                                                           double expected)
       throws Exception
    {
@@ -776,7 +776,7 @@ class VSCalcFieldQueryTest {
       addCalc("c1", false,
               "field['" + formula.toLowerCase(java.util.Locale.ROOT) + "([a])'] * 1",
               XSchema.DOUBLE);
-      // the same path as A12: calc fields and aggregate fields come from the viewsheet XML
+      // the same path as the aggregate-child test: calc fields and aggregate fields come from the viewsheet XML
       xmlRoundTrip();
       List<Object> values = crosstab(aggregate("a", "Sum", XSchema.INTEGER),
                                      aggregate("c1", "None", XSchema.DOUBLE));

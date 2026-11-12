@@ -222,7 +222,7 @@ public class CalcFieldFormulaTest {
       CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(), "SUM");
       formula.addValue(5.0d);
       assertFalse(formula.isNull());
-      // W3: the value reaches the child
+      // the value reaches the child
       assertEquals(5.0, asDouble(formula.getResult()), 1e-10);
    }
 
@@ -231,7 +231,7 @@ public class CalcFieldFormulaTest {
       CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(), "SUM");
       formula.addValue(7);
       assertFalse(formula.isNull());
-      // W3: the value reaches the child
+      // the value reaches the child
       assertEquals(7.0, asDouble(formula.getResult()), 1e-10);
    }
 
@@ -319,7 +319,7 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("W1: setTotal sets the denominator of the percentage")
+   @DisplayName("SetTotal sets the denominator of the percentage")
    void setTotal_setsTheDenominatorOfThePercentage() {
       CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(), "SUM");
       formula.addValue(new Object[]{ null, 10.0 });
@@ -412,7 +412,7 @@ public class CalcFieldFormulaTest {
    @Test
    void getExpression_returnsExpressionPassedToConstructor() {
       CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(), "SUM");
-      // W2: the expression is stored as given
+      // the expression is stored as given
       assertEquals("SUM", formula.getExpression());
    }
 
@@ -535,7 +535,7 @@ public class CalcFieldFormulaTest {
    void expression_productOfTwoAverages() {
       String avgA = "field['Average([a])']";
       String avgB = "field['Average([b])']";
-      // W6: a quotient is not commutative
+      // a quotient is not commutative
       CalcFieldFormula formula = calc(avgA + " / " + avgB, new String[] { avgA, avgB },
                                       new AverageFormula(), new AverageFormula());
       // a: (2 + 4) / 2 = 3, b: (5 + 7) / 2 = 6
@@ -548,7 +548,7 @@ public class CalcFieldFormulaTest {
    void expression_sumOfTwoCorrelations() {
       String corrXY = "field['Correlation([x], [y])']";
       String corrXZ = "field['Correlation([x], [z])']";
-      // W4: a weighted expression, so that a swapped name-to-child mapping is seen
+      // a weighted expression, so that a swapped name-to-child mapping is seen
       CalcFieldFormula formula = calc(corrXY + " * 10 + " + corrXZ, new String[] { corrXY, corrXZ },
                                       new CorrelationFormula(2), new CorrelationFormula(4));
       // y = 2x gives +1, z = 4 - x gives -1; the row is {x, y, x, z}
@@ -609,7 +609,7 @@ public class CalcFieldFormulaTest {
    void expression_twoColumnChildBetweenOneColumnChildren_readsItsOwnColumns() {
       String wavg = "field['WeightedAverage([b], [c])']";
       String count = "field['Count([d])']";
-      // W5: a weight per child, so that a swapped slot is seen
+      // a weight per child, so that a swapped slot is seen
       CalcFieldFormula formula = calc(SUM_A + " * 100 + " + wavg + " * 10 + " + count,
                                       new String[] { SUM_A, wavg, count },
                                       new SumFormula(), new WeightedAverageFormula(3),
@@ -714,8 +714,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C1: a clone is independent of the original after values were added")
-   void c1_clone_isIndependentAfterValues() {
+   @DisplayName("A clone is independent of the original after values were added")
+   void clone_isIndependentAfterValues() {
       CalcFieldFormula formula = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
       addRows(formula, new Object[] { 4 }, new Object[] { 6 });
       assertEquals(10.0, asDouble(formula.getResult()), 1e-10);
@@ -735,8 +735,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C2: a percentage of a zero total is null, or 0 with the default result")
-   void c2_percentageOfZeroTotal() {
+   @DisplayName("A percentage of a zero total is null, or 0 with the default result")
+   void percentageOfZeroTotal() {
       CalcFieldFormula formula = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
       addRows(formula, new Object[] { 10 });
       withTotal(formula, StyleConstants.PERCENTAGE_OF_GRANDTOTAL, 0.0);
@@ -750,8 +750,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C3: a group percentage divides by a numeric total only")
-   void c3_percentageOfGroup_numericTotalOnly() {
+   @DisplayName("A group percentage divides by a numeric total only")
+   void percentageOfGroup_numericTotalOnly() {
       CalcFieldFormula formula = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
       addRows(formula, new Object[] { 10 });
       withTotal(formula, StyleConstants.PERCENTAGE_OF_GROUP, 40.0);
@@ -769,8 +769,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C4: a text result is returned unchanged under a percentage")
-   void c4_textResult_unchangedUnderPercentage() {
+   @DisplayName("A text result is returned unchanged under a percentage")
+   void textResult_unchangedUnderPercentage() {
       String expr = "if(" + SUM_A + " > 5) { 'High' } else { 'Low' }";
       CalcFieldFormula formula = calc(expr, new String[] { SUM_A }, new SumFormula());
       addRows(formula, new Object[] { 10 });
@@ -778,10 +778,10 @@ public class CalcFieldFormulaTest {
       assertEquals("High", formula.getResult());
    }
 
-   @Disabled("Bug #81212, mismatch C5")
+   @Disabled("Bug #81212: CalcFieldFormula.setTotal does not clear the cached result")
    @Test
-   @DisplayName("C5: setTotal after getResult invalidates the cached result")
-   void c5_setTotalAfterGetResult_recomputes() {
+   @DisplayName("SetTotal after getResult invalidates the cached result")
+   void setTotalAfterGetResult_recomputes() {
       CalcFieldFormula formula = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
       addRows(formula, new Object[] { 10 });
       formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GRANDTOTAL);
@@ -792,8 +792,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C6: an unknown aggregate name fails with a ScriptException")
-   void c6_unknownIdentifier_throwsScriptException() {
+   @DisplayName("An unknown aggregate name fails with a ScriptException")
+   void unknownIdentifier_throwsScriptException() {
       CalcFieldFormula formula = calc("field['Sum([zzz])']", new String[] { SUM_A },
                                       new SumFormula());
       addRows(formula, new Object[] { 1 });
@@ -802,10 +802,10 @@ public class CalcFieldFormulaTest {
       assertTrue(ex.getMessage().contains("Script failed:"), ex.getMessage());
    }
 
-   @Disabled("Bug #81202, mismatch C7")
+   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
    @Test
-   @DisplayName("C7: aggregate names that differ only in space and underscore stay separate")
-   void c7_nameCollision_spaceAndUnderscore() {
+   @DisplayName("Aggregate names that differ only in space and underscore stay separate")
+   void nameCollision_spaceAndUnderscore() {
       String spaced = "field['Sum([a b])']";
       String underscored = "field['Sum([a_b])']";
       CalcFieldFormula formula = calc(spaced + " - " + underscored,
@@ -815,10 +815,10 @@ public class CalcFieldFormulaTest {
       assertEquals(3.0, asDouble(formula.getResult()), 1e-10);
    }
 
-   @Disabled("Bug #81202, mismatch C8")
+   @Disabled("Bug #81202: Aggregate-name mapping: lower-case name wrong value / a b and a_b collide / ß throws")
    @Test
-   @DisplayName("C8: an aggregate name whose upper case is longer keeps its value")
-   void c8_lengthChangingUpperCase() {
+   @DisplayName("An aggregate name whose upper case is longer keeps its value")
+   void lengthChangingUpperCase() {
       String name = "field['Sum([straße])']";
       CalcFieldFormula formula = calc(name, new String[] { name }, new SumFormula());
       addRows(formula, new Object[] { 4 });
@@ -826,8 +826,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C9: a comparison of an aggregate is a Boolean")
-   void c9_booleanResult() {
+   @DisplayName("A comparison of an aggregate is a Boolean")
+   void booleanResult() {
       CalcFieldFormula formula = calc(SUM_A + " > 5", new String[] { SUM_A }, new SumFormula());
       addRows(formula, new Object[] { 3 }, new Object[] { 4 });
       assertEquals(Boolean.TRUE, formula.getResult());
@@ -838,8 +838,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C10: a date function over a date aggregate")
-   void c10_dateFunctionOverDateAggregate() {
+   @DisplayName("A date function over a date aggregate")
+   void dateFunctionOverDateAggregate() {
       String maxDate = "field['Max([d])']";
       CalcFieldFormula formula = calc("CALC.year(" + maxDate + ")", new String[] { maxDate },
                                       new MaxFormula());
@@ -849,8 +849,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C11: DistinctCount over Count")
-   void c11_distinctCountOverCount() {
+   @DisplayName("DistinctCount over Count")
+   void distinctCountOverCount() {
       String distinct = "field['DistinctCount([a])']";
       String count = "field['Count([a])']";
       CalcFieldFormula formula = calc(distinct + " / " + count, new String[] { distinct, count },
@@ -861,8 +861,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C12: a First child between two Sum children reads its own columns")
-   void c12_firstChildBetweenSums() {
+   @DisplayName("A First child between two Sum children reads its own columns")
+   void firstChildBetweenSums() {
       String sumX = "field['Sum([x])']";
       String first = "field['First([v], [o])']";
       String sumY = "field['Sum([y])']";
@@ -877,8 +877,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C13: a Covariance child followed by a Sum reads its own columns")
-   void c13_covarianceChildBeforeSum() {
+   @DisplayName("A Covariance child followed by a Sum reads its own columns")
+   void covarianceChildBeforeSum() {
       String cov = "field['Covariance([x], [y])']";
       String sumZ = "field['Sum([z])']";
       CalcFieldFormula formula = calc(sumZ + " * 100 + " + cov, new String[] { cov, sumZ },
@@ -890,8 +890,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C14: a serialized formula keeps its result without the script environment")
-   void c14_serialization_keepsTheResult() throws Exception {
+   @DisplayName("A serialized formula keeps its result without the script environment")
+   void serialization_keepsTheResult() throws Exception {
       CalcFieldFormula formula = calc(SUM_A + " * 2", new String[] { SUM_A }, new SumFormula());
       addRows(formula, new Object[] { 3 }, new Object[] { 7 });
       java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
@@ -908,10 +908,10 @@ public class CalcFieldFormulaTest {
       }
    }
 
-   @ParameterizedTest(name = "C15: restricted script {0}")
+   @ParameterizedTest(name = "restricted script: {0}")
    @ValueSource(strings = { "java.lang.System.getProperty('user.dir')",
                             "new java.io.File('x').exists()" })
-   void c15_restrictedScript_isRefusedAndFlagRestored(String expression) {
+   void restrictedScript_isRefusedAndFlagRestored(String expression) {
       boolean before = FormulaContext.isRestricted();
 
       try {
@@ -932,8 +932,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C18: two children without a result add up to 0")
-   void c18_bothChildrenWithoutResult() {
+   @DisplayName("Two children without a result add up to 0")
+   void bothChildrenWithoutResult() {
       String maxB = "field['Max([b])']";
       CalcFieldFormula formula = calc(SUM_A + " + " + maxB, new String[] { SUM_A, maxB },
                                       new SumFormula(), new MaxFormula());
@@ -943,8 +943,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("C19: ten thousand rows")
-   void c19_bigGroup() {
+   @DisplayName("Ten thousand rows")
+   void bigGroup() {
       CalcFieldFormula formula = calc(SUM_A + " / 10000", new String[] { SUM_A },
                                       new SumFormula());
 
@@ -956,8 +956,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("T8: the Java type of the result follows the kind of the expression")
-   void t8_resultTypeByExpressionKind() {
+   @DisplayName("The Java type of the result follows the kind of the expression")
+   void resultTypeByExpressionKind() {
       CalcFieldFormula number = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
       addRows(number, new Object[] { 2 });
       assertEquals(Double.class, number.getResult().getClass());
@@ -982,8 +982,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("T10: a date aggregate stays a date and a comparison stays a Boolean")
-   void t10_dateAndBooleanResultsKeepTheirType() {
+   @DisplayName("A date aggregate stays a date and a comparison stays a Boolean")
+   void dateAndBooleanResultsKeepTheirType() {
       String maxDate = "field['Max([d])']";
       CalcFieldFormula date = calc(maxDate, new String[] { maxDate }, new MaxFormula());
       java.sql.Timestamp early = java.sql.Timestamp.valueOf("2020-01-01 00:00:00");
@@ -1039,36 +1039,36 @@ public class CalcFieldFormulaTest {
 
    static java.util.stream.Stream<Arguments> oneColumnOverD() {
       return java.util.stream.Stream.of(
-         Arguments.of("A1 Sum", "Sum", 40.0, 1e-10),
-         Arguments.of("A1 Average", "Average", 5.0, 1e-10),
-         Arguments.of("A1 Count", "Count", 8.0, 1e-10),
-         Arguments.of("A1 Max", "Max", 9.0, 1e-10),
-         Arguments.of("A1 Min", "Min", 2.0, 1e-10),
-         Arguments.of("A2 DistinctCount", "DistinctCount", 5.0, 1e-10),
-         Arguments.of("A2 Mode", "Mode", 4.0, 1e-10),
-         Arguments.of("A2 NthMostFrequent(2)", "NthMostFrequent(2)", 5.0, 1e-10),
-         Arguments.of("A2 Median", "Median", 4.5, 1e-10),
-         Arguments.of("A3 Product", "Product", 201600.0, 1e-6),
-         Arguments.of("A3 NthLargest(2)", "NthLargest(2)", 7.0, 1e-10),
-         Arguments.of("A3 NthSmallest(2)", "NthSmallest(2)", 4.0, 1e-10),
-         Arguments.of("A4 Variance", "Variance", 32.0 / 7, 1e-9),
-         Arguments.of("A4 StandardDeviation", "StandardDeviation", Math.sqrt(32.0 / 7), 1e-9),
-         Arguments.of("A4 PopulationVariance", "PopulationVariance", 4.0, 1e-9),
-         Arguments.of("A4 PopulationStandardDeviation", "PopulationStandardDeviation", 2.0,
+         Arguments.of("Sum", "Sum", 40.0, 1e-10),
+         Arguments.of("Average", "Average", 5.0, 1e-10),
+         Arguments.of("Count", "Count", 8.0, 1e-10),
+         Arguments.of("Max", "Max", 9.0, 1e-10),
+         Arguments.of("Min", "Min", 2.0, 1e-10),
+         Arguments.of("DistinctCount", "DistinctCount", 5.0, 1e-10),
+         Arguments.of("Mode", "Mode", 4.0, 1e-10),
+         Arguments.of("NthMostFrequent(2)", "NthMostFrequent(2)", 5.0, 1e-10),
+         Arguments.of("Median", "Median", 4.5, 1e-10),
+         Arguments.of("Product", "Product", 201600.0, 1e-6),
+         Arguments.of("NthLargest(2)", "NthLargest(2)", 7.0, 1e-10),
+         Arguments.of("NthSmallest(2)", "NthSmallest(2)", 4.0, 1e-10),
+         Arguments.of("Variance", "Variance", 32.0 / 7, 1e-9),
+         Arguments.of("StandardDeviation", "StandardDeviation", Math.sqrt(32.0 / 7), 1e-9),
+         Arguments.of("PopulationVariance", "PopulationVariance", 4.0, 1e-9),
+         Arguments.of("PopulationStandardDeviation", "PopulationStandardDeviation", 2.0,
                       1e-9));
    }
 
    @ParameterizedTest(name = "{0}")
    @MethodSource("oneColumnOverD")
-   void a1_a4_oneColumnAggregate_overD(String label, String spec, double expected, double tol) {
+   void a4_oneColumnAggregate_overD(String label, String spec, double expected, double tol) {
       CalcFieldFormula formula = aggregateCalc(spec);
       addRows(formula, one(dataD(false)));
       assertEquals(expected, asDouble(formula.getResult()), tol, label);
    }
 
-   @ParameterizedTest(name = "A11 {0}")
+   @ParameterizedTest(name = "{0}")
    @MethodSource("oneColumnOverD")
-   void a11_nullValuesInD_doNotChangeTheResult(String label, String spec, double expected,
+   void nullValuesInD_doNotChangeTheResult(String label, String spec, double expected,
                                                double tol)
    {
       CalcFieldFormula formula = aggregateCalc(spec);
@@ -1076,9 +1076,9 @@ public class CalcFieldFormulaTest {
       assertEquals(expected, asDouble(formula.getResult()), tol, label);
    }
 
-   @ParameterizedTest(name = "A10 {0}")
+   @ParameterizedTest(name = "{0}")
    @MethodSource("oneColumnOverD")
-   void a10_emptyGroup_nullOrDefaultZero(String label, String spec, double expected, double tol) {
+   void emptyGroup_nullOrDefaultZero(String label, String spec, double expected, double tol) {
       CalcFieldFormula formula = aggregateCalc(spec);
       formula.setDefaultResult(false);
       assertNull(formula.getResult(), label);
@@ -1088,9 +1088,9 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN A5 (current behavior, pending dev #80953): PthPercentile uses the " +
+   @DisplayName("PIN(current behavior, pending dev #80953): PthPercentile uses the " +
       "nearest rank, Median averages the two middle values")
-   void a5_pin_percentileNearestRank() {
+   void pin_percentileNearestRank() {
       for(Object[] row : new Object[][] { { "PthPercentile(50)", 5.0 },
                                           { "PthPercentile(25)", 4.0 } })
       {
@@ -1106,8 +1106,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("A6: two-column children over D")
-   void a6_twoColumnChildren() {
+   @DisplayName("Two-column children over D")
+   void twoColumnChildren() {
       Object[][] ab = new Object[D.length][];
       Object[][] aw = new Object[D.length][];
 
@@ -1137,8 +1137,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("A7: First and Last read the value at the smallest and largest order")
-   void a7_firstAndLast() {
+   @DisplayName("First and Last read the value at the smallest and largest order")
+   void firstAndLast() {
       Object[][] rows = { { 10, 3 }, { 20, 1 }, { 30, 2 } };
       String first = "field['First([v], [o])']";
       CalcFieldFormula firstCalc = calc(first + " + 0", new String[] { first },
@@ -1154,8 +1154,8 @@ public class CalcFieldFormulaTest {
    }
 
    @Test
-   @DisplayName("A8: Concat joins the values with a comma")
-   void a8_concat() {
+   @DisplayName("Concat joins the values with a comma")
+   void concat() {
       String concat = "field['Concat([a])']";
       CalcFieldFormula formula = calc(concat, new String[] { concat },
                                       Util.createFormula(null, "Concat"));

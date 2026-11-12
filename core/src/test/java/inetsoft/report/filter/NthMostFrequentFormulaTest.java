@@ -291,10 +291,10 @@ class NthMostFrequentFormulaTest {
       assertNull(frequent.getResult());
    }
 
-   @Disabled("Bug #81215, mismatch N1")
+   @Disabled("Bug #81215: ModeFormula text getDoubleResult() throws")
    @Test
-   @DisplayName("N1: getDoubleResult of a text mode is 0.0, like other non-numeric objects")
-   void n1_doubleResultOfText_isZeroWithoutException() {
+   @DisplayName("GetDoubleResult of a text mode is 0.0, like other non-numeric objects")
+   void doubleResultOfText_isZeroWithoutException() {
       NthMostFrequentFormula mode = new NthMostFrequentFormula(1);
       addAll(mode, "abc", "abc", "x");
       assertEquals("abc", mode.getResult());
@@ -302,8 +302,8 @@ class NthMostFrequentFormulaTest {
    }
 
    @Test
-   @DisplayName("N2: the count decides before the case of the text")
-   void n2_textCase_countDecides() {
+   @DisplayName("The count decides before the case of the text")
+   void textCase_countDecides() {
       NthMostFrequentFormula mode = new NthMostFrequentFormula(1);
       addAll(mode, "a", "a", "A");
       assertEquals("a", mode.getResult());
@@ -314,9 +314,9 @@ class NthMostFrequentFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN N2 (current behavior, pending dev #80953): case-different texts with " +
+   @DisplayName("PIN(current behavior, pending dev #80953): case-different texts with " +
       "equal counts")
-   void n2_pin_caseDifferentTie() {
+   void pin_caseDifferentTie() {
       NthMostFrequentFormula forward = new NthMostFrequentFormula(1);
       NthMostFrequentFormula reverse = new NthMostFrequentFormula(1);
       addAll(forward, "B", "B", "a", "a");
@@ -328,8 +328,8 @@ class NthMostFrequentFormulaTest {
    private static final String N2_TIE = "B";
 
    @Test
-   @DisplayName("N3: a tie between values of different types does not depend on arrival order")
-   void n3_mixedTypeTie_isOrderIndependent() {
+   @DisplayName("A tie between values of different types does not depend on arrival order")
+   void mixedTypeTie_isOrderIndependent() {
       NthMostFrequentFormula first = new NthMostFrequentFormula(1);
       NthMostFrequentFormula second = new NthMostFrequentFormula(1);
       addAll(first, 1, "a");
@@ -339,16 +339,16 @@ class NthMostFrequentFormulaTest {
    }
 
    @Test
-   @DisplayName("N6: an n beyond the distinct count, even Integer.MAX_VALUE, gives null")
-   void n6_hugeN_isNull() {
+   @DisplayName("An n beyond the distinct count, even Integer.MAX_VALUE, gives null")
+   void hugeN_isNull() {
       NthMostFrequentFormula formula = new NthMostFrequentFormula(Integer.MAX_VALUE);
       addAll(formula, "a");
       assertNull(formula.getResult());
    }
 
    @Test
-   @DisplayName("N7: reset keeps n")
-   void n7_resetKeepsN() {
+   @DisplayName("Reset keeps n")
+   void resetKeepsN() {
       NthMostFrequentFormula formula = new NthMostFrequentFormula(2);
       addAll(formula, "x", "x", "y");
       formula.reset();

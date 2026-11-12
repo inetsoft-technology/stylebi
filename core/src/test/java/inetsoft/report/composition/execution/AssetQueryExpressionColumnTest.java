@@ -142,7 +142,7 @@ class AssetQueryExpressionColumnTest {
          assertTrue(String.valueOf(values.get(0)).matches("X+"), name + ": " + values);
       }
 
-      // W11: the sample row is 999 / XXXX and the user is told which expression failed
+      // the sample row is 999 / XXXX and the user is told which expression failed
       assertEquals(Arrays.asList(999), column(t, "customer_id"));
       assertEquals(Arrays.asList("XXXX"), column(t, "city"));
       UserMessage message = Tool.getUserMessage();
@@ -152,8 +152,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E1: a plain field expression of the same type is a copy of the column")
-   void e1_plainFieldExpression() throws Exception {
+   @DisplayName("A plain field expression of the same type is a copy of the column")
+   void plainFieldExpression() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "cityCopy", "field['city']", XSchema.STRING, false, true);
       assertEquals(Arrays.asList("Albany", "Fresno"),
@@ -161,8 +161,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E2: a visible expression over a hidden one over a hidden one")
-   void e2_chainOfThreeExpressions() throws Exception {
+   @DisplayName("A visible expression over a hidden one over a hidden one")
+   void chainOfThreeExpressions() throws Exception {
       Worksheet ws = ws();
       // the visible field is listed first, so the hidden ones it needs are added by recursion
       addExpression(ws, "v", "field['h2'] + field['customer_id']", XSchema.INTEGER, false, true);
@@ -172,10 +172,10 @@ class AssetQueryExpressionColumnTest {
       assertEquals(Arrays.asList(9, 12), column(box(ws).getTableLens("T", RUNTIME), "v"));
    }
 
-   @Disabled("Bug #81206, mismatch E3")
+   @Disabled("Bug #81206: Two expression columns that refer to each other end in StackOverflowError")
    @Test
-   @DisplayName("E3: two expressions that refer to each other fail with a handled error")
-   void e3_circularReference_isAHandledFailure() throws Exception {
+   @DisplayName("Two expressions that refer to each other fail with a handled error")
+   void circularReference_isAHandledFailure() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "a", "field['b'] + 1", XSchema.INTEGER, false, true);
       addExpression(ws, "b", "field['a'] + 1", XSchema.INTEGER, false, true);
@@ -189,9 +189,9 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("PIN E3 (current behavior, pending dev #80953): an expression that refers to " +
+   @DisplayName("PIN(current behavior, pending dev #80953): an expression that refers to " +
       "itself reads its own column as empty")
-   void e3_pin_selfReference() throws Exception {
+   void pin_selfReference() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "a1", "field['a1'] + 1", XSchema.INTEGER, false, true);
       Tool.clearUserMessage();
@@ -200,9 +200,9 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("PIN E4 (current behavior, pending dev #80953): a missing column gives null " +
+   @DisplayName("PIN(current behavior, pending dev #80953): a missing column gives null " +
       "values without a message")
-   void e4_pin_missingColumn() throws Exception {
+   void pin_missingColumn() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "bad", "field['nope'] + 1", XSchema.INTEGER, false, true);
       Tool.clearUserMessage();
@@ -212,9 +212,9 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("PIN E5 (current behavior, pending dev #80953): an expression named like an " +
+   @DisplayName("PIN(current behavior, pending dev #80953): an expression named like an " +
       "existing column is dropped")
-   void e5_pin_expressionNamedLikeAColumn() throws Exception {
+   void pin_expressionNamedLikeAColumn() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "city", "'X'", XSchema.STRING, false, true);
       TableLens t = box(ws).getTableLens("T", RUNTIME);
@@ -223,8 +223,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E6: names with a space, a quote, non-ASCII letters and double quotes resolve")
-   void e6_specialNames() throws Exception {
+   @DisplayName("Names with a space, a quote, non-ASCII letters and double quotes resolve")
+   void specialNames() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "Total Price", "field['customer_id'] * 2", XSchema.INTEGER, false, true);
       addExpression(ws, "O'Brien", "field['Total Price'] + 1", XSchema.INTEGER, false, true);
@@ -241,8 +241,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E7: an empty table has the expression column and no rows")
-   void e7_emptyTable() throws Exception {
+   @DisplayName("An empty table has the expression column and no rows")
+   void emptyTable() throws Exception {
       Worksheet ws = ws(new Object[][] { { "customer_id", "city", "orderdate" } });
       addExpression(ws, "twice", "field['customer_id'] * 2", XSchema.INTEGER, false, true);
       TableLens t = box(ws).getTableLens("T", RUNTIME);
@@ -251,8 +251,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E8: five thousand rows read in two batches keep their order")
-   void e8_fiveThousandRows_twoBatches() throws Exception {
+   @DisplayName("Five thousand rows read in two batches keep their order")
+   void fiveThousandRows_twoBatches() throws Exception {
       Object[][] data = new Object[5001][];
       data[0] = new Object[] { "customer_id", "city", "orderdate" };
 
@@ -275,9 +275,9 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E9: an unset or null parameter reads as undefined, an empty array index fails " +
+   @DisplayName("An unset or null parameter reads as undefined, an empty array index fails " +
       "the table")
-   void e9_missingNullAndEmptyArrayParameter() throws Exception {
+   void missingNullAndEmptyArrayParameter() throws Exception {
       Worksheet unset = ws();
       addExpression(unset, "p1", "field['customer_id'] + parameter.offset", XSchema.INTEGER,
                     false, true);
@@ -304,8 +304,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E10: the script part of a SQL expression runs on a table that cannot merge")
-   void e10_scriptPartOfASqlExpression() throws Exception {
+   @DisplayName("The script part of a SQL expression runs on a table that cannot merge")
+   void scriptPartOfASqlExpression() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "idPlusTen",
                     "customer_id + 10 /*script field['customer_id'] + 10 script*/",
@@ -315,8 +315,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("E11: a pre and a post condition on an expression column")
-   void e11_conditionOnAnExpressionColumn() throws Exception {
+   @DisplayName("A pre and a post condition on an expression column")
+   void conditionOnAnExpressionColumn() throws Exception {
       for(boolean pre : new boolean[] { true, false }) {
          Worksheet ws = ws();
          addExpression(ws, "idPlusTen", "field['customer_id'] + 10", XSchema.INTEGER, false, true);
@@ -343,8 +343,8 @@ class AssetQueryExpressionColumnTest {
    }
 
    @Test
-   @DisplayName("T7: the declared type of an expression column is the type of the result column")
-   void t7_declaredTypeEndToEnd() throws Exception {
+   @DisplayName("The declared type of an expression column is the type of the result column")
+   void declaredTypeEndToEnd() throws Exception {
       Worksheet ws = ws();
       addExpression(ws, "d", "field['customer_id'] * 1", XSchema.DOUBLE, false, true);
       addExpression(ws, "i", "CALC.quarter(field['orderdate'])", XSchema.INTEGER, false, true);

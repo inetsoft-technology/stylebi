@@ -242,8 +242,8 @@ class DistinctCountFormulaTest {
    }
 
    @Test
-   @DisplayName("D1: a clone has its own set of values")
-   void d1_clone_isIndependentOfTheOriginal() {
+   @DisplayName("A clone has its own set of values")
+   void clone_isIndependentOfTheOriginal() {
       DistinctCountFormula original = new DistinctCountFormula();
       addAll(original, 1, 2);
       DistinctCountFormula copy = (DistinctCountFormula) original.clone();
@@ -257,8 +257,8 @@ class DistinctCountFormulaTest {
    }
 
    @Test
-   @DisplayName("D2: NaN is one value, however often it is added")
-   void d2_nan_countsOnce() {
+   @DisplayName("NaN is one value, however often it is added")
+   void nan_countsOnce() {
       DistinctCountFormula distinct = new DistinctCountFormula();
       distinct.addValue(Double.NaN);
       distinct.addValue(Double.NaN);
@@ -269,10 +269,10 @@ class DistinctCountFormulaTest {
       assertEquals(1, objects.getResult());
    }
 
-   @Disabled("Bug #81213, mismatch D2b")
+   @Disabled("Bug #81213: DistinctCountFormula: -0.0 and Timestamp/Date equality")
    @Test
-   @DisplayName("D2b: 0.0 and -0.0 are the same value")
-   void d2b_negativeZero_isTheSameValueAsZero() {
+   @DisplayName("0.0 and -0.0 are the same value")
+   void negativeZero_isTheSameValueAsZero() {
       DistinctCountFormula distinct = new DistinctCountFormula();
       distinct.addValue(0.0);
       distinct.addValue(-0.0);
@@ -280,8 +280,8 @@ class DistinctCountFormulaTest {
    }
 
    @Test
-   @DisplayName("D3: the percentage of the group uses the same ratio as the grand total")
-   void d3_percentageOfGroup_returnsRatio() {
+   @DisplayName("The percentage of the group uses the same ratio as the grand total")
+   void percentageOfGroup_returnsRatio() {
       DistinctCountFormula distinct = new DistinctCountFormula();
       distinct.setPercentageType(XConstants.PERCENTAGE_OF_GROUP);
       distinct.setTotal(10);
@@ -289,10 +289,10 @@ class DistinctCountFormulaTest {
       assertEquals(0.2, (Double) distinct.getResult(), 1e-9);
    }
 
-   @Disabled("Bug #81213, mismatch D5")
+   @Disabled("Bug #81213: DistinctCountFormula: -0.0 and Timestamp/Date equality")
    @Test
-   @DisplayName("D5: a Timestamp and a Date of the same instant are one value in either order")
-   void d5_timestampAndDateOfTheSameInstant_countOnce() {
+   @DisplayName("A Timestamp and a Date of the same instant are one value in either order")
+   void timestampAndDateOfTheSameInstant_countOnce() {
       long time = 1_700_000_000_000L;
       DistinctCountFormula timestampFirst = new DistinctCountFormula();
       addAll(timestampFirst, new java.sql.Timestamp(time), new Date(time));

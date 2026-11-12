@@ -53,7 +53,7 @@ class UtilCreateFormulaTest {
    @Test
    void everyUserFormula_createsTheReportFilterImplementation() {
       List<AggregateFormula> formulas = userFormulas();
-      // W9: the explicit list of the AggregateFormula constants a user can pick
+      // the explicit list of the AggregateFormula constants a user can pick
       java.util.Set<String> names = new java.util.TreeSet<>();
       formulas.forEach(f -> names.add(f.getFormulaName()));
       assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList(
@@ -117,8 +117,8 @@ class UtilCreateFormulaTest {
    }
 
    @Test
-   @DisplayName("U2: a percentage suffix sets the percentage type of a percentage formula")
-   void u2_percentageSuffix() {
+   @DisplayName("A percentage suffix sets the percentage type of a percentage formula")
+   void percentageSuffix() {
       PercentageFormula sum = (PercentageFormula) Util.createFormula(null, "Sum<2>");
       assertEquals(2, sum.getPercentageType());
       PercentageFormula count = (PercentageFormula) Util.createFormula(null, "Count<1>");
@@ -139,8 +139,8 @@ class UtilCreateFormulaTest {
    }
 
    @Test
-   @DisplayName("U3: a column name resolves against the table headers")
-   void u3_tableBasedSecondaryColumn() {
+   @DisplayName("A column name resolves against the table headers")
+   void tableBasedSecondaryColumn() {
       DefaultTableLens table = new DefaultTableLens(new Object[][] { { "a", "price" },
                                                                     { 1, 2 } });
       Formula formula = Util.createFormula(table, "Correlation(price)");
@@ -149,22 +149,22 @@ class UtilCreateFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN U1 (current behavior, pending dev #80953): an unknown formula name gives " +
+   @DisplayName("PIN(current behavior, pending dev #80953): an unknown formula name gives " +
       "a SumFormula")
-   void u1_pin_unknownNameGivesSum() {
+   void pin_unknownNameGivesSum() {
       assertInstanceOf(SumFormula.class, Util.createFormula(null, "Bogus"));
    }
 
    @Test
-   @DisplayName("PIN U4 (current behavior, pending dev #80953): a column name without a table " +
+   @DisplayName("PIN(current behavior, pending dev #80953): a column name without a table " +
       "gives a SumFormula")
-   void u4_pin_columnNameWithoutTableGivesSum() {
+   void pin_columnNameWithoutTableGivesSum() {
       assertInstanceOf(SumFormula.class, Util.createFormula(null, "Correlation(price)"));
    }
 
    @Test
-   @DisplayName("U5: a class name is never instantiated as a formula")
-   void u5_classNameInjection_fallsBackToSum() {
+   @DisplayName("A class name is never instantiated as a formula")
+   void classNameInjection_fallsBackToSum() {
       for(String name : new String[] { "java.io.File", "java.lang.Runtime",
                                        InjectionProbe.class.getName() })
       {
@@ -186,8 +186,8 @@ class UtilCreateFormulaTest {
    }
 
    @Test
-   @DisplayName("U6: n at or below the boundary falls back to the smallest valid n")
-   void u6_boundaryN() {
+   @DisplayName("N at or below the boundary falls back to the smallest valid n")
+   void boundaryN() {
       assertEquals(NthMostFrequentFormula.class,
                    Util.createFormula(null, "NthMostFrequent(0)").getClass());
       assertEquals(NthLargestFormula.class,
@@ -212,10 +212,10 @@ class UtilCreateFormulaTest {
       assertEquals("a", one.getResult());
    }
 
-   @Disabled("Bug #81211, mismatch U6b")
+   @Disabled("Bug #81211: Util.createFormula turns a negative n into a SumFormula")
    @Test
-   @DisplayName("U6b: a negative n is read like n = 1, not as a Sum")
-   void u6b_negativeN() {
+   @DisplayName("A negative n is read like n = 1, not as a Sum")
+   void negativeN() {
       assertEquals(NthMostFrequentFormula.class,
                    Util.createFormula(null, "NthMostFrequent(-1)").getClass());
       assertEquals(NthLargestFormula.class,

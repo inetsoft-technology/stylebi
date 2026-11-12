@@ -303,18 +303,18 @@ class CovarianceFormulaTest {
       assertEquals(0.75, (Double) covar.getFormula().getResult(), EPS);
    }
 
-   @Disabled("mismatch F2, unreachable, not filed")
+   @Disabled("Not filed (unreachable): a one-member Object[] pair is skipped, as the double[] path does")
    @Test
-   @DisplayName("F2: an Object[] of length 1 is skipped like the double[] twin")
-   void f2_objectArrayOfLengthOne_isSkippedWithoutException() {
+   @DisplayName("An Object[] of length 1 is skipped like the double[] twin")
+   void objectArrayOfLengthOne_isSkippedWithoutException() {
       CovarianceFormula covar = new CovarianceFormula(2);
       assertDoesNotThrow(() -> covar.addValue(new Object[] { 5 }));
       assertTrue(covar.isNull());
    }
 
    @Test
-   @DisplayName("F6: padded, exponent and signed text is the same pair as the number")
-   void f6_numericTextPair_equalsTheNumericPair() {
+   @DisplayName("Padded, exponent and signed text is the same pair as the number")
+   void numericTextPair_equalsTheNumericPair() {
       CovarianceFormula text = new CovarianceFormula(2);
       CovarianceFormula numeric = new CovarianceFormula(2);
       pairs(text, p(1, 2), p(" 8 ", 7), p("1e3", 5), p("+5", 3), p(4, "+6"));
@@ -324,9 +324,9 @@ class CovarianceFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN F6b (current behavior, pending dev #80953): separator, hex and Arabic " +
+   @DisplayName("PIN(current behavior, pending dev #80953): separator, hex and Arabic " +
       "digit text pairs are skipped")
-   void f6b_separatorHexAndArabicDigitText_pairIsSkipped() {
+   void separatorHexAndArabicDigitText_pairIsSkipped() {
       CovarianceFormula clean = new CovarianceFormula(2);
       pairs(clean, p(1, 2), p(2, 7), p(3, 4));
 

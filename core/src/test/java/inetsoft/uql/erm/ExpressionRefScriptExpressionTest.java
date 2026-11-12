@@ -43,8 +43,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class ExpressionRefScriptExpressionTest {
    @Test
-   @DisplayName("X1a: a script expression is only read from a sql expression")
-   void x1a_notSql_returnsTheInput() {
+   @DisplayName("A script expression is only read from a sql expression")
+   void notSql_returnsTheInput() {
       assertEquals("a /*script x script*/", ExpressionRef.getScriptExpression(false,
          "a /*script x script*/"));
       assertEquals("a /*script x script*/", ExpressionRef.getSQLExpression(false,
@@ -54,37 +54,37 @@ class ExpressionRefScriptExpressionTest {
    }
 
    @Test
-   @DisplayName("X1b: without a marker the sql expression is the whole text")
-   void x1b_noMarker_returnsTheInput() {
+   @DisplayName("Without a marker the sql expression is the whole text")
+   void noMarker_returnsTheInput() {
       assertEquals("a + b", ExpressionRef.getScriptExpression(true, "a + b"));
       assertEquals("a + b", ExpressionRef.getSQLExpression(true, "a + b"));
    }
 
    @Test
-   @DisplayName("X1c: the script between the markers is trimmed")
-   void x1c_script_isTheTextBetweenTheMarkers() {
+   @DisplayName("The script between the markers is trimmed")
+   void script_isTheTextBetweenTheMarkers() {
       assertEquals("x", ExpressionRef.getScriptExpression(true, "a /*script x script*/"));
       assertEquals("a + 1", ExpressionRef.getSQLExpression(true, "a + 1 /*script x script*/"));
    }
 
    @Test
-   @DisplayName("X1d: the markers are matched in any case")
-   void x1d_upperCaseMarkers() {
+   @DisplayName("The markers are matched in any case")
+   void upperCaseMarkers() {
       assertEquals("x", ExpressionRef.getScriptExpression(true, "a /*SCRIPT x SCRIPT*/"));
    }
 
    @Test
-   @DisplayName("X1e: a prefix without a suffix, or a suffix before the prefix, is not a script")
-   void x1e_incompleteMarkers_returnTheInput() {
+   @DisplayName("A prefix without a suffix, or a suffix before the prefix, is not a script")
+   void incompleteMarkers_returnTheInput() {
       assertEquals("a /*script x", ExpressionRef.getScriptExpression(true, "a /*script x"));
       assertEquals("a script*/ b", ExpressionRef.getScriptExpression(true, "a script*/ b"));
       assertEquals("a /*script x", ExpressionRef.getSQLExpression(true, "a /*script x"));
    }
 
-   @Disabled("Bug #81214, mismatch X1f")
+   @Disabled("Bug #81214: /*script*/ marker without a body throws")
    @Test
-   @DisplayName("X1f: overlapping markers do not throw")
-   void x1f_overlappingMarkers_doNotThrow() {
+   @DisplayName("Overlapping markers do not throw")
+   void overlappingMarkers_doNotThrow() {
       assertDoesNotThrow(() -> ExpressionRef.getScriptExpression(true, "/*script*/"));
       assertDoesNotThrow(() -> ExpressionRef.getScriptExpression(true, "a /*script*/ b"));
    }

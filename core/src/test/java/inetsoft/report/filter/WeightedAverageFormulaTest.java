@@ -293,10 +293,10 @@ class WeightedAverageFormulaTest {
       assertEquals(20.0, ((Number) weighted.getResult()).doubleValue(), DELTA);
    }
 
-   @Disabled("mismatch F1, unreachable, not filed")
+   @Disabled("Not filed (unreachable): a one-member Object[] pair is skipped, as the double[] path does")
    @Test
-   @DisplayName("F1: an Object[] of length 1 is skipped like the double[] twin")
-   void f1_objectArrayOfLengthOne_isSkippedWithoutException() {
+   @DisplayName("An Object[] of length 1 is skipped like the double[] twin")
+   void objectArrayOfLengthOne_isSkippedWithoutException() {
       WeightedAverageFormula weighted = new WeightedAverageFormula(1);
       assertDoesNotThrow(() -> weighted.addValue(new Object[] { 5 }));
       assertTrue(weighted.isNull());
@@ -308,8 +308,8 @@ class WeightedAverageFormulaTest {
    }
 
    @Test
-   @DisplayName("F5: Number subclasses other than Double and Integer weigh like numbers")
-   void f5_otherNumberTypes_areWeighted() {
+   @DisplayName("Number subclasses other than Double and Integer weigh like numbers")
+   void otherNumberTypes_areWeighted() {
       WeightedAverageFormula weighted = new WeightedAverageFormula(1);
       addPairs(weighted, pair(new java.math.BigDecimal("10"), 0.5f), pair(20L, (short) 1));
       // (10 * 0.5 + 20 * 1) / (0.5 + 1)
@@ -317,8 +317,8 @@ class WeightedAverageFormulaTest {
    }
 
    @Test
-   @DisplayName("F6: padded, exponent and signed numeric text parses as a number")
-   void f6_numericTextFormats_parse() {
+   @DisplayName("Padded, exponent and signed numeric text parses as a number")
+   void numericTextFormats_parse() {
       WeightedAverageFormula weighted = new WeightedAverageFormula(1);
       addPairs(weighted, pair(" 8 ", 1));
       assertEquals(8.0, asDouble(weighted.getResult()), DELTA);
@@ -333,9 +333,9 @@ class WeightedAverageFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN F6b (current behavior, pending dev #80953): locale-formatted or hex text " +
+   @DisplayName("PIN(current behavior, pending dev #80953): locale-formatted or hex text " +
       "is skipped silently")
-   void f6b_separatorHexAndArabicDigitText_isSkipped() {
+   void separatorHexAndArabicDigitText_isSkipped() {
       for(String text : new String[] { "1,000", "1,5", "0x10", "٣" }) {
          WeightedAverageFormula weighted = new WeightedAverageFormula(1);
          addPairs(weighted, pair(text, 1));
@@ -345,8 +345,8 @@ class WeightedAverageFormulaTest {
    }
 
    @Test
-   @DisplayName("F11: large values with unit weights keep their precision")
-   void f11_largeValues_keepPrecision() {
+   @DisplayName("Large values with unit weights keep their precision")
+   void largeValues_keepPrecision() {
       WeightedAverageFormula weighted = new WeightedAverageFormula(1);
 
       for(int i = 1; i <= 10; i++) {

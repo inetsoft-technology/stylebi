@@ -208,7 +208,7 @@ class CorrelationFormulaTest {
       f.addValue(new double[] { 3, 6.5 });
       f.addValue(new double[] { 9 });
       f.addValue(new double[] { 9, inetsoft.util.Tool.NULL_DOUBLE });
-      // W7: x mean 2, sxx 2; y = 2, 4, 6.5 has syy 61/6 and sxy 4.5 by hand
+      // x mean 2, sxx 2; y = 2, 4, 6.5 has syy 61/6 and sxy 4.5 by hand
       assertEquals(4.5 / Math.sqrt(2 * 61.0 / 6), (Double) f.getResult(), 1e-6);
    }
 
@@ -302,7 +302,7 @@ class CorrelationFormulaTest {
 
       // reset returns a used formula to no result
       pairs(correl, p(1, 2), p(2, 4));
-      // W7: two points on a line
+      // two points on a line
       assertEquals(1.0, (Double) correl.getResult(), EPS);
       correl.reset();
       assertNull(correl.getResult());
@@ -447,18 +447,18 @@ class CorrelationFormulaTest {
       assertEquals(object.getResult(), primitive.getResult());
    }
 
-   @Disabled("mismatch F2, unreachable, not filed")
+   @Disabled("Not filed (unreachable): a one-member Object[] pair is skipped, as the double[] path does")
    @Test
-   @DisplayName("F2: an Object[] of length 1 is skipped like the double[] twin")
-   void f2_objectArrayOfLengthOne_isSkippedWithoutException() {
+   @DisplayName("An Object[] of length 1 is skipped like the double[] twin")
+   void objectArrayOfLengthOne_isSkippedWithoutException() {
       CorrelationFormula correl = new CorrelationFormula(2);
       assertDoesNotThrow(() -> correl.addValue(new Object[] { 5 }));
       assertTrue(correl.isNull());
    }
 
    @Test
-   @DisplayName("F6: padded, exponent and signed text is the same pair as the number")
-   void f6_numericTextPair_equalsTheNumericPair() {
+   @DisplayName("Padded, exponent and signed text is the same pair as the number")
+   void numericTextPair_equalsTheNumericPair() {
       CorrelationFormula text = new CorrelationFormula(2);
       CorrelationFormula numeric = new CorrelationFormula(2);
       pairs(text, p(1, 2), p(" 8 ", 7), p("1e3", 5), p("+5", 3), p(4, "+6"));
@@ -468,9 +468,9 @@ class CorrelationFormulaTest {
    }
 
    @Test
-   @DisplayName("PIN F6b (current behavior, pending dev #80953): separator, hex and Arabic " +
+   @DisplayName("PIN(current behavior, pending dev #80953): separator, hex and Arabic " +
       "digit text pairs are skipped")
-   void f6b_separatorHexAndArabicDigitText_pairIsSkipped() {
+   void separatorHexAndArabicDigitText_pairIsSkipped() {
       CorrelationFormula clean = new CorrelationFormula(2);
       pairs(clean, p(1, 2), p(2, 7), p(3, 4));
 
@@ -492,8 +492,8 @@ class CorrelationFormulaTest {
    }
 
    @Test
-   @DisplayName("F7: random data, including near-perfect and offset data, stays in [-1, 1]")
-   void f7_randomData_staysWithinBounds() {
+   @DisplayName("Random data, including near-perfect and offset data, stays in [-1, 1]")
+   void randomData_staysWithinBounds() {
       Random random = new Random(80957L);
       double[] offsets = { 0, 1e9 };
 
@@ -517,8 +517,8 @@ class CorrelationFormulaTest {
    }
 
    @Test
-   @DisplayName("F8: correlation is symmetric and flips sign under a negative affine change")
-   void f8_symmetryAndAffineInvariance() {
+   @DisplayName("Correlation is symmetric and flips sign under a negative affine change")
+   void symmetryAndAffineInvariance() {
       Random random = new Random(80958L);
 
       for(int round = 0; round < 50; round++) {
@@ -542,8 +542,8 @@ class CorrelationFormulaTest {
    }
 
    @Test
-   @DisplayName("F9: one million pairs agree with a two-pass reference")
-   void f9_largeN_matchesTwoPassReference() {
+   @DisplayName("One million pairs agree with a two-pass reference")
+   void largeN_matchesTwoPassReference() {
       Random random = new Random(80959L);
       int n = 1_000_000;
       double[] xs = new double[n];
@@ -574,8 +574,8 @@ class CorrelationFormulaTest {
    }
 
    @Test
-   @DisplayName("F10: the materialized view correlation agrees with the report formula")
-   void f10_agreesWithMvCompositeCorrelation() {
+   @DisplayName("The materialized view correlation agrees with the report formula")
+   void agreesWithMvCompositeCorrelation() {
       double[] xs = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
       double[] ys = { 2.1, 3.9, 6.2, 7.8, 10.3, 11.9, 14.2, 16.1, 17.8, 20.4 };
       inetsoft.mv.formula.CompositeCorrelationFormula mv =
