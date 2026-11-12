@@ -404,31 +404,37 @@ $dark-ws-row-hover-bg: #302D27;
   }
 
   // Bootstrap's button-variant mixin bakes light colors into the light button. The app's own rules
-  // set hover, focus and active colors from tokens, and the .btn bridge maps the checked-toggle
-  // colors for .btn-light. What still reaches the page baked: the focus ring (217,217,217) and the
-  // disabled-fieldset colors on both, and the checked-toggle colors on .btn-light-no-bg, whose
-  // two classes outrank the bridge. Dashboard content keeps the light values.
+  // set hover, focus, active and :disabled colors from tokens, and the .btn bridge maps the
+  // checked-toggle colors for .btn-light. What still reaches the page baked:
+  // - the focus ring (217,217,217), on both;
+  // - inside a disabled fieldset, the text color of a .btn-light-no-bg button, and every disabled
+  //   color of a .btn that is not a form control (a.btn, div.btn), which no :disabled rule matches;
+  // - the checked-toggle colors of .btn-light-no-bg, whose two classes outrank the bridge.
+  // Dashboard content keeps the light values.
   .btn-light#{$outside-content},
   .btn.btn-light-no-bg#{$outside-content} {
     --bs-btn-focus-shadow-rgb: #{rgb-triplet($dark-border-strong)};
+    --bs-btn-disabled-color: var(--inet-button-light-text-color);
     --bs-btn-disabled-bg: var(--inet-button-light-bg-color);
     --bs-btn-disabled-border-color: var(--inet-button-light-border-color);
   }
 
   .btn.btn-light-no-bg#{$outside-content} {
+    --bs-btn-active-color: var(--inet-text-color);
     --bs-btn-active-bg: var(--inet-shell-selected-bg-color);
     --bs-btn-active-border-color: var(--inet-shell-border-strong);
   }
 
   // Bootstrap draws tooltips with the emphasis text color as the fill (black in the light shell).
   // Inverted here it would be a light box, so a dark shell uses a raised dark surface instead.
-  .tooltip {
+  // A tooltip placed inside dashboard content keeps the light shell's look.
+  .tooltip#{$outside-content} {
     --bs-tooltip-bg: #{$dark-surface-raised};
     --bs-tooltip-color: var(--inet-text-strong-color);
     --bs-tooltip-opacity: 1;
   }
 
-  .tooltip-inner {
+  .tooltip-inner#{$outside-content} {
     border: 1px solid var(--inet-shell-border-strong);
   }
 
@@ -515,10 +521,11 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
 }
 
 // The legacy viz state tokens derive from shell tokens where :root declares them, so a dark shell
-// resolves them dark. Content re-derives them from its restored light tokens, unless a viz scope
-// already declares its own: body.viz-shell / .viz-shell-dark for the org, or a content root that is
-// itself a marked assembly (.viz-modern / .viz-dark on the chart editor preview).
-:root.shell-dark body:not(.viz-shell):not(.viz-shell-dark) :is(#{$dashboard-content}):not(.viz-modern):not(.viz-dark) {
+// resolves them dark. Content re-derives them from its restored light tokens, unless a viz scope on
+// the content root or any ancestor already declares its own (.viz-shell / .viz-shell-dark on body
+// for the org, .viz-modern / .viz-dark on a marked assembly such as the chart editor preview).
+$viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
+:root.shell-dark :is(#{$dashboard-content}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
   @include inet-viz-legacy-state-tokens;
 }
 
