@@ -19,8 +19,8 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
-import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.filter.*;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.Condition;
 import inetsoft.uql.schema.XSchema;
@@ -207,8 +207,8 @@ public class PostProcessorTest {
                                                   XSchema.INTEGER)));
    }
 
-   // date arithmetic (vscalc: dateAdd('m', 5, ...), dateAdd('d', 4, ...)); a month added to
-   // the 30th of September clamps to the end of February
+   // date arithmetic (vscalc: dateAdd('m', 5, ...), dateAdd('d', 4, ...)); 5 months added
+   // to the 30th of September clamp to the end of February
    @Test
    void formula_dateAdd_monthsAndDays() {
       Object[][] data = rows(new Object[] { 1.0, 1, 1, "NY", "Albany", ts("2001-08-31") });

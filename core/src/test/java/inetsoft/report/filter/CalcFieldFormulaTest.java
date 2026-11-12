@@ -604,7 +604,7 @@ public class CalcFieldFormulaTest {
       String sumZ = "field['Sum([z])']";
       CalcFieldFormula formula = calc(sumZ + " * 10 + " + corr, new String[] { corr, sumZ },
                                       new CorrelationFormula(2), new SumFormula());
-      // y = x gives 1; z: 100 + 200 = 300 (y would give 3, x 3)
+      // y = x gives 1; z: 100 + 200 = 300 (a Sum that read y or x instead of z would give 3)
       addRows(formula, new Object[] { 1, 1, 100 }, new Object[] { 2, 2, 200 });
       assertEquals(3001.0, asDouble(formula.getResult()), 1e-9);
    }
