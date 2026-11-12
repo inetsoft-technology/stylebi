@@ -74,6 +74,11 @@ class StackedLegendOrderTest {
    }
 
    @Test
+   void aLegendOfTheBarFieldIsUnchanged() {
+      assertEquals("A", leftmost(items(GraphConstants.TOP, false, true, true, 400, 3, "X")));
+   }
+
+   @Test
    void aWrappedReversedRowKeepsItsColumns() {
       List<LegendItem> items = items(GraphConstants.TOP, false, true, true, 130, 5);
       Map<Double, List<LegendItem>> rows = new TreeMap<>();
@@ -116,11 +121,20 @@ class StackedLegendOrderTest {
    private static List<LegendItem> items(int layout, boolean transposed, boolean inMarkOrder,
                                          boolean stacked, int width, int count)
    {
+      return items(layout, transposed, inMarkOrder, stacked, width, count, "Color");
+   }
+
+   private static List<LegendItem> items(int layout, boolean transposed, boolean inMarkOrder,
+                                         boolean stacked, int width, int count,
+                                         String colorField)
+   {
       Object[][] rows = new Object[count + 1][];
       rows[0] = new Object[] { "X", "Color", "V" };
+      boolean byBar = "X".equals(colorField);
 
       for(int i = 0; i < count; i++) {
-         rows[i + 1] = new Object[] { "P", String.valueOf((char) ('A' + i)), 10 * (i + 1) };
+         String name = String.valueOf((char) ('A' + i));
+         rows[i + 1] = new Object[] { byBar ? name : "P", name, 10 * (i + 1) };
       }
 
       EGraph graph = new EGraph();
@@ -130,7 +144,7 @@ class StackedLegendOrderTest {
          elem.setCollisionModifier(GraphElement.MOVE_STACK);
       }
 
-      elem.setColorFrame(new CategoricalColorFrame("Color"));
+      elem.setColorFrame(new CategoricalColorFrame(colorField));
       graph.addElement(elem);
       RectCoord coord = new RectCoord(new CategoricalScale("X"), new LinearScale("V"));
 
