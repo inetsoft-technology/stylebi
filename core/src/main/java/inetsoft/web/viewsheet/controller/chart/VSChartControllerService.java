@@ -327,7 +327,7 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
    }
 
    private final CoreLifecycleService coreLifecycleService;
-   private final ViewsheetService viewsheetService;
+   protected final ViewsheetService viewsheetService;
    private final VSChartAreasServiceProxy vsChartAreasService;
    private static final Logger LOG = LoggerFactory.getLogger(VSChartControllerService.class);
 

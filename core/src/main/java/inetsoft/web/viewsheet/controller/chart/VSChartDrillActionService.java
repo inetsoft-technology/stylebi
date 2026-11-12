@@ -69,14 +69,20 @@ public class VSChartDrillActionService extends VSChartControllerService<VSChartD
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
-      processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
-         try {
-            return drillAction(runtimeId, event, chartState, dispatcher, linkUri, principal);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      });
+      try {
+         processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
+            try {
+               return drillAction(runtimeId, event, chartState, dispatcher, linkUri, principal);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         });
+      }
+      finally {
+         // complete() has refreshed every chart the drill touched by now
+         VSChartDrillHandler.disarmLegendCountGuards(viewsheetService, runtimeId, principal);
+      }
 
       return null;
    }
@@ -85,6 +91,14 @@ public class VSChartDrillActionService extends VSChartControllerService<VSChartD
 
    public int drillAction(String runtimeId, VSChartDrillActionEvent event, VSChartStateInfo chartState,
                           CommandDispatcher dispatcher, String linkUri, Principal principal)
+      throws Exception
+   {
+      return drillAction0(runtimeId, event, chartState, dispatcher, linkUri, principal);
+   }
+
+   private int drillAction0(String runtimeId, VSChartDrillActionEvent event,
+                            VSChartStateInfo chartState, CommandDispatcher dispatcher,
+                            String linkUri, Principal principal)
       throws Exception
    {
       if(chartState == null) {

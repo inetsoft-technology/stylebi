@@ -160,6 +160,33 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
       });
    }
 
+   /**
+    * Disarm the drill guard of every chart in the sheet once the action's updates have run.
+    */
+   public static void disarmLegendCountGuards(ViewsheetService service, String runtimeId,
+                                              Principal principal)
+   {
+      try {
+         RuntimeViewsheet rvs = service.getViewsheet(runtimeId, principal);
+         disarmLegendCountGuards(rvs == null ? null : rvs.getViewsheet());
+      }
+      catch(Exception e) {
+         LOGGER.debug("Unable to disarm the legend count guards", e);
+      }
+   }
+
+   public static void disarmLegendCountGuards(Viewsheet vs) {
+      if(vs == null) {
+         return;
+      }
+
+      for(inetsoft.uql.asset.Assembly assembly : vs.getAssemblies(true)) {
+         if(assembly instanceof ChartVSAssembly) {
+            ((ChartVSAssembly) assembly).getChartInfo().disarmLegendCountGuard();
+         }
+      }
+   }
+
    public void drill(ChartRef ref, ChartVSAssembly chartAssembly, boolean drillUp, boolean viewer,
                      Principal principal, boolean drillFilterAction)
    {
@@ -167,6 +194,15 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
          return;
       }
 
+      ChartVSAssemblyInfo assemblyInfo = chartAssembly.getChartInfo();
+      // the re-seed after a drill runs, but a drill never takes a legend count
+      assemblyInfo.guardLegendCountFromDrill();
+      drill0(ref, chartAssembly, drillUp, viewer, principal, drillFilterAction);
+   }
+
+   private void drill0(ChartRef ref, ChartVSAssembly chartAssembly, boolean drillUp,
+                       boolean viewer, Principal principal, boolean drillFilterAction)
+   {
       VSChartInfo chartInfo = chartAssembly.getVSChartInfo();
       XCube cube = GraphBuilder.getCube(chartAssembly, chartAssembly.getXCube());
       String axisType = getDrillDirectionType(chartInfo, ref);
