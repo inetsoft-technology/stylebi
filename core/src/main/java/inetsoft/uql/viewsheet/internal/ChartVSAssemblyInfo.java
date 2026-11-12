@@ -3525,6 +3525,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       ResolvedChartType now = ResolvedChartType.of(cinfo);
 
       List<String> key = VSChartTypeDefaults.legendBindingKey(cinfo);
+      boolean guard = drillCountGuard;
+      drillCountGuard = false;
 
       if(getVizMark() != null && seededType != null && !seededType.equals(now)) {
          seedTypeDefaults(VizContext.of(this), now);
@@ -3536,8 +3538,35 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          requestLegendCount();
       }
 
+      if(guard) {
+         legendCountPending = drillCountPending;
+      }
+
       seededType = now;
       seededLegendKey = key;
+   }
+
+   /**
+    * Called before a drill: the re-seed it causes may run, but must not leave a count request
+    * behind. An edit not yet seen stays an edit.
+    */
+   public void guardLegendCountFromDrill() {
+      // sticky, so a second field of one action does not compare against the first's changes
+      if(drillCountGuard) {
+         return;
+      }
+
+      drillCountGuard = seededType != null && seededLegendKey != null &&
+         seededType.equals(ResolvedChartType.of(cinfo)) &&
+         seededLegendKey.equals(VSChartTypeDefaults.legendBindingKey(cinfo));
+      drillCountPending = legendCountPending;
+   }
+
+   /**
+    * Called when the drill's own update is done, so a guard never outlives the drill.
+    */
+   public void disarmLegendCountGuard() {
+      drillCountGuard = false;
    }
 
    /**
@@ -3797,6 +3826,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean legendCrowded = false;
    // not saved, not serialized; a clone carries it
    private transient boolean legendCountPending = false;
+   private transient boolean drillCountGuard = false;
+   private transient boolean drillCountPending = false;
    private transient List<String> seededLegendKey;
 
    private static final Logger LOG = LoggerFactory.getLogger(ChartVSAssemblyInfo.class);

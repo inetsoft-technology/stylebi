@@ -24,6 +24,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.event.table.*;
 import inetsoft.web.viewsheet.handler.VSDrillHandler;
+import inetsoft.web.viewsheet.handler.chart.VSChartDrillHandler;
 import inetsoft.web.viewsheet.handler.crosstab.CrosstabDrillHandler;
 import inetsoft.web.viewsheet.model.CrosstabDrillFilterAction;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -59,8 +60,15 @@ public class CrosstabDrillActionService extends BaseTableDrillService<BaseTableD
                             CommandDispatcher dispatcher,
                             String linkUri) throws Exception
    {
-      vsDrillHandler.processDrillAction(runtimeId, prepareDrillFilterInfo(event, event.getDrillEvents()),
-                                        dispatcher, linkUri, principal);
+      try {
+         vsDrillHandler.processDrillAction(
+            runtimeId, prepareDrillFilterInfo(event, event.getDrillEvents()),
+            dispatcher, linkUri, principal);
+      }
+      finally {
+         // the charts it drilled have been updated by now
+         VSChartDrillHandler.disarmLegendCountGuards(viewsheetService, runtimeId, principal);
+      }
 
       return null;
    }
