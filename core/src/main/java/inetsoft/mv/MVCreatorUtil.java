@@ -31,6 +31,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.swap.XIntList;
@@ -70,6 +71,24 @@ public class MVCreatorUtil {
       int[] dimensions, int[] measures, XDimDictionary[] dicts,
       MVColumnInfo[] mvColumnInfos, boolean[] numbers,
       boolean[] convertDates)
+   {
+      return addRowToDictionaries(lens, start, end, dimensions, measures, dicts, mvColumnInfos,
+                                  numbers, convertDates, null);
+   }
+
+   /**
+    * Add the rows to the dictionaries.
+    *
+    * @param temporalTypes the declared date/time type of each column (dimensions then
+    *                      measures) or null for a column that is not a date/time column of the
+    *                      base data; may be null. Cells of these columns that are not
+    *                      java.util.Date are converted with {@link #toTemporal} before the date
+    *                      range is computed.
+    */
+   public static int addRowToDictionaries(XTable lens, int start, int end,
+      int[] dimensions, int[] measures, XDimDictionary[] dicts,
+      MVColumnInfo[] mvColumnInfos, boolean[] numbers,
+      boolean[] convertDates, String[] temporalTypes)
    {
       int dcnt = dimensions.length;
       int mcnt = measures.length;
@@ -170,7 +189,10 @@ public class MVCreatorUtil {
                            // before calling the getObject
                            boolean outOfRange;
 
-                           Object obj0 = ((XDynamicTable) lens).getBaseObject(r, measures[mIdx]);
+                           final String ttype = temporalTypes == null ? null :
+                              temporalTypes[mIdx + dcnt];
+                           Object obj0 = toTemporal(
+                              ((XDynamicTable) lens).getBaseObject(r, measures[mIdx]), ttype);
 
                            if(!(obj0 instanceof Date)) {
                               continue;
@@ -196,7 +218,7 @@ public class MVCreatorUtil {
                            }
 
                            if(outOfRange) {
-                              Object obj = lens.getObject(r, measures[mIdx]);
+                              Object obj = toTemporal(lens.getObject(r, measures[mIdx]), ttype);
 
                               if(obj instanceof Date) {
                                  MVCreatorUtil.setDateRange(mvColumnInfos[mIdx + dcnt], (Date) obj);
@@ -384,6 +406,52 @@ public class MVCreatorUtil {
       XDynamicMVColumn[] carr = new XDynamicMVColumn[iarr.length];
       dlist.toArray(carr);
       return new XDynamicTable(data, carr, iarr);
+   }
+
+   /**
+    * Convert a date/time cell that is not a java.util.Date (for example the
+    * java.time.OffsetDateTime a JDBC driver returns for a TIMESTAMP WITH TIME ZONE column, or
+    * SQL Server's microsoft.sql.DateTimeOffset) to the java.util.Date subclass of the column's
+    * declared type, so the MV build treats it like any other date. The value becomes the instant
+    * it denotes (offset dropped), expressed in the JVM default zone like a Timestamp read from
+    * the same column. Null, numbers, strings and java.util.Date values are returned unchanged,
+    * as is a value that has no temporal conversion.
+    *
+    * @param obj  the cell value.
+    * @param type the declared column data type (XSchema constant), may be null.
+    */
+   public static Object toTemporal(Object obj, String type) {
+      if(obj == null || obj instanceof Date || obj instanceof Number ||
+         obj instanceof CharSequence || type == null)
+      {
+         return obj;
+      }
+
+      Object result;
+
+      if(XSchema.TIME_INSTANT.equals(type)) {
+         result = CoreTool.getTimeInstantData(obj);
+      }
+      else if(XSchema.DATE.equals(type)) {
+         result = CoreTool.getDateData(obj);
+      }
+      else if(XSchema.TIME.equals(type)) {
+         result = CoreTool.getTimeData(obj);
+      }
+      else {
+         return obj;
+      }
+
+      return result == null ? obj : result;
+   }
+
+   /**
+    * Get the declared type of a column whose cells need {@link #toTemporal}, or null if the
+    * column is not a date/time column of the base data.
+    */
+   public static String getTemporalType(MVColumn mvcol) {
+      return mvcol != null && !(mvcol instanceof DateMVColumn) && mvcol.isDateTime() ?
+         mvcol.getColumn().getDataType() : null;
    }
 
    /**

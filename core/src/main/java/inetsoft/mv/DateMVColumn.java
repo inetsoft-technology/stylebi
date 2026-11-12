@@ -214,6 +214,10 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
     */
    @Override
    public Object convert(Object obj) {
+      // a date/time column from a JDBC driver may hold java.time or driver objects
+      // (e.g. OffsetDateTime) rather than java.util.Date (Bug #79858)
+      obj = MVCreatorUtil.toTemporal(obj, XSchema.TIME_INSTANT);
+
       if(obj == null || !(obj instanceof Date)) {
          return null;
       }

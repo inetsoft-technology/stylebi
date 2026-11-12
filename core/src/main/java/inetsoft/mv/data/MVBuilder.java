@@ -445,7 +445,7 @@ public final class MVBuilder {
       int size = MVCreatorUtil.addRowToDictionaries(
          lens, start, end, dimensions, measures,
          dicts, binfo.getColumnInfos(), numbers,
-         convertDates);
+         convertDates, getTemporalTypes(mvcols));
 
       for(XDimDictionary xdd : dicts) {
          if(xdd != null) {
@@ -552,6 +552,7 @@ public final class MVBuilder {
       // which column is number
       final boolean[] numbers = MVCreatorUtil.getNumberColumns(types, mvcols, dcnt, mcnt);
       final boolean[] convertDates = MVCreatorUtil.getConvertDateColumns(mvcols, dcnt, mcnt);
+      final String[] temporalTypes = getTemporalTypes(mvcols);
 
       iterator = new Iterator<SubMV>() {
          int r = hcnt;
@@ -589,7 +590,9 @@ public final class MVBuilder {
                // for incremental, the omv's index may be invalid, and mv has
                // updated the break value in MVIncremental.updateBreakValueIndex,
                // so here is safe and correct to use mv instead of omv
-               int blockIndex = mv.getBreakValueIndex(convertDate(obj));
+               int breakCol = dbreak >= 0 ? dbreak : dcnt + mbreak;
+               int blockIndex = mv.getBreakValueIndex(
+                  convertDate(MVCreatorUtil.toTemporal(obj, breakCol >= 0 ? temporalTypes[breakCol] : null)));
 
                // the obj is greater than the max value of the omv,
                // append rows to last block, other rows maybe
@@ -803,7 +806,8 @@ public final class MVBuilder {
                   public void run() {
                      try {
                         for(int row = start; row < endRow; row++) {
-                           Object obj = lens.getObject(row, measures[finalCol]);
+                           Object obj = MVCreatorUtil.toTemporal(
+                              lens.getObject(row, measures[finalCol]), temporalTypes[dcnt + finalCol]);
                            double measure = MVCreatorUtil.convertMeasureValue(obj, row + lastRows[dcnt + finalCol],
                                                                               dicts2[finalCol + dcnt], numbers[finalCol]);
                            int blockIdx = row - start;
@@ -993,6 +997,20 @@ public final class MVBuilder {
       }
 
       return result;
+   }
+
+   /**
+    * Get the declared date/time type of each column (null for a column that isn't a date/time
+    * column of the base data), for converting java.time/driver values (Bug #79858).
+    */
+   private static String[] getTemporalTypes(MVColumn[] mvcols) {
+      String[] types = new String[mvcols.length];
+
+      for(int i = 0; i < types.length; i++) {
+         types[i] = MVCreatorUtil.getTemporalType(mvcols[i]);
+      }
+
+      return types;
    }
 
    private static final Logger LOG =
