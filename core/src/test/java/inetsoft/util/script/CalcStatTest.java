@@ -1005,4 +1005,100 @@ class CalcStatTest {
       exception = assertThrows(RuntimeException.class, () -> CalcStat.small(array, k));
       assertEquals(expectedMessage, exception.getMessage());
    }
+
+   /**
+    * Bug #79859: a hole (null, empty or non-numeric) in either array drops the
+    * whole pair instead of shifting the two arrays against each other.
+    */
+   @Test
+   void testPairedFunctionsDropPairWithHole() {
+      // pairs (1,2), (4,8), (5,10) survive: y = 2x
+      Object[] a = {1.0, null, 3.0, 4.0, 5.0};
+      Object[] b = {2.0, 4.0, null, 8.0, 10.0};
+      assertEquals(1.0, CalcStat.correl(a, b), 1e-9);
+      assertEquals(1.0, CalcStat.pearson(a, b), 1e-9);
+      assertEquals(1.0, CalcStat.rsq(a, b), 1e-9);
+      assertEquals(52.0 / 9, CalcStat.covar(a, b), 1e-9);
+
+      // known_ys = a, known_xs = b: y = x / 2
+      assertEquals(0.5, CalcStat.slope(a, b), 1e-9);
+      assertEquals(0.0, CalcStat.intercept(a, b), 1e-9);
+      assertEquals(3.0, CalcStat.forecast(6.0, a, b), 1e-9);
+
+      // sharper regression: pairs (3,1), (11,5), (7,3) survive: y = 2x + 1
+      Object[] ys = {3.0, null, 7.0, 11.0, 7.0};
+      Object[] xs = {1.0, 2.0, null, 5.0, 3.0};
+      assertEquals(2.0, CalcStat.slope(ys, xs), 1e-9);
+      assertEquals(1.0, CalcStat.intercept(ys, xs), 1e-9);
+      assertEquals(21.0, CalcStat.forecast(10.0, ys, xs), 1e-9);
+      assertEquals(1.0, CalcStat.correl(ys, xs), 1e-9);
+
+      // exact line through the 4 surviving pairs: no standard error
+      Object[] ys2 = {3.0, null, 7.0, 11.0, 7.0, 9.0};
+      Object[] xs2 = {1.0, 2.0, null, 5.0, 3.0, 4.0};
+      assertEquals(0.0, CalcStat.steyx(ys2, xs2), 1e-6);
+
+      // empty string, text and numeric string: pairs (1,2), (4,8), (5,10) survive
+      Object[] c = {"", 1.0, "x", "4", 5.0};
+      Object[] d = {9.0, 2.0, 7.0, "8", 10.0};
+      assertEquals(1.0, CalcStat.correl(c, d), 1e-9);
+
+      // NaN is not a number: the pair is dropped
+      assertEquals(1.0, CalcStat.correl(new Object[] {1.0, Double.NaN, 4.0, 5.0},
+                                        new Object[] {2.0, 3.0, 8.0, 10.0}), 1e-9);
+   }
+
+   @Test
+   void testWeightedAvgDropsPairWithHole() {
+      // pairs (1,1) and (4,4) survive: (1 + 16) / 5
+      assertEquals(3.4, CalcStat.weightedavg(new Object[] {1.0, null, 3.0, 4.0},
+                                             new Object[] {1.0, 2.0, null, 4.0}), 1e-9);
+   }
+
+   @Test
+   void testProbDropsPairWithHole() {
+      // pairs (1,0.3) and (4,0.5) survive, the sum of probabilities stays <= 1
+      Object[] x = {1.0, null, 3.0, 4.0};
+      Object[] p = {0.3, 0.9, null, 0.5};
+      assertEquals(0.8, CalcStat.prob(x, p, 1.0, 4.0), 1e-9);
+      assertEquals(0.5, CalcStat.prob(x, p, 4.0, 4.0), 1e-9);
+   }
+
+   @Test
+   void testPairedFunctionsRawLengthMustMatch() {
+      // a hole in one array only: the raw lengths differ, so it is an error even
+      // though the numeric counts would be equal after dropping the hole
+      Object[] a = {1.0, null, 3.0, 4.0, 5.0};
+      Object[] b = {2.0, 4.0, 6.0, 8.0};
+      String msg = "Arrays should have same number of values";
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.correl(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.pearson(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.covar(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.slope(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.intercept(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.forecast(1.0, a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.steyx(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.weightedavg(a, b)).getMessage());
+      assertEquals("x_range and prob_range contain different number of data points",
+                   assertThrows(RuntimeException.class, () -> CalcStat.prob(a, b, 1.0, 4.0)).getMessage());
+   }
+
+   @Test
+   void testPairedFunctionsAllPairsDropped() {
+      Object[] a = {null, 1.0};
+      Object[] b = {1.0, null};
+      String msg = "Arrays cannot be empty, / by zero";
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.correl(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.covar(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.slope(a, b)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcStat.weightedavg(a, b)).getMessage());
+   }
+
+   @Test
+   void testSteyxChecksPairedCount() {
+      // 3 numeric values on each side, but only 2 complete pairs
+      Exception exception = assertThrows(RuntimeException.class, () ->
+         CalcStat.steyx(new Object[] {1.0, null, 3.0, 4.0}, new Object[] {2.0, 4.0, null, 8.0}));
+      assertEquals("Arrays should have at least 3 data points, / by zero", exception.getMessage());
+   }
 }

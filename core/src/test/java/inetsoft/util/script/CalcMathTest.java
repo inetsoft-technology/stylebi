@@ -1013,4 +1013,86 @@ class CalcMathTest {
       // Test with fractional angle
       assertEquals(Math.PI / 2, CalcMath.radians(90.0), 0.0001);
    }
+
+   /**
+    * Bug #79859: a hole (null, empty or non-numeric) in either array drops the
+    * whole pair instead of shifting the two arrays against each other.
+    */
+   @Test
+   void testPairedFunctionsDropPairWithHole() {
+      // pairs (1,2) and (5,4) survive; x[1]=null and y[2]=null at different positions
+      Object[] x = {1.0, null, 3.0, 5.0};
+      Object[] y = {2.0, 9.0, null, 4.0};
+      assertEquals(2.0, CalcMath.sumxmy2(x, y), 1e-9);
+      assertEquals(6.0, CalcMath.sumx2my2(x, y), 1e-9);
+      assertEquals(46.0, CalcMath.sumx2py2(x, y), 1e-9);
+
+      // empty string, non-numeric text and numeric string: pairs (3,3) and (5,4) survive
+      Object[] x2 = {"", 3.0, "abc", "5"};
+      Object[] y2 = {7.0, "3", 8.0, 4.0};
+      assertEquals(1.0, CalcMath.sumxmy2(x2, y2), 1e-9);
+      assertEquals(9.0, CalcMath.sumx2my2(x2, y2), 1e-9);
+      assertEquals(59.0, CalcMath.sumx2py2(x2, y2), 1e-9);
+
+      // holes at the same positions give the same result as before
+      assertEquals(0.0, CalcMath.sumxmy2(new Object[] {1.0, null, 3.0, 4.0},
+                                         new Object[] {1.0, null, 3.0, 4.0}), 1e-9);
+
+      // every pair dropped
+      assertEquals(0.0, CalcMath.sumxmy2(new Object[] {null, 1.0}, new Object[] {1.0, null}));
+      assertEquals(0.0, CalcMath.sumx2my2(new Object[] {null, 1.0}, new Object[] {1.0, null}));
+      assertEquals(0.0, CalcMath.sumx2py2(new Object[] {null, 1.0}, new Object[] {1.0, null}));
+   }
+
+   @Test
+   void testPairedFunctionsRawLengthMustMatch() {
+      // a hole in one array only: the raw lengths still differ, so it is an error
+      // even though the numeric counts would be equal after dropping the hole
+      Object[] x = {1.0, null, 3.0, 4.0};
+      Object[] y = {1.0, 3.0, 4.0};
+      String msg = "array_x and array_y have a different number of values";
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcMath.sumxmy2(x, y)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcMath.sumx2my2(x, y)).getMessage());
+      assertEquals(msg, assertThrows(RuntimeException.class, () -> CalcMath.sumx2py2(x, y)).getMessage());
+
+      // no holes: unchanged
+      assertEquals(msg, assertThrows(RuntimeException.class, () ->
+         CalcMath.sumxmy2(new Object[] {1.0, 2.0}, new Object[] {1.0})).getMessage());
+      assertEquals(17.0, CalcMath.sumx2my2(new Object[] {3.0, 4.0}, new Object[] {2.0, 2.0}), 1e-9);
+   }
+
+   @Test
+   void testSumproductWithHoles() {
+      // 1-D rows: a null counts as 0 and keeps its position
+      Object arrays = new Object[] {
+         new Object[] {1.0, null, 3.0},
+         new Object[] {4.0, 5.0, 6.0}
+      };
+      assertEquals(22.0, CalcMath.sumproduct(arrays), 1e-9);
+
+      // null in the second row
+      Object arrays2 = new Object[] {
+         new Object[] {1.0, 2.0, 3.0},
+         new Object[] {4.0, 5.0, null}
+      };
+      assertEquals(14.0, CalcMath.sumproduct(arrays2), 1e-9);
+
+      // empty string and text are treated as 0
+      Object arrays3 = new Object[] {
+         new Object[] {"", 2.0, "x"},
+         new Object[] {4.0, "5", 6.0}
+      };
+      assertEquals(10.0, CalcMath.sumproduct(arrays3), 1e-9);
+
+      // 2-D matrices
+      Object matrices = new Object[] {
+         new Object[][] {{1.0, null}, {3.0, 4.0}},
+         new Object[][] {{5.0, 6.0}, {7.0, 8.0}}
+      };
+      assertEquals(58.0, CalcMath.sumproduct(matrices), 1e-9);
+
+      // no holes: unchanged
+      assertEquals(32.0, CalcMath.sumproduct(new Object[] {
+         new Object[] {1.0, 2.0, 3.0}, new Object[] {4.0, 5.0, 6.0}}), 1e-9);
+   }
 }
