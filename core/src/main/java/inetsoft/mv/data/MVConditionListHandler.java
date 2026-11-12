@@ -23,7 +23,9 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.PreAssetQuery;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
 import inetsoft.util.script.FormulaContext;
@@ -108,6 +110,19 @@ public class MVConditionListHandler extends ConditionListHandler {
                                         XExpression field,
                                         VariableTable vars)
    {
+      // the column kind is unknown here, so the database's LIKE rule is not applied
+      return createCondNode(cond, field, vars, false);
+   }
+
+   /**
+    * Create XFilterNode.
+    *
+    * @param dbEvaluated true if the column of the condition is known to be evaluated by the
+    *                    source database, so the database's LIKE case sensitivity applies.
+    */
+   protected XFilterNode createCondNode(Condition cond, XExpression field,
+                                        VariableTable vars, boolean dbEvaluated)
+   {
       XFilterNode condnode = null;
       Object val = null;
       int vcnt = cond.getValueCount();
@@ -140,7 +155,10 @@ public class MVConditionListHandler extends ConditionListHandler {
       condnode = new XBinaryCondition(field, exp, op);
       condnode.setIsNot(cond.isNegated());
 
-      if(likeCaseSensitive != null) {
+      // Bug #80152: only a column the database evaluates follows the database's LIKE rule.
+      // A column computed in memory (script expression, range/named group) follows the
+      // global string comparison setting, as it does without the MV.
+      if(likeCaseSensitive != null && dbEvaluated) {
          condnode.setAttribute(LIKE_CASE_SENSITIVE, likeCaseSensitive.toString());
       }
 
@@ -314,8 +332,35 @@ public class MVConditionListHandler extends ConditionListHandler {
       DataRef dref = item.getAttribute();
       cond.replaceVariable(vars);
       XExpression field = createXExpression(dref);
-      XFilterNode condnode = createCondNode(cond, field, vars);
+      XFilterNode condnode = createCondNode(cond, field, vars, isDbEvaluated(dref));
       return new XFilterNodeItem(condnode, item.getLevel());
+   }
+
+   /**
+    * Check if the values of a column are computed by the source database, i.e. a physical
+    * column or an SQL expression. Anything else (script expression, date/numeric range, named
+    * group, aggregate) is computed in memory, and unknown is treated as in memory.
+    */
+   static boolean isDbEvaluated(DataRef dref) {
+      for(int i = 0; i < 20 && dref != null; i++) {
+         if(dref instanceof ColumnRef) {
+            dref = ((ColumnRef) dref).getDataRef();
+         }
+         else if(dref instanceof GroupRef) {
+            dref = ((GroupRef) dref).getDataRef();
+         }
+         else if(dref instanceof AliasDataRef) {
+            dref = ((AliasDataRef) dref).getDataRef();
+         }
+         else if(dref instanceof ExpressionRef) {
+            return ((ExpressionRef) dref).isSQL();
+         }
+         else {
+            return dref instanceof AttributeRef;
+         }
+      }
+
+      return false;
    }
 
    /**
