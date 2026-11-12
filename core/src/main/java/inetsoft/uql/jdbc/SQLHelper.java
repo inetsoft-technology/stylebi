@@ -621,6 +621,18 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if this database sorts NULL above every other value, i.e. an ascending ORDER BY
+    * returns NULL last and a descending one returns it first. This is a capability flag in
+    * sqlhelper.xml (nullsorder=high). Dialects that do not declare it are treated as sorting
+    * NULL lowest, which is also how the in-memory sort (Tool.compare) orders NULL.
+    * @return true if NULL sorts high.
+    */
+   public boolean isNullsSortHigh() {
+      getHelperClass(getSQLHelperType());
+      return nullsHigh.contains(getSQLHelperType());
+   }
+
+   /**
     * Get the db product's version.
     */
    public String getProductVersion() {
@@ -5928,6 +5940,12 @@ public class SQLHelper implements KeywordProvider {
                         String str = Tool.getValue(mnode);
                         maxidentifier.put(type, Integer.valueOf(str));
                      }
+
+                     Element nnode = Tool.getChildNodeByTagName(node2, "nullsorder");
+
+                     if(nnode != null && "high".equalsIgnoreCase(Tool.getValue(nnode))) {
+                        nullsHigh.add(type);
+                     }
                   }
 
                   nlist = Tool.getChildNodesByTagName(node, "testQuery");
@@ -6757,6 +6775,8 @@ public class SQLHelper implements KeywordProvider {
    private static Set<String> keywords = new HashSet<>(); // keywords
    private static Hashtable<String, Integer> maxidentifier = new Hashtable<>(); // type -> id len
    private static Map<String, String> connectionTestQuery = new ConcurrentHashMap<>();
+   // helper types whose ascending ORDER BY puts NULL last (NULL sorts above every value)
+   private static final Set<String> nullsHigh = ConcurrentHashMap.newKeySet();
 
    static {
       keywords.add("absolute");

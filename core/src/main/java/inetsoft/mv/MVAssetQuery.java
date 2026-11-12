@@ -22,10 +22,14 @@ import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVQueryBuilder;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.report.Comparer;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.internal.Util;
+import inetsoft.report.filter.NullsHighComparer;
+import inetsoft.report.filter.SortFilter;
+import inetsoft.report.filter.SortOrder;
 import inetsoft.report.internal.table.FilledTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
@@ -35,6 +39,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -303,6 +308,77 @@ public class MVAssetQuery extends AssetQuery {
       }
 
       return false;
+   }
+
+   /**
+    * Order the NULL group of a grouped table like the data source does when the result is
+    * truncated by max rows (Bug #80446). Without a materialized view the database applies the
+    * row limit to its own group order, and DB2, Oracle and PostgreSQL return NULL after every
+    * other value, while the in-memory sort here puts NULL first, so the max rows kept a
+    * different set of groups. Only a grouped table with max rows and a single known source
+    * dialect that sorts NULL high is affected; everything else keeps NULL lowest, which
+    * several other consumers (e.g. TimeSliderVSAQuery.sortNullFirst) rely on.
+    */
+   @Override
+   protected Comparer applyGroupNullOrder(Comparer comp, TableLens base, int col,
+                                          VariableTable vars) throws Exception
+   {
+      AggregateInfo ainfo = getAggregateInfo();
+
+      // a crosstab is not truncated by max rows in the group order, a date level or cube
+      // comparer defines its own order
+      if(ainfo.isEmpty() || ainfo.getGroupCount() == 0 || ainfo.isCrosstab() ||
+         comp instanceof SortOrder)
+      {
+         return comp;
+      }
+
+      int max = vars != null && vars.get(BROWSE_MAXROWS) != null ?
+         (int) vars.get(BROWSE_MAXROWS) : getMaxRows(true);
+
+      if(max <= 0) {
+         return comp;
+      }
+
+      SQLHelper helper = getSourceHelper(getRuntimeTable());
+
+      if(helper == null || !helper.isNullsSortHigh()) {
+         return comp;
+      }
+
+      return new NullsHighComparer(comp != null ? comp : SortFilter.getDefaultComparer(base, col));
+   }
+
+   /**
+    * Get the SQL helper of the table's data source. The helper is returned only if every
+    * source table is a database table of the same dialect, otherwise the NULL order of the
+    * source is unknown.
+    */
+   private static SQLHelper getSourceHelper(TableAssembly table) {
+      if(table instanceof BoundTableAssembly) {
+         return ((BoundTableAssembly) table).getSQLHelper();
+      }
+
+      if(!(table instanceof ComposedTableAssembly)) {
+         return null;
+      }
+
+      TableAssembly[] tables = ((ComposedTableAssembly) table).getTableAssemblies(false);
+      SQLHelper result = null;
+
+      for(int i = 0; tables != null && i < tables.length; i++) {
+         SQLHelper helper = getSourceHelper(tables[i]);
+
+         if(helper == null || result != null &&
+            !result.getSQLHelperType().equals(helper.getSQLHelperType()))
+         {
+            return null;
+         }
+
+         result = helper;
+      }
+
+      return result;
    }
 
    /**
