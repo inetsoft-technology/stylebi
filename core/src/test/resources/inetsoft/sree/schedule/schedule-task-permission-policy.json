@@ -54,8 +54,7 @@
       "id": "mayTakeOwnership",
       "expr": "siteAdmin || sameOrg && (orgAdmin || ownerAdmin || owner)",
       "status": "agreed",
-      "basis": "ScheduleTaskService.checkTaskIdentityPermission, the actor makes itself the owner: it must administer the current owner (C3)",
-      "changes": "#79863: any caller may make itself the owner"
+      "basis": "ScheduleTaskService.checkTaskIdentityPermission, the actor makes itself the owner: it must administer the current owner (C3)"
     },
     {
       "id": "referenceReadable",
@@ -79,8 +78,7 @@
       "id": "takeOwnership",
       "expr": "manage && mayTakeOwnership",
       "status": "agreed",
-      "basis": "ScheduleTaskService.checkTaskIdentityPermission: admin of the current and the new owner (C3)",
-      "changes": "#79863: a group member may make itself the owner"
+      "basis": "ScheduleTaskService.checkTaskIdentityPermission: admin of the current and the new owner (C3)"
     },
     {
       "id": "siteAdminOnly",
