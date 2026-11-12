@@ -147,6 +147,21 @@ class MVBuilderTimeInstantMeasureTest {
    }
 
    @Test
+   void timeColumnStoresTheSameTimeAsSqlTime() throws Exception {
+      Object[] sqlTimes = new Object[ODTS.length];
+
+      for(int i = 0; i < sqlTimes.length; i++) {
+         sqlTimes[i] = new java.sql.Time(ODTS[i].toInstant().toEpochMilli());
+      }
+
+      // a TIME column holding offset date-time values stores what java.sql.Time cells of the
+      // same instants store
+      List<Double> expected = build(sqlTimes, XSchema.TIME).columns.get(0);
+      assertEquals(expected, build(ODTS, XSchema.TIME).columns.get(0));
+      assertNotEquals(-1.0, expected.get(0), 0);
+   }
+
+   @Test
    void nullAndTimestampBehaviourUnchanged() throws Exception {
       Object[] vals = { new Timestamp(1577836800000L), null, new Timestamp(1577961000000L) };
       List<Double> col = build(vals, XSchema.TIME_INSTANT).columns.get(0);
