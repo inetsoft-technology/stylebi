@@ -552,6 +552,16 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   }
 }
 
+// _layout.scss gives every .fade element half opacity (meant for the modal backdrop), and its
+// :not() chain outranks Bootstrap's .tooltip.show. On a dark shell that washes the tooltip into the
+// page. Shown tooltips and popovers are drawn opaque; the light shell keeps today's look.
+.shell-dark {
+  .tooltip.fade.show,
+  .popover.fade.show {
+    opacity: 1;
+  }
+}
+
 // The annotation editor edits dashboard content: its text keeps the annotation's default black, so
 // the editing area keeps CKEditor's light default. An annotation background set by the author is
 // written inline on the wrapper and still wins. Toolbar, menus and inputs use their own variables.
