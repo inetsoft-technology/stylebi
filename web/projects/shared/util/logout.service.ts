@@ -67,7 +67,26 @@ export class LogoutService {
       }
    }
 
-   sessionExpired(): void {
+   /**
+    * Goes to the session expired page.
+    *
+    * @param reason a fixed code for why the server ended the session, so the login page can say
+    *               more than the generic inactivity message. Only "limit" is known; anything else
+    *               is ignored and the generic message is shown.
+    */
+   sessionExpired(reason?: "limit"): void {
+      try {
+         if(reason === "limit") {
+            window.sessionStorage?.setItem("inetsoftSessionEndReason", reason);
+         }
+         else {
+            window.sessionStorage?.removeItem("inetsoftSessionEndReason");
+         }
+      }
+      catch(e) {
+         // storage may be unavailable, the generic message is shown
+      }
+
       this.setSessionExpired(true);
       document.location.replace(this.expiredUrl + "?fromEm=" + this.fromEm);
    }

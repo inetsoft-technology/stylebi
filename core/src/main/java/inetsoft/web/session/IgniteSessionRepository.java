@@ -444,6 +444,14 @@ public class IgniteSessionRepository
                   principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE)))
                {
                   String sessionId = entry.getValue().getId();
+
+                  // record why the server ends the session, so the SessionDeletedEvent that
+                  // follows the removal can tell the browser (a fixed code, never free text)
+                  if(event.getEndReason() != null) {
+                     igniteSession.setAttribute(SessionEvent.END_REASON_ATTRIBUTE,
+                                                event.getEndReason());
+                  }
+
                   withRetry(() -> this.sessions.remove(sessionId));
                   break;
                }

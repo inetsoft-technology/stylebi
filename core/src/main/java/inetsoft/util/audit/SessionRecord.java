@@ -65,6 +65,11 @@ public class SessionRecord implements AuditRecord {
    public static final String LOGOFF_SESSION_TIMEOUT = "Session Timeout";
 
    /**
+    * logoff because the per-client session limit was reached by a newer login.
+    */
+   public static final String LOGOFF_SESSION_LIMIT = "Session Limit Exceeded";
+
+   /**
     * Create an empty instance of SessionRecord.
     */
    public SessionRecord() {

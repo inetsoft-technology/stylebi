@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage, currentUser, onloadError) {
+function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage, currentUser, onloadError, sessionEndReason) {
    var $userNameField = $("#loginUserName");
    var $userNameError = $("#userNameError");
 
@@ -34,6 +34,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
    var $loadingIndicator = $(".loading-indicator");
    var $notifications = $("#notifications");
    var $sessionExpiredMessage = $("#sessionExpiredMessage");
+   var $sessionLimitMessage = $("#sessionLimitMessage");
 
    var userName = null;
    var password = null;
@@ -99,6 +100,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
       }
 
       $sessionExpiredMessage.hide();
+      $sessionLimitMessage.hide();
       $notifications.hide();
       $loadingIndicator.addClass("loading");
 
@@ -375,7 +377,10 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
       validateForm()
    });
 
-   if(sessionExpired) {
+   if(sessionEndReason === "limit") {
+      $sessionLimitMessage.show();
+   }
+   else if(sessionExpired) {
       $sessionExpiredMessage.show();
    }
 

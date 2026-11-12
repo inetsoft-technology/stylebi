@@ -27,6 +27,7 @@ import inetsoft.sree.web.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.SessionRecord;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.slf4j.Logger;
@@ -437,17 +438,64 @@ public abstract class AbstractSecurityFilter
             }
          }
 
+         // The list holds copies deserialized from the cluster map, so the new login must be
+         // recognised by its identity (name and secure id), not by reference, or it counts itself
+         // and the limit trips one login early (Bug #81146). The copies were stored before their
+         // HTTP session existed, so their own last access is the login time; rank them by the
+         // session's live last access instead, or the oldest login is evicted rather than the
+         // least recently used one.
+         Map<SRPrincipal, Long> lastAccess = new HashMap<>();
          List<SRPrincipal> sameClientPrincipals = SecurityEngine.getSecurity().getActivePrincipalList().stream()
-            .filter(p -> p != principal)
+            .filter(p -> !isSameLogin(principal, p))
             .filter(p -> isSameClient(principal, p))
-            .sorted(Comparator.comparing(SRPrincipal::getLastAccess)) // Oldest accessed first
+            .peek(p -> lastAccess.put(p, getLiveLastAccess(p)))
+            .sorted(Comparator.comparing(lastAccess::get)) // Least recently accessed first
             .collect(Collectors.toList());
 
          if(sameClientPrincipals.size() >= maxSessions) {
             sameClientPrincipals.subList(0, sameClientPrincipals.size() - (maxSessions - 1))
-               .forEach(authenticationService::logout);
+               .forEach(p -> {
+                  // a failing eviction of an old session must not fail the new user's login
+                  try {
+                     authenticationService.logout(
+                        p, p.getUser().getIPAddress(), SessionRecord.LOGOFF_SESSION_LIMIT, true,
+                        SessionLoggedOutEvent.REASON_LIMIT);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to log out session of {} over the per-client limit",
+                              p.getName(), e);
+                  }
+               });
          }
       }
+   }
+
+   /**
+    * Determines if a principal from the active list is the login that is being created, which
+    * may be a different copy of the same principal.
+    *
+    * <p>A wiz throwaway principal carries the browser login's secure id, so it is intentionally
+    * treated as the same login as that browser login.
+    */
+   private boolean isSameLogin(SRPrincipal principal, SRPrincipal other) {
+      return principal == other ||
+         principal.getSecureID() == other.getSecureID() &&
+         Objects.equals(principal.getName(), other.getName());
+   }
+
+   /**
+    * Gets the last access of a login. For a principal that is bound to an HTTP session, this is
+    * the value kept current by the access listeners; for a copy that is not bound it is read from
+    * the session of its client info. A plain principal keeps its own value.
+    */
+   private long getLiveLastAccess(SRPrincipal principal) {
+      if(principal instanceof DestinationUserNameProviderPrincipal dunpp &&
+         principal.getUser() != null)
+      {
+         return dunpp.getSessionLastAccess(principal.getUser().getSession());
+      }
+
+      return principal.getLastAccess();
    }
 
    /**

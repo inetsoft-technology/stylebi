@@ -168,6 +168,10 @@ export class StompClient {
                // session timeout with security enabled
                this.logoutService.sessionExpired();
             }
+            else if(event?.code === 4004) {
+               // signed out because a newer login exceeded the per-client session limit
+               this.logoutService.sessionExpired("limit");
+            }
             else if(event?.code === 4003) {
                // guest session expired, reload so that a new guest session is created
                this.reloadForGuestSession();
