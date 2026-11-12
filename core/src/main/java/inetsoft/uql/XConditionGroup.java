@@ -100,11 +100,12 @@ public class XConditionGroup implements Cloneable, Serializable {
 
    /**
     * Set whether a negated single-value equal-to ("not equal to") condition of this group is
-    * false for a null (or empty string) value, as it is in SQL and as every other negated
-    * operator is. Set by the groups that filter data (worksheet/viewsheet conditions) so that
-    * an in-memory filter returns the same rows as the pushed-down SQL and as an MV, which stores
-    * null and empty string as the same value. Highlight and chart color groups leave it off and
-    * keep matching null.
+    * false for a null value, as it is in SQL and as every other negated operator is. An empty
+    * string is not null and is kept, as SQL keeps it. Set by the groups that filter data
+    * (worksheet/viewsheet conditions) so that an in-memory filter returns the same rows as the
+    * pushed-down SQL. Known limit: an MV stores null and empty string as the same value, so with
+    * an MV the empty-string rows are dropped too. Highlight and chart color groups leave it off
+    * and keep matching null.
     */
    public void setNullNotEqualDropped(boolean dropped) {
       for(HierarchyItem item : list) {
@@ -412,11 +413,12 @@ public class XConditionGroup implements Cloneable, Serializable {
       }
 
       /**
-       * Check if this is a "not equal to" a non-null value that is evaluated on a null or empty
-       * value, which SQL evaluates as unknown (false).
+       * Check if this is a "not equal to" a non-null value that is evaluated on a null value,
+       * which SQL evaluates as unknown (false). An empty string is a value and is not matched
+       * here, so it is kept, as in SQL (the MV folds it into null, a known limit).
        */
       private boolean isNullNotEqual(Object obj) {
-         if(obj != null && !"".equals(obj) || !(condition instanceof Condition)) {
+         if(obj != null || !(condition instanceof Condition)) {
             return false;
          }
 

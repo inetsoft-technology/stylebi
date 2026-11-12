@@ -43,7 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Bug #79870: every group that filters data (pre conditions, post/aggregate conditions, crosstab
- * post conditions) evaluates 'not equal to' as false for a null or empty value, as SQL does.
+ * post conditions) evaluates 'not equal to' as false for a null value and true for an empty
+ * string, as SQL does.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -105,7 +106,7 @@ class NotEqualNullConditionGroupsTest {
 
    private static void check(ConditionGroup group) {
       assertFalse(group.evaluate(new Object[] { (Object) null }));
-      assertFalse(group.evaluate(new Object[] { "" }));
+      assertTrue(group.evaluate(new Object[] { "" }));
       assertFalse(group.evaluate(new Object[] { "v03" }));
       assertTrue(group.evaluate(new Object[] { "v01" }));
    }
