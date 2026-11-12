@@ -50,6 +50,30 @@ class NthMostFrequentFormulaTest {
       assertEquals("N should be greater than zero", exception.getMessage());
    }
 
+   // Bug #81181: MV measure columns store null as NULL_DOUBLE, it is not a value
+   @Test
+   void testNullIsIgnored() {
+      NthMostFrequentFormula first = new NthMostFrequentFormula(1);
+      first.addValue(inetsoft.util.Tool.NULL_DOUBLE);
+      first.addValue(inetsoft.util.Tool.NULL_DOUBLE);
+      first.addValue(5.0);
+      assertEquals(5.0, first.getResult());
+
+      ModeFormula mode = new ModeFormula();
+      mode.addValue(inetsoft.util.Tool.NULL_DOUBLE);
+      mode.addValue(inetsoft.util.Tool.NULL_DOUBLE);
+      mode.addValue(5.0);
+      assertEquals(5.0, mode.getResult());
+
+      NthMostFrequentFormula nulls = new NthMostFrequentFormula(1);
+      nulls.addValue(inetsoft.util.Tool.NULL_DOUBLE);
+      nulls.addValue((Object) null);
+      assertTrue(nulls.isNull());
+      assertNull(nulls.getResult());
+      nulls.setDefaultResult(true);
+      assertEquals(0, nulls.getResult());
+   }
+
    @Test
    void testReset() {
       formula.addValue(1.0);

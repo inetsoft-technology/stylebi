@@ -448,7 +448,7 @@ public class CalcTableScopeTest {
    private static final Object[][] AGGREGATE_INPUTS = {
       { 1, 2, 3, 4 }, { 1, null, 3 }, { null, null }, { 5 }, { -2, -2, 3 }, { 1.5, 2.5 },
       { 2, 2, 3, 3 }, { "a", "b", "a" }, { 0, 0 },
-      // null next to numbers: the script Mode drops nulls, the crosstab Mode counts them (#81084)
+      // null next to numbers: both Modes drop nulls (#81084, #81181)
       { 1, null, null }, { 1, 1, null, null, null },
       // numeric looking strings (e.g. a CSV column read as strings)
       { "1", "2" }, { "1", "1", "2" },
@@ -466,9 +466,9 @@ public class CalcTableScopeTest {
    //    count and null for an even count. The script median (NaN, no numeric value) is right, but
    //    MedianFormula is shared with every other crosstab/chart, so it is not changed here.
    //  - median of dates: the crosstab returns the middle date, the script median is numeric only.
-   //  - fill blank with zero, max/min/median of nothing: the crosstab gives 0, the script no value.
+   //  - fill blank with zero, max/min/median/mode of nothing (an all-null
+   //    group is nothing since #81181): the crosstab gives 0, the script no value.
    //  - mode of numeric looking strings: the script gives the number, the crosstab the string.
-   //  - mode of numbers with nulls: the crosstab Mode counts null as a value, the script drops it.
    private static final Map<String, String[]> KNOWN_PATH_DIFFERENCES = new HashMap<>();
 
    static {
@@ -478,11 +478,9 @@ public class CalcTableScopeTest {
          KNOWN_PATH_DIFFERENCES.put(prefix + "median|" + dates, new String[] { "null", DATE_2.toString() });
          KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 2]", new String[] { "1.0000", "1" });
          KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 1, 2]", new String[] { "1.0000", "1" });
-         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, null, null]", new String[] { "1.0000", "null" });
-         KNOWN_PATH_DIFFERENCES.put(prefix + "mode|[1, 1, null, null, null]", new String[] { "1.0000", "null" });
       }
 
-      for(String name : new String[] { "max", "min", "median" }) {
+      for(String name : new String[] { "max", "min", "median", "mode" }) {
          KNOWN_PATH_DIFFERENCES.put("fill|" + name + "|[null, null]", new String[] { "null", "0.0000" });
       }
    }

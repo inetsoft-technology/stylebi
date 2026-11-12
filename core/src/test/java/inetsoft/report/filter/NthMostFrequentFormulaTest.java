@@ -18,6 +18,7 @@
 
 package inetsoft.report.filter;
 
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -140,13 +141,13 @@ class NthMostFrequentFormulaTest {
    // gap:report.summary-formulas.min-max#nth-most-frequent-ties-and-null
    @Test
    void tiesAreOrderedByValueAndNullCounts() {
-      // null counts as a value, and the most frequent one can be null
+      // null is ignored (Bug #81181): it is neither the most frequent value nor a rank
       NthMostFrequentFormula first = new NthMostFrequentFormula(1);
       NthMostFrequentFormula second = new NthMostFrequentFormula(2);
       addAll(first, null, null, "a");
       addAll(second, null, null, "a");
-      assertNull(first.getResult());
-      assertEquals("a", second.getResult());
+      assertEquals("a", first.getResult());
+      assertNull(second.getResult());
       assertFalse(first.isNull());
 
       // equal counts are broken by the value order, not by arrival
@@ -173,11 +174,79 @@ class NthMostFrequentFormulaTest {
       addAll(text, "pear", "apple", "fig");
       assertEquals("apple", text.getResult());
 
-      // only nulls: the result is null but the formula has values
+      // only nulls: same as no values at all
       NthMostFrequentFormula nulls = new NthMostFrequentFormula(1);
       addAll(nulls, null, null);
       assertNull(nulls.getResult());
-      assertFalse(nulls.isNull());
+      assertTrue(nulls.isNull());
+   }
+
+   // Bug #81181: null is ignored, whatever the storage type of the column
+   @Test
+   void nullIsIgnored() {
+      for(int n = 1; n <= 2; n++) {
+         NthMostFrequentFormula object = new NthMostFrequentFormula(n);
+         addAll(object, null, null, 5);
+         NthMostFrequentFormula mode = new NthMostFrequentFormula(n);
+         mode.addValue(Tool.NULL_DOUBLE);
+         mode.addValue(Tool.NULL_DOUBLE);
+         mode.addValue(5.0);
+
+         if(n == 1) {
+            assertEquals(5, object.getResult());
+            assertEquals(5.0, mode.getResult());
+         }
+         else {
+            assertNull(object.getResult(), "object n=" + n);
+            assertNull(mode.getResult(), "primitive n=" + n);
+         }
+      }
+
+      // 5 x2, 7 x1, null x3: the null does not take a rank
+      NthMostFrequentFormula second = new NthMostFrequentFormula(2);
+      addAll(second, null, null, null, 5, 5, 7);
+      assertEquals(7, second.getResult());
+
+      ModeFormula mode = new ModeFormula();
+      addAll(mode, null, null, "x");
+      assertEquals("x", mode.getResult());
+   }
+
+   @Test
+   void primitiveOverloadsIgnoreTheirNullSentinel() {
+      NthMostFrequentFormula[] formulas = new NthMostFrequentFormula[6];
+
+      for(int i = 0; i < formulas.length; i++) {
+         formulas[i] = new NthMostFrequentFormula(1);
+      }
+
+      formulas[0].addValue(Tool.NULL_DOUBLE);
+      formulas[0].addValue(new double[] { Tool.NULL_DOUBLE });
+      formulas[1].addValue(Tool.NULL_FLOAT);
+      formulas[2].addValue(Tool.NULL_LONG);
+      formulas[3].addValue(Tool.NULL_INTEGER);
+      formulas[4].addValue(Tool.NULL_SHORT);
+
+      for(int i = 0; i < 5; i++) {
+         assertTrue(formulas[i].isNull(), "overload " + i);
+         assertNull(formulas[i].getResult(), "overload " + i);
+      }
+
+      formulas[5].addValue(Tool.NULL_INTEGER);
+      formulas[5].addValue(Tool.NULL_INTEGER);
+      formulas[5].addValue(3);
+      assertEquals(3, formulas[5].getResult());
+   }
+
+   // all-null group follows the empty-group behavior, including the default result (Bug #81181)
+   @Test
+   void allNullGroupIsLikeEmptyGroup() {
+      NthMostFrequentFormula nulls = new NthMostFrequentFormula(1);
+      nulls.setDefaultResult(true);
+      addAll(nulls, null, null);
+      assertEquals(0, nulls.getResult());
+      assertEquals(0.0, nulls.getDoubleResult());
+      assertTrue(nulls.isNull());
    }
 
    // gap:report.summary-formulas.min-max#nth-n-below-one-defaults-to-one
