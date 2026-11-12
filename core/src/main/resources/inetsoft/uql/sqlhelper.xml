@@ -23,9 +23,11 @@
    </helper>
    <helper type="oracle" class="inetsoft.uql.jdbc.OracleSQLHelper">
      <maxidentifier>30</maxidentifier>
+     <nullsorder>high</nullsorder>
    </helper>
    <helper type="db2" class="inetsoft.uql.jdbc.DB2SQLHelper">
      <maxidentifier>30</maxidentifier>
+     <nullsorder>high</nullsorder>
    </helper>
    <helper type="informix" class="inetsoft.uql.jdbc.InformixSQLHelper">
      <maxidentifier>128</maxidentifier>
@@ -53,6 +55,7 @@
    </helper>
    <helper type="postgresql" class="inetsoft.uql.jdbc.PostgreSQLHelper">
      <maxidentifier>63</maxidentifier>
+     <nullsorder>high</nullsorder>
    </helper>
    <helper type="vertica" class="inetsoft.uql.jdbc.VerticaHelper">
      <maxidentifier>128</maxidentifier>

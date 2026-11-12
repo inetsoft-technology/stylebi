@@ -2201,7 +2201,7 @@ public abstract class AssetQuery extends PreAssetQuery {
             new DimensionSortOrder(order, attr.getRefType(),
                                    Util.getColumnComparator(base, attr));
 
-         comparers.add(comp);
+         comparers.add(group == null ? comp : applyGroupNullOrder(comp, base, col, vars));
          cols.add(col);
          orders.add(order == XConstants.SORT_ASC);
       }
@@ -2219,6 +2219,22 @@ public abstract class AssetQuery extends PreAssetQuery {
       }
 
       return PostProcessor.sort(base, carr, sarr, comparers);
+   }
+
+   /**
+    * Apply the NULL placement of the data source to the sort of a group column. By default NULL
+    * sorts lowest, as Tool.compare does. A query whose result must match the order the
+    * database returns can override this.
+    * @param comp the comparer of the group column, null for the default comparer.
+    * @param base the table to sort.
+    * @param col the group column index in base.
+    * @param vars the specified variable table.
+    * @return the comparer to sort the group column with.
+    */
+   protected Comparer applyGroupNullOrder(Comparer comp, TableLens base, int col,
+                                          VariableTable vars) throws Exception
+   {
+      return comp;
    }
 
    /**
@@ -2995,6 +3011,7 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
 
             Comparer comp = createDateSortOrder(group, order, false);
+            comp = applyGroupNullOrder(comp, base, col, vars);
             boolean asc = order == XConstants.SORT_ASC;
 
             if(summary != null && summary.isTopNOthers(col)) {
