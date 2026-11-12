@@ -23,6 +23,7 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -173,6 +174,18 @@ final class MergeableFixture {
       return column(name, XSchema.STRING);
    }
 
+   /** A column that a script computes from the other columns. */
+   static ColumnRef scriptColumn(String name, String expression) {
+      ExpressionRef exp = new ExpressionRef();
+      exp.setName(name);
+      exp.setExpression(expression);
+      ColumnRef column = new ColumnRef(exp);
+      column.setDataType(XSchema.INTEGER);
+      // an expression column is a SQL expression by default; this one is a script
+      column.setSQL(false);
+      return column;
+   }
+
    /** A table T1 with its worksheet, the data source and the columns it selects. */
    static final class Built {
       final Worksheet ws = new Worksheet();
@@ -189,6 +202,11 @@ final class MergeableFixture {
          JDBCSelection jselection = (JDBCSelection) usql.getSelection();
 
          for(ColumnRef column : columns) {
+            // an expression column is computed, it is not a column of the table
+            if(column.isExpression()) {
+               continue;
+            }
+
             String path = "a." + column.getAttribute();
             jselection.addColumn(path);
             jselection.setTable(path, "a");
