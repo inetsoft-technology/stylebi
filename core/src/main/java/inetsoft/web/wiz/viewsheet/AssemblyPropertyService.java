@@ -430,7 +430,8 @@ public class AssemblyPropertyService {
       // way to detect from the error alone.
       // resolveForWrite's refusals are keyed by type, so going through the write path means
       // a refusal added for an assembly type applies here without anyone remembering to route it.
-      Map<String, String> resolved = PropertyAliases.resolvePatchForWrite(type, patch.keySet());
+      Map<String, String> resolved = PropertyAliases.resolvePatchForWrite(
+         type, patch.keySet(), PropertyAliases.forType(type).modelClass(), model);
 
       // Gated by type / the live enabled path, so no other write reads anything; taken before
       // the patch loop so the pre-write state is what is compared.
