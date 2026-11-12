@@ -21,6 +21,8 @@
 @import 'node_modules/bootstrap/scss/bootstrap.scss';
 @import './assets/ineticons/style.scss';
 @import './scss/_imports';
+// after the light rules: scoped to html.shell-dark, so it changes nothing while the class is absent
+@import './scss/shell-dark';
 
 // SVG injected programmatically via ChartInlineSvgDirective does not receive Angular's
 // view-encapsulation attribute, so this cannot use ::ng-deep in the component stylesheet.

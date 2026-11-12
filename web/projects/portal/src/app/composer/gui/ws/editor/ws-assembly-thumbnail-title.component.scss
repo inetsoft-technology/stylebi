@@ -30,7 +30,7 @@
 
 .ws-assembly-thumbnail-title-input {
   flex: 1;
-  background-color: white;
+  background-color: var(--inet-dark-input-bg-color, white);
   width: 0; // makes it so that flex takes care of width
 //  border: none;
   padding: 0 1px;

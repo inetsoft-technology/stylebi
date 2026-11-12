@@ -245,7 +245,9 @@ $roboto-font-path: 'assets';
 $sqrt2: 1.41421356;
 
 // css variables
-:root {
+// The runtime tokens, as a mixin so a dark shell can restore the light set inside dashboard
+// content (see _shell-dark.scss). Emitted once on :root below.
+@mixin inet-runtime-tokens {
   /***
    * Runtime design tokens
    *
@@ -614,5 +616,9 @@ $sqrt2: 1.41421356;
 
   // float label default color - not configurable by user - is set to whatever pane it's in
   --inet-float-label-bg-color: var(--inet-main-panel-bg-color);
+}
+
+:root {
+  @include inet-runtime-tokens;
 }
 
