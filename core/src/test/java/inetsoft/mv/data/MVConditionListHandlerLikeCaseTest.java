@@ -24,7 +24,10 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.XNode;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.jdbc.SQLHelper;
+import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.XExpression;
+import inetsoft.uql.jdbc.XFilterNodeItem;
+import inetsoft.uql.ConditionItem;
 import inetsoft.uql.VariableTable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -109,12 +112,75 @@ class MVConditionListHandlerLikeCaseTest {
       cond.setNegated(true);
       XExpression field = new XExpression("col", XExpression.FIELD);
 
-      XNode node = handler.createCondNode(cond, field, new VariableTable());
+      XNode node = handler.createCondNode(cond, field, new VariableTable(), true);
       assertNull(node.getAttribute(MVConditionListHandler.LIKE_CASE_SENSITIVE));
 
       handler.setLikeCaseSensitive(Boolean.TRUE);
-      node = handler.createCondNode(cond, field, new VariableTable());
+      node = handler.createCondNode(cond, field, new VariableTable(), true);
       assertEquals("true", node.getAttribute(MVConditionListHandler.LIKE_CASE_SENSITIVE));
+
+      // the column kind is unknown on the plain signature, so no flag
+      node = handler.createCondNode(cond, field, new VariableTable());
+      assertNull(node.getAttribute(MVConditionListHandler.LIKE_CASE_SENSITIVE));
+   }
+
+   /** Bug #80152: the flag follows the column kind, not the table. */
+   @Test
+   void physicalColumnCarriesTheFlag() {
+      assertEquals("true", flagOf(new ColumnRef(new AttributeRef("PRODUCT_NAME"))));
+   }
+
+   @Test
+   void scriptExpressionColumnHasNoFlag() {
+      ExpressionRef exp = new ExpressionRef(null, "E");
+      exp.setExpression("field['PRODUCT_NAME'] + ''");
+      assertNull(flagOf(new ColumnRef(exp)));
+   }
+
+   @Test
+   void sqlExpressionColumnCarriesTheFlag() {
+      ExpressionRef exp = new ExpressionRef(null, "E") {
+         @Override
+         public boolean isSQL() {
+            return true;
+         }
+      };
+      assertEquals("true", flagOf(new ColumnRef(exp)));
+   }
+
+   @Test
+   void aliasOverScriptExpressionHasNoFlag() {
+      ExpressionRef exp = new ExpressionRef(null, "E");
+      exp.setExpression("field['PRODUCT_NAME'] + ''");
+      ColumnRef inner = new ColumnRef(exp);
+      assertNull(flagOf(new ColumnRef(new AliasDataRef("E2", inner))));
+   }
+
+   @Test
+   void aliasOverPhysicalColumnCarriesTheFlag() {
+      ColumnRef inner = new ColumnRef(new AttributeRef("PRODUCT_NAME"));
+      assertEquals("true", flagOf(new ColumnRef(new AliasDataRef("P2", inner))));
+   }
+
+   @Test
+   void aggregateColumnHasNoFlag() {
+      AggregateRef agg = new AggregateRef(new ColumnRef(new AttributeRef("PRODUCT_NAME")),
+                                          AggregateFormula.COUNT_ALL);
+      assertNull(flagOf(agg));
+   }
+
+   private static String flagOf(inetsoft.uql.erm.DataRef ref) {
+      MVDef def = mock(MVDef.class);
+      MVConditionListHandler handler =
+         new MVConditionListHandler(bound("ds"), mock(MV.class), new VariableTable(), def);
+      handler.setLikeCaseSensitive(Boolean.TRUE);
+      Condition cond = new Condition();
+      cond.setOperation(XCondition.CONTAINS);
+      cond.addValue("a");
+      cond.setNegated(true);
+      XFilterNodeItem item = handler.createItem(new ConditionItem(ref, cond, 0),
+                                                new VariableTable());
+      return (String) item.getNode().getAttribute(MVConditionListHandler.LIKE_CASE_SENSITIVE);
    }
 
    private static BoundTableAssembly bound(String source) {
