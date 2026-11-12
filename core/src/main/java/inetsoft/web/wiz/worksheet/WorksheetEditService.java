@@ -759,6 +759,8 @@ public class WorksheetEditService {
                "'. If it is hidden, use set_column_visibility to show it instead.");
          }
 
+         requireModelColumnRestore(table, name, t, cs);
+
          // For embedded tables, also insert the data column into XEmbeddedTable
          // (mirrors InsertDataService.insertData column path).
          if(t instanceof EmbeddedTableAssembly embedded) {
@@ -793,6 +795,40 @@ public class WorksheetEditService {
          ref.setAlias(alias);
          cs.addAttribute(ref);
          t.setColumnSelection(cs);
+      }
+
+      /**
+       * A logical-model bound table's columns are model attributes, each addressed as
+       * {@code Entity.Attribute}. A bare name is not a model attribute, and an attribute of an
+       * entity the table does not hold cannot be added here (the new column would be listed but
+       * the query would produce no data for it), so only the restore of a removed column of an
+       * entity already in the table is accepted.
+       */
+      private static void requireModelColumnRestore(String table, String name,
+                                                    TableAssembly t, ColumnSelection cs)
+         throws PairingException
+      {
+         if(!(t instanceof BoundTableAssembly bound) || bound.getSourceInfo() == null ||
+            bound.getSourceInfo().getType() != SourceInfo.MODEL)
+         {
+            return;
+         }
+
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            String entity = cs.getAttribute(i).getEntity();
+
+            if(entity != null && !entity.isEmpty() && name.startsWith(entity + ".") &&
+               name.length() > entity.length() + 1)
+            {
+               return;
+            }
+         }
+
+         throw new PairingException(
+            "add_column cannot add '" + name + "' to the logical-model table '" + table +
+            "': it only restores a removed column, named Entity.Attribute, of an entity the " +
+            "table already holds. To build a table from attributes of several entities use " +
+            "add_table with logicalModel and attributes.");
       }
 
       /**

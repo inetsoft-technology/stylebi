@@ -550,8 +550,64 @@ public record EditRequest(
     * (with {@code confirmed=true}) or is refused ({@code confirmed=false}). A value the pattern
     * cannot parse follows {@link #confirmed()}. {@code null}/blank means no format, as before.
     */
-   String format
+   String format,
+   /**
+    * For {@code add_table} with {@code logicalModel}: the {@code entity.attribute} refs the new
+    * logical-model table is built from, in order. The entities may differ (all within the one
+    * {@code logicalModel}), matching the Composer's drop of a multi-entity selection onto a
+    * worksheet. {@code table} then names the NEW worksheet table and is optional.
+    * {@code null}/absent keeps the single-entity form, where {@code table} is an entity name and
+    * all of its attributes are taken.
+    */
+   List<WorksheetMutationSupport.ModelAttributeSpec> attributes
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code attributes} was added -- defaults it
+    * to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings, Map<String, Object> queryParams,
+      Map<String, Object> extraProperties,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePostConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePostConditions,
+      Boolean mvForceAppendUpdates, String path, String scope, String format)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
+           queryParams, extraProperties, mvUpdatePreConditions, mvUpdatePostConditions,
+           mvDeletePreConditions, mvDeletePostConditions, mvForceAppendUpdates, path, scope,
+           format, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code format} was added -- defaults it
     * to {@code null}.

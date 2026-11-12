@@ -282,4 +282,45 @@ class WorksheetTrapCheckTest {
       t.setColumnSelection(selection);
       return t;
    }
+
+   // ------------------------------------------------------------------- new tables (#81176)
+
+   @Test
+   void aNewTableMixingTheManySideAndTheOneSideIsAFanTrap() throws Exception {
+      BoundTableAssembly t = model("Customer.Credit.double", "Orders.Status.string",
+                                   "Orders.Total.double");
+      groupStatusSum(t, "Credit");
+
+      Optional<String> trap = WorksheetTrapCheck.newTableTrap(t, null, registry(true));
+
+      assertTrue(trap.isPresent());
+      assertTrue(trap.get().startsWith("Data-model trap: "), trap.get());
+   }
+
+   @Test
+   void aNewTableOverASingleEntityIsSilent() throws Exception {
+      BoundTableAssembly t = model("Orders.Total.double", "Orders.Status.string");
+
+      assertTrue(WorksheetTrapCheck.newTableTrap(t, null, registry(true)).isEmpty());
+   }
+
+   @Test
+   void aNewTableOfAModelWithoutDeclaredCardinalityIsSilent() throws Exception {
+      BoundTableAssembly t = model("Customer.Credit.double", "Orders.Status.string",
+                                   "Orders.Total.double");
+      groupStatusSum(t, "Credit");
+
+      assertTrue(WorksheetTrapCheck.newTableTrap(t, null, registry(false)).isEmpty());
+   }
+
+   @Test
+   void aNewTableCheckThatFailsIsSwallowed() throws Exception {
+      BoundTableAssembly t = model("Customer.Credit.double", "Orders.Status.string");
+      DataSourceRegistry failing = Mockito.mock(DataSourceRegistry.class);
+      Mockito.when(failing.getDataModel(Mockito.anyString()))
+         .thenThrow(new IllegalStateException("boom"));
+
+      assertTrue(WorksheetTrapCheck.newTableTrap(t, null, failing).isEmpty());
+      assertTrue(WorksheetTrapCheck.newTableTrap(null, null, failing).isEmpty());
+   }
 }
