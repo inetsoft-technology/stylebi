@@ -89,6 +89,7 @@ public class ViewsheetReadService {
 
       List<String> parts = AnnotationFamily.partsOf(assembly);
       AssetEntry embeddedEntry = embeddedEntryOf(assembly);
+      Dimension maxSize = AssemblyMaxModeService.maxSizeOf(assembly);
 
       return new AssemblyNode(
          assembly.getAbsoluteName(),
@@ -105,7 +106,9 @@ public class ViewsheetReadService {
          assembly instanceof TabVSAssembly tab ? selectedPage(tab) : null,
          assembly instanceof CurrentSelectionVSAssembly selection ? childrenOf(selection) : null,
          embeddedEntry == null ? null : embeddedEntry.getPath(),
-         embeddedEntry == null ? null : scopeName(embeddedEntry.getScope()));
+         embeddedEntry == null ? null : scopeName(embeddedEntry.getScope()),
+         maxSize != null,
+         maxSize == null ? null : new AssemblyNode.MaxSize(maxSize.width, maxSize.height));
    }
 
    /**

@@ -18,7 +18,10 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.MaxModeSupportAssembly;
+import inetsoft.uql.viewsheet.internal.MaxModeSupportAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.viewsheet.controller.chart.VSChartMaxModeService;
 import inetsoft.web.viewsheet.controller.table.VSTableMaxModeService;
 import inetsoft.web.viewsheet.event.chart.VSChartEvent;
@@ -52,6 +55,36 @@ import java.util.Map;
  */
 @Service
 public class AssemblyMaxModeService {
+   /**
+    * Whether {@link #setMaxMode} accepts the assembly: the same three-way dispatch it applies, so
+    * a reader can tell "not enlarged" from "has no enlarged state".
+    */
+   public static boolean supportsMaxMode(Object assembly) {
+      return assembly instanceof TableDataVSAssembly || assembly instanceof ChartVSAssembly ||
+         assembly instanceof MaxModeSupportAssembly;
+   }
+
+   /**
+    * The assembly's current enlarged size, or null when it is at actual size or has no such state.
+    *
+    * <p>Read from the assembly info the way the Viewer's own models do
+    * ({@code VSObjectModel}, {@code VSChartModel}), not from {@code Viewsheet.isMaxMode()}: that
+    * flag is sheet-wide and is not persisted, so a reopened sheet whose chart still carries its
+    * saved {@code maxSize} reads false there. Chart and table infos override
+    * {@code DataVSAssemblyInfo.getMaxSize()}; selection lists/trees/containers and range sliders
+    * implement {@link MaxModeSupportAssemblyInfo}.
+    */
+   public static Dimension maxSizeOf(Object assembly) {
+      VSAssemblyInfo info = assembly instanceof VSAssembly vsAssembly
+         ? vsAssembly.getVSAssemblyInfo() : null;
+
+      if(info instanceof DataVSAssemblyInfo data) {
+         return data.getMaxSize();
+      }
+
+      return info instanceof MaxModeSupportAssemblyInfo support ? support.getMaxSize() : null;
+   }
+
    /**
     * Mirrors the shape of {@code GuiTool.getMaxModeSize()}'s own no-container fallback (a
     * typical browser window size, minus the same fixed margins that fallback subtracts) --

@@ -69,6 +69,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.awt.Dimension;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.Principal;
@@ -281,6 +282,7 @@ public class AssemblyPropertyService {
          out.put("effectiveRangeSize", effective);
       }
 
+      putMaxMode(out, rvs.getViewsheet().getAssembly(assemblyName));
       return out;
    }
 
@@ -300,6 +302,25 @@ public class AssemblyPropertyService {
       }
 
       return info.getRangeSize();
+   }
+
+   /**
+    * Appends the assembly's Maximize ("Show Enlarged") state, read-only like
+    * {@code effectiveRangeSize}: {@code maximized}, and {@code maxSize} when enlarged. Only for a
+    * type {@code set_assembly_maximized} accepts; for any other the keys are absent, because
+    * "not enlarged" would be a false answer for something that has no such state.
+    */
+   static void putMaxMode(Map<String, Object> out, Object assembly) {
+      if(!AssemblyMaxModeService.supportsMaxMode(assembly)) {
+         return;
+      }
+
+      Dimension maxSize = AssemblyMaxModeService.maxSizeOf(assembly);
+      out.put("maximized", maxSize != null);
+
+      if(maxSize != null) {
+         out.put("maxSize", Map.of("width", maxSize.width, "height", maxSize.height));
+      }
    }
 
    /** Current values, by alias. {@code raw} returns the whole dialog model instead. */
@@ -328,6 +349,7 @@ public class AssemblyPropertyService {
          values.put("effectiveRangeSize", effective);
       }
 
+      putMaxMode(values, rvs.getViewsheet().getAssembly(assemblyName));
       return values;
    }
 
