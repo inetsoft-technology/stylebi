@@ -389,8 +389,6 @@ class JoinLensesTest {
       assertEquals(3, defaults.getColCount());
    }
 
-   @Disabled("Bug #81092 (13.8: #80298): join.table.maxrows counts the header rows; "
-             + "fixed in 13.8, not in StyleBI yet")
    @Test
    void maxRowsLimit() {
       SreeEnv.setProperty("join.table.maxrows", "3");
@@ -438,8 +436,6 @@ class JoinLensesTest {
       assertNull(Tool.getUserMessage());
    }
 
-   @Disabled("Bug #81092 (13.8: #80298): join.table.maxrows counts the header rows; "
-             + "fixed in 13.8, not in StyleBI yet")
    @Test
    @DisplayName("Bug #80298: join.table.maxrows counts data rows only")
    void maxRowsLimitCountsDataRows() {
@@ -461,8 +457,6 @@ class JoinLensesTest {
       invalidKeyColumnIndex(true);
    }
 
-   @Disabled("Bug #81091 (13.8: #80297): the join column checks do not stop the join "
-             + "engines; fixed in 13.8, not in StyleBI yet")
    @Test
    @DisplayName("Bug #80297: an invalid key column index on the merge engine")
    void invalidKeyColumnIndexMerge() throws Exception {
@@ -539,8 +533,6 @@ class JoinLensesTest {
       }
    }
 
-   @Disabled("Bug #81091 (13.8: #80297): the join column checks do not stop the join "
-             + "engines; fixed in 13.8, not in StyleBI yet")
    @Test
    @DisplayName("Bug #80297: no key columns")
    void noKeyColumns() throws Exception {

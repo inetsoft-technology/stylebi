@@ -30,7 +30,6 @@ import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -205,7 +204,6 @@ class NumericRangeRefBoundaryTest {
    // a null is never in a segment. The top segment of the script has no null test, and in
    // JavaScript null >= 0 is true: when the last value is 0 or less and the lower end is
    // included, a null falls into the top segment of the script but into "Others" in SQL.
-   @Disabled("Bug #81105: the top segment of the script expression has no null test")
    @Test
    void nullIsOthersWhenTheLastValueIsNotPositive() throws Exception {
       NumericRangeRef ref = range(InclusiveType.LOWER, true, true, -20, -10, 0);

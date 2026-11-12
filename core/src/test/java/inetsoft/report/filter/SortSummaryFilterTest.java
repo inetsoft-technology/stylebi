@@ -34,7 +34,6 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -114,8 +113,6 @@ class SortSummaryFilterTest {
       }
    }
 
-   @Disabled("Bug #81093: TextComparer.isAsciiOnly treats any BMP character as ASCII, "
-             + "so the collator is bypassed")
    @Test
    void sortFilterDistinctAndComparersChineseLocaleUsesPinyinOrder() {
       // Locale.setDefault is JVM-global: it is safe because test classes run one at a time

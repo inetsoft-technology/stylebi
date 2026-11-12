@@ -35,7 +35,6 @@ import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -170,9 +169,8 @@ class RotatedQueryTest {
          List.of("Q2", 2, 4, 6)), read(run(box)));
    }
 
-   // the first column holds A twice: AssetUtil.fixAlias is meant to give the second one an alias
-   // (A_1), but the rotated table keeps one column only and the data of the other is lost
-   @Disabled("Bug #81102: columns with the same name of a rotated table are dropped")
+   // Bug #81102: the first column holds A twice, AssetUtil.fixAlias gives the second one an alias
+   // (A_1) and no column or data is lost
    @Test
    void sameNamesInTheFirstColumnAreMadeDifferent() throws Exception {
       Object[][] data = {
@@ -189,9 +187,8 @@ class RotatedQueryTest {
       assertEquals(List.of("Q2", 10, 20, 30), rows.get(2));
    }
 
-   // names that differ in case only: the column of "A" is missing and the header "a_1" is over
-   // the values of "A"
-   @Disabled("Bug #81102: same cause as above, with names that differ in case")
+   // Bug #81102: names that differ in case only are kept as separate columns, the second one gets
+   // an alias
    @Test
    void namesDifferingInCaseKeepAllColumns() throws Exception {
       Object[][] data = {
