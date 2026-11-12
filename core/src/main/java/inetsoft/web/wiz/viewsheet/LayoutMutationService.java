@@ -46,6 +46,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Phase 3 of the layout implementation plan (2026-08-20-layout-implementation.md), Task 4:
@@ -164,6 +166,35 @@ public class LayoutMutationService {
          validateGeometry(objects);
       }
 
+      // Bug 81050: mutateLayout switches the focused layout (flush + undo reset) BEFORE running
+      // its lambda, so a refusal raised inside the lambda on a layout that is not the focused one
+      // already wiped the focused layout's undo history. Validate the whole batch against the
+      // master first, with the same helpers the lambdas apply, so a refused call has no side effect.
+      if(OP_MOVE_RESIZE.equals(op) || OP_ADD.equals(op)) {
+         RuntimeViewsheet preMaster = viewsheetSessions.resolve(sessionToken, agent);
+         AbstractLayout preLayout = requireLayout(preMaster, layoutName);
+
+         if(OP_MOVE_RESIZE.equals(op)) {
+            for(Map<String, Object> object : objects) {
+               planMoveResize(preLayout, layoutName, region, object);
+            }
+         }
+         else {
+            Set<String> placed = new HashSet<>();
+
+            for(VSAssemblyLayout l : vsLayoutService.getVSAssemblyLayouts(preLayout, region)) {
+               placed.add(l.getName());
+            }
+
+            for(Map<String, Object> object : objects) {
+               String name = requireName(object);
+               validateAddObject(preMaster.getViewsheet(), preLayout, layoutName, region, object,
+                                 name, placed);
+               placed.add(name);
+            }
+         }
+      }
+
       switch(op == null ? "" : op) {
       case OP_MOVE_RESIZE:
          moveResize(sessionToken, agent, layoutName, region, objects);
@@ -244,28 +275,13 @@ public class LayoutMutationService {
             AbstractLayout layout = requireLayout(master, layoutName);
 
             for(Map<String, Object> object : objects) {
-               String name = requireName(object);
-               int resolved = resolveRegion(layout, name, region, layoutName,
-                                            "add it first with edit_layout_objects (op: \"add\").");
-               VSAssemblyLayout assemblyLayout =
-                  requireAssemblyLayout(layout, name, resolved, layoutName);
-
-               // A move-only or resize-only call must leave the other dimension unchanged --
-               // merge onto the assembly's current position/size rather than defaulting an
-               // omitted field to 0, which would silently shrink/relocate it instead.
+               MoveResizePlan plan = planMoveResize(layout, layoutName, region, object);
+               String name = plan.name();
+               int resolved = plan.region();
+               VSAssemblyLayout assemblyLayout = plan.assemblyLayout();
                Point currentPosition = assemblyLayout.getPosition();
-               Dimension currentSize = assemblyLayout.getSize();
-               int x = object.containsKey("x") ? toInt("x", object.get("x")) :
-                  (currentPosition != null ? currentPosition.x : 0);
-               int y = object.containsKey("y") ? toInt("y", object.get("y")) :
-                  (currentPosition != null ? currentPosition.y : 0);
-               int width = object.containsKey("width") ? toInt("width", object.get("width")) :
-                  (currentSize != null ? currentSize.width : 0);
-               int height = object.containsKey("height") ? toInt("height", object.get("height")) :
-                  (currentSize != null ? currentSize.height : 0);
-               requireNonNegativePosition(x, y);
-               Point position = new Point(x, y);
-               Dimension size = new Dimension(width, height);
+               Point position = plan.position();
+               Dimension size = plan.size();
                boolean move = !Objects.equals(position, currentPosition);
                assemblyLayout.setPosition(position);
                assemblyLayout.setSize(size);
@@ -280,22 +296,11 @@ public class LayoutMutationService {
                   info.setLayoutPosition(position);
                   info.setLayoutSize(size);
 
-                  if(object.containsKey("text")) {
-                     if(!(info instanceof TextVSAssemblyInfo textInfo)) {
-                        throw new IllegalArgumentException(
-                           "edit_layout_objects move_resize: \"" + name + "\" is not a text " +
-                           "object -- \"text\" only applies to a layout-only text object.");
-                     }
-
+                  if(object.containsKey("text") && info instanceof TextVSAssemblyInfo textInfo) {
                      String text = String.valueOf(object.get("text"));
                      textInfo.setValue(text);
                      textInfo.setTextValue(text);
                   }
-               }
-               else if(object.containsKey("text")) {
-                  throw new IllegalArgumentException(
-                     "edit_layout_objects move_resize: \"" + name + "\" is not a layout-only " +
-                     "text object -- \"text\" only applies there.");
                }
 
                if(hasPrintPageSize(layout)) {
@@ -309,6 +314,58 @@ public class LayoutMutationService {
          });
    }
 
+   private record MoveResizePlan(String name, int region, VSAssemblyLayout assemblyLayout,
+                                 Point position, Dimension size)
+   {
+   }
+
+   /**
+    * Bug 81050: every refusal move_resize can raise for one object, with no mutation. Shared by
+    * the pre-validation in {@link #editObjects} and by the mutation lambda so they cannot drift.
+    * The resulting position is the MERGED one (an omitted x/y keeps the current value).
+    */
+   private MoveResizePlan planMoveResize(AbstractLayout layout, String layoutName, int region,
+                                         Map<String, Object> object)
+   {
+      String name = requireName(object);
+      int resolved = resolveRegion(layout, name, region, layoutName,
+                                   "add it first with edit_layout_objects (op: \"add\").");
+      VSAssemblyLayout assemblyLayout = requireAssemblyLayout(layout, name, resolved, layoutName);
+
+      // A move-only or resize-only call must leave the other dimension unchanged --
+      // merge onto the assembly's current position/size rather than defaulting an
+      // omitted field to 0, which would silently shrink/relocate it instead.
+      Point currentPosition = assemblyLayout.getPosition();
+      Dimension currentSize = assemblyLayout.getSize();
+      int x = object.containsKey("x") ? toInt("x", object.get("x")) :
+         (currentPosition != null ? currentPosition.x : 0);
+      int y = object.containsKey("y") ? toInt("y", object.get("y")) :
+         (currentPosition != null ? currentPosition.y : 0);
+      int width = object.containsKey("width") ? toInt("width", object.get("width")) :
+         (currentSize != null ? currentSize.width : 0);
+      int height = object.containsKey("height") ? toInt("height", object.get("height")) :
+         (currentSize != null ? currentSize.height : 0);
+      requireNonNegativePosition(x, y);
+
+      if(object.containsKey("text")) {
+         if(assemblyLayout instanceof VSEditableAssemblyLayout editable) {
+            if(!(editable.getInfo() instanceof TextVSAssemblyInfo)) {
+               throw new IllegalArgumentException(
+                  "edit_layout_objects move_resize: \"" + name + "\" is not a text " +
+                  "object -- \"text\" only applies to a layout-only text object.");
+            }
+         }
+         else {
+            throw new IllegalArgumentException(
+               "edit_layout_objects move_resize: \"" + name + "\" is not a layout-only " +
+               "text object -- \"text\" only applies there.");
+         }
+      }
+
+      return new MoveResizePlan(name, resolved, assemblyLayout, new Point(x, y),
+                                new Dimension(width, height));
+   }
+
    // ── op: add ───────────────────────────────────────────────────────────────
 
    private void addObjects(String sessionToken, Principal agent, String layoutName, int region,
@@ -320,6 +377,11 @@ public class LayoutMutationService {
             AbstractLayout layout = requireLayout(master, layoutName);
             List<VSAssemblyLayout> layouts =
                new ArrayList<>(vsLayoutService.getVSAssemblyLayouts(layout, region));
+            Set<String> placed = new HashSet<>();
+
+            for(VSAssemblyLayout l : layouts) {
+               placed.add(l.getName());
+            }
 
             for(Map<String, Object> object : objects) {
                String name = requireName(object);
@@ -336,118 +398,23 @@ public class LayoutMutationService {
 
                VSAssembly assembly = masterVs.getAssembly(name);
                boolean existAssembly = assembly != null;
-
-               // Bug 77045 #8: a container's child is positioned only through its container's
-               // own single layout entry (createAssemblyLayout/getVSTabSize computes size from
-               // the container, never from a child's own independent entry) -- adding a child
-               // here directly creates an entry the render logic never consults. Neither the
-               // interactive Composer's own object tree offers a child as a draggable node
-               // (components-pane.component.ts builds it from top-level assemblies only), so this
-               // mirrors that same restriction here instead of silently accepting a dead entry.
-               if(existAssembly && assembly.getContainer() != null) {
-                  throw new IllegalArgumentException(
-                     "edit_layout_objects add: \"" + name + "\" is inside container \"" +
-                     assembly.getContainer().getAbsoluteName() + "\" -- a container's child is " +
-                     "positioned only through its container's own single layout entry, so " +
-                     "adding it independently would create an entry the render logic never " +
-                     "consults. Add \"" + assembly.getContainer().getAbsoluteName() +
-                     "\" itself instead.");
-               }
-
-               // Bug 78210: an annotation (root, line or rectangle) is never placed by a layout
-               // entry -- AbstractLayout.apply skips it -- and the interactive Composer's own
-               // object tree omits it, so an entry here would read back as placed yet do nothing.
-               if(existAssembly && AnnotationFamily.isPart(assembly)) {
-                  throw new IllegalArgumentException(
-                     "edit_layout_objects add: \"" + name + "\" is an annotation -- annotations " +
-                     "cannot be placed in a layout.");
-               }
-
-               // Bug 78210: a child of an embedded viewsheet resolves by its dotted name, but the
-               // interactive Composer's object tree lists only the embedded viewsheet itself.
-               // Compare against the master (not isEmbedded(), which is also true for the
-               // embedded viewsheet itself, which must stay addable).
-               if(existAssembly && assembly.getViewsheet() != masterVs) {
-                  String owner = assembly.getViewsheet().getAbsoluteName();
-                  throw new IllegalArgumentException(
-                     "edit_layout_objects add: \"" + name + "\" is a child of embedded " +
-                     "viewsheet \"" + owner + "\" and cannot be placed on its own. Add \"" +
-                     owner + "\" itself instead.");
-               }
-
-               // Bug 77045 #7: no existing-entry check before layouts.add(...) below (contrast
-               // removeObjects, whose own removeIf already dedups by name) -- re-adding an
-               // already-placed object, or a brand-new layout-only object under an
-               // already-used new name, silently created a second, duplicate entry.
-               // Bug 78210: a print layout's header, footer and content share one object namespace
-               // (the interactive Composer checks all three), so look in the other two regions as
-               // well; "layouts" is the working list for the target region and still catches a
-               // duplicate within one batch. A device layout has only its own list.
-               String heldIn = layouts.stream().anyMatch(l -> name.equals(l.getName()))
-                  ? regionName(region) : null;
-
-               if(heldIn == null && layout instanceof PrintLayout print) {
-                  for(int other : new int[] { VSLayoutService.HEADER, VSLayoutService.FOOTER,
-                                              VSLayoutService.CONTENT })
-                  {
-                     if(other != region && vsLayoutService.getVSAssemblyLayouts(print, other)
-                        .stream().anyMatch(l -> name.equals(l.getName())))
-                     {
-                        heldIn = regionName(other);
-                        break;
-                     }
-                  }
-               }
-
-               if(heldIn != null) {
-                  throw new IllegalArgumentException(
-                     "edit_layout_objects add: \"" + name + "\" is already placed in layout \"" +
-                     layoutName + "\" (" + heldIn + ") -- re-adding it would create a duplicate " +
-                     "entry. Use op \"move_resize\" to reposition it instead, or \"remove\" it " +
-                     "first if you mean to place it again.");
-               }
+               validateAddObject(masterVs, layout, layoutName, region, object, name, placed);
 
                if(!existAssembly) {
-                  // Bug 77045 #5: a brand-new layout-only object (text/image/pagebreak) has no
-                  // device-layout renderer to consume it, and "pagebreak" in particular crashes
-                  // with a raw ClassCastException below (createVSAssembly's own unconditional
-                  // (PrintLayout) cast) rather than a named refusal -- refused here, before ever
-                  // reaching that cast, uniformly for all three types rather than crashing on one
-                  // and silently no-op'ing the others.
-                  if(layout instanceof ViewsheetLayout) {
-                     throw new IllegalArgumentException(
-                        "edit_layout_objects add: \"" + layoutName + "\" is a device layout -- " +
-                        "a new text/image/pagebreak layout-only object cannot be created there " +
-                        "(no device-layout renderer consumes it, and \"pagebreak\" has no " +
-                        "meaning outside a print layout's own pages). Add it to the print " +
-                        "layout instead.");
-                  }
-
                   event.setType(parseAssetType(object.get("type"), name));
                   assembly = vsLayoutService.createVSAssembly(event, layout, masterVs, name);
 
-                  if(object.containsKey("text")) {
-                     if(!(assembly instanceof TextVSAssembly textAssembly)) {
-                        throw new IllegalArgumentException(
-                           "edit_layout_objects add: \"" + name + "\" is not a text object -- " +
-                           "\"text\" only applies to type \"text\".");
-                     }
-
+                  if(object.containsKey("text") && assembly instanceof TextVSAssembly textAssembly) {
                      String text = String.valueOf(object.get("text"));
                      textAssembly.setValue(text);
                      textAssembly.setTextValue(text);
                   }
                }
-               else if(object.containsKey("text")) {
-                  throw new IllegalArgumentException(
-                     "edit_layout_objects add: \"" + name + "\" is an existing viewsheet " +
-                     "assembly -- \"text\" only applies when creating a new layout-only text " +
-                     "object.");
-               }
 
                VSAssemblyLayout assemblyLayout = vsLayoutService
                   .createAssemblyLayout(event, masterVs, name, assembly, existAssembly);
                layouts.add(assemblyLayout);
+               placed.add(name);
 
                if(hasPrintPageSize(layout)) {
                   vsLayoutService.fixAssemblyLayoutsPosition(
@@ -459,6 +426,134 @@ public class LayoutMutationService {
 
             vsLayoutService.setVSAssemblyLayouts(layout, layouts, region);
          });
+   }
+
+   /**
+    * Bug 81050: every refusal add can raise for one object, with no mutation. Shared by the
+    * pre-validation in {@link #editObjects} and the mutation lambda so they cannot drift.
+    * {@code placed} is the working set of names already placed in {@code region} (including names
+    * added earlier in the same batch); the caller adds {@code name} after a successful check.
+    *
+    * @return whether {@code name} is an existing assembly on the viewsheet.
+    */
+   private boolean validateAddObject(Viewsheet masterVs, AbstractLayout layout, String layoutName,
+                                     int region, Map<String, Object> object, String name,
+                                     Set<String> placed)
+   {
+      int xOffset = toInt("x", object.getOrDefault("x", 0));
+      int yOffset = toInt("y", object.getOrDefault("y", 0));
+      requireNonNegativePosition(xOffset, yOffset);
+      VSAssembly assembly = masterVs.getAssembly(name);
+      boolean existAssembly = assembly != null;
+
+      // Bug 77045 #8: a container's child is positioned only through its container's
+      // own single layout entry (createAssemblyLayout/getVSTabSize computes size from
+      // the container, never from a child's own independent entry) -- adding a child
+      // here directly creates an entry the render logic never consults. Neither the
+      // interactive Composer's own object tree offers a child as a draggable node
+      // (components-pane.component.ts builds it from top-level assemblies only), so this
+      // mirrors that same restriction here instead of silently accepting a dead entry.
+      if(existAssembly && assembly.getContainer() != null) {
+         throw new IllegalArgumentException(
+            "edit_layout_objects add: \"" + name + "\" is inside container \"" +
+            assembly.getContainer().getAbsoluteName() + "\" -- a container's child is " +
+            "positioned only through its container's own single layout entry, so " +
+            "adding it independently would create an entry the render logic never " +
+            "consults. Add \"" + assembly.getContainer().getAbsoluteName() +
+            "\" itself instead.");
+      }
+
+      // Bug 78210: an annotation (root, line or rectangle) is never placed by a layout
+      // entry -- AbstractLayout.apply skips it -- and the interactive Composer's own
+      // object tree omits it, so an entry here would read back as placed yet do nothing.
+      if(existAssembly && AnnotationFamily.isPart(assembly)) {
+         throw new IllegalArgumentException(
+            "edit_layout_objects add: \"" + name + "\" is an annotation -- annotations " +
+            "cannot be placed in a layout.");
+      }
+
+      // Bug 78210: a child of an embedded viewsheet resolves by its dotted name, but the
+      // interactive Composer's object tree lists only the embedded viewsheet itself.
+      // Compare against the master (not isEmbedded(), which is also true for the
+      // embedded viewsheet itself, which must stay addable).
+      if(existAssembly && assembly.getViewsheet() != masterVs) {
+         String owner = assembly.getViewsheet().getAbsoluteName();
+         throw new IllegalArgumentException(
+            "edit_layout_objects add: \"" + name + "\" is a child of embedded " +
+            "viewsheet \"" + owner + "\" and cannot be placed on its own. Add \"" +
+            owner + "\" itself instead.");
+      }
+
+      // Bug 77045 #7: no existing-entry check before layouts.add(...) below (contrast
+      // removeObjects, whose own removeIf already dedups by name) -- re-adding an
+      // already-placed object, or a brand-new layout-only object under an
+      // already-used new name, silently created a second, duplicate entry.
+      // Bug 78210: a print layout's header, footer and content share one object namespace
+      // (the interactive Composer checks all three), so look in the other two regions as
+      // well; "layouts" is the working list for the target region and still catches a
+      // duplicate within one batch. A device layout has only its own list.
+      String heldIn = placed.contains(name) ? regionName(region) : null;
+
+      if(heldIn == null && layout instanceof PrintLayout print) {
+         for(int other : new int[] { VSLayoutService.HEADER, VSLayoutService.FOOTER,
+                                     VSLayoutService.CONTENT })
+         {
+            if(other != region && vsLayoutService.getVSAssemblyLayouts(print, other)
+               .stream().anyMatch(l -> name.equals(l.getName())))
+            {
+               heldIn = regionName(other);
+               break;
+            }
+         }
+      }
+
+      if(heldIn != null) {
+         throw new IllegalArgumentException(
+            "edit_layout_objects add: \"" + name + "\" is already placed in layout \"" +
+            layoutName + "\" (" + heldIn + ") -- re-adding it would create a duplicate " +
+            "entry. Use op \"move_resize\" to reposition it instead, or \"remove\" it " +
+            "first if you mean to place it again.");
+      }
+
+      if(!existAssembly) {
+         // Bug 77045 #5: a brand-new layout-only object (text/image/pagebreak) has no
+         // device-layout renderer to consume it, and "pagebreak" in particular crashes
+         // with a raw ClassCastException (createVSAssembly's own unconditional
+         // (PrintLayout) cast) rather than a named refusal -- refused here, uniformly for
+         // all three types.
+         if(layout instanceof ViewsheetLayout) {
+            throw new IllegalArgumentException(
+               "edit_layout_objects add: \"" + layoutName + "\" is a device layout -- " +
+               "a new text/image/pagebreak layout-only object cannot be created there " +
+               "(no device-layout renderer consumes it, and \"pagebreak\" has no " +
+               "meaning outside a print layout's own pages). Add it to the print " +
+               "layout instead.");
+         }
+
+         int type = parseAssetType(object.get("type"), name);
+
+         if(object.containsKey("text") && type != AbstractSheet.TEXT_ASSET) {
+            throw new IllegalArgumentException(
+               "edit_layout_objects add: \"" + name + "\" is not a text object -- " +
+               "\"text\" only applies to type \"text\".");
+         }
+
+         // createVSAssembly reads the page size with no null guard (NPE otherwise).
+         if(type == AbstractSheet.PAGEBREAK_ASSET && !hasPrintPageSize(layout)) {
+            throw new IllegalArgumentException(
+               "edit_layout_objects add: cannot add a pagebreak to \"" + layoutName +
+               "\" -- the print layout has no page size configured; call set_print_layout " +
+               "first.");
+         }
+      }
+      else if(object.containsKey("text")) {
+         throw new IllegalArgumentException(
+            "edit_layout_objects add: \"" + name + "\" is an existing viewsheet " +
+            "assembly -- \"text\" only applies when creating a new layout-only text " +
+            "object.");
+      }
+
+      return existAssembly;
    }
 
    private static boolean hasPrintPageSize(AbstractLayout layout) {
