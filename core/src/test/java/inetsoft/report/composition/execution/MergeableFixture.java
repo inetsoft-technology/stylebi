@@ -194,7 +194,23 @@ final class MergeableFixture {
 
       private Built(String type, String version, ColumnRef... columns) throws Exception {
          ds = dataSource(type, version);
+         table = newTable("T1", ds, columns);
+      }
 
+      /**
+       * Another table of the worksheet, on a database; with the same type of database it has the
+       * same data source as T1.
+       */
+      SQLBoundTableAssembly addTable(String name, String type, ColumnRef... columns)
+         throws Exception
+      {
+         return newTable(name, dataSource(type, null), columns);
+      }
+
+      private SQLBoundTableAssembly newTable(String name, JDBCDataSource ds,
+                                             ColumnRef... columns)
+         throws Exception
+      {
          // the columns are the columns of the table a, as of a table bound to a physical table
          UniformSQL usql = new UniformSQL();
          usql.setDataSource(ds);
@@ -213,11 +229,11 @@ final class MergeableFixture {
          }
 
          JDBCQuery query = new JDBCQuery();
-         query.setName("mergeable");
+         query.setName("mergeable_" + name);
          query.setDataSource(ds);
          query.setSQLDefinition(usql);
 
-         table = new SQLBoundTableAssembly(ws, "T1");
+         SQLBoundTableAssembly table = new SQLBoundTableAssembly(ws, name);
          SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) table.getTableInfo();
          info.setQuery(query);
          info.setSourceInfo(
@@ -232,6 +248,7 @@ final class MergeableFixture {
          table.setColumnSelection(selection, false);
          table.setColumnSelection(selection, true);
          ws.addAssembly(table);
+         return table;
       }
 
       /** A new query of the table: the answer of a query is kept after the first question. */
