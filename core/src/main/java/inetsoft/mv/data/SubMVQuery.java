@@ -89,7 +89,16 @@ public final class SubMVQuery implements XTransferable, Cloneable {
          MVDateColumnWrapper.setServerTimezoneOffset(timezoneOffset);
       }
 
-      SubTableBlock group = detail ? new DetailTableBlock() : new GroupedTableBlock(order);
+      SubTableBlock group;
+
+      if(detail) {
+         group = new DetailTableBlock();
+      }
+      else {
+         GroupedTableBlock gblock = new GroupedTableBlock(order);
+         gblock.setBitKeys(block.getBitKeyGroups());
+         group = gblock;
+      }
 
       group.init(this);
 

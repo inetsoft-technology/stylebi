@@ -257,7 +257,17 @@ public class MVRow2 extends MVRow {
     */
    public static class RowComparator implements Comparator<MVRow> {
       public RowComparator(boolean[] orders) {
+         this(orders, null);
+      }
+
+      /**
+       * @param orders  the ascending flag of each group.
+       * @param bitKeys true for the groups whose (Long) value is a
+       *                <code>Double.doubleToLongBits</code> key, may be null.
+       */
+      public RowComparator(boolean[] orders, boolean[] bitKeys) {
          this.orders = orders;
+         this.bitKeys = bitKeys;
       }
 
       @Override
@@ -267,12 +277,23 @@ public class MVRow2 extends MVRow {
          int gcnt = row1.groups2.length;
 
          for(int i = 0; i < gcnt; i++) {
+            Object g1 = row1.groups2[i];
+            Object g2 = row2.groups2[i];
+
+            // the raw key of a double-based column must be ordered by its numeric value
+            if(bitKeys != null && i < bitKeys.length && bitKeys[i] &&
+               g1 instanceof Long && g2 instanceof Long)
+            {
+               g1 = MVRow.sortKey((Long) g1);
+               g2 = MVRow.sortKey((Long) g2);
+            }
+
             // follow the same case sensitivity as the non-MV sort (string.compare.casesensitive)
-            long rc = Tool.compare(row1.groups2[i], row2.groups2[i], Tool.isCaseSensitive(), true);
+            long rc = Tool.compare(g1, g2, Tool.isCaseSensitive(), true);
 
             // values that differ only by case are distinct groups, keep the order total
             if(rc == 0) {
-               rc = Tool.compare(row1.groups2[i], row2.groups2[i], true, true);
+               rc = Tool.compare(g1, g2, true, true);
             }
 
             if(rc != 0) {
@@ -286,6 +307,7 @@ public class MVRow2 extends MVRow {
       }
 
       private boolean[] orders;
+      private boolean[] bitKeys;
    }
 
    Object[] groups2;
