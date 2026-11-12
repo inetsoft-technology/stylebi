@@ -134,8 +134,9 @@ public class SelectionRuntimeService {
     *                    knows exactly what to un-check without needing to first read (or
     *                    re-specify) everything that should stay selected. Same shape as
     *                    {@code values}; null or empty leaves the selection alone. Only valid on a
-    *                    list or non-ID-mode tree; an ID-mode tree, range slider or calendar is
-    *                    refused.
+    *                    list or a tree; a range slider or calendar is refused. On an ID-mode tree
+    *                    each entry is a node id (an id chain removes its last id only), and no
+    *                    descendant or ancestor is touched.
     * @param sortOrder   {@code asc} | {@code desc} | {@code specific}, or null to leave it.
     * @param singleSelect whether the assembly should accept one value only, or null to leave it.
     * @param additive    when true, {@code values} only adds — the automatic replace-diff (deselect
@@ -264,6 +265,7 @@ public class SelectionRuntimeService {
 
          if(idMode) {
             requireNoBlankId(assemblyName, typedValues);
+            requireNoBlankId(assemblyName, typedDeselect);
          }
 
          // The one read of the live domain a values and/or deselect request needs: the blank item
@@ -276,7 +278,10 @@ public class SelectionRuntimeService {
             liveDomain.getSelectionValues();
          final List<List<String>> values = idMode || !matchable ? typedValues :
             distinctPaths(canonicalizeBlank(liveValues, typedValues));
-         final List<List<String>> deselect = idMode ? typedDeselect :
+         // An ID-mode deselect entry is addressed by one node id: an id chain the caller copied
+         // from the tree is reduced to its last id, so it removes that node only, never the
+         // ancestors the chain passes through (Bug #81242).
+         final List<List<String>> deselect = idMode ? idLeafPaths(assemblyName, typedDeselect) :
             distinctPaths(canonicalizeBlank(liveValues, typedDeselect));
 
          // Two spellings of the blank item are one path: the dedupe above and this contradiction
@@ -331,17 +336,20 @@ public class SelectionRuntimeService {
          }
 
          if(hasDeselect) {
-            if(!isPathDiffable(assembly)) {
+            if(!isValueMatchable(assembly)) {
                throw new IllegalArgumentException(
                   "'" + assemblyName + "' is " + describe(assembly) + " -- 'deselect' only works " +
-                  "on a selection list or a non-ID-mode selection tree. Use clear_selection to " +
+                  "on a selection list or a selection tree. Use clear_selection to " +
                   "remove everything, or set_selection's plain 'values' for a range slider.");
             }
 
             // Against the whole live domain, not the selected paths: a real but unselected value
             // stays a legal no-op, while a fabricated or over-long path is refused by name instead
             // of silently touching nothing. Unscoped by search, like the deselect itself.
-            requireResolvable(assemblyName, liveDomain, deselect, false, "deselecting");
+            // An ID-mode chain is validated whole (every id must be a node), then applied by its
+            // last id only.
+            requireResolvable(assemblyName, liveDomain, idMode ? typedDeselect : deselect, idMode,
+                              "deselecting");
          }
 
          // Bug #80482: an apply that changes the condition resets every Form table on this
@@ -551,7 +559,35 @@ public class SelectionRuntimeService {
             }
          }
 
-         if(hasDeselect) {
+         if(hasDeselect && idMode) {
+            // Node-id units: doApplySelection's ID-mode apply deselects exactly the nodes whose id
+            // is in each value, with no ancestor or descendant cascade, so one single-id value per
+            // selected node is the whole event. deselectTargets and selectedPaths are path-keyed
+            // and would collapse a node to a shared ancestor (Bug #81242). Not scoped by the
+            // active search, like the path-keyed branch below.
+            List<List<String>> currentIds = selectedNodeIds(assembly);
+            List<List<String>> idTargets = deselect.stream().filter(currentIds::contains).toList();
+
+            if(!idTargets.isEmpty()) {
+               selections.applySelection(runtimeId, assemblyName, deselectEvent(idTargets), user,
+                                         dispatcher, linkUri);
+               List<List<String>> afterIds = selectedNodeIds(assembly);
+               List<List<String>> idStuck = idTargets.stream().filter(afterIds::contains).toList();
+               result.put("deselected", idTargets.size() - idStuck.size());
+
+               // A value the active search hides is added back by VSSelectionService.applySelection
+               // (bug-78216), so it stays selected and is reported as retained.
+               if(isSearching(searchString(info))) {
+                  idStuck.forEach(id -> {
+                     if(!retained.contains(id)) {
+                        retained.add(id);
+                     }
+                  });
+               }
+            }
+         }
+
+         if(hasDeselect && !idMode) {
             // Deliberately not scoped by the active search the way values is above (bug-76854).
             // The charter's own repro only exercised values under search; scoping deselect too is
             // a reasonable extrapolation (a deselect names things by value the same way a select
@@ -1988,6 +2024,31 @@ public class SelectionRuntimeService {
       event.setType(ApplySelectionListEvent.Type.APPLY);
       event.setValues(values.stream().map(path -> value(path, true)).toList());
       return event;
+   }
+
+   /**
+    * An ID-mode deselect as node-id units: each entry reduced to its last id (an id chain names its
+    * leaf, never the ancestors it passes through), one single-id path per distinct node. An empty
+    * entry names no node and is refused by name rather than dropped.
+    */
+   static List<List<String>> idLeafPaths(String assemblyName, List<List<String>> chains) {
+      if(chains == null) {
+         return null;
+      }
+
+      Set<String> ids = new LinkedHashSet<>();
+
+      for(List<String> chain : chains) {
+         if(chain == null || chain.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is an ID-mode tree -- an empty entry in 'deselect' names " +
+               "no node. Pass the node id to deselect, e.g. [\"4\"].");
+         }
+
+         ids.add(chain.get(chain.size() - 1));
+      }
+
+      return ids.stream().map(List::of).toList();
    }
 
    private static ApplySelectionListEvent deselectEvent(List<List<String>> values) {
