@@ -3004,6 +3004,36 @@ public class VSInputService {
       return hint;
    }
 
+   /**
+    * Converts a requested value into the value the input stores for it: a calendar combo box's
+    * wall clock date becomes the date it names, every value is converted to the assembly's data
+    * type (a date or time input drops what its type cannot hold), and a slider with snap on moves
+    * it onto its increment grid. This is the conversion {@code applySelection0} applies before
+    * {@code setSelectedObject}; callers that need to know what a write will be stored as (the
+    * wiz {@code InputValueService}) use it too, so the two never drift apart. Only the first value
+    * is converted: a check box converts each of its values separately.
+    *
+    * @param values the requested value(s), or null for none.
+    *
+    * @return the value to hand to {@code setSelectedObject}.
+    */
+   public static Object convertSelected(InputVSAssemblyInfo info, String type, Object[] values) {
+      // don't write back into values[], it may alias the caller's array
+      Object firstValue = values == null || values.length == 0 ? null : values[0];
+
+      if(firstValue != null && info instanceof ComboBoxVSAssemblyInfo cinfo && cinfo.isCalendar()) {
+         firstValue = convertWallClockDate(type, firstValue);
+      }
+
+      Object obj = firstValue == null ? null : Tool.getData(type, firstValue);
+
+      if(values !=null && values.length > 0 && obj == null && type.equals(CoreTool.BOOLEAN) && values[0].equals("")) {
+         obj = "";
+      }
+
+      return info instanceof SliderVSAssemblyInfo sinfo ? snapToIncrement(sinfo, obj) : obj;
+   }
+
    private int applySelection0(RuntimeViewsheet rvs, String assemblyName, Object selectedObject,
                                 CommandDispatcher dispatcher)
       throws Exception
@@ -3039,24 +3069,12 @@ public class VSInputService {
 
       InputVSAssemblyInfo info = (InputVSAssemblyInfo) assembly.getVSAssemblyInfo();
       String type = assembly.getDataType();
-
-      // don't write back into values[], it may alias the caller's array
-      Object firstValue = values == null || values.length == 0 ? null : values[0];
-
-      if(firstValue != null && info instanceof ComboBoxVSAssemblyInfo cinfo && cinfo.isCalendar()) {
-         firstValue = convertWallClockDate(type, firstValue);
-      }
-
-      Object obj = firstValue == null ? null : Tool.getData(type, firstValue);
-
-      if(values !=null && values.length > 0 && obj == null && type.equals(CoreTool.BOOLEAN) && values[0].equals("")) {
-         obj = "";
-      }
+      Object obj = convertSelected(info, type, values);
 
       int hint0;
 
-      if(info instanceof SliderVSAssemblyInfo sinfo) {
-         hint0 = info.setSelectedObject(snapToIncrement(sinfo, obj));
+      if(info instanceof SliderVSAssemblyInfo) {
+         hint0 = info.setSelectedObject(obj);
          coreLifecycleService.refreshVSAssembly(rvs, info.getAbsoluteName(), dispatcher);
       }
       else if(info instanceof SpinnerVSAssemblyInfo) {

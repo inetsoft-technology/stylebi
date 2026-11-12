@@ -201,6 +201,9 @@ public class InputValueService {
             : (values.isEmpty() ? null : values.get(0));
          List<Object> beforeWrite = info0 instanceof InputVSAssemblyInfo held0
             ? heldValues(held0) : List.of();
+         // read before the write, from a copy: what the input stores for this request
+         List<Object> requestedAsStored =
+            multi ? null : storedForm(info0, assembly.getDataType(), selected);
 
          inputs.singleApplySelection(runtimeId, assemblyName, selected, user, dispatcher, linkUri);
          commitIfNotSubmittedOnChange(rvs, assemblyName, info0, dispatcher, linkUri);
@@ -243,6 +246,10 @@ public class InputValueService {
             }
             else {
                result.put("values", held);
+
+               if(requestedAsStored != null) {
+                  result.put("requestedAsStored", requestedAsStored);
+               }
             }
 
             // whether the write itself left the input as it was: the value held right after it
@@ -896,6 +903,35 @@ public class InputValueService {
     */
    static boolean isSecret(VSAssemblyInfo info) {
       return info instanceof TextInputVSAssemblyInfo text && text.isPassword();
+   }
+
+   /**
+    * What the input stores for a request: the request goes through the conversion
+    * {@code applySelection0} applies ({@link VSInputService#convertSelected}), then through the
+    * input's own {@code setSelectedObject}, on a copy so the assembly is not touched. A date input
+    * stores the day only, a time input drops a fraction, a slider snaps. Compared with the held
+    * value after the write, it tells a request the input converted to the value it already held
+    * from a write that a refresh reverted (both leave {@code sameAsBefore} true).
+    *
+    * @return the stored form, or null when it cannot be told (a masked input, an unsupported
+    *         assembly, a conversion that throws): the caller then falls back to {@code sameAsBefore}.
+    */
+   // package-private for InputValueServiceStoredFormTest
+   static List<Object> storedForm(VSAssemblyInfo info, String dataType, Object selected) {
+      if(!(info instanceof InputVSAssemblyInfo input) || isSecret(info)) {
+         return null;
+      }
+
+      try {
+         InputVSAssemblyInfo copy = (InputVSAssemblyInfo) input.clone();
+         copy.setSelectedObject(VSInputService.convertSelected(
+            copy, dataType, selected == null ? null : new Object[] { selected }));
+         return heldValues(copy);
+      }
+      catch(Exception ex) {
+         LOG.debug("Cannot tell what {} stores for {}", info.getAbsoluteName(), selected, ex);
+         return null;
+      }
    }
 
    private static boolean sameValues(List<Object> held, List<Object> requested) {
