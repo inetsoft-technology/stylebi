@@ -25,9 +25,14 @@ import inetsoft.uql.XCondition;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.extension.TestExecutionExceptionHandler;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.opentest4j.TestAbortedException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -56,9 +61,31 @@ import static org.junit.jupiter.api.Assertions.*;
 class DateConditionBuiltinTest {
    private static final ZoneId ZONE = ZoneId.systemDefault();
 
-   /** Stops the test when the day changed since the start (the clock is read by the code). */
-   private static void sameDay(LocalDate start) {
-      Assumptions.assumeTrue(start.equals(LocalDate.now()), "the day changed during the test");
+   /**
+    * A test that fails after the day changed while it ran is skipped, not failed: its expected
+    * values were worked out from the day it started on, the code under test read the clock again.
+    */
+   @RegisterExtension
+   final DayChange dayChange = new DayChange();
+
+   static final class DayChange implements BeforeEachCallback, TestExecutionExceptionHandler {
+      private LocalDate start;
+
+      @Override
+      public void beforeEach(ExtensionContext context) {
+         start = LocalDate.now();
+      }
+
+      @Override
+      public void handleTestExecutionException(ExtensionContext context, Throwable thrown)
+         throws Throwable
+      {
+         if(thrown instanceof AssertionError && !start.equals(LocalDate.now())) {
+            throw new TestAbortedException("the day changed during the test", thrown);
+         }
+
+         throw thrown;
+      }
    }
 
    private static Timestamp ts(LocalDateTime t) {
@@ -114,7 +141,6 @@ class DateConditionBuiltinTest {
       assertTrue(cond.evaluate(ts(start.plusSeconds(1))));
       // the end is now, and it is not included
       assertFalse(cond.evaluate(ts(LocalDateTime.now().plusMinutes(1))));
-      sameDay(today);
    }
 
    @Test
@@ -126,7 +152,6 @@ class DateConditionBuiltinTest {
 
       assertTrue(cond.evaluate(ts(start)));
       assertFalse(cond.evaluate(ts(start.minusSeconds(1))));
-      sameDay(today);
    }
 
    @Test
@@ -138,7 +163,6 @@ class DateConditionBuiltinTest {
       assertTrue(cond.evaluate(ts(start)));
       assertFalse(cond.evaluate(ts(start.minusSeconds(1))));
       assertFalse(cond.evaluate(ts(LocalDateTime.now().plusMinutes(1))));
-      sameDay(today);
    }
 
    // the offsets move the end back by (years * 4 + quarters) * 3 + months months, and the start
@@ -157,7 +181,6 @@ class DateConditionBuiltinTest {
       assertFalse(cond.evaluate(ts(end.plusMinutes(1))));
       // today is not in a range that ended 16 months ago
       assertFalse(cond.evaluate(ts(before)));
-      sameDay(before.toLocalDate());
    }
 
    @Test
@@ -171,7 +194,6 @@ class DateConditionBuiltinTest {
       assertFalse(cond.evaluate(ts(start.minusSeconds(1))));
       assertTrue(cond.evaluate(ts(end.minusMinutes(1))));
       assertFalse(cond.evaluate(ts(end.plusMinutes(1))));
-      sameDay(before.toLocalDate());
    }
 
    @Test
@@ -188,7 +210,6 @@ class DateConditionBuiltinTest {
                  && end <= System.currentTimeMillis(), "end " + end);
       assertTrue(sql.getValue(0) instanceof Timestamp);
       assertFalse(between(cond, false).getValue(0) instanceof Timestamp);
-      sameDay(before.toLocalDate());
    }
 
    @Test
@@ -203,7 +224,6 @@ class DateConditionBuiltinTest {
       assertTrue(cond.toSqlCondition(true).isNegated());
       assertFalse(cond.evaluate("2024-01-01"));
       assertFalse(cond.evaluate(null));
-      sameDay(today);
    }
 
    // ---- the last N months: a rolling window of whole months ending on today ----
@@ -220,7 +240,6 @@ class DateConditionBuiltinTest {
       assertFalse(cond.evaluate(java.sql.Date.valueOf(first.minusDays(1))));
       assertTrue(cond.evaluate(java.sql.Date.valueOf(today)));
       assertFalse(cond.evaluate(java.sql.Date.valueOf(today.plusDays(1))));
-      sameDay(today);
    }
 
    @Test
@@ -230,7 +249,6 @@ class DateConditionBuiltinTest {
       DateCondition cond = new DateCondition.MonthsCondition(2, 3);
 
       assertRange(today.minusMonths(2).atStartOfDay(), today.plusMonths(2).atTime(23, 59, 59), cond);
-      sameDay(today);
    }
 
    @Test
@@ -254,7 +272,6 @@ class DateConditionBuiltinTest {
       // the instant of the start, one minute later is in, one minute earlier is out
       assertTrue(cond.evaluate(ts(before.minusMonths(2).plusMinutes(1))));
       assertFalse(cond.evaluate(ts(before.minusMonths(2).minusMinutes(1))));
-      sameDay(before.toLocalDate());
    }
 
    // ---- the last N days ----
@@ -269,7 +286,6 @@ class DateConditionBuiltinTest {
       assertTrue(cond.evaluate(noon(today.minusDays(2))));
       assertFalse(cond.evaluate(noon(today.minusDays(3))));
       assertFalse(cond.evaluate(noon(today.plusDays(1))));
-      sameDay(today);
    }
 
    @Test
@@ -280,7 +296,6 @@ class DateConditionBuiltinTest {
       assertFalse(cond.evaluate(noon(today)));
       assertTrue(cond.evaluate(noon(today.minusDays(1))));
       assertFalse(cond.evaluate(noon(today.minusDays(2))));
-      sameDay(today);
    }
 
    @Test
@@ -294,7 +309,6 @@ class DateConditionBuiltinTest {
 
       // yesterday back to 3 days ago
       assertRange(today.minusDays(3).atStartOfDay(), today.minusDays(1).atTime(23, 59, 59), cond);
-      sameDay(today);
    }
 
    @Test
@@ -313,7 +327,6 @@ class DateConditionBuiltinTest {
       assertFalse(cond.evaluate(noon(today)));
       assertTrue(cond.evaluate(noon(today.minusDays(1))));
       assertFalse(cond.evaluate("today"));
-      sameDay(today);
    }
 
    // ---- the Nth quarter, half year and month of a year some years ago ----
@@ -338,7 +351,6 @@ class DateConditionBuiltinTest {
          assertRange(first.atStartOfDay(), last.atTime(23, 59, 59), cond);
       }
 
-      sameDay(today);
    }
 
    @Test
@@ -352,7 +364,6 @@ class DateConditionBuiltinTest {
       cond.setNegated(true);
       assertTrue(cond.evaluate(noon(LocalDate.of(today.getYear() - 1, 5, 15))));
       assertFalse(cond.evaluate(noon(LocalDate.of(today.getYear(), 5, 15))));
-      sameDay(today);
    }
 
    // a value out of the range is ignored by the setters, the old one is kept: a guard against a
@@ -398,7 +409,6 @@ class DateConditionBuiltinTest {
          assertRange(first.atStartOfDay(), last.atTime(23, 59, 59), cond);
       }
 
-      sameDay(today);
    }
 
    // the last day of the month in the sql condition, including February of a leap year
@@ -418,7 +428,6 @@ class DateConditionBuiltinTest {
          assertRange(ym.atDay(1).atStartOfDay(), ym.atEndOfMonth().atTime(23, 59, 59), cond);
       }
 
-      sameDay(today);
    }
 
    // ---- a part of a date ----
