@@ -238,6 +238,8 @@ public class AssistantWebSocketProxyHandler extends AbstractWebSocketHandler {
             "production when the assistant server uses a CA-signed certificate.");
 
          try {
+            // trust-all only when chat.app.server.ssl.verify=false; default to be changed (Bug #81264).
+            // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new TrustManager[] { TRUST_ALL }, null);
             client.setUserProperties(Map.of("org.apache.tomcat.websocket.SSL_CONTEXT", sslContext));

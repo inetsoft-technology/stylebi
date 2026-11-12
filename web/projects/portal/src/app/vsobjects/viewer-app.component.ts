@@ -817,6 +817,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.keepAwakeService.release();
 
       if(this.inDashboard && window != window.parent) {
+         // embed host origin can't be known; only the close event is sent.
+         // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration
          window.parent.postMessage({"dashboardClosed": this.runtimeId}, "*");
       }
 
@@ -3586,6 +3588,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                scrollHeight: this.viewerRoot.nativeElement.scrollHeight + pageTabBarHeight
             };
 
+            // embed host origin can't be known; only the scroll height is sent.
+            // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration
             window.parent.postMessage(message, "*");
          }, 200);
       }

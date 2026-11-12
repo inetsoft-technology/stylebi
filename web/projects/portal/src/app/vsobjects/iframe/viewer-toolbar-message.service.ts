@@ -94,6 +94,8 @@ export class ViewerToolbarMessageService implements OnDestroy {
          buttonStatuses: this.buttonStatuses
       };
 
+      // embed host origin can't be known; only toolbar button state is sent.
+      // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration
       window.parent.postMessage(message, "*");
    }
 

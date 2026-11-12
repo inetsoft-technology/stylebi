@@ -57,6 +57,8 @@ public class AIAssistantController {
                      "the assistant server uses a CA-signed certificate.");
 
          try {
+            // trust-all only when chat.app.server.ssl.verify=false; default to be changed (Bug #81264).
+            // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new TrustManager[] {
                new X509TrustManager() {

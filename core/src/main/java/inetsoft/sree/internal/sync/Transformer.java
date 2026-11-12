@@ -48,6 +48,8 @@ public interface Transformer {
       javax.xml.transform.Transformer transformer;
 
       try {
+         // identity transform of an in-memory DOM; external DTD/stylesheet access is cleared above.
+         // nosemgrep: java.lang.security.audit.xxe.transformerfactory-dtds-not-disabled.transformerfactory-dtds-not-disabled
          transformer = transformerFactory.newTransformer();
          DOMSource source = new DOMSource(doc);
          StreamResult result = new StreamResult(file);

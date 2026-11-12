@@ -131,6 +131,8 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
          window.close();
       }
       else {
+         // embed host origin can't be known; only the close event and new asset id are sent.
+         // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration
          window.parent.window.postMessage({"composerClose": true, "created": identifier}, "*");
       }
    }

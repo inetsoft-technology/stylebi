@@ -281,6 +281,8 @@ public class ExportController {
             result.getMime());
 
          OutputStream out = response.getOutputStream();
+         // binary export download sent as an attachment, not HTML.
+         // nosemgrep: java.lang.security.audit.xss.no-direct-response-writer.no-direct-response-writer
          out.write(result.getData());
       }
       finally {

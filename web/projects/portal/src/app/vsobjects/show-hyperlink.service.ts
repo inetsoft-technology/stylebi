@@ -146,6 +146,8 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
 
       if(link.linkType === LinkType.MESSAGE_LINK) {
          if(!!_model.url) {
+            // message hyperlinks are meant for the host page; framing by other sites needs security.allow.iframe.
+            // nosemgrep: javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration
             window.parent.postMessage(JSON.parse(_model.url), "*");
          }
       }
