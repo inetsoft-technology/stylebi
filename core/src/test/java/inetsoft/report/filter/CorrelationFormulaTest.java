@@ -153,9 +153,50 @@ class CorrelationFormulaTest {
       }
 
       assertNull(f.getResult());
-      assertTrue(Double.isNaN(f.getDoubleResult()));
       f.setDefaultResult(true);
       assertEquals(0.0, (Double) f.getResult());
+   }
+
+   // Bug #81182: a zero denominator is "no result" for every accessor
+   @Test
+   void zeroVariance_doubleResultAgreesWithResult() {
+      for(boolean def : new boolean[] { false, true }) {
+         CorrelationFormula f = new CorrelationFormula(1);
+         f.setDefaultResult(def);
+
+         for(int i = 1; i <= 5; i++) {
+            f.addValue(new Object[] { 4.0, (double) i });
+         }
+
+         assertTrue(f.isNull());
+         assertEquals(0.0, f.getDoubleResult());
+         assertEquals(def ? Double.valueOf(0) : null, f.getResult());
+      }
+   }
+
+   @Test
+   void singlePair_isNoResult() {
+      for(boolean def : new boolean[] { false, true }) {
+         CorrelationFormula f = new CorrelationFormula(1);
+         f.setDefaultResult(def);
+         f.addValue(new Object[] { 1.0, 2.0 });
+         assertTrue(f.isNull());
+         assertEquals(0.0, f.getDoubleResult());
+         assertEquals(def ? Double.valueOf(0) : null, f.getResult());
+
+         CorrelationFormula g = new CorrelationFormula(1);
+         g.setDefaultResult(def);
+         g.addValue(new double[] { 1.0, 2.0 });
+         assertTrue(g.isNull());
+         assertEquals(0.0, g.getDoubleResult());
+      }
+   }
+
+   @Test
+   void realCorrelation_isNotNull() {
+      CorrelationFormula f = fill(0, 1, 2);
+      assertFalse(f.isNull());
+      assertEquals(1.0, f.getDoubleResult(), 1e-9);
    }
 
    @Test

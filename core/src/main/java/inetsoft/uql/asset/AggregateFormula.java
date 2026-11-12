@@ -2081,7 +2081,9 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
          String sumwt = "(0.0+" + SUMWT.getExpression(column, col2, helper) + ")";
          String sum2 = "(0.0 + " + SUM2.getExpression(col2, column, helper) + ")";
 
-         return "CASE WHEN " + sum2 + " = 0 THEN 0.0 ELSE " + sumwt + "/" + sum2 + " END";
+         // weights summing to 0 have no weighted average: NULL, like the in-memory formula
+         // (Bug #81182)
+         return "CASE WHEN " + sum2 + " = 0 THEN NULL ELSE " + sumwt + "/" + sum2 + " END";
       }
 
       /**
@@ -2100,7 +2102,7 @@ public abstract class AggregateFormula implements Serializable, Cloneable {
       @Override
       public String getExpressionSub(String column, String col2, AggregateHelper helper) {
          return "(0.0+" + SUMWT.getExpressionSub(column, col2, helper) +
-            ") / (0.0+" + SUM.getExpressionSub(col2, column, helper) + ")";
+            ") / NULLIF(0.0+" + SUM.getExpressionSub(col2, column, helper) + ", 0)";
       }
 
       /**

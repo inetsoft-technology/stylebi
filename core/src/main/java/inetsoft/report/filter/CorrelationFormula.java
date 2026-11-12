@@ -230,7 +230,9 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
     */
    @Override
    public double getDoubleResult() {
-      if(n == 0) {
+      // no result (no pairs, zero variance or a single pair) is reported as 0 plus isNull(),
+      // the same as the other formulas, never NaN (Bug #81182)
+      if(isNull()) {
          return 0;
       }
 
@@ -242,7 +244,8 @@ public class CorrelationFormula implements Formula2, java.io.Serializable {
     */
    @Override
    public boolean isNull() {
-      return n == 0;
+      // zero variance, or a single pair, has no correlation, same as getResult()
+      return n == 0 || Double.isNaN(correlation());
    }
 
    @Override
