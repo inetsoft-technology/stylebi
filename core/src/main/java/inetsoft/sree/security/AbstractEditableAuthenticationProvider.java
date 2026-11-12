@@ -143,7 +143,9 @@ public abstract class AbstractEditableAuthenticationProvider
       // is over. A change that only differs in letter case is guarded too: the data space paths
       // keep the case of the id.
       String fromId = fromOrganization.getId();
-      boolean guarded = replace && fromId != null;
+      // Bug #79861, IdentityService.setOrganizationInfo begins the change before it moves the
+      // per user data, in that case the guard is already running and is ended by its owner
+      boolean guarded = replace && fromId != null && !OrgIdChangeGuard.isRunning(fromId);
       boolean completed = false;
       String opId = null;
       OrgIdChangeGuard.clear(newOrgID);

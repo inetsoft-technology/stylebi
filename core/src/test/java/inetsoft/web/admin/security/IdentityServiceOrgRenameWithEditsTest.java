@@ -32,6 +32,7 @@ import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
+import inetsoft.test.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
@@ -39,8 +40,11 @@ import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.slf4j.LoggerFactory;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.InvocationTargetException;
@@ -51,6 +55,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 /**
  * Bug #77115: a same-id organization save that changes the name must apply the other edits of
@@ -163,6 +171,8 @@ class IdentityServiceOrgRenameWithEditsTest {
 
    @AfterEach
    void tearDown() {
+      OrgIdChangeGuard.clear(ORG_1);
+      OrgIdChangeGuard.clear("organization2");
       Tool.clearUserMessage();
       ThreadContext.setPrincipal(oldThreadPrincipal);
       autoSave.close();

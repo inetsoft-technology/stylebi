@@ -225,6 +225,15 @@ public final class OrgIdChangeGuard {
    }
 
    /**
+    * Checks if the calling thread already runs a change of the organization, so that the code
+    * that does a part of the change does not begin a second one, which would replace the records
+    * and the owner of the first.
+    */
+   public static boolean isRunning(String orgId) {
+      return orgId != null && OWNER.get().containsKey(key(orgId));
+   }
+
+   /**
     * Forgets a retired record, because the id is used by a new organization.
     */
    public static void clear(String orgId) {
