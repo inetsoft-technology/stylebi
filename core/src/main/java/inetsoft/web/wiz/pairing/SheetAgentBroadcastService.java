@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.command.RefreshBindingTreeCommand;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModel;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
@@ -41,6 +42,7 @@ import inetsoft.web.viewsheet.command.RefreshAgentScriptCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.command.SetViewsheetInfoCommand;
+import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -48,6 +50,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import inetsoft.web.viewsheet.service.ComposerClientService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,12 +83,27 @@ public class SheetAgentBroadcastService {
    public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
                                      VSObjectModelFactoryService vsObjectModelFactoryService,
                                      VSBindingTreeService vsBindingTreeService,
-                                     CoreLifecycleService coreLifecycleService)
+                                     CoreLifecycleService coreLifecycleService,
+                                     VSLayoutControllerServiceProxy vsLayoutControllerService)
    {
       this.commandDispatcherService = commandDispatcherService;
       this.vsObjectModelFactoryService = vsObjectModelFactoryService;
       this.vsBindingTreeService = vsBindingTreeService;
       this.coreLifecycleService = coreLifecycleService;
+      this.vsLayoutControllerService = vsLayoutControllerService;
+   }
+
+   /**
+    * Convenience constructor for callers that never push a layout-designer refresh;
+    * {@link #broadcastLayoutRefresh} is then a no-op.
+    */
+   public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
+                                     VSObjectModelFactoryService vsObjectModelFactoryService,
+                                     VSBindingTreeService vsBindingTreeService,
+                                     CoreLifecycleService coreLifecycleService)
+   {
+      this(commandDispatcherService, vsObjectModelFactoryService, vsBindingTreeService,
+           coreLifecycleService, null);
    }
 
    /**
@@ -252,6 +270,74 @@ public class SheetAgentBroadcastService {
       }
       catch(Exception ex) {
          LOG.warn("Failed to forward captured table data (runtimeId={})", runtimeId, ex);
+      }
+   }
+
+   /**
+    * Redraw the paired browser's layout designer after a wiz layout write (Bug #81189).
+    *
+    * <p>The layout tools edit the master's {@code LayoutInfo} under a capturing dispatcher and
+    * discard everything it captures, and the master-assembly refresh does not reach the designer,
+    * which is bound to a separate temporary layout runtime. This re-runs the native
+    * {@code changeViewsheetLayout} resend for {@code layoutName} (current layout == target, so the
+    * layout undo stack is left alone) and forwards the captured commands, addressed with the
+    * MASTER runtime id as the native path does, then the layout undo/redo button state.
+    *
+    * <p>The push always targets {@code layoutName}: the server does not know which layout the
+    * browser's designer currently shows, so a browser on Master or on another layout is switched
+    * to {@code layoutName}. Best effort: any failure is logged and swallowed so it never fails
+    * the tool call whose mutation already succeeded.
+    */
+   public void broadcastLayoutRefresh(RuntimeViewsheet master, String layoutName,
+                                      Principal agent)
+   {
+      if(master == null || layoutName == null || vsLayoutControllerService == null) {
+         return;
+      }
+
+      String sessionId = master.getSocketSessionId();
+
+      if(sessionId == null) {
+         LOG.debug("Layout refresh broadcast skipped - no socket session recorded (runtimeId={})",
+                   master.getID());
+         return;
+      }
+
+      String user = master.getSocketUserName();
+
+      if(user == null) {
+         user = agent == null ? null : agent.getName();
+      }
+
+      try {
+         String runtimeId = master.getID();
+         List<CommandDispatcher.Command> captured = new ArrayList<>();
+
+         CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+            vsLayoutControllerService.changeViewsheetLayout(
+               runtimeId, layoutName, layoutName, agent, null, dispatcher);
+            captured.addAll(dispatcher.getCapturedCommands());
+            return null;
+         });
+
+         for(CommandDispatcher.Command c : captured) {
+            if(c != null && c.getCommand() != null) {
+               sendToBrowser(user, sessionId, runtimeId, c.getAssembly(), c.getCommand());
+            }
+         }
+
+         UpdateLayoutUndoStateCommand undoState = new UpdateLayoutUndoStateCommand();
+         undoState.setLayoutPoint(master.getLayoutPoint());
+         undoState.setLayoutPoints(master.getLayoutPointsSize());
+         undoState.setId(runtimeId);
+         sendCommand(user, sessionId, runtimeId, undoState);
+
+         LOG.info("Pairing layout refresh sent (runtimeId={}, layout={}, commands={})",
+                  runtimeId, layoutName, captured.size());
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to push the layout designer refresh (runtimeId={}, layout={})",
+                  master.getID(), layoutName, e);
       }
    }
 
@@ -708,4 +794,5 @@ public class SheetAgentBroadcastService {
    private final VSObjectModelFactoryService vsObjectModelFactoryService;
    private final VSBindingTreeService vsBindingTreeService;
    private final CoreLifecycleService coreLifecycleService;
+   private final VSLayoutControllerServiceProxy vsLayoutControllerService;
 }
