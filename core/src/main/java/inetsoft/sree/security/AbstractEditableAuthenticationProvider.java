@@ -163,7 +163,7 @@ public abstract class AbstractEditableAuthenticationProvider
          if(!replace && fromId != null && newOrgID != null && getOrganization(newOrgID) == null) {
             journalEntry = OrgOperationJournal.getInstance().begin(
                OrgOperationJournal.Type.CLONE, fromId, newOrgID, null,
-               getCloneTargets(fromOrganization, newOrgID));
+               getCloneTargets(fromOrganization, newOrgID), getProviderName());
          }
 
          copyOrganizationInternal0(fromOrganization, editedNewOrganization, newOrgID, newOrgName,

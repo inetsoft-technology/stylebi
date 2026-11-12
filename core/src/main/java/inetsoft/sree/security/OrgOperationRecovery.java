@@ -24,6 +24,8 @@ import inetsoft.sree.security.OrgOperationJournal.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 
 /**
@@ -99,16 +101,65 @@ public final class OrgOperationRecovery {
    }
 
    /**
+    * Finds the editable authentication provider that holds the organizations, the way the edit
+    * paths of IdentityService do: the providers of the authentication chain, not the type of the
+    * security provider ({@link inetsoft.sree.internal.SUtil#getEditableAuthenticationProvider}
+    * only unwraps an AbstractSecurityProvider, which the enterprise provider is not).
+    *
+    * @param security     the security provider.
+    * @param providerName the name of the provider that the operation was started with, or null.
+    *
+    * @return the provider with the name, or the first editable one, or null if there is none.
+    */
+   public static EditableAuthenticationProvider findEditableProvider(SecurityProvider security,
+                                                                     String providerName)
+   {
+      AuthenticationProvider auth = security == null ? null : security.getAuthenticationProvider();
+      List<AuthenticationProvider> providers = new ArrayList<>();
+
+      if(auth instanceof AuthenticationChain) {
+         providers.addAll(((AuthenticationChain) auth).getProviders());
+      }
+      else if(auth != null) {
+         providers.add(auth);
+      }
+
+      EditableAuthenticationProvider first = null;
+
+      for(AuthenticationProvider p : providers) {
+         if(p instanceof EditableAuthenticationProvider) {
+            if(providerName != null && providerName.equals(p.getProviderName())) {
+               return (EditableAuthenticationProvider) p;
+            }
+
+            if(first == null) {
+               first = (EditableAuthenticationProvider) p;
+            }
+         }
+      }
+
+      return first;
+   }
+
+   /**
     * Determines if nothing runs the operation: it stopped with an error, or the node that ran
     * it left the cluster, and no node of the cluster changes either of its organizations.
     */
-   static boolean isAbandoned(Entry entry) {
+   public static boolean isAbandoned(Entry entry) {
       if(OrgIdChangeGuard.isActiveOnLiveNode(entry.getFromId()) ||
          OrgIdChangeGuard.isActiveOnLiveNode(entry.getToId()))
       {
          return false;
       }
 
+      return isOwnerGone(entry);
+   }
+
+   /**
+    * Determines if nothing runs the operation, whatever the guard says: it stopped with an
+    * error or the node that ran it left the cluster.
+    */
+   static boolean isOwnerGone(Entry entry) {
       return entry.getState() == State.FAILED ||
          !Cluster.getInstance().getClusterNodeIds().contains(entry.getNode());
    }

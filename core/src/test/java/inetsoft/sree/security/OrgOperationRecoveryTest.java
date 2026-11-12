@@ -41,6 +41,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -82,7 +83,7 @@ class OrgOperationRecoveryTest {
 
    private Entry entry(Type type, String from, String to, String node, State state) {
       Entry e = new Entry("op-" + from + "-" + to, type, from, to, node, 1L, state, "{}",
-                          List.of("portal/" + to + "/x.xml"));
+                          List.of("portal/" + to + "/x.xml"), null);
       map.put(e.getOpId(), e);
       return e;
    }
@@ -199,22 +200,87 @@ class OrgOperationRecoveryTest {
 
    @Test
    void beginRefusesAnOrganizationThatIsInAnOperation() {
-      Entry e = journal.begin(Type.RENAME, "b79875m", "b79875n", "{}", List.of());
+      Entry e = journal.begin(Type.RENAME, "b79875m", "b79875n", "{}", List.of(), null);
       assertEquals(State.RUNNING, e.getState());
       assertThrows(IllegalStateException.class,
-                   () -> journal.begin(Type.CLONE, "other", "B79875N", null, List.of()));
+                   () -> journal.begin(Type.CLONE, "other", "B79875N", null, List.of(), null));
       journal.markFailed(e.getOpId());
       assertEquals(State.FAILED, journal.get(e.getOpId()).getState());
       journal.complete(e.getOpId());
       assertNull(journal.get(e.getOpId()));
       // free again
-      journal.complete(journal.begin(Type.CLONE, "other", "b79875n", null, List.of()).getOpId());
+      journal.complete(journal.begin(Type.CLONE, "other", "b79875n", null, List.of(), null).getOpId());
+   }
+
+   @Test
+   void abandonedRecordNeverBlocksARetry() {
+      // the stale record of a clone that recovery could not undo (dead owner)
+      entry(Type.CLONE, "b79875q", "b79875r", DEAD_NODE, State.RUNNING);
+
+      Entry e = journal.begin(Type.CLONE, "b79875q", "b79875r", null, List.of(), null);
+
+      assertEquals(1, journal.list().size());
+      assertEquals(e.getOpId(), journal.list().get(0).getOpId());
+      assertNotEquals(DEAD_NODE, e.getNode());
+   }
+
+   @Test
+   void failedRecordOfARunningNodeNeverBlocksARetry() {
+      String local = Cluster.getInstance().getLocalNodeId();
+      entry(Type.RENAME, "b79875s", "b79875t", local, State.FAILED);
+
+      assertDoesNotThrow(
+         () -> journal.begin(Type.RENAME, "b79875s", "b79875t", "{}", List.of(), null));
+   }
+
+   // the lookup that the recovery runs, on a security provider like the enterprise one: not an
+   // AbstractSecurityProvider, its authentication provider is a chain
+   @Test
+   void editableProviderIsFoundThroughTheAuthenticationChain() {
+      EditableAuthenticationProvider readOnly = mock(EditableAuthenticationProvider.class);
+      EditableAuthenticationProvider first = mock(EditableAuthenticationProvider.class);
+      EditableAuthenticationProvider second = mock(EditableAuthenticationProvider.class);
+      when(readOnly.getProviderName()).thenReturn("readonly");
+      when(first.getProviderName()).thenReturn("first");
+      when(second.getProviderName()).thenReturn("second");
+      AuthenticationProvider plain = mock(AuthenticationProvider.class);
+      when(plain.getProviderName()).thenReturn("plain");
+
+      AuthenticationChain chain = new AuthenticationChain() {
+         @Override
+         void initialize() {
+         }
+      };
+      chain.getProviderList().addAll(List.of(plain, first, second));
+      SecurityProvider security = mock(SecurityProvider.class);
+      when(security.getAuthenticationProvider()).thenReturn(chain);
+
+      // the helper that the first version of the fix used gives nothing for such a provider
+      assertNull(inetsoft.sree.internal.SUtil.getEditableAuthenticationProvider(security));
+      assertSame(first, OrgOperationRecovery.findEditableProvider(security, null));
+      assertSame(first, OrgOperationRecovery.findEditableProvider(security, "unknown"));
+      assertSame(second, OrgOperationRecovery.findEditableProvider(security, "second"));
+
+      // a single provider, not a chain
+      SecurityProvider single = mock(SecurityProvider.class);
+      when(single.getAuthenticationProvider()).thenReturn(readOnly);
+      assertSame(readOnly, OrgOperationRecovery.findEditableProvider(single, null));
+
+      // nothing editable
+      AuthenticationChain none = new AuthenticationChain() {
+         @Override
+         void initialize() {
+         }
+      };
+      none.getProviderList().add(plain);
+      when(security.getAuthenticationProvider()).thenReturn(none);
+      assertNull(OrgOperationRecovery.findEditableProvider(security, null));
    }
 
    @Test
    void recordIsStorable() throws Exception {
       Entry e = new Entry("op", Type.CLONE, "a", "b", "node", 5L, State.FAILED, "p",
-                          List.of("portal/b/x"));
+                          List.of("portal/b/x"), "prov");
       var mapper = KeyValueEngine.createObjectMapper();
       Entry back = mapper.readValue(mapper.writeValueAsString(e), Entry.class);
 
@@ -223,6 +289,7 @@ class OrgOperationRecoveryTest {
       assertEquals(State.FAILED, back.getState());
       assertEquals(List.of("portal/b/x"), back.getTargets());
       assertEquals("node", back.getNode());
+      assertEquals("prov", back.getProviderName());
    }
 
    @Test

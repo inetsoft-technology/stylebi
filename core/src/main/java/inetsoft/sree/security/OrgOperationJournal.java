@@ -20,6 +20,8 @@ package inetsoft.sree.security;
 import com.fasterxml.jackson.annotation.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.KeyValueStorage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -75,17 +77,39 @@ public final class OrgOperationJournal {
     * @param toId    the new organization id.
     * @param payload what the operation needs to be resumed, or null.
     * @param targets the data space paths the operation creates under the new id.
+    * @param providerName the name of the authentication provider that holds the organization,
+    *                    or null.
     *
     * @return the record.
     *
-    * @throws IllegalStateException if an operation on one of the ids is already recorded.
+    * @throws IllegalStateException if a running operation on one of the ids is recorded. The
+    *                               record of an abandoned operation (see
+    *                               {@link OrgOperationRecovery}) that recovery could not finish
+    *                               never blocks a new operation, it is replaced.
     */
    public Entry begin(Type type, String fromId, String toId, String payload,
-                      List<String> targets)
+                      List<String> targets, String providerName)
+   {
+      return begin(type, fromId, toId, payload, targets, providerName,
+                   OrgOperationRecovery::isOwnerGone);
+   }
+
+   Entry begin(Type type, String fromId, String toId, String payload, List<String> targets,
+               String providerName, OrgOperationRecovery.Abandoned abandoned)
    {
       synchronized(this) {
          for(Entry e : store.values()) {
             if(e.involves(fromId) || e.involves(toId)) {
+               if(abandoned.test(e)) {
+                  // nothing runs it and the recovery did not finish it (it runs before the
+                  // operations start), so the retry that follows it must not be refused
+                  LOG.error("Replacing the record of the abandoned organization operation {}, " +
+                            "it could not be recovered. Its leftovers, if any, must be removed " +
+                            "by hand.", e);
+                  store.remove(e.opId);
+                  continue;
+               }
+
                throw new IllegalStateException(
                   "Organization " + e.fromId + " is already being " +
                   (e.type == Type.CLONE ? "cloned to " : "changed to ") + e.toId);
@@ -95,7 +119,7 @@ public final class OrgOperationJournal {
          Entry entry = new Entry(UUID.randomUUID().toString(), type, fromId, toId,
                                  Cluster.getInstance().getLocalNodeId(),
                                  System.currentTimeMillis(), State.RUNNING, payload,
-                                 targets == null ? List.of() : targets);
+                                 targets == null ? List.of() : targets, providerName);
          store.put(entry.opId, entry);
          return entry;
       }
@@ -165,7 +189,8 @@ public final class OrgOperationJournal {
             @JsonProperty("fromId") String fromId, @JsonProperty("toId") String toId,
             @JsonProperty("node") String node, @JsonProperty("started") long started,
             @JsonProperty("state") State state, @JsonProperty("payload") String payload,
-            @JsonProperty("targets") List<String> targets)
+            @JsonProperty("targets") List<String> targets,
+            @JsonProperty("providerName") String providerName)
       {
          this.opId = opId;
          this.type = type;
@@ -176,10 +201,12 @@ public final class OrgOperationJournal {
          this.state = state;
          this.payload = payload;
          this.targets = targets == null ? new ArrayList<>() : new ArrayList<>(targets);
+         this.providerName = providerName;
       }
 
       Entry withState(State state) {
-         return new Entry(opId, type, fromId, toId, node, started, state, payload, targets);
+         return new Entry(opId, type, fromId, toId, node, started, state, payload, targets,
+                          providerName);
       }
 
       public String getOpId() {
@@ -221,6 +248,14 @@ public final class OrgOperationJournal {
       }
 
       /**
+       * Gets the name of the authentication provider that holds the organization, null in a
+       * record that did not store it.
+       */
+      public String getProviderName() {
+         return providerName;
+      }
+
+      /**
        * Gets the data space paths that the operation creates under the new organization id.
        */
       public List<String> getTargets() {
@@ -250,6 +285,7 @@ public final class OrgOperationJournal {
       private final State state;
       private final String payload;
       private final ArrayList<String> targets;
+      private final String providerName;
       @Serial
       private static final long serialVersionUID = 1L;
    }
@@ -331,6 +367,7 @@ public final class OrgOperationJournal {
    }
 
    private final Store store;
+   private static final Logger LOG = LoggerFactory.getLogger(OrgOperationJournal.class);
    private static volatile Holder holder;
    private static final String STORAGE_ID = "orgOperationJournal";
 }

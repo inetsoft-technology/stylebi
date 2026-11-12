@@ -3613,7 +3613,7 @@ public class IdentityService {
             if(RESUMING.get() == null) {
                journalEntry[0] = OrgOperationJournal.getInstance().begin(
                   OrgOperationJournal.Type.RENAME, fromOrgID, model.id(), toJson(model),
-                  getRenameTargets(fromOrg, model.id()));
+                  getRenameTargets(fromOrg, model.id()), eprovider.getProviderName());
             }
          });
          completed = true;
@@ -3679,7 +3679,7 @@ public class IdentityService {
       String fromId = entry.getFromId();
       String toId = entry.getToId();
       EditableAuthenticationProvider eprovider =
-         SUtil.getEditableAuthenticationProvider(securityProvider);
+         OrgOperationRecovery.findEditableProvider(securityProvider, entry.getProviderName());
 
       if(eprovider == null) {
          throw new IllegalStateException("There is no editable authentication provider");
@@ -3759,7 +3759,7 @@ public class IdentityService {
    private void undoOrganizationClone(OrgOperationJournal.Entry entry) throws Exception {
       String toId = entry.getToId();
       EditableAuthenticationProvider eprovider =
-         SUtil.getEditableAuthenticationProvider(securityProvider);
+         OrgOperationRecovery.findEditableProvider(securityProvider, entry.getProviderName());
 
       if(eprovider == null) {
          throw new IllegalStateException("There is no editable authentication provider");
