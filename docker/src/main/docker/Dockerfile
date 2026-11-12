@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-FROM eclipse-temurin:21.0.12_8-jdk-noble
+FROM eclipse-temurin:21.0.13_9-jdk-noble
 
 ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=75.0'
 # DisableExplicitGC keeps System.gc() in plugins/third-party code (and RMI DGC, about once per
