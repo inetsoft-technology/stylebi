@@ -596,7 +596,7 @@ public class WorksheetAgentController {
                   "schema/catalog.");
             }
 
-            addLogicalModelTable(sessionToken, req, user, resolvedNameHolder);
+            addLogicalModelTable(sessionToken, req, user, resolvedNameHolder, refreshNoteHolder);
          }
          else {
             addBoundTable(sessionToken, req, user, resolvedNameHolder);
@@ -1145,22 +1145,39 @@ public class WorksheetAgentController {
    }
 
    /**
-    * Create a {@link BoundTableAssembly} from a logical model entity.
+    * Create a {@link BoundTableAssembly} bound to a logical model.
     *
-    * <p>{@code req.datasource()} is the datasource name, {@code req.logicalModel()} is the
-    * logical model name, and {@code req.table()} is the entity name within that model.
-    * A {@link SourceInfo} of type {@link SourceInfo#MODEL} is created and the column
-    * selection is populated from the entity's attributes.</p>
+    * <p>{@code req.datasource()} is the datasource name and {@code req.logicalModel()} the
+    * logical model name. Two forms share this builder:</p>
+    * <ul>
+    *   <li>single entity -- {@code req.table()} is an entity name and every attribute of that
+    *       entity is taken;</li>
+    *   <li>{@code req.attributes()} -- the listed {@code entity.attribute} refs, of any entities
+    *       of the model, in order (Composer's drop of a multi-entity selection);
+    *       {@code req.table()} is then optional and names the new worksheet table.</li>
+    * </ul>
+    * A {@link SourceInfo} of type {@link SourceInfo#MODEL} is created. Like the Composer drop,
+    * the columns keep the model attribute's ref type, default formula and description, and a
+    * table that is a data-model trap is reported through {@code noteHolder} (warn-only, the
+    * table is still added).
     */
    private void addLogicalModelTable(String sessionToken, EditRequest req, Principal user,
-                                     String[] resolvedNameHolder)
+                                     String[] resolvedNameHolder, String[] noteHolder)
       throws Exception
    {
       String datasourceName = req.datasource();
       String logicalModelName = req.logicalModel();
       String entityName = req.table();
+      List<WorksheetMutationSupport.ModelAttributeSpec> specs = req.attributes();
+      boolean byAttributes = specs != null;
 
-      if(entityName == null || entityName.isBlank()) {
+      if(byAttributes) {
+         if(specs.isEmpty()) {
+            throw new PairingException(
+               "attributes must list at least one entity.attribute of the logical model.");
+         }
+      }
+      else if(entityName == null || entityName.isBlank()) {
          throw new PairingException("table (entity name) is required for add_table with a logical model.");
       }
 
@@ -1197,31 +1214,66 @@ public class WorksheetAgentController {
             + logicalModelName + " (datasource=" + datasourceName + ")");
       }
 
-      XEntity entity = lm.getEntity(entityName);
+      List<ModelAttr> attributes = new ArrayList<>();
+      String defaultTableName;
 
-      if(entity == null) {
-         throw new PairingException("Entity not found: " + entityName
-            + " (logicalModel=" + logicalModelName + ", datasource=" + datasourceName + ")");
+      if(byAttributes) {
+         defaultTableName = resolveModelAttributes(
+            lm, specs, datasourceName, logicalModelName, user, attributes);
+
+         if(entityName != null && !entityName.isBlank()) {
+            defaultTableName = entityName;
+         }
+      }
+      else {
+         XEntity entity = lm.getEntity(entityName);
+
+         if(entity == null) {
+            throw new PairingException("Entity not found: " + entityName
+               + " (logicalModel=" + logicalModelName + ", datasource=" + datasourceName + ")");
+         }
+
+         Enumeration<XAttribute> attrEnum = entity.getAttributes();
+
+         while(attrEnum.hasMoreElements()) {
+            XAttribute attr = attrEnum.nextElement();
+            attributes.add(new ModelAttr(entityName, attr));
+         }
+
+         defaultTableName = entityName;
+      }
+
+      int max = Util.getOrganizationMaxColumn();
+
+      if(attributes.size() > max) {
+         throw new PairingException(Util.getColumnLimitMessage());
       }
 
       ColumnSelection columns = new ColumnSelection();
-      Enumeration<XAttribute> attrEnum = entity.getAttributes();
 
-      while(attrEnum.hasMoreElements()) {
-         XAttribute attr = attrEnum.nextElement();
-         AttributeRef attributeRef = new AttributeRef(entityName, attr.getName());
+      for(ModelAttr ma : attributes) {
+         XAttribute attr = ma.attribute();
+         AttributeRef attributeRef = new AttributeRef(ma.entity(), attr.getName());
+         attributeRef.setRefType(attr.getRefType());
+         attributeRef.setDefaultFormula(attr.getDefaultFormula());
          ColumnRef ref = new ColumnRef(attributeRef);
 
          if(attr.getDataType() != null) {
             ref.setDataType(attr.getDataType());
          }
 
+         ref.setDescription(attr.getDescription());
+         // Two entities can share an attribute name (Customer.Company / Supplier.Company); the
+         // later column gets the usual unique alias so name-addressed tools can tell them apart.
+         ref.setAlias(AssetUtil.findAlias(columns, ref));
          columns.addAttribute(ref);
       }
 
+      String tableName = defaultTableName;
+
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         String assemblyName = AssetUtil.normalizeTable(entityName);
+         String assemblyName = AssetUtil.normalizeTable(tableName);
          assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
          if(resolvedNameHolder != null) {
@@ -1239,10 +1291,141 @@ public class WorksheetAgentController {
             WorksheetEditService.applyAssemblyMaxRows(assembly, req.maxRows());
          }
 
+         // Checked on the new table before it is added, as Composer's drop does.
+         if(noteHolder != null) {
+            WorksheetTrapCheck.newTableTrap(assembly, user)
+               .ifPresent(note -> noteHolder[0] = note);
+         }
+
          positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
       });
+   }
+
+   /** A logical-model attribute together with the entity it was taken from. */
+   private record ModelAttr(String entity, XAttribute attribute) {
+   }
+
+   /**
+    * Resolves {@code add_table}'s {@code attributes} against the logical model, appending the
+    * model's own {@link XAttribute}s (each with its entity set) to {@code out} in request order.
+    * Every refusal names the offending list entry.
+    *
+    * @return the name of the last attribute's entity, the name Composer gives the table it
+    *         creates from a drop.
+    */
+   private static String resolveModelAttributes(
+      XLogicalModel lm, List<WorksheetMutationSupport.ModelAttributeSpec> specs,
+      String datasourceName, String logicalModelName, Principal user, List<ModelAttr> out)
+      throws Exception
+   {
+      Map<String, Set<String>> visible = new HashMap<>();
+      List<List<String>> seen = new ArrayList<>();
+      String lastEntity = null;
+
+      for(int i = 0; i < specs.size(); i++) {
+         String at = "attributes[" + i + "]";
+         WorksheetMutationSupport.ModelAttributeSpec spec = specs.get(i);
+
+         if(spec == null) {
+            throw new PairingException(at + " is empty; expected {entity, attribute} or " +
+               "\"Entity.Attribute\".");
+         }
+
+         boolean hasParts = spec.entity() != null && !spec.entity().isBlank() &&
+            spec.attribute() != null && !spec.attribute().isBlank();
+         boolean hasRef = spec.ref() != null && !spec.ref().isBlank();
+
+         if(!hasParts && !hasRef) {
+            throw new PairingException(at + " needs both entity and attribute (or an " +
+               "\"Entity.Attribute\" ref).");
+         }
+
+         XEntity entity = null;
+         XAttribute attr = null;
+
+         if(hasParts) {
+            entity = lm.getEntity(spec.entity());
+            attr = entity == null ? null : entity.getAttribute(spec.attribute());
+
+            if(entity == null) {
+               throw new PairingException(at + ": entity not found: " + spec.entity()
+                  + " (logicalModel=" + logicalModelName + ", datasource=" + datasourceName
+                  + "). Entities are listed by list_logical_models.");
+            }
+
+            if(attr == null) {
+               throw new PairingException(at + ": attribute not found: " + spec.entity() + "."
+                  + spec.attribute() + " (logicalModel=" + logicalModelName + ").");
+            }
+         }
+         else {
+            // Split at every dot and keep only a split naming a real entity and attribute, so a
+            // dotted entity or attribute name is not guessed at.
+            String ref = spec.ref();
+
+            for(int d = ref.indexOf('.'); d >= 0; d = ref.indexOf('.', d + 1)) {
+               XEntity e = lm.getEntity(ref.substring(0, d));
+               XAttribute a = e == null ? null : e.getAttribute(ref.substring(d + 1));
+
+               if(a != null) {
+                  if(attr != null) {
+                     throw new PairingException(at + ": \"" + ref + "\" is ambiguous; use " +
+                        "{entity, attribute}.");
+                  }
+
+                  entity = e;
+                  attr = a;
+               }
+            }
+
+            if(attr == null) {
+               throw new PairingException(at + ": \"" + ref + "\" is not an entity.attribute of " +
+                  "logical model " + logicalModelName + " (datasource=" + datasourceName + ").");
+            }
+         }
+
+         List<String> key = List.of(entity.getName(), attr.getName());
+
+         if(seen.contains(key)) {
+            throw new PairingException(at + " repeats " + entity.getName() + "." + attr.getName()
+               + " (already attributes[" + seen.indexOf(key) + "]).");
+         }
+
+         // Attributes the user's VPM hides are not offered (Composer skips them in the drop). An
+         // entity with nothing visible, or a visibility that cannot be computed, offers nothing.
+         Set<String> names = visible.get(entity.getName());
+
+         if(names == null) {
+            names = new HashSet<>();
+
+            try {
+               for(XAttribute xa : inetsoft.uql.util.XUtil.getAttributes(
+                  datasourceName, logicalModelName, entity.getName(), user, true, true))
+               {
+                  names.add(xa.getName());
+               }
+            }
+            catch(Exception ex) {
+               throw new PairingException(at + ": could not check which attributes of "
+                  + entity.getName() + " are accessible: " + ex.getMessage());
+            }
+
+            visible.put(entity.getName(), names);
+         }
+
+         if(!names.contains(attr.getName())) {
+            throw new PairingException(at + ": " + entity.getName() + "." + attr.getName()
+               + " is not accessible to this user.");
+         }
+
+         seen.add(key);
+         out.add(new ModelAttr(entity.getName(), attr));
+         lastEntity = entity.getName();
+      }
+
+      return lastEntity;
    }
 
    /**

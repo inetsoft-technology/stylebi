@@ -15852,4 +15852,324 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getMessage().contains("Write access denied: Orders WS"), ex.getMessage());
       verify(ws, never()).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
    }
+
+   // ---------------------------------------------------------------------------
+   // add_table with a logicalModel and attributes -- a table over several entities (Bug #81176)
+   // ---------------------------------------------------------------------------
+
+   private static XLogicalModel multiEntityModel() {
+      XEntity customer = new XEntity("Customer");
+      customer.addAttribute(new XAttribute("Company", "SA.CUSTOMERS", "COMPANY", XSchema.STRING));
+      customer.addAttribute(new XAttribute("Name", "SA.CUSTOMERS", "NAME", XSchema.STRING));
+      XEntity order = new XEntity("Order");
+      XAttribute paid = new XAttribute("Paid", "SA.ORDERS", "PAID", XSchema.DOUBLE);
+      paid.setRefType(inetsoft.uql.erm.DataRef.MEASURE);
+      paid.setDescription("paid amount");
+      order.addAttribute(paid);
+      XEntity supplier = new XEntity("Supplier");
+      supplier.addAttribute(new XAttribute("Company", "SA.SUPPLIERS", "COMPANY", XSchema.STRING));
+      XEntity dotted = new XEntity("Dotted.Entity");
+      dotted.addAttribute(new XAttribute("Value", "SA.D", "V", XSchema.STRING));
+      XLogicalModel model = new XLogicalModel("Order Model");
+      model.addEntity(customer);
+      model.addEntity(order);
+      model.addEntity(supplier);
+      model.addEntity(dotted);
+      return model;
+   }
+
+   private static EditRequest attributesRequest(String table, Object attributes)
+      throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      if(table != null) body.put("table", table);
+      body.put("datasource", "Examples/Orders");
+      body.put("logicalModel", "Order Model");
+      body.put("attributes", attributes);
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /** Runs the request; the worksheet is returned and the response note stored in {@code note}. */
+   private Worksheet runAttributesTable(String token, EditRequest req, String[] note)
+      throws Exception
+   {
+      return runAttributesTable(token, req, note, entity -> attributesOf(entity));
+   }
+
+   private Worksheet runAttributesTable(String token, EditRequest req, String[] note,
+                                        java.util.function.Function<String, XAttribute[]> visible)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModel("Order Model")).thenReturn(multiEntityModel());
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("Examples/Orders"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(dataSourceService.getDataModel("Examples/Orders")).thenReturn(dataModel);
+      when(dataSourceService.getModelAssetEntry(any())).thenAnswer(inv -> inv.getArgument(0));
+      when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq(token), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditResponse resp;
+
+      // The visible attributes are the user's VPM view of the model.
+      try(org.mockito.MockedStatic<inetsoft.uql.util.XUtil> xutil =
+             mockStatic(inetsoft.uql.util.XUtil.class, org.mockito.Mockito.CALLS_REAL_METHODS))
+      {
+         xutil.when(() -> inetsoft.uql.util.XUtil.getAttributes(
+               eq("Examples/Orders"), eq("Order Model"), any(), eq(agent), eq(true), eq(true)))
+            .thenAnswer(inv -> visible.apply(inv.getArgument(2)));
+         resp = ctrl.edit(token, req, agent).getBody();
+      }
+
+      if(note != null && resp != null) {
+         note[0] = resp.note();
+      }
+
+      return ws;
+   }
+
+   private static XAttribute[] attributesOf(String entity) {
+      List<XAttribute> list = new ArrayList<>();
+      XEntity xe = multiEntityModel().getEntity(entity);
+
+      if(xe != null) {
+         xe.getAttributes().asIterator().forEachRemaining(list::add);
+      }
+
+      return list.toArray(new XAttribute[0]);
+   }
+
+   private static List<String> modelColumnNames(Worksheet ws, String table) {
+      ColumnSelection cs = ((TableAssembly) ws.getAssembly(table)).getColumnSelection(false);
+      List<String> names = new ArrayList<>();
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         ColumnRef c = (ColumnRef) cs.getAttribute(i);
+         names.add(c.getEntity() + "." + c.getAttribute()
+                   + (c.getAlias() == null ? "" : "=" + c.getAlias()));
+      }
+
+      return names;
+   }
+
+   @Test
+   void addTableWithAttributesBuildsOneModelTableOverSeveralEntities81176() throws Exception {
+      EditRequest req = attributesRequest("Mixed", List.of(
+         Map.of("entity", "Customer", "attribute", "Company"),
+         Map.of("entity", "Order", "attribute", "Paid")));
+
+      Worksheet ws = runAttributesTable("TOK-81176-A", req, null);
+
+      BoundTableAssembly table = (BoundTableAssembly) ws.getAssembly("Mixed");
+      assertNotNull(table);
+      assertEquals(SourceInfo.MODEL, table.getSourceInfo().getType());
+      assertEquals("Examples/Orders", table.getSourceInfo().getPrefix());
+      assertEquals("Order Model", table.getSourceInfo().getSource());
+      assertEquals(List.of("Customer.Company", "Order.Paid"), modelColumnNames(ws, "Mixed"));
+
+      ColumnRef paid = (ColumnRef) table.getColumnSelection(false).getAttribute(1);
+      assertEquals(inetsoft.uql.erm.DataRef.MEASURE, paid.getRefType());
+      assertEquals("paid amount", paid.getDescription());
+   }
+
+   @Test
+   void addTableWithAttributesDefaultsTheNameToTheLastEntity81176() throws Exception {
+      EditRequest req = attributesRequest(null, List.of(
+         Map.of("entity", "Order", "attribute", "Paid"),
+         Map.of("entity", "Customer", "attribute", "Name")));
+
+      Worksheet ws = runAttributesTable("TOK-81176-B", req, null);
+
+      assertNotNull(ws.getAssembly("Customer"));
+   }
+
+   @Test
+   void sameAttributeNameInTwoEntitiesGetsADistinctAlias81176() throws Exception {
+      EditRequest req = attributesRequest("Both", List.of(
+         Map.of("entity", "Customer", "attribute", "Company"),
+         Map.of("entity", "Supplier", "attribute", "Company")));
+
+      Worksheet ws = runAttributesTable("TOK-81176-C", req, null);
+
+      assertEquals(List.of("Customer.Company", "Supplier.Company=Company_1"),
+                   modelColumnNames(ws, "Both"));
+   }
+
+   @Test
+   void entityAttributeStringIsAcceptedAsRef81176() throws Exception {
+      EditRequest req = attributesRequest("Refs", List.of(
+         Map.of("ref", "Customer.Name"), Map.of("ref", "Dotted.Entity.Value")));
+
+      Worksheet ws = runAttributesTable("TOK-81176-D", req, null);
+
+      assertEquals(List.of("Customer.Name", "Dotted.Entity.Value"), modelColumnNames(ws, "Refs"));
+   }
+
+   @Test
+   void unknownEntityIsRefusedNamingTheListEntry81176() throws Exception {
+      EditRequest req = attributesRequest("T", List.of(
+         Map.of("entity", "Customer", "attribute", "Name"),
+         Map.of("entity", "Nope", "attribute", "Name")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> runAttributesTable("TOK-81176-E", req, null));
+      assertTrue(ex.getMessage().contains("attributes[1]: entity not found: Nope"), ex.getMessage());
+   }
+
+   @Test
+   void unknownAttributeIsRefusedNamingTheListEntry81176() throws Exception {
+      EditRequest req = attributesRequest("T", List.of(
+         Map.of("entity", "Customer", "attribute", "Missing")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> runAttributesTable("TOK-81176-F", req, null));
+      assertTrue(ex.getMessage().contains("attributes[0]: attribute not found: Customer.Missing"),
+                 ex.getMessage());
+   }
+
+   @Test
+   void malformedAndEmptyAttributesAreRefused81176() throws Exception {
+      PairingException empty = assertThrows(PairingException.class,
+         () -> runAttributesTable("TOK-81176-G", attributesRequest("T", List.of()), null));
+      assertTrue(empty.getMessage().contains("attributes must list at least one"),
+                 empty.getMessage());
+
+      PairingException partial = assertThrows(PairingException.class,
+         () -> runAttributesTable("TOK-81176-H",
+            attributesRequest("T", List.of(Map.of("entity", "Customer"))), null));
+      assertTrue(partial.getMessage().contains("attributes[0] needs both entity and attribute"),
+                 partial.getMessage());
+
+      PairingException badRef = assertThrows(PairingException.class,
+         () -> runAttributesTable("TOK-81176-I",
+            attributesRequest("T", List.of(Map.of("ref", "Customer"))), null));
+      assertTrue(badRef.getMessage().contains("is not an entity.attribute"), badRef.getMessage());
+   }
+
+   @Test
+   void anAttributeTheUserCannotSeeIsRefusedAndAnEntityWithNoneVisibleOffersNothing81176()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditRequest req = attributesRequest("T", List.of(
+         Map.of("entity", "Supplier", "attribute", "Company")));
+
+      // VPM hides every attribute of Supplier: nothing is visible for it.
+      PairingException none = assertThrows(PairingException.class,
+         () -> runWithVisibility("TOK-81176-N", req, agent, entity -> new XAttribute[0]));
+      assertTrue(none.getMessage().contains("attributes[0]: Supplier.Company is not accessible"),
+                 none.getMessage());
+
+      // Only Name of Customer is visible: Company is refused, Name is built.
+      EditRequest company = attributesRequest("T", List.of(
+         Map.of("entity", "Customer", "attribute", "Company")));
+      PairingException hidden = assertThrows(PairingException.class,
+         () -> runWithVisibility("TOK-81176-O", company, agent,
+            entity -> new XAttribute[] {new XAttribute("Name", "SA.CUSTOMERS", "NAME", XSchema.STRING)}));
+      assertTrue(hidden.getMessage().contains("Customer.Company is not accessible"),
+                 hidden.getMessage());
+   }
+
+   @Test
+   void aVisibilityLookupThatFailsRefusesTheRequest81176() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditRequest req = attributesRequest("T", List.of(
+         Map.of("entity", "Customer", "attribute", "Name")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> runWithVisibility("TOK-81176-P", req, agent, entity -> {
+            throw new IllegalStateException("vpm unavailable");
+         }));
+      assertTrue(ex.getMessage().contains("could not check which attributes of Customer"),
+                 ex.getMessage());
+   }
+
+   /** Runs the request with the user's visible attributes given by {@code visible}. */
+   private Worksheet runWithVisibility(String token, EditRequest req, Principal agent,
+                                       java.util.function.Function<String, XAttribute[]> visible)
+      throws Exception
+   {
+      return runAttributesTable(token, req, null, visible);
+   }
+
+   @Test
+   void repeatedAttributeIsRefused81176() throws Exception {
+      EditRequest req = attributesRequest("T", List.of(
+         Map.of("entity", "Customer", "attribute", "Name"),
+         Map.of("ref", "Customer.Name")));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> runAttributesTable("TOK-81176-J", req, null));
+      assertTrue(ex.getMessage().contains("attributes[1] repeats Customer.Name"), ex.getMessage());
+   }
+
+   @Test
+   void singleEntityFormStillTakesEveryAttribute81176() throws Exception {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_table");
+      body.put("table", "Customer");
+      body.put("datasource", "Examples/Orders");
+      body.put("logicalModel", "Order Model");
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      EditRequest req = mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+
+      Worksheet ws = runAttributesTable("TOK-81176-K", req, null);
+
+      assertEquals(List.of("Customer.Company", "Customer.Name"), modelColumnNames(ws, "Customer"));
+   }
+
+   @Test
+   void aTrapOnTheNewTableIsReportedAsANoteAndTheTableIsStillAdded81176() throws Exception {
+      EditRequest req = attributesRequest("Trapped", List.of(
+         Map.of("entity", "Customer", "attribute", "Name"),
+         Map.of("entity", "Order", "attribute", "Paid")));
+      String[] note = new String[1];
+
+      try(org.mockito.MockedStatic<WorksheetTrapCheck> trap =
+             mockStatic(WorksheetTrapCheck.class))
+      {
+         trap.when(() -> WorksheetTrapCheck.newTableTrap(any(), any()))
+            .thenReturn(java.util.Optional.of("Data-model trap: Fan Trap is on Order, Customer"));
+         Worksheet ws = runAttributesTable("TOK-81176-L", req, note);
+         assertNotNull(ws.getAssembly("Trapped"));
+      }
+
+      assertEquals("Data-model trap: Fan Trap is on Order, Customer", note[0]);
+   }
+
+   @Test
+   void noTrapMeansNoNote81176() throws Exception {
+      EditRequest req = attributesRequest("Clean", List.of(
+         Map.of("entity", "Customer", "attribute", "Name")));
+      String[] note = new String[1];
+
+      try(org.mockito.MockedStatic<WorksheetTrapCheck> trap =
+             mockStatic(WorksheetTrapCheck.class))
+      {
+         trap.when(() -> WorksheetTrapCheck.newTableTrap(any(), any()))
+            .thenReturn(java.util.Optional.empty());
+         runAttributesTable("TOK-81176-M", req, note);
+      }
+
+      assertNull(note[0]);
+   }
 }

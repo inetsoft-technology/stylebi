@@ -5039,6 +5039,18 @@ public final class WorksheetMutationSupport {
     */
    public record CustomLookupSpec(String url, String jsonPath, String key, Boolean ignoreBaseUrl) {}
 
+   /**
+    * One logical-model attribute of {@code add_table}'s {@code attributes} list.
+    *
+    * @param entity    the entity the attribute belongs to.
+    * @param attribute the attribute name within {@code entity}.
+    * @param ref       the {@code "Entity.Attribute"} spelling, used when {@code entity} and
+    *                  {@code attribute} are both absent. It is split at each dot and accepted
+    *                  only where the split names a real entity and attribute of the model, so
+    *                  a dotted entity or attribute name is not guessed at.
+    */
+   public record ModelAttributeSpec(String entity, String attribute, String ref) {}
+
    // =========================================================================
    // Internal helpers
    // =========================================================================

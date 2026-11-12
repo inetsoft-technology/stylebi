@@ -61,6 +61,45 @@ public final class WorksheetTrapCheck {
       return newTrap(before, after, aggregateCheck, user, null);
    }
 
+   /**
+    * The trap check Composer runs when a table is dropped onto the worksheet
+    * ({@code WorksheetOpenAssetService#checkTrap}): a table that is not yet in the worksheet is
+    * checked as a whole, there being no previous table to compare against.
+    *
+    * @param table the new table, before it is added to the worksheet
+    * @param user  the agent principal
+    *
+    * @return the agent-facing warning when {@code table} is a trap, otherwise empty. Never
+    *         throws.
+    */
+   public static Optional<String> newTableTrap(TableAssembly table, Principal user) {
+      return newTableTrap(table, user, null);
+   }
+
+   static Optional<String> newTableTrap(TableAssembly table, Principal user,
+                                        DataSourceRegistry registry)
+   {
+      try {
+         if(table == null) {
+            return Optional.empty();
+         }
+
+         DataSourceRegistry reg = registry != null ? registry : DataSourceRegistry.getRegistry();
+         WSModelTrapContext ctx = new WSModelTrapContext(table, user, reg);
+
+         if(!ctx.isCheckTrap() || !ctx.checkTrap(null, table).showWarning()) {
+            return Optional.empty();
+         }
+
+         return Optional.of(AgentTrapWarning.forCondition(ctx.getTrapCondition()));
+      }
+      catch(Exception e) {
+         // A warning-only check must never turn a write into a failure.
+         LOG.warn("Worksheet data-model trap check failed; the write is not blocked", e);
+         return Optional.empty();
+      }
+   }
+
    static Optional<String> newTrap(TableAssembly before, TableAssembly after,
                                    boolean aggregateCheck, Principal user,
                                    DataSourceRegistry registry)

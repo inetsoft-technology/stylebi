@@ -28,6 +28,9 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.XAttribute;
+import inetsoft.uql.erm.XEntity;
+import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
@@ -2362,5 +2365,110 @@ class WorksheetEditServiceTest {
                    () -> svc.apply("TOK", agent,
                       ed -> ed.addJoin("J", "J", "NO_SUCH_COL", "CUSTOMERS", "CUSTOMER_ID",
                                        "INNER", null, null)));
+   }
+
+   // ------------------------------------------------------------ add_column on a model table (#81176)
+
+   private static BoundTableAssembly modelTable(Worksheet ws, String... entityAttrs) {
+      BoundTableAssembly t = new BoundTableAssembly(ws, "T");
+      t.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "ds", "lm"));
+      ColumnSelection cs = new ColumnSelection();
+
+      for(String ea : entityAttrs) {
+         String[] s = ea.split("\\.");
+         cs.addAttribute(new ColumnRef(new AttributeRef(s[0], s[1])));
+      }
+
+      t.setColumnSelection(cs);
+      return t;
+   }
+
+   private WorksheetEditService serviceFor(Worksheet ws) throws Exception {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      return new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+   }
+
+   @Test
+   void addColumnRefusesAnotherEntitysAttributeOnAModelTable81176() throws Exception {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly t = modelTable(ws, "Order.Date", "Order.Num");
+      ws.addAssembly(t);
+      WorksheetEditService svc = serviceFor(ws);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", TestPrincipals.user("alice", "host-org"),
+                   ed -> ed.addColumn("T", "Customer.Company", null)));
+
+      assertTrue(ex.getMessage().contains("add_table with logicalModel and attributes"),
+                 ex.getMessage());
+      assertEquals(2, t.getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void addColumnRefusesABareNameOnAModelTable81176() throws Exception {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly t = modelTable(ws, "Order.Date");
+      ws.addAssembly(t);
+      WorksheetEditService svc = serviceFor(ws);
+
+      assertThrows(PairingException.class, () ->
+         svc.apply("TOK", TestPrincipals.user("alice", "host-org"),
+                   ed -> ed.addColumn("T", "Paid", null)));
+      assertEquals(1, t.getColumnSelection(false).getAttributeCount());
+   }
+
+   /** A logical model "lm" with entity Order holding Date and Paid. */
+   private static XLogicalModel orderModel() {
+      XEntity order = new XEntity("Order");
+      order.addAttribute(new XAttribute("Date", "SA.ORDERS", "DATE", XSchema.DATE));
+      order.addAttribute(new XAttribute("Paid", "SA.ORDERS", "PAID", XSchema.DOUBLE));
+      XLogicalModel model = new XLogicalModel("lm");
+      model.addEntity(order);
+      return model;
+   }
+
+   private void addColumnOnModelTable(String name, XLogicalModel model) throws Exception {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly t = modelTable(ws, "Order.Date");
+      ws.addAssembly(t);
+      WorksheetEditService svc = serviceFor(ws);
+
+      try(org.mockito.MockedStatic<inetsoft.uql.util.XUtil> xutil =
+             mockStatic(inetsoft.uql.util.XUtil.class, org.mockito.Mockito.CALLS_REAL_METHODS))
+      {
+         xutil.when(() -> inetsoft.uql.util.XUtil.getLogicModel(any(), any())).thenReturn(model);
+         svc.apply("TOK", TestPrincipals.user("alice", "host-org"),
+                   ed -> ed.addColumn("T", name, null));
+      }
+
+      assertEquals(2, t.getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void addColumnStillRestoresAQualifiedModelAttributeOfAnEntityInTheTable81176() throws Exception {
+      addColumnOnModelTable("Order.Paid", orderModel());
+   }
+
+   @Test
+   void addColumnRefusesAnUnknownAttributeOfAnEntityInTheTable81176() throws Exception {
+      PairingException ex = assertThrows(PairingException.class,
+         () -> addColumnOnModelTable("Order.Bogus", orderModel()));
+      assertTrue(ex.getMessage().contains("add_table with logicalModel and attributes"),
+                 ex.getMessage());
+   }
+
+   @Test
+   void addColumnRefusesAQualifiedNameWhenTheModelCannotBeRead81176() throws Exception {
+      assertThrows(PairingException.class, () -> addColumnOnModelTable("Order.Paid", null));
    }
 }
