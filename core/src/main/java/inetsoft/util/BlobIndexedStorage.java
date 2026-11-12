@@ -353,6 +353,17 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          .sum();
    }
 
+   /**
+    * Gets the last modified timestamp of the storage.
+    *
+    * <p>The value is the newest timestamp of the current and the host organization, kept as a
+    * node-wide non-decreasing high-water mark. Callers (asset engine, repository engine) compare
+    * it with the previous value to detect changes and clear node-local caches. The value used to
+    * be the maximum over all organizations, i.e. one stable value for the whole node. The
+    * high-water mark keeps that property when requests of different organizations are
+    * interleaved: the value changes only when some organization seen by this node has a newer
+    * change, instead of flipping between per-organization values (Bug #79879).</p>
+    */
    @Override
    public long lastModified() {
       long ts = 0;
@@ -365,7 +376,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          }
       }
 
-      return ts;
+      return lastModifiedHighWater.accumulateAndGet(ts, Math::max);
    }
 
    @Override
@@ -802,6 +813,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    private static final int MAX_MIGRATE_ROUNDS = 10;
    private final BlobStorageManager blobStorageManager;
+   private final java.util.concurrent.atomic.AtomicLong lastModifiedHighWater =
+      new java.util.concurrent.atomic.AtomicLong();
    // written from login threads and from the cluster message listener thread (org delete)
    private final Set<String> cachedOrgIDs = ConcurrentHashMap.newKeySet();
 

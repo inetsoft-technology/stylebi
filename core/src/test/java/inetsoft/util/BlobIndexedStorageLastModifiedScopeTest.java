@@ -139,6 +139,47 @@ class BlobIndexedStorageLastModifiedScopeTest {
       assertEquals(700L, storage.lastModified());
    }
 
+   /**
+    * The asset/repository engines compare lastModified() with the previous value and clear their
+    * node-wide caches on any difference. Interleaved requests of different orgs must not flip it.
+    */
+   @Test
+   void interleavedOrgsSeeAStableValue() {
+      stamps.put("org1__indexedStorage", 300L);
+      stamps.put("org2__indexedStorage", 800L);
+      BlobIndexedStorage storage = new BlobIndexedStorage(manager);
+      Set<Long> seen = new HashSet<>();
+      long previous = -1;
+      int changes = 0;
+
+      for(int i = 0; i < 10; i++) {
+         actAsOrg(i % 2 == 0 ? "org1" : "org2");
+         long ts = storage.lastModified();
+         seen.add(ts);
+
+         if(previous != -1 && ts != previous) {
+            changes++;
+         }
+
+         previous = ts;
+      }
+
+      // the first org1 call yields 300, the first org2 call 800; never flips back afterwards
+      assertEquals(1, changes, "values seen: " + seen);
+   }
+
+   @Test
+   void realChangeStillAdvancesTheValue() {
+      stamps.put("org1__indexedStorage", 300L);
+      BlobIndexedStorage storage = new BlobIndexedStorage(manager);
+      actAsOrg("org1");
+      assertEquals(300L, storage.lastModified());
+
+      stamps.put("org1__indexedStorage", 400L);
+      assertEquals(400L, storage.lastModified());
+      assertEquals(400L, storage.lastModified());
+   }
+
    @Test
    void unknownOrgIsNotOpened() {
       actAsOrg("deleted-org");
