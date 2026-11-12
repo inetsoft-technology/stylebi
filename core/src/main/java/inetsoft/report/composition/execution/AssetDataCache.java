@@ -1049,7 +1049,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
                // a result that came with an error message is not cached: a cache hit does not
                // replay the message, and the user would see the bad result without the
                // reason (bug #81091)
-               if(userMessage == null || userMessage.getLevel() != ConfirmException.ERROR) {
+               if(!processor.isProducedError()) {
                   put(key, data, key.getTimeout());
                   putDependence(key, table);
                }
@@ -1241,6 +1241,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             processorThread.set(true);
             ThreadContext.inheritSession(parentThread);
             PostProcessor.setCreatingMV(box.isCreatingMV());
+            errorCountAtStart = Tool.getErrorMessageCount();
             run0();
          }
          catch(Exception ex) {
@@ -1258,6 +1259,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
                exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
                errors = (List<Object>) AssetRepository.ASSET_ERRORS.get();
                userMessage = Tool.getUserMessage();
+               // counted, not read from the message, which can be a leftover on this thread
+               producedError = Tool.getErrorMessageCount() != errorCountAtStart;
             }
             catch(RuntimeException ex) {
                LOG.warn("Failed to collect the asset query user messages", ex);
@@ -1396,6 +1399,13 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          return userMessage;
       }
 
+      /**
+       * Check if the query produced an error level user message.
+       */
+      public boolean isProducedError() {
+         return producedError;
+      }
+
       private final Object lock = new Object();
       private Exception throwable;
       private boolean completed;
@@ -1412,6 +1422,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       private List<Exception> exceptions;
       private List<Object> errors;
       private UserMessage userMessage;
+      private long errorCountAtStart;
+      private volatile boolean producedError;
       private String vsobj;
       private Thread parentThread;
       private final MessageAttributes messageContext;

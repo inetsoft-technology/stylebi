@@ -79,6 +79,7 @@ class InvalidJoinMessageCacheTest {
 
    @BeforeEach
    void clear() {
+      AssetDataCache.getCache().clearCache();
       CoreTool.clearUserMessage();
    }
 
@@ -124,6 +125,77 @@ class InvalidJoinMessageCacheTest {
          assertTrue(message.getMessage().contains("g2"), message.getMessage());
          CoreTool.clearUserMessage();
       }
+   }
+
+   /**
+    * A pending error on the thread, left by the tables built before, must not make the table
+    * look as if its own run produced none: the mirror is read alone afterwards.
+    */
+   @Test
+   void mirrorOverInvalidJoinKeepsItsMessageAfterLeftoverError() throws Exception {
+      Worksheet ws = joinWorksheet(true);
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M1", (WSAssembly) ws.getAssembly("J1"));
+      ws.addAssembly(mirror);
+      mirror.update();
+      AssetQuerySandbox init = new AssetQuerySandbox(ws);
+      AssetEventUtil.initColumnSelection(init, mirror);
+      init.dispose();
+      CoreTool.clearUserMessage();
+
+      // the composer builds several tables in one request without clearing the messages
+      AssetQuerySandbox first = new AssetQuerySandbox(ws);
+      first.setQueryManager(new QueryManager());
+      first.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE, new VariableTable());
+      assertNotNull(first.getTableLens("M1", AssetQuerySandbox.RUNTIME_MODE,
+                                       new VariableTable()));
+      CoreTool.clearUserMessage();
+
+      for(int i = 0; i < 3; i++) {
+         AssetQuerySandbox box = new AssetQuerySandbox(ws);
+         box.setQueryManager(new QueryManager());
+         TableLens lens = box.getTableLens("M1", AssetQuerySandbox.RUNTIME_MODE,
+                                           new VariableTable());
+         assertNotNull(lens, "the query failed, see the log");
+         lens.moreRows(XTable.EOT);
+         assertNotNull(CoreTool.getUserMessage(), "read " + i + " of the mirror has no message");
+         assertEquals(0, cachedEntries("M1"), "the mirror of an invalid join was cached");
+         assertEquals(0, cachedEntries("J1"), "the invalid join was cached");
+      }
+   }
+
+   /** Messages that are not errors, and errors pending before the query, do not stop caching. */
+   @Test
+   void leftoverMessagesDoNotStopCachingAValidJoin() throws Exception {
+      Worksheet ws = joinWorksheet(false);
+      CoreTool.addUserWarning("left over warning");
+      CoreTool.addUserMessage("left over info");
+      CoreTool.addUserMessage(new UserMessage("left over error", ConfirmException.ERROR));
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      box.setQueryManager(new QueryManager());
+      TableLens lens = box.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE,
+                                        new VariableTable());
+      assertNotNull(lens, "the query failed, see the log");
+      lens.moreRows(XTable.EOT);
+
+      assertTrue(cachedEntries("J1") > 0, "the valid join was not cached");
+   }
+
+   @Test
+   void errorCountSeesDuplicatesButNotWarnings() {
+      long start = CoreTool.getErrorMessageCount();
+      CoreTool.addUserWarning("w");
+      CoreTool.addUserMessage("i");
+      assertEquals(start, CoreTool.getErrorMessageCount());
+      CoreTool.addUserMessage(new UserMessage("e", ConfirmException.ERROR));
+      CoreTool.addUserMessage(new UserMessage("e", ConfirmException.ERROR));
+      assertEquals(start + 2, CoreTool.getErrorMessageCount());
+   }
+
+   private static long cachedEntries(String table) {
+      return AssetDataCache.getCache().keySet().stream()
+         .filter(k -> k.getAssemblyEntry() != null &&
+                      k.getAssemblyEntry().toString().contains(table))
+         .count();
    }
 
    @Test
