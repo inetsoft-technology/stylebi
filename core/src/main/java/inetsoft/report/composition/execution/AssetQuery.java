@@ -2222,9 +2222,29 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * Apply the NULL placement of the data source to the sort of a group column. By default NULL
-    * sorts lowest, as Tool.compare does. A query whose result must match the order the
-    * database returns can override this.
+    * Check if this query sorts and truncates the rows of a materialized view in memory, i.e. it
+    * is the MV query itself or a mirror over one. Only then the NULL order of the source
+    * database has to be reproduced by the group sort (Bug #80446).
+    */
+   protected boolean isNullOrderMVBacked() {
+      return false;
+   }
+
+   /**
+    * Get the table whose source tables give the dialect for the NULL order.
+    */
+   protected TableAssembly getNullOrderSourceTable() {
+      return getTable();
+   }
+
+   /**
+    * Order the NULL group of a grouped table like the data source does when the result is
+    * truncated by max rows (Bug #80446). Without a materialized view the database applies the
+    * row limit to its own group order, and DB2, Oracle and PostgreSQL return NULL after every
+    * other value, while the in-memory sort puts NULL first, so max rows kept a different set
+    * of groups. Only a grouped table with max rows and a single known source dialect that
+    * sorts NULL high is affected; everything else keeps NULL lowest, which other consumers
+    * (e.g. TimeSliderVSAQuery.sortNullFirst) rely on.
     * @param comp the comparer of the group column, null for the default comparer.
     * @param base the table to sort.
     * @param col the group column index in base.
@@ -2234,8 +2254,68 @@ public abstract class AssetQuery extends PreAssetQuery {
    protected Comparer applyGroupNullOrder(Comparer comp, TableLens base, int col,
                                           VariableTable vars) throws Exception
    {
-      return comp;
+      if(!isNullOrderMVBacked()) {
+         return comp;
+      }
+
+      AggregateInfo ainfo = getAggregateInfo();
+
+      // a crosstab is not truncated by max rows in the group order, a date level or cube
+      // comparer defines its own order
+      if(ainfo.isEmpty() || ainfo.getGroupCount() == 0 || ainfo.isCrosstab() ||
+         comp instanceof SortOrder)
+      {
+         return comp;
+      }
+
+      int max = vars != null && vars.get(BROWSE_MAXROWS) != null ?
+         (int) vars.get(BROWSE_MAXROWS) : getMaxRows(true);
+
+      if(max <= 0) {
+         return comp;
+      }
+
+      SQLHelper helper = getSourceHelper(getNullOrderSourceTable());
+
+      if(helper == null || !helper.isNullsSortHigh()) {
+         return comp;
+      }
+
+      return new NullsHighComparer(comp != null ? comp : SortFilter.getDefaultComparer(base, col));
    }
+
+   /**
+    * Get the SQL helper of the table's data source. The helper is returned only if every
+    * source table is a database table of the same dialect, otherwise the NULL order of the
+    * source is unknown.
+    */
+   private static SQLHelper getSourceHelper(TableAssembly table) {
+      if(table instanceof BoundTableAssembly) {
+         return ((BoundTableAssembly) table).getSQLHelper();
+      }
+
+      if(!(table instanceof ComposedTableAssembly)) {
+         return null;
+      }
+
+      TableAssembly[] tables = ((ComposedTableAssembly) table).getTableAssemblies(false);
+      SQLHelper result = null;
+
+      for(int i = 0; tables != null && i < tables.length; i++) {
+         SQLHelper helper = getSourceHelper(tables[i]);
+
+         if(helper == null || result != null &&
+            !result.getSQLHelperType().equals(helper.getSQLHelperType()))
+         {
+            return null;
+         }
+
+         result = helper;
+      }
+
+      return result;
+   }
+
 
    /**
     * Get the summary table lens.
