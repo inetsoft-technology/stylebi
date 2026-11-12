@@ -3572,9 +3572,45 @@ public class IdentityService {
          OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
+   /**
+    * Bug #79861, an id change moves the users' registries, the replet registry and the org scoped
+    * data space before it copies the organization, and each of those deletes or renames the old
+    * organization's files. Another node that writes into the old organization meanwhile would
+    * recreate a file that is then overwritten, so refuse such writes for the whole change, not
+    * only for the copy at its end.
+    */
    private Identity setOrganizationInfo(FSOrganization oldOrg, EditOrganizationPaneModel model,
                                         EditableAuthenticationProvider eprovider,
                                         Principal principal)
+      throws Exception
+   {
+      String oldID = oldOrg.getId() != null ? oldOrg.getId() : model.id();
+      Organization fromOrg = eprovider.getOrganization(oldID);
+      String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
+      boolean guarded = fromOrgID != null && !Tool.equals(fromOrgID, model.id()) &&
+         !OrgIdChangeGuard.isRunning(fromOrgID);
+      String opId = null;
+      boolean completed = false;
+
+      try {
+         if(guarded) {
+            opId = OrgIdChangeGuard.begin(fromOrgID, model.id());
+         }
+
+         Identity result = setOrganizationInfo0(oldOrg, model, eprovider, principal);
+         completed = true;
+         return result;
+      }
+      finally {
+         if(guarded) {
+            OrgIdChangeGuard.end(opId, fromOrgID, completed);
+         }
+      }
+   }
+
+   private Identity setOrganizationInfo0(FSOrganization oldOrg, EditOrganizationPaneModel model,
+                                         EditableAuthenticationProvider eprovider,
+                                         Principal principal)
       throws Exception
    {
       final String name = model.name();

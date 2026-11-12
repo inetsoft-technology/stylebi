@@ -55,6 +55,7 @@ import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.util.Identity;
+import inetsoft.test.*;
 import inetsoft.util.DataSpace;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.ThreadContext;
@@ -68,8 +69,11 @@ import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.slf4j.LoggerFactory;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.Principal;
@@ -79,6 +83,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class UserTreeServiceEditOrganizationSiteAdminNoOpTest {
    @BeforeEach
