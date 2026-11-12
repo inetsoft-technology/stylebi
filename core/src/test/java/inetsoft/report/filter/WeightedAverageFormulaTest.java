@@ -231,6 +231,31 @@ class WeightedAverageFormulaTest {
       assertEquals(9.0, weighted.getResult());
    }
 
+   // Bug #81182: a zero weight sum is "no result" for every accessor
+   @Test
+   void zeroWeightSum_isNullAndDoubleResultAgreesWithResult() {
+      for(boolean def : new boolean[] { false, true }) {
+         WeightedAverageFormula weighted = new WeightedAverageFormula(1);
+         weighted.setDefaultResult(def);
+         addPairs(weighted, pair(5, 0), pair(7, 0));
+         assertTrue(weighted.isNull());
+         assertEquals(0.0, weighted.getDoubleResult());
+         assertEquals(def ? Double.valueOf(0) : null, weighted.getResult());
+
+         // weights that cancel out
+         weighted.reset();
+         addPairs(weighted, pair(5, 1), pair(7, -1));
+         assertTrue(weighted.isNull());
+         assertEquals(0.0, weighted.getDoubleResult());
+
+         // a non-zero weight sum gives a result again
+         weighted.reset();
+         addPairs(weighted, pair(9, 3));
+         assertFalse(weighted.isNull());
+         assertEquals(9.0, weighted.getDoubleResult());
+      }
+   }
+
    // gap:report.summary-formulas.common#default-result-returns-zero
    @Test
    void getResult_noValues_defaultResultTurnsNullIntoZero() {
