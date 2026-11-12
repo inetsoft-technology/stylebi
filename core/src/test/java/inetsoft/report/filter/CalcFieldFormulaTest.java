@@ -459,4 +459,225 @@ public class CalcFieldFormulaTest {
       // SUM child accumulates 3+7=10, expression "SUM" returns that value
       assertEquals(10.0, ((Number) result).doubleValue(), 1e-10);
    }
+
+   // -----------------------------------------------------------------------
+   // Expression evaluation in the runtime form (Test Case #80957, vscalc G3).
+   // AssetQuery / AbstractCrosstabVSAQuery pass the aggregate names as
+   // VSUtil.getAggregateString writes them, e.g. "field['Sum([a])']", and the
+   // expression as the user wrote it. generateRuntimeScript replaces each name
+   // (case-insensitive) with an identifier, so these tests use that form rather
+   // than a bare "SUM". Expected values are computed by hand.
+   // -----------------------------------------------------------------------
+
+   private static final String SUM_A = "field['Sum([a])']";
+   private static final String SUM_B = "field['Sum([b])']";
+
+   /**
+    * A calc formula over the given aggregates. The secondary column slots are derived as
+    * AssetQuery does: one per child, two for a two-column (Formula2) child.
+    */
+   private CalcFieldFormula calc(String expression, String[] names, Formula... forms) {
+      int slots = 0;
+
+      for(Formula form : forms) {
+         slots += form instanceof Formula2 ? 2 : 1;
+      }
+
+      return new CalcFieldFormula(expression, names.clone(), forms, new int[slots],
+                                  box.getScriptEnv(), box.getScope());
+   }
+
+   /** One row: slot 0 is the calc field's own column, the child columns follow. */
+   private static void addRows(CalcFieldFormula formula, Object[]... rows) {
+      for(Object[] row : rows) {
+         Object[] full = new Object[row.length + 1];
+         System.arraycopy(row, 0, full, 1, row.length);
+         formula.addValue(full);
+      }
+   }
+
+   private static double asDouble(Object result) {
+      assertInstanceOf(Double.class, result);
+      return (Double) result;
+   }
+
+   // multi-aggregate arithmetic (vscalc testQuery / testModel: Sum/Sum)
+   @Test
+   void expression_ratioOfTwoSums() {
+      CalcFieldFormula formula = calc(SUM_A + " / " + SUM_B, new String[] { SUM_A, SUM_B },
+                                      new SumFormula(), new SumFormula());
+      // a: 3 + 6 = 9, b: 4 + 2 = 6
+      addRows(formula, new Object[] { 3, 4 }, new Object[] { 6, 2 });
+      assertEquals(1.5, asDouble(formula.getResult()), 1e-10);
+   }
+
+   // multi-aggregate arithmetic (vscalc: Average*Average)
+   @Test
+   void expression_productOfTwoAverages() {
+      String avgA = "field['Average([a])']";
+      String avgB = "field['Average([b])']";
+      CalcFieldFormula formula = calc(avgA + " * " + avgB, new String[] { avgA, avgB },
+                                      new AverageFormula(), new AverageFormula());
+      // a: (2 + 4) / 2 = 3, b: (5 + 7) / 2 = 6
+      addRows(formula, new Object[] { 2, 5 }, new Object[] { 4, 7 });
+      assertEquals(18.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   // multi-aggregate arithmetic with two-column children (vscalc: Correlation+Correlation)
+   @Test
+   void expression_sumOfTwoCorrelations() {
+      String corrXY = "field['Correlation([x], [y])']";
+      String corrXZ = "field['Correlation([x], [z])']";
+      CalcFieldFormula formula = calc(corrXY + " + " + corrXZ, new String[] { corrXY, corrXZ },
+                                      new CorrelationFormula(2), new CorrelationFormula(4));
+      // y = 2x gives +1, z = 4 - x gives -1; the row is {x, y, x, z}
+      addRows(formula, new Object[] { 1, 2, 1, 3 }, new Object[] { 2, 4, 2, 2 },
+              new Object[] { 3, 6, 3, 1 });
+      assertEquals(0.0, asDouble(formula.getResult()), 1e-9);
+   }
+
+   // aggregate plus a constant (vscalc: Mode+10)
+   @Test
+   void expression_aggregatePlusConstant() {
+      String mode = "field['Mode([a])']";
+      CalcFieldFormula formula = calc(mode + " + 10", new String[] { mode }, new ModeFormula());
+      addRows(formula, new Object[] { 5 }, new Object[] { 5 }, new Object[] { 7 });
+      assertEquals(15.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   // aggregate times a constant, and the cached result is cleared by the next value
+   @Test
+   void expression_aggregateTimesConstant_recomputedAfterAddValue() {
+      CalcFieldFormula formula = calc(SUM_A + " * 2", new String[] { SUM_A }, new SumFormula());
+      addRows(formula, new Object[] { 4 });
+      assertEquals(8.0, asDouble(formula.getResult()), 1e-10);
+
+      addRows(formula, new Object[] { 1.5 });
+      assertEquals(11.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   // if / else with a string result (vscalc: if (Count(Company) > 1500) ...)
+   @Test
+   void expression_ifElse_returnsTheStringOfTheBranch() {
+      String count = "field['Count([Company])']";
+      String expr = "if(" + count + " > 2) { 'High' } else { 'Low' }";
+      CalcFieldFormula formula = calc(expr, new String[] { count }, new CountFormula());
+      addRows(formula, new Object[] { "x" }, new Object[] { "y" }, new Object[] { "z" });
+      assertEquals("High", formula.getResult());
+
+      formula.reset();
+      addRows(formula, new Object[] { "x" });
+      assertEquals("Low", formula.getResult());
+   }
+
+   // a string result that parses as a number is returned as a Double, not as the string
+   // (getResult0 tries getDouble on every result). Current behavior, not confirmed
+   @Test
+   void expression_numericStringResult_isReturnedAsDouble() {
+      String count = "field['Count([Company])']";
+      CalcFieldFormula formula = calc("'1' + " + count, new String[] { count },
+                                      new CountFormula());
+      addRows(formula, new Object[] { "x" }, new Object[] { "y" });
+      // JavaScript '1' + 2 is the string "12"
+      assertEquals(12.0, formula.getResult());
+   }
+
+   // the columns of a two-column child: Sum(a) + WeightedAverage(b, c) + Count(d).
+   // The row is {a, b, c, d}: Sum reads slot 1, WeightedAverage slots 2-3, Count slot 4
+   @Test
+   void expression_twoColumnChildBetweenOneColumnChildren_readsItsOwnColumns() {
+      String wavg = "field['WeightedAverage([b], [c])']";
+      String count = "field['Count([d])']";
+      CalcFieldFormula formula = calc(SUM_A + " + " + wavg + " + " + count,
+                                      new String[] { SUM_A, wavg, count },
+                                      new SumFormula(), new WeightedAverageFormula(3),
+                                      new CountFormula());
+      addRows(formula, new Object[] { 1, 10, 1, "p" }, new Object[] { 2, 20, 3, null });
+      // Sum(a) = 3, WeightedAverage = (10 * 1 + 20 * 3) / 4 = 17.5, Count(d) = 1
+      assertEquals(21.5, asDouble(formula.getResult()), 1e-10);
+   }
+
+   // a two-column child first: Correlation(x, y) then Sum(z); Sum must read slot 3, not 2
+   @Test
+   void expression_twoColumnChildFirst_nextChildReadsTheColumnAfterIt() {
+      String corr = "field['Correlation([x], [y])']";
+      String sumZ = "field['Sum([z])']";
+      CalcFieldFormula formula = calc(sumZ + " * 10 + " + corr, new String[] { corr, sumZ },
+                                      new CorrelationFormula(2), new SumFormula());
+      // y = x gives 1; z: 100 + 200 = 300 (a Sum that read y or x instead of z would give 3)
+      addRows(formula, new Object[] { 1, 1, 100 }, new Object[] { 2, 2, 200 });
+      assertEquals(3001.0, asDouble(formula.getResult()), 1e-9);
+   }
+
+   // aggregate names: written in other case, with characters that are not legal in an
+   // identifier (':' '(' ')' '[' ']' quotes), and the same aggregate twice
+   @Test
+   void expression_aggregateNamesWithOtherCaseAndSpecialCharacters() {
+      String maxNo = "field['Max([orders:orderno])']";
+      String expr = "field['max([orders:orderno])'] * " + maxNo + " - " +
+         "FIELD['MAX([ORDERS:ORDERNO])']";
+      CalcFieldFormula formula = calc(expr, new String[] { maxNo }, new MaxFormula());
+      addRows(formula, new Object[] { 3 }, new Object[] { 5 }, new Object[] { 4 });
+      // 5 * 5 - 5
+      assertEquals(20.0, asDouble(formula.getResult()), 1e-10);
+   }
+
+   // a date result (vscalc: Max(Month(Date))) is returned as the date, not as a number
+   @Test
+   void expression_dateAggregate_returnsTheDate() {
+      String maxDate = "field['Max([Month(Date)])']";
+      CalcFieldFormula formula = calc(maxDate, new String[] { maxDate }, new MaxFormula());
+      java.sql.Timestamp jan = java.sql.Timestamp.valueOf("2020-01-01 00:00:00");
+      java.sql.Timestamp dec = java.sql.Timestamp.valueOf("2020-12-01 00:00:00");
+      addRows(formula, new Object[] { jan }, new Object[] { dec });
+      Object result = formula.getResult();
+      assertInstanceOf(java.util.Date.class, result);
+      assertEquals(dec.getTime(), ((java.util.Date) result).getTime());
+   }
+
+   // a child with no result is null in the script (JavaScript: 5 + null is 5).
+   // Current behavior, not confirmed
+   @Test
+   void expression_childWithoutResult_isNullInTheScript() {
+      String maxB = "field['Max([b])']";
+      CalcFieldFormula formula = calc(SUM_A + " + " + maxB, new String[] { SUM_A, maxB },
+                                      new SumFormula(), new MaxFormula());
+      addRows(formula, new Object[] { 2, null }, new Object[] { 3, null });
+      assertEquals(5.0, asDouble(formula.getResult()), 1e-10);
+
+      // the null itself, when the expression returns it
+      CalcFieldFormula only = calc(maxB, new String[] { maxB }, new MaxFormula());
+      addRows(only, new Object[] { (Object) null });
+      assertNull(only.getResult());
+   }
+
+   // a group whose rows all have null values: the rows are counted, so isNull is false
+   // and the default-result flag does not apply, but the child Sum is null
+   @Test
+   void expression_groupOfOnlyNullValues_isNotNullButHasNoResult() {
+      CalcFieldFormula formula = calc(SUM_A, new String[] { SUM_A }, new SumFormula());
+      formula.setDefaultResult(true);
+      addRows(formula, new Object[] { (Object) null }, new Object[] { (Object) null });
+      assertFalse(formula.isNull());
+      assertNull(formula.getResult());
+   }
+
+   // Sum(a) / Sum(b) with Sum(b) = 0. Pending #80953 question 3c. The script gives Infinity
+   // for x / 0 and NaN for 0 / 0, and ScriptValueConverter.toHost turns both into null
+   // ("legacy behavior"), so the cell is empty; the default-result flag does not apply
+   @Test
+   void expression_divideByZero_returnsNull() {
+      CalcFieldFormula formula = calc(SUM_A + " / " + SUM_B, new String[] { SUM_A, SUM_B },
+                                      new SumFormula(), new SumFormula());
+      addRows(formula, new Object[] { 3, 0 });
+      assertNull(formula.getResult());
+
+      formula.reset();
+      addRows(formula, new Object[] { 0, 0 });
+      assertNull(formula.getResult());
+
+      formula.setDefaultResult(true);
+      assertNull(formula.getResult());
+      assertFalse(formula.isNull());
+   }
 }

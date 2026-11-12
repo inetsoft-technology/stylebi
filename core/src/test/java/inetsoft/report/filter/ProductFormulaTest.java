@@ -483,6 +483,25 @@ public class ProductFormulaTest {
       assertNotEquals(first, copy.getResult());
    }
 
+   // Test Case #80957: a product beyond the double range is Infinity with its sign, and a
+   // NaN value makes it NaN. Current behavior
+   @Test
+   void addValue_beyondDoubleRangeOrNaN_givesInfinityOrNaN() {
+      formula.addValue(1e200);
+      formula.addValue(1e200);
+      assertEquals(Double.POSITIVE_INFINITY, asDouble(formula.getResult()));
+
+      formula.reset();
+      formula.addValue(-1e200);
+      formula.addValue(1e200);
+      assertEquals(Double.NEGATIVE_INFINITY, asDouble(formula.getResult()));
+
+      formula.reset();
+      formula.addValue(2.0);
+      formula.addValue(Double.NaN);
+      assertTrue(Double.isNaN(asDouble(formula.getResult())));
+   }
+
    private static void addAll(Formula formula, Object... values) {
       for(Object value : values) {
          formula.addValue(value);

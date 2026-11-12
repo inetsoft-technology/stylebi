@@ -584,6 +584,17 @@ public class AverageFormulaTest {
       assertNotEquals(first, copy.getResult());
    }
 
+   // Test Case #80957: a NaN value is counted and makes the average NaN (only
+   // Tool.NULL_DOUBLE is skipped). Current behavior
+   @Test
+   void addValue_nanValue_averageIsNaN() {
+      formula.addValue(1.0);
+      formula.addValue(Double.NaN);
+      formula.addValue(2.0);
+      assertTrue(Double.isNaN(asDouble(formula.getResult())));
+      assertTrue(Double.isNaN(formula.getDoubleResult()));
+   }
+
    private static void addAll(Formula formula, Object... values) {
       for(Object value : values) {
          formula.addValue(value);
