@@ -754,4 +754,110 @@ class SheetAgentBroadcastServiceTest {
          verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
       assertTrue(payloads.get(0) instanceof UpdateUndoStateCommand);
    }
+
+   // ---- Bug #81188: undo/redo must tell the browser to remove assemblies that no longer exist
+
+   private static CoreLifecycleService removingCoreLifecycleService(String assembly,
+                                                                    String containerHeader)
+   {
+      CoreLifecycleService core = mock(CoreLifecycleService.class);
+      doAnswer(inv -> {
+         CommandDispatcher dispatcher = inv.getArgument(2);
+         inetsoft.web.viewsheet.command.RemoveVSObjectCommand command =
+            new inetsoft.web.viewsheet.command.RemoveVSObjectCommand();
+         command.setName(assembly);
+
+         if(containerHeader == null) {
+            dispatcher.sendCommand(command);
+         }
+         else {
+            dispatcher.sendCommand(containerHeader, command);
+         }
+
+         return null;
+      }).when(core).checkAndRemoveAssemblies(any(), any(), any());
+      return core;
+   }
+
+   private static RuntimeViewsheet pairedViewsheet(Viewsheet current) {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stomp-3");
+      when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
+      when(rvs.getViewsheet()).thenReturn(current);
+      return rvs;
+   }
+
+   @Test
+   void removedAssemblyIsSentAsRemoveVSObjectCommand() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        removingCoreLifecycleService("Probe", null));
+      Viewsheet before = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = pairedViewsheet(mock(Viewsheet.class));
+
+      svc.broadcastRemovedAssemblies(rvs, "vs-1", TestPrincipals.user("alice", "host-org"), before);
+
+      ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      verify(dispatcher).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), payload.capture(),
+         headers.capture());
+      assertInstanceOf(inetsoft.web.viewsheet.command.RemoveVSObjectCommand.class, payload.getValue());
+      assertEquals("Probe",
+                   ((inetsoft.web.viewsheet.command.RemoveVSObjectCommand) payload.getValue()).getName());
+      SimpMessageHeaderAccessor acc = SimpMessageHeaderAccessor.wrap(
+         new org.springframework.messaging.support.GenericMessage<>("", headers.getValue()));
+      assertNull(acc.getNativeHeader(CommandDispatcher.ASSEMBLY_NAME_HEADER));
+      assertEquals("stomp-3", SimpMessageHeaderAccessor.getSessionId(headers.getValue()));
+   }
+
+   @Test
+   void removedContainerChildCarriesTheContainerHeader() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        removingCoreLifecycleService("Child", "Container1"));
+      RuntimeViewsheet rvs = pairedViewsheet(mock(Viewsheet.class));
+
+      svc.broadcastRemovedAssemblies(rvs, "vs-1", TestPrincipals.user("alice", "host-org"),
+                                     mock(Viewsheet.class));
+
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      verify(dispatcher).convertAndSendToUser(any(), any(), any(), headers.capture());
+      SimpMessageHeaderAccessor acc = SimpMessageHeaderAccessor.wrap(
+         new org.springframework.messaging.support.GenericMessage<>("", headers.getValue()));
+      assertEquals("Container1",
+                   acc.getNativeHeader(CommandDispatcher.ASSEMBLY_NAME_HEADER).get(0));
+   }
+
+   @Test
+   void nothingIsSentWhenNoAssemblyWasRemoved() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
+      RuntimeViewsheet rvs = pairedViewsheet(mock(Viewsheet.class));
+
+      svc.broadcastRemovedAssemblies(rvs, "vs-1", TestPrincipals.user("alice", "host-org"),
+                                     mock(Viewsheet.class));
+
+      verifyNoInteractions(dispatcher);
+   }
+
+   @Test
+   void removedAssembliesSkippedWithoutSocketSession() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CoreLifecycleService core = noopCoreLifecycleService();
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        core);
+      RuntimeViewsheet rvs = pairedViewsheet(mock(Viewsheet.class));
+      when(rvs.getSocketSessionId()).thenReturn(null);
+
+      svc.broadcastRemovedAssemblies(rvs, "vs-1", TestPrincipals.user("alice", "host-org"),
+                                     mock(Viewsheet.class));
+
+      verifyNoInteractions(dispatcher, core);
+   }
 }

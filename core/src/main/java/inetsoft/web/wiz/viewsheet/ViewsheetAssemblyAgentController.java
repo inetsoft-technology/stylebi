@@ -4418,7 +4418,13 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
       boolean undone = rvs.undo(null);
+
+      if(undone) {
+         broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
+      }
+
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
       return undoState("undone", undone, rvs);
    }
@@ -4429,7 +4435,13 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
       boolean redone = rvs.redo(null);
+
+      if(redone) {
+         broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
+      }
+
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
       return undoState("redone", redone, rvs);
    }
