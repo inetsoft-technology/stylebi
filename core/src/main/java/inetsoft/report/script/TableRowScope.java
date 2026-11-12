@@ -22,7 +22,6 @@ import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.script.graal.OwnedVarScope;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptScope;
-import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.ScriptValueConverter;
 import inetsoft.util.script.graal.pool.OwnedValueCodec;
 import inetsoft.util.script.graal.pool.SlotTenant;
@@ -62,48 +61,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
       // a builtin this scope defers to (see getMember) is absent here, so the name resolves
       // to the global builtin, not to a same-named column (Bug #77999)
-      return !isDeferredBuiltin(id) && !isDeferredFunction(id) && base.hasMember(id);
-   }
-
-   /**
-    * Whether a column that matches {@code id} only ignoring case must not hide the global
-    * script function {@code id}: the name is a script function (year, dateAdd, ...), the
-    * formulas call it ({@code id(}), and no column is named exactly {@code id}. A column
-    * YEAR then no longer breaks {@code year(field['D'])} (Bug #81047); {@code year} used as
-    * a value, an exact-case column, and formulas that do not call the name keep the column.
-    * hasMember and getMember use this same test.
-    */
-   private boolean isDeferredFunction(String id) {
-      if(calledFunctions.isEmpty() || !calledFunctions.contains(id) ||
-         !GraalJavaScriptEngine.isGlobalFunctionName(id))
-      {
-         return false;
-      }
-
-      return !base.hasExactColumn(id);
-   }
-
-   /**
-    * Set the formulas that run in this scope, to find the script functions they call by a
-    * bare name. Only a called name (`name(`) can be deferred to the global function, so a
-    * column that matches a function name ignoring case still reads as a value.
-    */
-   public void setFormulas(Collection<String> formulas) {
-      Set<String> called = new HashSet<>();
-
-      if(formulas != null) {
-         for(String formula : formulas) {
-            if(formula != null) {
-               java.util.regex.Matcher matcher = CALL.matcher(formula);
-
-               while(matcher.find()) {
-                  called.add(matcher.group(1));
-               }
-            }
-         }
-      }
-
-      this.calledFunctions = called.isEmpty() ? Set.of() : Set.copyOf(called);
+      return !isDeferredBuiltin(id) && base.hasMember(id);
    }
 
    /**
@@ -571,7 +529,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
       // avoid overriding builtin from column: hasMember reports these names absent, so the
       // engine resolves the builtin (Array/Math/Date) from the global scope
-      if(isDeferredBuiltin(id) || isDeferredFunction(id)) {
+      if(isDeferredBuiltin(id)) {
          return null;
       }
 
@@ -849,11 +807,6 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    private String basename;
    private ScriptScope parent;
    private boolean builtinDate = true;
-   // identifiers the formulas call as functions (name followed by an open paren)
-   private Set<String> calledFunctions = Set.of();
-   // a bare call: not a property call (a.year(), field['x'].year()) and not part of a longer name
-   private static final java.util.regex.Pattern CALL =
-      java.util.regex.Pattern.compile("(?<![\\w$.])([A-Za-z_$][\\w$]*)\\s*\\(");
    // from put(), and the values of the owned vars; written and read only by the formulas of
    // the one table this scope belongs to, under that table's lock. An owned var holding an
    // object whose home handed off holds its tree root (OwnedValueCodec.TreeRef) or a Lost

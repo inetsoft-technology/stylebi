@@ -116,6 +116,12 @@ public class GraalJavaScriptEnv implements ScriptEnv {
    }
 
    @Override
+   public Object compileCalleeFallback(String cmd) throws Exception {
+      // not under this env's monitor, as compile (#76905)
+      return getEngine().compileCalleeFallback(cmd);
+   }
+
+   @Override
    public Object compileDeclaredVars(String cmd) throws Exception {
       // not under this env's monitor, as compile (#76905)
       return getEngine().compileDeclaredVars(cmd);

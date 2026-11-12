@@ -136,6 +136,15 @@
       <type>pom</type>
     </dependency>
 
+    <!-- the GraalJS parser, for the callee rewrite of table formulas (Bug #81047); already a
+         runtime dependency through js-community, declared here to compile against; keep the
+         version equal to that of js-community in the bom -->
+    <dependency>
+      <groupId>org.graalvm.js</groupId>
+      <artifactId>js-language</artifactId>
+      <version>24.1.2</version>
+    </dependency>
+
     <dependency>
       <groupId>com.googlecode.juniversalchardet</groupId>
       <artifactId>juniversalchardet</artifactId>

@@ -40,11 +40,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #81047: a column whose name matches a script function only ignoring case (YEAR, MONTH,
- * DATEADD) must not hide the function when a formula calls it by its lowercase name,
- * {@code year(field['D'])}. The fix axis is the identifier resolution in {@link TableRowScope}:
- * defer to the global function only if the name is a script function, the formulas call
- * {@code name(}, and no column is named exactly like the identifier. A bare {@code year} as a
- * value, and an exact-case column, keep resolving to the column.
+ * DATEADD) must not hide the function when a formula calls it, {@code year(field['D'])}. The
+ * axis the fix varies on is the call-site syntax of each occurrence, per formula: a bare call
+ * {@code name(args)} falls back to the global function (the GraalJS-parsed callee rewrite, see
+ * {@code FormulaCalleeRewriter}), a bare read {@code year} stays the column, whatever else the
+ * formula or the other formulas of the table contain.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -126,14 +126,113 @@ class TableRowScopeFunctionNameTest {
    }
 
    @Test
-   void exactCaseYEARCallStaysTheColumn() {
-      // documents the unchanged shadowing: a column named exactly YEAR is the user's own
-      // choice, so YEAR(...) is still a call of the column value
+   void exactCaseYEARCallNowCallsTheFunction() {
       DefaultTableLens table = new DefaultTableLens(new Object[][] {
          { "YEAR", "D" }, { 5, TS } });
 
-      // the evaluator logs the failed call and returns null
-      assertNull(FormulaEvaluator.exec("YEAR(D)", null, "field", new TableRow(table, 1)));
+      assertEquals(2023, ((Number) FormulaEvaluator.exec(
+         "YEAR(D)", null, "field", new TableRow(table, 1))).intValue());
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void upperCaseCallNextToAColumnYEAR(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "YEAR", "D" }, { 5, TS } },
+                            "out", "YEAR(field['D'])");
+      assertEquals(2023, ((Number) value(t)).intValue());
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void exactCaseColumnYearAndACallOfTheFunction(boolean pool) throws Exception {
+      // changed from #8006: the call is the function, the bare read is still the column
+      TableLens t = formula(pool, new Object[][] { { "year", "D" }, { 5, TS } },
+                            "out", "year(field['D'])");
+      assertEquals(2023, ((Number) value(t)).intValue());
+      t = formula(pool, new Object[][] { { "year", "D" }, { 5, TS } }, "out", "year + 1");
+      assertEquals(6, ((Number) value(t)).intValue());
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void callAndBareReadInOneFormula(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "YEAR", "D" }, { 5, TS } },
+                            "out", "year(field['D']) + year");
+      assertEquals(2028, ((Number) value(t)).intValue());
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void callInOneExpressionColumnReadInTheOther(boolean pool) throws Exception {
+      TableLens t = formulas(pool, new Object[][] { { "YEAR", "D" }, { 5, TS } },
+                             new String[] { "a", "b" },
+                             new String[] { "year(field['D'])", "year" });
+      assertEquals(2023, ((Number) t.getObject(1, 2)).intValue());
+      assertEquals(5, ((Number) t.getObject(1, 3)).intValue());
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void callTextInAStringDoesNotHijackARead(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "YEAR" }, { 5 } }, "out",
+                            "'year(' + year");
+      assertEquals("year(5", String.valueOf(value(t)));
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void propertyCallIsNotACallOfTheFunction(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "YEAR", "S" }, { 5, "abc" } },
+                            "out", "field['S'].toUpperCase() + year");
+      assertEquals("ABC5", String.valueOf(value(t)));
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void nestedCalls(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "YEAR", "D" }, { 5, TS } },
+                            "out", "year(new Date(field['D'])) - year(field['D']) + year");
+      assertEquals(5, ((Number) value(t)).intValue());
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void userFunctionWinsOverTheGlobal(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "YEAR" }, { 5 } }, "out",
+                            "function year(x) { return 'mine'; } year(1)");
+      assertEquals("mine", String.valueOf(value(t)));
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void calcFunctionCalledByAnyCase(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "SUM", "X" }, { 5, 3 } }, "out",
+                            "Sum(field['X'], 4)");
+      assertNotNull(value(t));
+   }
+
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void unparsableFormulaIsLeftAsItWas(boolean pool) throws Exception {
+      // a top-level return is a syntax error for the engine too: no new failure mode
+      assertDoesNotThrow(() -> formula(pool, new Object[][] { { "YEAR" }, { 5 } }, "out",
+                                       "return year(1)"));
+   }
+
+   /**
+    * Records the caveat of the callee rewrite: a function that the scope itself owns under the
+    * name of a global function is called without the scope as {@code this}.
+    */
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void thisOfAScopeOwnedFunctionNamedLikeAGlobal(boolean pool) throws Exception {
+      TableLens t = formula(pool, new Object[][] { { "YEAR" }, { 5 } }, "out",
+                            "function foo() { return typeof this; } foo()");
+      assertNotNull(value(t));
+      t = formula(pool, new Object[][] { { "X" }, { 5 } }, "out",
+                  "function year() { return typeof this; } year()");
+      assertNotNull(value(t));
+      // no assertion on the value on purpose: the global object stands for the scope
    }
 
    // --- helpers ---
@@ -150,6 +249,23 @@ class TableRowScopeFunctionNameTest {
       return PostProcessor.formula(new DefaultTableLens(data), new String[] { header },
                                    new String[] { expr }, env, scope, null, "T", null,
                                    List.of(type), new boolean[] { false });
+   }
+
+   private TableLens formulas(boolean pool, Object[][] data, String[] headers, String[] exprs)
+      throws Exception
+   {
+      AssetQuerySandbox box = PoolTestSupport.poolBox(pool);
+      ScriptEnv env = box.getScriptEnv();
+      envs.add(env);
+      List<Class<?>> types = new ArrayList<>();
+      boolean[] flags = new boolean[exprs.length];
+
+      for(int i = 0; i < exprs.length; i++) {
+         types.add(Double.class);
+      }
+
+      return PostProcessor.formula(new DefaultTableLens(data), headers, exprs, env,
+                                   box.getScope(), null, "T", null, types, flags);
    }
 
    private static Object value(TableLens t) {
