@@ -183,6 +183,12 @@ public class AllLegendDescriptor extends LegendDescriptor {
    }
 
    @Override
+   public void setAuthorTitleValue(String title) {
+      applySet("setAuthorTitleValue", new Object[] {title},
+               new Class[] {String.class});
+   }
+
+   @Override
    public CompositeTextFormat getContentTextFormat() {
       List<LegendDescriptor> legends = getLegendDescriptors();
       List<CompositeTextFormat> fmts = new ArrayList<>();

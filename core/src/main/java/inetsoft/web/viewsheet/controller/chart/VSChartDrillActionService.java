@@ -93,14 +93,6 @@ public class VSChartDrillActionService extends VSChartControllerService<VSChartD
                           CommandDispatcher dispatcher, String linkUri, Principal principal)
       throws Exception
    {
-      return drillAction0(runtimeId, event, chartState, dispatcher, linkUri, principal);
-   }
-
-   private int drillAction0(String runtimeId, VSChartDrillActionEvent event,
-                            VSChartStateInfo chartState, CommandDispatcher dispatcher,
-                            String linkUri, Principal principal)
-      throws Exception
-   {
       if(chartState == null) {
          return VSAssembly.NONE_CHANGED;
       }
