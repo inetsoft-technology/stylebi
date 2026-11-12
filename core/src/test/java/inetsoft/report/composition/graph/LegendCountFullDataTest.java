@@ -20,7 +20,9 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.report.composition.execution.ChartVSAQuery;
 import inetsoft.report.composition.execution.DataMap;
+import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
@@ -38,6 +40,7 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -46,6 +49,9 @@ import java.security.Principal;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 /**
  * The composer's legend count judges the chart's own bound data: what the author does to the
@@ -99,12 +105,16 @@ class LegendCountFullDataTest {
       ViewsheetSandbox box = sandbox();
       ChartVSAssemblyInfo info = addBar(box, "type", "year");
 
-      VGraphPair pair = box.getVGraphPair(CHART, true, null);
+      VGraphPair pair;
+
+      try(MockedStatic<VSAQuery> queries = trackQueries()) {
+         pair = box.getVGraphPair(CHART, true, null);
+         assertBindingQueries(queries, 0);
+      }
 
       assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
       assertEquals(LegendsDescriptor.RIGHT, layout(info));
       assertFalse(info.isLegendCountPending());
-      assertNull(box.getData(CHART, false, DataMap.BINDING), "no other query ran");
    }
 
    @Test
@@ -117,12 +127,16 @@ class LegendCountFullDataTest {
       ChartVSAssemblyInfo info = addBar(box, "type", "year");
       info.getVSChartInfo().setColorField(null);
 
-      VGraphPair pair = box.getVGraphPair(CHART, true, null);
+      VGraphPair pair;
+
+      try(MockedStatic<VSAQuery> queries = trackQueries()) {
+         pair = box.getVGraphPair(CHART, true, null);
+         assertBindingQueries(queries, 0);
+      }
 
       assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
       assertEquals(0, LegendEntryCount.count(pair.getEGraph()), "premise: no legend drawn");
       assertTrue(info.isLegendCountPending());
-      assertNull(box.getData(CHART, false, DataMap.BINDING), "no other query ran");
    }
 
    @Test
@@ -141,12 +155,16 @@ class LegendCountFullDataTest {
       assertTrue(rows(box.getData(CHART)) < rows(box.getData(CHART, true, DataMap.ZOOM)),
                  "premise: the brush narrows the chart's data");
 
-      VGraphPair pair = box.getVGraphPair(CHART, true, null);
+      VGraphPair pair;
+
+      try(MockedStatic<VSAQuery> queries = trackQueries()) {
+         pair = box.getVGraphPair(CHART, true, null);
+         assertBindingQueries(queries, 0);
+      }
 
       assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
       assertEquals(LegendsDescriptor.RIGHT, layout(info));
       assertFalse(info.isLegendCountPending());
-      assertNull(box.getData(CHART, false, DataMap.BINDING), "no other query ran");
    }
 
    @Test
@@ -159,7 +177,14 @@ class LegendCountFullDataTest {
       ChartVSAssemblyInfo info = addBar(box, "type", "year");
       info.setPreConditionList(oneOfYears(years.subList(0, 2)));
 
-      VGraphPair pair = box.getVGraphPair(CHART, true, null);
+      assertTrue(ChartVSAQuery.isViewFiltered(box, (ChartVSAssembly) box.getViewsheet().getAssembly(CHART)),
+                 "premise: binding path");
+      VGraphPair pair;
+
+      try(MockedStatic<VSAQuery> queries = trackQueries()) {
+         pair = box.getVGraphPair(CHART, true, null);
+         assertBindingQueries(queries, 1);
+      }
 
       assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
       assertNull(box.getData(CHART, false, DataMap.BINDING), "the full data is not kept");
@@ -181,7 +206,14 @@ class LegendCountFullDataTest {
       year.setRankingNValue("2");
       year.setRankingColValue("Sum(wind)");
 
-      VGraphPair pair = box.getVGraphPair(CHART, true, null);
+      assertTrue(ChartVSAQuery.isViewFiltered(box, (ChartVSAssembly) box.getViewsheet().getAssembly(CHART)),
+                 "premise: binding path");
+      VGraphPair pair;
+
+      try(MockedStatic<VSAQuery> queries = trackQueries()) {
+         pair = box.getVGraphPair(CHART, true, null);
+         assertBindingQueries(queries, 1);
+      }
 
       assertFalse(pair.isFailed(), () -> String.valueOf(pair.getFailure()));
       assertEquals(2, LegendEntryCount.count(pair.getEGraph()), "premise: two years drawn");
@@ -221,6 +253,18 @@ class LegendCountFullDataTest {
       assertEquals(LegendsDescriptor.RIGHT, layout(info));
       assertTrue(info.isLegendCrowded());
       assertFalse(info.isLegendCountPending());
+   }
+
+   // the real queries, recorded
+   private static MockedStatic<VSAQuery> trackQueries() {
+      return mockStatic(VSAQuery.class, CALLS_REAL_METHODS);
+   }
+
+   private static void assertBindingQueries(MockedStatic<VSAQuery> queries, int times)
+      throws Exception
+   {
+      queries.verify(() -> VSAQuery.createVSAQuery(any(), any(), eq(DataMap.BINDING)),
+                     times(times));
    }
 
    private ViewsheetSandbox sandbox() {
