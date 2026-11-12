@@ -459,6 +459,47 @@ public class CalcUtil {
    }
 
    /**
+    * Converts two index-paired arrays to double arrays, keeping the pairing. An
+    * element pair is kept only if both elements are numeric (see
+    * {@link #toDouble(Object)}); a pair with a null, empty, non-numeric or NaN
+    * element on either side is dropped as a whole, so the remaining values stay
+    * aligned. Converting each array separately with
+    * {@link #convertToDoubleArray(Object[])} would drop only the bad element
+    * and shift the two arrays against each other.
+    * @param array1 the first array.
+    * @param array2 the second array.
+    * @return a 2-element array holding the paired values of array1 and array2,
+    * or null if the original (unconverted) arrays have different lengths.
+    */
+   public static double[][] pairedDoubles(Object[] array1, Object[] array2) {
+      int len1 = array1 == null ? 0 : array1.length;
+      int len2 = array2 == null ? 0 : array2.length;
+
+      if(len1 != len2) {
+         return null;
+      }
+
+      double[] values1 = new double[len1];
+      double[] values2 = new double[len1];
+      int count = 0;
+
+      for(int i = 0; i < len1; i++) {
+         Double d1 = toDouble(array1[i]);
+         Double d2 = toDouble(array2[i]);
+
+         if(d1 != null && d2 != null) {
+            values1[count] = d1;
+            values2[count] = d2;
+            count++;
+         }
+      }
+
+      return new double[][] {
+         Arrays.copyOf(values1, count), Arrays.copyOf(values2, count)
+      };
+   }
+
+   /**
     * Converts an Object array to 2D double array
     */
    public static double[][] convertToDoubleArray2D(Object[] array) {

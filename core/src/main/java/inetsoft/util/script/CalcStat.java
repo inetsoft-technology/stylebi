@@ -144,15 +144,17 @@ public class CalcStat {
    public static double correl(Object array1Obj, Object array2Obj) {
       Object[] array1 = JavaScriptEngine.split(array1Obj);
       Object[] array2 = JavaScriptEngine.split(array2Obj);
-      double[] arr1 = CalcUtil.convertToDoubleArray(array1);
-      double[] arr2 = CalcUtil.convertToDoubleArray(array2);
+      double[][] pairs = CalcUtil.pairedDoubles(array1, array2);
 
-      if(arr1.length == 0 || arr2.length == 0) {
-         throw new RuntimeException("Arrays cannot be empty, / by zero");
+      if(pairs == null) {
+         throw new RuntimeException("Arrays should have same number of values");
       }
 
-      if(arr1.length != arr2.length) {
-         throw new RuntimeException("Arrays should have same number of values");
+      double[] arr1 = pairs[0];
+      double[] arr2 = pairs[1];
+
+      if(arr1.length == 0) {
+         throw new RuntimeException("Arrays cannot be empty, / by zero");
       }
 
       double avg1 = 0;
@@ -321,15 +323,17 @@ public class CalcStat {
    public static double weightedavg(Object array1Obj, Object array2Obj) {
       Object[] array1 = JavaScriptEngine.split(array1Obj);
       Object[] array2 = JavaScriptEngine.split(array2Obj);
-      double[] arr1 = CalcUtil.convertToDoubleArray(array1);
-      double[] arr2 = CalcUtil.convertToDoubleArray(array2);
+      double[][] pairs = CalcUtil.pairedDoubles(array1, array2);
 
-      if(arr1.length == 0 || arr2.length == 0) {
-         throw new RuntimeException("Arrays cannot be empty, / by zero");
+      if(pairs == null) {
+         throw new RuntimeException("Arrays should have same number of values");
       }
 
-      if(arr1.length != arr2.length) {
-         throw new RuntimeException("Arrays should have same number of values");
+      double[] arr1 = pairs[0];
+      double[] arr2 = pairs[1];
+
+      if(arr1.length == 0) {
+         throw new RuntimeException("Arrays cannot be empty, / by zero");
       }
 
       double sum1 = 0;
@@ -469,15 +473,17 @@ public class CalcStat {
    public static double covar(Object array1Obj, Object array2Obj) {
       Object[] array1 = JavaScriptEngine.split(array1Obj);
       Object[] array2 = JavaScriptEngine.split(array2Obj);
-      double[] arr1 = CalcUtil.convertToDoubleArray(array1);
-      double[] arr2 = CalcUtil.convertToDoubleArray(array2);
+      double[][] pairs = CalcUtil.pairedDoubles(array1, array2);
 
-      if(arr1.length == 0 || arr2.length == 0) {
-         throw new RuntimeException("Arrays cannot be empty, / by zero");
+      if(pairs == null) {
+         throw new RuntimeException("Arrays should have same number of values");
       }
 
-      if(arr1.length != arr2.length) {
-         throw new RuntimeException("Arrays should have same number of values");
+      double[] arr1 = pairs[0];
+      double[] arr2 = pairs[1];
+
+      if(arr1.length == 0) {
+         throw new RuntimeException("Arrays cannot be empty, / by zero");
       }
 
       double avg1 = 0;
@@ -592,15 +598,17 @@ public class CalcStat {
                                  Object known_xsObj) {
       Object[] known_ys = JavaScriptEngine.split(known_ysObj);
       Object[] known_xs = JavaScriptEngine.split(known_xsObj);
-      double[] ys = CalcUtil.convertToDoubleArray(known_ys);
-      double[] xs = CalcUtil.convertToDoubleArray(known_xs);
+      double[][] pairs = CalcUtil.pairedDoubles(known_ys, known_xs);
 
-      if(ys.length == 0 || xs.length == 0) {
-         throw new RuntimeException("Arrays cannot be empty, / by zero");
+      if(pairs == null) {
+         throw new RuntimeException("Arrays should have same number of values");
       }
 
-      if(ys.length != xs.length) {
-         throw new RuntimeException("Arrays should have same number of values");
+      double[] ys = pairs[0];
+      double[] xs = pairs[1];
+
+      if(ys.length == 0) {
+         throw new RuntimeException("Arrays cannot be empty, / by zero");
       }
 
       double avgy = 0;
@@ -771,15 +779,17 @@ public class CalcStat {
    public static double intercept(Object known_ysObj, Object known_xsObj) {
       Object[] known_ys = JavaScriptEngine.split(known_ysObj);
       Object[] known_xs = JavaScriptEngine.split(known_xsObj);
-      double[] ys = CalcUtil.convertToDoubleArray(known_ys);
-      double[] xs = CalcUtil.convertToDoubleArray(known_xs);
+      double[][] pairs = CalcUtil.pairedDoubles(known_ys, known_xs);
 
-      if(ys.length == 0 || xs.length == 0) {
-         throw new RuntimeException("Arrays cannot be empty, / by zero");
+      if(pairs == null) {
+         throw new RuntimeException("Arrays should have same number of values");
       }
 
-      if(ys.length != xs.length) {
-         throw new RuntimeException("Arrays should have same number of values");
+      double[] ys = pairs[0];
+      double[] xs = pairs[1];
+
+      if(ys.length == 0) {
+         throw new RuntimeException("Arrays cannot be empty, / by zero");
       }
 
       double avgy = 0;
@@ -1055,12 +1065,14 @@ public class CalcStat {
    public static double pearson(Object array1Obj, Object array2Obj) {
       Object[] array1 = JavaScriptEngine.split(array1Obj);
       Object[] array2 = JavaScriptEngine.split(array2Obj);
-      double[] arr1 = CalcUtil.convertToDoubleArray(array1);
-      double[] arr2 = CalcUtil.convertToDoubleArray(array2);
+      double[][] pairs = CalcUtil.pairedDoubles(array1, array2);
 
-      if(arr1.length != arr2.length) {
+      if(pairs == null) {
          throw new RuntimeException("Arrays should have same number of values");
       }
+
+      double[] arr1 = pairs[0];
+      double[] arr2 = pairs[1];
 
       double avg1 = 0;
       double avg2 = 0;
@@ -1283,8 +1295,7 @@ public class CalcStat {
                              double lower_limit, double upper_limit) {
       Object[] x_range = JavaScriptEngine.split(x_rangeObj);
       Object[] prob_range = JavaScriptEngine.split(prob_rangeObj);
-      double[] x = CalcUtil.convertToDoubleArray(x_range);
-      double[] prob = CalcUtil.convertToDoubleArray(prob_range);
+      double[][] pairs = CalcUtil.pairedDoubles(x_range, prob_range);
 
       // ChrisS bug1406142978198 2014-7-30
       // Handle the "upper_limit" optional parameter being MIA
@@ -1292,10 +1303,13 @@ public class CalcStat {
          upper_limit = 0;
       }
 
-      if(x.length != prob.length) {
+      if(pairs == null) {
          throw new RuntimeException("x_range and prob_range contain different " +
                                     "number of data points");
       }
+
+      double[] x = pairs[0];
+      double[] prob = pairs[1];
 
 
       double probs = 0;
@@ -1528,15 +1542,17 @@ public class CalcStat {
    public static double slope(Object known_ysObj, Object known_xsObj) {
       Object[] known_ys = JavaScriptEngine.split(known_ysObj);
       Object[] known_xs = JavaScriptEngine.split(known_xsObj);
-      double[] ys = CalcUtil.convertToDoubleArray(known_ys);
-      double[] xs = CalcUtil.convertToDoubleArray(known_xs);
+      double[][] pairs = CalcUtil.pairedDoubles(known_ys, known_xs);
 
-      if(ys.length == 0 || xs.length == 0) {
-         throw new RuntimeException("Arrays cannot be empty, / by zero");
+      if(pairs == null) {
+         throw new RuntimeException("Arrays should have same number of values");
       }
 
-      if(ys.length != xs.length) {
-         throw new RuntimeException("Arrays should have same number of values");
+      double[] ys = pairs[0];
+      double[] xs = pairs[1];
+
+      if(ys.length == 0) {
+         throw new RuntimeException("Arrays cannot be empty, / by zero");
       }
 
       double avgy = 0;
@@ -1702,15 +1718,17 @@ public class CalcStat {
    public static double steyx(Object known_ysObj, Object known_xsObj) {
       Object[] known_ys = JavaScriptEngine.split(known_ysObj);
       Object[] known_xs = JavaScriptEngine.split(known_xsObj);
-      double[] ys = CalcUtil.convertToDoubleArray(known_ys);
-      double[] xs = CalcUtil.convertToDoubleArray(known_xs);
+      double[][] pairs = CalcUtil.pairedDoubles(known_ys, known_xs);
 
-      if(ys.length == 0 || xs.length == 0) {
-         throw new RuntimeException("Arrays cannot be empty, / by zero");
+      if(pairs == null) {
+         throw new RuntimeException("Arrays should have same number of values");
       }
 
-      if(ys.length != xs.length) {
-         throw new RuntimeException("Arrays should have same number of values");
+      double[] ys = pairs[0];
+      double[] xs = pairs[1];
+
+      if(ys.length == 0) {
+         throw new RuntimeException("Arrays cannot be empty, / by zero");
       }
 
       if(ys.length < 3) {

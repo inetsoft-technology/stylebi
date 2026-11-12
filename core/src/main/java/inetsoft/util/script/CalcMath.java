@@ -1056,6 +1056,63 @@ public class CalcMath {
    }
 
    /**
+    * Converts one sumproduct argument to a matrix by position. Unlike
+    * {@link CalcUtil#convertToDoubleArray2D(Object[])} an empty, null or
+    * non-numeric element is kept as 0 (like Excel SUMPRODUCT) instead of being
+    * dropped, so the elements of different arguments stay aligned.
+    */
+   private static double[][] sumproductMatrix(Object[] array) {
+      if(array == null) {
+         return new double[0][0];
+      }
+
+      // a vanilla array is a matrix with a single row
+      if(array.length > 0 && !(array[0] instanceof Object[])) {
+         double[][] matrix = new double[1][array.length];
+
+         for(int i = 0; i < array.length; i++) {
+            matrix[0][i] = sumproductValue(array[i]);
+         }
+
+         return matrix;
+      }
+
+      List<double[]> rows = new ArrayList<>();
+      int cols = 0;
+
+      for(int i = 0; i < array.length; i++) {
+         Object[] row = (Object[]) array[i];
+         double[] values = new double[row == null ? 0 : row.length];
+
+         for(int j = 0; j < values.length; j++) {
+            values[j] = sumproductValue(row[j]);
+         }
+
+         // the column count is taken from the last row, as before
+         cols = values.length;
+         rows.add(values);
+      }
+
+      double[][] matrix = new double[array.length][cols];
+
+      for(int i = 0; i < rows.size(); i++) {
+         double[] values = rows.get(i);
+         if(values.length > cols) {
+            throw new RuntimeException("Arrays should have same dimensions");
+         }
+
+         System.arraycopy(values, 0, matrix[i], 0, values.length);
+      }
+
+      return matrix;
+   }
+
+   private static double sumproductValue(Object value) {
+      Double d = CalcUtil.toDouble(value);
+      return d == null ? 0 : d;
+   }
+
+   /**
     * Multiplies corresponding components in the given arrays, and returns
     * the sum of those products
     * @param arraysObj array that holds other 2-D arrays
@@ -1066,7 +1123,7 @@ public class CalcMath {
       List<double[][]> holder = new ArrayList<>();
 
       for(int i = 0; i < arrays.length; i++) {
-         holder.add(CalcUtil.convertToDoubleArray2D((Object[]) arrays[i]));
+         holder.add(sumproductMatrix((Object[]) arrays[i]));
       }
 
       int rows = holder.get(0).length;
@@ -1126,13 +1183,15 @@ public class CalcMath {
    public static double sumx2my2(Object array_xObj, Object array_yObj) {
       Object[] array_x = JavaScriptEngine.split(array_xObj);
       Object[] array_y = JavaScriptEngine.split(array_yObj);
-      double[] x = CalcUtil.convertToDoubleArray(array_x);
-      double[] y = CalcUtil.convertToDoubleArray(array_y);
+      double[][] pairs = CalcUtil.pairedDoubles(array_x, array_y);
 
-      if(x.length != y.length) {
+      if(pairs == null) {
          throw new RuntimeException("array_x and array_y have a different " +
                                     "number of values");
       }
+
+      double[] x = pairs[0];
+      double[] y = pairs[1];
 
       double sumx2my2 = 0;
 
@@ -1152,13 +1211,15 @@ public class CalcMath {
    public static double sumx2py2(Object array_xObj, Object array_yObj) {
       Object[] array_x = JavaScriptEngine.split(array_xObj);
       Object[] array_y = JavaScriptEngine.split(array_yObj);
-      double[] x = CalcUtil.convertToDoubleArray(array_x);
-      double[] y = CalcUtil.convertToDoubleArray(array_y);
+      double[][] pairs = CalcUtil.pairedDoubles(array_x, array_y);
 
-      if(x.length != y.length) {
+      if(pairs == null) {
          throw new RuntimeException("array_x and array_y have a different " +
                                     "number of values");
       }
+
+      double[] x = pairs[0];
+      double[] y = pairs[1];
 
       double sumx2py2 = 0;
 
@@ -1180,13 +1241,15 @@ public class CalcMath {
    public static double sumxmy2(Object array_xObj, Object array_yObj) {
       Object[] array_x = JavaScriptEngine.split(array_xObj);
       Object[] array_y = JavaScriptEngine.split(array_yObj);
-      double[] x = CalcUtil.convertToDoubleArray(array_x);
-      double[] y = CalcUtil.convertToDoubleArray(array_y);
+      double[][] pairs = CalcUtil.pairedDoubles(array_x, array_y);
 
-      if(x.length != y.length) {
+      if(pairs == null) {
          throw new RuntimeException("array_x and array_y have a different " +
                                     "number of values");
       }
+
+      double[] x = pairs[0];
+      double[] y = pairs[1];
 
       double sumxmy2 = 0;
 
