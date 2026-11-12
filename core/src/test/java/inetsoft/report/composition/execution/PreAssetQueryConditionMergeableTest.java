@@ -214,7 +214,8 @@ class PreAssetQueryConditionMergeableTest {
    // (isConditionListMergeable). The one-of check for Mongo is only in the second, so a "one of"
    // is not taken out: the whole list fails and every condition is done in memory, also the one
    // that could be pushed down. Another condition that cannot be pushed down only keeps itself in
-   // memory. The result is the same, only less is pushed down. Pins the current behavior.
+   // memory. The result is the same, only less is pushed down. Pins the current behavior, reported
+   // as Bug #81229.
    @Test
    void oneOfOnMongoKeepsTheOtherConditionsInMemoryToo() throws Exception {
       MergeableFixture.Built built = MergeableFixture.simple("derby");
