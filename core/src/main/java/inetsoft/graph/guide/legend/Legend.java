@@ -664,13 +664,18 @@ public abstract class Legend extends BoundedContainer {
     */
    private boolean isReversed() {
       boolean inMarkOrder = graph.isLegendInMarkOrder();
+
+      // a clustered row keeps its natural order
+      if(inMarkOrder && !verticalLayout && isSingleSegment()) {
+         return false;
+      }
+
       // ignore fake categorical frame.
       // only reverse for vertical legend layout
       return (frame instanceof CategoricalFrame || frame instanceof StackedMeasuresFrame) &&
          frame.getField() != null &&
          (verticalLayout || ncol == 1 ||
-            inMarkOrder && ncol > 1 && !isRotated(graph.getCoordinate()) &&
-               !isSingleSegment()) &&
+            inMarkOrder && ncol > 1 && !isRotated(graph.getCoordinate())) &&
          !GTool.isPolar(graph.getCoordinate()) && elem != null && elem.isStack();
    }
 
@@ -680,7 +685,7 @@ public abstract class Legend extends BoundedContainer {
     */
    private boolean isSingleSegment() {
       String field = frame.getField();
-      return field != null && Arrays.asList(elem.getDims()).contains(field);
+      return elem != null && field != null && Arrays.asList(elem.getDims()).contains(field);
    }
 
    /**
