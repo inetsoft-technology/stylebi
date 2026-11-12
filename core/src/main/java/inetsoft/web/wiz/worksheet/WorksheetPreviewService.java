@@ -20,12 +20,15 @@ package inetsoft.web.wiz.worksheet;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.util.CoreTool;
 import inetsoft.util.TimedQueue;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.UserMessage;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
@@ -259,11 +262,42 @@ public class WorksheetPreviewService {
          warnings.addAll(captureWarnings());
 
          return new PreviewResult(rows, warnings,
-                                  limited ? new ColumnLimit(true, maxCols, total) : null);
+                                  limited ? new ColumnLimit(true, maxCols, total) : null,
+                                  detectRowLimit(rws.getWorksheet(), tableName, lens));
       }
       catch(RuntimeException e) {
          throw new PairingException("Failed to read result columns for '"
                                     + tableName + "': " + e.getMessage(), e);
+      }
+   }
+
+   /**
+    * Reports the row limit the executed table's result has reached, if any: the table's own max
+    * rows or the administrator's runtime query limit. Composer states the same through
+    * {@link AssetEventUtil#getExceededMsg}; the runtime-mode variant is used here because this
+    * endpoint executes in {@link AssetQuerySandbox#RUNTIME_MODE}, where the design-only preview
+    * limit never applies. A table holding exactly as many rows as the limit also reports it, as
+    * Composer does, since the rows are indistinguishable from a truncated result.
+    * <p>Row 0 of the lens is the header, so "the result has at least {@code n} rows" is
+    * {@code lens.moreRows(n)}. The check is bounded by the limit itself.</p>
+    */
+   private static RowLimit detectRowLimit(Worksheet ws, String tableName, TableLens lens) {
+      if(ws == null || !(ws.getAssembly(tableName) instanceof TableAssembly table)) {
+         return null;
+      }
+
+      try {
+         AssetEventUtil.ExceededLimit exceeded =
+            AssetEventUtil.getExceededLimit(table, lens::moreRows, true);
+
+         return exceeded == null ? null :
+            new RowLimit(true, exceeded.limit(), exceeded.admin() ? "admin" : "table",
+                         exceeded.message());
+      }
+      catch(RuntimeException e) {
+         // The rows were already produced; a failure to count them must not fail the preview.
+         LOG.warn("Failed to check the row limit of worksheet table '{}'", tableName, e);
+         return null;
       }
    }
 
@@ -296,12 +330,32 @@ public class WorksheetPreviewService {
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record PreviewResult(List<Map<String, Object>> rows, List<String> warnings,
-                               ColumnLimit columnLimit)
+                               ColumnLimit columnLimit, RowLimit rowLimit)
    {
       public PreviewResult(List<Map<String, Object>> rows, List<String> warnings) {
-         this(rows, warnings, null);
+         this(rows, warnings, null, null);
+      }
+
+      public PreviewResult(List<Map<String, Object>> rows, List<String> warnings,
+                           ColumnLimit columnLimit)
+      {
+         this(rows, warnings, columnLimit, null);
       }
    }
+
+   /**
+    * Structured counterpart of Composer's "Table max rows (N) reached." notice. Present on
+    * {@link PreviewResult} only when the table's result reached a row limit, regardless of the
+    * preview's own {@code offset}/{@code limit}.
+    *
+    * @param reached always {@code true} when present
+    * @param limit   the number of rows the limit allows
+    * @param kind    {@code "table"} for the table's own max rows, {@code "admin"} for the
+    *                administrator's runtime query limit
+    * @param message the message Composer shows for it
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record RowLimit(boolean reached, int limit, String kind, String message) {}
 
    /**
     * Structured counterpart of the column-limit warning. Present on {@link PreviewResult} only

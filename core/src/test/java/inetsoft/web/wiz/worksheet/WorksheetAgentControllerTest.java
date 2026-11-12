@@ -2452,7 +2452,7 @@ class WorksheetAgentControllerTest {
    }
 
    @Test
-   void previewKeepsColumnLimitWhenDroppedConditionWarningsAreAppended() throws Exception {
+   void previewKeepsColumnLimitAndRowLimitWhenDroppedConditionWarningsAreAppended() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
       Worksheet ws = new Worksheet();
@@ -2477,7 +2477,8 @@ class WorksheetAgentControllerTest {
       WorksheetPreviewService.PreviewResult unfiltered =
          new WorksheetPreviewService.PreviewResult(
             List.of(Map.of("x", "unfiltered-row")), List.of("limited"),
-            new WorksheetPreviewService.ColumnLimit(true, 200, 250));
+            new WorksheetPreviewService.ColumnLimit(true, 200, 250),
+            new WorksheetPreviewService.RowLimit(true, 10, "table", "Table max rows (10) reached."));
       when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(unfiltered);
 
       WorksheetAgentController ctrl = controller(featureOn(),
@@ -2501,6 +2502,7 @@ class WorksheetAgentControllerTest {
          assertEquals(unfiltered.rows(), result.rows());
          assertEquals(2, result.warnings().size());
          assertEquals(unfiltered.columnLimit(), result.columnLimit());
+         assertEquals(unfiltered.rowLimit(), result.rowLimit());
          assertTrue(result.warnings().get(1).contains("declaredVar"),
             "warning must name the specific variable: " + result.warnings());
       }

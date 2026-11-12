@@ -24,6 +24,8 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.CoreTool;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
@@ -644,6 +646,81 @@ class WorksheetPreviewServiceTest {
 
       assertEquals(List.of("something else happened"), result.warnings());
       assertNull(result.columnLimit());
+   }
+
+   // Bug #81222: Composer says "Table max rows (N) reached." when the table's result hits its
+   // max rows; the preview now reports the same as rowLimit.
+   private WorksheetPreviewService.PreviewResult previewCapped(int maxRows, TableLens lens,
+                                                               int offset, int limit)
+      throws Exception
+   {
+      Worksheet ws = mock(Worksheet.class);
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getMaxRows()).thenReturn(maxRows);
+      when(table.getWorksheet()).thenReturn(ws);
+      when(ws.getAssembly("T")).thenReturn(table);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[0]);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(lens);
+      RuntimeWorksheet rws = rws(box);
+      when(rws.getWorksheet()).thenReturn(ws);
+      return service.preview(rws, "T", offset, limit);
+   }
+
+   @Test
+   void reportsRowLimitWhenTheTableHoldsItsMaxRows() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}, {"r2"}, {"r3"}});
+
+      WorksheetPreviewService.RowLimit rowLimit = previewCapped(3, l, 0, 10).rowLimit();
+
+      assertNotNull(rowLimit, "3 rows under maxRows 3 is the cap reached, as in Composer");
+      assertTrue(rowLimit.reached());
+      assertEquals(3, rowLimit.limit());
+      assertEquals("table", rowLimit.kind());
+      assertTrue(rowLimit.message().contains("3"), rowLimit.message());
+   }
+
+   @Test
+   void reportsNoRowLimitWhenTheTableIsBelowItsMaxRows() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}, {"r2"}, {"r3"}});
+
+      assertNull(previewCapped(4, l, 0, 10).rowLimit(), "header row must not count as a data row");
+   }
+
+   @Test
+   void rowLimitDoesNotDependOnThePageRequested() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}, {"r2"}, {"r3"}});
+
+      WorksheetPreviewService.PreviewResult result = previewCapped(3, l, 0, 1);
+
+      assertEquals(1, result.rows().size());
+      assertNotNull(result.rowLimit());
+      assertNotNull(previewCapped(3, l, 2, 1).rowLimit());
+   }
+
+   @Test
+   void tableWithoutMaxRowsNeverReportsTheDesignPreviewLimit() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}});
+      // a table far larger than the 5000-row design preview limit
+      when(l.moreRows(anyInt())).thenReturn(true);
+
+      assertNull(previewCapped(0, l, 0, 10).rowLimit(),
+                 "the preview executes in runtime mode, where the design preview limit is off");
+   }
+
+   @Test
+   void rowLimitSerializesOnlyWhenPresent() {
+      ObjectMapper mapper = new ObjectMapper();
+
+      assertFalse(mapper.valueToTree(
+         new WorksheetPreviewService.PreviewResult(List.of(), List.of())).has("rowLimit"));
+
+      JsonNode node = mapper.valueToTree(new WorksheetPreviewService.PreviewResult(
+         List.of(), List.of(), null,
+         new WorksheetPreviewService.RowLimit(true, 10, "table", "Table max rows (10) reached.")));
+      assertTrue(node.get("rowLimit").get("reached").asBoolean());
+      assertEquals(10, node.get("rowLimit").get("limit").asInt());
+      assertEquals("table", node.get("rowLimit").get("kind").asText());
    }
 
    @Test
