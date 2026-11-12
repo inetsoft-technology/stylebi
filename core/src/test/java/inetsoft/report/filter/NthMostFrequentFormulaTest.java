@@ -291,7 +291,7 @@ class NthMostFrequentFormulaTest {
       assertNull(frequent.getResult());
    }
 
-   @Disabled("Bug #81205, mismatch N1")
+   @Disabled("Bug #81215, mismatch N1")
    @Test
    @DisplayName("N1: getDoubleResult of a text mode is 0.0, like other non-numeric objects")
    void n1_doubleResultOfText_isZeroWithoutException() {

@@ -212,7 +212,7 @@ class UtilCreateFormulaTest {
       assertEquals("a", one.getResult());
    }
 
-   @Disabled("Bug #81205, mismatch U6b")
+   @Disabled("Bug #81211, mismatch U6b")
    @Test
    @DisplayName("U6b: a negative n is read like n = 1, not as a Sum")
    void u6b_negativeN() {

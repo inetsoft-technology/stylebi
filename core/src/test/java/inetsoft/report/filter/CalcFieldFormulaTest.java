@@ -778,7 +778,7 @@ public class CalcFieldFormulaTest {
       assertEquals("High", formula.getResult());
    }
 
-   @Disabled("Bug #81205, mismatch C5")
+   @Disabled("Bug #81212, mismatch C5")
    @Test
    @DisplayName("C5: setTotal after getResult invalidates the cached result")
    void c5_setTotalAfterGetResult_recomputes() {

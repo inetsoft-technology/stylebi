@@ -352,15 +352,16 @@ class VSCalcFieldQueryTest {
       assertFalse(has(table, "plain"));
    }
 
-   @Disabled("Bug #81207, mismatch V5")
    @Test
-   @DisplayName("V5: appending a calc field does not change the viewsheet's own reference")
-   void v5_sharedCalcRefIsNotMutated() throws Exception {
+   @DisplayName("PIN V5 (current behavior, deliberate, Bug #81207 not a bug): the clone added to " +
+      "the column selection must be visible, so the viewsheet's own ref becomes visible")
+   void v5_pin_appendMakesTheViewsheetRefVisible() throws Exception {
       initCityAb();
       CalculateRef calc = addCalc("d1", true, "field['a'] + 1", XSchema.INTEGER);
       calc.setVisible(false);
       VSAQuery.appendCalcFieldWithType(baseTable("D"), "D", true, false, vs);
-      assertFalse(vs.getCalcField("D", "d1").isVisible());
+      // same idiom at VSAQuery:1583, VSUtil:4427, VSUtil:4450, TableConditionUtil:1343
+      assertTrue(vs.getCalcField("D", "d1").isVisible());
    }
 
    /** D(a, b, c, d) with two rows, and the viewsheet calc fields of the given kind. */

@@ -378,9 +378,9 @@ public class PostProcessorTest {
 
    @Disabled("Bug #81204, mismatch P9b")
    @Test
-   @DisplayName("P9b: the quarter of a null date is null")
-   void p9b_nullDate_quarterIsNull() {
-      assertNull(first(oneDate(null), "CALC.quarter(field['orderdate'])", XSchema.INTEGER));
+   @DisplayName("P9b: the quarter of a null date is -1, like year, month, day and hour")
+   void p9b_nullDate_quarterIsMinusOne() {
+      assertEquals(-1, first(oneDate(null), "CALC.quarter(field['orderdate'])", XSchema.INTEGER));
    }
 
    @Test

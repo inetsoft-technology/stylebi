@@ -269,7 +269,7 @@ class DistinctCountFormulaTest {
       assertEquals(1, objects.getResult());
    }
 
-   @Disabled("Bug #81205, mismatch D2b")
+   @Disabled("Bug #81213, mismatch D2b")
    @Test
    @DisplayName("D2b: 0.0 and -0.0 are the same value")
    void d2b_negativeZero_isTheSameValueAsZero() {
@@ -289,7 +289,7 @@ class DistinctCountFormulaTest {
       assertEquals(0.2, (Double) distinct.getResult(), 1e-9);
    }
 
-   @Disabled("Bug #81205, mismatch D5")
+   @Disabled("Bug #81213, mismatch D5")
    @Test
    @DisplayName("D5: a Timestamp and a Date of the same instant are one value in either order")
    void d5_timestampAndDateOfTheSameInstant_countOnce() {
