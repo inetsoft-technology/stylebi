@@ -528,6 +528,26 @@ public class FormulaFunctionsTest {
       assertArrayEquals(expected, (Object[]) result);
    }
 
+   /**
+    * Bug #81164: numbers of different types with the same value are one element,
+    * consistent with intersect and inArray.
+    */
+   @Test
+   void testUnionMixedNumberTypes() {
+      Object[] result = (Object[]) FormulaFunctions.union(
+         new Object[]{1.0, 2.0, 3.0}, new Object[]{3, 4L, 2.0f, null, null}, null);
+      assertArrayEquals(new Object[]{1.0, 2.0, 3.0, 4L, null}, result);
+
+      result = (Object[]) FormulaFunctions.union(
+         new Object[]{3, 3.0}, new Object[]{new java.math.BigDecimal("3")}, null);
+      assertArrayEquals(new Object[]{3}, result);
+
+      // intersect and inArray already treat them as equal
+      assertEquals(1, ((Object[]) FormulaFunctions.intersect(
+         new Object[]{3.0}, new Object[]{3}, null)).length);
+      assertTrue(FormulaFunctions.inArray(new Object[]{3.0}, 3));
+   }
+
    private static Stream<Arguments> provideUnionArrayTestCases() {
       // Return a stream of arguments for the unionArray method
       return Stream.of(

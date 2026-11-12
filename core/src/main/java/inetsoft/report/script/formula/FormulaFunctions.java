@@ -354,18 +354,37 @@ public class FormulaFunctions {
       List list = new ArrayList();
 
       for(int i = 0; i < arr1.length; i++) {
-         if(!list.contains(arr1[i])) {
+         if(!listContains(list, arr1[i])) {
             list.add(arr1[i]);
          }
       }
 
       for(int i = 0; i < arr2.length; i++) {
-         if(!list.contains(arr2[i])) {
+         if(!listContains(list, arr2[i])) {
             list.add(arr2[i]);
          }
       }
 
       return list.toArray();
+   }
+
+   /**
+    * Check if a list contains a value. Numbers are compared by value, as in
+    * intersect and inArray, so that Double 3.0 and Integer 3 are equal. All
+    * other values (including arrays) keep the List.contains (equals) semantics.
+    */
+   private static boolean listContains(List list, Object val) {
+      for(int i = 0; i < list.size(); i++) {
+         Object item = list.get(i);
+
+         if(item instanceof Number && val instanceof Number ?
+            Tool.equals(item, val) : Objects.equals(item, val))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
