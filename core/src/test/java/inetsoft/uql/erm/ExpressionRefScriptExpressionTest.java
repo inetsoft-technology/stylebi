@@ -81,7 +81,7 @@ class ExpressionRefScriptExpressionTest {
       assertEquals("a /*script x", ExpressionRef.getSQLExpression(true, "a /*script x"));
    }
 
-   @Disabled("Bug #81205, mismatch X1f")
+   @Disabled("Bug #81206, mismatch X1f")
    @Test
    @DisplayName("X1f: overlapping markers do not throw")
    void x1f_overlappingMarkers_doNotThrow() {

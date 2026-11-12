@@ -352,7 +352,7 @@ class VSCalcFieldQueryTest {
       assertFalse(has(table, "plain"));
    }
 
-   @Disabled("Bug #81205, mismatch V5")
+   @Disabled("Bug #81207, mismatch V5")
    @Test
    @DisplayName("V5: appending a calc field does not change the viewsheet's own reference")
    void v5_sharedCalcRefIsNotMutated() throws Exception {

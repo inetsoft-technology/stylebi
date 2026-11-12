@@ -172,7 +172,7 @@ class AssetQueryExpressionColumnTest {
       assertEquals(Arrays.asList(9, 12), column(box(ws).getTableLens("T", RUNTIME), "v"));
    }
 
-   @Disabled("Bug #81205, mismatch E3")
+   @Disabled("Bug #81206, mismatch E3")
    @Test
    @DisplayName("E3: two expressions that refer to each other fail with a handled error")
    void e3_circularReference_isAHandledFailure() throws Exception {

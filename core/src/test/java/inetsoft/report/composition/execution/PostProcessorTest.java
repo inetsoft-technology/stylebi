@@ -393,7 +393,7 @@ public class PostProcessorTest {
       }
    }
 
-   @Disabled("Bug #81205, mismatch P10")
+   @Disabled("Bug #81206, mismatch P10")
    @Test
    @DisplayName("P10: a declared Integer never turns a value beyond int into a clamped number")
    void p10_integerBeyondInt_isNotClamped() {
