@@ -20,6 +20,7 @@ package inetsoft.sree.internal;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
@@ -78,6 +79,7 @@ class ScheduleManagerExtensionTaskTest {
 
    private static final String ORG = Organization.getDefaultOrganizationID();
    private static final String CYCLE = "Cycle77213";
+   private static final String OTHER_ORG = "org79868other";
    private static final String OWNER_KEY = new IdentityID(XPrincipal.SYSTEM, ORG).convertToKey();
    private static final String TASK_ID = OWNER_KEY + "__" + DataCycleManager.TASK_PREFIX + CYCLE;
    private static final String STAGE2_ID = TASK_ID + " Stage 2";
@@ -412,6 +414,67 @@ class ScheduleManagerExtensionTaskTest {
       Field loadedField = ScheduleManager.class.getDeclaredField("extensionTasksLoadedOrgs");
       loadedField.setAccessible(true);
       ((Set<String>) loadedField.get(scheduleManager)).add(ORG);
+   }
+
+   // Bug #79868, the org delete clear must also unload the org so the next read reloads it
+   @Test
+   void removeTaskCacheOfOrgDropsExtensionTasksAndUnloadsOrgOnly() throws Exception {
+      installGeneratedTask(createCycleTask(true));
+      loadedOrgs().add(OTHER_ORG);
+
+      scheduleManager.removeTaskCacheOfOrg(ORG);
+
+      assertFalse(loadedOrgs().contains(ORG), "the org must be unloaded");
+      assertTrue(loadedOrgs().contains(OTHER_ORG), "another org must stay loaded");
+      assertTrue(extensionTaskKeys().isEmpty(), "extension tasks of the org must be dropped");
+      loadedOrgs().remove(OTHER_ORG);
+   }
+
+   @Test
+   void clearMessageClearsTheGivenOrgOnly() throws Exception {
+      installGeneratedTask(createCycleTask(true));
+      loadedOrgs().add(OTHER_ORG);
+
+      scheduleManager.messageReceived(
+         new MessageEvent(this, "node2", false, new ClearScheduleCacheEvent(OTHER_ORG)));
+      assertTrue(loadedOrgs().contains(ORG), "an unrelated org must be untouched");
+      assertFalse(extensionTaskKeys().isEmpty(), "an unrelated org must be untouched");
+      assertFalse(loadedOrgs().contains(OTHER_ORG));
+
+      scheduleManager.messageReceived(
+         new MessageEvent(this, "node2", false, new ClearScheduleCacheEvent(ORG)));
+      assertFalse(loadedOrgs().contains(ORG));
+      assertTrue(extensionTaskKeys().isEmpty());
+
+      // other messages are ignored
+      installGeneratedTask(createCycleTask(true));
+      scheduleManager.messageReceived(new MessageEvent(this, "node2", false, "other"));
+      assertTrue(loadedOrgs().contains(ORG));
+   }
+
+   @Test
+   void failedBroadcastDoesNotAbortOrgTasksRemoved() throws Exception {
+      Cluster failing = mock(Cluster.class);
+      doThrow(new RuntimeException("down")).when(failing).sendMessage(any());
+      ScheduleManager manager = new ScheduleManager(
+         securityEngine, failing, mock(ScheduleClient.class), mock(DependencyHandler.class));
+
+      assertDoesNotThrow(() -> manager.orgTasksRemoved(OTHER_ORG));
+      verify(failing).sendMessage(any(ClearScheduleCacheEvent.class));
+   }
+
+   @SuppressWarnings("unchecked")
+   private Set<String> loadedOrgs() throws Exception {
+      Field f = ScheduleManager.class.getDeclaredField("extensionTasksLoadedOrgs");
+      f.setAccessible(true);
+      return (Set<String>) f.get(scheduleManager);
+   }
+
+   @SuppressWarnings("unchecked")
+   private Set<Object> extensionTaskKeys() throws Exception {
+      Field f = ScheduleManager.class.getDeclaredField("extensionTasks");
+      f.setAccessible(true);
+      return ((Map<Object, ?>) f.get(scheduleManager)).keySet();
    }
 
    private DataCycleManager.DataCycleAsset readAsset() throws Exception {

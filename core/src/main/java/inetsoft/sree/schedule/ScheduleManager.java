@@ -21,6 +21,8 @@ import inetsoft.sree.*;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageEvent;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -29,6 +31,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -58,7 +61,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @Lazy
-public class ScheduleManager {
+public class ScheduleManager implements MessageListener {
    /**
     * Get the schedule manager.
     */
@@ -123,6 +126,51 @@ public class ScheduleManager {
       this.scheduleClient = scheduleClient;
       this.dependencyHandler = dependencyHandler;
       initMap();
+   }
+
+   @PostConstruct
+   public void registerClusterListener() {
+      cluster.addMessageListener(this);
+   }
+
+   @PreDestroy
+   public void unregisterClusterListener() {
+      cluster.removeMessageListener(this);
+   }
+
+   /**
+    * Another node deleted or renamed away an organization: drop this node's in-memory task
+    * caches of the organization only. Shared state (storage, scheduler) was already handled by
+    * the node that handled the request.
+    */
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event == null || !(event.getMessage() instanceof ClearScheduleCacheEvent)) {
+         return;
+      }
+
+      String orgID = ((ClearScheduleCacheEvent) event.getMessage()).getOrgID();
+
+      if(orgID != null) {
+         removeTaskCacheOfOrg(orgID);
+      }
+   }
+
+   /**
+    * Called when an organization is deleted or its id is renamed away. Clears the in-memory task
+    * caches of the organization on this node and on every other node of the cluster.
+    */
+   public void orgTasksRemoved(String orgID) {
+      removeTaskCacheOfOrg(orgID);
+
+      // the local clear is done; a failed broadcast must not abort the rest of the org delete
+      try {
+         cluster.sendMessage(new ClearScheduleCacheEvent(orgID));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to notify the cluster that organization {} was removed; other nodes " +
+                  "may keep its schedule tasks until restarted", orgID, e);
+      }
    }
 
    @PostConstruct
@@ -2622,6 +2670,8 @@ public class ScheduleManager {
     */
    private void removeExtensionTasksOfOrg(String orgID) {
       clearExtensionCaches(orgID);
+      // unload the org so the next getScheduleTasks(org) reloads from storage
+      extensionTasksLoadedOrgs.remove(orgID);
 
       Iterator<ExtTaskKey> it = extensionTasks.keySet().iterator();
 
