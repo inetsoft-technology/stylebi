@@ -165,8 +165,10 @@ public class ViewsheetAssemblyAgentController {
                                    VSExportService exportService,
                                    SecurityEngine securityEngine,
                                    ViewsheetPropertyDialogService viewsheetPropertyDialogService,
-                                   RepletRegistryService repletRegistryService)
+                                   RepletRegistryService repletRegistryService,
+                                   ViewsheetImageUploadService imageUploadService)
    {
+      this.imageUploadService = imageUploadService;
       this.repletRegistryService = repletRegistryService;
       this.feature = feature;
       this.joinService = joinService;
@@ -2706,6 +2708,32 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * {@code upload_image}: the Composer's Image assembly &gt; Static Image &gt; Upload. Adds the
+    * image to the paired dashboard's uploaded images; any Image assembly can then select it as
+    * {@code ^UPLOADED^<name>}. See {@link ViewsheetImageUploadService} for what is refused.
+    *
+    * @param name the name to store the image under; defaults to the uploaded file's own name
+    */
+   @PostMapping(value = "/api/wiz/v1/agent/viewsheet/{sessionToken}/images",
+                consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+   public Map<String, Object> uploadImage(@PathVariable String sessionToken,
+                                          @RequestPart(value = "file", required = false)
+                                          MultipartFile file,
+                                          @RequestParam(required = false) String name,
+                                          Principal user)
+      throws Exception
+   {
+      requireEnabled();
+
+      if(file == null || file.isEmpty()) {
+         throw new IllegalArgumentException("'file' is required and must not be empty.");
+      }
+
+      String imageName = name != null && !name.isBlank() ? name : file.getOriginalFilename();
+      return imageUploadService.upload(sessionToken, user, file.getBytes(), imageName);
+   }
+
+   /**
     * {@code get_column_options}. {@code col} is either a 0-based visible-column index or a
     * column name -- see {@link ColumnOptionService} for why that resolution happens there rather
     * than in the wiz plugin.
@@ -4522,4 +4550,5 @@ public class ViewsheetAssemblyAgentController {
    private final SecurityEngine securityEngine;
    private final ViewsheetPropertyDialogService viewsheetPropertyDialogService;
    private final RepletRegistryService repletRegistryService;
+   private final ViewsheetImageUploadService imageUploadService;
 }

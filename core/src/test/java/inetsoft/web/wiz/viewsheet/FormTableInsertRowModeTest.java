@@ -130,6 +130,6 @@ class FormTableInsertRowModeTest {
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class),
                                           mock(VSExportService.class), mock(SecurityEngine.class),
-                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null);
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class), null, null);
    }
 }
