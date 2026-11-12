@@ -159,9 +159,7 @@ class MergeJoinTable extends JoinTable {
 
                   if(comp > 0) {
                      if(rightOuter && !rJoined.contains(r)) {
-                        addRow(-1, getRightRow(r));
-
-                        if(checkMaxRows()) {
+                        if(addRowWithinLimit(-1, getRightRow(r))) {
                            break;
                         }
                      }
@@ -170,7 +168,9 @@ class MergeJoinTable extends JoinTable {
                   }
                   else if(comp < 0) {
                      if(leftOuter && !lJoined.contains(l)) {
-                        addRow(getLeftRow(l), -1);
+                        if(addRowWithinLimit(getLeftRow(l), -1)) {
+                           break;
+                        }
                      }
 
                      l++;
@@ -179,17 +179,13 @@ class MergeJoinTable extends JoinTable {
                      if(containsNull(lTuple) || containsNull(rTuple)) {
                         // sql does not join on null, don't add inner join
                         if(leftOuter && !lJoined.contains(l)) {
-                           addRow(getLeftRow(l), -1);
-
-                           if(checkMaxRows()) {
+                           if(addRowWithinLimit(getLeftRow(l), -1)) {
                               break;
                            }
                         }
 
                         if(rightOuter && !rJoined.contains(r)) {
-                           addRow(-1, getRightRow(r));
-
-                           if(checkMaxRows()) {
+                           if(addRowWithinLimit(-1, getRightRow(r))) {
                               break;
                            }
                         }
@@ -199,7 +195,7 @@ class MergeJoinTable extends JoinTable {
                         int rBase = getRightRow(r);
 
                         // add inner join for current rows
-                        addRow(lBase, rBase);
+                        boolean full = addRowWithinLimit(lBase, rBase);
 
                         if(leftOuter) {
                            lJoined.add(l);
@@ -209,7 +205,7 @@ class MergeJoinTable extends JoinTable {
                            rJoined.add(r);
                         }
 
-                        if(checkMaxRows()) {
+                        if(full) {
                            break;
                         }
 
@@ -218,13 +214,13 @@ class MergeJoinTable extends JoinTable {
                            Object[] tuple = getTuple(rightTable, i);
 
                            if(compareTuples(lTuple, tuple) == 0 && !containsNull(tuple)) {
-                              addRow(lBase, getRightRow(i));
+                              boolean rowFull = addRowWithinLimit(lBase, getRightRow(i));
 
                               if(rightOuter) {
                                  rJoined.add(i);
                               }
 
-                              if(checkMaxRows()) {
+                              if(rowFull) {
                                  break;
                               }
                            }
@@ -246,13 +242,13 @@ class MergeJoinTable extends JoinTable {
                            Object[] tuple = getTuple(leftTable, i);
 
                            if(compareTuples(tuple, rTuple) == 0 && !containsNull(tuple)) {
-                              addRow(getLeftRow(i), rBase);
+                              boolean rowFull = addRowWithinLimit(getLeftRow(i), rBase);
 
                               if(leftOuter) {
                                  lJoined.add(i);
                               }
 
-                              if(checkMaxRows()) {
+                              if(rowFull) {
                                  break;
                               }
                            }
@@ -278,9 +274,7 @@ class MergeJoinTable extends JoinTable {
                   // add remaining rows from left table for outer join
                   for(int row = l; leftTable.moreRows(row) && !isCancelled(); row++) {
                      if(!lJoined.contains(row)) {
-                        addRow(getLeftRow(row), -1);
-
-                        if(checkMaxRows()) {
+                        if(addRowWithinLimit(getLeftRow(row), -1)) {
                            break;
                         }
                      }
@@ -292,9 +286,7 @@ class MergeJoinTable extends JoinTable {
                   // add remaining rows from right table for outer join
                   for(int row = r; rightTable.moreRows(row) && !isCancelled(); row++) {
                      if(!rJoined.contains(row)) {
-                        addRow(-1, getRightRow(row));
-
-                        if(checkMaxRows()) {
+                        if(addRowWithinLimit(-1, getRightRow(row))) {
                            break;
                         }
                      }
