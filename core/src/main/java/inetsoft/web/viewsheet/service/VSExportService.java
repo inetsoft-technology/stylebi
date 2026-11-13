@@ -744,6 +744,14 @@ public class VSExportService {
          VSExporter exporter = AbstractVSExporter.getVSExporter(
                     format, PortalThemesManager.getColorTheme(), out, print, csvConfig);
 
+         // mirrors ExportControllerService: the guard is opt-in so the Viewer, Composer and
+         // scheduler exports are unchanged; the wiz routes ask for it through the config
+         if(csvConfig != null && csvConfig.isFailOnFailedQuery() &&
+            exporter instanceof AbstractVSExporter)
+         {
+            ((AbstractVSExporter) exporter).setFailOnFailedQuery(true);
+         }
+
          if(exporter instanceof ExcelVSExporter) {
             ((ExcelVSExporter) exporter).setExcelToCSV(excelToCSV);
             ((ExcelVSExporter) exporter).setExportAllTabbedTables(exportAllTabbedTables);

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.Worksheet;
@@ -45,6 +46,7 @@ import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
+import inetsoft.web.wiz.service.WizVsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -56,6 +58,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
+import java.util.Optional;
 
 /**
  * Renders a viewsheet assembly — or the whole viewsheet — to a PNG snapshot the agent can
@@ -304,6 +307,16 @@ public class ScriptImageService {
                                                               Principal principal)
       throws Exception
    {
+      // The Viewer shares exportViewsheetTable, so the guard lives here, on the wiz route only: a
+      // table whose live query failed is otherwise exported as the fabricated design-time sample
+      // row the failure is swallowed into (bug #80075). The lens read here is the one the export
+      // reads next (cached by the sandbox).
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         WizVsService.checkFailedQuery(box.get().getVSTableLens(assemblyName, false), false);
+      }
+
       return assemblyImageService.exportViewsheetTable(rvs.getID(), assemblyName, agent,
                                                        principal);
    }

@@ -7191,7 +7191,7 @@ class ViewsheetAssemblyAgentControllerTest {
          return null;
       }).when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
          anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
-         anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+         anyBoolean(), any(CSVConfig.class), anyBoolean(), any(ExportResponse.class), any(Principal.class));
    }
 
    @Test
@@ -7218,7 +7218,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_PDF),
          eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
-         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
+         eq(false), any(CSVConfig.class), eq(false), any(ExportResponse.class), any(Principal.class));
       verify(servletResponse).setContentType("application/pdf");
       verify(servletResponse).setContentLength(fakePdf.length);
       assertArrayEquals(fakePdf, written.toByteArray());
@@ -7254,7 +7254,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_SNAPSHOT),
          eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
-         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
+         eq(false), any(CSVConfig.class), eq(false), any(ExportResponse.class), any(Principal.class));
       ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
       verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
       assertTrue(disposition.getValue().contains("export.vso"));
@@ -7284,7 +7284,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_PDF),
          eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
-         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
+         eq(false), any(CSVConfig.class), eq(false), any(ExportResponse.class), any(Principal.class));
       ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
       verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
       assertTrue(disposition.getValue().contains("export.pdf"));
@@ -7323,7 +7323,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_CSV),
          eq(false), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
-         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
+         eq(false), any(CSVConfig.class), eq(false), any(ExportResponse.class), any(Principal.class));
       // CSV's real payload is a zip archive (VSExportService#getSuffix), not a literal .csv file
       // -- confirmed live against a real export. A wrong extension here would actively mislead
       // once the bytes are actually saved to disk under this name.
@@ -7409,13 +7409,62 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    @Test
-   void export_plainCsvStillEmitsTheAppliedHeaderWithoutBuildingAConfig() throws Exception {
+   void export_plainCsvStillEmitsTheAppliedHeaderWithTheDefaultOptions() throws Exception {
       ExportFixture f = new ExportFixture();
 
       f.export("CSV", null, null, null, null, null);
 
-      assertNull(f.exportedCsvConfig());
+      assertEquals(",", f.exportedCsvConfig().getDelimiter());
       verify(f.response).setHeader(eq("X-Wiz-Export-Applied"), anyString());
+   }
+
+   /**
+    * Bug #80075 (5): this is the route export_viewsheet uses, and it never armed the exporter's
+    * failed-query guard (only WizExportController did), so a table whose live query failed was
+    * written as the fabricated design-time sample row. The flag rides the CSVConfig, which must
+    * therefore be passed for every format, with or without CSV options or targets.
+    */
+   @Test
+   void export_asksTheServiceToFailOnAFailedQueryForEveryFormat() throws Exception {
+      for(String format : List.of("CSV", "Excel", "PDF", "PowerPoint", "HTML", "Snapshot")) {
+         ExportFixture f = new ExportFixture();
+
+         f.export(format, null, null, null, null, null);
+
+         CSVConfig config = f.exportedCsvConfig();
+         assertNotNull(config, format);
+         assertTrue(config.isFailOnFailedQuery(), format);
+      }
+   }
+
+   @Test
+   void export_csvTargetsAndOptionsStillCarryTheFailOnFailedQueryFlag() throws Exception {
+      ExportFixture f = new ExportFixture();
+      f.assembly("T1", TableDataVSAssembly.class);
+
+      try(MockedStatic<inetsoft.report.io.viewsheet.excel.CSVUtil> csvUtil =
+             mockStatic(inetsoft.report.io.viewsheet.excel.CSVUtil.class))
+      {
+         csvUtil.when(() -> inetsoft.report.io.viewsheet.excel.CSVUtil.needExport(any()))
+            .thenReturn(true);
+         f.export("CSV", List.of("T1"), ";", "", false, true);
+      }
+
+      assertTrue(f.exportedCsvConfig().isFailOnFailedQuery());
+   }
+
+   @Test
+   void export_defaultCsvConfigKeepsTheDefaultCsvOutputOptions() throws Exception {
+      ExportFixture f = new ExportFixture();
+
+      f.export("CSV", null, null, null, null, null);
+
+      CSVConfig config = f.exportedCsvConfig();
+      assertEquals(",", config.getDelimiter());
+      assertNull(config.getQuote());
+      assertTrue(config.isKeepHeader());
+      assertFalse(config.isTabDelimited());
+      assertNull(config.getExportAssemblies());
    }
 
    @Test
@@ -8086,7 +8135,7 @@ class ViewsheetAssemblyAgentControllerTest {
             "ReferenceError: formatShortDollar is not defined"))
          .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
             anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
-            anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+            anyBoolean(), any(CSVConfig.class), anyBoolean(), any(ExportResponse.class), any(Principal.class));
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
          .thenReturn(true);
@@ -8160,7 +8209,7 @@ class ViewsheetAssemblyAgentControllerTest {
             "one dimension (Break By)."))
          .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
             anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
-            anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+            anyBoolean(), any(CSVConfig.class), anyBoolean(), any(ExportResponse.class), any(Principal.class));
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
          .thenReturn(true);
@@ -8220,7 +8269,7 @@ class ViewsheetAssemblyAgentControllerTest {
       doThrow(new InvalidUserException("client1 no longer owns the sheet", principal()))
          .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
             anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
-            anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
+            anyBoolean(), any(CSVConfig.class), anyBoolean(), any(ExportResponse.class), any(Principal.class));
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
          .thenReturn(true);
