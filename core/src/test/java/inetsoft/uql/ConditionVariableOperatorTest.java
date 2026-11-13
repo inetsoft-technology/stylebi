@@ -320,6 +320,17 @@ class ConditionVariableOperatorTest {
       void restoreDefaults() {
          java.util.TimeZone.setDefault(oldZone);
          java.util.Locale.setDefault(oldLocale);
+         // the cases above create the CoreTool thread local formats on first use under the
+         // temporary default zone, and the thread local keeps that zone for every later test
+         // that runs on this thread (CoreToolBcDateTest, GregorianCalendarDefaultLocaleTest)
+         inetsoft.util.CoreTool.yearFmt.remove();
+         inetsoft.util.CoreTool.monthFmt.remove();
+         inetsoft.util.CoreTool.dayFmt.remove();
+         inetsoft.util.CoreTool.dateFmt.remove();
+         inetsoft.util.CoreTool.timeFmt_old.remove();
+         inetsoft.util.CoreTool.timeInstantFmt_old.remove();
+         inetsoft.util.CoreTool.timeFmt.remove();
+         inetsoft.util.CoreTool.timeInstantFmt.remove();
       }
 
       @DisplayName("C16 DATE_IN this year follows the default time zone")
