@@ -5174,6 +5174,9 @@ public abstract class GraphGenerator {
             interval.setMinStepPx(2);
          }
       }
+      else if(elem instanceof MekkoElement mekko) {
+         mekko.setThinSegmentLine(true);
+      }
    }
 
    /**

@@ -30,6 +30,7 @@ import inetsoft.graph.internal.GDefaults;
 import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
+import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.Map;
@@ -109,6 +110,16 @@ public class MekkoVO extends ElementVO {
             g2.fill(shape);
          }
 
+         if(isThinSegment()) {
+            // a 1px line on a pixel row, so the segment is not eaten by its separators
+            Rectangle2D tb = shape.getBounds2D();
+            double ly = Math.floor(tb.getCenterY()) + 0.5;
+            g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+            g2.draw(new Line2D.Double(tb.getX(), ly, tb.getMaxX(), ly));
+            g2.dispose();
+            return;
+         }
+
          if(borderColor != null) {
             g2.setColor(borderColor);
          }
@@ -160,12 +171,31 @@ public class MekkoVO extends ElementVO {
       }
    }
 
+   // check if the segment is under 2px (and over 0) along the value axis and draws as a line
+   private boolean isThinSegment() {
+      GraphElement elem = ((MekkoGeometry) getGeometry()).getElement();
+
+      if(!(elem instanceof MekkoElement) || !((MekkoElement) elem).isThinSegmentLine()) {
+         return false;
+      }
+
+      double h = getScreenTransform().createTransformedShape(rect).getBounds2D().getHeight();
+      return h > 0 && h < 2;
+   }
+
    /**
     * Layout the text labels.
     * @param vgraph the vgraph to hold the text labels.
     */
    @Override
    public void layoutText(VGraph vgraph) {
+      // a thin segment's line paints over its neighbours' separators
+      if(((MekkoGeometry) getGeometry()).getElement() instanceof MekkoElement elem &&
+         elem.isThinSegmentLine())
+      {
+         setZIndex(GDefaults.VO_Z_INDEX + (isThinSegment() ? 1 : 0));
+      }
+
       if(vtext == null) {
          return;
       }
