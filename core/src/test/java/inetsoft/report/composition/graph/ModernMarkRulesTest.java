@@ -205,6 +205,22 @@ class ModernMarkRulesTest {
    }
 
    @Test
+   void anAuthorsSizeUnclampsTheBrushedWaterfallTotal() {
+      Chart chart = measureChart(GraphTypes.CHART_WATERFALL);
+      Object[][] brushed = { chart.rows()[0], chart.rows()[1] };
+      List<IntervalElement> plain = intervals(measureChart(GraphTypes.CHART_WATERFALL),
+                                              VizMark.MODERN_LIGHT, brushed);
+      List<IntervalElement> bars = intervals(authorSized(chart), VizMark.MODERN_LIGHT, brushed);
+      String allTotal = SumDataSet.SUM_HEADER_PREFIX + ElementVO.ALL_PREFIX;
+
+      assertTrue(bars.stream().anyMatch(b -> b.getVar(0).startsWith(allTotal)),
+                 "premise: the all-data Total's var has both prefixes " +
+                 bars.stream().map(ModernMarkRulesTest::vars).toList());
+      plain.forEach(bar -> assertTrue(bar.isWidthClamp(), "premise: " + vars(bar)));
+      bars.forEach(bar -> assertFalse(bar.isWidthClamp(), vars(bar)));
+   }
+
+   @Test
    void aMarkedWaterfallSetsTheStepFloor() {
       List<IntervalElement> bars = intervals(measureChart(GraphTypes.CHART_WATERFALL),
                                              VizMark.MODERN_LIGHT);

@@ -5216,8 +5216,24 @@ public abstract class GraphGenerator {
    private boolean isAuthorSized(GraphElement elem) {
       // brushing, waterfall-total and interval vars carry a prefix on the measure name
       String[] vars = (elem == null) ? new String[0] :
-         Arrays.stream(elem.getVars()).map(GraphUtil::getOriginalCol).toArray(String[]::new);
+         Arrays.stream(elem.getVars()).map(GraphGenerator::getMeasureName).toArray(String[]::new);
       return info.isSizeChanged(vars);
+   }
+
+   /**
+    * Get the measure name of a var, with its prefixes stripped in any nesting order (a brushed
+    * waterfall Total is __sum____all__).
+    */
+   private static String getMeasureName(String var) {
+      String prev;
+
+      do {
+         prev = var;
+         var = GraphUtil.getOriginalCol(var);
+      }
+      while(var != null && !var.equals(prev));
+
+      return var;
    }
 
    private void setColorFrameBrightness(GraphElement elem, ColorFrame frame, ColorFrame color0) {
