@@ -163,7 +163,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // an author-set value has no tier to protect it, so the flag stands in: skip the write
          // on both branches or Revert would destroy the author's value instead of restore doing it
          if(!isUserBarCornerRadius()) {
-            plotDesc.setBarCornerRadius(0.3);
+            plotDesc.setBarCornerRadius(VSChartChromeDefaults.BAR_CORNER_RADIUS);
          }
 
          // the plot's structural lines. Seeded rather than resolved at render so they travel in
@@ -423,6 +423,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean derivedUserSmoothLines() {
       PlotDescriptor plot = plotOf(desc);
       return plot != null && plot.isSmoothLines() != legacySmoothLines();
+   }
+
+   // a radius with no stored flag is the author's
+   private boolean derivedUserBarCornerRadius() {
+      PlotDescriptor plot = plotOf(desc);
+      return plot != null && plot.getBarCornerRadius() != 0;
    }
 
    // the legends' layout decides; the render re-resolves it after a layout change
@@ -1788,12 +1794,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       prop = getAttributeStr(element, "summarySortVal", "0");
       setSummarySortValValue(Integer.parseInt(prop));
 
-      // same shape as userPadding (now parsed on the base class), but with no resolver fallback
-      // behind the flag: a missing attribute means no opinion and seedChromeDefaults writes the
-      // mark-appropriate value
-      String userBarCornerRadiusProp = Tool.getAttribute(element, "userBarCornerRadius");
-      setUserBarCornerRadius("true".equalsIgnoreCase(userBarCornerRadiusProp));
-
       cubeType = Tool.getAttribute(element, "cubeType");
 
       String maxModeZIndexString = Tool.getAttribute(element, "maxModeZIndex");
@@ -2078,6 +2078,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // after the plot and the chart info, as the derivation reads both
       userSmoothLines = DerivedUserFlag.parse(Tool.getAttribute(elem, "userSmoothLines"),
                                               derivedUserSmoothLines());
+      // a missing attribute means a released build saved the chart, where any radius is the author's
+      userBarCornerRadius = DerivedUserFlag.parse(Tool.getAttribute(elem, "userBarCornerRadius"),
+                                                  derivedUserBarCornerRadius());
       legendCrowded = "true".equals(Tool.getAttribute(elem, "legendCrowded"));
    }
 

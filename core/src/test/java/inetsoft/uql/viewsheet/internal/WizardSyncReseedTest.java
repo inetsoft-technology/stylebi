@@ -87,7 +87,7 @@ class WizardSyncReseedTest {
       assertEquals(gridline, def.getFacetGridColor(), "facet");
       assertEquals(gridline, def.getDiagonalColor(), "diagonal");
       assertEquals(gridline, def.getQuadrantColor(), "quadrant");
-      assertEquals(0.3, plot(target).getBarCornerRadius(), 0.0001, "corner radius");
+      assertEquals(VSChartChromeDefaults.BAR_CORNER_RADIUS, plot(target).getBarCornerRadius(), 0.0001, "corner radius");
       assertEquals(VSChartChromeDefaults.titleColor(ctx),
                    plot(target).getTextFormat().getDefaultFormat().getColor(), "label ink");
 
