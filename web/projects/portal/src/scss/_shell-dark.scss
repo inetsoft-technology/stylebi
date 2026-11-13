@@ -427,11 +427,12 @@ $dark-ws-row-hover-bg: #302D27;
 
   // Bootstrap draws tooltips with the emphasis text color as the fill (black in the light shell).
   // Inverted here it would be a light box, so a dark shell uses a raised dark surface instead.
-  // A tooltip placed inside dashboard content keeps the light shell's look.
+  // A tooltip placed inside dashboard content keeps the light shell's look. Tooltips a dashboard
+  // attaches to body (the table and crosstab scroll-position tooltip, container="body") are shell
+  // chrome and take these colors. Opacity is set with the .fade rule further down.
   .tooltip#{$outside-content} {
     --bs-tooltip-bg: #{$dark-surface-raised};
     --bs-tooltip-color: var(--inet-text-strong-color);
-    --bs-tooltip-opacity: 1;
   }
 
   .tooltip-inner#{$outside-content} {
@@ -581,7 +582,7 @@ $viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-the
 // _layout.scss gives every .fade element half opacity (meant for the modal backdrop), and its
 // :not() chain outranks Bootstrap's .tooltip.show. On a dark shell that washes the tooltip into the
 // page. Shown tooltips and popovers are drawn opaque; the light shell and dashboard content keep
-// today's look.
+// today's look. Every tooltip in the app fades, so --bs-tooltip-opacity would never apply.
 .shell-dark {
   .tooltip.fade.show#{$outside-content},
   .popover.fade.show#{$outside-content} {
