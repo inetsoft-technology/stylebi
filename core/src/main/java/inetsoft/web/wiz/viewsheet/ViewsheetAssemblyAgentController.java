@@ -1694,7 +1694,12 @@ public class ViewsheetAssemblyAgentController {
             "' exports one assembly at a time.");
       }
 
-      CSVConfig csvConfig = null;
+      // The failed-query guard rides the config for every format (exporters that read no CSV
+      // option ignore the rest): a table whose live query failed would otherwise be exported as
+      // the fabricated design-time sample row the failure is swallowed into (bug #80075). The
+      // defaults equal what the CSV exporter uses when no config is given.
+      CSVConfig csvConfig = new CSVConfig();
+      csvConfig.setFailOnFailedQuery(true);
 
       if(!targets.isEmpty()) {
          if(!csv && !png && !excel && !svg) {
@@ -1827,8 +1832,6 @@ public class ViewsheetAssemblyAgentController {
       }
 
       if(csv && (!targets.isEmpty() || !csvOptionNames.isEmpty())) {
-         csvConfig = new CSVConfig();
-
          if(!targets.isEmpty()) {
             csvConfig.setExportAssemblies(new ArrayList<>(targets));
          }
@@ -1917,9 +1920,8 @@ public class ViewsheetAssemblyAgentController {
       if(csv) {
          // Always sent for CSV so a client can tell a server that applied its options from an
          // older one that ignored the unknown query parameters.
-         CSVConfig applied = csvConfig != null ? csvConfig : new CSVConfig();
          servletResponse.setHeader(EXPORT_APPLIED_HEADER,
-            exportAppliedHeaderValue(applied, targets.size()));
+            exportAppliedHeaderValue(csvConfig, targets.size()));
       }
 
       String warningsHeader = ExportCellCapScanner.toHeaderValue(cellCapWarnings);
