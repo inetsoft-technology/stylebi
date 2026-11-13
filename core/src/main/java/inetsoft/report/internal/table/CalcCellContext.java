@@ -34,7 +34,7 @@ public class CalcCellContext implements Serializable {
    }
 
    public CalcCellContext() {
-      groups = new Object2ObjectOpenHashMap<>();
+      groups = new Object2ObjectOpenHashMap<>(DEFAULT_EXPECTED_SIZE);
       valueidx = new DelayedMergeIntMap<>();
    }
 
@@ -331,4 +331,10 @@ public class CalcCellContext implements Serializable {
    // name -> Group
    public Map<String, Group> groups;
    private DelayedMergeIntMap<String> valueidx; // name -> index in value arr
+
+   // fastutil's no-arg constructor sizes the backing table for 16 entries; one
+   // of these is allocated per expanded row/column of a calc table and typically
+   // holds only one or two groups, so that default multiplies into a lot of
+   // wasted heap on wide row expansions.
+   private static final int DEFAULT_EXPECTED_SIZE = 2;
 }
