@@ -30,8 +30,11 @@ import inetsoft.web.binding.command.RefreshBindingTreeCommand;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
+import inetsoft.web.viewsheet.command.AddVSObjectCommand;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
+import inetsoft.web.viewsheet.command.RefreshEmbeddedVSCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
+import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.model.VSObjectModel;
@@ -753,6 +756,78 @@ class SheetAgentBroadcastServiceTest {
       List<Object> payloads =
          verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
       assertTrue(payloads.get(0) instanceof UpdateUndoStateCommand);
+   }
+
+   // ---- Bug #81304: removals and embedded content a mutation dispatched must reach the browser
+
+   private static CommandDispatcher.Command removal(String address, String name) {
+      RemoveVSObjectCommand command = new RemoveVSObjectCommand();
+      command.setName(name);
+      return new CommandDispatcher.Command(address, "RemoveVSObjectCommand", command);
+   }
+
+   private static String headerOf(MessageHeaders headers, String name) {
+      SimpMessageHeaderAccessor acc = SimpMessageHeaderAccessor.wrap(
+         new org.springframework.messaging.support.GenericMessage<>("", headers));
+      List<String> values = acc.getNativeHeader(name);
+      return values == null ? null : values.get(0);
+   }
+
+   @Test
+   void capturedRemovalIsForwardedBeforeTheRefreshAndKeepsItsAddress() {
+      Fixture f = new Fixture(assemblyOf(ChartVSAssembly.class, "Chart1", true));
+      CommandDispatcher.Command top = removal(null, "Text1");
+      CommandDispatcher.Command child = removal("Container1", "Child1");
+
+      f.broadcast(List.of(top, child));
+
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      List<Object> payloads = verifySent(f, 3, headers).getAllValues();
+      assertSame(top.getCommand(), payloads.get(0));
+      assertSame(child.getCommand(), payloads.get(1));
+      assertInstanceOf(UpdateUndoStateCommand.class, payloads.get(2));
+      assertNull(headerOf(headers.getAllValues().get(0), CommandDispatcher.ASSEMBLY_NAME_HEADER));
+      assertEquals("Container1",
+                   headerOf(headers.getAllValues().get(1), CommandDispatcher.ASSEMBLY_NAME_HEADER));
+      assertEquals("RemoveVSObjectCommand",
+                   headerOf(headers.getAllValues().get(0), CommandDispatcher.COMMAND_TYPE_HEADER));
+   }
+
+   @Test
+   void capturedEmbedContentIsForwardedInOrderToTheEmbed() {
+      Fixture f = new Fixture(assemblyOf(Viewsheet.class, "Embed1", true));
+      RefreshEmbeddedVSCommand refreshEmbedded = new RefreshEmbeddedVSCommand(List.of());
+      AddVSObjectCommand childAdd = new AddVSObjectCommand();
+
+      f.broadcast(List.of(
+         new CommandDispatcher.Command("Embed1", "RefreshEmbeddedVSCommand", refreshEmbedded),
+         new CommandDispatcher.Command("Embed1", "AddVSObjectCommand", childAdd)));
+
+      ArgumentCaptor<MessageHeaders> headers = ArgumentCaptor.forClass(MessageHeaders.class);
+      List<Object> payloads = verifySent(f, 3, headers).getAllValues();
+      assertSame(refreshEmbedded, payloads.get(0));
+      assertSame(childAdd, payloads.get(1));
+      assertEquals("Embed1",
+                   headerOf(headers.getAllValues().get(0), CommandDispatcher.ASSEMBLY_NAME_HEADER));
+      assertEquals("Embed1",
+                   headerOf(headers.getAllValues().get(1), CommandDispatcher.ASSEMBLY_NAME_HEADER));
+      assertInstanceOf(UpdateUndoStateCommand.class, payloads.get(2));
+   }
+
+   @Test
+   void addsNotAddressedToAnExistingEmbedAreNotForwarded() {
+      Fixture f = new Fixture(assemblyOf(ChartVSAssembly.class, "Chart1", true),
+                              assemblyOf(Viewsheet.class, "Embed1", true));
+
+      // the top-level add (no address), an add to a non-embed, and an add to a gone embed
+      f.broadcast(List.of(
+         new CommandDispatcher.Command(null, "AddVSObjectCommand", new AddVSObjectCommand()),
+         new CommandDispatcher.Command("Chart1", "AddVSObjectCommand", new AddVSObjectCommand()),
+         new CommandDispatcher.Command("Gone1", "AddVSObjectCommand", new AddVSObjectCommand())));
+
+      List<Object> payloads =
+         verifySent(f, 1, ArgumentCaptor.forClass(MessageHeaders.class)).getAllValues();
+      assertInstanceOf(UpdateUndoStateCommand.class, payloads.get(0));
    }
 
    // ---- Bug #81188: undo/redo must tell the browser to remove assemblies that no longer exist
