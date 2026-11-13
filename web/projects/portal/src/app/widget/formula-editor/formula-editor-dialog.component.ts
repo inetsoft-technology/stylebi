@@ -286,8 +286,9 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     * server error is worse than no button.
     */
    get canPair(): boolean {
-      return this.hasPairingTransport &&
-         FormulaEditorDialog.isAddressable(this.deriveEditorContext());
+      const context = this.deriveEditorContext();
+
+      return this.hasPairingTransport && !!context && FormulaEditorDialog.isAddressable(context);
    }
 
    /** A runtime and a socket to mint against. Necessary for pairing, not sufficient -- see
@@ -313,7 +314,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
    /** The derivation itself, without `canPair`'s own guard -- `canPair` calls this, so the two
     *  cannot be mutually recursive. */
-   private deriveEditorContext(): EditorContext {
+   private deriveEditorContext(): EditorContext | null {
       // contextTable, when the caller supplied it, over assemblyName -- see contextTable's
       // doc comment for why they're not the same field.
       const assembly = this.contextTable ?? this.assemblyName;
@@ -364,8 +365,12 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
          return { kind: "worksheetExpression", assembly, name: this.formulaName, pending: true };
       }
 
-      return { kind: this.isVSContext ? "assemblyMain" : "worksheetExpression",
-               assembly, name: this.formulaName };
+      // A viewsheet-hosted dialog that is none of the cases above has no pairing target of its own
+      // (a dynamic value, hyperlink, ... that was handed a transport). It must not fall back to
+      // `assemblyMain`: that would let an agent overwrite the assembly's whole main script. Null
+      // also keeps agent pushes (`matchesAgentScriptRefresh`) from matching this dialog.
+      return this.isVSContext ? null
+         : { kind: "worksheetExpression", assembly, name: this.formulaName };
    }
 
    /**

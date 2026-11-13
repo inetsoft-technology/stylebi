@@ -186,14 +186,18 @@ describe("FormulaEditorDialog — editorContext", () => {
       expect(comp.canPair).toBe(false);
    });
 
-   it("derives an assemblyMain context for a plain viewsheet expression", () => {
+   // Bug #80459 (batch 1, H1): this dialog never mints assemblyMain. A viewsheet-hosted dialog
+   // that is none of the explicit cases (e.g. a dynamic value handed a transport) has no target of
+   // its own, and assemblyMain would let an agent overwrite the assembly's whole main script. It
+   // used to derive assemblyMain here; the script panes mint that kind themselves.
+   it("derives no context for a plain viewsheet expression (never assemblyMain)", () => {
       const comp = pairedDialog();
       comp.isVSContext = true;
       comp.assemblyName = "Chart1";
       comp.formulaName = "Field1";
 
-      expect(comp.editorContext).toEqual(
-         { kind: "assemblyMain", assembly: "Chart1", name: "Field1" });
+      expect(comp.editorContext).toBeNull();
+      expect(comp.canPair).toBe(false);
    });
 
    it("is null when there is no sheet runtime to pair against", () => {
@@ -252,10 +256,66 @@ describe("FormulaEditorDialog — canPair", () => {
       expect(comp.canPair).toBe(false);
    });
 
-   it("offers a connect button when both a runtime and a socket are supplied", () => {
+   // Bug #80459 (batch 1, H1): a transport alone is not enough -- it used to be, because
+   // isVSContext defaults to true and the fallback context (assemblyMain) needed no name.
+   it("offers no connect button for a transport with no explicit target", () => {
       const comp = pairedDialog();
 
-      expect(comp.canPair).toBe(true);
+      expect(comp.canPair).toBe(false);
+      expect(comp.editorContext).toBeNull();
+   });
+
+   it("offers no connect button for a viewsheet-hosted dialog with a name but no target", () => {
+      const comp = pairedDialog();
+      comp.isVSContext = true;
+      comp.assemblyName = "Chart1";
+      comp.formulaName = "Field1";
+
+      expect(comp.canPair).toBe(false);
+   });
+
+   it("offers a connect button for each explicitly handled target when a transport is supplied", () => {
+      const calcTable = pairedDialog();
+      calcTable.isCalcTable = true;
+      calcTable.assemblyName = "Calc1";
+      calcTable.contextCell = { row: 1, col: 2 } as any;
+
+      const calcField = pairedDialog();
+      calcField.isCalc = true;
+      calcField.contextTable = "Table1";
+      calcField.formulaName = "Margin";
+
+      const vsCondition = pairedDialog();
+      vsCondition.isCondition = true;
+      vsCondition.conditionOperation = ConditionOperation.EQUAL_TO;
+      vsCondition.vsConditionScope = { assembly: "Table1", highlightName: null };
+
+      const wsCondition = pairedDialog();
+      wsCondition.isVSContext = false;
+      wsCondition.isCondition = true;
+      wsCondition.contextTable = "Table1";
+      wsCondition.formulaName = "Field1";
+      wsCondition.conditionOperation = ConditionOperation.EQUAL_TO;
+
+      // the existing worksheet expression column edit (ws-details-pane): not new, no condition
+      const wsExpression = pairedDialog();
+      wsExpression.isVSContext = false;
+      wsExpression.contextTable = "Table1";
+      wsExpression.formulaName = "Field1";
+
+      const wsNewExpression = pairedDialog();
+      wsNewExpression.isVSContext = false;
+      wsNewExpression.isNewExpression = true;
+      wsNewExpression.contextTable = "Table1";
+      wsNewExpression.formulaName = "Expression1";
+
+      expect(calcTable.canPair).toBe(true);
+      expect(calcField.canPair).toBe(true);
+      expect(vsCondition.canPair).toBe(true);
+      expect(wsCondition.canPair).toBe(true);
+      expect(wsExpression.canPair).toBe(true);
+      expect(wsExpression.editorContext.kind).toBe("worksheetExpression");
+      expect(wsNewExpression.canPair).toBe(true);
    });
 });
 
@@ -363,16 +423,18 @@ describe("FormulaEditorDialog — canPair suppresses an unaddressable location",
       expect(comp.canPair).toBe(false);
    });
 
-   /* The other half: kinds addressed by assembly alone are unaffected, and a fully addressed
-    * column location is still offered. Without these, "suppress everything" would also pass. */
-   it("still offers a connect button for an assembly-addressed location", () => {
-      // A plain viewsheet expression is addressed by its assembly's script alone. (A viewsheet
-      // CONDITION used to be this case; since bug #80459 it needs a vsConditionScope.)
+   /* H1: a bare transport with no explicit target is not offered; assembly-only locations no
+    * longer exist for this dialog. The next tests pin that a fully addressed column location is
+    * still offered, so "suppress everything" would not pass. */
+   it("offers no connect button for an assembly-only location (assemblyMain is never minted here)", () => {
+      // Used to assert true: a plain viewsheet expression was "addressed by its assembly's script
+      // alone". Bug #80459 batch 1 (H1) removed that fallback -- it would overwrite the whole
+      // assembly script for any host that merely received a transport.
       const comp = pairedDialog();
       comp.isVSContext = true;
       comp.assemblyName = "Chart1";
 
-      expect(comp.canPair).toBe(true);
+      expect(comp.canPair).toBe(false);
    });
 
    it("still offers a connect button for a fully addressed calculated field", () => {
