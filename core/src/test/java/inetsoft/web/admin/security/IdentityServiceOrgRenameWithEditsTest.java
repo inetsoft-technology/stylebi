@@ -286,6 +286,29 @@ class IdentityServiceOrgRenameWithEditsTest {
       verify(repletRegistryManager, times(1)).getRegistry("organization1");
    }
 
+   // Bug #81320: a case-only id change in the same save as a theme change. The selection is
+   // stored under the lower-cased id, so the old id's "default" reset must not overwrite the
+   // selection just written for the new id.
+   @Test
+   void caseOnlyIdChange_withThemeChange_selectionNotReset() throws Exception {
+      try {
+         save("ORGANIZATION1", "Old", "t2", null, List.of());
+         verify(themesManager).setOrgSelectedTheme("t2", "ORGANIZATION1");
+         verify(themesManager, never()).setOrgSelectedTheme("default", ORG_1);
+      }
+      finally {
+         OrgIdChangeGuard.clear("ORGANIZATION1");
+      }
+   }
+
+   // control: a real id change in the same save still resets the old id's selection
+   @Test
+   void realIdChange_withThemeChange_oldSelectionReset() throws Exception {
+      save("organization2", "Old", "t2", null, List.of());
+      verify(themesManager).setOrgSelectedTheme("t2", "organization2");
+      verify(themesManager).setOrgSelectedTheme("default", ORG_1);
+   }
+
    // a site admin whose current org is another org renames only, with a complete member list
    @Test
    void siteAdminOtherOrg_renameOnly_keepsMembers() throws Exception {

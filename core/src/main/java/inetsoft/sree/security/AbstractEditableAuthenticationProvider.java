@@ -539,7 +539,7 @@ public abstract class AbstractEditableAuthenticationProvider
             // failed to load) would wipe every custom theme across all orgs. Skip persistence
             // entirely in that case so a failed/empty read cannot delete the store.
             if(themes.isEmpty()) {
-               if(replace) {
+               if(replace && !isSameOrgPropertyScope(fromOrgId, toOrgId)) {
                   manager.setOrgSelectedTheme(null, fromOrgId);
                }
 
@@ -742,7 +742,12 @@ public abstract class AbstractEditableAuthenticationProvider
          // than lost.
          themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId)
             && migratedOriginalIds.contains(t.getId()));
-         manager.setOrgSelectedTheme(null, fromOrgId);
+         // the selection is stored under the lower-cased org id, so for a case-only id
+         // change the old and new pointer are one key; clearing it would erase the pointer
+         // just migrated above (Bug #81320)
+         if(!isSameOrgPropertyScope(fromOrgId, toOrgId)) {
+            manager.setOrgSelectedTheme(null, fromOrgId);
+         }
       }
 
       return newOrgThemeId;

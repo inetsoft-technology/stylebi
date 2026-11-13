@@ -4304,8 +4304,13 @@ public class IdentityService {
             customThemesManager.setOrgSelectedTheme("default", newOrgID);
          }
 
-         // If org ID changed, clean up old org's selection property
-         if(!Tool.equals(oldOrgID, newOrgID)) {
+         // If org ID changed, clean up old org's selection property. A case-only change is
+         // the same property key (the engine lower-cases the name), so it must not be cleared
+         // or it would erase the selection just written above (Bug #81320)
+         if(!Tool.equals(oldOrgID, newOrgID) &&
+            !PropertiesEngine.getOrgPropertyPrefix(oldOrgID)
+               .equals(PropertiesEngine.getOrgPropertyPrefix(newOrgID)))
+         {
             customThemesManager.setOrgSelectedTheme("default", oldOrgID);
          }
       }

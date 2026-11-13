@@ -728,6 +728,66 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
+   // Bug #81320: the selection pointer is stored under the lower-cased org id, so for a
+   //           case-only id change the old and the new pointer are one key; the old one must
+   //           not be cleared after the new one was written. Control: a real id change clears it.
+   private void copyOwnThemeSelectedForOrg(String fromOrg, String toOrg,
+                                           CustomThemesManager[] managerOut)
+   {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme-1");
+      theme.setOrgID(fromOrg);
+      theme.setOrganizations(new ArrayList<>(List.of(fromOrg)));
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+         ds.when(DataSpace::getDataSpace).thenReturn(mock(DataSpace.class));
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes(fromOrg, toOrg, true);
+         managerOut[0] = mockManager;
+      }
+   }
+
+   @Test
+   void copyThemes_caseOnlyIdChange_selectionPointerKept() {
+      CustomThemesManager[] m = new CustomThemesManager[1];
+      copyOwnThemeSelectedForOrg("OrgA", "orga", m);
+
+      verify(m[0]).setOrgSelectedTheme("theme-1", "orga");
+      verify(m[0], never()).setOrgSelectedTheme(isNull(), any());
+   }
+
+   @Test
+   void copyThemes_realIdChange_oldSelectionPointerCleared() {
+      CustomThemesManager[] m = new CustomThemesManager[1];
+      copyOwnThemeSelectedForOrg("OrgA", "OrgB", m);
+
+      verify(m[0]).setOrgSelectedTheme("theme-1", "OrgB");
+      verify(m[0]).setOrgSelectedTheme(null, "OrgA");
+   }
+
+   @Test
+   void copyThemes_emptyThemeSet_caseOnlyIdChange_selectionNotCleared() {
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+         ds.when(DataSpace::getDataSpace).thenReturn(mock(DataSpace.class));
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>());
+
+         provider.callCopyThemes("OrgA", "orga", true);
+
+         verify(mockManager, never()).setOrgSelectedTheme(any(), any());
+      }
+   }
+
    // Bug #74719: global theme from default org, replace=false → no clone, selection propagated
    @Test
    void copyThemes_globalThemeSelectedForDefaultOrg_replaceFalse_selectionPropagatedNoClone() {
