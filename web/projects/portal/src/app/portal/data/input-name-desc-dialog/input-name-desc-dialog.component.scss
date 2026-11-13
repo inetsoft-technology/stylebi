@@ -18,7 +18,7 @@
 .input-dialog-intro {
    margin-bottom: 16px;
    padding: 12px 14px;
-   background: var(--inet-panel-bg-color);
+   background: unset; // --inet-panel-bg-color is defined by no theme, so no fill in either shell; Bug #81340
    border: 1px solid var(--inet-default-border-color);
    border-radius: var(--inet-radius-lg);
 }

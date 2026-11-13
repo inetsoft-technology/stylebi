@@ -17,6 +17,13 @@
  */
 @use 'sass:color';
 
+// The composer canvas, the portal viewer, the visualization recommender preview and the chart
+// editor preview. Only the assembly area: the editors' own bars and panes are shell.
+$dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
+// Matches an element outside dashboard content without adding specificity, for dark rules that
+// would otherwise also reach the content.
+$outside-content: ":where(:not(:is(#{$dashboard-content}) *))";
+
 /***
  * Shell dark
  *
@@ -204,6 +211,13 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-dark-drag-indicator-bg: rgba(28, 27, 31, 0.7);
   --inet-dark-drag-indicator-text-color: var(--inet-text-muted-color);
 
+  // Names some components read with a light fallback, var(--inet-border-color, #d9d4c8), that no
+  // theme defines, so the light shell uses the fallback. Defined for the dark shell only.
+  --inet-border-color: var(--inet-default-border-color);
+  --inet-cell-bg-color: var(--inet-shell-surface-default);
+  --inet-panel-bg-color: var(--inet-shell-surface-subtle);
+  --inet-hover-bg-color: var(--inet-shell-surface-hover);
+
   // Bootstrap primitives that _bootstrap-override.scss does not bridge to a token
   --bs-body-color-rgb: #{rgb-triplet($dark-text-default)};
   --bs-body-bg-rgb: #{rgb-triplet($dark-surface-canvas)};
@@ -342,7 +356,11 @@ $dark-ws-row-hover-bg: #302D27;
     --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23CAC4D0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
   }
 
-  .form-range:focus::-webkit-slider-thumb,
+  // one rule per engine: a pseudo-element one engine does not know drops the whole rule
+  .form-range:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 1px var(--inet-shell-surface-canvas), var(--inet-focus-ring);
+  }
+
   .form-range:focus::-moz-range-thumb {
     box-shadow: 0 0 0 1px var(--inet-shell-surface-canvas), var(--inet-focus-ring);
   }
@@ -385,15 +403,39 @@ $dark-ws-row-hover-bg: #302D27;
     border-color: var(--inet-shell-border-strong);
   }
 
-  // Bootstrap draws tooltips with the emphasis text color as the fill (black in the light shell).
-  // Inverted here it would be a light box, so a dark shell uses a raised dark surface instead.
-  .tooltip {
-    --bs-tooltip-bg: #{$dark-surface-raised};
-    --bs-tooltip-color: var(--inet-text-strong-color);
-    --bs-tooltip-opacity: 1;
+  // Bootstrap's button-variant mixin bakes light colors into the light button. The app's own rules
+  // set hover, focus, active and :disabled colors from tokens, and the .btn bridge maps the
+  // checked-toggle colors for .btn-light. What still reaches the page baked:
+  // - the focus ring (217,217,217), on both;
+  // - inside a disabled fieldset, the text color of a .btn-light-no-bg button, and every disabled
+  //   color of a .btn that is not a form control (a.btn, div.btn), which no :disabled rule matches;
+  // - the checked-toggle colors of .btn-light-no-bg, whose two classes outrank the bridge.
+  // Dashboard content keeps the light values.
+  .btn-light#{$outside-content},
+  .btn.btn-light-no-bg#{$outside-content} {
+    --bs-btn-focus-shadow-rgb: #{rgb-triplet($dark-border-strong)};
+    --bs-btn-disabled-color: var(--inet-button-light-text-color);
+    --bs-btn-disabled-bg: var(--inet-button-light-bg-color);
+    --bs-btn-disabled-border-color: var(--inet-button-light-border-color);
   }
 
-  .tooltip-inner {
+  .btn.btn-light-no-bg#{$outside-content} {
+    --bs-btn-active-color: var(--inet-text-color);
+    --bs-btn-active-bg: var(--inet-shell-selected-bg-color);
+    --bs-btn-active-border-color: var(--inet-shell-border-strong);
+  }
+
+  // Bootstrap draws tooltips with the emphasis text color as the fill (black in the light shell).
+  // Inverted here it would be a light box, so a dark shell uses a raised dark surface instead.
+  // A tooltip placed inside dashboard content keeps the light shell's look. Tooltips a dashboard
+  // attaches to body (the table and crosstab scroll-position tooltip, container="body") are shell
+  // chrome and take these colors. Opacity is set with the .fade rule further down.
+  .tooltip#{$outside-content} {
+    --bs-tooltip-bg: #{$dark-surface-raised};
+    --bs-tooltip-color: var(--inet-text-strong-color);
+  }
+
+  .tooltip-inner#{$outside-content} {
     border: 1px solid var(--inet-shell-border-strong);
   }
 
@@ -419,20 +461,24 @@ $dark-ws-row-hover-bg: #302D27;
  * shell tokens are restored, so content and its authoring overlays render exactly as they do in a
  * light shell. Dark-marked assemblies keep drawing from the viz dark tokens (.viz-dark).
  */
-// The composer canvas, the portal viewer, the visualization recommender preview and the chart
-// editor preview. Only the assembly area: the editors' own bars and panes are shell.
-$dashboard-content: ".vs-pane, .viewer-root, .wizard-preview-container .assembly-container, .object-view .vs-object-container";
+// read with a light fallback and defined by no theme; set for the dark shell only (see above)
+$fallback-only-tokens: border-color, cell-bg-color, panel-bg-color, hover-bg-color;
 $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, border-color,
   border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
   drag-indicator-bg, drag-indicator-text-color;
 
 :root.shell-dark :is(#{$dashboard-content}) {
   color-scheme: light;
+  // content inherits the body's text color, computed from the dark token before this point
+  color: var(--inet-text-color);
   @include inet-runtime-tokens;
 
   // back to each component's light literal
   @each $role in $dark-only-tokens {
     --inet-dark-#{$role}: initial;
+  }
+  @each $name in $fallback-only-tokens {
+    --inet-#{$name}: initial;
   }
   @include inet-bootstrap-bridge;
 
@@ -475,6 +521,15 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
   --bs-navbar-toggler-icon-bg: #{escape-svg($navbar-light-toggler-icon-bg)};
 }
 
+// The legacy viz state tokens derive from shell tokens where :root declares them, so a dark shell
+// resolves them dark. Content re-derives them from its restored light tokens, unless a viz scope on
+// the content root or any ancestor already declares its own (.viz-shell / .viz-shell-dark on body
+// for the org, .viz-modern / .viz-dark on a marked assembly such as the chart editor preview).
+$viz-scopes: ".viz-modern, .viz-dark, .viz-shell, .viz-shell-dark, [data-viz-theme=\"v2\"]";
+:root.shell-dark :is(#{$dashboard-content}):not(#{$viz-scopes}):not(:is(#{$viz-scopes}) *) {
+  @include inet-viz-legacy-state-tokens;
+}
+
 // the rules above whose dark value is not a token
 :where(.shell-dark) :where(#{$dashboard-content}) {
   .form-select {
@@ -497,7 +552,10 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
     color: $blockquote-footer-color;
   }
 
-  .form-range:focus::-webkit-slider-thumb,
+  .form-range:focus::-webkit-slider-thumb {
+    box-shadow: $form-range-thumb-focus-box-shadow;
+  }
+
   .form-range:focus::-moz-range-thumb {
     box-shadow: $form-range-thumb-focus-box-shadow;
   }
@@ -518,6 +576,17 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
 
   .selection-box {
     background-color: rgba($inet-offwhite2, 0.4);
+  }
+}
+
+// _layout.scss gives every .fade element half opacity (meant for the modal backdrop), and its
+// :not() chain outranks Bootstrap's .tooltip.show. On a dark shell that washes the tooltip into the
+// page. Shown tooltips and popovers are drawn opaque; the light shell and dashboard content keep
+// today's look. Every tooltip in the app fades, so --bs-tooltip-opacity would never apply.
+.shell-dark {
+  .tooltip.fade.show#{$outside-content},
+  .popover.fade.show#{$outside-content} {
+    opacity: 1;
   }
 }
 

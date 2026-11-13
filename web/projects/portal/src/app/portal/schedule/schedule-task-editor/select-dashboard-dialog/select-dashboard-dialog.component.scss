@@ -24,7 +24,7 @@
   max-height: 50vh;
   overflow: auto;
   padding: 8px;
-  border: 1px solid var(--inet-border-color);
+  border: unset; // --inet-border-color is defined by no theme, so no border in either shell; Bug #81340
   border-radius: 4px;
   background-color: var(--inet-card-bg-color);
 }
