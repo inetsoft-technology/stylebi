@@ -29,6 +29,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.general.LocalizationSettingsService;
@@ -108,14 +109,14 @@ class UserTreeServiceConcurrentCreateOrganizationTest {
       principal = mock(Principal.class, withSettings().lenient());
       when(principal.getName()).thenReturn(new IdentityID("admin", "host-org").convertToKey());
 
-      ReentrantLock lock = new ReentrantLock();
+      lockToUse = new ReentrantLock();
       service = new UserTreeService(
          providerService, null, mock(IdentityService.class), localizationService, securityEngine,
          mock(IdentityThemeService.class), null, null, null, mock(LicenseManager.class), null, null,
          mock(CustomThemesManager.class), null, null, null, null) {
          @Override
          java.util.concurrent.locks.Lock createOrganizationLock() {
-            return lock;
+            return lockToUse;
          }
       };
    }
@@ -162,6 +163,26 @@ class UserTreeServiceConcurrentCreateOrganizationTest {
       }
    }
 
+   @Test
+   void lockFailure_propagatesWithoutUnlock_andRestoresContext() {
+      java.util.concurrent.locks.Lock failing = mock(java.util.concurrent.locks.Lock.class);
+      doThrow(new IllegalStateException("lock failed")).when(failing).lock();
+      lockToUse = failing;
+      Principal marker = mock(Principal.class);
+      Principal before = ThreadContext.getContextPrincipal();
+      ThreadContext.setContextPrincipal(marker);
+
+      try {
+         IllegalStateException e = assertThrows(IllegalStateException.class, this::create);
+         assertEquals("lock failed", e.getMessage());
+         verify(failing, never()).unlock();
+         assertSame(marker, ThreadContext.getContextPrincipal());
+      }
+      finally {
+         ThreadContext.setContextPrincipal(before);
+      }
+   }
+
    private Set<String> stored;
    private List<String> addCalls;
    private CountDownLatch firstInAdd;
@@ -170,4 +191,5 @@ class UserTreeServiceConcurrentCreateOrganizationTest {
    private EditableAuthenticationProvider provider;
    private Principal principal;
    private UserTreeService service;
+   private java.util.concurrent.locks.Lock lockToUse;
 }

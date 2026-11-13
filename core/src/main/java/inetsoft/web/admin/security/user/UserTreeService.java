@@ -1011,8 +1011,9 @@ public class UserTreeService {
          // Bug #79867, the next free id is chosen and the organization registered under one
          // cluster lock, otherwise concurrent requests pick the same id and the later add
          // overwrites the earlier one. Released in the finally below on every exit.
-         createLock = createOrganizationLock();
-         createLock.lock();
+         Lock acquired = createOrganizationLock();
+         acquired.lock();
+         createLock = acquired;
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
          SecurityProvider securityProvider = securityEngine.getSecurityProvider();
@@ -1128,20 +1129,23 @@ public class UserTreeService {
          throw e;
       }
       finally {
-         if(createLock != null) {
-            createLock.unlock();
+         try {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+            Audit.getInstance().auditAction(actionRecord, principal);
+
+            if(identityInfoRecord != null) {
+               Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
+            }
+
+            //update to new organization
+            if(newOrgId != null) {
+               OrganizationManager.getInstance().setCurrentOrgID(newOrgId);
+            }
          }
-
-         ThreadContext.setContextPrincipal(oldPrincipal);
-         Audit.getInstance().auditAction(actionRecord, principal);
-
-         if(identityInfoRecord != null) {
-            Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
-         }
-
-         //update to new organization
-         if(newOrgId != null) {
-            OrganizationManager.getInstance().setCurrentOrgID(newOrgId);
+         finally {
+            if(createLock != null) {
+               createLock.unlock();
+            }
          }
       }
    }
