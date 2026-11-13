@@ -18,7 +18,9 @@
 
 package inetsoft.report.script.formula;
 
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,4 +99,23 @@ class FormulaFunctionsSortOrderTest {
    void mapListSortFalseKeepsInputOrder() {
       assertEquals(List.of(4.0, 1.0), mapList("sort=false,maxrows=2,others=leaveothers"));
    }
+
+   private static DefaultTableLens groupTable() {
+      return new DefaultTableLens(new Object[][] {
+         { "g", "v" }, { "a", 1 }, { "b", 5 }, { "c", 3 }, { "d", 4 }
+      });
+   }
+
+   // mapList with an empty mapping must order a table like toList does
+   @Disabled("Bug #81260: mapList with sorton and maxrows loses the rank order that toList keeps")
+   @Test
+   void mapListOnATableSortedOnASummaryFollowsTheOrderOfToList() {
+      String options = "field=g,sorton=sum(v),sort=desc,maxrows=2";
+      Object[] fromToList = (Object[]) FormulaFunctions.toList(groupTable(), options);
+      Object[] fromMapList = (Object[]) FormulaFunctions.mapList(
+         groupTable(), new Object[0], options + ",others=leaveothers");
+      assertEquals(java.util.Set.of("b", "d"), java.util.Set.copyOf(Arrays.asList(fromToList)));
+      assertEquals(Arrays.asList(fromToList), Arrays.asList(fromMapList));
+   }
+
 }

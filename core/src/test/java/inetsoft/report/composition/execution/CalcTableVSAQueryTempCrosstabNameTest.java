@@ -17,15 +17,24 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.test.*;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Method;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Regression test for bug #76614: two concurrent {@link CalcTableVSAQuery#getTableLens()}
@@ -46,29 +55,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * structural fix verified at the naming-logic level, not a live/concurrency reproduction of the
  * full NPE stack.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 public class CalcTableVSAQueryTempCrosstabNameTest {
-   /**
-    * Simulates the pre-fix (bug #76614) deterministic naming scheme: identical calc table name
-    * and crosstab index always produce the same assembly name, with no per-invocation
-    * distinction at all.
-    */
-   private static String preFixName(String assemblyName, int ct) {
-      return CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + assemblyName + "_Crosstab_" + ct;
-   }
-
-   @Test
-   public void preFixNamingSchemeCollidesAcrossConcurrentInvocations() {
-      // Demonstrates the actual defect: two independent invocations for the same calc table,
-      // using the old naming scheme, produce identical names -- this is the collision that let
-      // one invocation's temp crosstab be removed by another's cleanup.
-      String invocationAName = preFixName("vs_calc1", 0);
-      String invocationBName = preFixName("vs_calc1", 0);
-
-      assertEquals(invocationAName, invocationBName,
-                   "pre-fix naming scheme was expected to collide across invocations");
-   }
-
    @Test
    public void fixedNamingSchemeNeverCollidesForSameCalcTableAndIndex() {
       long invocationA = CalcTableVSAQuery.nextInvocationId();
@@ -178,6 +170,57 @@ public class CalcTableVSAQueryTempCrosstabNameTest {
          assertTrue(liveAssemblies.contains(
                        CalcTableVSAQuery.getTempCrosstabName(calcTableName, invocationB, ct)),
                     "invocation B's temp crosstab must not be removed by invocation A's sweep");
+      }
+   }
+
+   @Test
+   public void tempCrosstabNamesAreDistinctForEveryAssemblyNameInvocationAndIndex() {
+      // names that contain the separators of the scheme are the ones that could run together
+      String[] assemblyNames = { "a", "a_1", "a_1_2", "1", "x_5_Crosstab_1", "x" };
+      long[] invocationIds = { 1, 2, 12, 112 };
+      int[] indexes = { 0, 1, 2, 12 };
+      Set<String> names = new HashSet<>();
+      int count = 0;
+
+      for(String assemblyName : assemblyNames) {
+         for(long invocationId : invocationIds) {
+            for(int ct : indexes) {
+               names.add(CalcTableVSAQuery.getTempCrosstabName(assemblyName, invocationId, ct));
+               count++;
+            }
+         }
+      }
+
+      assertEquals(count, names.size());
+   }
+
+   @Test
+   public void removeTempAssemblyRemovesOnlyTheTempCrosstabsOfItsOwnInvocation() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getViewsheet()).thenReturn(vs);
+      CalcTableVSAQuery query = new CalcTableVSAQuery(box, "calc1", false);
+      long invocationA = CalcTableVSAQuery.nextInvocationId();
+      long invocationB = CalcTableVSAQuery.nextInvocationId();
+
+      for(int ct = 0; ct < 3; ct++) {
+         vs.addAssembly(new CrosstabVSAssembly(
+            vs, CalcTableVSAQuery.getTempCrosstabName("calc1", invocationA, ct)));
+         vs.addAssembly(new CrosstabVSAssembly(
+            vs, CalcTableVSAQuery.getTempCrosstabName("calc1", invocationB, ct)));
+      }
+
+      Method remove = CalcTableVSAQuery.class.getDeclaredMethod(
+         "removeTempAssembly", String.class, long.class);
+      remove.setAccessible(true);
+      remove.invoke(query, "calc1", invocationA);
+
+      for(int ct = 0; ct < 3; ct++) {
+         assertNull(vs.getAssembly(CalcTableVSAQuery.getTempCrosstabName("calc1", invocationA, ct)),
+                    "invocation A's temp crosstab " + ct + " must be removed");
+         assertNotNull(
+            vs.getAssembly(CalcTableVSAQuery.getTempCrosstabName("calc1", invocationB, ct)),
+            "invocation B's temp crosstab " + ct + " must stay");
       }
    }
 }

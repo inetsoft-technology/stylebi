@@ -17,8 +17,10 @@
  */
 package inetsoft.uql.viewsheet;
 
-import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.test.*;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,5 +86,38 @@ class VSLayoutToolAggregateColumnTest {
    void singleColumnFormulaKeepsComma() {
       assertEquals("x,y", VSLayoutTool.getAggregateColumn(
          "Sum(x,y)", "z", AggregateFormula.SUM));
+   }
+
+   // special characters in column names: parentheses are part of the column name, not a wrapper
+   @Disabled("Bug #81257: getOriginalColumn cuts a column name that contains parentheses")
+   @Test
+   void columnNameWithParenthesesEqualToAggregateNameIsReturnedWhole() {
+      assertEquals("Sales (USD)", VSLayoutTool.getAggregateColumn("Sales (USD)", "Sales (USD)"));
+   }
+
+   @Test
+   void wrappedColumnNameWithParenthesesKeepsTheInnerName() {
+      assertEquals("Sales (USD)", VSLayoutTool.getAggregateColumn(
+         "Sum(Sales (USD))", "Sum(Sales (USD))"));
+   }
+
+   @Test
+   void dateRangeGroupWithoutAliasReturnsTheDateColumn() {
+      DateRangeRef range = new DateRangeRef("Year(date)",
+         new ColumnRef(new AttributeRef(null, "date")), DateRangeRef.YEAR_INTERVAL);
+      GroupRef ref = new GroupRef(new ColumnRef(range));
+      assertEquals("date", VSLayoutTool.getOriginalColumn("Year(date)", ref));
+   }
+
+   @Test
+   void originalColumnStripsOnlyTheOuterWrapper() {
+      assertNull(VSLayoutTool.getOriginalColumn(null));
+      assertEquals("x", VSLayoutTool.getOriginalColumn("x"));
+      assertEquals("Min(ftime)", VSLayoutTool.getOriginalColumn("Sum(Min(ftime))"));
+   }
+
+   @Test
+   void squareBracketColumnWithoutFormulaKeepsFirstColumn() {
+      assertEquals("a", VSLayoutTool.getAggregateColumn("[a,b]", "x"));
    }
 }

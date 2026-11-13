@@ -24,6 +24,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.DefaultTable;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -289,22 +290,149 @@ public class FormulaFunctionsTest {
       assertArrayEquals(expected, (Object[]) FormulaFunctions.toList(input.clone(), options));
    }
 
-   // current behavior, unconfirmed whether intended: the date option converts the dates of the
-   // array it is given in place, and distinct=false sorts that array in place. With the default
-   // distinct=true a new array is built, so the sort does not touch the input.
+   // toList returns a new list; the array passed in is a script value and must stay as it was.
+   // Control: with the default distinct=true the input is left alone.
    @Test
-   void testToListChangesTheInputArrayInPlace() {
-      Object[] dates = { dt(2021, 3, 15) };
-      FormulaFunctions.toList(dates, "date=year");
-      assertEquals(2021, dates[0]);
-
-      Object[] unsorted = { 3, 1, 2 };
-      FormulaFunctions.toList(unsorted, "distinct=false");
-      assertArrayEquals(new Object[] { 1, 2, 3 }, unsorted);
-
+   void toListLeavesTheInputArrayAloneForTheDefaultDistinct() {
       Object[] distinct = { 3, 1, 2 };
       FormulaFunctions.toList(distinct, "");
       assertArrayEquals(new Object[] { 3, 1, 2 }, distinct);
+   }
+
+   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
+   @Test
+   void toListDateOptionLeavesTheInputArrayAlone() {
+      Date original = dt(2021, 3, 15);
+      Object[] dates = { original };
+      FormulaFunctions.toList(dates, "date=year");
+      assertSame(original, dates[0]);
+   }
+
+   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
+   @Test
+   void toListDistinctFalseLeavesTheInputArrayAlone() {
+      Object[] unsorted = { 3, 1, 2 };
+      FormulaFunctions.toList(unsorted, "distinct=false");
+      assertArrayEquals(new Object[] { 3, 1, 2 }, unsorted);
+   }
+
+   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
+   @Test
+   void toListRoundDateOptionLeavesTheInputArrayAlone() {
+      Object[] dates = { dt(2021, 3, 15), dt(2021, 7, 4) };
+      Object[] copy = dates.clone();
+      FormulaFunctions.toList(dates, "rounddate=month");
+      assertArrayEquals(copy, dates);
+   }
+
+   @Disabled("Bug #81259: toList and mapList overwrite the caller's array")
+   @Test
+   void mapListLeavesTheInputArrayAlone() {
+      Object[] input = { 4, 1, 3, 2 };
+      FormulaFunctions.mapList(input, new Object[] { 9, 9 }, "others=leaveothers");
+      assertArrayEquals(new Object[] { 4, 1, 3, 2 }, input);
+   }
+
+   @Test
+   void toListHourOptionReadsTheSameHourFromEveryDateSubtype() {
+      long ms = dt(2021, 3, 15, 13, 45, 10).getTime();
+      Object[] values = { new Date(ms), new java.sql.Date(ms), new java.sql.Timestamp(ms),
+                          new java.sql.Time(ms) };
+
+      for(Object value : values) {
+         assertArrayEquals(new Object[] { 13 },
+                           (Object[]) FormulaFunctions.toList(new Object[] { value }, "date=hour"),
+                           value.getClass().getName());
+      }
+   }
+
+   @Test
+   void toListDayAndRoundYearHandleALeapDay() {
+      Date leapDay = dt(2020, 2, 29);
+      assertArrayEquals(new Object[] { 29 },
+                        (Object[]) FormulaFunctions.toList(new Object[] { leapDay }, "date=day"));
+      Object[] rounded = (Object[]) FormulaFunctions.toList(new Object[] { leapDay },
+                                                            "rounddate=year");
+      assertEquals(1, rounded.length);
+      assertEquals(dt(2020, 1, 1).getTime(), ((Date) rounded[0]).getTime());
+   }
+
+   @Test
+   void toListRoundDateWithAnUnsupportedLevelChangesNoDate() {
+      Object[] dates = { dt(2021, 3, 15, 10, 30, 0), dt(2021, 7, 4, 8, 15, 0),
+                         dt(2022, 1, 9, 23, 59, 59) };
+      Object[] copy = dates.clone();
+      Object[] result = (Object[]) FormulaFunctions.toList(dates, "rounddate=weekday");
+      assertArrayEquals(copy, result);
+      assertArrayEquals(copy, dates);
+   }
+
+   // Run in a fresh thread so the thread-local DateTimeProcessor of DateRangeRef reads the
+   // current week.start and time zone.
+   private static void runInNewThread(Runnable action) {
+      Throwable[] error = { null };
+      Thread thread = new Thread(() -> {
+         try {
+            action.run();
+         }
+         catch(Throwable ex) {
+            error[0] = ex;
+         }
+      });
+
+      thread.start();
+
+      try {
+         thread.join();
+      }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+         throw new AssertionError(ex);
+      }
+
+      if(error[0] != null) {
+         throw new AssertionError(error[0]);
+      }
+   }
+
+   private static void assertWeekMatchesCrosstab(LocalDate from, LocalDate to, ZoneId zone,
+                                                 String label)
+   {
+      for(LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
+         Date date = Date.from(day.atStartOfDay(zone).toInstant());
+         Object[] res = (Object[]) FormulaFunctions.toList(new Object[] { date }, "date=week");
+         assertEquals(DateRangeRef.getData(DateRangeRef.WEEK_OF_YEAR_PART, date), res[0],
+                      label + " " + day);
+      }
+   }
+
+   // the crosstab Week of Year group follows week.start, so date=week must as well
+   @Disabled("Bug #81261: toList date=week ignores the week.start setting")
+   @Test
+   void dateWeekOptionFollowsTheWeekStartLikeTheCrosstab() {
+      WeekStartUtil.withWeekStart("monday", () -> runInNewThread(() ->
+         assertWeekMatchesCrosstab(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31),
+                                   ZoneId.systemDefault(), "week.start=monday")));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "Asia/Tokyo", "America/Los_Angeles" })
+   void dateWeekOptionMatchesCrosstabWeekOfYearAroundTheYearEndInAnyTimeZone(String zoneId) {
+      java.util.TimeZone old = java.util.TimeZone.getDefault();
+
+      try {
+         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zoneId));
+         ZoneId zone = ZoneId.of(zoneId);
+         runInNewThread(() -> {
+            assertWeekMatchesCrosstab(LocalDate.of(2020, 12, 20), LocalDate.of(2021, 1, 10), zone,
+                                      zoneId);
+            assertWeekMatchesCrosstab(LocalDate.of(2024, 12, 24), LocalDate.of(2025, 1, 7), zone,
+                                      zoneId);
+         });
+      }
+      finally {
+         java.util.TimeZone.setDefault(old);
+      }
    }
 
    // a scalar is returned as a scalar
