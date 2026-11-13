@@ -37,6 +37,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import org.springframework.test.util.ReflectionTestUtils;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -253,6 +255,107 @@ class ScheduleTaskServiceOwnershipTest {
       runSaveIgnoringDownstreamFailures(model);
 
       verify(scheduleService).updateTaskName(any(), any(), eq(other), eq(principal));
+   }
+
+   // Bug #79863: changing the owner of someone else's task, the axis is the caller's relation to
+   // the current owner {is it, administers it, neither} x the new owner {self, administered, third}
+
+   @Test
+   void saveTask_memberTakesOwnershipOfOthersTask_isRejected() throws Exception {
+      storedTaskOf(new IdentityID("carol", CALLER_ORG));
+      denyAdmin();
+
+      ScheduleTaskEditorModel model = model(null, options(CALLER.getName(), null));
+
+      assertThrows(SecurityException.class, () -> service.saveTask(model, "", principal, true));
+      verify(scheduleService, never()).updateTaskName(any(), any(), any(), any());
+      verify(scheduleService, never()).saveTask(any(), any(), any());
+   }
+
+   @Test
+   void saveTask_memberTakesOwnershipOfOthersTaskInPortal_isRejected() throws Exception {
+      storedTaskOf(new IdentityID("carol", CALLER_ORG));
+      denyAdmin();
+
+      ScheduleTaskEditorModel model = model(null, options(CALLER.getName(), null));
+
+      assertThrows(SecurityException.class, () -> service.saveTask(model, "", principal, false));
+      verify(scheduleService, never()).updateTaskName(any(), any(), any(), any());
+   }
+
+   @Test
+   void saveTask_memberHandsOthersTaskToAdministeredUser_isRejected() throws Exception {
+      IdentityID carol = new IdentityID("carol", CALLER_ORG);
+      IdentityID bob = new IdentityID("bob", CALLER_ORG);
+      storedTaskOf(carol);
+      denyAdmin();
+      allowAdminOn(bob);
+
+      ScheduleTaskEditorModel model = model(null, options("bob", null));
+
+      assertThrows(SecurityException.class, () -> service.saveTask(model, "", principal, true));
+      verify(scheduleService, never()).updateTaskName(any(), any(), any(), any());
+   }
+
+   @Test
+   void saveTask_adminOfCurrentOwnerTakesOwnershipAsSelf_isAllowed() throws Exception {
+      IdentityID carol = new IdentityID("carol", CALLER_ORG);
+      storedTaskOf(carol);
+      denyAdmin();
+      allowAdminOn(carol);
+
+      runSaveIgnoringDownstreamFailures(model(null, options(CALLER.getName(), null)));
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(CALLER), eq(principal));
+   }
+
+   @Test
+   void saveTask_adminOfNewOwnerOnlyTakesOthersTask_isRejected() throws Exception {
+      IdentityID carol = new IdentityID("carol", CALLER_ORG);
+      IdentityID bob = new IdentityID("bob", CALLER_ORG);
+      storedTaskOf(carol);
+      denyAdmin();
+      allowAdminOn(bob);
+
+      ScheduleTaskEditorModel model = model(null, options("bob", null));
+
+      assertThrows(SecurityException.class, () -> service.saveTask(model, "", principal, true));
+   }
+
+   @Test
+   void checkTaskIdentityPermission_taskWithoutOwner_isRejectedWithoutException() {
+      denyAdmin();
+
+      // the checked SecurityException is wrapped by the reflection
+      UndeclaredThrowableException e = assertThrows(UndeclaredThrowableException.class,
+         () -> ReflectionTestUtils.invokeMethod(service, "checkTaskIdentityPermission",
+                                                options(CALLER.getName(), null),
+                                                new ScheduleTask("Task1"), principal));
+      assertInstanceOf(SecurityException.class, e.getUndeclaredThrowable());
+   }
+
+   @Test
+   void saveTask_siteAdminTakesOwnershipOfOthersTask_isAllowed() throws Exception {
+      storedTaskOf(new IdentityID("carol", CALLER_ORG));
+      denyAdmin();
+      when(organizationManager.isSiteAdmin(principal)).thenReturn(true);
+
+      runSaveIgnoringDownstreamFailures(model(null, options(CALLER.getName(), null)));
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(CALLER), eq(principal));
+   }
+
+   private void storedTaskOf(IdentityID owner) {
+      ScheduleTask existing = new ScheduleTask("Task1");
+      existing.setOwner(owner);
+      when(scheduleManager.getScheduleTask(anyString())).thenReturn(existing);
+   }
+
+   private void allowAdminOn(IdentityID user) {
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            user.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.getUser(user)).thenReturn(new User(user));
    }
 
    @ParameterizedTest
