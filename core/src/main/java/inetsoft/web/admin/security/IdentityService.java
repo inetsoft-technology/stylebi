@@ -70,6 +70,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -1446,7 +1447,18 @@ public class IdentityService {
          else if(!members.contains(user.getName())) {
             // like deleteIdentities(), never delete the requesting user, which would also have to
             // log out the session of the request that is being processed
-            if(principal != null && isSelfAndEMUser(principal, oldID, Identity.USER)) {
+            // Bug #81308, a resumed id change protects the requester of the original request,
+            // not the one that resumes it, and tells nobody
+            RenameDecision frozen = frozenDecision();
+
+            if(frozen != null) {
+               if(frozen.getRequester() != null &&
+                  oldID.equals(IdentityID.getIdentityIDFromKey(frozen.getRequester())))
+               {
+                  continue;
+               }
+            }
+            else if(principal != null && isSelfAndEMUser(principal, oldID, Identity.USER)) {
                Tool.addUserMessage(Catalog.getCatalog().getString("em.security.delself"));
                continue;
             }
@@ -3671,12 +3683,16 @@ public class IdentityService {
             opId = OrgIdChangeGuard.begin(fromOrgID, model.id());
          }
 
-         Identity result = setOrganizationInfo0(oldOrg, model, eprovider, principal, () -> {
+         Identity result = setOrganizationInfo0(oldOrg, model, eprovider, principal, names -> {
             // a recovery that resumes the change keeps the record that it started from
             if(RESUMING.get() == null) {
+               // Bug #81308, what the caller's permissions decided (the members that are kept
+               // although the request dropped them, who the requester is) is journaled with the
+               // request, the node that resumes it replays it instead of deciding again
                journalEntry[0] = OrgOperationJournal.getInstance().begin(
                   OrgOperationJournal.Type.RENAME, fromOrgID, model.id(), toJson(model),
-                  getRenameTargets(fromOrg, model.id()), eprovider.getProviderName());
+                  getRenameTargets(fromOrg, model.id()), eprovider.getProviderName(),
+                  toJson(new RenameDecision(names, principal != null ? principal.getName() : null)));
             }
          });
          completed = true;
@@ -3780,6 +3796,19 @@ public class IdentityService {
       }
 
       EditOrganizationPaneModel model = fromJson(entry.getPayload());
+
+      if(entry.getDecision() == null) {
+         LOG.warn("The record of the id change {} has no frozen decision of its original " +
+                  "request (written before Bug #81308), the dropped members, groups and roles " +
+                  "are decided with the permissions of {}", entry,
+                  principal != null ? principal.getName() : null);
+      }
+      else if(readDecision(entry) == null) {
+         LOG.warn("The frozen decision of the id change {} cannot be read, the dropped " +
+                  "members, groups and roles are decided with the permissions of {}", entry,
+                  principal != null ? principal.getName() : null);
+      }
+
       Organization fromOrg = eprovider.getOrganization(fromId);
       LOG.info("Resuming the id change of organization {} to {} ({}): old organization {}, new " +
                "organization {}, before: {}", fromId, toId, entry.getOpId(),
@@ -3941,6 +3970,72 @@ public class IdentityService {
          .readValue(json, EditOrganizationPaneModel.class);
    }
 
+   private static String toJson(RenameDecision decision) {
+      try {
+         return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(decision);
+      }
+      catch(IOException e) {
+         throw new IllegalStateException("Failed to record the organization change", e);
+      }
+   }
+
+   /**
+    * Gets the decision that the original request of the id change that is being resumed froze,
+    * null if the change is not resumed, or its record has no readable decision, in which case
+    * the permissions of the caller decide as before. An empty member list is a decision.
+    */
+   private static RenameDecision frozenDecision() {
+      OrgOperationJournal.Entry entry = RESUMING.get();
+      return entry == null ? null : readDecision(entry);
+   }
+
+   private static RenameDecision readDecision(OrgOperationJournal.Entry entry) {
+      if(entry.getDecision() == null) {
+         return null;
+      }
+
+      try {
+         RenameDecision decision = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readValue(entry.getDecision(), RenameDecision.class);
+         return decision.getMembers() == null ? null : decision;
+      }
+      catch(IOException e) {
+         return null;
+      }
+   }
+
+   /**
+    * What the principal of the caller decided in the original request of an id change, which a
+    * resume of it replays. The caller of the resume is another principal and must not decide again.
+    */
+   static final class RenameDecision {
+      @com.fasterxml.jackson.annotation.JsonCreator
+      RenameDecision(@com.fasterxml.jackson.annotation.JsonProperty("members") List<String> members,
+                     @com.fasterxml.jackson.annotation.JsonProperty("requester") String requester)
+      {
+         this.members = members == null ? null : new ArrayList<>(members);
+         this.requester = requester;
+      }
+
+      /**
+       * The names of the members of the organization after the original request kept the hidden
+       * members and the groups and roles that its caller could not delete.
+       */
+      public List<String> getMembers() {
+         return members;
+      }
+
+      /**
+       * The principal name of the caller of the original request, null if it had no principal.
+       */
+      public String getRequester() {
+         return requester;
+      }
+
+      private final List<String> members;
+      private final String requester;
+   }
+
    /**
     * Gets the data space paths that an id change moves to the new id.
     */
@@ -3961,7 +4056,8 @@ public class IdentityService {
 
    private Identity setOrganizationInfo0(FSOrganization oldOrg, EditOrganizationPaneModel model,
                                          EditableAuthenticationProvider eprovider,
-                                         Principal principal, Runnable beforeIdChange)
+                                         Principal principal,
+                                         Consumer<List<String>> beforeIdChange)
       throws Exception
    {
       final String name = model.name();
@@ -3975,8 +4071,14 @@ public class IdentityService {
          .map(i -> i.name)
          .collect(Collectors.toList());
       String[] oldMembers = oldOrg.getMembers();
+      // Bug #81308, a resumed id change replays what the caller of the original request decided
+      RenameDecision frozen = frozenDecision();
 
-      if(oldMembers != null) {
+      if(frozen != null) {
+         memberNames.clear();
+         memberNames.addAll(frozen.getMembers());
+      }
+      else if(oldMembers != null) {
          // members hidden from the editor are never sent back by the client, so keep them
          Arrays.stream(oldMembers)
             .filter(m -> securityProvider.getUser(new IdentityID(m, oldOrg.getId())) != null)
@@ -4008,7 +4110,9 @@ public class IdentityService {
 
       // a dropped group or role is deleted, so it must pass the same checks as deleteIdentities().
       // Called after the validation, so a rejected save leaves no message behind on the thread.
-      keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
+      if(frozen == null) {
+         keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
+      }
 
       newOrg.setMembers(memberNames.toArray(new String[0]));
       newOrg.setActive(model.status());
@@ -4028,7 +4132,7 @@ public class IdentityService {
 
       if(fromOrg != null && !Tool.equals(fromOrgID, newOrg.getId())) {
          // everything before this point only validated, the first write follows
-         beforeIdChange.run();
+         beforeIdChange.accept(new ArrayList<>(memberNames));
       }
 
       if(model.oldName() == null ||
