@@ -519,11 +519,16 @@ public class TimeScale extends Scale {
          // sanity check (e.g. max could be really huge and month/year doesn't set a default above)
          maxTicks = Math.min(maxTicks, GDefaults.AXIS_LABEL_MAX_COUNT * 2);
 
+         Format fmt = getAxisSpec().getTextSpec().getFormat();
          boolean hasDup = isFormattedToHigherInterval() && !getAxisSpec().isAllTicks();
+         // if the format shows a higher interval (e.g. second data formatted as days), step by
+         // that interval instead of visiting every unit of type only to drop duplicate labels
+         int stepType = hasDup && increment == null ? getFormatInterval(fmt) : type;
+         long stepLen = getIncLength(stepType);
 
          // make sure the number of ticks is not too large (out of memory)
-         if(!hasDup && !getAxisSpec().isAllTicks()) {
-            while((max - min) / (incLen * n) > maxTicks) {
+         if(!getAxisSpec().isAllTicks()) {
+            while((max - min) / (stepLen * n) > maxTicks) {
                n++;
             }
          }
@@ -532,17 +537,7 @@ public class TimeScale extends Scale {
 
          // set the first tick, or use min if it's explicitly set
          if(this.umin == null) {
-            // clear out the lower level values (e.g. day type clears out hour/minute/second)
-            for(int i = 0; type != INC_FIELD[i][0]; i++) {
-               if(INC_FIELD[i][1] < 0 ||
-                  (type == WEEK && INC_FIELD[i][0] == DAY) ||
-                  (type == QUARTER && INC_FIELD[i][0] == MONTH))
-               {
-                  continue;
-               }
-
-               cal.set(INC_FIELD[i][0], INC_FIELD[i][1]);
-            }
+            truncate(cal, type);
          }
 
          // add null value
@@ -560,7 +555,6 @@ public class TimeScale extends Scale {
 
          if(!nodata) {
             String lastLabel = null;
-            Format fmt = getAxisSpec().getTextSpec().getFormat();
 
             // add ticks between min and max, with another sanity check on size
             while(cal.getTime().getTime() <= max && (hasDup || dates.size() <= maxTicks * 2)) {
@@ -573,15 +567,17 @@ public class TimeScale extends Scale {
                   }
 
                   lastLabel = label;
+                  // move to the start of the next label, e.g. the first day of next month
+                  truncate(cal, stepType);
+                  add(cal, stepType, n);
                }
                else {
                   dates.add(cal.getTime());
+                  add(cal, type, n);
                }
-
-               add(cal, type, n);
             }
 
-            // enforce maxTicks for hasDup since maxTicks was ignored in the above loop.
+            // enforce maxTicks for hasDup in case the format interval steps are uneven
             while(hasDup && dates.size() > maxTicks) {
                for(int i = 1; i < dates.size(); i++) {
                   dates.remove(i);
@@ -590,7 +586,11 @@ public class TimeScale extends Scale {
 
             // make sure last date is on scale if the increment changed due to maxTicks. (53670)
             if(n > 1 && (increment == null || n != increment.intValue()) && dates.size() > 0) {
-               if(dates.get(dates.size() - 1).getTime() < max) {
+               Date last = dates.get(dates.size() - 1);
+
+               if(last.getTime() < max && (!hasDup || fmt == null ||
+                  !fmt.format(last).equals(fmt.format(new Date(max)))))
+               {
                   dates.add(new Date(max));
                }
             }
@@ -629,6 +629,56 @@ public class TimeScale extends Scale {
       }
 
       return false;
+   }
+
+   /**
+    * Get the smallest interval, starting from type, whose consecutive values the format
+    * labels differently (e.g. DAY for yyyy-MM-dd).
+    */
+   private int getFormatInterval(Format fmt) {
+      if(fmt == null) {
+         return type;
+      }
+
+      // start of a year so stepping one unit doesn't cross a higher boundary by chance
+      Date ref = new GregorianCalendar(2001, Calendar.JANUARY, 1).getTime();
+      String refLabel = fmt.format(ref);
+      boolean found = false;
+
+      for(int i = 0; i < INC_FIELD.length; i++) {
+         int field = INC_FIELD[i][0];
+         found = found || field == type;
+
+         if(!found) {
+            continue;
+         }
+
+         Calendar next = new GregorianCalendar();
+         next.setTime(ref);
+         add(next, field, 1);
+
+         if(!refLabel.equals(fmt.format(next.getTime()))) {
+            return field;
+         }
+      }
+
+      return type;
+   }
+
+   /**
+    * Clear out the values below the type (e.g. day type clears out hour/minute/second).
+    */
+   private static void truncate(Calendar cal, int type) {
+      for(int i = 0; type != INC_FIELD[i][0]; i++) {
+         if(INC_FIELD[i][1] < 0 ||
+            (type == WEEK && INC_FIELD[i][0] == DAY) ||
+            (type == QUARTER && INC_FIELD[i][0] == MONTH))
+         {
+            continue;
+         }
+
+         cal.set(INC_FIELD[i][0], INC_FIELD[i][1]);
+      }
    }
 
    /**
@@ -673,6 +723,13 @@ public class TimeScale extends Scale {
     * Get the length of the increment type.
     */
    private long getIncLength() {
+      return getIncLength(type);
+   }
+
+   /**
+    * Get the length of the specified increment type.
+    */
+   private static long getIncLength(int type) {
       for(int i = 0; i < INC_FIELD.length; i++) {
          if(INC_FIELD[i][0] == type) {
             return INC_LENGTH[i];
@@ -736,7 +793,8 @@ public class TimeScale extends Scale {
    }
 
    /**
-    * Get the label format.
+    * Get the label format. A new instance is created for each scale since SimpleDateFormat
+    * is not thread-safe and the scales may be rendered concurrently.
     */
    private Format getLabelFormat() {
       // don't set format if not initialized (type is not known)
@@ -746,30 +804,21 @@ public class TimeScale extends Scale {
 
       switch(type) {
       case TimeScale.SECOND:
-         return SECOND_FORMAT;
+         return CoreTool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
       case TimeScale.MINUTE:
-         return MINUTE_FORMAT;
+         return CoreTool.createGregorianDateFormat("yyyy-MM-dd HH:mm");
       case TimeScale.HOUR:
-         return HOUR_FORMAT;
-      case TimeScale.DAY:
-      case TimeScale.WEEK:
-         return DATE_FORMAT;
+         return CoreTool.createGregorianDateFormat("yyyy-MM-dd HH");
       case TimeScale.MONTH:
       case TimeScale.QUARTER:
-         return MONTH_FORMAT;
+         return CoreTool.createGregorianDateFormat("yyyy MMM");
       case TimeScale.YEAR:
-         return YEAR_FORMAT;
+         return CoreTool.createGregorianDateFormat("yyyy");
       }
 
-      return DATE_FORMAT;
+      // day and week
+      return CoreTool.createGregorianDateFormat("yyyy-MM-dd");
    }
-
-   private static Format SECOND_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
-   private static Format MINUTE_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd HH:mm");
-   private static Format HOUR_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd HH");
-   private static Format DATE_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd");
-   private static Format MONTH_FORMAT = CoreTool.createGregorianDateFormat("yyyy MMM");
-   private static Format YEAR_FORMAT = CoreTool.createGregorianDateFormat("yyyy");
 
    // increment durations
    private static long[] INC_LENGTH = {

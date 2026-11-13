@@ -26,10 +26,13 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import inetsoft.graph.data.DefaultDataSet;
+
+import java.text.Format;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.LocalDate;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -100,5 +103,93 @@ class TimeScaleTest {
       double[] ticks = scale.getTicks();
       assertTrue(ticks.length <= 3,
          "allTicks=false with MMM format should deduplicate to 3 month ticks, got: " + ticks.length);
+   }
+
+   /**
+    * A day-level label format over data whose smallest gap is a second (e.g. two gantt tasks
+    * starting a second apart) must not visit every second of the range to find the ticks.
+    */
+   @Test
+   void dayFormatOnSecondIntervalDataIsBounded() {
+      long start = date(2016, Calendar.JANUARY, 6, 8, 0, 0);
+      DefaultDataSet data = new DefaultDataSet(new Object[][] {
+         { "start" },
+         { new Date(start) },
+         { new Date(start + 1000) },
+         { new Date(date(2026, Calendar.JANUARY, 6, 8, 0, 0)) }
+      });
+      SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd");
+      TimeScale scale = new TimeScale("start");
+      scale.getAxisSpec().getTextSpec().setFormat(fmt);
+
+      double[] ticks = assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+         scale.init(data);
+         return scale.getTicks();
+      });
+
+      assertEquals(TimeScale.SECOND, scale.getType());
+      assertTrue(ticks.length > 1 && ticks.length <= 52, "tick count: " + ticks.length);
+      Set<String> labels = new HashSet<>();
+
+      for(double tick : ticks) {
+         assertTrue(labels.add(fmt.format(new Date((long) tick))), "duplicate label at " + tick);
+      }
+   }
+
+   /**
+    * Daily data formatted by month places a tick at the first value and then at the start
+    * of each following month (Bug #63834).
+    */
+   @Test
+   void monthFormatOnDayIntervalDataTicksAtMonthStarts() {
+      List<Object[]> rows = new ArrayList<>();
+      rows.add(new Object[] { "start" });
+
+      for(int day = 15; day <= 31 + 28 + 31 + 10; day++) {
+         rows.add(new Object[] { new Date(date(2025, Calendar.JANUARY, day, 0, 0, 0)) });
+      }
+
+      SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM");
+      TimeScale scale = new TimeScale("start");
+      scale.getAxisSpec().getTextSpec().setFormat(fmt);
+      scale.init(new DefaultDataSet(rows.toArray(new Object[0][])));
+
+      assertEquals(TimeScale.DAY, scale.getType());
+      assertArrayEquals(new double[] {
+         date(2025, Calendar.JANUARY, 15, 0, 0, 0),
+         date(2025, Calendar.FEBRUARY, 1, 0, 0, 0),
+         date(2025, Calendar.MARCH, 1, 0, 0, 0),
+         date(2025, Calendar.APRIL, 1, 0, 0, 0),
+      }, scale.getTicks());
+   }
+
+   /**
+    * SimpleDateFormat is not thread-safe, so scales rendered by different threads must not
+    * share a default label format.
+    */
+   @Test
+   void defaultLabelFormatIsNotSharedBetweenScales() {
+      Format fmt1 = getDefaultLabelFormat();
+      Format fmt2 = getDefaultLabelFormat();
+
+      assertNotNull(fmt1);
+      assertNotSame(fmt1, fmt2);
+      assertEquals("2025-01-06", fmt1.format(new Date(date(2025, Calendar.JANUARY, 6, 0, 0, 0))));
+   }
+
+   private static Format getDefaultLabelFormat() {
+      TimeScale scale = new TimeScale("start");
+      scale.init(new DefaultDataSet(new Object[][] {
+         { "start" },
+         { new Date(date(2025, Calendar.JANUARY, 6, 0, 0, 0)) },
+         { new Date(date(2025, Calendar.JANUARY, 7, 0, 0, 0)) }
+      }));
+      // the default format is only assigned once graph generation has started
+      scale.getUnitCount();
+      return scale.getAxisSpec().getTextSpec().getFormat();
+   }
+
+   private static long date(int year, int month, int day, int hour, int minute, int second) {
+      return new GregorianCalendar(year, month, day, hour, minute, second).getTimeInMillis();
    }
 }
