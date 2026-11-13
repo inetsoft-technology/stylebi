@@ -80,6 +80,10 @@ class DataCycleManagerStorageRefreshTest {
       mvManager = spy(new MVManager(cluster));
       manager = new DataCycleManager(scheduleManager, storage, engine, cluster, mvManager,
                                      dataSpace, mock(RepletRegistryManager.class));
+      // the manager registers itself as a storage listener; the real async storage events of the
+      // test's own writes would call reloadExtensions on a pool thread and race the verifies.
+      // Detach it so storageRefreshed is only invoked explicitly by the test
+      storage.removeStorageRefreshListener(manager);
       clearInvocations(scheduleManager);
    }
 
