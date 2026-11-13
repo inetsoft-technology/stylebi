@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Tag;
@@ -62,7 +63,7 @@ class ViewsheetSessionServiceReadTest {
       SheetSessionService sessions = mock(SheetSessionService.class);
       when(sessions.resolve(anyString(), anyString())).thenReturn(null);
       ViewsheetSessionService service = new ViewsheetSessionService(
-         sessions, mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class));
+         sessions, mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
 
       assertThrows(PairingException.class,
                    () -> service.read("bad", principal(), (rvs, runtimeId, dispatcher) -> null));
@@ -132,7 +133,7 @@ class ViewsheetSessionServiceReadTest {
          .thenReturn(rvs);
 
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
-      return new Harness(new ViewsheetSessionService(sessions, runtimeAccess, broadcast), rvs,
+      return new Harness(new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class)), rvs,
                          broadcast);
    }
 

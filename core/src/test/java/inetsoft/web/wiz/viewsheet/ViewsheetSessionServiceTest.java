@@ -18,8 +18,10 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Test;
 
@@ -60,7 +62,7 @@ class ViewsheetSessionServiceTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
 
-      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
       svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
 
       verify(rvs).bumpWriteRevision();
@@ -89,7 +91,7 @@ class ViewsheetSessionServiceTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
 
-      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
 
       assertThrows(RuntimeException.class, () -> svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
          throw new RuntimeException("partial failure mid-mutation");
@@ -124,7 +126,7 @@ class ViewsheetSessionServiceTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
 
-      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
 
       List<String> warnings = svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {
          MessageCommand warning = new MessageCommand();
@@ -156,7 +158,7 @@ class ViewsheetSessionServiceTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
 
-      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
 
       List<String> warnings = svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
 
@@ -204,7 +206,7 @@ class ViewsheetSessionServiceTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
 
-      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
       svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
 
       verify(rvs, never()).setSocketSessionId(any());
@@ -224,9 +226,101 @@ class ViewsheetSessionServiceTest {
       when(sessions.isLive("live-token")).thenReturn(true);
       when(sessions.isLive("dead-token")).thenReturn(false);
 
-      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
 
       assertTrue(svc.isSessionLive("live-token"));
       assertFalse(svc.isSessionLive("dead-token"));
+   }
+
+   /**
+    * Bug #81307: a checkpoint holds the sheet definition only, so restoring it alone left a Form
+    * table's pending edit in place while reporting undone:true. The restore must run the native
+    * undo/redo service (whose refresh drops the pending edits) and report whether the pointer
+    * moved.
+    */
+   @Test
+   void restoreCheckpointRunsTheNativeUndoAndReportsThatThePointerMoved() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("Viewsheet/foo-7");
+      java.util.concurrent.atomic.AtomicInteger current =
+         new java.util.concurrent.atomic.AtomicInteger(3);
+      when(rvs.getCurrent()).thenAnswer(inv -> current.get());
+      UndoRedoServiceProxy undoRedo = mock(UndoRedoServiceProxy.class);
+      doAnswer(inv -> {
+         current.decrementAndGet();
+         return null;
+      }).when(undoRedo).undo(eq("Viewsheet/foo-7"), any(), eq("link"), any());
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class), undoRedo);
+
+      assertTrue(svc.restoreCheckpoint(rvs, agent, "link", true));
+
+      verify(undoRedo).undo(eq("Viewsheet/foo-7"), eq(agent), eq("link"), any());
+      verify(undoRedo, never()).redo(any(), any(), any(), any());
+   }
+
+   @Test
+   void restoreCheckpointRunsTheNativeRedo() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("Viewsheet/foo-7");
+      java.util.concurrent.atomic.AtomicInteger current =
+         new java.util.concurrent.atomic.AtomicInteger(2);
+      when(rvs.getCurrent()).thenAnswer(inv -> current.get());
+      UndoRedoServiceProxy undoRedo = mock(UndoRedoServiceProxy.class);
+      doAnswer(inv -> {
+         current.incrementAndGet();
+         return null;
+      }).when(undoRedo).redo(eq("Viewsheet/foo-7"), any(), any(), any());
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class), undoRedo);
+
+      assertTrue(svc.restoreCheckpoint(rvs, agent, "", false));
+
+      verify(undoRedo, never()).undo(any(), any(), any(), any());
+   }
+
+   @Test
+   void restoreCheckpointReportsFalseWhenThePointerDidNotMove() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("Viewsheet/foo-7");
+      when(rvs.getCurrent()).thenReturn(0);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
+
+      assertFalse(svc.restoreCheckpoint(rvs, agent, "", true));
+   }
+
+   /**
+    * The pointer has moved by the time the refresh dispatches an ERROR, so the error must not
+    * fail the call: the caller still has to broadcast, and a retry would undo one more step.
+    */
+   @Test
+   void restoreCheckpointStillReportsTheMoveWhenTheRefreshDispatchesAnError() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("Viewsheet/foo-7");
+      java.util.concurrent.atomic.AtomicInteger current =
+         new java.util.concurrent.atomic.AtomicInteger(3);
+      when(rvs.getCurrent()).thenAnswer(inv -> current.get());
+      UndoRedoServiceProxy undoRedo = mock(UndoRedoServiceProxy.class);
+      doAnswer(inv -> {
+         current.decrementAndGet();
+         MessageCommand error = new MessageCommand();
+         error.setType(MessageCommand.Type.ERROR);
+         error.setMessage("query failed");
+         ((CommandDispatcher) inv.getArgument(3)).sendCommand(error);
+         return null;
+      }).when(undoRedo).undo(any(), any(), any(), any());
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class), undoRedo);
+
+      assertTrue(svc.restoreCheckpoint(rvs, agent, "", true));
    }
 }

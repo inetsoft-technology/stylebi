@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -3757,7 +3758,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                             any(Principal.class))).thenReturn(rvs);
 
       ViewsheetSessionService sessions = new ViewsheetSessionService(
-         store, runtimeAccess, mock(SheetAgentBroadcastService.class));
+         store, runtimeAccess, mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
       ViewsheetReadService reader = mock(ViewsheetReadService.class);
       ViewsheetModel expected = new ViewsheetModel("vs1", List.of());
       when(reader.read(rvs)).thenReturn(expected);
@@ -3776,7 +3777,7 @@ class ViewsheetAssemblyAgentControllerTest {
    /** A real {@link ViewsheetSessionService} over {@code store}; runtime access is never reached. */
    private static ViewsheetSessionService realSessions(SheetSessionService store) {
       return new ViewsheetSessionService(store, mock(SheetRuntimeAccess.class),
-                                         mock(SheetAgentBroadcastService.class));
+                                         mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
    }
 
    // ---------------------------------------------------------------------------

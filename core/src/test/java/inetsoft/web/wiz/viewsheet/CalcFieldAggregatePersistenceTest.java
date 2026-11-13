@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.erm.DataRef;
@@ -116,7 +117,7 @@ class CalcFieldAggregatePersistenceTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"),
                                             eq(agent)))
          .thenReturn(rvs);
-      return new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      return new ViewsheetSessionService(sessions, runtimeAccess, broadcast, mock(UndoRedoServiceProxy.class));
    }
 
    @Test
