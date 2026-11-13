@@ -35,6 +35,7 @@ import { GeneralPropPane } from "./general-prop-pane.component";
 })
 export class RangeSliderGeneralPane implements OnInit {
    @Input() model: RangeSliderGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string;
    @Input() variableValues: string[];

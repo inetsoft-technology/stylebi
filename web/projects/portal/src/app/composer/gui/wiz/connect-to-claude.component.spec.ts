@@ -1069,6 +1069,21 @@ describe("ConnectToClaudeComponent", () => {
          expect(component.currentTargetLabel).toBe("Chart1 → onClick");
       });
 
+      it("labels a dynamic value target as assembly and property, bare or namespaced", () => {
+         connectAsToolbar();
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "VIEWSHEET", focusChanged: true,
+                     editorContext: { kind: "dynamicValue", assembly: "Text1", name: "visible" } }));
+         expect(component.currentTargetLabel).toBe("Text1 → visible");
+
+         handlerFor("/user/commands/wiz/pairing/joined")(
+            notice({ runtimeId: "rt-1", sheetType: "VIEWSHEET", focusChanged: true,
+                     editorContext: { kind: "dynamicValue", assembly: "Chart1",
+                                      name: "dateComparison:periodsBack" } }));
+         expect(component.currentTargetLabel).toBe("Chart1 → dateComparison periodsBack");
+      });
+
       it("returns the live target to Whole sheet from a focusChanged pop notice", () => {
          connectAsToolbar();
          handlerFor("/user/commands/wiz/pairing/joined")(

@@ -27,7 +27,8 @@
           <general-prop-pane [form]="basicForm" [model]="model.generalPropPaneModel"
             [variableValues]="variableValues"
             [columnTreeRoot]="scriptTreeModel?.columnTree"
-            [scriptDefinitions]="scriptTreeModel?.scriptDefinitions">
+            [scriptDefinitions]="scriptTreeModel?.scriptDefinitions"
+            [assemblyName]="assemblyName" [vsId]="runtimeId">
           </general-prop-pane>
           <size-position-pane [model]="model.sizePositionPaneModel" [isViewsheet]="true" [(form)]="basicForm.controls['sizePositionPaneForm']"></size-position-pane>
         </ng-template>

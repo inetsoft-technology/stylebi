@@ -36,6 +36,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class CheckboxGeneralPane implements OnInit {
    @Input() model: CheckboxGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() runtimeId: string;
    @Input() variableValues: string[];

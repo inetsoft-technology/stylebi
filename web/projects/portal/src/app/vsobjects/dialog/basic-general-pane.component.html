@@ -54,6 +54,7 @@
                 [value]="visibleValue" (valueChange)="updateVisible($event)"
                 [disable]="layoutObject" [vsId]="vsId"
                 [assemblyName]="assemblyName"
+                [dynamicProperty]="layoutObject ? null : 'visible'"
                 [isCondition]="true"
                 [columnTreeRoot]="columnTreeRoot"
                 [functionTreeRoot]="functionTreeRoot"

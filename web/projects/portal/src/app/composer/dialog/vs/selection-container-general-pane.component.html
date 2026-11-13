@@ -19,12 +19,13 @@
                    [vsId]="vsId"
                    [form]="form.controls['generalPropPaneForm']" [columnTreeRoot]="columnTreeRoot"
                    [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
-                   [scriptDefinitions]="scriptDefinitions">
+                   [scriptDefinitions]="scriptDefinitions" [assemblyName]="assemblyName">
 </general-prop-pane>
 <title-prop-pane [model]="model.titlePropPaneModel" [variableValues]="variableValues"
                  [vsId]="vsId"
                  [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
-                 [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions">
+                 [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions"
+                 [assemblyName]="assemblyName">
 </title-prop-pane>
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>

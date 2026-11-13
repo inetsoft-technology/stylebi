@@ -101,12 +101,14 @@ public class ScriptContextService {
     *               an onInit/onLoad script coordinates across assemblies by definition.
     */
    public ScriptContext context(RuntimeViewsheet rvs, ScriptTarget target) throws PairingException {
-      if(target != null && target.kind() == ScriptTarget.Kind.VS_CONDITION_VALUE) {
+      if(target != null && target.kind().isDraftOnly()) {
          // The default path would answer with the assembly's own script context: plausible, but
-         // not the scope a condition expression evaluates in.
+         // not the scope a condition expression or a dynamic value evaluates in.
+         String what = target.kind() == ScriptTarget.Kind.DYNAMIC_VALUE
+            ? "a dynamic value draft" : "a condition expression draft";
+
          throw new PairingException(
-            "'" + target + "' has no scripting context: it is a condition expression draft, not " +
-            "a script.");
+            "'" + target + "' has no scripting context: it is " + what + ", not a script.");
       }
 
       List<AssemblyContext> all = describeAssemblies(rvs);

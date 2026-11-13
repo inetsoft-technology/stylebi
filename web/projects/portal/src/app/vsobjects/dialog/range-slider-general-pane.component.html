@@ -19,14 +19,15 @@
   [model]="model.generalPropPaneModel"
   [variableValues]="variableValues" [columnTreeRoot]="columnTreeRoot"
   [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
-  [scriptDefinitions]="scriptDefinitions">
+  [scriptDefinitions]="scriptDefinitions" [assemblyName]="assemblyName">
 </general-prop-pane>
 @if (model.inSelectionContainer) {
   <title-prop-pane [vsId]="vsId"
     [inSelectionContainer]="model.inSelectionContainer"
     [model]="model.titlePropPaneModel" [variableValues]="variableValues"
     [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
-    [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions">
+    [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions"
+    [assemblyName]="assemblyName">
   </title-prop-pane>
 }
 <size-position-pane [model]="model.sizePositionPaneModel"

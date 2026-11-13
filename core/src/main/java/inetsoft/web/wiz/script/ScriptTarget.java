@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.wiz.pairing.DynamicValueName;
 import inetsoft.web.wiz.pairing.EditorContext;
 import inetsoft.web.wiz.pairing.PairingException;
 
@@ -38,7 +39,8 @@ import java.util.Set;
 public final class ScriptTarget {
    public enum Location {
       VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK, CALC_FIELD,
-      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE
+      WORKSHEET_EXPRESSION, WORKSHEET_CONDITION, WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE,
+      DYNAMIC_VALUE
    }
 
    /**
@@ -114,11 +116,26 @@ public final class ScriptTarget {
        * draft-push path of {@code ScriptEditService}/{@code ScriptReadService} and never reads or
        * writes the runtime viewsheet.
        */
-      VS_CONDITION_VALUE("vsConditionValue", Location.VS_CONDITION_VALUE);
+      VS_CONDITION_VALUE("vsConditionValue", Location.VS_CONDITION_VALUE, true),
+
+      /**
+       * ONE dynamic value (a Value / Variable / Expression field) of a Composer dialog, in its
+       * Expression mode. Draft-only, like {@link #VS_CONDITION_VALUE}: {@code assemblyName()} is
+       * the viewsheet assembly whose dialog the user is in and {@code name()} says which field, in
+       * the plugin's own vocabulary (see {@link inetsoft.web.wiz.pairing.DynamicValueName}). The
+       * value lives in the user's open dialog, so it is served only by the draft-push path and
+       * never reads or writes the runtime viewsheet.
+       */
+      DYNAMIC_VALUE("dynamicValue", Location.DYNAMIC_VALUE, true);
 
       Kind(String wireName, Location location) {
+         this(wireName, location, false);
+      }
+
+      Kind(String wireName, Location location, boolean draftOnly) {
          this.wireName = wireName;
          this.location = location;
+         this.draftOnly = draftOnly;
       }
 
       public String wireName() {
@@ -128,6 +145,17 @@ public final class ScriptTarget {
       /** The internal dispatch key, or {@code null} for a kind no service can serve yet. */
       public Location location() {
          return location;
+      }
+
+      /**
+       * Whether this kind's value lives only in the user's open dialog (an unsaved working copy),
+       * so it is read as an empty pending draft and written by pushing text into that dialog --
+       * never by touching the runtime viewsheet. Every place that must treat such a kind alike
+       * (the controller's write branch, execute, context, list, read, write and enable refusals)
+       * keys on this rather than on a single constant.
+       */
+      public boolean isDraftOnly() {
+         return draftOnly;
       }
 
       /**
@@ -172,7 +200,7 @@ public final class ScriptTarget {
       private static boolean isExpressionLevel(Location location) {
          return switch(location) {
             case CALC_FIELD, WORKSHEET_EXPRESSION, WORKSHEET_CONDITION,
-               WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE -> true;
+               WORKSHEET_CONDITION_VALUE, VS_CONDITION_VALUE, DYNAMIC_VALUE -> true;
             case VS_INIT, VS_LOAD, ASSEMBLY, ASSEMBLY_ONCLICK -> false;
          };
       }
@@ -206,6 +234,7 @@ public final class ScriptTarget {
 
       private final String wireName;
       private final Location location;
+      private final boolean draftOnly;
    }
 
    private ScriptTarget(Kind kind, String assemblyName) {
@@ -284,6 +313,23 @@ public final class ScriptTarget {
             throw new PairingException(
                "kind 'vsConditionValue' requires 'name': \"filter\" or \"highlight:<highlight " +
                "name>\".");
+         }
+
+         return new ScriptTarget(kind, assemblyName, name);
+      }
+
+      if(kind == Kind.DYNAMIC_VALUE) {
+         if(assemblyName == null || assemblyName.isBlank()) {
+            throw new PairingException(
+               "kind 'dynamicValue' requires 'assembly' - the viewsheet assembly that owns the " +
+               "field.");
+         }
+
+         String problem = DynamicValueName.problem(name);
+
+         if(problem != null) {
+            throw new PairingException(
+               "kind 'dynamicValue' requires a valid 'name': " + problem);
          }
 
          return new ScriptTarget(kind, assemblyName, name);
@@ -569,6 +615,7 @@ public final class ScriptTarget {
          // legacy parseable form, display string only.
          case WORKSHEET_CONDITION_VALUE -> "worksheetConditionValue:" + assemblyName + ":" + name;
          case VS_CONDITION_VALUE -> "vsConditionValue:" + assemblyName + ":" + name;
+         case DYNAMIC_VALUE -> "dynamicValue:" + assemblyName + ":" + name;
       };
    }
 
@@ -581,10 +628,13 @@ public final class ScriptTarget {
       EnumSet.of(Kind.CALC_FIELD, Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION,
          Kind.WORKSHEET_CONDITION_VALUE);
 
-   /** Every kind that takes a {@code name}: the column-addressed ones plus the condition value. */
+   /**
+    * Every kind that takes a {@code name}: the column-addressed ones plus the two draft-only
+    * dialog-value kinds.
+    */
    private static final Set<Kind> NAMED_KINDS = EnumSet.of(Kind.CALC_FIELD,
       Kind.WORKSHEET_EXPRESSION, Kind.WORKSHEET_CONDITION, Kind.WORKSHEET_CONDITION_VALUE,
-      Kind.VS_CONDITION_VALUE);
+      Kind.VS_CONDITION_VALUE, Kind.DYNAMIC_VALUE);
 
    private final Kind kind;
    private final Location location;

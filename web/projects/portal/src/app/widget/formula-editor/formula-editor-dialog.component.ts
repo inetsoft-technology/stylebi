@@ -140,6 +140,10 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     *  repurposing it would change those existing HTTP call parameters. editorContext
     *  prefers this field and falls back to `assemblyName` when it is absent. */
    @Input() contextTable?: string;
+   /** The property of a dynamic value (a dynamic-combo-box in Expression mode) this dialog is
+    *  editing: the `name` of a "dynamicValue" pairing target, on `contextTable ?? assemblyName`.
+    *  Without it a dynamic value has no pairing target and the button stays hidden. */
+   @Input() dynamicProperty?: string;
 
    @Input() availableFields: DataRef[];
    @Input() availableCells: string[];
@@ -319,6 +323,15 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       // doc comment for why they're not the same field.
       const assembly = this.contextTable ?? this.assemblyName;
 
+      // A dynamic value names the property it edits. An explicit property is the most specific
+      // statement this dialog can make, so it wins over isCondition (a dynamic combo may still be
+      // in condition mode for the script palette) and every other flag. A blank property or
+      // assembly stays a dynamicValue context, which `isAddressable` refuses: it must never fall
+      // through to the whole-assembly script.
+      if(this.dynamicProperty != null) {
+         return { kind: "dynamicValue", assembly, name: this.dynamicProperty };
+      }
+
       // A freehand cell formula is addressed by (calc table, row/col), not by the table
       // assembly script it would otherwise be mistaken for.
       if(this.isCalcTable) {
@@ -383,7 +396,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
     */
    private static readonly COLUMN_ADDRESSED_KINDS =
       ["calcField", "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
-       "calcTableCell", "vsConditionValue"];
+       "calcTableCell", "vsConditionValue", "dynamicValue"];
 
    /**
     * The operations with exactly one value slot -- the only shape `worksheetConditionValue` may

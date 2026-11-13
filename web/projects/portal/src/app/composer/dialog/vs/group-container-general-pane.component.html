@@ -18,7 +18,8 @@
 <general-prop-pane [model]="model.generalPropPane" [variableValues]="variableValues"
                    [form]="form.controls['generalPropPaneForm']" [columnTreeRoot]="columnTreeRoot"
                    [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
-                   [scriptDefinitions]="scriptDefinitions">
+                   [scriptDefinitions]="scriptDefinitions"
+                   [assemblyName]="assemblyName" [vsId]="runtimeId">
 </general-prop-pane>
 <static-image-pane [model]="model.staticImagePane" [runtimeId]="runtimeId"></static-image-pane>
 <size-position-pane [model]="model.sizePositionPaneModel" [isGroup]="true" [(form)]="form.controls['sizePositionPaneForm']"></size-position-pane>

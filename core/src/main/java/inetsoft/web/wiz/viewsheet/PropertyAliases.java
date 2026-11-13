@@ -852,7 +852,7 @@ public final class PropertyAliases {
     * guard one canonical spelling of a raw path (bugs #77027 item 3, #78393); only the first
     * character is touched, as the remaining characters are matched exactly by PropertyPath.
     */
-   static String lowerSegmentInitials(String key) {
+   public static String lowerSegmentInitials(String key) {
       if(key == null || key.indexOf('.') < 0) {
          return key;
       }
@@ -984,6 +984,81 @@ public final class PropertyAliases {
       }
 
       return previous[b.length()];
+   }
+
+   // Assembly classes whose name does not strip to their registry key. The Composer calls
+   // CurrentSelectionVSAssembly a "Selection Container", and the registry and bindings key it that
+   // way; stripping VSAssembly would yield "currentselection", which nothing registers.
+   // EmbeddedTableVSAssembly extends TableVSAssembly and is edited through the same Table
+   // property dialog, so it shares the Table vocabulary and bindings; stripping VSAssembly would
+   // yield "embeddedtable", which PropertyAliases does not cover.
+   private static final Map<String, String> TYPE_OVERRIDES =
+      Map.of("CurrentSelectionVSAssembly", "SelectionContainer",
+             "EmbeddedTableVSAssembly", "Table");
+
+   /**
+    * The registry key of a viewsheet assembly's concrete type ({@code "text"}, {@code "chart"},
+    * {@code "selectiontree"}, ...), or {@code null} for no assembly. Derived from the class name,
+    * so it does not say whether the registry covers the type -- see {@link #covers}.
+    */
+   public static String typeKeyOf(Object vsAssembly) {
+      String type = typeNameOf(vsAssembly);
+
+      return type == null ? null : type.toLowerCase();
+   }
+
+   /** {@link #typeKeyOf} before lower-casing: the name the Composer shows in messages. */
+   static String typeNameOf(Object vsAssembly) {
+      if(vsAssembly == null) {
+         return null;
+      }
+
+      String simple = vsAssembly.getClass().getSimpleName();
+
+      return TYPE_OVERRIDES.containsKey(simple) ? TYPE_OVERRIDES.get(simple)
+         : simple.endsWith("VSAssembly")
+         ? simple.substring(0, simple.length() - "VSAssembly".length()) : simple;
+   }
+
+   /**
+    * The alias {@code assemblyType} has for the raw model path {@code rawPath}, or {@code null}
+    * when it has none (or does not cover the type). The reverse of {@link #resolve}: a raw path
+    * several types share can be an alias on one and not on another ({@code
+    * dataInputPaneModel.columnValue} is {@code columnValue} on a slider, {@code writeBackColumn}
+    * on a combo box). If more than one alias names the path, the shortest wins, then the
+    * alphabetically first, so the answer is stable.
+    */
+   public static String aliasFor(String assemblyType, String rawPath) {
+      if(rawPath == null || !covers(assemblyType)) {
+         return null;
+      }
+
+      String canonical;
+
+      try {
+         canonical = lowerSegmentInitials(rawPath);
+      }
+      catch(IllegalArgumentException ex) {
+         return null;
+      }
+
+      String best = null;
+
+      for(Map.Entry<String, String> e : forType(assemblyType).aliases().entrySet()) {
+         if(!canonical.equals(lowerSegmentInitials(e.getValue()))) {
+            continue;
+         }
+
+         String alias = e.getKey();
+
+         if(best == null || alias.length() < best.length() ||
+            (alias.length() == best.length() && alias.compareTo(best) < 0))
+         {
+            best = alias;
+         }
+      }
+
+      return best;
    }
 
    private static String normalize(String assemblyType) {

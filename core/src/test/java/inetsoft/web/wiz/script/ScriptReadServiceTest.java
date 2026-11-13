@@ -156,10 +156,11 @@ class ScriptReadServiceTest {
       // G2 Task 8 gave worksheetExpression/worksheetCondition real Locations (served by
       // WorksheetScriptService), so they now belong in this list alongside calcField.
       // worksheetConditionValue (stylebi#4654's second review, finding 1) is the same story.
-      // vsConditionValue (Bug #80459) is served by the draft-push path of the viewsheet script API.
+      // vsConditionValue and dynamicValue (Bug #80459) are served by the draft-push path of the
+      // viewsheet script API.
       assertEquals(List.of("viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick",
                            "calcField", "worksheetExpression", "worksheetCondition",
-                           "worksheetConditionValue", "vsConditionValue"),
+                           "worksheetConditionValue", "vsConditionValue", "dynamicValue"),
                    ScriptGrammar.supportedKinds());
    }
 

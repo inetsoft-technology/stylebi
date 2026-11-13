@@ -30,7 +30,7 @@ package inetsoft.web.wiz.pairing;
  * browser's script panes and formula editor (e.g. {@code "viewsheetOnInit"},
  * {@code "viewsheetOnLoad"}, {@code "assemblyMain"}, {@code "assemblyOnClick"},
  * {@code "calcField"}, {@code "worksheetExpression"}, {@code "worksheetCondition"},
- * {@code "vsConditionValue"}).
+ * {@code "vsConditionValue"}, {@code "dynamicValue"}).
  *
  * <p>{@code assembly} names the assembly the location belongs to, for the kinds that are
  * scoped to one; it is {@code null} for the two whole-viewsheet script kinds
@@ -95,6 +95,16 @@ public record EditorContext(String kind, String assembly, String name, String ta
     * {@code ScriptTarget.Kind}, so the script endpoints serve it.
     */
    public static final String VS_CONDITION_VALUE = "vsConditionValue";
+
+   /**
+    * The wire kind of a pane session scoped to ONE dynamic value (a Value / Variable / Expression
+    * field) of a viewsheet assembly's Composer dialog, in its Expression mode. {@code assembly} is
+    * the viewsheet assembly whose dialog the user is in; {@code name} says which field, in the
+    * plugin's own vocabulary (see {@link DynamicValueName}: a bare name is a
+    * {@code set_assembly_properties} key, {@code namespace:key} another tool's parameter).
+    * Draft-only, like {@link #VS_CONDITION_VALUE}, and also a {@code ScriptTarget.Kind}.
+    */
+   public static final String DYNAMIC_VALUE = "dynamicValue";
 
    public static final String VS_FILTER_NAME = "filter";
    public static final String VS_HIGHLIGHT_PREFIX = "highlight:";

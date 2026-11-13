@@ -34,6 +34,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class SpinnerGeneralPane implements OnInit {
    @Input() model: SpinnerGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() vsId: string = null;

@@ -36,6 +36,8 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 
 export class TabGeneralPane implements OnInit {
    @Input() model: TabGeneralPaneModel;
+   @Input() vsId: string = null;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() columnTreeRoot: TreeNodeModel = null;

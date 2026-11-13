@@ -22,6 +22,7 @@ import {
    ElementRef,
    EventEmitter,
    HostListener,
+   inject,
    Injector,
    Input,
    NgZone,
@@ -68,6 +69,9 @@ import { DataPathConstants } from "../../../../common/util/data-path-constants";
 import { GuiTool } from "../../../../common/util/gui-tool";
 import { CommandProcessor, ViewsheetClientService } from "../../../../common/viewsheet-client";
 import { MessageCommand } from "../../../../common/viewsheet-client/message-command";
+import {
+   SheetClientRegistry
+} from "../../../../common/viewsheet-client/sheet-client-registry.service";
 import { ChartTool } from "../../../../graph/model/chart-tool";
 import { ChartService } from "../../../../graph/services/chart.service";
 import { AssemblyActionFactory } from "../../../../vsobjects/action/assembly-action-factory.service";
@@ -464,6 +468,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       ])
    ];
 
+   private readonly sheetClientRegistry = inject(SheetClientRegistry);
+   private unregisterSheetClient: () => void;
+
    constructor(private aiAssistantService: AiAssistantService,
                private aiAssistantDialogService: AiAssistantDialogService,
                private element: ElementRef,
@@ -527,6 +534,11 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    }
 
    ngOnInit() {
+      // Lets a formula dialog (opened through the root injector) find this pane's client by
+      // runtime id so its Expression editor can pair. The layout pane never registers: it shares
+      // this sheet's runtime id and would make the lookup ambiguous.
+      this.unregisterSheetClient =
+         this.sheetClientRegistry.register(this.viewsheetClient, "VIEWSHEET");
       this.viewsheetClient.connect();
 
       this.heartbeatSubscription = this.viewsheetClient.onHeartbeat.subscribe(() => {
@@ -653,6 +665,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    }
 
    ngOnDestroy() {
+      this.unregisterSheetClient?.();
       super.cleanup();
       this.focusedObjectsSubject.unsubscribe();
       this.heartbeatSubscription.unsubscribe();

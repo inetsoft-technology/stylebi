@@ -31,7 +31,7 @@
             [functionTreeRoot]="scriptTreeModel?.functionTree"
             [operatorTreeRoot]="scriptTreeModel?.operatorTree"
             [scriptDefinitions]="scriptTreeModel?.scriptDefinitions"
-            (isInputValid)="onGeneralValidChanged($event)">
+            (isInputValid)="onGeneralValidChanged($event)" [assemblyName]="assemblyName">
           </spinner-general-pane>
         </ng-template>
       </ng-container>

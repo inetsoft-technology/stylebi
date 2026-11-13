@@ -28,6 +28,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class OutputGeneralPane implements OnInit {
    @Input() vsId: string;
+   @Input() assemblyName: string;
    @Input() model: OutputGeneralPaneModel;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
