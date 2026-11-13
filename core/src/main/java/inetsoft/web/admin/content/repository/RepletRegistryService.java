@@ -908,7 +908,7 @@ public class RepletRegistryService {
                              Principal principal)
       throws Exception
    {
-      AssetEntry oentry = getAssetEntry(identifier, principal);
+      AssetEntry oentry = getAssetEntry(identifier, principal, false);
 
       return copySheet(oentry, pathFrom, userFrom, pathTo, userTo, infos, isWorksheet, move, false,
          principal);
@@ -1174,6 +1174,26 @@ public class RepletRegistryService {
    public AssetEntry getAssetEntry(String identifier, Principal user)
       throws Exception
    {
+      return getAssetEntry(identifier, user, true);
+   }
+
+   /**
+    * Gets the entry for the specified asset.
+    *
+    * @param identifier     the asset identifier.
+    * @param user           the name of the user requesting the asset.
+    * @param loadProperties <tt>false</tt> to skip loading every sibling sheet in the parent folder
+    *                       to fill in its listing properties (onReport, mainType, ...); use it
+    *                       only when the caller needs no more than the identity, type, alias and
+    *                       dates of the entry, or just an existence check.
+    *
+    * @return the asset entry.
+    *
+    * @throws Exception if the asset entry could not be obtained.
+    */
+   public AssetEntry getAssetEntry(String identifier, Principal user, boolean loadProperties)
+      throws Exception
+   {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
 
@@ -1183,6 +1203,11 @@ public class RepletRegistryService {
 
       AssetEntry parent = entry.getParent();
       entry = null;
+
+      if(!loadProperties) {
+         parent.setProperty("__oneoff__", "true");
+      }
+
       AssetEntry.Selector selector = new AssetEntry.Selector(
          AssetEntry.Type.FOLDER, AssetEntry.Type.WORKSHEET,
          AssetEntry.Type.VIEWSHEET, AssetEntry.Type.DATA,

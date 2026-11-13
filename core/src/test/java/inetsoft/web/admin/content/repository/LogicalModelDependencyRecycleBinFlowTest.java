@@ -271,7 +271,7 @@ class LogicalModelDependencyRecycleBinFlowTest {
       when(tree.getAssetScope(anyString())).thenReturn(AssetRepository.GLOBAL_SCOPE);
       when(tree.getUnscopedPath(anyString())).thenAnswer(i -> i.getArgument(0));
       RepletRegistryService registryService = mock(RepletRegistryService.class);
-      when(registryService.getAssetEntry(anyString(), any()))
+      when(registryService.getAssetEntry(anyString(), any(), anyBoolean()))
          .thenAnswer(i -> AssetEntry.createAssetEntry((String) i.getArgument(0)));
       ResourcePermissionService permissions = mock(ResourcePermissionService.class);
       when(permissions.getRepositoryResourceType(anyInt(), anyString()))
