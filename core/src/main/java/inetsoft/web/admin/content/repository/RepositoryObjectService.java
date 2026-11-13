@@ -224,7 +224,7 @@ public class RepositoryObjectService {
                AssetEntry asset = new AssetEntry(scope, type, path, node.owner());
 
                // make sure it's a viewsheet or snapshot
-               if(registryManager.getAssetEntry(asset.toIdentifier(), principal) == null) {
+               if(registryManager.getAssetEntry(asset.toIdentifier(), principal, false) == null) {
                   asset = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET_SNAPSHOT, path, node.owner());
                }
 
