@@ -2006,7 +2006,7 @@ public class IdentityService {
             else {
                try(InputStream input = oStorage.getInputStream(path);
                    BlobTransaction<LibManager.Metadata> tx = nStorage.beginTransaction();
-                   OutputStream output = tx.newStream(path, new LibManager.Metadata()))
+                   OutputStream output = tx.newStream(path, copyLibraryMetadata(metadata)))
                {
                   IOUtils.copy(input, output);
                   tx.commit();
@@ -2018,6 +2018,29 @@ public class IdentityService {
             oStorage.deleteBlobStorage();
          }
       }
+   }
+
+   /**
+    * Creates a copy of the library metadata of a file entry so that the comment and the comment
+    * properties (comment, created, modified, createdBy, modifiedBy) survive the copy, without
+    * sharing the mutable properties between the source and the target storage.
+    */
+   private static LibManager.Metadata copyLibraryMetadata(LibManager.Metadata source) {
+      LibManager.Metadata target = new LibManager.Metadata();
+
+      if(source != null) {
+         target.setPath(source.getPath());
+         target.setDirectory(source.isDirectory());
+         target.setComment(source.getComment());
+
+         if(source.getCommentProperties() != null) {
+            Properties properties = new Properties();
+            properties.putAll(source.getCommentProperties());
+            target.setCommentProperties(properties);
+         }
+      }
+
+      return target;
    }
 
    public void updateOrgProperties(String oId, String id) {
