@@ -155,7 +155,7 @@ public final class InformixDatabaseType
    private static final String DRIVER = "com.informix.jdbc.IfxDriver";
    private static final Pattern PATTERN = Pattern.compile(
       "^jdbc:informix-sqli://([^/:]+):(\\d+)/([^:;]+)" +
-         "(?i::informixserver=(?:[^;]+))?(?i:;db_locale=(?:[^;]+))?(?:(?:(?::|;)?(?!.))|(?::|;((?::?.+)+)))?$");
+         "(?i::informixserver=(?:[^;]+))?(?i:;db_locale=(?:[^;]+))?(?:[:;](.+)?)?$");
    private static final String FORMAT1_0 = "jdbc:informix-sqli://%s:%d/%s";
    private static final String FORMAT1_1 = "jdbc:informix-sqli://%s:%d";
    private static final String FORMAT2_0 = ":INFORMIXSERVER=%s";
