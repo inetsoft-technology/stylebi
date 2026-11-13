@@ -215,6 +215,41 @@ class ExportUtilCellFormatTest {
       assertEquals("007", ExportUtil.getObject(strLens, 1, 0, "@", true));
    }
 
+   // Bug #80103, the K/M/B pattern follows the unit the dashboard shows for each cell value
+   @Test
+   void extendedDecimalPatternFollowsDisplayedUnitPerCell() {
+      double[] values = { 500, 20250, 317062.69, 2300872.18 };
+      DefaultTableLens base = new DefaultTableLens(values.length + 1, 1) {
+         @Override
+         public Class<?> getColType(int col) {
+            return Double.class;
+         }
+
+         @Override
+         public Format getDefaultFormat(TableDataPath path) {
+            return path != null && path.getType() == TableDataPath.DETAIL ?
+               new inetsoft.util.ExtendedDecimalFormat("#,##0.#M",
+                  new java.text.DecimalFormatSymbols(java.util.Locale.US)) : null;
+         }
+      };
+      base.setHeaderRowCount(1);
+      base.setObject(0, 0, "h0");
+
+      for(int i = 0; i < values.length; i++) {
+         base.setObject(i + 1, 0, values[i]);
+      }
+
+      VSTableLens mlens =
+         new VSTableLens(new VSFormatTableLens(box("Table4"), "Table4", base, true));
+      assertEquals("#,##0.#", ExportUtil.getCellFormat(mlens, 1, 0, true, false));
+      assertEquals("#,##0,.#\"K\"", ExportUtil.getCellFormat(mlens, 2, 0, true, false));
+      assertEquals("#,##0,.#\"K\"", ExportUtil.getCellFormat(mlens, 3, 0, true, false));
+      assertEquals("#,##0,,.#\"M\"", ExportUtil.getCellFormat(mlens, 4, 0, true, false));
+      // the cell keeps the raw number
+      assertEquals(317062.69, (Double) ExportUtil.getObject(
+         mlens, 3, 0, ExportUtil.getCellFormat(mlens, 3, 0, true, false), true), 1e-9);
+   }
+
    @Test
    void headerRowStaysUnformatted() {
       for(int c = 0; c < 5; c++) {

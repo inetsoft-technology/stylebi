@@ -21,6 +21,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.util.ExtendedDecimalFormat;
+import inetsoft.sree.SreeEnv;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,6 +78,77 @@ class ExcelUtilTest {
    void analyzeLeavesOrdinaryParenthesizedPatternUnchanged() {
       ExtendedDecimalFormat format = new ExtendedDecimalFormat("#,##0;(#,##0)", US);
       assertEquals("#,##0;(#,##0)", ExcelUtil.analyze(format));
+   }
+
+   // Bug #80103: the unit shown depends on the cell value, so the Excel pattern must too.
+   @Test
+   void analyzeForValueDowngradesMillionFormat() {
+      ExtendedDecimalFormat format = new ExtendedDecimalFormat("#,##0.#M", US);
+      assertEquals("#,##0.#", ExcelUtil.analyze(format, 500.0));
+      assertEquals("#,##0,.#\"K\"", ExcelUtil.analyze(format, 20250.0));
+      assertEquals("#,##0,.#\"K\"", ExcelUtil.analyze(format, 317062.69));
+      assertEquals("#,##0,,.#\"M\"", ExcelUtil.analyze(format, 2300872.18));
+      assertEquals("#,##0,.#\"K\"", ExcelUtil.analyze(format, -317062.0));
+      // M and K keep their unit on zero, as the dashboard does
+      assertEquals("#,##0,,.#\"M\"", ExcelUtil.analyze(format, 0.0));
+   }
+
+   // the unit is decided from the raw value before rounding: the dashboard shows 1,000K
+   @Test
+   void analyzeForValueUsesRawValueAtUnitBoundary() {
+      ExtendedDecimalFormat format = new ExtendedDecimalFormat("#,##0.#M", US);
+      assertEquals("1,000K", format.format(999999.0).replace(".0", ""));
+      assertEquals("#,##0,.#\"K\"", ExcelUtil.analyze(format, 999999.0));
+      assertEquals("#,##0,,.#\"M\"", ExcelUtil.analyze(format, 1000000.0));
+   }
+
+   @Test
+   void analyzeForValueDowngradesBillionFormat() {
+      ExtendedDecimalFormat format = new ExtendedDecimalFormat("$#,###B", US);
+      assertEquals("\"$\"#,##0,,\"M\"", ExcelUtil.analyze(format, 2300872.18));
+      assertEquals("\"$\"#,##0,\"K\"", ExcelUtil.analyze(format, 317062.69));
+      assertEquals("\"$\"#,##0,\"K\"", ExcelUtil.analyze(format, 999499.0));
+      assertEquals("\"$\"#,##0,,,\"B\"", ExcelUtil.analyze(format, 2.5E9));
+      // no B on zero
+      assertEquals("\"$\"#,##0", ExcelUtil.analyze(format, 0.0));
+   }
+
+   @Test
+   void analyzeForValueDropsUnitBelowOneThousand() {
+      ExtendedDecimalFormat format = new ExtendedDecimalFormat("$#,###K", US);
+      // the dashboard adds a decimal place when a pattern without one drops to no unit
+      assertEquals("\"$\"#,###.#", ExcelUtil.analyze(format, 500.0));
+      assertEquals("\"$\"#,##0,\"K\"", ExcelUtil.analyze(format, 2300872.18));
+   }
+
+   // fractional values without a unit get decimals added when the pattern has none
+   @Test
+   void analyzeForValueAddsDecimalsWhenNoUnitAndNoDecimalPoint() {
+      ExtendedDecimalFormat format = new ExtendedDecimalFormat("$#,###K", US);
+      assertEquals("\"$\"#,###.#", ExcelUtil.analyze(format, 0.4));
+   }
+
+   @Test
+   void analyzeForValueKeepsConfiguredUnitWhenAutoDowngradeDisabled() {
+      
+      SreeEnv.setProperty("format.auto.downgrade", "false");
+
+      try {
+         ExtendedDecimalFormat format = new ExtendedDecimalFormat("#,##0.#M", US);
+         assertEquals("#,##0,,.#\"M\"", ExcelUtil.analyze(format, 500.0));
+         assertEquals("#,##0,,.#\"M\"", ExcelUtil.analyze(format, 317062.69));
+      }
+      finally {
+         SreeEnv.remove("format.auto.downgrade");
+      }
+   }
+
+   @Test
+   void analyzeForValueMatchesSingleArgForOtherFormats() {
+      ExtendedDecimalFormat plain = new ExtendedDecimalFormat("#,##0.00", US);
+      assertEquals(ExcelUtil.analyze(plain), ExcelUtil.analyze(plain, 500.0));
+      ExtendedDecimalFormat format = new ExtendedDecimalFormat("#,##0.#M", US);
+      assertEquals(ExcelUtil.analyze(format), ExcelUtil.analyze(format, "text"));
    }
 
    private static final DecimalFormatSymbols US = new DecimalFormatSymbols(Locale.US);

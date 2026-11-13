@@ -46,6 +46,36 @@ public class ExcelUtil implements StyleConstants {
    }
 
    /**
+    * Analyze the format for one cell value. An extended decimal format (K/M/B) displays a unit
+    * that depends on the value (see ExtendedDecimalFormat.getDisplayedSymbol), so the Excel
+    * pattern is built from the unit that is displayed for this value instead of the configured
+    * unit. Other formats are analyzed as by {@link #analyze(Format)}.
+    *
+    * @param fmt   the format.
+    * @param value the raw cell value.
+    */
+   public static String analyze(Format fmt, Object value) {
+      if(fmt instanceof ExtendedDecimalFormat && value instanceof Number) {
+         ExtendedDecimalFormat efmt = (ExtendedDecimalFormat) fmt;
+         double dval = ((Number) value).doubleValue();
+
+         if(!Double.isNaN(dval) && !Double.isInfinite(dval)) {
+            String pattern = efmt.getDisplayedPattern(dval);
+
+            // decimal places added to a pattern with a negative sub-pattern only apply to the
+            // negative part, which doesn't change how a value is displayed
+            if(pattern.indexOf(';') >= 0) {
+               pattern = efmt.getSimplePattern();
+            }
+
+            return setNumberFormat(efmt, pattern, efmt.getDisplayedSymbol(dval));
+         }
+      }
+
+      return analyze(fmt);
+   }
+
+   /**
     *  analyze the java.text.DataFormat object.
     */
    private static String setDateFormat(SimpleDateFormat dfmt) {
@@ -183,12 +213,19 @@ public class ExcelUtil implements StyleConstants {
       String pattern = nfmt instanceof ExtendedDecimalFormat ?
          ((ExtendedDecimalFormat) nfmt).getSimplePattern() : nfmt.toPattern();
 
+      char extSymbol = (nfmt instanceof ExtendedDecimalFormat) ?
+         ((ExtendedDecimalFormat) nfmt).getExtendedDataSymbol() : ' ';
+
+      return setNumberFormat(nfmt, pattern, extSymbol);
+   }
+
+   /**
+    * Analyze the number format using the specified number pattern and K/M/B symbol.
+    */
+   private static String setNumberFormat(DecimalFormat nfmt, String pattern, char extSymbol) {
       if(pattern == null) {
          return "";
       }
-
-      char extSymbol = (nfmt instanceof ExtendedDecimalFormat) ?
-         ((ExtendedDecimalFormat) nfmt).getExtendedDataSymbol() : ' ';
 
       String positivePrefix = nfmt.getPositivePrefix();
       String positiveSuffix = nfmt.getPositiveSuffix();
