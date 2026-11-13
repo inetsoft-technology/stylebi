@@ -189,7 +189,9 @@ Checks to run in the Phase 10 pass:
   unchanged, does not alter the stored dashboard, and matches between interactive and scheduled export
 - bookmark and saved-state restore keep the stamp's values
 - a dark dashboard is readable in a light shell and in a dark shell; tooltips and the mini-toolbar
-  follow the assembly, not the org
+  follow the assembly, not the org (a tooltip from a dark-marked assembly is dark in either shell;
+  one from a light or unmarked assembly is attached to the page body and, like other popups, takes
+  the shell's palette, so it is dark in a dark shell)
 - shell dark, checked at the end of each phase and again before release: every converted screen is
   readable, with no light text on hard-coded light surfaces, and no flash of light before first
   paint; at release, no portal or composer screen is left unconverted

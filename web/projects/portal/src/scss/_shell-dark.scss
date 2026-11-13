@@ -210,6 +210,11 @@ $dark-ws-row-hover-bg: #302D27;
   --inet-dark-stroke-color: var(--inet-text-strong-color);
   --inet-dark-drag-indicator-bg: rgba(28, 27, 31, 0.7);
   --inet-dark-drag-indicator-text-color: var(--inet-text-muted-color);
+  --inet-dark-shadow-color: rgba(0, 0, 0, 0.5);
+  // the dark --inet-shadow-low, as a filter that also follows a tooltip's tail
+  --inet-dark-shadow-low-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .4)) drop-shadow(0 1px 3px rgba(0, 0, 0, .3));
+  // text on a primary-color fill, which stays orange in the dark shell
+  --inet-dark-on-primary-text-color: #{$dark-surface-canvas};
 
   // Names some components read with a light fallback, var(--inet-border-color, #d9d4c8), that no
   // theme defines, so the light shell uses the fallback. Defined for the dark shell only.
@@ -429,7 +434,9 @@ $dark-ws-row-hover-bg: #302D27;
   // Inverted here it would be a light box, so a dark shell uses a raised dark surface instead.
   // A tooltip placed inside dashboard content keeps the light shell's look. Tooltips a dashboard
   // attaches to body (the table and crosstab scroll-position tooltip, container="body") are shell
-  // chrome and take these colors. Opacity is set with the .fade rule further down.
+  // chrome and take these colors. Opacity is set with the .fade rule further down. The app's own
+  // wTooltip is attached to body too and is shell chrome the same way: from a light or unmarked
+  // assembly it takes the dark shell's surface; from a dark-marked one it keeps the viz dark look.
   .tooltip#{$outside-content} {
     --bs-tooltip-bg: #{$dark-surface-raised};
     --bs-tooltip-color: var(--inet-text-strong-color);
@@ -460,14 +467,22 @@ $dark-ws-row-hover-bg: #302D27;
  * Inside the dashboard canvas, wherever assemblies are drawn (see $dashboard-content), the light
  * shell tokens are restored, so content and its authoring overlays render exactly as they do in a
  * light shell. Dark-marked assemblies keep drawing from the viz dark tokens (.viz-dark).
+ *
+ * An annotation's tooltip shows that content too (see the annotation tooltip rule below), so it
+ * gets the same light tokens.
  */
 // read with a light fallback and defined by no theme; set for the dark shell only (see above)
 $fallback-only-tokens: border-color, cell-bg-color, panel-bg-color, hover-bg-color;
 $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, border-color,
   border-strong-color, input-bg-color, input-border-color, text-color, icon-color, stroke-color,
-  drag-indicator-bg, drag-indicator-text-color;
+  drag-indicator-bg, drag-indicator-text-color, shadow-color, shadow-low-filter,
+  on-primary-text-color;
 
-:root.shell-dark :is(#{$dashboard-content}) {
+// The hidden-annotation tooltip and the visible annotation's overflow tooltip, unless the
+// annotation sits in a dark-marked assembly, whose tooltip keeps the viz dark look.
+$annotation-tooltip: ".hidden__annotation-tooltip:not(.widget__tooltip--dark), .vs-annotation__tooltip:not(.widget__tooltip--dark)";
+
+:root.shell-dark :is(#{$dashboard-content}, #{$annotation-tooltip}) {
   color-scheme: light;
   // content inherits the body's text color, computed from the dark token before this point
   color: var(--inet-text-color);
@@ -519,6 +534,36 @@ $dark-only-tokens: surface-color, surface-subtle-color, surface-hover-color, bor
     --bs-#{$color}-border-subtle: #{$value};
   }
   --bs-navbar-toggler-icon-bg: #{escape-svg($navbar-light-toggler-icon-bg)};
+}
+
+// An annotation tooltip shows the annotation's own rich text, whose colors were picked against the
+// annotation's white fill: a new annotation's text is written inline black, which on the dark
+// tooltip surface is unreadable. The tooltip is body-attached shell chrome, so the bubble stays
+// dark, and the text sits on a white card inset in it. The rule above gives the tooltip the light
+// tokens, so the card and the text in it compute exactly as in a light shell; the bubble takes the
+// dark tokens back from its parent. The author's text colors are left alone, and an annotation fill
+// set by the author is not carried over (the tooltip has never shown it). Same specificity as the
+// rule above and after it, so the inherited tokens win; it also outranks the dark .bg-white-inet.
+:root.shell-dark :is(#{$annotation-tooltip}) {
+  --inet-dialog-bg-color: inherit;
+  --inet-default-border-color: inherit;
+  --inet-shadow-low: inherit;
+  --inet-shadow-overlay: inherit;
+  position: relative;
+  // keeps the card below the text but above the bubble's own fill
+  isolation: isolate;
+  background-color: var(--inet-dialog-bg-color);
+  // the light padding, plus the inset
+  padding: calc(var(--inet-space-2) * 2) calc(var(--inet-space-3) + var(--inet-space-2));
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: var(--inet-space-2);
+    z-index: -1;
+    border-radius: var(--inet-radius-sm);
+    background-color: var(--inet-shell-surface-default);
+  }
 }
 
 // The legacy viz state tokens derive from shell tokens where :root declares them, so a dark shell
