@@ -20,7 +20,7 @@
     <div class="col-8">
       <div class="form-floating">
         <dynamic-combo-box id="visible" [editable]="true" [variables]="variableValues"
-          [vsId]="vsId"
+          [vsId]="vsId" [assemblyName]="assemblyName" dynamicProperty="title"
           [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
           [isCondition]="true" [operatorTreeRoot]="operatorTreeRoot"
           [scriptDefinitions]="scriptDefinitions" [(value)]="model.title">

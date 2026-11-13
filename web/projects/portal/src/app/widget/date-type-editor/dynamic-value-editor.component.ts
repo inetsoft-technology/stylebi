@@ -52,6 +52,11 @@ export class DynamicValueEditorComponent implements OnInit, OnChanges {
    @Input() invalid: boolean;
    @Input() supportVariable: boolean = true;
    @Input() task: boolean = false;
+   /** See DynamicComboBox: the property, its assembly and the runtime id the inner combo's
+    *  Expression editor pairs against. This editor has no vsId, so hosts name them here. */
+   @Input() dynamicProperty: string | null = null;
+   @Input() dynamicAssembly: string | null = null;
+   @Input() pairingRuntimeId: string | null = null;
    @Input() expressionSubmitCallback: (_?: FormulaEditorDialogModel) => Promise<boolean> =
       () => Promise.resolve(true);
    @Output() onValueModelChange = new EventEmitter();

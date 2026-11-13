@@ -325,6 +325,7 @@ public class PaneScopeService {
                "'";
             case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK -> "the script of '" + grant.assembly() + "'";
             case VS_CONDITION_VALUE -> vsConditionDescription(grant.assembly(), grant.name());
+            case DYNAMIC_VALUE -> dynamicValueDescription(grant.assembly(), grant.name());
             default -> "'" + grantedKind.wireName() + "'";
          };
       }
@@ -347,6 +348,7 @@ public class PaneScopeService {
          case ASSEMBLY_MAIN, ASSEMBLY_ON_CLICK ->
             "'" + target.kind().wireName() + "' on '" + target.assemblyName() + "'";
          case VS_CONDITION_VALUE -> vsConditionDescription(target.assemblyName(), target.name());
+         case DYNAMIC_VALUE -> dynamicValueDescription(target.assemblyName(), target.name());
          default -> "'" + target.kind().wireName() + "'";
       };
    }
@@ -361,6 +363,10 @@ public class PaneScopeService {
       return scope.highlight()
          ? "the expression value of highlight '" + scope.highlightName() + "' on '" + assembly + "'"
          : "the expression value of the filter condition on '" + assembly + "'";
+   }
+
+   private static String dynamicValueDescription(String assembly, String name) {
+      return "the expression of the '" + name + "' property of '" + assembly + "'";
    }
 
    /**
@@ -381,6 +387,8 @@ public class PaneScopeService {
          case VS_CONDITION_VALUE -> "a viewsheet condition value has no name at sheet level - " +
             "open the Conditions (or Highlight) dialog, set the value type to Expression, click " +
             "the f icon and click Connect to Claude.";
+         case DYNAMIC_VALUE -> "a dynamic value has no name at sheet level - open the dialog, " +
+            "set the field's type to Expression, click the f icon and click Connect to Claude.";
          default -> "'" + kind.wireName() + "' has no identity at sheet level — open it in its " +
             "own editor and click Connect Agent.";
       };
@@ -416,10 +424,11 @@ public class PaneScopeService {
 
    /**
     * Kinds addressed by (viewsheet assembly, name) exactly, with no table alias -- see
-    * {@link ScriptTarget.Kind#VS_CONDITION_VALUE}.
+    * {@link ScriptTarget.Kind#VS_CONDITION_VALUE} and {@link ScriptTarget.Kind#DYNAMIC_VALUE}.
+    * The two never match each other: {@link #sameDialogFamily} requires the same kind.
     */
    private static final Set<ScriptTarget.Kind> ASSEMBLY_NAMED_FAMILY =
-      EnumSet.of(ScriptTarget.Kind.VS_CONDITION_VALUE);
+      EnumSet.of(ScriptTarget.Kind.VS_CONDITION_VALUE, ScriptTarget.Kind.DYNAMIC_VALUE);
 
    private final boolean strict;
 }

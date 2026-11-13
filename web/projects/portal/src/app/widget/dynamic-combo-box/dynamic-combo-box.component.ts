@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output,
+import { Component, ElementRef, EventEmitter, inject, Input, OnChanges, OnDestroy, OnInit, Output,
          ViewChild, ViewChildren, QueryList, SimpleChanges } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../shared/util/tool";
@@ -31,6 +31,9 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { FormsModule } from "@angular/forms";
 import { TooltipIfDirective } from "../tooltip/tooltip-if.directive";
 import { NgClass } from "@angular/common";
+import {
+   RegisteredSheetClient, SheetClientRegistry
+} from "../../common/viewsheet-client/sheet-client-registry.service";
 
 @Component({
     selector: "dynamic-combo-box",
@@ -62,6 +65,13 @@ export class DynamicComboBox implements OnInit, OnChanges, OnDestroy {
    @Input() valueOnly: boolean = false;
    @Input() vsId: string;
    @Input() assemblyName: string;
+   /** The property key this combo's value belongs to: the `name` of a "dynamicValue" pairing
+    *  target. Without it the formula dialog this combo opens has no Connect to Claude button. */
+   @Input() dynamicProperty: string | null = null;
+   /** Assembly that owns the property. Falls back to `assemblyName`. */
+   @Input() dynamicAssembly: string | null = null;
+   /** Runtime id to pair against, for hosts that bind no `vsId`. Falls back to `vsId`. */
+   @Input() pairingRuntimeId: string | null = null;
    @Input() promptString: string = "";
    @Input() grayedOutValues: string[] = [];
    @Input() disable: boolean = false;
@@ -92,6 +102,7 @@ export class DynamicComboBox implements OnInit, OnChanges, OnDestroy {
    @ViewChild("numberInput") numberInput: ElementRef;
    @ViewChildren(FixedDropdownDirective) dropdowns: QueryList<FixedDropdownDirective>;
    private formulaEditorTimer: any;
+   private readonly sheetClients = inject(SheetClientRegistry, { optional: true });
 
    constructor(private dialogService: NgbModal) {
    }
@@ -304,6 +315,34 @@ export class DynamicComboBox implements OnInit, OnChanges, OnDestroy {
       dialog.formulaType = FormulaType.SCRIPT;
       dialog.submitCallback = this.expressionSubmitCallback;
       dialog.task = this.task;
+
+      const pairing = this.resolvePairing();
+
+      if(pairing) {
+         dialog.dynamicProperty = this.dynamicProperty;
+         dialog.contextTable = pairing.assembly;
+         dialog.runtimeId = pairing.runtimeId;
+         dialog.socketConnection = pairing.entry.client;
+         dialog.isVSContext = pairing.entry.sheetType === "VIEWSHEET";
+      }
+   }
+
+   /**
+    * The pairing the formula dialog may offer, or null. Non-null only when the property, the
+    * assembly, the runtime id and a registered client for that runtime are all present and the
+    * combo is editable (a disabled combo, e.g. in the print layout editor, never pairs). Anything
+    * less passes the dialog nothing, so it shows no Connect to Claude button.
+    */
+   private resolvePairing(): { assembly: string, runtimeId: string, entry: RegisteredSheetClient } {
+      const assembly = this.dynamicAssembly || this.assemblyName;
+      const runtimeId = this.pairingRuntimeId || this.vsId;
+
+      if(!this.dynamicProperty || !assembly || !runtimeId || this.disable) {
+         return null;
+      }
+
+      const entry = this.sheetClients?.lookup(runtimeId);
+      return entry ? { assembly, runtimeId, entry } : null;
    }
 
    isValueEnabled(choice: string) {

@@ -188,7 +188,7 @@ public class AssemblyMaxModeService {
          }
          else {
             throw new IllegalArgumentException(
-               "'" + assemblyName + "' is a " + AssemblyPropertyService.displayTypeName(assembly) +
+               "'" + assemblyName + "' is a " + PropertyAliases.typeNameOf(assembly) +
                ", which has no Maximize/Restore runtime state. Only tables/crosstabs/calc " +
                "tables, charts, selection lists/trees, range sliders and selection containers " +
                "support it.");

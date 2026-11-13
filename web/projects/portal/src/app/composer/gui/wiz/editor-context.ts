@@ -48,6 +48,15 @@ export interface VSConditionPairingScope {
    highlightName: string | null;
 }
 
+/**
+ * How a "dynamicValue" context's `name` reads on the Connect button: a bare property key as it
+ * is, a namespaced one ("dateComparison:periodsBack") as the namespace and the key.
+ */
+export function dynamicValueLabel(name: string | null | undefined): string {
+   const namespace = /^([A-Za-z]+):(.*)$/.exec(name || "");
+   return namespace ? `${namespace[1]} ${namespace[2]}` : (name || "");
+}
+
 /** The `name` of a "vsConditionValue" context: "filter" or "highlight:<highlight name>". */
 export function vsConditionValueName(scope: VSConditionPairingScope): string {
    return scope.highlightName != null ? "highlight:" + scope.highlightName : "filter";

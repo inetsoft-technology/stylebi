@@ -30,6 +30,7 @@ import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
+import inetsoft.web.wiz.viewsheet.PropertyAliases;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -117,6 +118,18 @@ public class ScriptReadService {
       if(EditorContext.VS_CONDITION_VALUE.equals(grant.kind())) {
          // The value is the user's open dialog draft, so no enumerated target can match it.
          ScriptTargetInfo draft = VsConditionValueTargets.targetInfo(grant);
+         return draft == null ? List.of() : List.of(draft);
+      }
+
+      if(EditorContext.DYNAMIC_VALUE.equals(grant.kind())) {
+         // Same reasoning as above. The type is read off the runtime only to word the label and
+         // to show the alias of a raw path; a since-deleted assembly still lists the target, and
+         // the next read or write names the missing assembly.
+         Viewsheet vs = rvs.getViewsheet();
+         Object assembly = vs == null || grant.assembly() == null ? null
+            : vs.getAssembly(grant.assembly());
+         ScriptTargetInfo draft =
+            DynamicValueTargets.targetInfo(grant, PropertyAliases.typeKeyOf(assembly));
          return draft == null ? List.of() : List.of(draft);
       }
 
@@ -266,6 +279,11 @@ public class ScriptReadService {
          case VS_CONDITION_VALUE -> {
             requireAssemblyInfo(rvs, target.assemblyName());
             return VsConditionValueTargets.read(target);
+         }
+         // Draft-only too, for the same reason (see DynamicValueTargets).
+         case DYNAMIC_VALUE -> {
+            requireAssemblyInfo(rvs, target.assemblyName());
+            return DynamicValueTargets.read(target);
          }
          // A worksheet expression/condition column lives on a RuntimeWorksheet, never a
          // RuntimeViewsheet -- this method structurally cannot serve it. Named explicitly

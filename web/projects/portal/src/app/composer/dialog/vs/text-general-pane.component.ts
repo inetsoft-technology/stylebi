@@ -49,6 +49,7 @@ import { OutputGeneralPane } from "./output-general-pane.component";
 })
 export class TextGeneralPane implements OnInit {
    @Input() model: TextGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() layoutObject: boolean = false;

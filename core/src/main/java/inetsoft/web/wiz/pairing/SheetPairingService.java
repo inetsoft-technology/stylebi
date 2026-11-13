@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.ws.dialog.ExpressionNameSupport;
 import inetsoft.web.wiz.binding.CalcTableService;
+import inetsoft.web.wiz.viewsheet.PropertyAliases;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -69,7 +70,8 @@ public class SheetPairingService {
    static final List<String> RECOGNIZED_KINDS = List.of(
       "viewsheetOnInit", "viewsheetOnLoad", "assemblyMain", "assemblyOnClick", "calcField",
       "worksheetExpression", "worksheetCondition", "worksheetConditionValue",
-      EditorContext.CALC_TABLE_CELL, EditorContext.VS_CONDITION_VALUE);
+      EditorContext.CALC_TABLE_CELL, EditorContext.VS_CONDITION_VALUE,
+      EditorContext.DYNAMIC_VALUE);
 
    /**
     * The two assembly-scoped script kinds (as opposed to viewsheetOnInit/viewsheetOnLoad, which
@@ -238,6 +240,11 @@ public class SheetPairingService {
          return;
       }
 
+      if(EditorContext.DYNAMIC_VALUE.equals(ctx.kind())) {
+         validateDynamicValueContext(sheetType, runtimeId, rs, ctx);
+         return;
+      }
+
       if("calcField".equals(ctx.kind())) {
          // Addressed by (table, name), not by assembly -- Viewsheet.getCalcField is keyed by
          // table. The current browser wiring sends the table name in `assembly` (mirroring
@@ -362,6 +369,62 @@ public class SheetPairingService {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
             "'" + ctx.assembly() + "' has no " + (scope.highlight() ? "highlight" : "condition") +
             " dialog");
+      }
+   }
+
+   /**
+    * Verifies a {@code dynamicValue} context: a viewsheet runtime, an existing assembly, a
+    * well-formed name, and a key in the vocabulary of that assembly's CONCRETE type. A vocabulary
+    * check, not a state check -- nothing is written by a draft, and the value being edited is the
+    * user's open dialog, which the server cannot see.
+    *
+    * <p>A runtime that is not there gives the same message as one owned by someone else (see the
+    * ownership check in {@link #validateEditorContext}), so the two cannot be told apart.
+    */
+   private static void validateDynamicValueContext(SheetType sheetType, String runtimeId,
+                                                   RuntimeSheet rs, EditorContext ctx)
+      throws PairingException
+   {
+      if(sheetType != SheetType.VIEWSHEET) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "kind 'dynamicValue' is not available on a worksheet yet");
+      }
+
+      if(rs == null) {
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+            "Runtime not found or expired: " + runtimeId);
+      }
+
+      if(!(rs instanceof RuntimeViewsheet rvs) || rvs.getViewsheet() == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'dynamicValue' requires a viewsheet runtime");
+      }
+
+      if(isBlank(ctx.assembly())) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'dynamicValue' requires 'assembly'");
+      }
+
+      String problem = DynamicValueName.problem(ctx.name());
+
+      if(problem != null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'dynamicValue' requires a valid 'name': " + problem);
+      }
+
+      Assembly a = rvs.getViewsheet().getAssembly(ctx.assembly());
+
+      if(!(a instanceof VSAssembly)) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Assembly not found: " + ctx.assembly());
+      }
+
+      problem = DynamicValueVocabulary.problem(PropertyAliases.typeKeyOf(a),
+                                               DynamicValueName.parse(ctx.name()));
+
+      if(problem != null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "editorContext kind 'dynamicValue' on '" + ctx.assembly() + "': " + problem);
       }
    }
 

@@ -1,0 +1,76 @@
+[
+  {
+    "name": "visible",
+    "assemblyTypes": [
+      "gauge",
+      "text",
+      "image",
+      "chart",
+      "table",
+      "crosstab",
+      "selectionlist",
+      "selectiontree",
+      "checkbox",
+      "combobox",
+      "radiobutton",
+      "slider",
+      "spinner",
+      "textinput",
+      "timeslider",
+      "calendar",
+      "tab",
+      "calctable",
+      "groupcontainer",
+      "line",
+      "oval",
+      "rectangle",
+      "selectioncontainer",
+      "submit",
+      "viewsheet"
+    ],
+    "host": "vsobjects/dialog/basic-general-pane.component.html"
+  },
+  {
+    "name": "enabled",
+    "assemblyTypes": [
+      "gauge",
+      "text",
+      "image",
+      "chart",
+      "table",
+      "crosstab",
+      "selectionlist",
+      "selectiontree",
+      "checkbox",
+      "combobox",
+      "radiobutton",
+      "slider",
+      "spinner",
+      "textinput",
+      "timeslider",
+      "calendar",
+      "tab",
+      "calctable",
+      "selectioncontainer",
+      "submit"
+    ],
+    "host": "vsobjects/dialog/general-prop-pane.component.html"
+  },
+  {
+    "name": "title",
+    "assemblyTypes": [
+      "chart",
+      "table",
+      "crosstab",
+      "calctable",
+      "selectionlist",
+      "selectiontree",
+      "selectioncontainer",
+      "checkbox",
+      "radiobutton",
+      "calendar",
+      "timeslider"
+    ],
+    "host": "vsobjects/dialog/title-prop-pane.component.html"
+  }
+]

@@ -40,6 +40,7 @@ import { OutputGeneralPane } from "./output-general-pane.component";
 })
 export class GaugeGeneralPane implements OnInit {
    @Input() model: GaugeGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() linkUri: string;

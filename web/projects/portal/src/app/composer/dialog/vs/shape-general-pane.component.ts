@@ -29,6 +29,7 @@ import { BasicGeneralPane } from "../../../vsobjects/dialog/basic-general-pane.c
 })
 export class ShapeGeneralPane implements OnInit {
    @Input() model: ShapeGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string;
    @Input() variableValues: string[];

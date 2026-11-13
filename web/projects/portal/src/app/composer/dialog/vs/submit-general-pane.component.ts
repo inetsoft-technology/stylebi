@@ -34,6 +34,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class SubmitGeneralPane implements OnInit {
    @Input() model: SubmitGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string;
    @Input() variableValues: string[];

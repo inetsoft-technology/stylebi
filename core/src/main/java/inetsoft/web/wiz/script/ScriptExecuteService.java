@@ -284,9 +284,12 @@ public class ScriptExecuteService {
     * can refuse before the state-refresh wrapper runs.
     */
    static void requireRunnable(ScriptTarget target) throws PairingException {
-      if(target.kind() == ScriptTarget.Kind.VS_CONDITION_VALUE) {
+      if(target.kind().isDraftOnly()) {
+         String what = target.kind() == ScriptTarget.Kind.DYNAMIC_VALUE
+            ? "a dynamic value expression" : "a condition expression";
+
          throw new PairingException(
-            "'" + target + "': a condition expression is not a runnable script. It is a draft " +
+            "'" + target + "': " + what + " is not a runnable script. It is a draft " +
             "in the user's open formula dialog; use update_script to push text into it.");
       }
    }
@@ -325,6 +328,8 @@ public class ScriptExecuteService {
             "Use worksheet-chat's edit_expression/edit_condition tools on it instead.");
          case VS_CONDITION_VALUE -> throw new PairingException(
             "a condition expression is not a runnable script.");
+         case DYNAMIC_VALUE -> throw new PairingException(
+            "a dynamic value expression is not a runnable script.");
       };
 
       // Every script location can write to any assembly in the sheet by name (an assembly script

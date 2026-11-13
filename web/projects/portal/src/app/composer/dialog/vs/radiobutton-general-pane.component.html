@@ -19,13 +19,14 @@
                    [vsId]="runtimeId" [variableValues]="variableValues"
                    [form]="form.controls['generalPropPaneForm']" [columnTreeRoot]="columnTreeRoot"
                    [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
-                   [scriptDefinitions]="scriptDefinitions">
+                   [scriptDefinitions]="scriptDefinitions" [assemblyName]="assemblyName">
 </general-prop-pane>
 <div class="mt-1"></div>
 <title-prop-pane [model]="model.titlePropPaneModel" [variableValues]="variableValues"
                  [vsId]="runtimeId"
                  [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
-                 [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions">
+                 [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions"
+                 [assemblyName]="assemblyName">
 </title-prop-pane>
 <list-values-pane [model]="model.listValuesPaneModel" [runtimeId]="runtimeId"></list-values-pane>
 <size-position-pane [model]="model.sizePositionPaneModel"
