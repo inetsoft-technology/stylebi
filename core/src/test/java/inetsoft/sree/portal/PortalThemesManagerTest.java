@@ -206,6 +206,78 @@ class PortalThemesManagerTest {
                       "with an earlier timestamp than our own last write");
    }
 
+   /*
+    * Bug #80107: writeXML omits an empty css/favicon/logo map, so after another node deletes
+    * an organization's last entry the reloaded file has no such element. A reload must treat
+    * the missing element as an empty map instead of keeping the stale in-memory entries.
+    */
+   @Test
+   void changeListener_remoteWriteWithoutEntryElements_dropsStaleEntries() throws Exception {
+      persisted = () -> themesWithEntriesFor("orgX", true);
+      PortalThemesManager manager = new PortalThemesManager(cluster, dataSpace);
+      manager.loadThemes();
+      manager.save();
+      assertEquals("portal/orgX/logo.png", manager.getLogoEntries().get("orgX"));
+      assertNotNull(manager.getWelcomePage("orgX"));
+
+      // another node deleted the organization: only the (always written, empty)
+      // welcomePageEntries element remains
+      written = null;
+      persisted = () -> themesWithEntriesFor(null, false);
+      registeredListener().dataChanged(notification());
+
+      assertTrue(manager.getLogoEntries().isEmpty(), "stale logo entry survived the reload");
+      assertTrue(manager.getFaviconEntries().isEmpty(), "stale favicon entry survived the reload");
+      assertTrue(manager.getCssEntries().isEmpty(), "stale css entry survived the reload");
+      assertNull(manager.getWelcomePage("orgX"), "stale welcome page survived the reload");
+   }
+
+   @Test
+   void changeListener_remoteRemovalOfOneOrg_keepsOtherOrgEntries() throws Exception {
+      persisted = () -> themesWithEntriesFor("orgX", true);
+      PortalThemesManager manager = new PortalThemesManager(cluster, dataSpace);
+      manager.loadThemes();
+      manager.save();
+
+      written = null;
+      persisted = () -> themesWithLogoEntry("orgY", "portal/orgY/logo.png");
+      registeredListener().dataChanged(notification());
+
+      assertNull(manager.getLogoEntries().get("orgX"));
+      assertEquals("portal/orgY/logo.png", manager.getLogoEntries().get("orgY"),
+                   "another organization's entries must survive");
+      assertTrue(manager.getFaviconEntries().isEmpty());
+      assertTrue(manager.getCssEntries().isEmpty());
+   }
+
+   private InputStream themesWithEntriesFor(String org, boolean withEntries) {
+      String xml = withEntries
+         ? """
+            <?xml version="1.0"?>
+            <PortalThemes>
+            <Version>9.5</Version>
+            <cssEntries><cssEntry><identityName><![CDATA[%1$s]]></identityName>
+            <cssFile><![CDATA[%1$s/cl.css]]></cssFile></cssEntry></cssEntries>
+            <faviconEntries><faviconEntry><identityName><![CDATA[%1$s]]></identityName>
+            <faviconFile><![CDATA[portal/%1$s/favicon.png]]></faviconFile></faviconEntry></faviconEntries>
+            <logoEntries><logoEntry><identityName><![CDATA[%1$s]]></identityName>
+            <logoFile><![CDATA[portal/%1$s/logo.png]]></logoFile></logoEntry></logoEntries>
+            <welcomePageEntries><orgPortalWelcomePage orgId="%1$s">
+            <portalWelcomePage type="0"><bannerType>0</bannerType></portalWelcomePage>
+            </orgPortalWelcomePage></welcomePageEntries>
+            </PortalThemes>
+            """.formatted(org)
+         : """
+            <?xml version="1.0"?>
+            <PortalThemes>
+            <Version>9.5</Version>
+            <welcomePageEntries></welcomePageEntries>
+            </PortalThemes>
+            """;
+
+      return new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
+   }
+
    private DataChangeEvent notification() {
       return new DataChangeEvent(null, DEFAULT_THEMES_FILE, System.currentTimeMillis());
    }
