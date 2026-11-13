@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.*;
+import inetsoft.mv.fs.internal.AbstractFileSystem;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.mv.util.MVRule;
@@ -1464,6 +1465,8 @@ public final class MVManager implements MessageListener {
       XFileSystem fsys = server.getFSystem();
       XBlockSystem bsys = FSService.getDataNode(oorgId).getBSystem();
       fsys.refresh(bsys, true);
+      boolean reloaded = false;
+      List<String> missing = new ArrayList<>();
 
       for(String file : listFiles) {
          String defName = null;
@@ -1474,6 +1477,19 @@ public final class MVManager implements MessageListener {
             MVDef def = mv.getDef();
             def = def != null && copy ? def.deepClone() : def;
             String oldDefName = def.getName();
+
+            // the new org's file system map can be stale (e.g. a reused org id), reload it from
+            // the renamed <new>/fs.xml once, then refresh against the block system
+            if(fsys.get(oldDefName) == null && !reloaded && fsys instanceof AbstractFileSystem) {
+               reloaded = true;
+               ((AbstractFileSystem) fsys).reloadFromDataSpace();
+               fsys.refresh(bsys, true);
+            }
+
+            if(fsys.get(oldDefName) == null) {
+               missing.add(oldDefName);
+               continue;
+            }
 
             updateMVDef(def, oorg, norg);
             defName = def.getName();
@@ -1487,6 +1503,11 @@ public final class MVManager implements MessageListener {
          finally {
             cluster.unlockKey("mv.fs.update");
          }
+      }
+
+      if(!missing.isEmpty()) {
+         throw new RuntimeException("MV files missing from the distributed file system of " +
+                                       "organization " + norgId + ": " + missing);
       }
 
       if(!copy && idChanged) {
