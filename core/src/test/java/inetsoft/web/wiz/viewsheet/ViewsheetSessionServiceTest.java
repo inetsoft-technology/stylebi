@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Test;
 
@@ -293,5 +294,33 @@ class ViewsheetSessionServiceTest {
          mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
 
       assertFalse(svc.restoreCheckpoint(rvs, agent, "", true));
+   }
+
+   /**
+    * The pointer has moved by the time the refresh dispatches an ERROR, so the error must not
+    * fail the call: the caller still has to broadcast, and a retry would undo one more step.
+    */
+   @Test
+   void restoreCheckpointStillReportsTheMoveWhenTheRefreshDispatchesAnError() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("Viewsheet/foo-7");
+      java.util.concurrent.atomic.AtomicInteger current =
+         new java.util.concurrent.atomic.AtomicInteger(3);
+      when(rvs.getCurrent()).thenAnswer(inv -> current.get());
+      UndoRedoServiceProxy undoRedo = mock(UndoRedoServiceProxy.class);
+      doAnswer(inv -> {
+         current.decrementAndGet();
+         MessageCommand error = new MessageCommand();
+         error.setType(MessageCommand.Type.ERROR);
+         error.setMessage("query failed");
+         ((CommandDispatcher) inv.getArgument(3)).sendCommand(error);
+         return null;
+      }).when(undoRedo).undo(any(), any(), any(), any());
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetSessionService svc = new ViewsheetSessionService(
+         mock(SheetSessionService.class), mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class), undoRedo);
+
+      assertTrue(svc.restoreCheckpoint(rvs, agent, "", true));
    }
 }

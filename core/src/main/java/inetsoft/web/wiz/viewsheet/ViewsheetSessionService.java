@@ -126,6 +126,10 @@ public class ViewsheetSessionService {
     * commands the native service dispatches are captured and discarded; the caller's own broadcast
     * is what reaches the paired browser. Restoring a checkpoint discards the pending edits of
     * every Form table on the sheet, not only the one the undone step touched.
+    *
+    * <p>An ERROR the refresh dispatches (a table of the restored state that fails to execute) is
+    * logged, not thrown: the checkpoint pointer has already moved by then, so failing the call
+    * would skip the caller's broadcast and invite a retry that undoes one more step.
     */
    public boolean restoreCheckpoint(RuntimeViewsheet rvs, Principal agent, String linkUri,
                                     boolean undo)
@@ -134,11 +138,21 @@ public class ViewsheetSessionService {
       int before = rvs.getCurrent();
 
       CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
-         if(undo) {
-            undoRedoService.undo(rvs.getID(), agent, linkUri, dispatcher);
+         int mark = dispatcher.capturedCount();
+
+         try {
+            if(undo) {
+               undoRedoService.undo(rvs.getID(), agent, linkUri, dispatcher);
+            }
+            else {
+               undoRedoService.redo(rvs.getID(), agent, linkUri, dispatcher);
+            }
          }
-         else {
-            undoRedoService.redo(rvs.getID(), agent, linkUri, dispatcher);
+         finally {
+            for(String error : dispatcher.consumeErrorsSince(mark)) {
+               LOG.warn("The viewsheet refresh after {} reported: {}", undo ? "undo" : "redo",
+                        error);
+            }
          }
 
          return null;
