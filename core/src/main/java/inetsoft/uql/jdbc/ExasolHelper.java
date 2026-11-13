@@ -46,6 +46,42 @@ public class ExasolHelper extends SQLHelper {
       return IdentifierCase.UPPER;
    }
 
+   /**
+    * Quote every select alias, in the case it is stored. A reference to it ("s"."TransDateTime",
+    * order by, group by) is always quoted on a case-sensitive helper, and a plain alias would
+    * be folded to upper case by the database and not be found by it (#80212).
+    */
+   @Override
+   protected String quoteColumnAlias(String alias, boolean same, boolean part) {
+      return alias.indexOf('"') < 0 ? '"' + alias + '"' :
+         super.quoteColumnAlias(alias, same, part);
+   }
+
+   /**
+    * A column of a physical table (t."col", sum(t.col)) is not a select alias, it is quoted
+    * only if needed.
+    */
+   @Override
+   protected String quoteColumnPartAlias(String alias) {
+      return XUtil.quoteAlias(alias, this);
+   }
+
+   /**
+    * A column of a physical table as a function argument is not a select alias either.
+    */
+   @Override
+   protected String quoteCaseSensitiveAggregateColumn(String column) {
+      return quoteColumnPartAlias(column);
+   }
+
+   /**
+    * The alias of a derived table column is quoted as the select alias that defines it.
+    */
+   @Override
+   protected String quoteAliasColumnPart(String alias) {
+      return quoteColumnAlias(alias);
+   }
+
    @Override
    protected String getTableWithLimit(String tbl, int maxrows) {
       StringBuilder buffer = new StringBuilder();

@@ -867,19 +867,21 @@ class UniformSQLQuotedTwinColumnTest {
    }
 
    /**
-    * Snowflake and exasol fold an unquoted name to upper case, and write a plain alias
-    * unquoted. An expression alias is referenced as the helper writes it (A2).
+    * Snowflake and exasol fold an unquoted name to upper case, and write every alias quoted as
+    * stored (#80212). An expression alias is referenced as the helper writes it (A2), and a
+    * reference to a table column is not an alias reference.
     */
    @Test
    void aliasQuotingDecidesTheReferenceOnSnowflakeAndExasol() throws Exception {
       for(String helper : new String[] { "snowflake", "exasol" }) {
-         assertEquals("order by \"A\" desc",
+         // the alias is "a" and A is another name, the reference is the column
+         assertEquals("order by \"id\" desc",
                       orderBy(fixed(helper, "select id as a from u order by A desc", "id")), helper);
          // the quoted alias "a" and an unquoted a, which is A, are refused (Bug #77643)
          assertTwinRefused("select k as \"a\" from t order by a desc", helpers().get(helper));
          assertTwinRefused("select id as \"a\" from t order by a desc", helpers().get(helper));
-         // an expression alias is written unquoted, so the database folds it
-         assertEquals("order by \"A\" desc",
+         // an expression alias is written quoted as stored
+         assertEquals("order by \"a\" desc",
                       orderBy(fixed(helper, "select id + 1 as a from t order by a desc", "id")), helper);
          assertEquals("order by \"A\" desc",
                       orderBy(fixed(helper, "select id + 1 as A from t order by a desc", "id")), helper);

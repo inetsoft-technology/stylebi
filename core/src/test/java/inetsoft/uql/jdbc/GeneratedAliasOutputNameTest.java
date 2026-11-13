@@ -133,7 +133,10 @@ class GeneratedAliasOutputNameTest {
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
          helper.setUniformSql(sql);
          String gen = helper.generateSentence().replaceAll("\\s+", " ").trim();
-         assertTrue(gen.matches("(?i).*as alias_0, .* as \"?ALIAS_1\"? from.*"), gen);
+         // snowflake and exasol quote every alias, in the case it is written (#80212)
+         boolean quoted = helper instanceof SnowflakeHelper || helper instanceof ExasolHelper;
+         String alias0 = quoted ? "\"alias_0\"" : "alias_0";
+         assertTrue(gen.matches("(?i).*as " + alias0 + ", .* as \"?ALIAS_1\"? from.*"), gen);
          assertFalse(gen.matches("(?i).* as \"?ALIAS_0\"? from.*"), gen);
       }
    }
