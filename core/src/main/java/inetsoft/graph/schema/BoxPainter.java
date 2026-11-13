@@ -23,8 +23,10 @@ import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.element.SchemaElement;
 import inetsoft.graph.geometry.SchemaGeometry;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.visual.BarVO;
 
 import java.awt.*;
 import java.awt.geom.*;
@@ -59,6 +61,18 @@ public class BoxPainter extends SchemaPainter {
       double size = geometry.getSize(0);
       SizeFrame sizes = geometry.getVisualModel().getSizeFrame();
       double width = getSize(coord, size, sizes);
+      GraphElement elem = geometry.getElement();
+      boolean rect = elem instanceof SchemaElement && coord instanceof RectCoord;
+      // fitScreen clamps it to pixels about the slot centre
+      boolean widthRule = rect && ((SchemaElement) elem).isBoxWidthRule();
+      heightFloor = rect && ((SchemaElement) elem).isBoxHeightFloor();
+      slotWidth = widthRule ? coord.getMaxWidth() : 0;
+      slotCenter = high.getX();
+
+      if(widthRule) {
+         width = BOX_WIDTH_RATIO * slotWidth;
+      }
+
       double end = width / 4;
 
       shapes = new Shape[getShapeCount()];
@@ -108,6 +122,57 @@ public class BoxPainter extends SchemaPainter {
             shapes[i] = trans.createTransformedShape(shapes[i]);
          }
       }
+   }
+
+   /**
+    * Under the width rule, scale every shape along the box width about the slot centre so the
+    * box is MIN_BOX_PX to MAX_BOX_PX wide and dodged boxes stay side by side. Under the height
+    * floor, grow the box about its centre to at least MIN_BOX_HEIGHT_PX along the value axis.
+    * @param screen the screen transform the shapes were transformed with.
+    */
+   @Override
+   public void fitScreen(AffineTransform screen) {
+      if(slotWidth <= 0 && !heightFloor) {
+         return;
+      }
+
+      boolean horizontal = GTool.isHorizontal(screen);
+      Point2D unit = screen.deltaTransform(new Point2D.Double(1, 0), null);
+      double boxPx = BOX_WIDTH_RATIO * slotWidth * unit.distance(0, 0);
+
+      if(boxPx > 0) {
+         double ratio = Math.min(MAX_BOX_PX, Math.max(MIN_BOX_PX, boxPx)) / boxPx;
+         Point2D center = screen.transform(new Point2D.Double(slotCenter, 0), null);
+         AffineTransform trans = AffineTransform.getTranslateInstance(center.getX(), center.getY());
+
+         trans.scale(horizontal ? ratio : 1, horizontal ? 1 : ratio);
+         trans.translate(-center.getX(), -center.getY());
+         transformScreen(trans);
+      }
+
+      if(!heightFloor) {
+         return;
+      }
+
+      Rectangle2D box = shapes[3].getBounds2D();
+
+      if(horizontal && box.getHeight() < MIN_BOX_HEIGHT_PX) {
+         shapes[3] = new Rectangle2D.Double(box.getX(), box.getCenterY() - MIN_BOX_HEIGHT_PX / 2,
+                                            box.getWidth(), MIN_BOX_HEIGHT_PX);
+      }
+      else if(!horizontal && box.getWidth() < MIN_BOX_HEIGHT_PX) {
+         shapes[3] = new Rectangle2D.Double(box.getCenterX() - MIN_BOX_HEIGHT_PX / 2, box.getY(),
+                                            MIN_BOX_HEIGHT_PX, box.getHeight());
+      }
+   }
+
+   /**
+    * Move the slot the box is fitted about along with the painter, for a move of the whole
+    * slot before any dodge. A dodge moves the box within its slot and leaves the slot alone.
+    * @param trans the translation the painter was transformed with.
+    */
+   public void moveSlot(AffineTransform trans) {
+      slotCenter = trans.transform(new Point2D.Double(slotCenter, 0), null).getX();
    }
 
    /**
@@ -177,7 +242,9 @@ public class BoxPainter extends SchemaPainter {
             // Y axis has a larger pixel-per-unit scale than X, rounding top/bottom but not sides.
             Rectangle2D b = getShape(i).getBounds2D();
             double shortDim = Math.min(b.getWidth(), b.getHeight());
-            double arc = shortDim / 3.0;
+            double corner = elem instanceof SchemaElement
+               ? ((SchemaElement) elem).getBoxCornerRadius() : -1;
+            double arc = corner >= 0 ? boxArcDiameter(corner, shortDim) : shortDim / 3.0;
             Shape box = new RoundRectangle2D.Double(b.getX(), b.getY(),
                                                     b.getWidth(), b.getHeight(), arc, arc);
 
@@ -245,6 +312,43 @@ public class BoxPainter extends SchemaPainter {
       return maxw / 3;
    }
 
+   /**
+    * Get the arc diameter of a box's corner, kept at least 2px (or a quarter of a thinner box)
+    * and at most half the short side. A zero fraction gives square corners.
+    * @param radiusFraction the corner radius as a fraction of the short side.
+    * @param shortSide the box's short side in screen pixels.
+    */
+   static double boxArcDiameter(double radiusFraction, double shortSide) {
+      if(radiusFraction <= 0) {
+         return 0;
+      }
+
+      double radius = BarVO.flooredCornerFraction(radiusFraction, shortSide) * shortSide;
+      return 2 * Math.min(radius, shortSide / 2);
+   }
+
+   /**
+    * The box width as a fraction of its slot under the width rule.
+    */
+   static final double BOX_WIDTH_RATIO = 0.3;
+   /**
+    * The narrowest a box draws under the width rule, in screen pixels.
+    */
+   static final double MIN_BOX_PX = 6;
+   /**
+    * The widest a box draws under the width rule, in screen pixels.
+    */
+   static final double MAX_BOX_PX = 28;
+   /**
+    * The shortest a box draws along the value axis under the height floor, in screen pixels.
+    */
+   static final double MIN_BOX_HEIGHT_PX = 2;
    private Shape[] shapes;
+   // the slot width in chart units under the width rule, 0 if the rule is off
+   private double slotWidth;
+   // the slot centre along the box width in chart units, before any dodge
+   private double slotCenter;
+   // whether the box is kept at least MIN_BOX_HEIGHT_PX tall
+   private boolean heightFloor;
    private static final long serialVersionUID = 1L;
 }
