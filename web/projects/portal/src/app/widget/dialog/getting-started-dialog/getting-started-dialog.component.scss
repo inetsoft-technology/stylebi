@@ -80,6 +80,18 @@
   }
 }
 
+// The current step's label and arrow sit on the primary color. A dark shell lightens the text
+// color, so it reads a dark one there, except while the third step's hover color replaces the fill.
+.step-item.current-step.active:not(.hover-bg-primary:hover) {
+  .step-text {
+    color: var(--inet-dark-on-primary-text-color, var(--inet-text-color));
+  }
+
+  .arrow-icon {
+    color: var(--inet-dark-on-primary-text-color, var(--inet-icon-color));
+  }
+}
+
 .sub-step-pane {
   margin-left: 20px;
 }

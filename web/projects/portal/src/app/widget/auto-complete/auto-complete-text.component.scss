@@ -41,5 +41,7 @@ ul.autoList {
 .auto-complete-pane {
   position: absolute;
   border: 1px solid var(--inet-dark-border-color, rgba(0,0,0,.15));
-  box-shadow: 0px 2px 2px 0px;
+  // without a color the shadow takes the text color, which a dark shell makes light
+  box-shadow: 0px 2px 2px 0px var(--inet-dark-shadow-color, currentColor);
+  background: var(--inet-dark-surface-color, white);
 }
