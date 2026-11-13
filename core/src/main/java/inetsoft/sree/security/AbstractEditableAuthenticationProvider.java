@@ -464,7 +464,8 @@ public abstract class AbstractEditableAuthenticationProvider
          }
 
          identityService.removeOrgScopedDataSpaceElements(fromOrganization);
-         themeService.removeTheme(fromOrgId);
+         // a case-only rename shares the selected-theme pointer key with the new id (Bug #81320)
+         themeService.removeTheme(fromOrgId, sameScopedProperties);
          FSService.clearServerNodeCache(fromOrgId);
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
