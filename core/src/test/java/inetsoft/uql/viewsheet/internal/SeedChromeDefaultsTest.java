@@ -1016,7 +1016,7 @@ class SeedChromeDefaultsTest {
    void gateOnChartTakesItsPlotSeeds() {
       gateOn();
       PlotDescriptor plot = newChart().getChartDescriptor().getPlotDescriptor();
-      assertEquals(0.3, plot.getBarCornerRadius(), 0.0001);
+      assertEquals(VSChartChromeDefaults.BAR_CORNER_RADIUS, plot.getBarCornerRadius(), 0.0001);
       assertFalse(plot.isSmoothLines(), "an unbound chart resolves AUTO, which is straight");
    }
 
@@ -1802,7 +1802,7 @@ class SeedChromeDefaultsTest {
       assertEquals(VSObjectChromeDefaults.cardTintValue(),
                    objectDefault(info).getBackgroundValue());
       PlotDescriptor plot = info.getChartDescriptor().getPlotDescriptor();
-      assertEquals(0.3, plot.getBarCornerRadius(), 0.0001, "the plot seeds are reachable");
+      assertEquals(VSChartChromeDefaults.BAR_CORNER_RADIUS, plot.getBarCornerRadius(), 0.0001, "the plot seeds are reachable");
       assertFalse(plot.isSmoothLines(), "an unbound chart resolves AUTO, which is straight");
       assertEquals(new Insets(12, 12, 12, 12), info.getPadding(),
                    "an unflagged padding is not an author opinion, so Modernize seeds over it; " +

@@ -84,7 +84,7 @@ class BookmarkChromeResolutionTest {
       info.setVizMark(VizMark.MODERN_LIGHT);
       chart.parseState(parseXml(state));
 
-      assertEquals(0.3, info.getChartDescriptor().getPlotDescriptor().getBarCornerRadius(), 0.001,
+      assertEquals(VSChartChromeDefaults.BAR_CORNER_RADIUS, info.getChartDescriptor().getPlotDescriptor().getBarCornerRadius(), 0.001,
                    "the modernized chart must not keep the bookmark's legacy bar corners");
    }
 
