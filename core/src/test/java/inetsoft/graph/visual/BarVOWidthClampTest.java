@@ -73,13 +73,109 @@ class BarVOWidthClampTest {
 
    @Test
    void aNarrowSlotFloorsAt3() {
-      List<BarVO> bars = render(barChart(true, false), barRows(150));
-      assertEquals(150, bars.size(), "premise: one bar per category");
+      List<BarVO> bars = render(barChart(true, false), barRows(80));
+      assertEquals(80, bars.size(), "premise: one bar per category");
 
       for(BarVO bar : bars) {
          double t = bar.getPath().getBounds2D().getWidth();
-         assertTrue(bar.getSizeFactor() / 2 < 3, "premise: a narrow slot " + bar.getSizeFactor());
-         assertTrue(t >= 3 - 0.01, "thickness " + t);
+         assertTrue(bar.getSizeFactor() / 2 < 3 && bar.getSizeFactor() >= 3,
+                    "premise: a narrow slot of 3px or more " + bar.getSizeFactor());
+         assertEquals(3, t, 0.01, "thickness");
+      }
+   }
+
+   @Test
+   void aSlotUnder3pxFillsTheSlot() {
+      List<BarVO> bars = render(barChart(true, false), barRows(150));
+      assertEquals(150, bars.size(), "premise: one bar per category");
+      bars.sort(Comparator.comparingDouble(b -> b.getPath().getBounds2D().getX()));
+
+      for(int i = 0; i < bars.size(); i++) {
+         Rectangle2D box = bars.get(i).getPath().getBounds2D();
+         double slot = bars.get(i).getSizeFactor();
+         assertTrue(slot < 3, "premise: a slot under 3px " + slot);
+         assertEquals(slot, box.getWidth(), 0.01, "thickness");
+
+         if(i > 0) {
+            double gap = box.getX() - bars.get(i - 1).getPath().getBounds2D().getMaxX();
+            assertTrue(gap >= -0.01, "no overlap with the previous bar, gap " + gap);
+         }
+      }
+   }
+
+   @Test
+   void aCrowdedClusterShrinksToItsSlot() {
+      List<BarVO> bars = render(clusterChart(), clusterRows(80));
+      Map<Object, Rectangle2D> slots = slots(clusterRows(80), bars);
+      assertEquals(160, bars.size(), "premise: two bars per category");
+      double slot = bars.get(0).getSizeFactor();
+      assertTrue(slot < 2 * 3 && slot / 2 < 3, "premise: two 3px bars overflow the slot " + slot);
+      List<Rectangle2D> pairs = new ArrayList<>();
+
+      for(Map.Entry<Object, List<BarVO>> cat : group(clusterRows(80), bars).entrySet()) {
+         List<BarVO> pair = cat.getValue();
+         assertEquals(2, pair.size(), "premise: a pair per slot");
+         pair.sort(Comparator.comparingDouble(b -> b.getPath().getBounds2D().getX()));
+         Rectangle2D left = pair.get(0).getPath().getBounds2D();
+         Rectangle2D right = pair.get(1).getPath().getBounds2D();
+
+         assertEquals(slot / 2, left.getWidth(), 0.01, "left thickness");
+         assertEquals(slot / 2, right.getWidth(), 0.01, "right thickness");
+         assertEquals(0, right.getMinX() - left.getMaxX(), 0.01, "the pair touches");
+         assertEquals(slots.get(cat.getKey()).getCenterX(),
+                      (left.getMinX() + right.getMaxX()) / 2, 0.5, "the pair is centred");
+         pairs.add(left.createUnion(right));
+      }
+
+      pairs.sort(Comparator.comparingDouble(Rectangle2D::getX));
+
+      for(int i = 1; i < pairs.size(); i++) {
+         double gap = pairs.get(i).getX() - pairs.get(i - 1).getMaxX();
+         assertTrue(gap >= -0.01, "no overlap with the previous pair, gap " + gap);
+      }
+   }
+
+   @Test
+   void aCrowdedBrushedClusterStaysInsideItsBase() {
+      String all = ElementVO.ALL_PREFIX + "Sales";
+      Object[][] rows = new Object[161][];
+      rows[0] = new Object[] { "State", "Series", all, "Sales" };
+
+      for(int i = 0; i < 160; i++) {
+         rows[i + 1] = new Object[] { "S" + (i / 2), "P" + (i % 2), 100.0 + i, 50.0 };
+      }
+
+      IntervalElement base = new IntervalElement("State", all);
+      IntervalElement brushed = new IntervalElement("State", "Sales");
+
+      for(IntervalElement elem : new IntervalElement[] { base, brushed }) {
+         elem.setColorFrame(new CategoricalColorFrame("Series"));
+         elem.setSizeFrame(new StaticSizeFrame(15));
+         elem.setWidthClamp(true);
+      }
+
+      brushed.setHint("overlay", base);
+      base.setHint("overlaid", brushed);
+      List<BarVO> bars = render(graph(new RectCoord(new CategoricalScale("State"),
+                                                    new LinearScale(all, "Sales")),
+                                      base, brushed), rows);
+      assertEquals(320, bars.size(), "premise: a base and a brushed bar per row");
+
+      for(BarVO under : bars) {
+         if(element(under) != base) {
+            continue;
+         }
+
+         BarVO over = bars.stream()
+            .filter(b -> element(b) == brushed && b.getSubRowIndex() == under.getSubRowIndex())
+            .findFirst().orElseThrow();
+         Rectangle2D b0 = under.getPath().getBounds2D();
+         Rectangle2D b1 = over.getPath().getBounds2D();
+
+         assertTrue(under.getSizeFactor() < 6, "premise: a crowded slot " + under.getSizeFactor());
+         assertEquals(under.getSizeFactor() / 2, b0.getWidth(), 0.01, "base thickness");
+         assertEquals(b0.getWidth() * 0.7, b1.getWidth(), 0.05, "brushed thickness");
+         assertEquals(b0.getCenterX(), b1.getCenterX(), 0.05, "brushed centre");
       }
    }
 
@@ -201,12 +297,24 @@ class BarVOWidthClampTest {
          double unclamped = classic.get(i).getPath().getBounds2D().getWidth();
          assertTrue(unclamped * 0.5 < 32 && unclamped * 0.5 > 3, "premise: half is in range");
 
-         bar.scaleToSizeFactor(bar.getSizeFactor() * 0.5);
+         double slot = bar.getSizeFactor();
+         bar.scaleToSizeFactor(slot * 0.5);
          assertEquals(unclamped * 0.5, bar.getPath().getBounds2D().getWidth(), 0.5,
                       "half of the unclamped width");
 
-         bar.scaleToSizeFactor(bar.getSizeFactor() * 0.01);
-         assertEquals(3, bar.getPath().getBounds2D().getWidth(), 0.01, "floored");
+         // rescales compound, so the slot is now 4% of the original
+         bar.scaleToSizeFactor(slot * 0.08);
+         assertTrue(slot * 0.04 >= 3 && unclamped * 0.04 < 3,
+                    "premise: a slot of 3px or more, a thinner bar " + slot);
+         assertEquals(3, bar.getPath().getBounds2D().getWidth(), 0.01, "floored at 3px");
+      }
+
+      for(BarVO bar : render(barChart(true, false), barRows(3))) {
+         double slot = bar.getSizeFactor();
+         bar.scaleToSizeFactor(slot * 0.02);
+         assertTrue(slot * 0.02 < 3, "premise: a rescaled slot under 3px " + slot);
+         assertEquals(slot * 0.02, bar.getPath().getBounds2D().getWidth(), 0.01,
+                      "floored at the slot");
       }
    }
 
@@ -283,6 +391,27 @@ class BarVOWidthClampTest {
       }
 
       return graph(coord, elem);
+   }
+
+   // two series dodged per category at the generator's bar size
+   private static EGraph clusterChart() {
+      IntervalElement elem = new IntervalElement("State", "Sales");
+      elem.setColorFrame(new CategoricalColorFrame("Series"));
+      elem.setSizeFrame(new StaticSizeFrame(15));
+      elem.setCollisionModifier(GraphElement.MOVE_DODGE | GraphElement.MOVE_CENTER);
+      elem.setWidthClamp(true);
+      return graph(new RectCoord(new CategoricalScale("State"), new LinearScale("Sales")), elem);
+   }
+
+   private static Object[][] clusterRows(int categories) {
+      Object[][] rows = new Object[2 * categories + 1][];
+      rows[0] = new Object[] { "State", "Series", "Sales" };
+
+      for(int i = 0; i < 2 * categories; i++) {
+         rows[i + 1] = new Object[] { "S" + (i / 2), "P" + (i % 2), 100.0 + i };
+      }
+
+      return rows;
    }
 
    private static Object[][] barRows(int count) {
