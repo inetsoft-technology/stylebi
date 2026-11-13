@@ -80,6 +80,52 @@ public class SchemaElement extends GraphElement {
    }
 
    /**
+    * Get a box plot box's corner radius as a fraction of its short side. A negative value
+    * keeps the painter's own corner.
+    */
+   public double getBoxCornerRadius() {
+      return boxCornerRadius;
+   }
+
+   /**
+    * Set a box plot box's corner radius as a fraction of its short side. The corner is kept at
+    * least 2px (or a quarter of a thinner box), and 0 draws square corners. A negative value
+    * keeps the painter's own corner.
+    */
+   public void setBoxCornerRadius(double boxCornerRadius) {
+      this.boxCornerRadius = boxCornerRadius;
+   }
+
+   /**
+    * Check whether a box plot box is 30% of its slot and 6 to 28 screen pixels wide.
+    */
+   public boolean isBoxWidthRule() {
+      return boxWidthRule;
+   }
+
+   /**
+    * Set whether a box plot box is 30% of its slot and 6 to 28 screen pixels wide.
+    */
+   public void setBoxWidthRule(boolean boxWidthRule) {
+      this.boxWidthRule = boxWidthRule;
+   }
+
+   /**
+    * Check whether a box plot box is at least 2 screen pixels tall.
+    */
+   public boolean isBoxHeightFloor() {
+      return boxHeightFloor;
+   }
+
+   /**
+    * Set whether a box plot box is at least 2 screen pixels tall, so identical quartiles draw
+    * a thin box rather than a hairline.
+    */
+   public void setBoxHeightFloor(boolean boxHeightFloor) {
+      this.boxHeightFloor = boxHeightFloor;
+   }
+
+   /**
     * Add a variable to be plotted using this element.
     * @param col the variable identifier.
     */
@@ -225,7 +271,9 @@ public class SchemaElement extends GraphElement {
 
       if(obj instanceof SchemaElement) {
          SchemaElement elem = (SchemaElement) obj;
-         return schemas.equals(elem.schemas) && Objects.equals(painter, elem.painter);
+         return schemas.equals(elem.schemas) && Objects.equals(painter, elem.painter) &&
+            boxCornerRadius == elem.boxCornerRadius && boxWidthRule == elem.boxWidthRule &&
+            boxHeightFloor == elem.boxHeightFloor;
       }
 
       return false;
@@ -233,5 +281,8 @@ public class SchemaElement extends GraphElement {
 
    private SchemaPainter painter;
    private List<String[]> schemas = new Vector<>(); // schema columns
+   private double boxCornerRadius = -1;
+   private boolean boxWidthRule;
+   private boolean boxHeightFloor;
    private static final long serialVersionUID = 1L;
 }

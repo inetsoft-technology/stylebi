@@ -52,6 +52,14 @@ public abstract class SchemaPainter implements Cloneable, Serializable {
    public abstract void transformScreen(AffineTransform trans);
 
    /**
+    * Fit the painter's shapes, already transformed with the screen transform, to rules that
+    * need screen pixels. It does nothing by default.
+    * @param screen the screen transform the shapes were transformed with.
+    */
+   public void fitScreen(AffineTransform screen) {
+   }
+
+   /**
     * Paint the schema painter.
     */
    public abstract void paint(Graphics2D g);

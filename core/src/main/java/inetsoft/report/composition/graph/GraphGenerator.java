@@ -5177,6 +5177,25 @@ public abstract class GraphGenerator {
       else if(elem instanceof MekkoElement mekko) {
          mekko.setThinSegmentLine(true);
       }
+      else if(elem instanceof SchemaElement box && box.getPainter() instanceof BoxPainter) {
+         box.setBoxCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         box.setBoxWidthRule(isBoxWidthRule(box));
+         box.setBoxHeightFloor(true);
+      }
+   }
+
+   /**
+    * Check if a modern box plot box is 30% of its slot, 6-28px wide. A size the author set or
+    * a size binding keeps today's width.
+    */
+   private boolean isBoxWidthRule(SchemaElement elem) {
+      SizeFrame size = elem.getSizeFrame();
+      // box vars carry a quartile prefix, and brushing's all-data prefix inside it
+      String[] vars = Arrays.stream(elem.getVars())
+         .map(var -> GraphUtil.getOriginalCol(BoxDataSet.getBaseName(var)))
+         .toArray(String[]::new);
+
+      return !info.isSizeChanged(vars) && (size == null || size.getField() == null);
    }
 
    /**

@@ -123,11 +123,13 @@ public class ChartPlotOptionsPaneModel implements Serializable {
       this.pieRatio = plotDesc.getPieRatio() > 0 ? plotDesc.getPieRatio() : null;
       this.barCornerRadius = plotDesc.getBarCornerRadius() > 0
          ? plotDesc.getBarCornerRadius() : null;
+      // a marked box plot draws its box with the bar corner
       this.barCornerRadiusVisible = GraphTypeUtil.checkType(info, ctype ->
          (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype) ||
           GraphTypes.isPareto(ctype) || GraphTypes.isWaterfall(ctype) ||
           GraphTypes.isGantt(ctype)) &&
-         !GraphTypes.is3DBar(ctype) && !GraphTypes.isFunnel(ctype));
+         !GraphTypes.is3DBar(ctype) && !GraphTypes.isFunnel(ctype) ||
+         ctx.modern && GraphTypes.isBoxplot(ctype));
       // "Round All Corners" hidden for interval, waterfall, and gantt — all always round all corners
       this.barRoundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
          (GraphTypes.isBar(ctype) || GraphTypes.isPareto(ctype)) &&
