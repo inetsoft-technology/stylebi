@@ -20,6 +20,7 @@ package inetsoft.web;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.security.PermissionRequestScope;
 import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.*;
@@ -54,6 +55,7 @@ public class ThreadLocalCleanupFilter implements Filter {
          ThreadContext.setContextPrincipal(null);
          ThreadContext.setPrincipal(null);
          OrganizationContextHolder.clear();
+         PermissionRequestScope.clear();
          ThreadContext.setLocale(null);
          ThreadContext.setProfiling(null);
 

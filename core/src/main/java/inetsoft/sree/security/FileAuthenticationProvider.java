@@ -86,8 +86,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     */
    @Override
    public User getUser(IdentityID userIdentity) {
-      init();
-      return userStorage.get(userIdentity.convertToKey());
+      return PermissionRequestScope.memo(this, "getUser", userIdentity, () -> {
+         init();
+         return userStorage.get(userIdentity.convertToKey());
+      });
    }
 
    /**
@@ -108,8 +110,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     */
    @Override
    public Organization getOrganization(String id) {
-      init();
-      return organizationStorage.get(id);
+      return PermissionRequestScope.memo(this, "getOrganization", id, () -> {
+         init();
+         return organizationStorage.get(id);
+      });
    }
 
    @Override

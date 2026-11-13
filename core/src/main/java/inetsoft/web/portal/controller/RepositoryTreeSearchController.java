@@ -90,13 +90,24 @@ public class RepositoryTreeSearchController {
                                                        catalog.getString("Search")));
       }
 
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         return getSearchResults0(searchString, favoritesMode, principal);
+      }
+   }
+
+   private TreeNodeModel getSearchResults0(String searchString, boolean favoritesMode,
+                                           Principal principal)
+      throws Exception
+   {
       searchString = searchString.toLowerCase();
+      RepositoryTreeService.SupportedOperationsContext opsContext =
+         repositoryTreeService.new SupportedOperationsContext(principal);
       SearchResultFolder rootFolder =
          getRootFolder(searchString, favoritesMode, false, principal);
       TreeNodeModel node = null;
 
       if(!isHostOrgGlobalRepoVisible(principal)) {
-         node = convertToTreeNode(rootFolder, principal, searchString);
+         node = convertToTreeNode(rootFolder, principal, searchString, opsContext);
       }
       else {
          SearchResultFolder globalRootFolder =
@@ -111,7 +122,7 @@ public class RepositoryTreeSearchController {
             resultFolder.addFolder(globalRootFolder);
          }
 
-         node = convertToTreeNode(resultFolder, principal, searchString);
+         node = convertToTreeNode(resultFolder, principal, searchString, opsContext);
       }
 
       return node;
@@ -243,8 +254,9 @@ public class RepositoryTreeSearchController {
    /**
     * Convert result to a tree node.
     */
-   private TreeNodeModel convertToTreeNode(SearchResultFolder folder,
-                                           Principal principal, String searchString)
+   private TreeNodeModel convertToTreeNode(
+      SearchResultFolder folder, Principal principal, String searchString,
+      RepositoryTreeService.SupportedOperationsContext opsContext)
       throws Exception
    {
       List<TreeNodeModel> folderNodes = new ArrayList<>();
@@ -252,7 +264,7 @@ public class RepositoryTreeSearchController {
 
       for(SearchResultFolder childFolder : folder.folders) {
          folderNodes.add(convertToTreeNode(childFolder, principal,
-                                           searchString.toLowerCase()));
+                                           searchString.toLowerCase(), opsContext));
       }
 
       for(RepositoryEntry entry : folder.files) {
@@ -270,7 +282,8 @@ public class RepositoryTreeSearchController {
 
          entry.setFavoritesUser(repositoryTreeService.hasFavoritesUser(entry, principal));
          RepositoryEntryModel entryModel = repositoryEntryModelFactoryService.createModel(entry);
-         entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
+         entryModel.setOp(repositoryTreeService.getSupportedOperations(
+            entry, principal, opsContext));
          IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
          String dragName = null;
@@ -323,7 +336,8 @@ public class RepositoryTreeSearchController {
          }
 
          folderModel.setFavoritesUser(repositoryTreeService.isFavoritesEntry(folderEntry, principal));
-         folderModel.setOp(repositoryTreeService.getSupportedOperations(folderEntry, principal));
+         folderModel.setOp(repositoryTreeService.getSupportedOperations(
+            folderEntry, principal, opsContext));
       }
 
       return TreeNodeModel.builder()
