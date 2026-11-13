@@ -233,7 +233,7 @@ There is no migration on load: the epic is unreleased.
 - Every export (PDF, PNG, SVG, Excel, PowerPoint) draws through `GraphGenerator`, so drawing rules apply there too. Excel keeps its opaque card (TC D16).
 - **In an older build:**
   - V items arrive and draw. Those saved as a DEFAULT tier (chart descriptor values) last only until that build writes the asset, and an import writes it (M3).
-  - User flags saved only where the parse would derive them wrongly (`userLineVisible`, `userTitle`, `userSmoothLines`; M4) are dropped the same way. The next open derives them again, so the seeded value counts as the author's and no later re-seed or Revert replaces it: a seeded-off value line, a seeded straight area, and a title the wizard typed, which then stays visible on a modern chart. This is accepted, like the DEFAULT tier.
+  - User flags saved only where the parse would derive them wrongly (`userLineVisible`, `userTitle`, `userSmoothLines`, `userBarCornerRadius`; M4) are dropped the same way. The next open derives them again, so the seeded value counts as the author's and no later re-seed or Revert replaces it: a seeded-off value line, a seeded straight area, and a title the wizard typed, which then stays visible on a modern chart. This is accepted, like the DEFAULT tier. For `userBarCornerRadius` a released build does not know it, so a marked chart it saves derives the seeded 0.08 as the author's on the next open, and Revert then keeps 0.08. Accepted like the others.
   - N items are ignored.
   - D items fall back to the old rule.
   - The S4 sizes (D44) draw at that build's own values. Its first draw also rewrites the modern values held in the stored frame.
@@ -592,6 +592,8 @@ Amended 2026-11-12, after the owner reviewed S4 against the S3 head (`958852a11a
 - **Waterfall bridge lines** move with the clamped bars. Today they are placed in slot units when the geometry is built (`IntervalElement:386-391`, `:892-926`).
 - **Faceted charts** rescale cached paths after layout (`VGraph:938-940`, `BarVO:1188-1222`). The clamp must survive that.
 - **The Gantt bar** is 20 of 30 today (68% of its row, `GraphGenerator:5376-5377`). Under the mark it is 15 (D44), and then the clamp applies.
+
+**S4-5 and S4-6 legend note.** A size legend whose smallest equals its largest now draws full symbols on every chart, classic included. It drew invalid (NaN) geometry before. This is the one classic-visible change of S4, an exception to M1.
 
 **S4-11 tree corner (D48, D56).**
 - **The flag.** `userNodeCornerRadius` (M4) is stamped only when the pane changes the value, since the pane writes the field on every Apply. The `nodeCornerRadius` script property goes through an author setter, as S3-1's legend position does.

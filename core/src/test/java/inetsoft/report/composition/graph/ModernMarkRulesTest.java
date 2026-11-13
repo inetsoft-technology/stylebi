@@ -369,6 +369,19 @@ class ModernMarkRulesTest {
       assertEquals(classic.getLargest() - 1, classic.getSmallest(), "classic");
    }
 
+   @Test
+   void anAuthorsSizeOnABoundIntervalKeepsTodaysFormula() {
+      Chart chart = sizedChart(GraphTypes.CHART_INTERVAL);
+      setAuthorSize(((ChartAggregateRef) chart.info().getYField(0)).getSizeFrameWrapper());
+      List<IntervalElement> bars = intervals(chart, VizMark.MODERN_LIGHT);
+
+      assertEquals(1, bars.size(), "premise: one interval element");
+      SizeFrame size = bars.get(0).getSizeFrame();
+      assertNotNull(size.getField(), "premise: the size is bound");
+      assertEquals(size.getLargest() - 1, size.getSmallest());
+      assertFalse(bars.get(0).isWidthClamp());
+   }
+
    // the author's 25 on the bar's measure, as the binding pane writes it
    private static Chart authorSized(Chart chart) {
       ChartAggregateRef measure = (ChartAggregateRef) chart.info().getYField(0);
