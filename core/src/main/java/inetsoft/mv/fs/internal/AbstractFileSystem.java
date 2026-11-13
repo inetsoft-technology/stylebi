@@ -462,6 +462,48 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
    }
 
    /**
+    * Reload the files map from the data space file of this organization, ignoring the cluster
+    * lastLoad marker that makes {@link #init()} skip an already-loaded file system.
+    *
+    * @throws IllegalStateException if no file system file could be read.
+    */
+   public final void reloadFromDataSpace() {
+      lock.lock();
+
+      try {
+         DataSpace space = DataSpace.getDataSpace();
+         String[] paths = getPaths();
+         Exception failure = null;
+
+         for(String path : paths) {
+            try(InputStream input = space.getInputStream(null, path)) {
+               if(input == null) {
+                  continue;
+               }
+
+               long modified = space.getLastModified(null, path);
+               Document document = Tool.parseXML(input);
+               parseXML(document.getDocumentElement());
+               lastLoad.set(modified);
+               LOG.debug("Reloaded distributed file system from: {}", path);
+               return;
+            }
+            catch(Exception ex) {
+               failure = ex;
+               LOG.warn("Failed to reload distributed file system from: {}", path, ex);
+            }
+         }
+
+         throw new IllegalStateException(
+            "Cannot reload the distributed file system of organization " + orgId +
+            ", no readable file system file in " + Arrays.toString(paths), failure);
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
     * Dispose this file system.
     */
    @Override
