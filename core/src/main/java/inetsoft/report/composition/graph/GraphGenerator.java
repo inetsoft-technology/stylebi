@@ -4890,6 +4890,8 @@ public abstract class GraphGenerator {
          elem.setSizeFrame(sizes);
       }
 
+      applyModernMarkRules(elem, chartType);
+
       // for interval, set a shape with border if the size is max so the bars
       // can still be looked apart
       if(elem instanceof IntervalElement) {
@@ -5152,6 +5154,20 @@ public abstract class GraphGenerator {
 
       initElementTextID(elem, chartType);
       graph.addElement(elem);
+   }
+
+   /**
+    * Set the drawing rules the modern mark adds to an element. The graph package has no mark
+    * context, so each rule is a flag on the element that is off for a classic chart.
+    */
+   private void applyModernMarkRules(GraphElement elem, int chartType) {
+      if(!vizContext.modern) {
+         return;
+      }
+
+      if(elem instanceof IntervalElement interval) {
+         interval.setCornerFloor(true);
+      }
    }
 
    private void setColorFrameBrightness(GraphElement elem, ColorFrame frame, ColorFrame color0) {

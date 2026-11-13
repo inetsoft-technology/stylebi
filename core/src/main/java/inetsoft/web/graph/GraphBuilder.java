@@ -1372,9 +1372,11 @@ public class GraphBuilder {
                boolean neg = barVO.isNegative();
                // Y-down direction (frontend canvas coords, inverted from BarVO Y-up)
                int outerDir = stdOrientation ? (neg ? 1 : 0) : (neg ? 3 : 2);
+               // the fraction the bar draws with, so the outline matches its corner
+               double fraction = barVO.getEffectiveCornerRadius();
 
                if(!elem.isStack()) {
-                  cornerRadius = r;
+                  cornerRadius = fraction;
 
                   if(!elem.isRoundAllCorners()) {
                      barDirection = outerDir;
@@ -1392,10 +1394,10 @@ public class GraphBuilder {
                         ? barBounds.getWidth() : barBounds.getHeight();
 
                      BarVO.ArcZoneInfo zones = BarVO.computeArcZones(
-                        geom, r, barWidth, segDim, elem.isRoundAllCorners());
+                        geom, fraction, barWidth, segDim, elem.isRoundAllCorners());
 
                      if(zones.inOuterArcZone() || zones.inInnerArcZone()) {
-                        cornerRadius = r;
+                        cornerRadius = fraction;
                         stackDimension = zones.stackDim();
                         barDirection = outerDir;
 
