@@ -147,6 +147,27 @@ public class AssemblyMaxModeService {
             throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
          }
 
+         // The Viewer offers no Show Enlarged on a Selection Container's child (only the container
+         // itself can be enlarged), and enlarging one blanks the Viewer. Restoring stays allowed
+         // so a sheet already in that state can be repaired: a child that carries a maxSize is
+         // restored, and a child that does not has nothing to restore.
+         VSAssembly container = assembly.getContainer();
+
+         if(container instanceof CurrentSelectionVSAssembly) {
+            if(maximized) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is inside Selection Container '" +
+                  container.getAbsoluteName() + "'; maximize the container instead.");
+            }
+
+            if(maxSizeOf(assembly) == null) {
+               // restoring would clear the sheet-wide flag a maximized container relies on
+               result.put("assembly", assemblyName);
+               result.put("maximized", false);
+               return;
+            }
+         }
+
          if(assembly instanceof TableDataVSAssembly) {
             MaxTableEvent event = ImmutableMaxTableEvent.builder()
                .maxSize(maxSize)
@@ -167,9 +188,10 @@ public class AssemblyMaxModeService {
          }
          else {
             throw new IllegalArgumentException(
-               "'" + assemblyName + "' is a " + assembly.getClass().getSimpleName() +
+               "'" + assemblyName + "' is a " + PropertyAliases.typeNameOf(assembly) +
                ", which has no Maximize/Restore runtime state. Only tables/crosstabs/calc " +
-               "tables, charts, selection lists/trees and range sliders support it.");
+               "tables, charts, selection lists/trees, range sliders and selection containers " +
+               "support it.");
          }
 
          result.put("assembly", assemblyName);
