@@ -528,7 +528,7 @@ public class ExportUtil {
             if(Arrays.binarySearch(extDataFmt, suffix) > -1) {
                // Bug #79602: use the real Excel scaling-comma pattern (e.g. $#,###,"K")
                // instead of falling back to the literal, unscaled K/M/B pattern.
-               String excelPattern = ExcelUtil.analyze(fmt);
+               String excelPattern = ExcelUtil.analyze(fmt, obj);
                return "".equals(excelPattern) ? "General" : excelPattern;
             }
          }
@@ -561,7 +561,7 @@ public class ExportUtil {
          // if string type, we should set text format in excel, but if format is
          // decimal format, we should use its original format.
          if(fmt instanceof DecimalFormat && obj instanceof Number) {
-            return ExcelUtil.analyze(fmt);
+            return ExcelUtil.analyze(fmt, obj);
          }
 
          return "@";
@@ -582,7 +582,8 @@ public class ExportUtil {
          }
       }
 
-      ftmPatt = ExcelUtil.analyze(fmt);
+      // Bug #80103, the K/M/B unit shown depends on the value, so analyze for this cell's value
+      ftmPatt = ExcelUtil.analyze(fmt, obj);
 
       return "".equals(ftmPatt) ? "General" : ftmPatt;
    }
