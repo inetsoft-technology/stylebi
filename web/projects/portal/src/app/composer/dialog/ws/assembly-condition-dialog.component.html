@@ -63,7 +63,6 @@
           <a ngbNavLink>_#(MV Update)</a>
           <ng-template ngbNavContent>
             <mv-condition-pane [subqueryTables]="model.subqueryTables" [runtimeId]="worksheet.runtimeId" [assemblyName]="assemblyName"
-              [socketConnection]="worksheetClient"
               [model]="model.mvConditionPaneModel" [expressionFields]="model.expressionFields"
             [variableNames]="model.variableNames"></mv-condition-pane>
           </ng-template>
