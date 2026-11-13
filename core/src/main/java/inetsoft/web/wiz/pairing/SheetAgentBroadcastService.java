@@ -36,9 +36,12 @@ import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
 import inetsoft.web.composer.ws.command.SetAgentActiveCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
+import inetsoft.web.viewsheet.command.AddVSObjectCommand;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.RefreshAgentScriptCommand;
+import inetsoft.web.viewsheet.command.RefreshEmbeddedVSCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
+import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.command.SetViewsheetInfoCommand;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
@@ -153,7 +156,10 @@ public class SheetAgentBroadcastService {
       }
 
       if(sheetType == SheetType.VIEWSHEET) {
+         broadcastCapturedRemovals(runtimeId, sessionId, user, capturedCommands);
          broadcastViewsheetRefresh((RuntimeViewsheet) rs, runtimeId, sessionId, user);
+         broadcastCapturedEmbeddedContent((RuntimeViewsheet) rs, runtimeId, sessionId, user,
+                                          capturedCommands);
          broadcastCapturedTableData((RuntimeViewsheet) rs, runtimeId, sessionId, user,
                                     capturedCommands);
          sendUndoState(rs, runtimeId, sessionId, user);
@@ -264,6 +270,84 @@ public class SheetAgentBroadcastService {
 
       LOG.info("Pairing broadcast viewsheet refresh sent (runtimeId={}, sessionId={}, assemblies={})",
                runtimeId, sessionId, sent);
+   }
+
+   /**
+    * Forwards the {@code RemoveVSObjectCommand}s a mutation dispatched (and the capturing
+    * dispatcher swallowed) to the paired browser, ahead of the per-assembly refresh. The refresh
+    * only walks the assemblies that still exist and the Composer client removes an object from its
+    * canvas solely on {@code RemoveVSObjectCommand}, so without this a removed, cut, ungrouped or
+    * hidden assembly (Bug #81304), and every child of a removed embedded viewsheet, stays drawn.
+    * Each command keeps the address the native service gave it (selection-container children).
+    * Best effort: a failure is logged and swallowed.
+    */
+   private void broadcastCapturedRemovals(String runtimeId, String sessionId, String user,
+                                          List<CommandDispatcher.Command> captured)
+   {
+      if(captured == null || captured.isEmpty()) {
+         return;
+      }
+
+      for(CommandDispatcher.Command c : captured) {
+         if(c == null || !(c.getCommand() instanceof RemoveVSObjectCommand)) {
+            continue;
+         }
+
+         try {
+            String assembly = c.getAssembly();
+            sendToBrowser(user, sessionId, runtimeId,
+                          assembly == null || assembly.isEmpty() ? null : assembly,
+                          c.getCommand());
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to forward a removal to the paired browser (runtimeId={})",
+                     runtimeId, ex);
+         }
+      }
+   }
+
+   /**
+    * Forwards the commands that put an embedded viewsheet's content on the canvas to the paired
+    * browser, after the per-assembly refresh has created the embed itself (Bug #81304). The
+    * embed's children live inside the embed's own client component, which creates a child only
+    * from an {@code AddVSObjectCommand} (a refresh updates an existing child and ignores a
+    * missing one), so the capturing dispatcher swallowing them left an added embed empty until the
+    * user hit Refresh. Only commands addressed to an embedded viewsheet that still exists are
+    * forwarded, in the order the native service dispatched them ({@code RefreshEmbeddedVSCommand}
+    * before the children's adds). Best effort: a failure is logged and swallowed.
+    */
+   private void broadcastCapturedEmbeddedContent(RuntimeViewsheet rvs, String runtimeId,
+                                                 String sessionId, String user,
+                                                 List<CommandDispatcher.Command> captured)
+   {
+      if(captured == null || captured.isEmpty()) {
+         return;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return;
+      }
+
+      for(CommandDispatcher.Command c : captured) {
+         if(c == null || c.getAssembly() == null || c.getAssembly().isEmpty() ||
+            !(c.getCommand() instanceof AddVSObjectCommand ||
+              c.getCommand() instanceof RefreshEmbeddedVSCommand))
+         {
+            continue;
+         }
+
+         try {
+            if(vs.getAssembly(c.getAssembly()) instanceof Viewsheet) {
+               sendToBrowser(user, sessionId, runtimeId, c.getAssembly(), c.getCommand());
+            }
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to forward embedded viewsheet content to the paired browser " +
+                     "(assembly={})", c.getAssembly(), ex);
+         }
+      }
    }
 
    /**
