@@ -242,7 +242,12 @@ class UserTreeServiceCreateOrganizationTest {
          providerService, null, null, localization, securityEngine, null,
          mock(org.springframework.messaging.simp.SimpMessagingTemplate.class,
               withSettings().lenient()),
-         null, null, licenseManager, null, null, null, null, null, null, null);
+         null, null, licenseManager, null, null, null, null, null, null, null) {
+         @Override
+         java.util.concurrent.locks.Lock createOrganizationLock() {
+            return new java.util.concurrent.locks.ReentrantLock();
+         }
+      };
 
       when(editProvider.getOrganization("org2")).thenReturn(null);
       when(editProvider.getOrgIdFromName("New Org")).thenReturn(null);
