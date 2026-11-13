@@ -18,6 +18,11 @@
 package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.TableLens;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
@@ -59,6 +64,7 @@ import java.awt.Point;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1532,5 +1538,60 @@ class ScriptImageServiceTest {
       RuntimeViewsheet rvs = spy(new RuntimeViewsheet());
       doReturn(vs).when(rvs).getViewsheet();
       return rvs;
+   }
+
+   // Bug #80075 (5): exportTable is the agent per-target Excel export. A table whose live query
+   // failed is swallowed into a design-time sample row; the export must refuse it, not write it.
+
+   private static ScriptImageService exportTableService(AssemblyImageService images) {
+      return new ScriptImageService(images, mock(BinaryTransferService.class),
+                                    mock(VSExportService.class));
+   }
+
+   private static RuntimeViewsheet rvsWithTableLens(TableLens lens) throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getVSTableLens("T1", false)).thenReturn(new VSTableLens(lens));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("rt1");
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      return rvs;
+   }
+
+   @Test
+   void exportTableRefusesATableWhoseLiveQueryFailed() throws Exception {
+      DefaultTableLens failed = new DefaultTableLens(2, 1);
+      failed.setProperty(XNodeMetaTable.FAILED_QUERY_PROPERTY, "inconsistent datatypes");
+      AssemblyImageService images = mock(AssemblyImageService.class);
+      Principal user = TestPrincipals.user("alice", "host-org");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> exportTableService(images).exportTable(rvsWithTableLens(failed), "T1", null, user));
+
+      assertTrue(e.getMessage().contains("inconsistent datatypes"), e.getMessage());
+      verify(images, never()).exportViewsheetTable(any(), any(), any(), any());
+   }
+
+   @Test
+   void exportTableStillExportsATableThatRenderedRealData() throws Exception {
+      AssemblyImageService images = mock(AssemblyImageService.class);
+      Principal user = TestPrincipals.user("alice", "host-org");
+      AssemblyImageService.SheetExportResult expected =
+         new AssemblyImageService.SheetExportResult(new byte[] { 1 }, "f", "m", "xlsx");
+      when(images.exportViewsheetTable("rt1", "T1", null, user)).thenReturn(expected);
+
+      assertSame(expected, exportTableService(images).exportTable(
+         rvsWithTableLens(new DefaultTableLens(2, 1)), "T1", null, user));
+   }
+
+   @Test
+   void exportTableWithNoSandboxStillDelegates() throws Exception {
+      AssemblyImageService images = mock(AssemblyImageService.class);
+      Principal user = TestPrincipals.user("alice", "host-org");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("rt1");
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertNull(exportTableService(images).exportTable(rvs, "T1", null, user));
+      verify(images).exportViewsheetTable("rt1", "T1", null, user);
    }
 }
