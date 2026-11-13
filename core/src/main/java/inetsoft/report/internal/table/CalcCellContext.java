@@ -129,6 +129,23 @@ public class CalcCellContext implements Serializable {
    }
 
    /**
+    * Check if all groups in this context are present and matching in the other context.
+    * This allows this context to have fewer groups than the other (subset match).
+    */
+   public boolean containedIn(CalcCellContext other) {
+      for(Map.Entry<String, Group> entry : groups.entrySet()) {
+         Group g1 = entry.getValue();
+         Group g2 = other.groups.get(entry.getKey());
+
+         if(g1 == null || !g1.equals(g2)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Check if the context contains the same groups.
     */
    public boolean equalsOneGroup(Object obj) {
