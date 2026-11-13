@@ -25,8 +25,8 @@ import java.util.Map;
 
 public class DelayedMergeIntMap<K> extends AbstractObject2IntMap<K> {
    public DelayedMergeIntMap() {
-      this.map1 = new Object2IntOpenHashMap<>();
-      this.map2 = new Object2IntOpenHashMap<>();
+      this.map1 = new Object2IntOpenHashMap<>(DEFAULT_EXPECTED_SIZE);
+      this.map2 = new Object2IntOpenHashMap<>(DEFAULT_EXPECTED_SIZE);
    }
 
    public DelayedMergeIntMap(Object2IntOpenHashMap<K> map1, Object2IntOpenHashMap<K> map2) {
@@ -43,7 +43,10 @@ public class DelayedMergeIntMap<K> extends AbstractObject2IntMap<K> {
 
    private synchronized void createMergedMap() {
       if(mergedMap == null) {
-         mergedMap = new Object2IntOpenHashMap<>();
+         // size to the two source maps' combined entry count instead of fastutil's
+         // default of 16 -- this is typically 1-2 groups, and one of these gets
+         // materialized per merged (both-directions-expanded) cell context.
+         mergedMap = new Object2IntOpenHashMap<>(Math.max(map1.size() + map2.size(), 1));
          mergedMap.putAll(map1);
          mergedMap.putAll(map2);
       }
@@ -207,4 +210,10 @@ public class DelayedMergeIntMap<K> extends AbstractObject2IntMap<K> {
    private final Object2IntOpenHashMap<K> map1;
    private final Object2IntOpenHashMap<K> map2;
    private Object2IntOpenHashMap<K> mergedMap;
+
+   // fastutil's no-arg constructor sizes the backing table for 16 entries; a
+   // CalcCellContext is allocated per expanded row/column of a calc table and
+   // typically holds only one or two, so that default multiplies into a lot of
+   // wasted heap on wide row expansions.
+   private static final int DEFAULT_EXPECTED_SIZE = 2;
 }

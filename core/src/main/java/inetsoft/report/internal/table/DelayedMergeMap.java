@@ -31,7 +31,10 @@ public class DelayedMergeMap<K, V> extends AbstractMap<K, V> {
 
    private synchronized void createMergedMap() {
       if(mergedMap == null) {
-         mergedMap = new Object2ObjectOpenHashMap<>();
+         // size to the two source maps' combined entry count instead of fastutil's
+         // default of 16 -- this is typically 1-2 groups, and one of these gets
+         // materialized per merged (both-directions-expanded) cell context.
+         mergedMap = new Object2ObjectOpenHashMap<>(Math.max(map1.size() + map2.size(), 1));
          mergedMap.putAll(map1);
          mergedMap.putAll(map2);
       }
