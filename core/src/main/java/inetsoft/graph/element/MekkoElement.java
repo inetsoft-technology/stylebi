@@ -69,6 +69,22 @@ public class MekkoElement extends GraphElement {
       return dim2;
    }
 
+   /**
+    * Check whether a segment under 2px along the value axis draws as a 1px line in its own
+    * colour instead of being covered by its separators.
+    */
+   public boolean isThinSegmentLine() {
+      return thinSegmentLine;
+   }
+
+   /**
+    * Set whether a segment under 2px along the value axis draws as a 1px line in its own
+    * colour instead of being covered by its separators.
+    */
+   public void setThinSegmentLine(boolean thinSegmentLine) {
+      this.thinSegmentLine = thinSegmentLine;
+   }
+
    @Override
    public void createGeometry(DataSet data, GGraph graph) {
       // not defined, just show blank
@@ -202,12 +218,13 @@ public class MekkoElement extends GraphElement {
 
       if(obj instanceof MekkoElement) {
          MekkoElement elem = (MekkoElement) obj;
-         return Objects.equals(dim2, elem.dim2);
+         return Objects.equals(dim2, elem.dim2) && thinSegmentLine == elem.thinSegmentLine;
       }
 
       return false;
    }
 
    private String dim2; // inner stacking dimension
+   private boolean thinSegmentLine;
    private static final long serialVersionUID = 1L;
 }

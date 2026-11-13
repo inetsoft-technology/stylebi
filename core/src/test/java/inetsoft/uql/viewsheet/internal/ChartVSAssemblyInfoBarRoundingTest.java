@@ -71,7 +71,7 @@ class ChartVSAssemblyInfoBarRoundingTest {
    void barRadiusSeededUnderGate() {
       withGate("true", () -> {
          PlotDescriptor plot = newChartPlot();
-         assertEquals(0.3, plot.getBarCornerRadius(), 1e-9);
+         assertEquals(VSChartChromeDefaults.BAR_CORNER_RADIUS, plot.getBarCornerRadius(), 1e-9);
       });
    }
 
@@ -88,7 +88,7 @@ class ChartVSAssemblyInfoBarRoundingTest {
       PlotDescriptor[] holder = new PlotDescriptor[1];
       withGate("true", () -> holder[0] = newChartPlot());
 
-      withGate("false", () -> assertEquals(0.3, holder[0].getBarCornerRadius(), 1e-9,
+      withGate("false", () -> assertEquals(VSChartChromeDefaults.BAR_CORNER_RADIUS, holder[0].getBarCornerRadius(), 1e-9,
                                            "a chart made under the gate stays rounded; Revert is "
                                               + "the only route back to square"));
    }
