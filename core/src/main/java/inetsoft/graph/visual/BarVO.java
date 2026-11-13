@@ -231,11 +231,12 @@ public class BarVO extends ElementVO {
          boolean roundingApplied = false;
 
          double r = cornerFraction(ielem0, preRounding);
+         IntervalGeometry geom = (IntervalGeometry) getGeometry();
+         boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
+         int openDir = stdOrientation ? (negative ? 0 : 1) : (negative ? 3 : 2);
+         boolean rect = !(this instanceof Bar3DVO) && getOuterArc(path0) == null && !isFunnel;
 
-         if(r > 0 && !(this instanceof Bar3DVO) && getOuterArc(path0) == null && !isFunnel) {
-            IntervalGeometry geom = (IntervalGeometry) getGeometry();
-            boolean stdOrientation = GTool.isHorizontal(getScreenTransform());
-            int openDir = stdOrientation ? (negative ? 0 : 1) : (negative ? 3 : 2);
+         if(r > 0 && rect) {
             roundingApplied = true;
 
             if(!ielem0.isStack()) {
@@ -245,6 +246,20 @@ public class BarVO extends ElementVO {
             }
             else {
                path0 = applyStackRounding(path0, geom, ielem0, r, openDir, stdOrientation);
+            }
+         }
+
+         double minStep = ielem0.getMinStepPx();
+
+         // a zero interval still draws nothing
+         if(rect && minStep > 0 && geom.getInterval() != 0) {
+            Rectangle2D drawn = path0.getBounds2D();
+
+            if((stdOrientation ? drawn.getHeight() : drawn.getWidth()) < minStep) {
+               Rectangle2D step = growFromBase(preRounding, minStep, openDir);
+               path0 = r > 0 ? buildRoundedBarShape(step, r, openDir, true) : step;
+               // the region draws the grown step too
+               preRounding = (Rectangle2D) step.clone();
             }
          }
 
@@ -1873,6 +1888,29 @@ public class BarVO extends ElementVO {
 
       path.closePath();
       return path;
+   }
+
+   /**
+    * Get a rectangle of a length along the value axis that starts at a bar's base edge (the end
+    * opposite its open end) and runs toward its open end.
+    *
+    * @param bounds    screen-space bounding rectangle of the bar
+    * @param length    the length along the value axis, in screen pixels
+    * @param direction open-end direction, as in {@link #buildRoundedBarShape}
+    */
+   static Rectangle2D growFromBase(Rectangle2D bounds, double length, int direction) {
+      double x = bounds.getX();
+      double y = bounds.getY();
+      double w = bounds.getWidth();
+      double h = bounds.getHeight();
+
+      return switch(direction) {
+         case 0 -> new Rectangle2D.Double(x, y + h - length, w, length);
+         case 1 -> new Rectangle2D.Double(x, y, w, length);
+         case 2 -> new Rectangle2D.Double(x, y, length, h);
+         case 3 -> new Rectangle2D.Double(x + w - length, y, length, h);
+         default -> throw new IllegalArgumentException("direction: " + direction);
+      };
    }
 
    /**

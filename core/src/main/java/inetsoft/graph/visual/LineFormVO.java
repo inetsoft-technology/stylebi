@@ -55,20 +55,11 @@ public class LineFormVO extends FormVO {
       Graphics2D g2 = (Graphics2D) g.create();
       Shape shape = getShape();
       LineForm form = (LineForm) getForm();
-      Point2D[] pts = new Point2D[points.length];
+      Point2D[] pts = getScreenPoints();
       boolean fillWidth = "true".equals(form.getHint("fill")) &&
          points.length == 2 && points[0].getX() == 0 && points[1].getX() == 1000;
       boolean fillHeight = "true".equals(form.getHint("fill")) &&
          points.length == 2 && points[0].getY() == 0 && points[1].getY() == 1000;
-
-      for(int i = 0; i < points.length; i++) {
-         if(isFixedPosition()) {
-            pts[i] = transformFixedPosition(points[i]);
-         }
-         else {
-            pts[i] = getScreenTransform().transform(points[i], null);
-         }
-      }
 
       // apply offset
       for(int i = 0; i < pts.length; i++) {
@@ -213,6 +204,24 @@ public class LineFormVO extends FormVO {
     */
    public Point2D[] getPoints() {
       return points;
+   }
+
+   /**
+    * Get the points the line is drawn through, before the form's offset is applied.
+    */
+   protected Point2D[] getScreenPoints() {
+      Point2D[] pts = new Point2D[points.length];
+
+      for(int i = 0; i < points.length; i++) {
+         if(isFixedPosition()) {
+            pts[i] = transformFixedPosition(points[i]);
+         }
+         else {
+            pts[i] = getScreenTransform().transform(points[i], null);
+         }
+      }
+
+      return pts;
    }
 
    private Point2D[] points;

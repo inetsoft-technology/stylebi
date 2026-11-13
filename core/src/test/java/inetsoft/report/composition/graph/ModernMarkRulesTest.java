@@ -200,6 +200,21 @@ class ModernMarkRulesTest {
    }
 
    @Test
+   void aMarkedWaterfallSetsTheStepFloor() {
+      List<IntervalElement> bars = intervals(measureChart(GraphTypes.CHART_WATERFALL),
+                                             VizMark.MODERN_LIGHT);
+      List<IntervalElement> classic = intervals(measureChart(GraphTypes.CHART_WATERFALL), null);
+      List<IntervalElement> plain = intervals(measureChart(GraphTypes.CHART_BAR),
+                                              VizMark.MODERN_LIGHT);
+
+      assertEquals(2, bars.size(), "premise: the bars and the Total");
+      assertEquals(2, classic.size(), "premise: the classic bars and the Total");
+      bars.forEach(bar -> assertEquals(2, bar.getMinStepPx(), vars(bar)));
+      classic.forEach(bar -> assertEquals(0, bar.getMinStepPx(), "classic " + vars(bar)));
+      assertEquals(0, plain.get(0).getMinStepPx(), "a marked bar chart");
+   }
+
+   @Test
    void aModernIntervalIsHalfItsSlot() {
       SizeFrame modern = intervals(sizedChart(GraphTypes.CHART_INTERVAL), VizMark.MODERN_LIGHT)
          .get(0).getSizeFrame();

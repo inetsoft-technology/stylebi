@@ -18,6 +18,7 @@
 package inetsoft.graph.element;
 
 import com.inetsoft.build.tern.*;
+import inetsoft.graph.EGraph;
 import inetsoft.graph.GGraph;
 import inetsoft.graph.aesthetic.GLine;
 import inetsoft.graph.aesthetic.SizeFrame;
@@ -25,8 +26,10 @@ import inetsoft.graph.aesthetic.VisualModel;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.SortedDataSet;
+import inetsoft.graph.data.SumDataSet;
 import inetsoft.graph.geometry.IntervalGeometry;
 import inetsoft.graph.geometry.Pie3DGeometry;
+import inetsoft.graph.guide.form.BridgeLineForm;
 import inetsoft.graph.guide.form.GraphForm;
 import inetsoft.graph.guide.form.LineForm;
 import inetsoft.graph.internal.GDefaults;
@@ -259,7 +262,8 @@ public class IntervalElement extends StackableElement {
                         // The total is drawn by a separate element, so its geometry is
                         // not available here; use the nominal bar half-width for that end.
                         addBridgeForm(graph, prevBridgeX[v], prevBridgeHalf[v],
-                                      sumX, bridgeBarHalfWidth(coord), bridgeY);
+                                      sumX, bridgeBarHalfWidth(coord),
+                                      isTotalWidthClamp(graph, vname0), bridgeY);
                      }
                      // NaN suppresses any bridge drawn from the total bar to subsequent bars.
                      prevBridgeX[v] = Double.NaN;
@@ -388,7 +392,7 @@ public class IntervalElement extends StackableElement {
 
                   if(!Double.isNaN(prevBridgeX[v]) && vtuple[0] - prevBridgeX[v] > 0) {
                      addBridgeForm(graph, prevBridgeX[v], prevBridgeHalf[v],
-                                   vtuple[0], curHalf, vtuple[1]);
+                                   vtuple[0], curHalf, widthClamp, vtuple[1]);
                   }
 
                   prevBridgeX[v] = vtuple[0];
@@ -775,6 +779,22 @@ public class IntervalElement extends StackableElement {
    }
 
    /**
+    * Get the shortest a bar with a non-zero interval draws along the value axis, in screen
+    * pixels. 0 turns the minimum off.
+    */
+   public double getMinStepPx() {
+      return minStepPx;
+   }
+
+   /**
+    * Set the shortest a bar with a non-zero interval draws along the value axis, in screen
+    * pixels. A shorter bar grows from its base toward its value. 0 turns the minimum off.
+    */
+   public void setMinStepPx(double minStepPx) {
+      this.minStepPx = minStepPx;
+   }
+
+   /**
     * Set whether the intervals are visually stacked. A bar may be stacked in value but
     * not visually stacked (e.g. waterfall).
     */
@@ -815,6 +835,7 @@ public class IntervalElement extends StackableElement {
             Objects.equals(visualStacked, elem.visualStacked) &&
             cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners &&
             cornerFloor == elem.cornerFloor && widthClamp == elem.widthClamp &&
+            minStepPx == elem.minStepPx &&
             Objects.equals(bridgeLineColor, elem.bridgeLineColor) &&
             Objects.equals(bridgeLineStyle, elem.bridgeLineStyle) &&
             waterfall == elem.waterfall;
@@ -880,8 +901,9 @@ public class IntervalElement extends StackableElement {
    // bars: when the bridge spans a gap of missing categories (fromX/toX more than one
    // unit apart) the endpoints must still land just outside each bar rather than
    // shrinking to a stub in the middle. (75624, 75626)
+   // toClamp: whether the bar it ends at is width-clamped (the start bar is this element's)
    private void addBridgeForm(GGraph graph, double fromX, double fromHalf,
-                              double toX, double toHalf, double bridgeY)
+                              double toX, double toHalf, boolean toClamp, double bridgeY)
    {
       double left = fromX + bridgeInset(fromHalf);
       double right = toX - bridgeInset(toHalf);
@@ -900,14 +922,33 @@ public class IntervalElement extends StackableElement {
       // replicated across every facet cell. Prepend the cell's facet nesting
       // indices so the bridge is drawn only in its own sub-coordinate. (75624)
       double[] nest = GraphForm.getNestTuple(graph.getCoordinate());
-      LineForm bridge = new LineForm(
-         bridgePoint(nest, left, bridgeY),
-         bridgePoint(nest, right, bridgeY));
+      double[] from = bridgePoint(nest, left, bridgeY);
+      double[] to = bridgePoint(nest, right, bridgeY);
+      // a clamped bar's end moves on screen with the bar's edge
+      LineForm bridge = widthClamp || toClamp
+         ? new BridgeLineForm(from, to, fromX, toX, fromHalf, toHalf, widthClamp, toClamp)
+         : new LineForm(from, to);
       bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
       bridge.setLine(bridgeLineStyle.getStyle());
       bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
       bridge.setInPlot(true);
       graph.getEGraph().addForm(bridge);
+   }
+
+   // the clamp of the Total's own element, or this element's without one
+   private boolean isTotalWidthClamp(GGraph graph, String var) {
+      EGraph egraph = graph.getEGraph();
+      String total = SumDataSet.SUM_HEADER_PREFIX + var;
+
+      for(int i = 0; i < egraph.getElementCount(); i++) {
+         if(egraph.getElement(i) instanceof IntervalElement elem &&
+            Arrays.asList(elem.getVars()).contains(total))
+         {
+            return elem.isWidthClamp();
+         }
+      }
+
+      return widthClamp;
    }
 
    // How far a bridge endpoint sits from its bar's center, given that bar's half-width
@@ -971,6 +1012,7 @@ public class IntervalElement extends StackableElement {
    private boolean roundAllCorners = false;
    private boolean cornerFloor = false;
    private boolean widthClamp = false;
+   private double minStepPx = 0;
    private Boolean visualStacked;
    private Color bridgeLineColor = null;
    private GLine bridgeLineStyle = null;
