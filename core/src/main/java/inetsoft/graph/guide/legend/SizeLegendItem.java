@@ -52,7 +52,8 @@ public class SizeLegendItem extends LegendItem {
       double size = frame.getSize(getValue());
       double smallest = frame.getSmallest();
       double largest = frame.getLargest();
-      double sizeRatio = (size - smallest) / (largest - smallest);
+      // a frame with no size range draws every symbol full
+      double sizeRatio = largest == smallest ? 1 : (size - smallest) / (largest - smallest);
       int symbolSz = getSymbolSize();
       double r = 1 + (symbolSz  - 1) * sizeRatio;
 

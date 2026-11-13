@@ -761,6 +761,20 @@ public class IntervalElement extends StackableElement {
    }
 
    /**
+    * Check whether a bar's thickness is kept between 3 and 32 screen pixels.
+    */
+   public boolean isWidthClamp() {
+      return widthClamp;
+   }
+
+   /**
+    * Set whether a bar's thickness is kept between 3 and 32 screen pixels.
+    */
+   public void setWidthClamp(boolean widthClamp) {
+      this.widthClamp = widthClamp;
+   }
+
+   /**
     * Set whether the intervals are visually stacked. A bar may be stacked in value but
     * not visually stacked (e.g. waterfall).
     */
@@ -800,7 +814,7 @@ public class IntervalElement extends StackableElement {
          return bases.equals(elem.bases) && zeroHeight == elem.zeroHeight &&
             Objects.equals(visualStacked, elem.visualStacked) &&
             cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners &&
-            cornerFloor == elem.cornerFloor &&
+            cornerFloor == elem.cornerFloor && widthClamp == elem.widthClamp &&
             Objects.equals(bridgeLineColor, elem.bridgeLineColor) &&
             Objects.equals(bridgeLineStyle, elem.bridgeLineStyle) &&
             waterfall == elem.waterfall;
@@ -956,6 +970,7 @@ public class IntervalElement extends StackableElement {
    private double cornerRadius = 0;
    private boolean roundAllCorners = false;
    private boolean cornerFloor = false;
+   private boolean widthClamp = false;
    private Boolean visualStacked;
    private Color bridgeLineColor = null;
    private GLine bridgeLineStyle = null;

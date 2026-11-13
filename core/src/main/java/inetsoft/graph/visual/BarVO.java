@@ -215,6 +215,16 @@ public class BarVO extends ElementVO {
          }
 
          path0 = transformShape(path0, getScreenTransform());
+         double clampRef = 0;
+
+         if(isWidthClamped() && getOuterArc(path0) == null) {
+            // an overlay follows the clamp of the bar it overlays
+            Rectangle2D ref = overlaidBounds != null
+               ? transformShape(overlaidBounds, getScreenTransform()).getBounds2D()
+               : path0.getBounds2D();
+            clampRef = getThickness(ref);
+            path0 = scaleThickness(path0, getClampRatio(clampRef));
+         }
 
          // cache pre-rounding bounds for region/metadata computation
          Rectangle2D preRounding = path0.getBounds2D();
@@ -239,7 +249,7 @@ public class BarVO extends ElementVO {
          }
 
          this.cachedShape = new SoftReference<>(
-            new CachedShape(trans0, path0, preRounding, roundingApplied));
+            new CachedShape(trans0, path0, preRounding, roundingApplied, clampRef));
       }
 
       return path0;
@@ -846,6 +856,7 @@ public class BarVO extends ElementVO {
       double cx = rect.getX() + rect.getWidth() / 2;
       double x0 = rect.getX();
       double totalw2 = 0;
+      Point2D center = new Point2D.Double(cx, rect.getCenterY());
 
       // shift to the right to unwind the bar
       for(int i = 0; i < stacks.size(); i++) {
@@ -861,6 +872,7 @@ public class BarVO extends ElementVO {
             rect2 = shape2.getBounds2D();
             shape2 = GTool.move(shape2, x0 - rect2.getX(), 0);
             bar.setShape(shape2);
+            bar.clusterCenter = center;
             barw = Math.max(barw, rect2.getWidth());
          }
 
@@ -1218,6 +1230,15 @@ public class BarVO extends ElementVO {
 
       if(cachedShape != null) {
          cachedShape.path = transformShape(path2, trans);
+
+         // re-clamp from the rescaled unclamped thickness
+         if(cachedShape.clampRef > 0) {
+            double ref = cachedShape.clampRef * factor / myfactor;
+            double ratio = getClampRatio(ref) / getClampRatio(cachedShape.clampRef);
+
+            cachedShape.path = scaleThickness(cachedShape.path, ratio);
+            cachedShape.clampRef = ref;
+         }
       }
    }
 
@@ -1267,7 +1288,11 @@ public class BarVO extends ElementVO {
     */
    @Override
    public void overlay(VisualObject vo) {
-      Rectangle2D bounds0 = ((ElementVO) vo).getShapes()[0].getBounds2D();
+      BarVO base = (BarVO) vo;
+      boolean clamped = base.isWidthClamped();
+      // the clamp needs screen pixels, so overlay a clamped base's unclamped shape
+      Rectangle2D bounds0 = clamped ? base.shape.getBounds2D()
+         : ((ElementVO) vo).getShapes()[0].getBounds2D();
       Rectangle2D bounds = shape.getBounds2D();
       // make the overlay vo thiner than the base vo
       double width = Math.min(bounds0.getWidth() * getOverlayRatio(), bounds.getWidth());
@@ -1303,6 +1328,13 @@ public class BarVO extends ElementVO {
       overShape = ((BarVO) vo).shape;
       cachedShape.clear();
       setShape(nshape);
+
+      // scale with the base so this bar stays inside it
+      if(clamped) {
+         overlaidBounds = bounds0;
+         clusterCenter = base.clusterCenter != null ? base.clusterCenter
+            : new Point2D.Double(bounds0.getCenterX(), bounds0.getCenterY());
+      }
    }
 
    /**
@@ -1534,18 +1566,21 @@ public class BarVO extends ElementVO {
 
    private static class CachedShape {
       public CachedShape(AffineTransform trans, Shape shape,
-                         Rectangle2D preRoundingBounds, boolean roundingApplied)
+                         Rectangle2D preRoundingBounds, boolean roundingApplied,
+                         double clampRef)
       {
          this.trans = trans;
          this.path = shape;
          this.preRoundingBounds = preRoundingBounds;
          this.roundingApplied = roundingApplied;
+         this.clampRef = clampRef;
       }
 
       AffineTransform trans; // transform as of last path0
       Shape path; // transformed shape ready for drawing
       Rectangle2D preRoundingBounds; // bounds before rounding was applied
       boolean roundingApplied; // true if corner rounding changed the shape
+      double clampRef; // unclamped thickness the width clamp scaled from, 0 if none
    }
 
    /**
@@ -1589,6 +1624,56 @@ public class BarVO extends ElementVO {
       double thickness = GTool.isHorizontal(getScreenTransform())
          ? bounds.getWidth() : bounds.getHeight();
       return flooredCornerFraction(elem.getCornerRadius(), thickness);
+   }
+
+   /**
+    * Check if this bar's thickness is clamped to MIN_BAR_PX..MAX_BAR_PX. A bar that overlays
+    * another follows the bar it overlays.
+    */
+   private boolean isWidthClamped() {
+      if(overShape != null) {
+         return overlaidBounds != null;
+      }
+
+      IntervalElement elem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
+      return elem.isWidthClamp() && !(this instanceof Bar3DVO) && !isPolar() &&
+         (elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) == 0;
+   }
+
+   // the thickness of a bar with these screen bounds
+   private double getThickness(Rectangle2D bounds) {
+      return GTool.isHorizontal(getScreenTransform()) ? bounds.getWidth() : bounds.getHeight();
+   }
+
+   // the scale that brings a thickness into MIN_BAR_PX..MAX_BAR_PX
+   private static double getClampRatio(double thickness) {
+      return thickness > 0
+         ? Math.min(MAX_BAR_PX, Math.max(MIN_BAR_PX, thickness)) / thickness : 1;
+   }
+
+   // scale a screen path along the bar thickness about the cluster centre
+   private Shape scaleThickness(Shape path, double ratio) {
+      if(ratio == 1) {
+         return path;
+      }
+
+      AffineTransform screen = getScreenTransform();
+      Rectangle2D own = shape.getBounds2D();
+      Point2D center = screen.transform(clusterCenter != null ? clusterCenter
+         : new Point2D.Double(own.getCenterX(), own.getCenterY()), null);
+      AffineTransform trans = new AffineTransform();
+
+      trans.translate(center.getX(), center.getY());
+
+      if(GTool.isHorizontal(screen)) {
+         trans.scale(ratio, 1);
+      }
+      else {
+         trans.scale(1, ratio);
+      }
+
+      trans.translate(-center.getX(), -center.getY());
+      return trans.createTransformedShape(path);
    }
 
    /**
@@ -1805,6 +1890,14 @@ public class BarVO extends ElementVO {
       return Math.max(fraction * thickness, Math.min(MIN_CORNER_ARC, thickness / 4)) / thickness;
    }
 
+   /**
+    * The thinnest a width-clamped bar draws, in screen pixels.
+    */
+   static final double MIN_BAR_PX = 3;
+   /**
+    * The thickest a width-clamped bar draws, in screen pixels.
+    */
+   static final double MAX_BAR_PX = 32;
    private static final double MIN_CORNER_ARC = 2;
    private static final int BAR_MIN_WIDTH = 10;
    /**
@@ -1848,6 +1941,10 @@ public class BarVO extends ElementVO {
    private VOText stackText;
    private Coordinate coord;
    private boolean has_border = false;
+   // the centre a clamped bar scales about, pre-screen; null for its own centre
+   private Point2D clusterCenter;
+   // the unclamped pre-screen bounds of the clamped bar this bar overlays
+   private Rectangle2D overlaidBounds;
    // cached value
    private SoftReference<CachedShape> cachedShape = new SoftReference<>(null);
 }
