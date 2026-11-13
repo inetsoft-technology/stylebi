@@ -27,10 +27,14 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.util.audit.IdentityInfoRecord;
+import inetsoft.web.admin.general.LocalizationSettingsService;
+import inetsoft.web.admin.general.model.LocalizationSettingsModel;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -195,6 +199,82 @@ class UserTreeServiceCreateOrganizationTest {
 
       assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
       verify(editProvider, never()).addOrganization(any());
+   }
+
+   // Bug #80114: the Identity Info create record of an organization names the organization itself,
+   // not the creator's organization
+
+   @Test
+   void plainCreate_identityInfoRecordUsesNewOrgOwnIdentityId() throws Exception {
+      IdentityID captured = createAndCaptureIdentityInfoId(null);
+
+      assertEquals("org2", captured.orgID);
+      assertEquals("New Org", captured.name);
+   }
+
+   @Test
+   void clone_identityInfoRecordUsesNewOrgOwnIdentityId() throws Exception {
+      FSOrganization source = new FSOrganization("org1");
+      when(editProvider.getOrganization("org1")).thenReturn(source);
+      doAnswer(inv -> null).when(editProvider).copyOrganization(
+         any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any());
+
+      IdentityID captured = createAndCaptureIdentityInfoId("org1");
+
+      assertEquals("org2", captured.orgID);
+      assertEquals("New Org", captured.name);
+   }
+
+   private IdentityID createAndCaptureIdentityInfoId(String copyFrom) throws Exception {
+      LocalizationSettingsService localization =
+         mock(LocalizationSettingsService.class, withSettings().lenient());
+      LocalizationSettingsModel localizationModel =
+         mock(LocalizationSettingsModel.class, withSettings().lenient());
+      when(localizationModel.locales()).thenReturn(java.util.Collections.emptyList());
+      when(localization.getModel()).thenReturn(localizationModel);
+      AuthenticationProviderService providerService =
+         mock(AuthenticationProviderService.class, withSettings().lenient());
+      when(providerService.getProviderByName("Primary")).thenReturn(editProvider);
+      SecurityEngine securityEngine = mock(SecurityEngine.class, withSettings().lenient());
+      when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      LicenseManager licenseManager = mock(LicenseManager.class, withSettings().lenient());
+      UserTreeService svc = new UserTreeService(
+         providerService, null, null, localization, securityEngine, null,
+         mock(org.springframework.messaging.simp.SimpMessagingTemplate.class,
+              withSettings().lenient()),
+         null, null, licenseManager, null, null, null, null, null, null, null) {
+         @Override
+         java.util.concurrent.locks.Lock createOrganizationLock() {
+            return new java.util.concurrent.locks.ReentrantLock();
+         }
+      };
+
+      when(editProvider.getOrganization("org2")).thenReturn(null);
+      when(editProvider.getOrgIdFromName("New Org")).thenReturn(null);
+      FSOrganization created = new FSOrganization("org2");
+      created.setName("New Org");
+      doAnswer(inv -> {
+         when(editProvider.getOrganization("org2")).thenReturn(created);
+         return null;
+      }).when(editProvider).addOrganization(any());
+      doAnswer(inv -> {
+         when(editProvider.getOrganization("org2")).thenReturn(created);
+         return null;
+      }).when(editProvider).copyOrganization(
+         any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any());
+      when(editProvider.getUsers()).thenReturn(new IdentityID[0]);
+      when(editProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      sUtilStatic.when(() -> SUtil.getIdentityInfoRecord(
+         any(IdentityID.class), anyInt(), anyString(), any(), anyString()))
+         .thenReturn(mock(IdentityInfoRecord.class));
+
+      svc.createOrganization(copyFrom, "Primary", "New Org", "org2", principal, "Str0ng!Passw0rd");
+
+      org.mockito.ArgumentCaptor<IdentityID> captor =
+         org.mockito.ArgumentCaptor.forClass(IdentityID.class);
+      sUtilStatic.verify(() -> SUtil.getIdentityInfoRecord(
+         captor.capture(), anyInt(), eq(IdentityInfoRecord.ACTION_TYPE_CREATE), any(), anyString()));
+      return captor.getValue();
    }
 
    private void stubOrgOne() {
