@@ -107,9 +107,8 @@ class DistinctCountFormulaTest {
    // -----------------------------------------------------------------------
 
    // gap:report.summary-formulas.count#count-no-values-is-zero
-   // Pending #80953 question 2: an empty Distinct Count is 0 and never null, unlike the other
-   // formulas. The developer recommends keeping 0 (SQL COUNT(DISTINCT) over no rows); not
-   // decided yet, so this asserts the current behavior
+   // #80953 question 2 (decided): an empty Distinct Count is 0 and never null, unlike the other
+   // formulas, as SQL COUNT(DISTINCT) over no rows is 0
    @Test
    void getResult_noValues_returnsZero() {
       DistinctCountFormula distinct = new DistinctCountFormula();
@@ -209,9 +208,9 @@ class DistinctCountFormulaTest {
 
    // Test Case #80957, #80953 question 5: a typed column reaches the formula through the
    // primitive overloads (FormulaAgent), an Object column through addValue(Object). Within one
-   // type both paths give the same value. Whether 1 and 1.0 in one mixed Object column are the
-   // same value is still open in #80953 (the developer advised not to pin it), so mixed types
-   // are not asserted here
+   // type both paths give the same value. #80953 question 5 (decided): 1 and 1.0 stay two
+   // values and are not normalized until a real mixed column is shown, so mixed types are not
+   // asserted here
    @Test
    void addValue_primitiveAndObjectOfOneType_areTheSameValue() {
       DistinctCountFormula distinct = new DistinctCountFormula();
