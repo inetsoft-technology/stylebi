@@ -3306,7 +3306,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    // the longest of the tables that the path starts with, followed by a dotted column
-   private static String longestDottedTable(String path, Collection<?> tables) {
+   private String longestDottedTable(String path, Collection<?> tables) {
       String best = null;
 
       for(Object name : tables) {
@@ -3325,18 +3325,20 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * as ".cc" in AA.BB..cc. The table and the column are separated by the dot after the
     * table, and the column starts or ends with an empty segment. A path of another table
     * that happens to start with this table (AA and the removed table AA.BB in AA.BB.cc)
-    * has no empty segment, and isn't taken for the table.
+    * has no empty segment, and isn't taken for the table. The quotes of the column are kept.
     * @return the column, or null if the path isn't a path of the table with such a column.
     */
-   private static String getDottedColumn(String path, String table) {
+   private String getDottedColumn(String path, String table) {
       if(path == null || table == null || table.isEmpty() || !path.startsWith(table + ".") ||
          path.length() == table.length() + 1)
       {
          return null;
       }
 
+      // the column segment may be quoted in the path, AA.BB.".cc"
       String column = path.substring(table.length() + 1);
-      return column.startsWith(".") || column.endsWith(".") ? column : null;
+      String bare = trimPath(column);
+      return bare.startsWith(".") || bare.endsWith(".") ? column : null;
    }
 
    /**

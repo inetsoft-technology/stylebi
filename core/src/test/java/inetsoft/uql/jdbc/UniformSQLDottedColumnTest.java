@@ -26,6 +26,8 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.ColumnCache;
 import inetsoft.uql.util.Config;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.credential.LocalPasswordCredential;
@@ -93,6 +95,120 @@ class UniformSQLDottedColumnTest {
       for(String[] columns : new String[][] { COLUMNS, null }) {
          assertKept(rename(query, "a1", "a2", columns), "a2", "a1");
       }
+   }
+
+   // the select column has the alias ".cc", as the sql of the query graph has it
+   @Test
+   void renameKeepsAliasedDottedColumn() throws Exception {
+      String query = "select AA.BB.NORM, AA.BB.\".cc\" as \".cc\", CC.DD.ID from AA.BB, CC.DD " +
+         "where AA.BB.\".cc\" = CC.DD.ID";
+      String alias = "select AA.BB.NORM, a1.\".cc\" as \".cc\", CC.DD.ID from AA.BB a1, CC.DD " +
+         "where a1.\".cc\" = CC.DD.ID";
+
+      for(String[] columns : new String[][] { COLUMNS, null }) {
+         String generated = rename(query, "AA.BB", "BB1", columns);
+         assertTrue(generated.startsWith("select ") && generated.contains("BB1..cc as"), generated);
+         assertTrue(generated.contains(" where BB1..cc = CC.DD.ID"), generated);
+         generated = rename(alias.replace("AA.BB.NORM", "a1.NORM"), "a1", "a2", columns);
+         assertTrue(generated.contains("a2..cc as"), generated);
+         assertTrue(generated.contains(" where a2..cc = CC.DD.ID"), generated);
+      }
+   }
+
+   // the select column keeps the quotes of its column segment, AA.BB.".cc"
+   @Test
+   void renameKeepsInBandQuotedDottedColumn() throws Exception {
+      String query = "select AA.BB.NORM, AA.BB.\".cc\" as \".cc\", CC.DD.ID from AA.BB, CC.DD " +
+         "where AA.BB.\".cc\" = CC.DD.ID";
+
+      for(String[] columns : new String[][] { COLUMNS, null }) {
+         Fixture fixture = new Fixture(query, columns);
+         JDBCSelection select = (JDBCSelection) fixture.sql().getSelection();
+
+         for(int i = 0; i < select.getColumnCount(); i++) {
+            if(select.getColumn(i).endsWith(".cc")) {
+               select.setColumn(i, "AA.BB.\".cc\"");
+            }
+         }
+
+         SelectTable table = fixture.table("AA.BB");
+         QueryTableModel model = new QueryTableModel();
+         model.setName(Tool.toString(table.getName()));
+         model.setAlias("BB1");
+         EditQueryTableEvent event = new EditQueryTableEvent();
+         event.setId(RID);
+         event.setOldName(table.getAlias());
+         event.setTables(List.of(model));
+         fixture.graph.editQueryTableProperties(event, null);
+         String generated = regenerate(fixture.sql());
+         assertTrue(generated.contains("BB1..cc as"), generated);
+      }
+   }
+
+   // the column is added to the query as the query graph UI does (addColumns), and the
+   // table is renamed
+   @Test
+   void renameKeepsDottedColumnAddedByTheGraph() throws Exception {
+      for(String[] columns : new String[][] { COLUMNS, null }) {
+         Fixture fixture = new Fixture(
+            "select AA.BB.NORM, CC.DD.ID from AA.BB, CC.DD where AA.BB.NORM = CC.DD.ID", columns);
+         AssetEntry entry = new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.PHYSICAL_COLUMN, "ds/AA.BB/.cc", null);
+         entry.setProperty("source_with_no_quote", "AA.BB");
+         entry.setProperty("attribute", "\".cc\"");
+         entry.setProperty("dtype", "string");
+         fixture.qms.addColumns(RID, List.of(entry));
+         fixture.qms.fixUniformSQLInfo(fixture.sql(), fixture.ds, null);
+
+         SelectTable table = fixture.table("AA.BB");
+         QueryTableModel model = new QueryTableModel();
+         model.setName(Tool.toString(table.getName()));
+         model.setAlias("BB1");
+         EditQueryTableEvent event = new EditQueryTableEvent();
+         event.setId(RID);
+         event.setOldName(table.getAlias());
+         event.setTables(List.of(model));
+         String before = regenerate(fixture.sql());
+         assertTrue(before.contains("AA.BB..cc"), before);
+         fixture.graph.editQueryTableProperties(event, null);
+         String generated = regenerate(fixture.sql());
+         assertTrue(generated.contains("BB1..cc"), before + " => " + generated);
+      }
+   }
+
+   // the query of the graph: the columns of three tables are added, joined by the dotted
+   // column and by NORM, and the tables have their own columns
+   @Test
+   void renameKeepsDottedColumnOfAGraphQuery() throws Exception {
+      Fixture fixture = new Fixture(
+         "select AA.BB.NORM, CC.DD.ID, CC.EE.ID as ID_1 from AA.BB, CC.DD, CC.EE " +
+         "where AA.BB.NORM = CC.EE.ID", COLUMNS);
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.PHYSICAL_COLUMN, "ds/AA.BB/.cc", null);
+      entry.setProperty("source_with_no_quote", "AA.BB");
+      entry.setProperty("attribute", "\".cc\"");
+      entry.setProperty("dtype", "string");
+      fixture.qms.addColumns(RID, List.of(entry));
+      fixture.qms.fixUniformSQLInfo(fixture.sql(), fixture.ds, null);
+      XJoin join = new XJoin(new XExpression("AA.BB..cc", XExpression.FIELD),
+                             new XExpression("CC.DD.ID", XExpression.FIELD), "=");
+      fixture.sql().addJoin(join);
+      fixture.sql().clearSQLString();
+
+      SelectTable table = fixture.table("AA.BB");
+      QueryTableModel model = new QueryTableModel();
+      model.setName(Tool.toString(table.getName()));
+      model.setAlias("BB1");
+      EditQueryTableEvent event = new EditQueryTableEvent();
+      event.setId(RID);
+      event.setOldName(table.getAlias());
+      event.setTables(List.of(model));
+      String before = regenerate(fixture.sql());
+      assertTrue(before.contains("AA.BB..cc as"), before);
+      fixture.graph.editQueryTableProperties(event, null);
+      String generated = regenerate(fixture.sql());
+      assertTrue(generated.contains("BB1..cc as"), before + " => " + generated);
+      assertTrue(generated.contains("BB1..cc = CC.DD.ID"), before + " => " + generated);
    }
 
    // the other table of the join is renamed, the dotted column keeps its table
@@ -258,6 +374,7 @@ class UniformSQLDottedColumnTest {
          when(dss.getDataSource(any())).thenReturn(ds);
          QueryManagerService qms = new QueryManagerService(
             rqs, repository(columns), dss, mock(SecurityEngine.class), mock(ColumnCache.class));
+         this.qms = qms;
          graph = new QueryGraphModelService(rqs, dss, qms, mock(DataSourceRegistry.class));
          // the graph opens the query with the table metadata
          qms.fixUniformSQLInfo(sql, ds, null);
@@ -280,6 +397,7 @@ class UniformSQLDottedColumnTest {
       private final JDBCDataSource ds;
       private final RuntimeQueryService.RuntimeXQuery runtimeQuery;
       private final QueryGraphModelService graph;
+      private final QueryManagerService qms;
    }
 
    private static String regenerate(UniformSQL sql) {
@@ -295,7 +413,13 @@ class UniformSQLDottedColumnTest {
          XNode mtype = inv.getArgument(2);
 
          if("DBPROPERTIES".equals(mtype.getAttribute("type"))) {
-            return new XNode("properties");
+            XNode root = new XNode("properties");
+            // as the metadata of a database with schemas
+            root.setAttribute("hasCatalog", "false");
+            root.setAttribute("hasSchema", "true");
+            root.setAttribute("catalogSep", ".");
+            root.setAttribute("supportCatalog", "false");
+            return root;
          }
 
          if(columns == null) {
