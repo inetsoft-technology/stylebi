@@ -73,7 +73,12 @@ class UserTreeServiceCreateOrganizationTest {
 
       service = new UserTreeService(
          providerService, null, null, null, securityEngine, null, null, null, null, null, null,
-         null, null, null, null, null, null);
+         null, null, null, null, null, null) {
+         @Override
+         java.util.concurrent.locks.Lock createOrganizationLock() {
+            return new java.util.concurrent.locks.ReentrantLock();
+         }
+      };
    }
 
    @AfterEach

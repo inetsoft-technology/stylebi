@@ -871,10 +871,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          }
       }
 
+      // writeXML omits an empty map, so a missing element means empty
+      cssEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "cssEntries");
 
       if(node != null) {
-         cssEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "cssEntry");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -893,10 +894,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          }
       }
 
+      // writeXML omits an empty map, so a missing element means empty
+      faviconEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "faviconEntries");
 
       if(node != null) {
-         faviconEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "faviconEntry");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -915,10 +917,11 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          }
       }
 
+      // writeXML omits an empty map, so a missing element means empty
+      logoEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "logoEntries");
 
       if(node != null) {
-         logoEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "logoEntry");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -944,10 +947,10 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          welcomePage.parseXML(node);
       }
 
+      welcomePageEntries.clear();
       node = Tool.getChildNodeByTagName(tag, "welcomePageEntries");
 
       if(node != null) {
-         welcomePageEntries.clear();
          final NodeList list = Tool.getChildNodesByTagName(node, "orgPortalWelcomePage");
 
          for(int i = 0; i < list.getLength(); i++) {
@@ -1130,6 +1133,10 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       userFonts = new ArrayList<>();
       welcomePage = null;
       portalTabs.clear();
+      cssEntries.clear();
+      faviconEntries.clear();
+      logoEntries.clear();
+      welcomePageEntries.clear();
    }
 
    private int reportListType;

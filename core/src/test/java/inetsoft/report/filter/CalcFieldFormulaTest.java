@@ -684,9 +684,10 @@ public class CalcFieldFormulaTest {
       assertNull(formula.getResult());
    }
 
-   // Sum(a) / Sum(b) with Sum(b) = 0. Pending #80953 question 3c. The script gives Infinity
-   // for x / 0 and NaN for 0 / 0, and ScriptValueConverter.toHost turns both into null
-   // ("legacy behavior"), so the cell is empty; the default-result flag does not apply
+   // Sum(a) / Sum(b) with Sum(b) = 0, #80953 question 3c (decided: null, an empty cell). The
+   // script gives Infinity for x / 0 and NaN for 0 / 0, and ScriptValueConverter.toHost turns
+   // both into null ("legacy behavior"), so the cell is empty; the default-result flag does
+   // not apply
    @Test
    void expression_divideByZero_returnsNull() {
       CalcFieldFormula formula = calc(SUM_A + " / " + SUM_B, new String[] { SUM_A, SUM_B },
