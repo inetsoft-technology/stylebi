@@ -77,6 +77,19 @@ class WaterfallModernTest {
    }
 
    @Test
+   void aRisingTinyStepIsTwoPixelsFromItsStart() {
+      Waterfall chart = waterfall(true, new double[] { 100, 0.01, 50 });
+      Rectangle2D first = chart.bars().get(0).getPath().getBounds2D();
+      Rectangle2D box = chart.bars().get(1).getPath().getBounds2D();
+
+      assertEquals(2, box.getHeight(), 0.01, "the step's height");
+      // a rise grows toward the higher values (down the screen here), from where the +100 step ends
+      assertEquals(first.getMaxY(), box.getMinY(), 0.01, "the step's start edge");
+      assertEquals(ends(chart.bridges().get(0))[1].getY(), box.getMinY(), 0.01,
+                   "the incoming bridge meets the step's start");
+   }
+
+   @Test
    void aZeroStepDrawsNoBar() {
       Waterfall chart = waterfall(true, STEPS);
       BarVO zero = chart.bars().get(2);

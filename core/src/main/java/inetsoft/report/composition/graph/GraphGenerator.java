@@ -5200,17 +5200,24 @@ public abstract class GraphGenerator {
 
    /**
     * Check if a modern bar keeps its thickness to 3-32px. A size the author set or a size
-    * binding decides the width instead, except on an interval, which ignores its size.
+    * binding decides the width instead, except that an interval is clamped with a size binding.
     */
    private boolean isWidthClamped(IntervalElement elem, int chartType) {
       SizeFrame size = elem.getSizeFrame();
-      // brushing, waterfall-total and interval vars carry a prefix on the measure name
-      String[] vars = Arrays.stream(elem.getVars()).map(GraphUtil::getOriginalCol)
-         .toArray(String[]::new);
 
       return !GraphTypes.isFunnel(chartType) && !GraphTypes.is3DBar(chartType) &&
-         !info.isSizeChanged(vars) &&
+         !isAuthorSized(elem) &&
          (GraphTypes.isInterval(chartType) || size == null || size.getField() == null);
+   }
+
+   /**
+    * Check if the author changed the size of an element's measures.
+    */
+   private boolean isAuthorSized(GraphElement elem) {
+      // brushing, waterfall-total and interval vars carry a prefix on the measure name
+      String[] vars = (elem == null) ? new String[0] :
+         Arrays.stream(elem.getVars()).map(GraphUtil::getOriginalCol).toArray(String[]::new);
+      return info.isSizeChanged(vars);
    }
 
    private void setColorFrameBrightness(GraphElement elem, ColorFrame frame, ColorFrame color0) {
@@ -5289,7 +5296,8 @@ public abstract class GraphGenerator {
       if(GraphTypes.isInterval(chartType) && frame instanceof LinearSizeFrame) {
          LinearSizeFrame linear = (LinearSizeFrame) frame;
          // a modern interval draws half its slot
-         linear.setSmallest(vizContext.modern ? linear.getLargest() : linear.getLargest() - 1);
+         linear.setSmallest(vizContext.modern && !isAuthorSized(elem) ?
+                               linear.getLargest() : linear.getLargest() - 1);
          return frame;
       }
 
