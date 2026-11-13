@@ -160,25 +160,6 @@ class LayoutToolTest {
       assertEquals(null, LayoutTool.getFieldNameByScript(null));
    }
 
-   // A column name with a backslash before a letter must survive the escapeColName -> script ->
-   // getFieldNameByScript round trip; the oracle is the javadoc of getFieldNameByScript, which
-   // promises the real column name.
-   @Disabled("Not filed (UI rejects backslash in column names; related #81071): escapeColName does not escape a backslash, so the script holds a\\b (JS backspace): "
-      + "actual name read back loses the backslash vs expected a\\b")
-   @Test
-   void getFieldNameByScriptKeepsABackslashInTheColumnName() throws Exception {
-      String name = "a" + BS + "b";
-      String script = "data['" + escapeColName(name) + "@g:$g']";
-      assertEquals(name, LayoutTool.getFieldNameByScript(script));
-   }
-
-   @Disabled("Not filed (UI rejects backslash in column names; related #81071): escapeColName does not escape a backslash, so NamedCellRange decodes the group "
-      + "name a\\b to ab: actual ab vs expected a\\b")
-   @Test
-   void createGroupCondRoundTripsAGroupNameWithABackslash() throws Exception {
-      assertEquals(Set.of("a" + BS + "b"), groupKeys(groupCond(group("a" + BS + "b"), false)));
-   }
-
    private static GroupRef group(String name) {
       ColumnRef col = new ColumnRef(new AttributeRef(name));
       col.setDataType(XSchema.STRING);

@@ -17,32 +17,31 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.test.*;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.report.TableLayout;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabTree;
 import inetsoft.util.ThreadContext;
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.event.ConvertToFreehandTableEvent;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.handler.crosstab.CrosstabDrillHandler;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.binding.service.VSBindingService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -96,7 +95,7 @@ class ComposerVSTableConvertTest {
    }
 
    @Test
-   void convertedFreehandTableHasTheTopNRowsOfTheCrosstab() throws Exception {
+   void convertedFreehandTableHasTheTopNRowsOfTheCrosstabWithoutOthers() throws Exception {
       Viewsheet vs = box().getViewsheet();
       CrosstabVSAssembly crosstab = crosstab(vs, new String[] { "name", "year" }, new String[0],
                                              "wind", "Sum");
@@ -104,10 +103,11 @@ class ComposerVSTableConvertTest {
       name.setRankingOptionValue(XCondition.TOP_N + "");
       name.setRankingNValue("3");
       name.setRankingColValue("Sum(wind)");
-      name.setGroupOthersValue("true");
       String before = cells(box().getData(CROSSTAB));
 
-      // the Top 3 setting limits the first column of the crosstab to 3 names plus the Others row
+      // the Top 3 setting limits the first column of the crosstab to exactly 3 names; no Others
+      // row because the crosstab supports Others only on the innermost dimension, and name is the
+      // outer one
       Set<String> names = new HashSet<>();
       String[] lines = before.split("\n");
 
@@ -119,8 +119,7 @@ class ComposerVSTableConvertTest {
          }
       }
 
-      assertFalse(names.isEmpty());
-      assertTrue(names.size() <= 3 + 1, "Top 3 not applied on the crosstab: " + names);
+      assertEquals(3, names.size(), "Top 3 not applied on the crosstab: " + names);
 
       convert(CROSSTAB);
 

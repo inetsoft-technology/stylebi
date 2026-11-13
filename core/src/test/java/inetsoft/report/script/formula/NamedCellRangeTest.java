@@ -18,13 +18,13 @@
 
 package inetsoft.report.script.formula;
 
+import inetsoft.report.LayoutTool;
 import inetsoft.report.TableDataDescriptor;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
-import inetsoft.report.LayoutTool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
