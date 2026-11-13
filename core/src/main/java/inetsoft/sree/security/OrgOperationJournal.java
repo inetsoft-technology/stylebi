@@ -90,12 +90,34 @@ public final class OrgOperationJournal {
    public Entry begin(Type type, String fromId, String toId, String payload,
                       List<String> targets, String providerName)
    {
-      return begin(type, fromId, toId, payload, targets, providerName,
+      return begin(type, fromId, toId, payload, targets, providerName, null,
+                   OrgOperationRecovery::isOwnerGone);
+   }
+
+   /**
+    * Records the start of an operation, together with the decision that the original request
+    * made with the permissions of its own caller (Bug #81308). The decision is written in the
+    * same record as the operation, so that no record without it exists for a resumed operation
+    * to find.
+    *
+    * @param decision what the operation decided with the principal of its caller and must not
+    *                 be decided again by whoever resumes it, or null.
+    */
+   public Entry begin(Type type, String fromId, String toId, String payload,
+                      List<String> targets, String providerName, String decision)
+   {
+      return begin(type, fromId, toId, payload, targets, providerName, decision,
                    OrgOperationRecovery::isOwnerGone);
    }
 
    Entry begin(Type type, String fromId, String toId, String payload, List<String> targets,
                String providerName, OrgOperationRecovery.Abandoned abandoned)
+   {
+      return begin(type, fromId, toId, payload, targets, providerName, null, abandoned);
+   }
+
+   Entry begin(Type type, String fromId, String toId, String payload, List<String> targets,
+               String providerName, String decision, OrgOperationRecovery.Abandoned abandoned)
    {
       synchronized(this) {
          for(Entry e : store.values()) {
@@ -119,7 +141,8 @@ public final class OrgOperationJournal {
          Entry entry = new Entry(UUID.randomUUID().toString(), type, fromId, toId,
                                  Cluster.getInstance().getLocalNodeId(),
                                  System.currentTimeMillis(), State.RUNNING, payload,
-                                 targets == null ? List.of() : targets, providerName);
+                                 targets == null ? List.of() : targets, providerName,
+                                 decision);
          store.put(entry.opId, entry);
          return entry;
       }
@@ -190,7 +213,8 @@ public final class OrgOperationJournal {
             @JsonProperty("node") String node, @JsonProperty("started") long started,
             @JsonProperty("state") State state, @JsonProperty("payload") String payload,
             @JsonProperty("targets") List<String> targets,
-            @JsonProperty("providerName") String providerName)
+            @JsonProperty("providerName") String providerName,
+            @JsonProperty("decision") String decision)
       {
          this.opId = opId;
          this.type = type;
@@ -202,11 +226,19 @@ public final class OrgOperationJournal {
          this.payload = payload;
          this.targets = targets == null ? new ArrayList<>() : new ArrayList<>(targets);
          this.providerName = providerName;
+         this.decision = decision;
+      }
+
+      Entry(String opId, Type type, String fromId, String toId, String node, long started,
+            State state, String payload, List<String> targets, String providerName)
+      {
+         this(opId, type, fromId, toId, node, started, state, payload, targets, providerName,
+              null);
       }
 
       Entry withState(State state) {
          return new Entry(opId, type, fromId, toId, node, started, state, payload, targets,
-                          providerName);
+                          providerName, decision);
       }
 
       public String getOpId() {
@@ -248,6 +280,15 @@ public final class OrgOperationJournal {
       }
 
       /**
+       * Gets what the original request decided with the principal of its caller, null in a
+       * record that did not store it. Kept apart from the payload: a node that does not know
+       * this field ignores it (see the class annotation) and still reads the payload.
+       */
+      public String getDecision() {
+         return decision;
+      }
+
+      /**
        * Gets the name of the authentication provider that holds the organization, null in a
        * record that did not store it.
        */
@@ -286,6 +327,7 @@ public final class OrgOperationJournal {
       private final String payload;
       private final ArrayList<String> targets;
       private final String providerName;
+      private final String decision;
       @Serial
       private static final long serialVersionUID = 1L;
    }
