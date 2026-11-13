@@ -58,24 +58,19 @@ class ViewsheetAssemblyAgentControllerUndoTest {
       when(sessions.resolve("tok", user)).thenReturn(rvs);
       AtomicReference<Viewsheet> live = new AtomicReference<>(current);
       when(rvs.getViewsheet()).thenAnswer(inv -> live.get());
-      org.mockito.stubbing.Answer<Boolean> swap = inv -> {
+      // the checkpoint is restored through the session service, which runs the native undo/redo
+      // so the runtime (a Form table's pending edits) is refreshed too
+      when(sessions.restoreCheckpoint(eq(rvs), eq(user), any(), eq(!redo))).thenAnswer(inv -> {
          live.set(mock(Viewsheet.class));
          return applied;
-      };
-
-      if(redo) {
-         when(rvs.redo(null)).thenAnswer(swap);
-      }
-      else {
-         when(rvs.undo(null)).thenAnswer(swap);
-      }
+      });
    }
 
    @Test
    void undoSendsRemovalsFromThePreUndoCloneBeforeTheRefresh() throws Exception {
       arrange(true, false);
 
-      Map<String, Object> result = controller.undo("tok", user);
+      Map<String, Object> result = controller.undo("tok", user, "");
 
       assertEquals(true, result.get("undone"));
       InOrder order = inOrder(broadcast);
@@ -87,7 +82,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
    void redoSendsRemovalsFromThePreRedoClone() throws Exception {
       arrange(true, true);
 
-      Map<String, Object> result = controller.redo("tok", user);
+      Map<String, Object> result = controller.redo("tok", user, "");
 
       assertEquals(true, result.get("redone"));
       InOrder order = inOrder(broadcast);
@@ -99,7 +94,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
    void aNoOpUndoSendsNoRemovals() throws Exception {
       arrange(false, false);
 
-      controller.undo("tok", user);
+      controller.undo("tok", user, "");
 
       verify(broadcast, never()).broadcastRemovedAssemblies(any(), any(), any(), any());
       verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET), eq("vs-1"), eq(user));
@@ -109,7 +104,7 @@ class ViewsheetAssemblyAgentControllerUndoTest {
    void aNoOpRedoSendsNoRemovals() throws Exception {
       arrange(false, true);
 
-      controller.redo("tok", user);
+      controller.redo("tok", user, "");
 
       verify(broadcast, never()).broadcastRemovedAssemblies(any(), any(), any(), any());
    }

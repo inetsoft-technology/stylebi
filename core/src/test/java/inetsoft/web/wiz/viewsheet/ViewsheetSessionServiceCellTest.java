@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.Test;
@@ -46,7 +47,7 @@ class ViewsheetSessionServiceCellTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"),
                                             eq(agent))).thenReturn(rvs);
       return new ViewsheetSessionService(sessions, runtimeAccess,
-                                         mock(SheetAgentBroadcastService.class));
+                                         mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
    }
 
    private static final EditorContext CELL = new EditorContext("calcTableCell", "Calc1", "1,2", null);

@@ -22,6 +22,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldService;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
@@ -55,11 +56,13 @@ public class ViewsheetSessionService {
    @Autowired
    public ViewsheetSessionService(SheetSessionService sessions,
                                   SheetRuntimeAccess runtimeAccess,
-                                  SheetAgentBroadcastService broadcast)
+                                  SheetAgentBroadcastService broadcast,
+                                  UndoRedoServiceProxy undoRedoService)
    {
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
+      this.undoRedoService = undoRedoService;
    }
 
    /**
@@ -110,6 +113,38 @@ public class ViewsheetSessionService {
       }
 
       return session;
+   }
+
+   /**
+    * Moves the runtime one checkpoint back ({@code undo}) or forward, and reports whether it moved.
+    *
+    * <p>Runs the native {@code UndoRedoService} rather than only {@code RuntimeViewsheet#undo}: a
+    * checkpoint holds the sheet definition only, and the runtime state outside it (a Form table's
+    * pending edited/added/deleted rows in its cached {@code FormTableLens}) is dropped by the
+    * refresh the native service runs after restoring the checkpoint. Restoring the checkpoint
+    * alone reported {@code undone:true} while a pending Form edit survived (Bug #81307). The
+    * commands the native service dispatches are captured and discarded; the caller's own broadcast
+    * is what reaches the paired browser. Restoring a checkpoint discards the pending edits of
+    * every Form table on the sheet, not only the one the undone step touched.
+    */
+   public boolean restoreCheckpoint(RuntimeViewsheet rvs, Principal agent, String linkUri,
+                                    boolean undo)
+      throws Exception
+   {
+      int before = rvs.getCurrent();
+
+      CapturingCommandDispatcher.withCapturingDispatcher(agent, dispatcher -> {
+         if(undo) {
+            undoRedoService.undo(rvs.getID(), agent, linkUri, dispatcher);
+         }
+         else {
+            undoRedoService.redo(rvs.getID(), agent, linkUri, dispatcher);
+         }
+
+         return null;
+      });
+
+      return rvs.getCurrent() != before;
    }
 
    public RuntimeViewsheet resolve(String sessionToken, Principal agent) throws PairingException {
@@ -433,4 +468,5 @@ public class ViewsheetSessionService {
    private final SheetSessionService sessions;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
+   private final UndoRedoServiceProxy undoRedoService;
 }

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.web.wiz.binding.model.FieldRef;
+import inetsoft.web.viewsheet.controller.UndoRedoServiceProxy;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.ViewsheetFormatService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -249,7 +250,7 @@ class BindingAgentControllerTest {
    /** A real {@link ViewsheetSessionService} over {@code store}. */
    private static ViewsheetSessionService realSessions(SheetSessionService store) {
       return new ViewsheetSessionService(store, mock(SheetRuntimeAccess.class),
-                                         mock(SheetAgentBroadcastService.class));
+                                         mock(SheetAgentBroadcastService.class), mock(UndoRedoServiceProxy.class));
    }
 
    // ---------------------------------------------------------------------------

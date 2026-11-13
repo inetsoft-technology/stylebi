@@ -4413,13 +4413,15 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/undo")
-   public Map<String, Object> undo(@PathVariable String sessionToken, Principal user)
+   public Map<String, Object> undo(@PathVariable String sessionToken, Principal user,
+                                   @RequestParam(required = false, defaultValue = "")
+                                   String linkUri)
       throws Exception
    {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
-      boolean undone = rvs.undo(null);
+      boolean undone = sessions.restoreCheckpoint(rvs, user, linkUri, true);
 
       if(undone) {
          broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
@@ -4430,13 +4432,15 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/redo")
-   public Map<String, Object> redo(@PathVariable String sessionToken, Principal user)
+   public Map<String, Object> redo(@PathVariable String sessionToken, Principal user,
+                                   @RequestParam(required = false, defaultValue = "")
+                                   String linkUri)
       throws Exception
    {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       Viewsheet before = rvs.getViewsheet() == null ? null : rvs.getViewsheet().clone();
-      boolean redone = rvs.redo(null);
+      boolean redone = sessions.restoreCheckpoint(rvs, user, linkUri, false);
 
       if(redone) {
          broadcast.broadcastRemovedAssemblies(rvs, rvs.getID(), user, before);
