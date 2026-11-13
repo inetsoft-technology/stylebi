@@ -25,6 +25,7 @@ import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.data.SumDataSet;
 import inetsoft.graph.element.IntervalElement;
+import inetsoft.graph.element.MekkoElement;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.visual.BarVO;
 import inetsoft.graph.visual.ElementVO;
@@ -215,6 +216,18 @@ class ModernMarkRulesTest {
    }
 
    @Test
+   void aMarkedMekkoSetsTheThinLine() {
+      List<MekkoElement> marked = mekkos(measureChart(GraphTypes.CHART_MEKKO),
+                                         VizMark.MODERN_LIGHT);
+      List<MekkoElement> classic = mekkos(measureChart(GraphTypes.CHART_MEKKO), null);
+
+      assertEquals(1, marked.size(), "premise: one marked mekko element");
+      assertEquals(1, classic.size(), "premise: one classic mekko element");
+      assertTrue(marked.get(0).isThinSegmentLine(), "marked");
+      assertFalse(classic.get(0).isThinSegmentLine(), "classic");
+   }
+
+   @Test
    void aModernIntervalIsHalfItsSlot() {
       SizeFrame modern = intervals(sizedChart(GraphTypes.CHART_INTERVAL), VizMark.MODERN_LIGHT)
          .get(0).getSizeFrame();
@@ -372,6 +385,19 @@ class ModernMarkRulesTest {
       }
 
       return bars;
+   }
+
+   private static List<MekkoElement> mekkos(Chart chart, VizMark mark) {
+      EGraph graph = generator(chart, mark, null).createEGraph();
+      List<MekkoElement> elems = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof MekkoElement elem) {
+            elems.add(elem);
+         }
+      }
+
+      return elems;
    }
 
    private static GraphGenerator generator(Chart chart, VizMark mark, Object[][] brushed) {
