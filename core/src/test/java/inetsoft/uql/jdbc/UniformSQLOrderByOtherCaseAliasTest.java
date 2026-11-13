@@ -244,7 +244,7 @@ class UniformSQLOrderByOtherCaseAliasTest {
                    fixed("postgresql", "select k as A from t order by a desc", LOWER_COLUMNS));
 
       for(String helper : new String[] { "snowflake", "exasol" }) {
-         assertEquals("select \"k\" as A from \"t\" order by \"k\" desc",
+         assertEquals("select \"k\" as \"A\" from \"t\" order by \"k\" desc",
                       fixed(helper, "select k as \"A\" from t order by a desc", UPPER_COLUMNS),
                       helper);
       }
