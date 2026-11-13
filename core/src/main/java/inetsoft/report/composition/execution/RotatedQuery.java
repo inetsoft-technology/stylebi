@@ -29,8 +29,10 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,14 +81,19 @@ public class RotatedQuery extends AssetQuery {
    protected TableLens getPostBaseTableLens(VariableTable vars)
       throws Exception
    {
+      repeated = null;
       query.setSubQuery(false);
       TableLens table = query.getTableLens(vars);
       // clear the alert message
       // Tool.getUserMessage();
       table = AssetQuery.shuckOffFormat(table);
       RotatedTableLens rotated = new RotatedTableLens(table, 1);
-      // limit number of columns so we don't get a table with thousands of cols
-      table = makeHeadersUnique(rotated);
+      BitSet repeated = new BitSet();
+      table = makeHeadersUnique(rotated, repeated);
+      // the columns of repeated names, read by fixColumnSelection to keep the first
+      // occurrences when the columns are limited
+      this.repeated = repeated;
+      this.repeatedColCount = table.getColCount();
       return table;
    }
 
@@ -96,8 +103,9 @@ public class RotatedQuery extends AssetQuery {
     * lookup are both keyed by name (the lookup case-insensitively), so repeated names would
     * drop or mix up columns. Only the repeated names are renamed, with the same rule as
     * {@link AssetUtil#fixAlias(ColumnSelection)} (A, A_1, A_2); other headers are untouched.
+    * @param repeated set to the columns whose names are renamed repeats.
     */
-   private static TableLens makeHeadersUnique(TableLens rotated) {
+   private static TableLens makeHeadersUnique(TableLens rotated, BitSet repeated) {
       if(!rotated.moreRows(0)) {
          return rotated;
       }
@@ -118,6 +126,8 @@ public class RotatedQuery extends AssetQuery {
          String alias = ((ColumnRef) names.getAttribute(i)).getAlias();
 
          if(alias != null) {
+            repeated.set(i);
+
             if(result == null) {
                result = new AssetTableLens(rotated);
             }
@@ -149,14 +159,25 @@ public class RotatedQuery extends AssetQuery {
          }
       }
 
+      // the full rotated table (a fresh execution or the aggregate re-run above) comes with the
+      // repeated columns of its execution. on a cache hit the table is the cached result,
+      // which holds at most the selected columns and so is never limited again. the columns
+      // are cleared here so a later cache hit of this query does not take them as its own
+      BitSet repeated = this.repeated;
+      boolean full = repeated != null && table.getColCount() == repeatedColCount;
+      this.repeated = null;
+
       ColumnSelection columns = getTable().getColumnSelection();
       ColumnSelection ncolumns = new ColumnSelection();
       boolean fnull = false;
+      boolean limited = false;
       List<ColumnRef> staleColumns = new ArrayList<>();
 
       // fix column selection
       if(table.moreRows(0)) {
-         for(int i = 0; i < table.getColCount() &&  ncolumns.getAttributeCount() < 250; i++) {
+         List<Integer> indexes = new ArrayList<>();
+
+         for(int i = 0; i < table.getColCount(); i++) {
             if(table.getObject(0, i) == null) {
                if(fnull) {
                   continue;
@@ -166,6 +187,27 @@ public class RotatedQuery extends AssetQuery {
                }
             }
 
+            indexes.add(i);
+         }
+
+         // limit the number of columns so we don't get a table with thousands of columns.
+         // the first occurrence of every name comes first, in the order of the source rows,
+         // then the repeated names (A_1, A_2), so a name that first appears in a later row
+         // keeps its column (81193)
+         if(indexes.size() > MAX_COLUMNS) {
+            limited = true;
+
+            if(full) {
+               List<Integer> ordered = new ArrayList<>(indexes.size());
+               indexes.stream().filter(i -> !repeated.get(i)).forEach(ordered::add);
+               indexes.stream().filter(repeated::get).forEach(ordered::add);
+               indexes = ordered;
+            }
+
+            indexes = indexes.subList(0, MAX_COLUMNS);
+         }
+
+         for(int i : indexes) {
             String header = AssetUtil.format(XUtil.getHeader(table, i));
             DataRef ocolumn = columns.getAttribute(header);
 
@@ -223,7 +265,22 @@ public class RotatedQuery extends AssetQuery {
       }
 
       validateColumnSelection(ncolumns, columns, true, true, false, true);
-      getTable().setColumnSelection(getTable().getColumnSelection());
+      ColumnSelection selection = getTable().getColumnSelection();
+
+      // the cut is only known from the full table. it is kept with the column selection so
+      // that a cache hit, which only sees the limited result, shows the message too
+      if(full) {
+         selection.setProperty(COLUMN_LIMITED, limited ? "true" : null);
+      }
+      else {
+         limited = limited || "true".equals(selection.getProperty(COLUMN_LIMITED));
+      }
+
+      if(limited) {
+         Tool.addUserMessage(Catalog.getCatalog().getString("common.limited.column", MAX_COLUMNS));
+      }
+
+      getTable().setColumnSelection(selection);
    }
 
    /**
@@ -388,8 +445,20 @@ public class RotatedQuery extends AssetQuery {
       return "/inetsoft/report/gui/composition/images/rotate.png";
    }
 
+   /**
+    * The maximum number of columns of the column selection of a rotated table.
+    */
+   private static final int MAX_COLUMNS = 250;
+   /**
+    * The column selection property that marks a column selection limited to MAX_COLUMNS.
+    */
+   private static final String COLUMN_LIMITED = "rotatedColumnLimited";
+
    private RotatedTableAssembly table;
    private AssetQuery query; // base query
+   // the columns of repeated names of the last full rotated table and its column count
+   private BitSet repeated;
+   private int repeatedColCount;
    private static final Logger LOG =
       LoggerFactory.getLogger(RotatedQuery.class);
 }

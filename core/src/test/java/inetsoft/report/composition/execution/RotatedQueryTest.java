@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -39,7 +40,11 @@ import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -78,6 +83,12 @@ class RotatedQueryTest {
          ObjectProvider<DistributedTableCacheStore> provider = mock(ObjectProvider.class);
          when(provider.getObject()).thenReturn(mock(DistributedTableCacheStore.class));
          return new AssetDataCache(mock(DataSourceRegistry.class), provider);
+      }
+
+      // a cache hit checks the materialized view of the cached data (no view here)
+      @Bean
+      public MVManager mvManager() {
+         return mock(MVManager.class);
       }
    }
 
@@ -219,11 +230,137 @@ class RotatedQueryTest {
       }
 
       Worksheet ws = worksheet(data, XSchema.STRING, XSchema.INTEGER);
+      Tool.clearUserMessage();
       box(ws);
 
       assertEquals(250, columnNames(ws).size());
       assertEquals("item", columnNames(ws).get(0));
       assertEquals("r249", columnNames(ws).get(249));
+      assertEquals(LIMITED_MESSAGE, message());
+   }
+
+   // ---- the column limit (Bug #81193) ----
+
+   private static final String LIMITED_MESSAGE =
+      Catalog.getCatalog().getString("common.limited.column", 250);
+
+   /** The pending user message, cleared by this call, null if there is none. */
+   private static String message() {
+      UserMessage message = Tool.getUserMessage();
+      return message == null ? null : message.getMessage();
+   }
+
+   /**
+    * 300 rows: the keys 1 to 10 repeat in the rows 1 to 270, the key 11 first appears in the
+    * row 271 and repeats up to the row 300.
+    */
+   private static Worksheet lateNameWorksheet() {
+      Object[][] data = new Object[301][];
+      data[0] = new Object[] { "key", "value" };
+
+      for(int i = 1; i <= 300; i++) {
+         data[i] = new Object[] { i <= 270 ? String.valueOf((i - 1) % 10 + 1) : "11", i };
+      }
+
+      return worksheet(data, XSchema.STRING, XSchema.INTEGER);
+   }
+
+   private static final List<String> FIRST_NAMES =
+      List.of("key", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11");
+
+   // the rotated table has more than 250 columns: the first occurrences of every name come
+   // first in the order of the source rows, then the repeated names, so 11 keeps its column
+   @Test
+   void firstOccurrencesComeFirstWhenColumnsAreLimited() throws Exception {
+      Worksheet ws = lateNameWorksheet();
+      Tool.clearUserMessage();
+      AssetQuerySandbox box = box(ws);
+      List<String> names = columnNames(ws);
+
+      assertEquals(250, names.size());
+      assertEquals(FIRST_NAMES, names.subList(0, 12));
+      assertEquals(List.of("1_1", "2_1"), names.subList(12, 14));
+      assertFalse(names.contains("11_1"));
+      assertEquals(LIMITED_MESSAGE, message());
+
+      // the value of the column 11 is the value of its first row, 271
+      List<List<Object>> rows = read(run(box));
+
+      assertEquals(FIRST_NAMES, rows.get(0).subList(0, 12));
+      assertEquals(271, rows.get(1).get(11));
+   }
+
+   // a column selection saved with the columns key, 1 to 11 keeps the column 11
+   @Test
+   void savedSelectionKeepsANameThatFirstAppearsLate() throws Exception {
+      Worksheet ws = lateNameWorksheet();
+      RotatedTableAssembly rotated = (RotatedTableAssembly) ws.getAssembly("R");
+      ColumnSelection saved = new ColumnSelection();
+
+      for(String name : FIRST_NAMES) {
+         ColumnRef column = new ColumnRef(new AttributeRef(name));
+         column.setDataType(name.equals("key") ? XSchema.STRING : XSchema.INTEGER);
+         saved.addAttribute(column);
+      }
+
+      rotated.setColumnSelection(saved, false);
+      rotated.setColumnSelection(saved.clone(), true);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      box.setActive(true);
+      Tool.clearUserMessage();
+      List<List<Object>> rows = read(run(box));
+
+      assertEquals(FIRST_NAMES, columnNames(ws).subList(0, 12));
+      assertEquals(250, columnNames(ws).size());
+      assertEquals(FIRST_NAMES, rows.get(0).subList(0, 12));
+      assertEquals(271, rows.get(1).get(11));
+      assertEquals(LIMITED_MESSAGE, message());
+   }
+
+   // a rotated table that is not limited keeps its columns in the order of the source rows and
+   // shows no message
+   @Test
+   void noMessageWhenTheColumnsAreNotLimited() throws Exception {
+      Object[][] data = {
+         { "item", "Q1" },
+         { "B", 1 },
+         { "A", 2 },
+         { "B", 3 },
+         { "C", 4 }
+      };
+      Worksheet ws = worksheet(data, XSchema.STRING, XSchema.INTEGER);
+      Tool.clearUserMessage();
+      AssetQuerySandbox box = box(ws);
+      run(box);
+
+      assertEquals(List.of("item", "B", "A", "B_1", "C"), columnNames(ws));
+      assertNull(message());
+   }
+
+   // a cache hit only sees the limited result, the cut is kept with the column selection so the
+   // message is shown again
+   @Test
+   void cacheHitShowsTheMessageAgain() throws Exception {
+      Worksheet ws = lateNameWorksheet();
+      AssetQuerySandbox box = box(ws);
+      run(box);
+
+      box.resetTableLens("R");
+      Tool.clearUserMessage();
+      run(box);
+
+      assertEquals(LIMITED_MESSAGE, message());
+
+      // without the mark of the cut a cache hit has nothing to show, which shows that the
+      // run above was a cache hit
+      RotatedTableAssembly rotated = (RotatedTableAssembly) ws.getAssembly("R");
+      rotated.getColumnSelection(false).setProperty("rotatedColumnLimited", null);
+      rotated.getColumnSelection(true).setProperty("rotatedColumnLimited", null);
+      box.resetTableLens("R");
+      Tool.clearUserMessage();
+      run(box);
+
+      assertNull(message());
    }
 
    // ---- the names of the columns ----
