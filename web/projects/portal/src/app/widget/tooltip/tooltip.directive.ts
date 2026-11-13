@@ -217,6 +217,10 @@ export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
     * worksheet detail pane, combo-box lists -- stay light even in a dark org, and a dark tooltip over
     * them would be the same mismatch in a different place. It also settles the unmarked case: a
     * legacy assembly carries neither class and renders light, so its tooltip is light too.
+    *
+    * Light here means the shell's tooltip palette. A dark shell (shell-dark on <html>) redefines the
+    * shell tokens that palette reads, so there a tooltip from a light assembly is drawn dark: like
+    * every body-attached popup it is shell chrome. Only a dark mark selects the viz dark palette.
     */
    private resolveDark(): boolean {
       const host = this.hostRef?.nativeElement as HTMLElement;

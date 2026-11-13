@@ -18,7 +18,6 @@
 <ng-container>
   <ng-template #autoComplete>
     <div class="auto-complete-pane"
-      [style.background]="'white'"
       [style.overflow]="'auto'" [style.cursor]="'pointer'"
       (mousedown)="$event.stopPropagation();downInAutoList=true"
       (mouseup)="$event.stopPropagation()"
