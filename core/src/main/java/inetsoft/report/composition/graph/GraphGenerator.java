@@ -5168,6 +5168,11 @@ public abstract class GraphGenerator {
       if(elem instanceof IntervalElement interval) {
          interval.setCornerFloor(true);
          interval.setWidthClamp(isWidthClamped(interval, chartType));
+
+         // a waterfall step and its Total stay at least 2px
+         if(interval.isWaterfall()) {
+            interval.setMinStepPx(2);
+         }
       }
    }
 
