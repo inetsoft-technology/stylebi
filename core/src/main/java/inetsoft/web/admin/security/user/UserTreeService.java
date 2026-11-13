@@ -23,6 +23,7 @@ import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
@@ -56,6 +57,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -989,6 +991,7 @@ public class UserTreeService {
       ThreadContext.setContextPrincipal(principal);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       String newOrgId = null;
+      Lock createLock = null;
 
       try {
          // creating (or cloning) an organization is a site admin operation, an org admin must
@@ -1004,6 +1007,12 @@ public class UserTreeService {
          // Bug #79875, before an id is looked up, an interrupted clone or id change is finished
          // or undone, its half done state would make the id unusable
          recoverInterruptedOperations(principal);
+
+         // Bug #79867, the next free id is chosen and the organization registered under one
+         // cluster lock, otherwise concurrent requests pick the same id and the later add
+         // overwrites the earlier one. Released in the finally below on every exit.
+         createLock = createOrganizationLock();
+         createLock.lock();
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
          SecurityProvider securityProvider = securityEngine.getSecurityProvider();
@@ -1119,6 +1128,10 @@ public class UserTreeService {
          throw e;
       }
       finally {
+         if(createLock != null) {
+            createLock.unlock();
+         }
+
          ThreadContext.setContextPrincipal(oldPrincipal);
          Audit.getInstance().auditAction(actionRecord, principal);
 
@@ -1131,6 +1144,15 @@ public class UserTreeService {
             OrganizationManager.getInstance().setCurrentOrgID(newOrgId);
          }
       }
+   }
+
+   /**
+    * Cluster-wide lock serializing organization creation. Separate from the recovery lock of
+    * {@link OrgOperationRecovery}, which a clone must not hold for its whole duration.
+    */
+   Lock createOrganizationLock() {
+      return Cluster.getInstance().getLock(
+         UserTreeService.class.getName() + ".createOrganization.lock");
    }
 
    private int getNamedUserCount() {

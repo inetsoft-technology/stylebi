@@ -108,7 +108,12 @@ class UserTreeServiceIdentityNamesOrgScopeTest {
       service = new UserTreeService(
          providerService, null, identityService, localizationService, securityEngine,
          mock(IdentityThemeService.class), null, null, null, null, null, null, themesManager,
-         null, null, null, null);
+         null, null, null, null) {
+         @Override
+         java.util.concurrent.locks.Lock createOrganizationLock() {
+            return new java.util.concurrent.locks.ReentrantLock();
+         }
+      };
    }
 
    @AfterEach
