@@ -1224,6 +1224,67 @@ public class RepletRegistryService {
    }
 
    /**
+    * Gets the entry for the specified asset, listing each parent folder at most once per
+    * <code>listings</code> map.
+    * <p>
+    * Resolving one entry lists its whole parent folder, so a caller that resolves N entries of
+    * one folder pays N listings. Pass one map for a batch of lookups made for the same principal
+    * to list each distinct parent once. The permission (ADMIN), selector and org handling are
+    * those of the listing, so a null result means the same as for the other overloads.
+    * <p>
+    * A batch lookup lists the parent with <code>__oneoff__</code>, so the entries do not get the
+    * alias/description/localStr display properties and no sheet is loaded for each child. Use it
+    * only when the entry is checked for existence/visibility, not when those properties are read.
+    *
+    * @param identifier the asset identifier.
+    * @param user       the name of the user requesting the asset.
+    * @param listings   the parent listings of this batch (parent identifier to the visible
+    *                   entries by identifier), or null to list the parent for this call only.
+    *
+    * @return the asset entry.
+    *
+    * @throws Exception if the asset entry could not be obtained.
+    */
+   public AssetEntry getAssetEntry(String identifier, Principal user,
+                                   Map<String, Map<String, AssetEntry>> listings)
+      throws Exception
+   {
+      if(listings == null) {
+         return getAssetEntry(identifier, user, true);
+      }
+
+      AssetRepository repository = AssetUtil.getAssetRepository(false);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+
+      if(entry == null) {
+         return null;
+      }
+
+      AssetEntry parent = entry.getParent();
+
+      AssetEntry.Selector selector = new AssetEntry.Selector(
+         AssetEntry.Type.FOLDER, AssetEntry.Type.WORKSHEET,
+         AssetEntry.Type.VIEWSHEET, AssetEntry.Type.DATA,
+         AssetEntry.Type.PHYSICAL, AssetEntry.Type.VIEWSHEET_SNAPSHOT);
+
+      String key = parent.toIdentifier();
+      Map<String, AssetEntry> visible = listings.get(key);
+
+      if(visible == null) {
+         parent.setProperty("__oneoff__", "true");
+         visible = new HashMap<>();
+
+         for(AssetEntry e : repository.getEntries(parent, user, ResourceAction.ADMIN, selector)) {
+            visible.putIfAbsent(e.toIdentifier(), e);
+         }
+
+         listings.put(key, visible);
+      }
+
+      return visible.get(identifier);
+   }
+
+   /**
     * Gets the path, relative to the My Reports folder.
     *
     * @param parent the full path.
