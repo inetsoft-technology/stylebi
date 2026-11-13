@@ -747,6 +747,20 @@ public class IntervalElement extends StackableElement {
    }
 
    /**
+    * Check whether a rounded bar's corner is kept at least 2px (or a quarter of a thinner bar).
+    */
+   public boolean isCornerFloor() {
+      return cornerFloor;
+   }
+
+   /**
+    * Set whether a rounded bar's corner is kept at least 2px (or a quarter of a thinner bar).
+    */
+   public void setCornerFloor(boolean cornerFloor) {
+      this.cornerFloor = cornerFloor;
+   }
+
+   /**
     * Set whether the intervals are visually stacked. A bar may be stacked in value but
     * not visually stacked (e.g. waterfall).
     */
@@ -786,6 +800,7 @@ public class IntervalElement extends StackableElement {
          return bases.equals(elem.bases) && zeroHeight == elem.zeroHeight &&
             Objects.equals(visualStacked, elem.visualStacked) &&
             cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners &&
+            cornerFloor == elem.cornerFloor &&
             Objects.equals(bridgeLineColor, elem.bridgeLineColor) &&
             Objects.equals(bridgeLineStyle, elem.bridgeLineStyle) &&
             waterfall == elem.waterfall;
@@ -940,6 +955,7 @@ public class IntervalElement extends StackableElement {
    private int zeroHeight = 0;
    private double cornerRadius = 0;
    private boolean roundAllCorners = false;
+   private boolean cornerFloor = false;
    private Boolean visualStacked;
    private Color bridgeLineColor = null;
    private GLine bridgeLineStyle = null;

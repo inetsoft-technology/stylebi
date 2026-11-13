@@ -220,7 +220,7 @@ public class BarVO extends ElementVO {
          Rectangle2D preRounding = path0.getBounds2D();
          boolean roundingApplied = false;
 
-         double r = ielem0.getCornerRadius();
+         double r = cornerFraction(ielem0, preRounding);
 
          if(r > 0 && !(this instanceof Bar3DVO) && getOuterArc(path0) == null && !isFunnel) {
             IntervalGeometry geom = (IntervalGeometry) getGeometry();
@@ -1571,6 +1571,27 @@ public class BarVO extends ElementVO {
    }
 
    /**
+    * Get the corner radius fraction this bar draws with, after the corner floor.
+    */
+   public double getEffectiveCornerRadius() {
+      IntervalElement elem = (IntervalElement) ((ElementGeometry) getGeometry()).getElement();
+      // a classic bar needs no path to know its corner
+      return elem.isCornerFloor() ? cornerFraction(elem, getPreRoundingBounds())
+         : elem.getCornerRadius();
+   }
+
+   // the corner fraction for a bar with these pre-rounding screen bounds
+   private double cornerFraction(IntervalElement elem, Rectangle2D bounds) {
+      if(!elem.isCornerFloor()) {
+         return elem.getCornerRadius();
+      }
+
+      double thickness = GTool.isHorizontal(getScreenTransform())
+         ? bounds.getWidth() : bounds.getHeight();
+      return flooredCornerFraction(elem.getCornerRadius(), thickness);
+   }
+
+   /**
     * Apply rounding to a stacked bar segment. Any segment whose bounds fall within the
     * arc zone of the outer (or inner, if roundAllCorners) end is clipped against the
     * full-bar rounded shape so the arc continues visually across segment boundaries.
@@ -1769,6 +1790,22 @@ public class BarVO extends ElementVO {
       return path;
    }
 
+   /**
+    * Floor a corner radius fraction so the corner of a bar this thick is at least 2px, or a
+    * quarter of a thinner bar. A zero fraction or thickness is returned unchanged.
+    *
+    * @param fraction  corner radius as a fraction of the bar thickness
+    * @param thickness bar thickness in screen pixels
+    */
+   public static double flooredCornerFraction(double fraction, double thickness) {
+      if(fraction <= 0 || thickness <= 0) {
+         return fraction;
+      }
+
+      return Math.max(fraction * thickness, Math.min(MIN_CORNER_ARC, thickness / 4)) / thickness;
+   }
+
+   private static final double MIN_CORNER_ARC = 2;
    private static final int BAR_MIN_WIDTH = 10;
    /**
     * Result of arc zone detection for a stacked bar segment.
