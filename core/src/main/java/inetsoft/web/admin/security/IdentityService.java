@@ -3232,6 +3232,16 @@ public class IdentityService {
             IdentityInfoRecord.STATE_INACTIVE;
       }
 
+      String idChange = null;
+
+      if(type == Identity.ORGANIZATION) {
+         final String newOrgId = ((EditOrganizationPaneModel) model).id();
+
+         if(newOrgId != null && !newOrgId.isBlank() && !newOrgId.equals(oldID.orgID)) {
+            idChange = newOrgId;
+         }
+      }
+
       if(!name.equals(oldID.name)) {
          IdentityID[] identityIds = new IdentityID[0];
          switch(type) {
@@ -3255,15 +3265,31 @@ public class IdentityService {
             throw new MessageException(err);
          }
 
-         actionRecord.setActionError("new name:" + name);
+         String desc = "Rename " + oldID.name + " to " + name;
+
+         if(idChange == null) {
+            actionRecord.setActionError("new name:" + name);
+         }
+         else {
+            actionRecord.setActionError("new name:" + name + ", new id:" + idChange);
+            desc += ", change id " + oldID.orgID + " to " + idChange;
+         }
+
          return SUtil.getIdentityInfoRecord(new IdentityID(model.oldName(), oldID.orgID),
                                             type, IdentityInfoRecord.ACTION_TYPE_RENAME,
-                                            "Rename " + oldID.name + " to " + name, state);
+                                            desc, state);
       }
       else {
          actionRecord.setObjectName(model.name());
+         String desc = null;
+
+         if(idChange != null) {
+            actionRecord.setActionError("new id:" + idChange);
+            desc = "Change id " + oldID.orgID + " to " + idChange;
+         }
+
          return SUtil.getIdentityInfoRecord(oldID, type, IdentityInfoRecord.ACTION_TYPE_MODIFY,
-                                            null, state);
+                                            desc, state);
       }
    }
 

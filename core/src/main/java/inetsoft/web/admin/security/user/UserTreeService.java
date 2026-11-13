@@ -1084,14 +1084,7 @@ public class UserTreeService {
          List<IdentityModel> defMembers = new ArrayList<IdentityModel>();
          String state = IdentityInfoRecord.STATE_NONE;
          actionRecord.setObjectName(identity.getId());
-         String creatorOrgId = pId.getOrgID();
-
-         if(creatorOrgId == null) {
-            creatorOrgId = Organization.getDefaultOrganizationID();
-         }
-
-         identityInfoRecord = SUtil.getIdentityInfoRecord(new IdentityID(identity.getIdentityID().name,
-                                                                         creatorOrgId),
+         identityInfoRecord = SUtil.getIdentityInfoRecord(identity.getIdentityID(),
                                                           identity.getType(),
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE,
                                                           null, state);
