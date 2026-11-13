@@ -36,6 +36,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class ComboboxGeneralPane implements OnInit {
    @Input() model: ComboboxGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() runtimeId: string;
    @Input() variableValues: string[];

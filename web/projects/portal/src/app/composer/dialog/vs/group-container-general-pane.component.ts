@@ -34,6 +34,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class GroupContainerGeneralPane implements OnInit {
    @Input() model: GroupContainerGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() runtimeId: string;

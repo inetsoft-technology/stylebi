@@ -36,6 +36,7 @@ import { OutputGeneralPane } from "./output-general-pane.component";
 })
 export class ImageGeneralPane implements OnInit {
    @Input() model: ImageGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() runtimeId: string;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];

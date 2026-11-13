@@ -28,6 +28,7 @@
           <dynamic-combo-box [mode]="mode" [values]="enabledValues" [variables]="variableValues"
             [(value)]="model.enabled" [disable]="layoutObject" [vsId]="vsId"
             [assemblyName]="assemblyName" [columnTreeRoot]="columnTreeRoot"
+            [dynamicProperty]="layoutObject ? null : 'enabled'"
             [isCondition]="true"
             [functionTreeRoot]="functionTreeRoot"
             [operatorTreeRoot]="operatorTreeRoot"

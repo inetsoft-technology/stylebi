@@ -189,9 +189,9 @@ public class ScriptEditService {
             "'" + target.kind().wireName() + "' is a worksheet-level target; it cannot be " +
             "written through the viewsheet script API. Use WorksheetScriptService (worksheet-chat's " +
             "edit_expression/edit_condition) instead.");
-         // Fail loud for the same reason: a condition value is draft-only and is pushed by
-         // writeConditionValueDraft, never written to the runtime through this method.
-         case VS_CONDITION_VALUE -> throw new PairingException(
+         // Fail loud for the same reason: a draft-only value is pushed by writeDraft, never
+         // written to the runtime through this method.
+         case VS_CONDITION_VALUE, DYNAMIC_VALUE -> throw new PairingException(
             "'" + target.kind().wireName() + "' is a draft-only target; it is pushed into the " +
             "user's open dialog, not written through the viewsheet script API.");
       }
@@ -275,21 +275,56 @@ public class ScriptEditService {
          case VS_CONDITION_VALUE -> throw new PairingException(
             "'vsConditionValue': a condition value has no enable flag; only scripts can be " +
             "enabled or disabled.");
+         case DYNAMIC_VALUE -> throw new PairingException(
+            "'dynamicValue': a dynamic value has no enable flag; only scripts can be enabled " +
+            "or disabled.");
       }
    }
 
    /**
-    * Pushes {@code text} into the user's open Conditions/Highlight formula dialog as a draft.
+    * Pushes {@code text} into the user's open formula dialog as a draft, for a draft-only kind
+    * ({@link ScriptTarget.Kind#isDraftOnly()}): a Conditions/Highlight value or a dynamic value.
     *
     * <p>Deliberately never touches the runtime viewsheet: no write, no undo checkpoint, no refresh
     * broadcast, and above all no {@code bumpWriteRevision}. The open dialog holds the revision it
     * was opened at and echoes it on OK, and {@code VSConditionDialogService.setModel} /
-    * {@code HighlightDialogService} refuse a commit whose revision is stale, so bumping it here
-    * would make the user's own OK fail with a write conflict. The row being edited may not exist
-    * in the runtime yet either.
+    * {@code HighlightDialogService} / the property dialogs refuse a commit whose revision is
+    * stale, so bumping it here would make the user's own OK fail with a write conflict. The value
+    * being edited may not exist in the runtime yet either. Each kind validates its own text and
+    * words its own note; the push and its failure are shared.
     */
-   public ScriptWriteResult writeConditionValueDraft(RuntimeViewsheet rvs, Principal agent,
-                                                     ScriptTarget target, String text)
+   public ScriptWriteResult writeDraft(RuntimeViewsheet rvs, Principal agent, ScriptTarget target,
+                                       String text)
+      throws PairingException
+   {
+      return switch(target.kind()) {
+         case VS_CONDITION_VALUE -> writeConditionDraft(rvs, agent, target, text);
+         case DYNAMIC_VALUE -> writeDynamicDraft(rvs, agent, target, text);
+         default -> throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "'" + target.kind().wireName() + "' is not a draft-only target; it is written " +
+            "through the script API, not pushed into a dialog.");
+      };
+   }
+
+   private ScriptWriteResult writeDynamicDraft(RuntimeViewsheet rvs, Principal agent,
+                                               ScriptTarget target, String text)
+      throws PairingException
+   {
+      DynamicValueTargets.Prepared prepared =
+         DynamicValueTargets.prepareWrite(text, this::conditionSyntaxProblem);
+
+      ScriptReadService.requireAssemblyInfo(requireViewsheet(rvs), target.assemblyName());
+      push(rvs, agent, target, prepared.text());
+
+      String note = DynamicValueTargets.note(target, true) + (prepared.strippedEquals()
+         ? " A leading '=' was removed: the dialog's editor holds the expression without it."
+         : "");
+
+      return new ScriptWriteResult(true, true, note, null);
+   }
+
+   private ScriptWriteResult writeConditionDraft(RuntimeViewsheet rvs, Principal agent,
+                                                 ScriptTarget target, String text)
       throws PairingException
    {
       if(text == null) {
@@ -322,6 +357,16 @@ public class ScriptEditService {
             "). Ignore this if the expression is SQL; otherwise fix it before the user clicks OK.";
       }
 
+      push(rvs, agent, target, text);
+
+      return new ScriptWriteResult(true, true, VsConditionValueTargets.note(target, true),
+                                   warning);
+   }
+
+   /** The push shared by every draft-only kind; fails loud when the dialog cannot be reached. */
+   private void push(RuntimeViewsheet rvs, Principal agent, ScriptTarget target, String text)
+      throws PairingException
+   {
       boolean sent = broadcast.pushScriptRefresh(rvs, rvs.getID(), agent,
                                                  target.kind().wireName(), target.assemblyName(),
                                                  target.name(), text);
@@ -332,12 +377,12 @@ public class ScriptEditService {
             "nothing was pushed. Ask the user to reopen the formula dialog and click Connect to " +
             "Claude.");
       }
-
-      return new ScriptWriteResult(true, true, VsConditionValueTargets.note(target, true),
-                                   warning);
    }
 
-   /** Overridable seam: the script engine is not initialised in unit tests. */
+   /**
+    * Overridable seam: the script engine is not initialised in unit tests. Used for both draft
+    * kinds, which parse their text the same way (see {@code VsConditionValueTargets}).
+    */
    String conditionSyntaxProblem(String text) {
       return VsConditionValueTargets.syntaxProblem(text);
    }

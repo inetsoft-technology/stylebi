@@ -38,5 +38,6 @@ export class TitlePropPane {
    @Input() model: TitlePropPaneModel;
    @Input() variableValues: string[];
    @Input() vsId: string;
+   @Input() assemblyName: string;
    @Input() inSelectionContainer: boolean = false;
 }

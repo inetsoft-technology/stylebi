@@ -40,6 +40,7 @@ import { GeneralPropPane } from "./general-prop-pane.component";
 })
 export class TableViewGeneralPane implements OnInit {
    @Input() model: TableViewGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() variableValues: string[];
    @Input() vsId: string;

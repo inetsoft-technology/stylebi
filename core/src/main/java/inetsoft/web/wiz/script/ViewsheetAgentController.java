@@ -211,10 +211,11 @@ public class ViewsheetAgentController {
    /**
     * Overwrites the script text at {@code target} and broadcasts a refresh.
     *
-    * <p>Returns {@code null} (an empty 200) for every script kind. A {@code vsConditionValue}
-    * target is branched off BEFORE {@code editService.apply}: it is a draft pushed into the
-    * user's open dialog, and {@code apply} would bump the write revision (failing the user's own
-    * OK with a write conflict), add an undo checkpoint and broadcast a refresh.
+    * <p>Returns {@code null} (an empty 200) for every script kind. A draft-only target
+    * ({@code vsConditionValue}, {@code dynamicValue}) is branched off BEFORE
+    * {@code editService.apply}: it is a draft pushed into the user's open dialog, and
+    * {@code apply} would bump the write revision (failing the user's own OK with a write
+    * conflict), add an undo checkpoint and broadcast a refresh.
     */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/script")
    public ScriptWriteResult writeScript(@PathVariable String sessionToken,
@@ -226,9 +227,9 @@ public class ViewsheetAgentController {
       ScriptTarget draftTarget =
          target(draftRvs, req.id(), req.kind(), req.assembly(), req.name(), req.target());
 
-      if(draftTarget.kind() == ScriptTarget.Kind.VS_CONDITION_VALUE) {
+      if(draftTarget.kind().isDraftOnly()) {
          requirePaneScope(sessionToken, user, draftTarget);
-         return editService.writeConditionValueDraft(draftRvs, user, draftTarget, req.text());
+         return editService.writeDraft(draftRvs, user, draftTarget, req.text());
       }
 
       editService.apply(sessionToken, user, rvs -> {

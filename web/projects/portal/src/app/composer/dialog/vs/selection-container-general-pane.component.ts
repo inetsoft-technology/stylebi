@@ -36,6 +36,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 
 export class SelectionContainerGeneralPane implements OnInit {
    @Input() model: SelectionContainerGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string;
    @Input() variableValues: string[];

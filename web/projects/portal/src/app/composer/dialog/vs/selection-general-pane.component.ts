@@ -43,6 +43,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class SelectionGeneralPane implements OnInit, AfterViewInit {
    @Input() model: SelectionGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string;
    @Input() variableValues: string[];

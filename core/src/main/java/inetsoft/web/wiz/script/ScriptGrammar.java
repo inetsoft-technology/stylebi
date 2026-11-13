@@ -52,6 +52,9 @@ public final class ScriptGrammar {
     * <p>{@link ScriptTarget.Kind#VS_CONDITION_VALUE} (Bug #80459) is included too: viewsheet-side,
     * pane-scoped and draft-only -- {@code read_script} answers an empty pending draft and
     * {@code update_script} pushes into the user's open formula dialog without writing the sheet.
+    *
+    * <p>{@link ScriptTarget.Kind#DYNAMIC_VALUE} is the same shape for one dynamic value of a
+    * property dialog (the Expression of a Value / Variable / Expression field).
     */
    public static List<String> supportedKinds() {
       return Arrays.stream(ScriptTarget.Kind.values())

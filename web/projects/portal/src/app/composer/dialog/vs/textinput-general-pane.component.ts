@@ -33,6 +33,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 })
 export class TextInputGeneralPane implements OnInit {
    @Input() model: TextInputGeneralPaneModel;
+   @Input() assemblyName: string;
    @Input() multiEnabled: boolean;
    @Input() form: UntypedFormGroup;
    @Input() vsId: string;

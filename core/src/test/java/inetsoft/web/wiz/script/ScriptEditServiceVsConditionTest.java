@@ -73,7 +73,7 @@ class ScriptEditServiceVsConditionTest {
 
    @Test
    void pushesExactlyTheGrantedTupleAndTheText() throws Exception {
-      ScriptWriteResult result = service.writeConditionValueDraft(rvs, agent, filter(), "1000");
+      ScriptWriteResult result = service.writeDraft(rvs, agent, filter(), "1000");
 
       verify(broadcast).pushScriptRefresh(rvs, "Viewsheet/foo-7", agent, "vsConditionValue",
                                           "Table1", "filter", "1000");
@@ -85,7 +85,7 @@ class ScriptEditServiceVsConditionTest {
 
    @Test
    void neverTouchesTheRuntimeViewsheet() throws Exception {
-      service.writeConditionValueDraft(rvs, agent, filter(), "1000");
+      service.writeDraft(rvs, agent, filter(), "1000");
 
       verify(rvs, never()).bumpWriteRevision();
       verify(rvs, never()).addCheckpoint(any());
@@ -97,7 +97,7 @@ class ScriptEditServiceVsConditionTest {
    @Test
    void aFilterThatDoesNotParseIsRefusedAndNothingIsPushed() throws Exception {
       PairingException ex = assertThrows(PairingException.class,
-         () -> service.writeConditionValueDraft(rvs, agent, filter(), "1 +"));
+         () -> service.writeDraft(rvs, agent, filter(), "1 +"));
 
       assertTrue(ex.getMessage().contains("does not parse as a JavaScript expression"),
                  ex.getMessage());
@@ -108,7 +108,7 @@ class ScriptEditServiceVsConditionTest {
 
    @Test
    void aHighlightThatDoesNotParseIsOnlyAWarning() throws Exception {
-      ScriptWriteResult result = service.writeConditionValueDraft(rvs, agent, highlight(), "1 +");
+      ScriptWriteResult result = service.writeDraft(rvs, agent, highlight(), "1 +");
 
       assertTrue(result.ok());
       assertNotNull(result.warning());
@@ -119,12 +119,12 @@ class ScriptEditServiceVsConditionTest {
    @Test
    void nullAndBlankTextAreRefused() throws Exception {
       PairingException nul = assertThrows(PairingException.class,
-         () -> service.writeConditionValueDraft(rvs, agent, filter(), null));
+         () -> service.writeDraft(rvs, agent, filter(), null));
       assertTrue(nul.getMessage().contains("text is required."), nul.getMessage());
 
       for(String blank : new String[] { "", "   " }) {
          PairingException ex = assertThrows(PairingException.class,
-            () -> service.writeConditionValueDraft(rvs, agent, highlight(), blank));
+            () -> service.writeDraft(rvs, agent, highlight(), blank));
          assertTrue(ex.getMessage().contains("The expression is empty") &&
                     ex.getMessage().contains("a condition value cannot be blank"),
                     ex.getMessage());
@@ -140,7 +140,7 @@ class ScriptEditServiceVsConditionTest {
          .thenReturn(false);
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> service.writeConditionValueDraft(rvs, agent, filter(), "1000"));
+         () -> service.writeDraft(rvs, agent, filter(), "1000"));
 
       assertTrue(ex.getMessage().contains(
          "is not reachable (closed or disconnected), so nothing was pushed"), ex.getMessage());
@@ -152,7 +152,7 @@ class ScriptEditServiceVsConditionTest {
       ScriptTarget gone = ScriptTarget.of(ScriptTarget.Kind.VS_CONDITION_VALUE, "Gone", "filter");
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> service.writeConditionValueDraft(rvs, agent, gone, "1000"));
+         () -> service.writeDraft(rvs, agent, gone, "1000"));
 
       assertTrue(ex.getMessage().contains("Assembly not found: Gone"), ex.getMessage());
       verify(broadcast, never()).pushScriptRefresh(any(), any(), any(), any(), any(), any(),
