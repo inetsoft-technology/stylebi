@@ -1943,7 +1943,7 @@ public class BarVO extends ElementVO {
    }
 
    /**
-    * The thinnest a width-clamped bar draws, in screen pixels.
+    * The thinnest a width-clamped bar draws when its slot holds it, in screen pixels.
     */
    static final double MIN_BAR_PX = 3;
    /**

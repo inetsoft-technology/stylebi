@@ -47,8 +47,8 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * A width-clamped bar draws 3 to 32 screen pixels thick, scaled about its cluster's centre so a
- * cluster stays touching and centred on its slot.
+ * A width-clamped bar draws 3 to 32 screen pixels thick, or its share of a slot too narrow for 3,
+ * scaled about its cluster's centre so a cluster stays touching and centred on its slot.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
