@@ -233,7 +233,7 @@ There is no migration on load: the epic is unreleased.
 - Every export (PDF, PNG, SVG, Excel, PowerPoint) draws through `GraphGenerator`, so drawing rules apply there too. Excel keeps its opaque card (TC D16).
 - **In an older build:**
   - V items arrive and draw. Those saved as a DEFAULT tier (chart descriptor values) last only until that build writes the asset, and an import writes it (M3).
-  - User flags saved only where the parse would derive them wrongly (`userLineVisible`, `userTitle`, `userSmoothLines`, `userBarCornerRadius`; M4) are dropped the same way. The next open derives them again, so the seeded value counts as the author's and no later re-seed or Revert replaces it: a seeded-off value line, a seeded straight area, and a title the wizard typed, which then stays visible on a modern chart. This is accepted, like the DEFAULT tier. For `userBarCornerRadius` a released build does not know it, so a marked chart it saves derives the seeded 0.08 as the author's on the next open, and Revert then keeps 0.08. Accepted like the others.
+  - User flags saved only where the parse would derive them wrongly (`userLineVisible`, `userTitle`, `userSmoothLines`, `userBarCornerRadius`, `userNodeCornerRadius`; M4) are dropped the same way. The next open derives them again, so the seeded value counts as the author's and no later re-seed or Revert replaces it: a seeded-off value line, a seeded straight area, and a title the wizard typed, which then stays visible on a modern chart. This is accepted, like the DEFAULT tier. For `userBarCornerRadius` a released build does not know it, so a marked chart it saves derives the seeded 0.08 as the author's on the next open, and Revert then keeps 0.08. Accepted like the others.
   - N items are ignored.
   - D items fall back to the old rule.
   - The S4 sizes (D44) draw at that build's own values. Its first draw also rewrites the modern values held in the stored frame.
@@ -512,7 +512,7 @@ Amended 2026-11-11, after the owner reviewed S3 against the slice 2 head (`e6003
 
 ### S4. Mark sizes and corners
 
-Amended 2026-11-12, after the owner reviewed S4 against the S3 head (`958852a11a`, PR #8081). The owner's rulings are D44 to D50; the design calls made with them are D51 to D62 (§10). Lines in this section are at `958852a11a`.
+Amended 2026-11-12, after the owner reviewed S4 against the S3 head (`958852a11a`, PR #8081). The owner's rulings are D44 to D50; the design calls made with them are D51 to D62 (§10). S4a's live checks added D63 to D66 (2026-11-13): no pixel floor ever makes marks overlap. Lines in this section are at `958852a11a`.
 
 **Two facts that shape this slice.**
 - **Every draw rewrites the default sizes (D44).**
@@ -537,7 +537,7 @@ Amended 2026-11-12, after the owner reviewed S4 against the S3 head (`958852a11a
 | S4-4 | Bar width: 50% of its slot, clamped to 3–32px on screen; in a slot too narrow for 3px a bar, the floor is the bar's share of the slot (D63) | C17, bar 1, funnel 8, Gantt 3b | `BarVO.getBarSize:1227-1248`: size 15 of 30, 51.7% (`GraphGenerator:5319-5329`, pareto `:5344-5350`). Slot `RectCoord.getMaxWidth:1049`. Clusters are placed by `BarVO.dodge:780-892` at `VGraph:156`, before `coord.transform` (`:162`) | D | See "S4-4 bar width". |
 | S4-5 | Interval bars follow the width rule when Size is bound | bar 7 | The Size measure becomes the interval length (`fixIntervalData:5897-5905`). `ChangeChartProcessor.fixSizeFrameValues` sets min = max = 15 (`:425-427`, `:505-507`), then `GraphGenerator.fixSizeFrame:5230-5233` sets smallest = largest − 1 with the frame maximum at 30: 72–73% of the slot | D | Under the mark the width comes from the S4-4 rule, not from the size frame. The Size measure still sets the bar length. |
 | S4-6 | Waterfall bar at least 2px tall; marimekko segment at least a 1px line | C17 | Waterfall: `BarVO`, where `zeroHeight` (`:68-70`) is in logical units and set only by interval. Marimekko: `MekkoVO.paint:80-140` (not `BarVO`); its segments tile the column with 1px white separators | D | The waterfall floor applies after stack rounding, which returns early on a 0 interval (`applyStackRounding:1578-1625`) and derives px per unit from the segment (`computeFullBarBounds:1660`). A step of exactly zero still draws no bar. A shorter step grows from its start in the direction of its change, so it still meets its incoming bridge line (D59). A marimekko segment under about 2px draws as a 1px line in its colour over the separator, and its neighbours keep their size (D50). |
-| S4-7 | Candle body at least 3px with a 1px wick; stock ticks at least 3px each side | C17, candle 4, stock 4 | Body `5 + (maxw − 5)·size/max` in logical units (`SchemaPainter.getSize:113-133`, `MIN_WIDTH` `:191`); wick `CandlePainter:123`; `StockPainter` `LENGTH` 10 (`:159`), stroke `:93` | D | The floors apply in screen space. |
+| S4-7 | Candle body at least 3px with a 1px wick; stock ticks at least 3px each side | C17, candle 4, stock 4 | Body `5 + (maxw − 5)·size/max` in logical units (`SchemaPainter.getSize:113-133`, `MIN_WIDTH` `:191`); wick `CandlePainter:123`; `StockPainter` `LENGTH` 10 (`:159`), stroke `:93` | D | The floors apply in screen space and never make marks overlap: a candle body floors at 3px or at its share of the slot, a stock tick at 3px or at half its share (D64). An author-set or bound Size keeps today's candle body width (D66); a stock tick's length does not depend on Size, so its floor always applies. |
 | S4-8 | Largest bubble 20px across, on point charts and on map points | C17, point 5, geo 4 | radius = size + `GShape.getMinSize()`/2 = size + 2 (`PointVO:88`, `GShape:400`), drawn 2r across, so largest 15 draws 34px. Point case `GraphGenerator:5362-5371`; maps take the default branch (`:5385-5388`), also 1..15 | D (D44) | Largest 8 under the mark (radius 10), in both `fixSizeFrameValues`. Skipped when `isSizeChanged`. Only where Size draws a point shape: a word cloud's Size sets its font size (`PointVO:100-104`) and is outside the 11 families, and the contour charts' static 15 is not a bubble. Both keep their sizes (D58). |
 | S4-9 | Relation edge at most 6px | relation 3 | stroke = size in px (`RelationEdgeVO:93-96`); edges take the default branch, 1..15 | D (D44) | Largest 6. The §7 check is answered: the bundle's capture shows edges of about 15px, which largest 15 explains; "about 35px" was an overestimate. Node size is not capped (D55). |
 | S4-10 | Gantt milestone diamond 10px | Gantt 5 | Size 9 (`GraphGenerator:5377`) gives radius 11, a 22px diamond tip to tip. Element at `:3992-4004` | D (D44) | Size 3 under the mark (radius 5). |
@@ -574,6 +574,7 @@ Amended 2026-11-12, after the owner reviewed S4 against the S3 head (`958852a11a
   - The Advanced pane's corner field is shown for marked box plots. Today `ChartPlotOptionsPaneModel:126-130` hides it, so the author can set it only while the chart is another type. An author's 0 gives square boxes.
 - **Width:**
   - 30% of the slot, clamped to 6–28px on screen. It replaces today's `maxw/3 + (2/3)·maxw·size/30`.
+  - The 6px floor drops to the box's share of a slot too narrow for it (the slot width divided by the boxes dodged into it), so it never makes boxes overlap, as for bars (D63, D65).
   - 30% is below that formula's 33% base, so this is a painter rule, not a size value.
   - An author's size (`isSizeChanged`) keeps today's formula.
   - The box, median, whiskers and whisker caps (half the box width, `:62`) all derive from one width in logical units (`init()`), so they rescale together.
@@ -848,6 +849,9 @@ Each of these is a claim in the bundle that the code reading did not confirm. Th
 | D61 | The tree corner takes no pixel floor in S4; S6-6 decides it when it shrinks tree boxes (S4-11, S6-6) | Design, from the builder check |
 | D62 | The filled-radar alpha reset slot is type-conditional: the reset copy keeps an author's alpha on every other type (S4-12, D54) | Design, from the builder check |
 | D63 | A bar floors at 3px or at its share of its slot, whichever is smaller, so the floor never makes bars overlap (S4-4, D45) | Owner, 2026-11-13 |
+| D64 | D63 covers the candle body (3px) and the stock ticks (3px each side): each floor drops to the mark's share of a slot too narrow for it (S4-7) | Owner, 2026-11-13 |
+| D65 | D63 covers the box plot's 6px floor too; it lands in S4b (S4-3) | Owner, 2026-11-13 |
+| D66 | An author-set or bound Size keeps today's candle body width, as for bars (D45) and box widths (S4-3); a stock tick's length does not depend on Size, so its floor always applies (S4-7) | Design |
 
 ## 11. Testing
 
