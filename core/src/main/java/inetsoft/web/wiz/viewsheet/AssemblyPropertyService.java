@@ -3278,6 +3278,14 @@ public class AssemblyPropertyService {
       Map.of("CurrentSelectionVSAssembly", "SelectionContainer",
              "EmbeddedTableVSAssembly", "Table");
 
+   /** The assembly's Composer-facing type name, e.g. "Gauge" or "SelectionContainer". */
+   static String displayTypeName(Object assembly) {
+      String simple = assembly.getClass().getSimpleName();
+      return TYPE_OVERRIDES.containsKey(simple) ? TYPE_OVERRIDES.get(simple)
+         : simple.endsWith("VSAssembly")
+         ? simple.substring(0, simple.length() - "VSAssembly".length()) : simple;
+   }
+
    private String typeOf(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       Object assembly = vs == null ? null : vs.getAssembly(assemblyName);
@@ -3286,10 +3294,7 @@ public class AssemblyPropertyService {
          throw new IllegalArgumentException("Unknown assembly '" + assemblyName + "'.");
       }
 
-      String simple = assembly.getClass().getSimpleName();
-      String type = TYPE_OVERRIDES.containsKey(simple) ? TYPE_OVERRIDES.get(simple)
-         : simple.endsWith("VSAssembly")
-         ? simple.substring(0, simple.length() - "VSAssembly".length()) : simple;
+      String type = displayTypeName(assembly);
       String normalized = type.toLowerCase();
 
       if(!PropertyAliases.covers(normalized)) {
