@@ -53,6 +53,11 @@ public class AuthenticationChain
 
    @Override
    public User getUser(IdentityID userIdentity) {
+      return PermissionRequestScope.memo(this, "getUser", userIdentity,
+                                         () -> lookupUser(userIdentity));
+   }
+
+   private User lookupUser(IdentityID userIdentity) {
       RuntimeException failure = null;
 
       for(AuthenticationProvider p : getProviders()) {
@@ -150,11 +155,12 @@ public class AuthenticationChain
 
    @Override
    public Organization getOrganization(String id) {
-      return stream()
-         .map(p -> p.getOrganization(id))
-         .filter(Objects::nonNull)
-         .findFirst()
-         .orElse(null);
+      return PermissionRequestScope.memo(this, "getOrganization", id, () ->
+         stream()
+            .map(p -> p.getOrganization(id))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null));
    }
 
    @Override

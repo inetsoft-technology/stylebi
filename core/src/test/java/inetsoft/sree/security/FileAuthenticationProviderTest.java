@@ -891,6 +891,51 @@ public class FileAuthenticationProviderTest {
                  "Role inherited through the same-named group should be kept");
    }
 
+   // [Scope] inside a PermissionRequestScope the leaf getUser/getOrganization read storage once,
+   // outside it every call reads storage as before
+   @Test
+   @SuppressWarnings("unchecked")
+   void testGetUserAndOrganizationReadStorageOncePerScope() throws Exception {
+      IdentityID userIdentity = new IdentityID("scopeUser", "scopeOrg");
+      provider.addUser(new FSUser(userIdentity));
+      FSOrganization org = new FSOrganization("scopeOrg");
+      org.setName("Scope Org");
+      provider.addOrganization(org);
+
+      Field uf = FileAuthenticationProvider.class.getDeclaredField("userStorage");
+      uf.setAccessible(true);
+      Field of = FileAuthenticationProvider.class.getDeclaredField("organizationStorage");
+      of.setAccessible(true);
+      KeyValueStorage<FSUser> users = Mockito.spy((KeyValueStorage<FSUser>) uf.get(provider));
+      KeyValueStorage<FSOrganization> orgs =
+         Mockito.spy((KeyValueStorage<FSOrganization>) of.get(provider));
+      uf.set(provider, users);
+      of.set(provider, orgs);
+
+      try(PermissionRequestScope.Handle scope = PermissionRequestScope.open()) {
+         for(int i = 0; i < 50; i++) {
+            assertNotNull(provider.getUser(userIdentity));
+            assertNotNull(provider.getOrganization("scopeOrg"));
+            assertNull(provider.getUser(new IdentityID("nobody", "scopeOrg")));
+         }
+      }
+
+      Mockito.verify(users, Mockito.times(1)).get(userIdentity.convertToKey());
+      Mockito.verify(users, Mockito.times(1))
+         .get(new IdentityID("nobody", "scopeOrg").convertToKey());
+      Mockito.verify(orgs, Mockito.times(1)).get("scopeOrg");
+
+      Mockito.clearInvocations(users, orgs);
+
+      for(int i = 0; i < 5; i++) {
+         provider.getUser(userIdentity);
+         provider.getOrganization("scopeOrg");
+      }
+
+      Mockito.verify(users, Mockito.times(5)).get(userIdentity.convertToKey());
+      Mockito.verify(orgs, Mockito.times(5)).get("scopeOrg");
+   }
+
    private static final String CLASH_ORG = "orgB";
    private static final IdentityID CLASH_USER = new IdentityID("u1", CLASH_ORG);
    private static final IdentityID CLASH_ROLE = new IdentityID("sales", CLASH_ORG);
