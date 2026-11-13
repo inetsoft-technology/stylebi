@@ -589,15 +589,15 @@ public class QueryGraphModelService {
          String realTableName = JDBCUtil.getRealTableName(table);
 
          joins = Arrays.stream(joins)
-            .filter(j -> j.getTable1().equals(alias) || j.getTable1().equals(realTableName) ||
-               j.getTable2().equals(alias) || j.getTable2().equals(realTableName))
+            .filter(j -> j.getTable1(sql).equals(alias) || j.getTable1(sql).equals(realTableName) ||
+               j.getTable2(sql).equals(alias) || j.getTable2(sql).equals(realTableName))
             .toArray(XJoin[]::new);
 
          for(XJoin join : joins) {
             JoinModel joinModel = new JoinModel();
-            joinModel.setTable(join.getTable1());
+            joinModel.setTable(join.getTable1(sql));
             joinModel.setColumn(join.getColumn1(sql));
-            joinModel.setForeignTable(join.getTable2());
+            joinModel.setForeignTable(join.getTable2(sql));
             joinModel.setForeignColumn(join.getColumn2(sql));
             joinModel.setType(JoinType.forType(join.getOp()));
             joinModel.setMergingRule(MergingRule.forType(XSet.AND));
@@ -883,8 +883,8 @@ public class QueryGraphModelService {
          }
 
          if(sourceTableColumn == null &&
-            sourceTable.equals(Tool.toString(join.getTable1())) &&
-            targetTable.equals(Tool.toString(join.getTable2())))
+            sourceTable.equals(Tool.toString(join.getTable1(sql))) &&
+            targetTable.equals(Tool.toString(join.getTable2(sql))))
          {
             delete = true;
          }
