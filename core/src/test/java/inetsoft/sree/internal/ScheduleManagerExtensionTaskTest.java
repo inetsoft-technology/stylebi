@@ -108,6 +108,11 @@ class ScheduleManagerExtensionTaskTest {
                               new String[0], ORG, Tool.getSecureRandom().nextLong());
       admin.setIgnoreLogin(true);
 
+      // these tests install generated tasks by hand. Detach the manager from the async storage
+      // events of the setUp()/tearDown() writes: since Bug #81275 they reload the extension
+      // tasks (as they do on a remote node), which would wipe the hand-installed tasks
+      indexedStorage.removeStorageRefreshListener(dataCycleManager);
+
       // creates the data cycle asset, enabled by default
       dataCycleManager.addCondition(CYCLE, ORG, TimeCondition.at(1, 0, 0));
       dataCycleManager.setCycleInfo(CYCLE, ORG, new DataCycleManager.CycleInfo(CYCLE, ORG));
