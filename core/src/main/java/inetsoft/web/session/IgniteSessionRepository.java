@@ -398,13 +398,19 @@ public class IgniteSessionRepository
       Principal principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
       if(principal instanceof SRPrincipal srp) {
-         // A wiz principal is rebuilt from a verified token by WizServiceAuthenticationFilter for
-         // a cookieless plugin request and is never registered by a login. It carries the
-         // browser's identity and session id, so its login key equals the browser's and
-         // isActiveUser() below is true exactly when the browser is logged in. This session does
-         // not own that login, so its end must not deregister it (bug #81146). Explicit logout
-         // and admin kick still end this session through loggedOut(), which does not come here.
-         if(SRPrincipal.isWizPrincipal(srp)) {
+         // A wiz principal is rebuilt from a verified token by WizServiceAuthenticationFilter and
+         // is never registered by a login. When the plugin request carries no session cookie, the
+         // filter stores it in a new throwaway session. That principal carries the browser's
+         // identity and session id, so its login key equals the browser's and isActiveUser()
+         // below is true exactly when the browser is logged in. The throwaway does not own that
+         // login, so its end must not deregister it (bug #81146). The throwaway's own id differs
+         // from the client session id in the principal. If the request also carried the browser's
+         // cookie, the filter stored the wiz principal in the browser's own session, whose id
+         // equals the client session id; that session does own the login, so it still logs out.
+         // Explicit logout and admin kick end wiz sessions through loggedOut(), not here.
+         if(SRPrincipal.isWizPrincipal(srp) &&
+            !Objects.equals(srp.getUser().getSession(), session.getId()))
+         {
             return;
          }
 

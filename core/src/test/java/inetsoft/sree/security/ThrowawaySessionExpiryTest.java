@@ -300,6 +300,49 @@ class ThrowawaySessionExpiryTest {
       assertTrue(realEngine.isActiveUser(browser.principal));
    }
 
+   /**
+    * The guard must not swallow a real logout. If the plugin request carries the browser's own
+    * session cookie next to the Bearer token, {@code getSession(true)} returns the browser's
+    * session and the filter overwrites its principal with the wiz principal. That session owns the
+    * login (its id is the token's client session id), so its expiry must still deregister it.
+    */
+   @Test
+   void expiryOfABrowserSessionOverwrittenByTheWizPrincipalStillDeregistersTheLogin()
+      throws Exception
+   {
+      Browser browser = login(admin);
+      String token = tokenService.createSSOToken(browser.principal, "http://localhost");
+
+      pluginRequestIntoSession(token, repository.findById(browser.sid));
+      assertTrue(SRPrincipal.isWizPrincipal(
+         repository.findById(browser.sid).getAttribute(RepletRepository.PRINCIPAL_COOKIE)),
+                 "the filter overwrote the browser session's principal");
+      assertTrue(realEngine.isActiveUser(browser.principal));
+
+      expire(browser.sid);
+      repository.checkSessions();
+
+      assertNull(repository.findById(browser.sid), "the sweep ended the browser session");
+      assertFalse(realEngine.isActiveUser(browser.principal),
+                  "the expiry of the session that owns the login must deregister it");
+   }
+
+   /**
+    * Explicit logout of the browser, with a live throwaway present, still deregisters the login.
+    */
+   @Test
+   void explicitLogoutOfTheBrowserStillDeregistersTheLoginWithALiveThrowaway() throws Exception {
+      Browser browser = login(admin);
+      String token = tokenService.createSSOToken(browser.principal, "http://localhost");
+      String throwawaySid = pluginRequestWithoutCookie(token);
+      assertNotNull(repository.findById(throwawaySid));
+
+      auth.logout(browser.principal, IP, "", true);
+
+      assertFalse(realEngine.isActiveUser(browser.principal));
+      assertNull(repository.findById(browser.sid), "the browser session was invalidated");
+   }
+
    /** The mechanics the case relies on: the wiz principal shares the browser's login key. */
    @Test
    void tokenCarriesTheBrowsersClientInfo() throws Exception {
@@ -333,11 +376,23 @@ class ThrowawaySessionExpiryTest {
     * @return the id of the throwaway session.
     */
    private String pluginRequestWithoutCookie(String token) throws Exception {
+      return pluginRequestIntoSession(token, repository.createSession());
+   }
+
+   /**
+    * A plugin request whose {@code getSession(true)} returns {@code session}: a new one for a
+    * cookieless request, the browser's own when the request also carries its cookie.
+    *
+    * @return the id of that session.
+    */
+   private String pluginRequestIntoSession(String token,
+                                           IgniteSessionRepository.IgniteSession session)
+      throws Exception
+   {
       HttpServletRequest request = mock(HttpServletRequest.class);
       HttpServletResponse response = mock(HttpServletResponse.class);
       FilterChain chain = mock(FilterChain.class);
       stubRequest(request, token);
-      IgniteSessionRepository.IgniteSession session = repository.createSession();
       HttpSession http = mock(HttpSession.class);
       when(http.getId()).thenReturn(session.getId());
       doAnswer(inv -> {
@@ -353,7 +408,7 @@ class ThrowawaySessionExpiryTest {
       verify(chain).doFilter(any(), any());
       assertNotNull(repository.findById(session.getId())
                        .getAttribute(RepletRepository.PRINCIPAL_COOKIE),
-                    "the filter stored the token's principal in the throwaway session");
+                    "the filter stored the token's principal in the session");
       return session.getId();
    }
 
