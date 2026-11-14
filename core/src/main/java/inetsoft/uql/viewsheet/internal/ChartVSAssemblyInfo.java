@@ -195,7 +195,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       }
       else {
          // Revert calls this with an unmarked context and needs the legacy values written, not
-         // left alone. Value-identical at gate-off creation, where both fields already hold these.
+         // left alone. Value-identical at gate-off creation, where each field already holds these.
          if(!isUserBarCornerRadius()) {
             plotDesc.setBarCornerRadius(0);
          }

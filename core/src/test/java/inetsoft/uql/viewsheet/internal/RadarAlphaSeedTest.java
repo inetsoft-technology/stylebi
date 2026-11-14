@@ -152,6 +152,22 @@ class RadarAlphaSeedTest {
       assertEquals(0.5, plot(info).getAlpha(), 1e-9);
    }
 
+   @Test
+   void keepOnAClassicFilledRadarKeepsAnAuthorsAlpha() {
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssemblyInfo info = filledRadar(chartOn(vs));
+      plot(info).setAlpha(0.5);
+      assertNull(info.getVizMark(), "premise: a classic chart");
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertNotNull(info.getVizMark(), "premise: modernized");
+      assertTrue(alpha(info).hasUserValue());
+      assertEquals(0.5, plot(info).getAlpha(), 1e-9);
+   }
+
    // ---- harness -----------------------------------------------------------------------------
 
    private static void gateOn() {

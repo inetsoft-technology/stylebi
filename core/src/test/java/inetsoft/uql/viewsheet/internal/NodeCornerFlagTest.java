@@ -110,6 +110,19 @@ class NodeCornerFlagTest {
    }
 
    @Test
+   void aReleasedFileResavesWithoutAFlag() throws Exception {
+      String released = releasedXml(true, "0.2");
+      assertFalse(released.contains("userNodeCornerRadius"), "premise: no flag in the file");
+
+      ChartVSAssemblyInfo info = parseInfo(released);
+      assertTrue(plot(info).isUserNodeCornerRadius(), "premise: derived as the author's");
+
+      String saved = writeXml(info);
+      assertFalse(saved.contains("userNodeCornerRadius"));
+      assertTrue(saved.contains(" nodeCornerRadius=\"0.2\""));
+   }
+
+   @Test
    void aNewModernChartSeeds008() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       ChartVSAssemblyInfo info = newChart();

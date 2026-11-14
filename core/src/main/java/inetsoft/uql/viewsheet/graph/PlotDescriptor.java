@@ -2047,7 +2047,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private static final double DEFAULT_BAR_CORNER_RADIUS = 0;
    private double barCornerRadius = DEFAULT_BAR_CORNER_RADIUS;
    private boolean barRoundAllCorners = false;
-   // New tree charts default to rounded nodes; parseXML overrides to 0 for saved charts.
+   // New tree charts default to rounded nodes; parseXML sets 0 only for files without the
+   // attribute, and the flag derivation decides whether that value is the author's.
    public static final double DEFAULT_NODE_CORNER_RADIUS = 0.3;
    private double nodeCornerRadius = DEFAULT_NODE_CORNER_RADIUS;
    private boolean userNodeCornerRadius = false;
