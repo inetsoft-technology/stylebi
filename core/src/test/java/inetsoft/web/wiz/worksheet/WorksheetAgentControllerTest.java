@@ -13789,6 +13789,87 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /** Bug #81366 scope: a Save-As is never MV-gated and never asks MVManager. */
+   @Test
+   void saveAsDoesNotConsultMvManager81366() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[0]);
+      WorksheetAgentController ctrl = mvSaveController(agent, entry, ws);
+      when(mvManager.findSheets(any(AssetEntry.class), anyBoolean()))
+         .thenReturn(new String[]{ "Sales Dash" });
+
+      try(MockedStatic<inetsoft.uql.asset.sync.DependencyTransformer> depStatic =
+             mockStatic(inetsoft.uql.asset.sync.DependencyTransformer.class))
+      {
+         depStatic.when(() -> inetsoft.uql.asset.sync.DependencyTransformer.createRenameInfo(
+            any(RuntimeWorksheet.class)))
+            .thenReturn(new inetsoft.uql.asset.sync.RenameDependencyInfo());
+         Map<String, Object> result = ctrl.save("TOK-81366",
+            new WorksheetAgentController.SaveRequest("Orders WS Copy", null), agent);
+         assertEquals(Boolean.TRUE, result.get("ok"));
+      }
+
+      verify(mvManager, never()).findSheets(any(), anyBoolean());
+   }
+
+   /** Bug #81366 scope: a first save out of TEMPORARY_SCOPE is never MV-gated. */
+   @Test
+   void firstSaveDoesNotConsultMvManager81366() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry tempEntry = new AssetEntry(AssetRepository.TEMPORARY_SCOPE,
+         AssetEntry.Type.WORKSHEET, "__TEMPORARY__/ws-81366", null);
+      WorksheetService ws = mock(WorksheetService.class);
+      WorksheetAgentController ctrl = mvSaveController(agent, tempEntry, ws);
+      when(mvManager.findSheets(any(AssetEntry.class), anyBoolean()))
+         .thenReturn(new String[]{ "Sales Dash" });
+
+      Map<String, Object> result = ctrl.save("TOK-81366",
+         new WorksheetAgentController.SaveRequest("agent_ws_81366", null), agent);
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      verify(mvManager, never()).findSheets(any(), anyBoolean());
+   }
+
+   /**
+    * Bug #81366 scope: a name equal to the worksheet's own entry is an in-place save; it is
+    * refused by the own-location guard without confirmed:true, and saves with confirmed:true
+    * (one flag clears the guard, the MV gate does not add a second hurdle).
+    */
+   @Test
+   void ownEntryNameSavesWithConfirmedDespiteMvDependents81366() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null, "host-org");
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[0]);
+      when(ws.isDuplicatedEntry(any(), any())).thenReturn(true);
+      WorksheetAgentController ctrl = mvSaveController(agent, entry, ws);
+      when(mvManager.findSheets(any(AssetEntry.class), anyBoolean()))
+         .thenReturn(new String[]{ "Sales Dash" });
+
+      try(MockedStatic<inetsoft.uql.asset.sync.DependencyTransformer> depStatic =
+             mockStatic(inetsoft.uql.asset.sync.DependencyTransformer.class))
+      {
+         depStatic.when(() -> inetsoft.uql.asset.sync.DependencyTransformer.createRenameInfo(
+            any(RuntimeWorksheet.class)))
+            .thenReturn(new inetsoft.uql.asset.sync.RenameDependencyInfo());
+
+         PairingException ex = assertThrows(PairingException.class, () ->
+            ctrl.save("TOK-81366", new WorksheetAgentController.SaveRequest("Orders WS", null),
+                      agent));
+         assertTrue(ex.getMessage().contains("own location"), ex.getMessage());
+         verify(ws, never()).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+
+         Map<String, Object> result = ctrl.save("TOK-81366",
+            new WorksheetAgentController.SaveRequest("Orders WS", null, true), agent);
+         assertEquals(Boolean.TRUE, result.get("ok"));
+         verify(ws).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+      }
+   }
+
    /** Bug #81366: a worksheet no MV depends on saves in place with no confirmation. */
    @Test
    void inPlaceSaveWithoutMvDependentsNeedsNoConfirmation81366() throws Exception {

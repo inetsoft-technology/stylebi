@@ -2876,7 +2876,9 @@ public class WorksheetAgentController {
             throw new PairingException(
                "Saving worksheet '" + entry.getPath() + "' may leave materialized views out of " +
                "date; an administrator may need to generate a new materialized view for the " +
-               "following assets:\n" + mvMessage + "\nPass confirmed:true to save anyway.");
+               "following assets:\n" + mvMessage + "\nShow this warning and the dependent assets to " +
+               "the user, and only if the user agrees to save anyway, call save_worksheet again " +
+               "with confirmed:true.");
          }
       }
 
