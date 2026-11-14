@@ -5473,6 +5473,12 @@ public abstract class GraphGenerator {
          break;
       }
 
+      if(vizContext.modern) {
+         max = ModernMarkSizes.largest(chartType, GraphTypeUtil.isWordCloud(info),
+                                       GraphTypes.isContour(info.getChartType()), max);
+         nsize = ModernMarkSizes.staticSize(chartType, elem, nsize);
+      }
+
       boolean fake = ChangeChartProcessor.isFake(info);
 
       // force to point type.
@@ -5481,6 +5487,11 @@ public abstract class GraphGenerator {
          nsize = getDefaultPointSize(shape);
          min = 1;
          max = 15;
+
+         if(vizContext.modern) {
+            max = ModernMarkSizes.largest(GraphTypes.CHART_POINT, GraphTypeUtil.isWordCloud(info),
+                                          GraphTypes.isContour(info.getChartType()), max);
+         }
       }
 
       // for static size frame we should not set smallest and largest,

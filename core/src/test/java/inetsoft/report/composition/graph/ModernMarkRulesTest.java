@@ -20,16 +20,16 @@ package inetsoft.report.composition.graph;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.Plotter;
 import inetsoft.graph.VGraph;
+import inetsoft.graph.aesthetic.LinearSizeFrame;
 import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.data.SumDataSet;
-import inetsoft.graph.element.IntervalElement;
-import inetsoft.graph.element.MekkoElement;
-import inetsoft.graph.element.SchemaElement;
+import inetsoft.graph.element.*;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.visual.BarVO;
 import inetsoft.graph.visual.ElementVO;
+import inetsoft.graph.visual.PointVO;
 import inetsoft.graph.visual.SchemaVO;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.sree.SreeEnv;
@@ -41,6 +41,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
+import inetsoft.uql.viewsheet.graph.aesthetic.DefaultTextFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.LinearSizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.SizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticSizeFrameWrapper;
@@ -396,6 +397,205 @@ class ModernMarkRulesTest {
       assertNotNull(size.getField(), "premise: the size is bound");
       assertEquals(size.getLargest() - 1, size.getSmallest());
       assertFalse(bars.get(0).isWidthClamp());
+   }
+
+   @Test
+   void aModernBubbleIsAtMost20pxAcross() {
+      PointElement point = points(sizedChart(GraphTypes.CHART_POINT), VizMark.MODERN_LIGHT).get(0);
+
+      assertEquals(8, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+
+      double widest = 0;
+
+      for(PointVO vo : pointVOs(plot(sizedChart(GraphTypes.CHART_POINT), VizMark.MODERN_LIGHT))) {
+         widest = Math.max(widest, vo.getShapes()[0].getBounds2D().getWidth());
+      }
+
+      assertEquals(20, widest, 1);
+   }
+
+   @Test
+   void aClassicBubbleKeeps15() {
+      PointElement point = points(sizedChart(GraphTypes.CHART_POINT), null).get(0);
+
+      assertEquals(15, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+   }
+
+   @Test
+   void anAuthorsBubbleSizeIsKept() {
+      Chart chart = sizedChart(GraphTypes.CHART_POINT);
+      ((SizeFrameWrapper) chart.info().getSizeField().getVisualFrameWrapper()).setLargest(20);
+      PointElement point = points(chart, VizMark.MODERN_LIGHT).get(0);
+
+      assertEquals(20, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+   }
+
+   @Test
+   void aWordCloudKeepsItsSizes() {
+      VSChartDimensionRef state = dim("State");
+      VSChartAggregateRef qty = agg("Qty", "Sum");
+      VSAestheticRef text = new VSAestheticRef();
+      text.setDataRef(state);
+      text.setRTDataRef(state);
+      text.setVisualFrameWrapper(new DefaultTextFrameWrapper());
+      VSAestheticRef size = new VSAestheticRef();
+      size.setDataRef(qty);
+      size.setRTDataRef(qty);
+      size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_POINT);
+      cinfo.setRTChartType(GraphTypes.CHART_POINT);
+      cinfo.setTextField(text);
+      cinfo.setSizeField(size);
+      cinfo.updateChartType(false);
+      Object[][] rows = {
+         { "State", GraphUtil.getName(qty) }, { "CA", 3.0 }, { "NY", 7.0 }, { "TX", 11.0 } };
+      Chart chart = new Chart(cinfo, rows);
+      PointElement point = points(chart, VizMark.MODERN_LIGHT).get(0);
+
+      assertTrue(GraphTypeUtil.isWordCloud(cinfo), "premise: a word cloud");
+      assertEquals(15, ((LinearSizeFrame) point.getSizeFrame()).getLargest());
+   }
+
+   @Test
+   void aModernTreeEdgeIsAtMost6() {
+      assertEquals(6, edgeLargest(VizMark.MODERN_LIGHT));
+      assertEquals(15, edgeLargest(null));
+   }
+
+   @Test
+   void aModernMilestoneIs3() {
+      assertEquals(3, milestoneSize(VizMark.MODERN_LIGHT));
+      assertEquals(9, milestoneSize(null));
+   }
+
+   @Test
+   void aModernRadarLineIs3() {
+      assertEquals(3, radarSize(GraphTypes.CHART_RADAR, VizMark.MODERN_LIGHT));
+      assertEquals(1, radarSize(GraphTypes.CHART_RADAR, null));
+      assertEquals(3, radarSize(GraphTypes.CHART_FILL_RADAR, VizMark.MODERN_LIGHT));
+      assertEquals(1, radarSize(GraphTypes.CHART_FILL_RADAR, null));
+   }
+
+   private static double edgeLargest(VizMark mark) {
+      VSChartDimensionRef source = dim("Parent");
+      VSChartDimensionRef target = dim("Child");
+      VSChartAggregateRef qty = agg("Qty", "Sum");
+      Object[][] rows = {
+         { "Parent", "Child", GraphUtil.getName(qty) },
+         { "A", "B", 3.0 }, { "A", "C", 7.0 }, { "B", "D", 11.0 } };
+      VSAestheticRef size = new VSAestheticRef();
+      size.setDataRef(qty);
+      size.setRTDataRef(qty);
+      size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+      RelationVSChartInfo cinfo = new RelationVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_TREE);
+      cinfo.setRTChartType(GraphTypes.CHART_TREE);
+      cinfo.setSourceField(source);
+      cinfo.setTargetField(target);
+      cinfo.setRTSourceField(source);
+      cinfo.setRTTargetField(target);
+      cinfo.setSizeField(size);
+      cinfo.updateChartType(false);
+      EGraph graph = generator(new Chart(cinfo, rows), mark, null).createEGraph();
+      RelationElement edge = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof RelationElement elem) {
+            edge = elem;
+         }
+      }
+
+      assertNotNull(edge, "premise: a relation element");
+      assertInstanceOf(LinearSizeFrame.class, edge.getSizeFrame(), "premise: a bound size");
+      return ((LinearSizeFrame) edge.getSizeFrame()).getLargest();
+   }
+
+   private static double milestoneSize(VizMark mark) {
+      Chart chart = ganttChart();
+      VSChartAggregateRef milestone = agg("Due", "Max");
+      GanttVSChartInfo gantt = (GanttVSChartInfo) chart.info();
+      gantt.setMilestoneField(milestone);
+      gantt.setRTMilestoneField(milestone);
+      Object[][] rows = {
+         { "Task", chart.rows()[0][1], chart.rows()[0][2], GraphUtil.getName(milestone) },
+         { "Plan", new Date(1_700_000_000_000L), new Date(1_700_600_000_000L),
+           new Date(1_700_300_000_000L) },
+         { "Build", new Date(1_700_600_000_000L), new Date(1_701_800_000_000L),
+           new Date(1_701_000_000_000L) },
+      };
+      EGraph graph = generator(new Chart(gantt, rows), mark, null).createEGraph();
+      PointElement point = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof PointElement elem) {
+            point = elem;
+         }
+      }
+
+      assertNotNull(point, "premise: a milestone point element");
+      assertInstanceOf(StaticSizeFrame.class, point.getSizeFrame(), "premise: a static size");
+      return point.getSizeFrame().getSize(null);
+   }
+
+   private static double radarSize(int chartType, VizMark mark) {
+      RadarVSChartInfo radar = new RadarVSChartInfo();
+      VSChartAggregateRef a = agg("A", "Sum");
+      VSChartAggregateRef b = agg("B", "Sum");
+      VSChartAggregateRef c = agg("C", "Sum");
+      radar.addYField(a);
+      radar.addYField(b);
+      radar.addYField(c);
+      radar.setChartType(chartType);
+      radar.setRTChartType(chartType);
+      radar.updateChartType(false);
+      Object[][] rows = {
+         { GraphUtil.getName(a), GraphUtil.getName(b), GraphUtil.getName(c) },
+         { 1.0, 2.0, 3.0 },
+         { 3.0, 2.0, 1.0 },
+      };
+      EGraph graph = generator(new Chart(radar, rows), mark, null).createEGraph();
+      GraphElement found = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         GraphElement elem = graph.getElement(i);
+
+         if(chartType == GraphTypes.CHART_RADAR ? elem instanceof LineElement :
+            elem instanceof AreaElement)
+         {
+            found = elem;
+         }
+      }
+
+      assertNotNull(found, "premise: the radar's line or area element");
+      assertInstanceOf(StaticSizeFrame.class, found.getSizeFrame(), "premise: a static size");
+      return found.getSizeFrame().getSize(null);
+   }
+
+   private static List<PointElement> points(Chart chart, VizMark mark) {
+      EGraph graph = generator(chart, mark, null).createEGraph();
+      List<PointElement> points = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof PointElement point) {
+            points.add(point);
+         }
+      }
+
+      assertEquals(1, points.size(), "premise: one point element");
+      return points;
+   }
+
+   private static List<PointVO> pointVOs(VGraph vgraph) {
+      List<PointVO> vos = new ArrayList<>();
+
+      for(int i = 0; i < vgraph.getVisualCount(); i++) {
+         if(vgraph.getVisual(i) instanceof PointVO vo) {
+            vos.add(vo);
+         }
+      }
+
+      return vos;
    }
 
    // the author's 25 on the bar's measure, as the binding pane writes it
