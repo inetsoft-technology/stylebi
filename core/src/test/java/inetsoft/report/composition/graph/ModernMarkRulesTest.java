@@ -54,6 +54,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -353,6 +355,56 @@ class ModernMarkRulesTest {
          assertTrue(b.getX() >= a.getMaxX(), "no overlap: " + a + " " + b);
          assertTrue(b.getX() - a.getMaxX() <= 1.5, "gap " + (b.getX() - a.getMaxX()));
          assertEquals(slotCenter, (a.getX() + b.getMaxX()) / 2, 1, "pair centred on the slot");
+      }
+   }
+
+   @Test
+   void aCrowdedSlotGrowsItsBoxesButKeepsTheSlotsApart() {
+      VGraph vgraph = plot(crowdedColorBoxChart(50), VizMark.MODERN_LIGHT, 1000, 240);
+      List<Rectangle2D> boxes = sortedBoxes(vgraph);
+      double naturalPx = naturalBoxPx(vgraph);
+
+      assertEquals(100, boxes.size(), "premise: two boxes per state");
+      assertTrue(naturalPx < 6, "premise: the floor applies " + naturalPx);
+
+      for(int i = 0; i < boxes.size(); i += 2) {
+         Rectangle2D a = boxes.get(i);
+         Rectangle2D b = boxes.get(i + 1);
+         double inSlot = b.getX() - a.getMaxX();
+
+         assertTrue(a.getWidth() > naturalPx + 0.1, "box " + i + " is " + a.getWidth());
+         assertTrue(b.getWidth() > naturalPx + 0.1, "box " + (i + 1) + " is " + b.getWidth());
+         assertTrue(inSlot >= -1e-6, "slot " + i / 2 + " overlaps itself, gap " + inSlot);
+
+         if(i + 2 < boxes.size()) {
+            double toNext = boxes.get(i + 2).getX() - b.getMaxX();
+
+            assertTrue(toNext >= -1e-6, "slot " + i / 2 + " overlaps the next, gap " + toNext);
+            assertTrue(toNext >= inSlot - 1e-6,
+                       "slot " + i / 2 + " is " + toNext + " from the next, " + inSlot +
+                       " between its boxes");
+         }
+      }
+   }
+
+   @Test
+   void aVeryCrowdedSlotKeepsItsNaturalBoxes() {
+      VGraph vgraph = plot(crowdedColorBoxChart(100), VizMark.MODERN_LIGHT, 1000, 240);
+      List<Rectangle2D> boxes = sortedBoxes(vgraph);
+      double naturalPx = naturalBoxPx(vgraph);
+
+      assertEquals(200, boxes.size(), "premise: two boxes per state");
+      assertTrue(naturalPx < 6, "premise: under the 6px floor " + naturalPx);
+
+      for(int i = 0; i < boxes.size(); i++) {
+         Rectangle2D box = boxes.get(i);
+
+         assertEquals(naturalPx, box.getWidth(), 1e-6, "box " + i + " width");
+
+         if(i > 0) {
+            double gap = box.getX() - boxes.get(i - 1).getMaxX();
+            assertTrue(gap >= -1e-6, "box " + i + " overlaps the one before, gap " + gap);
+         }
       }
    }
 
@@ -904,6 +956,22 @@ class ModernMarkRulesTest {
       return new Chart(chart.info(), rows);
    }
 
+   // a box plot of this many states with two boxes per state, one per type on Color
+   private static Chart crowdedColorBoxChart(int states) {
+      Chart chart = colorBoxChart();
+      Object[][] rows = new Object[states * 6 + 1][];
+      rows[0] = chart.rows()[0];
+
+      for(int i = 0; i < states; i++) {
+         for(int j = 0; j < 6; j++) {
+            rows[i * 6 + j + 1] = new Object[] {
+               String.format("S%03d", i), j % 2 == 0 ? "A" : "B", 100.0 + 40.0 * j + i };
+         }
+      }
+
+      return new Chart(chart.info(), rows);
+   }
+
    // a box plot with the states down the Y axis
    private static Chart horizontalBoxChart() {
       Chart chart = boxChart(true);
@@ -934,6 +1002,19 @@ class ModernMarkRulesTest {
 
    private static Rectangle2D boxBounds(SchemaVO vo) {
       return vo.getShapes()[3].getBounds2D();
+   }
+
+   // the boxes left to right
+   private static List<Rectangle2D> sortedBoxes(VGraph vgraph) {
+      return boxes(vgraph).stream().map(ModernMarkRulesTest::boxBounds)
+         .sorted(Comparator.comparingDouble(Rectangle2D::getX)).toList();
+   }
+
+   // a box's width before any floor, 30% of its slot
+   private static double naturalBoxPx(VGraph vgraph) {
+      AffineTransform screen = boxes(vgraph).get(0).getScreenTransform();
+      double unitPx = screen.deltaTransform(new Point2D.Double(1, 0), null).distance(0, 0);
+      return 0.3 * vgraph.getCoordinate().getMaxWidth() * unitPx;
    }
 
    private static GraphGenerator generator(Chart chart, VizMark mark, Object[][] brushed) {
