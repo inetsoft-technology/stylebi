@@ -232,6 +232,19 @@ final class ChartChromeSlots {
                }
             }, null));
          slots.add(ChromeSlot.tiered(
+            "chart:nodeCornerRadius", false, true,
+            info -> Boolean.TRUE.equals(PLOT.then(PlotDescriptor::isUserNodeCornerRadius).on(info)),
+            info -> false,
+            info -> PLOT.then(PlotDescriptor::getNodeCornerRadius).on(info),
+            info -> PLOT.then(PlotDescriptor::getNodeCornerRadius).on(info),
+            info -> {
+               PlotDescriptor plot = PLOT.on(info);
+
+               if(plot != null) {
+                  plot.setUserNodeCornerRadius(false);
+               }
+            }, null));
+         slots.add(ChromeSlot.tiered(
             "chart:smoothLines", false, true,
             info -> info instanceof ChartVSAssemblyInfo &&
                ((ChartVSAssemblyInfo) info).isUserSmoothLines(),

@@ -1338,6 +1338,30 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Whether the author chose the tree node corner radius.
+    */
+   public boolean isUserNodeCornerRadius() {
+      return userNodeCornerRadius;
+   }
+
+   public void setUserNodeCornerRadius(boolean userNodeCornerRadius) {
+      this.userNodeCornerRadius = userNodeCornerRadius;
+   }
+
+   /**
+    * Set the tree node corner radius as the author's choice.
+    */
+   public void setAuthorNodeCornerRadius(double nodeCornerRadius) {
+      setNodeCornerRadius(nodeCornerRadius);
+      this.userNodeCornerRadius = true;
+   }
+
+   // a corner other than every new chart's is the author's
+   private boolean derivedUserNodeCornerRadius() {
+      return nodeCornerRadius != DEFAULT_NODE_CORNER_RADIUS;
+   }
+
+   /**
     * Get the circle packing container formats.
     * @level the nesting level, with the top circle having a level of 0.
     */
@@ -1565,6 +1589,9 @@ public class PlotDescriptor implements AssetObject, ContentObject {
 
       val = Tool.getAttribute(node, "nodeCornerRadius");
       setNodeCornerRadius(val != null ? Double.parseDouble(val) : 0.0);
+      // after the corner, as the derivation reads it
+      userNodeCornerRadius = DerivedUserFlag.parse(Tool.getAttribute(node, "userNodeCornerRadius"),
+                                                   derivedUserNodeCornerRadius());
 
       String lonMin = Tool.getAttribute(node, "lonMin");
       String lonMax = Tool.getAttribute(node, "lonMax");
@@ -1722,6 +1749,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" barCornerRadius=\"" + barCornerRadius + "\" ");
       writer.print(" barRoundAllCorners=\"" + barRoundAllCorners + "\" ");
       writer.print(" nodeCornerRadius=\"" + nodeCornerRadius + "\" ");
+      DerivedUserFlag.write(writer, "userNodeCornerRadius", userNodeCornerRadius,
+                            derivedUserNodeCornerRadius());
       writer.print(" oneLine=\"" + oneLine + "\" ");
 
       if(lonlat != null) {
@@ -1880,6 +1909,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          barCornerRadius == desc.barCornerRadius &&
          barRoundAllCorners == desc.barRoundAllCorners &&
          nodeCornerRadius == desc.nodeCornerRadius &&
+         userNodeCornerRadius == desc.userNodeCornerRadius &&
          circleFormats.equals(desc.circleFormats) &&
          Tool.equals(errorFormat, desc.errorFormat) &&
          includeParentLabels == desc.includeParentLabels &&
@@ -2016,8 +2046,9 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private double barCornerRadius = DEFAULT_BAR_CORNER_RADIUS;
    private boolean barRoundAllCorners = false;
    // New tree charts default to rounded nodes; parseXML overrides to 0 for saved charts.
-   private static final double DEFAULT_NODE_CORNER_RADIUS = 0.3;
+   public static final double DEFAULT_NODE_CORNER_RADIUS = 0.3;
    private double nodeCornerRadius = DEFAULT_NODE_CORNER_RADIUS;
+   private boolean userNodeCornerRadius = false;
    private boolean oneLine = false;
    private TextLayout textLayout;
 

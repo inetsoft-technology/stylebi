@@ -252,7 +252,8 @@ public class ChartProcessor {
 
       if(info != null && info.getChartType() == GraphTypes.CHART_TREE) {
          scriptable.addProperty("nodeCornerRadius", "getNodeCornerRadius",
-                                "setNodeCornerRadius", double.class, PlotDescriptor.class, plot);
+                                "setAuthorNodeCornerRadius", double.class, PlotDescriptor.class,
+                                plot);
       }
 
       scriptable.addProperty("oneLine", "isOneLine",

@@ -166,6 +166,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             plotDesc.setBarCornerRadius(VSChartChromeDefaults.BAR_CORNER_RADIUS);
          }
 
+         // on every chart, so a later change into a tree takes it
+         if(!plotDesc.isUserNodeCornerRadius()) {
+            plotDesc.setNodeCornerRadius(VSChartChromeDefaults.NODE_CORNER_RADIUS);
+         }
+
          // the plot's structural lines. Seeded rather than resolved at render so they travel in
          // an exported asset, and so the composer pane and the canvas read one stored value
          Color gridline = VSChartChromeDefaults.gridlineColor(ctx);
@@ -193,6 +198,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          // left alone. Value-identical at gate-off creation, where both fields already hold these.
          if(!isUserBarCornerRadius()) {
             plotDesc.setBarCornerRadius(0);
+         }
+
+         // what every new chart holds; a released file's square corner is flagged
+         if(!plotDesc.isUserNodeCornerRadius()) {
+            plotDesc.setNodeCornerRadius(PlotDescriptor.DEFAULT_NODE_CORNER_RADIUS);
          }
 
          // smoothLines also has a chart-type default, so the legacy value is type-dependent: a
