@@ -5182,6 +5182,18 @@ public abstract class GraphGenerator {
          box.setBoxWidthRule(isBoxWidthRule(box));
          box.setBoxHeightFloor(true);
       }
+      else if(elem instanceof SchemaElement candle &&
+              candle.getPainter() instanceof CandlePainter)
+      {
+         SizeFrame size = candle.getSizeFrame();
+
+         // a size the author set or a size binding keeps today's body
+         candle.setWidthFloor(!isAuthorSized(candle) && (size == null || size.getField() == null));
+      }
+      else if(elem instanceof SchemaElement stock && stock.getPainter() instanceof StockPainter) {
+         // a tick's length does not follow Size
+         stock.setWidthFloor(true);
+      }
       else if(elem instanceof AreaElement area && chartType == GraphTypes.CHART_FILL_RADAR) {
          area.setSolidOutline(true);
       }

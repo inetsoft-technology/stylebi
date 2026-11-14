@@ -126,6 +126,21 @@ public class SchemaElement extends GraphElement {
    }
 
    /**
+    * Check whether a candle body or a stock tick keeps a minimum screen width.
+    */
+   public boolean isWidthFloor() {
+      return widthFloor;
+   }
+
+   /**
+    * Set whether a candle body is at least 3 screen pixels wide and a stock tick at least 3
+    * long, or their share of a slot too narrow for that.
+    */
+   public void setWidthFloor(boolean widthFloor) {
+      this.widthFloor = widthFloor;
+   }
+
+   /**
     * Add a variable to be plotted using this element.
     * @param col the variable identifier.
     */
@@ -273,7 +288,7 @@ public class SchemaElement extends GraphElement {
          SchemaElement elem = (SchemaElement) obj;
          return schemas.equals(elem.schemas) && Objects.equals(painter, elem.painter) &&
             boxCornerRadius == elem.boxCornerRadius && boxWidthRule == elem.boxWidthRule &&
-            boxHeightFloor == elem.boxHeightFloor;
+            boxHeightFloor == elem.boxHeightFloor && widthFloor == elem.widthFloor;
       }
 
       return false;
@@ -284,5 +299,6 @@ public class SchemaElement extends GraphElement {
    private double boxCornerRadius = -1;
    private boolean boxWidthRule;
    private boolean boxHeightFloor;
+   private boolean widthFloor;
    private static final long serialVersionUID = 1L;
 }

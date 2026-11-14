@@ -27,6 +27,8 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.data.SumDataSet;
 import inetsoft.graph.element.*;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.schema.CandlePainter;
+import inetsoft.graph.schema.StockPainter;
 import inetsoft.graph.visual.BarVO;
 import inetsoft.graph.visual.ElementVO;
 import inetsoft.graph.visual.PointVO;
@@ -425,6 +427,56 @@ class ModernMarkRulesTest {
          assertEquals(28, box.getHeight(), 0.5, "width down the screen");
          assertEquals(whisker.getCenterY(), box.getCenterY(), 0.5, "on its whisker");
       }
+   }
+
+   @Test
+   void aMarkedCandleSetsTheWidthFloor() {
+      SchemaElement candle = schemaElement(candleChart(new CandleVSChartInfo(), false),
+                                           VizMark.MODERN_LIGHT);
+
+      assertInstanceOf(CandlePainter.class, candle.getPainter(), "premise: a candle");
+      assertTrue(candle.isWidthFloor());
+   }
+
+   @Test
+   void anAuthorSizedCandleDoesNot() {
+      Chart chart = candleChart(new CandleVSChartInfo(), false);
+      setAuthorSize(chart.info().getSizeFrameWrapper());
+      SchemaElement candle = schemaElement(chart, VizMark.MODERN_LIGHT);
+
+      assertTrue(chart.info().isSizeChanged(candle.getVars()), "premise: the author's size");
+      assertFalse(candle.isWidthFloor());
+   }
+
+   @Test
+   void aSizeBoundCandleDoesNot() {
+      SchemaElement candle = schemaElement(candleChart(new CandleVSChartInfo(), true),
+                                           VizMark.MODERN_LIGHT);
+
+      assertNotNull(candle.getSizeFrame().getField(), "premise: the size is bound");
+      assertFalse(candle.isWidthFloor());
+   }
+
+   @Test
+   void aMarkedStockAlwaysSetsIt() {
+      Chart authorSized = candleChart(new StockVSChartInfo(), false);
+      setAuthorSize(authorSized.info().getSizeFrameWrapper());
+      SchemaElement stock = schemaElement(candleChart(new StockVSChartInfo(), false),
+                                          VizMark.MODERN_LIGHT);
+      SchemaElement sized = schemaElement(authorSized, VizMark.MODERN_LIGHT);
+
+      assertInstanceOf(StockPainter.class, stock.getPainter(), "premise: a stock");
+      assertTrue(authorSized.info().isSizeChanged(sized.getVars()), "premise: the author's size");
+      assertTrue(stock.isWidthFloor(), "stock");
+      assertTrue(sized.isWidthFloor(), "author-sized stock");
+   }
+
+   @Test
+   void aClassicCandleDoesNot() {
+      assertFalse(schemaElement(candleChart(new CandleVSChartInfo(), false), null).isWidthFloor(),
+                  "candle");
+      assertFalse(schemaElement(candleChart(new StockVSChartInfo(), false), null).isWidthFloor(),
+                  "stock");
    }
 
    @Test
@@ -877,6 +929,61 @@ class ModernMarkRulesTest {
          assertEquals(old.getWidth() / oldSlot, box.getWidth() / slot, 0.01,
                       "today's share of the slot");
       }
+   }
+
+   // a candle or stock by day, with or without a measure on Size
+   private static Chart candleChart(CandleVSChartInfo cinfo, boolean sized) {
+      VSChartAggregateRef high = agg("High", "Sum");
+      VSChartAggregateRef close = agg("Close", "Sum");
+      VSChartAggregateRef open = agg("Open", "Sum");
+      VSChartAggregateRef low = agg("Low", "Sum");
+      VSChartAggregateRef qty = agg("Qty", "Sum");
+      cinfo.addXField(dim("Day"));
+      cinfo.setHighField(high);
+      cinfo.setRTHighField(high);
+      cinfo.setCloseField(close);
+      cinfo.setRTCloseField(close);
+      cinfo.setOpenField(open);
+      cinfo.setRTOpenField(open);
+      cinfo.setLowField(low);
+      cinfo.setRTLowField(low);
+
+      if(sized) {
+         VSAestheticRef size = new VSAestheticRef();
+         size.setDataRef(qty);
+         size.setRTDataRef(qty);
+         size.setVisualFrameWrapper(new LinearSizeFrameWrapper());
+         cinfo.setSizeField(size);
+      }
+
+      int type = cinfo instanceof StockVSChartInfo ? GraphTypes.CHART_STOCK :
+         GraphTypes.CHART_CANDLE;
+      cinfo.setChartType(type);
+      cinfo.setRTChartType(type);
+      cinfo.updateChartType(false);
+      Object[][] rows = {
+         { "Day", GraphUtil.getName(high), GraphUtil.getName(close), GraphUtil.getName(open),
+           GraphUtil.getName(low), GraphUtil.getName(qty) },
+         { "D1", 12.0, 11.0, 10.0, 9.0, 3.0 },
+         { "D2", 12.0, 9.5, 11.0, 9.0, 7.0 },
+         { "D3", 14.0, 13.0, 12.0, 11.0, 11.0 },
+      };
+
+      return new Chart(cinfo, rows);
+   }
+
+   private static SchemaElement schemaElement(Chart chart, VizMark mark) {
+      EGraph graph = generator(chart, mark, null).createEGraph();
+      List<SchemaElement> elems = new ArrayList<>();
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof SchemaElement elem) {
+            elems.add(elem);
+         }
+      }
+
+      assertEquals(1, elems.size(), "premise: one schema element");
+      return elems.get(0);
    }
 
    private static SchemaElement boxElement(Chart chart, VizMark mark) {
