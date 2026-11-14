@@ -164,6 +164,11 @@ final class ChartChromeSlots {
                   valueSlot("chart:plot:" + field, value));
             }
 
+            // only a filled radar's; every other type keeps the author's alpha
+            if(ResolvedChartType.of(CHART.apply(source)).type() == GraphTypes.CHART_FILL_RADAR) {
+               slots.add(valueSlot("chart:plot:alpha", PLOT.then(p -> p.chromeValue("alpha"))));
+            }
+
             slots.add(ChromeSlot.plain("chart:plot:trendLineColor", copy(PLOT,
                (to, from) -> to.setTrendLineColor(from.getTrendLineColor()))));
             slots.add(ChromeSlot.plain("chart:plot:borderColor", copy(PLOT,

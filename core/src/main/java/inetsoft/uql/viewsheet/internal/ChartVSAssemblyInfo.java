@@ -3278,6 +3278,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedAxisLines(ctx, type);
       seedAxisTitles(ctx, type);
       seedXGrid(ctx, type);
+      seedPlotAlpha(ctx, type);
       // the legacy branch replaces only a modern value
       seedChartColor(ctx, type);
       // a position mapping, so a classic value stays on the legacy branch
@@ -3437,6 +3438,22 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(plot != null) {
          plot.setXGridStyle(style, CompositeValue.Type.DEFAULT);
+      }
+   }
+
+   // the fill transparency; -1 is auto, so a legacy chart keeps the element's own
+   private void seedPlotAlpha(VizContext ctx, ResolvedChartType type) {
+      double alpha = ctx.modern ? VSChartTypeDefaults.plotAlpha(type) : -1;
+      seedPlotAlpha(getChartDescriptor(), alpha);
+      // a script-made runtime copy, which the render prefers; its user tier stays
+      seedPlotAlpha(getRTChartDescriptor(), alpha);
+   }
+
+   private static void seedPlotAlpha(ChartDescriptor desc, double alpha) {
+      PlotDescriptor plot = plotOf(desc);
+
+      if(plot != null) {
+         plot.setAlpha(alpha, CompositeValue.Type.DEFAULT);
       }
    }
 

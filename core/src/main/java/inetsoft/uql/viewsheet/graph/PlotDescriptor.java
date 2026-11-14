@@ -1919,8 +1919,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
 
    /**
     * The tiered value behind one of the plot's look properties, by field name: xGridColor,
-    * yGridColor, xGridStyle, yGridStyle, diagonalColor, quadrantColor, facetColor, bgColor, emptyColor
-    * or paretoLineColor.
+    * yGridColor, xGridStyle, yGridStyle, diagonalColor, quadrantColor, facetColor, bgColor,
+    * emptyColor, paretoLineColor or alpha.
     */
    public CompositeValue<?> chromeValue(String field) {
       switch(field) {
@@ -1944,6 +1944,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          return emptyColor;
       case "paretoLineColor":
          return paretoLineColor;
+      case "alpha":
+         return alpha;
       default:
          throw new IllegalArgumentException("Not a plot look property: " + field);
       }
@@ -1971,7 +1973,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    // values whose default tier can be saved
    List<CompositeValue<?>> savedDefaults() {
       return List.of(xGridColor, yGridColor, facetColor, diagonalColor, quadrantColor,
-                     xGridStyle, emptyColor, paretoLineColor);
+                     xGridStyle, emptyColor, paretoLineColor, alpha);
    }
 
    private CompositeTextFormat fmt;

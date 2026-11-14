@@ -477,6 +477,40 @@ class ModernMarkRulesTest {
       assertEquals(1, radarSize(GraphTypes.CHART_FILL_RADAR, null));
    }
 
+   @Test
+   void aMarkedFilledRadarHasASolidOutline() {
+      assertTrue(filledRadarArea(VizMark.MODERN_LIGHT, new ChartDescriptor()).isSolidOutline());
+      assertFalse(filledRadarArea(null, new ChartDescriptor()).isSolidOutline());
+
+      // an area chart keeps its translucent outline
+      EGraph graph = generator(measureChart(GraphTypes.CHART_AREA), VizMark.MODERN_LIGHT, null)
+         .createEGraph();
+      AreaElement area = null;
+
+      for(int i = 0; i < graph.getElementCount(); i++) {
+         if(graph.getElement(i) instanceof AreaElement elem) {
+            area = elem;
+         }
+      }
+
+      assertNotNull(area, "premise: an area element");
+      assertFalse(area.isSolidOutline());
+   }
+
+   @Test
+   void aMarkedFilledRadarDrawsAt30Percent() {
+      // what the type seed leaves on a marked filled radar
+      ChartDescriptor seeded = new ChartDescriptor();
+      seeded.getPlotDescriptor().setAlpha(0.3, CompositeValue.Type.DEFAULT);
+
+      assertEquals(0.3, alphaHint(filledRadarArea(VizMark.MODERN_LIGHT, seeded)), 1e-9);
+      assertEquals(0.8, alphaHint(filledRadarArea(null, new ChartDescriptor())), 1e-9);
+   }
+
+   private static double alphaHint(GraphElement elem) {
+      return ((Number) elem.getHint(GraphElement.HINT_ALPHA)).doubleValue();
+   }
+
    private static double edgeLargest(VizMark mark) {
       VSChartDimensionRef source = dim("Parent");
       VSChartDimensionRef target = dim("Child");
@@ -539,6 +573,17 @@ class ModernMarkRulesTest {
    }
 
    private static double radarSize(int chartType, VizMark mark) {
+      GraphElement found = radarElement(chartType, mark, new ChartDescriptor());
+      assertInstanceOf(StaticSizeFrame.class, found.getSizeFrame(), "premise: a static size");
+      return found.getSizeFrame().getSize(null);
+   }
+
+   private static AreaElement filledRadarArea(VizMark mark, ChartDescriptor desc) {
+      return (AreaElement) radarElement(GraphTypes.CHART_FILL_RADAR, mark, desc);
+   }
+
+   // a radar's line, or a filled radar's area
+   private static GraphElement radarElement(int chartType, VizMark mark, ChartDescriptor desc) {
       RadarVSChartInfo radar = new RadarVSChartInfo();
       VSChartAggregateRef a = agg("A", "Sum");
       VSChartAggregateRef b = agg("B", "Sum");
@@ -554,7 +599,7 @@ class ModernMarkRulesTest {
          { 1.0, 2.0, 3.0 },
          { 3.0, 2.0, 1.0 },
       };
-      EGraph graph = generator(new Chart(radar, rows), mark, null).createEGraph();
+      EGraph graph = generator(new Chart(radar, rows), mark, null, desc).createEGraph();
       GraphElement found = null;
 
       for(int i = 0; i < graph.getElementCount(); i++) {
@@ -568,8 +613,7 @@ class ModernMarkRulesTest {
       }
 
       assertNotNull(found, "premise: the radar's line or area element");
-      assertInstanceOf(StaticSizeFrame.class, found.getSizeFrame(), "premise: a static size");
-      return found.getSizeFrame().getSize(null);
+      return found;
    }
 
    private static List<PointElement> points(Chart chart, VizMark mark) {

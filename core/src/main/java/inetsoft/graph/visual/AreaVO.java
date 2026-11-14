@@ -256,7 +256,7 @@ public class AreaVO extends LineVO {
          }
 
          try {
-            paintLine(g, Math.min(1, getAlphaHint() * 1.2));
+            paintLine(g, outlineAlpha());
          }
          finally {
             if(svg != null) {
@@ -264,6 +264,15 @@ public class AreaVO extends LineVO {
             }
          }
       }
+   }
+
+   /**
+    * Get the alpha the outline is stroked at: opaque for a solid outline, otherwise 1.2 times
+    * the fill's.
+    */
+   double outlineAlpha() {
+      AreaElement elem = (AreaElement) ((AreaGeometry) getGeometry()).getElement();
+      return elem.isSolidOutline() ? 1 : Math.min(1, getAlphaHint() * 1.2);
    }
 
    /**

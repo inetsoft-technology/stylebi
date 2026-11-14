@@ -68,6 +68,13 @@ final class VSChartTypeDefaults {
    }
 
    /**
+    * The modern plot alpha; a filled radar fills at 30%, everything else is auto (-1).
+    */
+   static double plotAlpha(ResolvedChartType t) {
+      return t.type() == GraphTypes.CHART_FILL_RADAR ? 0.3 : -1;
+   }
+
+   /**
     * Whether a modern chart draws smooth lines; only a circular network keeps curved chords.
     */
    static boolean smoothLines(int type) {

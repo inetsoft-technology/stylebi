@@ -5182,6 +5182,9 @@ public abstract class GraphGenerator {
          box.setBoxWidthRule(isBoxWidthRule(box));
          box.setBoxHeightFloor(true);
       }
+      else if(elem instanceof AreaElement area && chartType == GraphTypes.CHART_FILL_RADAR) {
+         area.setSolidOutline(true);
+      }
    }
 
    /**
