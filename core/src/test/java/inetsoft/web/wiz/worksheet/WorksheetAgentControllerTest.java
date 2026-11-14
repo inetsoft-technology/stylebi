@@ -153,6 +153,26 @@ class WorksheetAgentControllerTest {
          WorksheetAgentController.DEFAULT_REFRESH_DATA_TABLE_WAIT_MS;
    }
 
+   /**
+    * Bug #81366: an in-place save now asks MVManager which dashboards depend on the worksheet;
+    * by default no MV depends on anything. Tests of the MV guard re-stub {@link #mvManager}.
+    */
+   private MockedStatic<inetsoft.mv.MVManager> mvStatic;
+   private inetsoft.mv.MVManager mvManager;
+
+   @BeforeEach
+   void stubMvManager() {
+      mvManager = mock(inetsoft.mv.MVManager.class);
+      when(mvManager.findSheets(any(), anyBoolean())).thenReturn(new String[0]);
+      mvStatic = mockStatic(inetsoft.mv.MVManager.class);
+      mvStatic.when(inetsoft.mv.MVManager::getManager).thenReturn(mvManager);
+   }
+
+   @AfterEach
+   void releaseMvManager() {
+      mvStatic.close();
+   }
+
    // ---------------------------------------------------------------------------
    // Helpers
    // ---------------------------------------------------------------------------
@@ -13718,6 +13738,76 @@ class WorksheetAgentControllerTest {
       assertEquals(Boolean.TRUE, result.get("ok"));
       assertNull(result.get("warning"));
       verify(ws, never()).getRuntimeSheets(any());
+   }
+
+   private WorksheetAgentController mvSaveController(Principal agent, AssetEntry entry,
+                                                     WorksheetService ws) throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(entry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(1);
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-81366"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-81366"));
+      return controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+   }
+
+   /**
+    * Bug #81366: an in-place save of a worksheet that MV-backed dashboards depend on is refused,
+    * naming them, until confirmed:true -- and with confirmed:true it saves.
+    */
+   @Test
+   void inPlaceSaveOfMvBackedWorksheetRequiresConfirmation81366() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      WorksheetService ws = mock(WorksheetService.class);
+      WorksheetAgentController ctrl = mvSaveController(agent, entry, ws);
+
+      when(mvManager.findSheets(any(AssetEntry.class), eq(false)))
+         .thenReturn(new String[]{ "Sales Dash" });
+
+      try(MockedStatic<inetsoft.uql.asset.sync.DependencyTransformer> depStatic =
+             mockStatic(inetsoft.uql.asset.sync.DependencyTransformer.class))
+      {
+         depStatic.when(() -> inetsoft.uql.asset.sync.DependencyTransformer.createRenameInfo(
+            any(RuntimeWorksheet.class)))
+            .thenReturn(new inetsoft.uql.asset.sync.RenameDependencyInfo());
+
+         PairingException ex = assertThrows(PairingException.class, () ->
+            ctrl.save("TOK-81366", new WorksheetAgentController.SaveRequest(null, null), agent));
+         assertTrue(ex.getMessage().contains("Sales Dash"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("confirmed:true"), ex.getMessage());
+         verify(ws, never()).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+
+         Map<String, Object> result = ctrl.save("TOK-81366",
+            new WorksheetAgentController.SaveRequest(null, null, true), agent);
+         assertEquals(Boolean.TRUE, result.get("ok"));
+         verify(ws).setWorksheet(any(), any(), any(), anyBoolean(), anyBoolean());
+      }
+   }
+
+   /** Bug #81366: a worksheet no MV depends on saves in place with no confirmation. */
+   @Test
+   void inPlaceSaveWithoutMvDependentsNeedsNoConfirmation81366() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null);
+      WorksheetService ws = mock(WorksheetService.class);
+      WorksheetAgentController ctrl = mvSaveController(agent, entry, ws);
+
+      try(MockedStatic<inetsoft.uql.asset.sync.DependencyTransformer> depStatic =
+             mockStatic(inetsoft.uql.asset.sync.DependencyTransformer.class))
+      {
+         depStatic.when(() -> inetsoft.uql.asset.sync.DependencyTransformer.createRenameInfo(
+            any(RuntimeWorksheet.class)))
+            .thenReturn(new inetsoft.uql.asset.sync.RenameDependencyInfo());
+         Map<String, Object> result = ctrl.save("TOK-81366",
+            new WorksheetAgentController.SaveRequest(null, null), agent);
+         assertEquals(Boolean.TRUE, result.get("ok"));
+      }
    }
 
    /**
