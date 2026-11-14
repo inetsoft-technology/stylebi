@@ -5664,7 +5664,8 @@ class AssemblyPropertyServiceTest {
 
       for(String key : new String[] { "trendLineStyle", "diagonalLineStyle",
                                       "quadrantGridLineStyle", "chartLinePaneModel.xGridLineStyle",
-                                      "chartLinePaneModel.yGridLineStyle" })
+                                      "chartLinePaneModel.yGridLineStyle", "xGridLineStyle",
+                                      "yGridLineStyle" })
       {
          for(Object bad : new Object[] { 999, -7, 1, "bogus" }) {
             Exception thrown = assertThrows(IllegalArgumentException.class,

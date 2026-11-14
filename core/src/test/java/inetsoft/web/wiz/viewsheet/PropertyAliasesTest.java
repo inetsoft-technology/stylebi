@@ -721,6 +721,33 @@ class PropertyAliasesTest {
                       "tableViewGeneralPaneModel.sizePositionPaneModel.scaleVertical"));
    }
 
+   /** Bug #80397: the chart X/Y grid line aliases resolve to the paths the Line tab writes. */
+   @Test
+   void namesTheChartXyGridLineProperties() {
+      for(String name : java.util.List.of("xGridLineStyle", "xGridLineColor", "yGridLineStyle",
+                                          "yGridLineColor"))
+      {
+         assertEquals("chartLinePaneModel." + name, PropertyAliases.resolveForWrite("chart", name));
+      }
+   }
+
+   /**
+    * Bug #80397: Crosstab and CalcTable never read maxRows back, so it must be refused (alias-less
+    * raw path included) instead of reporting success; Table still applies it.
+    */
+   @Test
+   void refusesMaxRowsOnCrosstabAndCalctableOnly() {
+      for(String type : java.util.List.of("crosstab", "calctable")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("maxRows"), type);
+         assertThrows(IllegalArgumentException.class,
+                      () -> PropertyAliases.resolveForWrite(type,
+                         "tableViewGeneralPaneModel.maxRows"), type);
+      }
+
+      assertEquals("tableViewGeneralPaneModel.maxRows",
+                   PropertyAliases.resolveForWrite("table", "maxRows"));
+   }
+
    @Test
    void refusesCalctableDeadFields() {
       // cellHeight (bug #76895), same shape as table/crosstab -- CalcTable has no such concept
