@@ -7021,7 +7021,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * crosstab or freehand table are evaluated here without a cell context, so a valid
     * reference to a cell (e.g. $total) or a bad expression fails here although the
     * rendering evaluates it per cell with a fallback (VSFormatTableLens). A failure of
-    * such a value is therefore only logged and does not skip the other values. Any other
+    * such a value is therefore ignored (a stopped script is still rethrown) and does not skip the other values. Any other
     * value (object/title format, enabled, visible) still fails the call.
     * @param name assembly name.
     * @param assembly the assembly.
@@ -7050,8 +7050,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             executeDynamicValues(name, Collections.singletonList(value));
          }
          catch(ScriptException ex) {
-            LOG.debug("Ignoring failed cell format expression of {}: {}", name,
-                      ex.getMessage());
+            // a stopped script (timeout/cancel) is not a failed expression
+            if(ScriptTimeoutGuard.isStop(ex)) {
+               ScriptTimeoutGuard.rethrowStop(ex);
+            }
          }
       }
 

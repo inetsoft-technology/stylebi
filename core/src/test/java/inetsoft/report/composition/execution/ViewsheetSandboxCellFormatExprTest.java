@@ -24,6 +24,8 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptStopTestSupport;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -139,6 +141,23 @@ class ViewsheetSandboxCellFormatExprTest {
 
       assertEquals(1, errors().size());
       assertInstanceOf(ScriptException.class, errors().get(0));
+   }
+
+   @Test
+   void stoppedCellFormatScriptStillPropagates() throws Exception {
+      String previous = ScriptStopTestSupport.setTimeout("1");
+
+      try {
+         TableVSAssembly table = table("=while(true) {}; 0xFF0000");
+
+         Throwable ex = assertThrows(Throwable.class,
+                                     () -> box.executeViewDynamicValues("Tbl", table));
+         assertTrue(ScriptTimeoutGuard.isStop(ex), ex.toString());
+      }
+      finally {
+         Thread.interrupted();
+         ScriptStopTestSupport.setTimeout(previous);
+      }
    }
 
    private List<Exception> errors() {
