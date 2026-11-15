@@ -238,20 +238,23 @@ class WorksheetEditServiceBug81354Test {
       assertEquals(keyColumns, joinColumnNames());
    }
 
-   // ---- M6: a second unrelated apply leaves the join empty ----------------------------------
+   // ---- M6: a later unrelated apply, slow table still hung, must not lose the join's columns
 
    @Test
-   void m6SecondUnrelatedApplyLeavesTheJoinEmpty() throws Exception {
+   void m6SecondUnrelatedApplyKeepsAPopulatedJoinPopulated() throws Exception {
       build(Order.SLOW_FIRST, SLOW_EXPR, null);
       apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
-      assertEquals(0, count(false), "precondition: J empty after the first apply");
+      assertEquals(keyColumns, joinColumnNames(), "precondition: J populated after the first apply");
 
       appender.list.clear();
       apply(ed -> ed.addTable("Z", "c"));
 
       logged().forEach(l -> System.out.println("M6 LOG " + l));
       System.out.println("M6 J after 2nd apply private=" + count(false));
-      assertEquals(0, count(false), "starvation repeats on the next edit");
+      assertTrue(anyLog("Skipping refresh for assembly J"),
+                 "the slow table still starves the loop on the next edit: " + logged());
+      assertEquals(keyColumns, joinColumnNames(),
+                   "a later unrelated edit must not empty or lose the join's columns");
    }
 
    // ---- M7: a direct refresh of the join is cheap while the slow refresh is hung ------------
@@ -259,8 +262,14 @@ class WorksheetEditServiceBug81354Test {
    @Test
    void m7DirectRefreshOfTheJoinIsQuickAndFillsItWhileTheSlowRefreshIsHung() throws Exception {
       build(Order.SLOW_FIRST, SLOW_EXPR, null);
-      apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
+      // Create J with a bare Editor (no apply, so no early init and no loop): J is empty
+      WorksheetEditService.Editor ed = new WorksheetEditService.Editor(
+         ws, agent, permissive(), mock(InnerJoinService.class), null, () -> null);
+      ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null);
       assertEquals(0, count(false), "precondition: J empty");
+      // start the slow refresh and leave it hung in the background
+      apply(ed2 -> {});
+      assertEquals(0, count(false), "precondition: J still empty, slow refresh hung");
 
       long t0 = System.currentTimeMillis();
       box.refreshColumnSelection("J", false);
@@ -385,16 +394,28 @@ class WorksheetEditServiceBug81354Test {
       assertTrue(ms >= 1800, "the joined in-flight wait still consumes the window, took " + ms);
       assertTrue(anyLog("Skipping refresh for assembly J - refreshAssemblies budget exhausted"),
                  logged().toString());
-      assertEquals(0, count(false));
+      // the loop is still starved, but J no longer depends on it
+      assertEquals(keyColumns, joinColumnNames(),
+                   "window exhaustion must not starve the join of its columns");
    }
 
    // ---- fixture -----------------------------------------------------------------------------
 
    private enum Order { SLOW_FIRST, SLOW_LAST, TABLES_ONLY }
 
+   private static boolean warmed;
+
    private void build(Order order, String slowExpression, String socketSessionId)
       throws Exception
    {
+      if(!warmed) {
+         // the first script evaluation in a cold JVM can itself exceed the 2000 ms window, which
+         // would make the "fast" controls (m4/m5) look slow depending on test order
+         warmed = true;
+         build(Order.SLOW_FIRST, FAST_EXPR, null);
+         box.refreshColumnSelection("Slow", false);
+      }
+
       ws = new Worksheet();
 
       if(order == Order.SLOW_FIRST) {
