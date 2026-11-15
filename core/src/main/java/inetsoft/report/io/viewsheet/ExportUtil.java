@@ -50,6 +50,7 @@ import java.sql.Timestamp;
 import java.text.*;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Common utilities for exporting.
@@ -579,7 +580,7 @@ public class ExportUtil {
             }
 
             // Bug #80208, a fixed "0.0" rounds every decimal; use the value's own decimals
-            return "0.0".equals(format) ? getDecimalPattern(text) : format;
+            return DECIMAL_NUMBER_FORMAT.equals(format) ? getDecimalPattern(text) : format;
          }
       }
 
@@ -780,6 +781,10 @@ public class ExportUtil {
       return getNumberFormat((String) obj) != null;
    }
 
+   private static final String INTEGER_NUMBER_FORMAT = "0";
+   private static final String DECIMAL_NUMBER_FORMAT = "0.0";
+   private static final Pattern PLAIN_DECIMAL = Pattern.compile("-?\\d+\\.\\d+");
+
    /**
     * Get the Excel pattern that shows a plain decimal text with exactly its own decimals. The
     * text is what the dashboard shows (Tool.toString), so the cell displays the same digits.
@@ -788,7 +793,7 @@ public class ExportUtil {
    private static String getDecimalPattern(String text) {
       int dot = text == null ? -1 : text.indexOf('.');
 
-      if(dot < 0 || !text.matches("-?\\d+\\.\\d+")) {
+      if(dot < 0 || !PLAIN_DECIMAL.matcher(text).matches()) {
          return "General";
       }
 
@@ -804,7 +809,7 @@ public class ExportUtil {
       try {
          Long.parseLong(text);
 
-         return "0";
+         return INTEGER_NUMBER_FORMAT;
       }
       catch(NumberFormatException ex) {
       }
@@ -812,7 +817,7 @@ public class ExportUtil {
       try {
          Double.parseDouble(text);
 
-         return "0.0";
+         return DECIMAL_NUMBER_FORMAT;
       }
       catch(NumberFormatException ex) {
       }

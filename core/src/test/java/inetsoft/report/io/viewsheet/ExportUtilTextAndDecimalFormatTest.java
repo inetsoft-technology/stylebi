@@ -92,6 +92,41 @@ class ExportUtilTextAndDecimalFormatTest {
    }
 
    @Test
+   void nanAndInfinityStayGeneral() {
+      assertEquals("General", pattern(D_NAN));
+      assertEquals("General", pattern(D_INF));
+      // the raw value is kept so Excel writes its own number cell
+      assertEquals(Double.NaN, value(D_NAN));
+      assertEquals(Double.POSITIVE_INFINITY, value(D_INF));
+   }
+
+   @Test
+   void floatUsesItsDisplayedDecimals() {
+      assertEquals("0.0", pattern(F_01));
+   }
+
+   @Test
+   void messageFormatNonExcelCallersGetDisplayTextAndCsvIsUnchanged() throws Exception {
+      // excel=false now also returns the display text for a MessageFormat cell; HTML ignores a
+      // String result (it renders lens.getObject) and CSV re-reads lens.getObject, so the CSV
+      // text must be exactly what the dashboard shows, before and after the fix
+      assertEquals("12 pcs", ExportUtil.getObject(lens, 1, MSG0, pattern(MSG0), false));
+
+      java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+      inetsoft.report.io.viewsheet.excel.CSVUtil.writeTableDataAssembly(lens, out, ",");
+      String[] lines = out.toString("UTF-8").split("\\r?\\n");
+      assertTrue(lines[1].startsWith("\"12 pcs\",\"12 pcs\",\"ID-A1\",\"12.25\","), lines[1]);
+   }
+
+   @Test
+   void sixteenDigitLongBaselineKeepsTextPatternAndRawValue() {
+      // known limit, not fixed here: the pattern is "@" but the raw Long is returned and the
+      // Excel writers still write a numeric cell
+      assertEquals("@", pattern(L_16DIG));
+      assertEquals(1234567890123456L, value(L_16DIG));
+   }
+
+   @Test
    void moreThanThirtyDecimalsFallBackToGeneral() {
       assertEquals("General", pattern(D_TINY));
    }

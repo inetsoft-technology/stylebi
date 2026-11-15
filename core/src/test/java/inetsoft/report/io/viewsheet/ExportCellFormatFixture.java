@@ -49,7 +49,11 @@ public final class ExportCellFormatFixture {
    public static final int D_NEG = 8;
    public static final int D_TINY = 9;
    public static final int D_INT = 10;
-   public static final int COLS = 11;
+   public static final int D_NAN = 11;
+   public static final int D_INF = 12;
+   public static final int F_01 = 13;
+   public static final int L_16DIG = 14;
+   public static final int COLS = 15;
 
    /** Two columns of text-formatted numbers, a text-formatted string and plain numbers. */
    public static class Base extends DefaultTableLens {
@@ -72,11 +76,24 @@ public final class ExportCellFormatFixture {
          setObject(1, D_NEG, -1234567.125);
          setObject(1, D_TINY, 1.0E-35);
          setObject(1, D_INT, 12.0);
+         setObject(1, D_NAN, Double.NaN);
+         setObject(1, D_INF, Double.POSITIVE_INFINITY);
+         setObject(1, F_01, 0.1f);
+         setObject(1, L_16DIG, 1234567890123456L);
       }
 
       @Override
       public Class<?> getColType(int c) {
-         return c == MSG_STR ? String.class : Double.class;
+         switch(c) {
+         case MSG_STR:
+            return String.class;
+         case F_01:
+            return Float.class;
+         case L_16DIG:
+            return Long.class;
+         default:
+            return Double.class;
+         }
       }
 
       @Override
