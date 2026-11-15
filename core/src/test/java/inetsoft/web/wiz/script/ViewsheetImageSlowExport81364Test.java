@@ -158,7 +158,9 @@ class ViewsheetImageSlowExport81364Test {
       boxes.add(box);
 
       RuntimeViewsheet rvs = spy(new RuntimeViewsheet());
-      doReturn(vs).when(rvs).getViewsheet();
+      java.util.concurrent.atomic.AtomicReference<Viewsheet> current =
+         new java.util.concurrent.atomic.AtomicReference<>(vs);
+      doAnswer(inv -> current.get()).when(rvs).getViewsheet();
       doReturn(java.util.Optional.of(box)).when(rvs).getViewsheetSandbox();
       doReturn("rvs81364").when(rvs).getID();
 
@@ -167,6 +169,9 @@ class ViewsheetImageSlowExport81364Test {
       // that performs the same steps that matter here, in the same order: the real beginExport
       // claim, the real ViewsheetSandbox.prepareForExport (what AbstractVSExporter.prepareSheet
       // calls), a PNG whose width encodes the Text1 caption it saw, and endExport in a finally.
+      // Like VSExportService.doExportViewsheet(current=true) it runs under synchronized(rvs) on a
+      // CLONE of the viewsheet that is swapped into rvs and the sandbox, and puts the original
+      // back in a finally (review r3: onLoad's writes land on the clone, not on the original).
       VSExportService export = mock(VSExportService.class);
       ScriptImageService svc = new ScriptImageService(
          mock(AssemblyImageService.class), mock(BinaryTransferService.class), export);
@@ -176,12 +181,26 @@ class ViewsheetImageSlowExport81364Test {
          VSExportService.beginExport(rvs, inv.getArgument(10));
 
          try {
-            box.prepareForExport();
-            Thread.sleep(f.renderMs);
-            String caption = ((TextVSAssemblyInfo)
-               ((TextVSAssembly) vs.getAssembly("Text1")).getVSAssemblyInfo()).getText();
-            inetsoft.web.viewsheet.service.ExportResponse response = inv.getArgument(9);
-            response.getOutputStream().write(png(10 + caption.length(), 8));
+            synchronized(rvs) {
+               Viewsheet original = current.get();
+               Viewsheet clone = original.clone();
+               current.set(clone);
+               box.setViewsheet(clone, false);
+
+               try {
+                  box.prepareForExport();
+                  Thread.sleep(f.renderMs);
+                  String caption = ((TextVSAssemblyInfo)
+                     ((TextVSAssembly) clone.getAssembly("Text1")).getVSAssemblyInfo()).getText();
+                  inetsoft.web.viewsheet.service.ExportResponse response = inv.getArgument(9);
+                  response.getOutputStream().write(png(10 + caption.length(), 8));
+               }
+               finally {
+                  box.setViewsheet(original, false);
+                  current.set(original);
+               }
+            }
+
             return null;
          }
          finally {
@@ -412,6 +431,22 @@ class ViewsheetImageSlowExport81364Test {
 
       assertNotNull(image, "no image within 3 calls; exports=" + f.exportCalls.get());
       assertEquals(1, f.exportCalls.get(), "the abandoned export was collected, not restarted");
+   }
+
+   /**
+    * Review r3: the stand-in really swaps a clone in for the export, so onLoad's assembly write
+    * goes to the clone and the original keeps its caption; the reuse still converges.
+    */
+   @Test
+   void anOnLoadWriteOnTheCloneNeverReachesTheOriginalAndDoesNotDefeatTheReuse() throws Exception {
+      Fixture f = fixture(COST_MS, "; Text1.text = 'written by onLoad';");
+      assertThrows(RenderNotReadyException.class, () -> call(f));
+      awaitDone(f, 1);
+      assertEquals("hello", ((TextVSAssemblyInfo)
+         ((TextVSAssembly) f.vs.getAssembly("Text1")).getVSAssemblyInfo()).getText(),
+         "onLoad wrote to the original, so the stand-in is not mimicking the clone swap");
+      assertNotNull(call(f));
+      assertEquals(1, f.exportCalls.get());
    }
 
    /** A finished PNG nobody collects is dropped after the TTL. */

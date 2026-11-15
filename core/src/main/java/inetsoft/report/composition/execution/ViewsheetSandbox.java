@@ -2690,12 +2690,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       prepareEmbeddedForExport(vs);
 
-      Runnable prepared = exportPreparedListener;
-
-      if(prepared != null) {
-         prepared.run();
-      }
-
       // thrown only here, after every onLoad ran, so the box is left as by a recorded error
       if(exportLoadFailure != null) {
          throw new TableLoadException(exportLoadFailure);
@@ -9861,16 +9855,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private Map<String, String> limitMessages; //record the asselby limit message.
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
-   /**
-    * Runs at the end of {@link #prepareForExport()}, once every onLoad of the export has run
-    * and before the render, so a caller can take a baseline that includes onLoad's own writes
-    * (Bug #81364). Null when nobody listens.
-    */
-   public void setExportPreparedListener(Runnable listener) {
-      this.exportPreparedListener = listener;
-   }
-
-   private volatile Runnable exportPreparedListener;
    private Exception exportScriptError; // onLoad failure from prepareForExport()
    private TableLoadException exportLoadFailure; // onLoad load failure from prepareForExport()
    private final Set<String> exportFailedAssemblies = new LinkedHashSet<>();

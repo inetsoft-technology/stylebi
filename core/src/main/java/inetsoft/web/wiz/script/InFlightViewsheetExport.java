@@ -51,13 +51,17 @@ import java.util.concurrent.TimeoutException;
  *   <li>a call while an export of that key is still running joins it and waits on it within its own
  *       budget (so it no longer hits "export already in progress" either);</li>
  *   <li>a call after it finished takes its PNG, once; the entry is then gone;</li>
- *   <li>a finished PNG is served only if the viewsheet state digest (see {@link #fingerprint}) was
- *       the same when the export's onLoad scripts had finished (the baseline, taken through
- *       {@code ViewsheetSandbox.setExportPreparedListener}), when the export finished, and when
- *       it is collected, and for at most {@link #ttlMs}; otherwise it is discarded and a fresh
- *       export starts. onLoad's own writes (a clock stamp, a counter) are in the baseline, so
- *       they do not defeat the reuse; a change by another caller after onLoad and during the
- *       render makes the collecting retry start over.</li>
+ *   <li>a finished PNG is served only if the ORIGINAL viewsheet's XML digest was the same before
+ *       the export started and after it finished ({@link #xmlDigest}), and the full state digest
+ *       ({@link #fingerprint}) taken after it finished equals the one at collection, and for at
+ *       most {@link #ttlMs}; otherwise it is discarded and a fresh export starts. All of these
+ *       are measured on the original viewsheet, outside the clone/swap/restore that
+ *       {@code VSExportService.doExportViewsheet(current=true)} does: onLoad and clearScale run
+ *       on the clone, so their own writes (a clock stamp in an assembly, scaled sizes) never
+ *       reach the original and cannot defeat the reuse, while a change by another caller to the
+ *       original between the start of the export and its collection makes the retry start
+ *       over. (A baseline taken inside the export, on the clone, was not comparable with the
+ *       finish digest on the original.)</li>
  *   <li>if a digest cannot be computed, freshness cannot be proved: the PNG is then served only
  *       within {@link #unverifiedTtlMs} of finishing, with a warning, instead of being discarded
  *       into another long export (which would be the original non-convergence).</li>
@@ -67,8 +71,8 @@ import java.util.concurrent.TimeoutException;
  * are not part of the key. What stays undetectable: a pure joiner (a call that waits on an export
  * that is still running and returns when it finishes) gets that export's PNG unchecked, so a
  * change made while it ran can show up as the old state, exactly as for any single export that
- * races a change; a change made before onLoad finished, which is inside the baseline; and state
- * that is neither in the viewsheet XML, the variable table nor the
+ * races a change; a change to the variable table or the reset/touch stamps made during the export
+ * (not after it); and state that is neither in the viewsheet XML, the variable table nor the
  * reset/touch stamps is bounded only by the TTL.</p>
  */
 final class InFlightViewsheetExport {
@@ -92,6 +96,7 @@ final class InFlightViewsheetExport {
       }
 
       Entry mine = new Entry();
+      mine.preXml = XML_DIGEST.apply(rvs);
       Entry raced = REGISTRY.putIfAbsent(key, mine);
 
       if(raced != null) {
@@ -99,14 +104,9 @@ final class InFlightViewsheetExport {
       }
 
       Callable<byte[]> tracked = () -> {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
-
          try {
-            if(box != null) {
-               box.setExportPreparedListener(() -> mine.baseDigest = DIGEST.apply(rvs));
-            }
-
             byte[] bytes = export.call();
+            mine.finishXml = XML_DIGEST.apply(rvs);
             mine.finishDigest = DIGEST.apply(rvs);
             mine.finishedAt = System.currentTimeMillis();
             mine.result.complete(bytes);
@@ -117,11 +117,6 @@ final class InFlightViewsheetExport {
             REGISTRY.remove(key, mine);
             mine.result.completeExceptionally(t);
             throw t;
-         }
-         finally {
-            if(box != null) {
-               box.setExportPreparedListener(null);
-            }
          }
       };
 
@@ -162,7 +157,9 @@ final class InFlightViewsheetExport {
       if(entry.result.isDone() && !entry.result.isCompletedExceptionally()) {
          String current = DIGEST.apply(rvs);
 
-         if(entry.baseDigest == null || entry.finishDigest == null || current == null) {
+         if(entry.preXml == null || entry.finishXml == null || entry.finishDigest == null ||
+            current == null)
+         {
             long age = System.currentTimeMillis() - entry.finishedAt;
 
             if(age > unverifiedTtlMs) {
@@ -173,8 +170,7 @@ final class InFlightViewsheetExport {
             LOG.warn("Serving the finished viewsheet export of {} without a state check: the " +
                      "viewsheet state digest could not be computed", key);
          }
-         else if(!entry.baseDigest.equals(entry.finishDigest) ||
-                 !entry.finishDigest.equals(current))
+         else if(!entry.preXml.equals(entry.finishXml) || !entry.finishDigest.equals(current))
          {
             LOG.debug("Discarding the finished viewsheet export of {}: state changed", key);
             REGISTRY.remove(key, entry);
@@ -212,18 +208,14 @@ final class InFlightViewsheetExport {
     */
    static String fingerprint(RuntimeViewsheet rvs) {
       try {
-         Viewsheet vs = rvs.getViewsheet();
+         String xml = xmlDigest(rvs);
 
-         if(vs == null) {
+         if(xml == null) {
             return null;
          }
 
-         StringWriter sw = new StringWriter();
-         PrintWriter writer = new PrintWriter(sw);
-         vs.writeXML(writer);
-         writer.flush();
          MessageDigest md = MessageDigest.getInstance("SHA-256");
-         md.update(sw.toString().getBytes(StandardCharsets.UTF_8));
+         md.update(xml.getBytes(StandardCharsets.UTF_8));
          md.update((rvs.getLastReset() + ":" + rvs.getTouchTimestamp())
                       .getBytes(StandardCharsets.UTF_8));
          // viewsheet parameters live in the sandbox variable table, not in the viewsheet XML
@@ -246,16 +238,40 @@ final class InFlightViewsheetExport {
       }
    }
 
+   /** A digest of the viewsheet XML only, null if it cannot be computed. */
+   static String xmlDigest(RuntimeViewsheet rvs) {
+      try {
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs == null) {
+            return null;
+         }
+
+         StringWriter sw = new StringWriter();
+         PrintWriter writer = new PrintWriter(sw);
+         vs.writeXML(writer);
+         writer.flush();
+         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+            .digest(sw.toString().getBytes(StandardCharsets.UTF_8)));
+      }
+      catch(Exception e) {
+         LOG.debug("Cannot digest the viewsheet XML", e);
+         return null;
+      }
+   }
+
    /** Test hook: drops every retained export. */
    static void clear() {
       REGISTRY.clear();
       DIGEST = InFlightViewsheetExport::fingerprint;
+      XML_DIGEST = InFlightViewsheetExport::xmlDigest;
       unverifiedTtlMs = 10_000L;
    }
 
    private static final class Entry {
       final CompletableFuture<byte[]> result = new CompletableFuture<>();
-      volatile String baseDigest;
+      volatile String preXml;
+      volatile String finishXml;
       volatile String finishDigest;
       volatile long finishedAt;
 
@@ -271,6 +287,9 @@ final class InFlightViewsheetExport {
    /** Test hook. */
    static volatile java.util.function.Function<RuntimeViewsheet, String> DIGEST =
       InFlightViewsheetExport::fingerprint;
+   /** Test hook. */
+   static volatile java.util.function.Function<RuntimeViewsheet, String> XML_DIGEST =
+      InFlightViewsheetExport::xmlDigest;
    private static final Map<String, Entry> REGISTRY = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(InFlightViewsheetExport.class);
 }
