@@ -34,6 +34,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Bug #81355: stops a table refresh that {@link RenderWaitSupport#awaitOrRetry} timed out on, and
@@ -96,6 +97,7 @@ final class InFlightTableRefresh {
       long deadline = System.currentTimeMillis() + timeoutMs;
       Map<String, Entry> inFlight = inFlight(rws);
       boolean started = false;
+      int joinFailures = 0;
 
       try {
          while(true) {
@@ -139,7 +141,11 @@ final class InFlightTableRefresh {
                   throw new RenderNotReadyException(retryAfterSeconds, subject);
                }
                catch(ExecutionException e) {
-                  if(sameTable) {
+                  // The failure (e.g. a cancel by a newer refresh) belongs to the run that was
+                  // joined, not to this caller: start this caller's own refresh instead of
+                  // propagating it, a bounded number of times. A failed dependency likewise
+                  // does not stop this table from running its own refresh.
+                  if(sameTable && ++joinFailures > MAX_JOIN_FAILURES) {
                      Throwable cause = e.getCause();
 
                      if(cause instanceof Exception ex) {
@@ -148,7 +154,8 @@ final class InFlightTableRefresh {
 
                      throw e;
                   }
-                  // a failed dependency does not stop this table from running its own refresh
+
+                  continue;
                }
 
                if(sameTable) {
@@ -158,13 +165,11 @@ final class InFlightTableRefresh {
                continue;
             }
 
-            if(cancel) {
-               cancelPending(rws, table);
-            }
-
             started = true;
             Entry entry = mine;
+            AtomicBoolean entered = new AtomicBoolean();
             Callable<T> tracked = () -> {
+               entered.set(true);
                Throwable failure = null;
 
                try {
@@ -188,9 +193,29 @@ final class InFlightTableRefresh {
                }
             };
 
-            return RenderWaitSupport.awaitOrRetry(
-               tracked, Math.max(1, deadline - System.currentTimeMillis()), retryAfterSeconds,
-               subject);
+            try {
+               if(cancel) {
+                  cancelPending(rws, table);
+               }
+
+               return RenderWaitSupport.awaitOrRetry(
+                  tracked, Math.max(1, deadline - System.currentTimeMillis()), retryAfterSeconds,
+                  subject);
+            }
+            catch(Throwable t) {
+               // A RenderNotReadyException means the work was submitted and cleans up after
+               // itself. Anything else before it started (cancel or submit failed) would leave
+               // this entry registered for good, blocking every later refresh of the table.
+               if(!entered.get() && !(t instanceof RenderNotReadyException)) {
+                  synchronized(inFlight) {
+                     inFlight.remove(table, entry);
+                  }
+
+                  entry.done.completeExceptionally(t);
+               }
+
+               throw t;
+            }
          }
       }
       finally {
@@ -307,6 +332,7 @@ final class InFlightTableRefresh {
       final CompletableFuture<Void> done = new CompletableFuture<>();
    }
 
+   private static final int MAX_JOIN_FAILURES = 3;
    private static final Map<RuntimeWorksheet, Map<String, Entry>> REGISTRY = new WeakHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(InFlightTableRefresh.class);
 }

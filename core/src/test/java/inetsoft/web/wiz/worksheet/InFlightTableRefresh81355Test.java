@@ -203,6 +203,60 @@ class InFlightTableRefresh81355Test {
    }
 
    @Test
+   void aFailedCancelOrSubmitDoesNotLeaveAnEntryThatBlocksTheTable() throws Exception {
+      TableAssembly slow = slowTable("Slow");
+      assertThrows(RenderNotReadyException.class, () -> call("Slow", JOIN_SAME_DEFINITION, 100, null));
+
+      doThrow(new IllegalStateException("cancel failed")).when(qmgr).cancelForChange();
+      slow.setSortInfo(new SortInfo());
+      assertThrows(IllegalStateException.class, () -> call("Slow", JOIN_SAME_DEFINITION, 100, null));
+
+      release.countDown();
+      assertEquals("ran", call("Slow", JOIN_SAME_DEFINITION, 5_000, null),
+                   "a later refresh of the same definition must not be blocked by a leaked entry");
+   }
+
+   @Test
+   void aJoinerOfARunThatFailedStartsItsOwnRefreshInsteadOfRethrowingTheFailure()
+      throws Exception
+   {
+      slowTable("Slow");
+      CountDownLatch fail = new CountDownLatch(1);
+
+      assertThrows(RenderNotReadyException.class, () -> InFlightTableRefresh.awaitOrRetry(
+         rws, "Slow", JOIN_SAME_DEFINITION, () -> {
+            fail.await(20, TimeUnit.SECONDS);
+            throw new IllegalStateException("cancelled by a newer refresh");
+         }, 100, 1, RenderNotReadyException.Subject.TABLE, null));
+
+      new Thread(() -> {
+         try {
+            Thread.sleep(150);
+         }
+         catch(InterruptedException ignore) {
+         }
+
+         fail.countDown();
+      }).start();
+
+      Object result = InFlightTableRefresh.awaitOrRetry(
+         rws, "Slow", JOIN_SAME_DEFINITION, () -> "own", 5_000, 1,
+         RenderNotReadyException.Subject.TABLE, null);
+
+      assertEquals("own", result);
+   }
+
+   @Test
+   void aRefreshTheCallerStartedItselfStillPropagatesItsFailure() {
+      slowTable("Slow");
+
+      assertThrows(IllegalStateException.class, () -> InFlightTableRefresh.awaitOrRetry(
+         rws, "Slow", JOIN_SAME_DEFINITION, () -> {
+            throw new IllegalStateException("real failure");
+         }, 5_000, 1, RenderNotReadyException.Subject.TABLE, null));
+   }
+
+   @Test
    void aTableWhoseDefinitionCannotBeKeyedFallsBackToTheUnguardedWait() throws Exception {
       release.countDown();
 
