@@ -325,6 +325,54 @@ class ViewsheetImageSlowExport81364Test {
          "the image shows the changed state");
    }
 
+   /** Review r1 finding 1: a change that lands while the export is still running is detected. */
+   @Test
+   void aChangeWhileTheExportRunsMakesTheCollectingRetryStartOver() throws Exception {
+      Fixture f = fixture(COST_MS);
+      assertThrows(RenderNotReadyException.class, () -> call(f));
+      ((TextVSAssemblyInfo) ((TextVSAssembly) f.vs.getAssembly("Text1")).getVSAssemblyInfo())
+         .setText("changed while the first export was still running");
+      awaitDone(f, 1);
+
+      assertThrows(RenderNotReadyException.class, () -> call(f));
+      assertEquals(2, f.exportCalls.get(), "the retry did not collect the possibly stale PNG");
+      awaitDone(f, 2);
+      assertNotNull(call(f), "the fresh export, started from the settled state, is collected");
+      assertEquals(2, f.exportCalls.get());
+   }
+
+   /** Review r1 finding 2: no digest means unknown freshness; serve briefly, then start fresh. */
+   @Test
+   void anUncomputableDigestServesTheFinishedExportOnlyWithinTheShortWindow() throws Exception {
+      InFlightViewsheetExport.DIGEST = r -> null;
+      Fixture f = fixture(COST_MS);
+      assertThrows(RenderNotReadyException.class, () -> call(f));
+      awaitDone(f, 1);
+      assertNotNull(call(f), "converged without a digest");
+      assertEquals(1, f.exportCalls.get());
+
+      InFlightViewsheetExport.unverifiedTtlMs = 0;
+      Fixture g = fixture(COST_MS);
+      assertThrows(RenderNotReadyException.class, () -> g.svc.getViewsheetImage(
+         g.rvs, null, null, TestPrincipals.user("bob", "host-org")));
+      awaitDone(g, 1);
+      Thread.sleep(20);
+      assertThrows(RenderNotReadyException.class, () -> g.svc.getViewsheetImage(
+         g.rvs, null, null, TestPrincipals.user("bob", "host-org")));
+      assertEquals(2, g.exportCalls.get(), "past the short window the PNG is not served");
+      awaitDone(g, 2);
+   }
+
+   /** Review note: a viewsheet parameter changes the digest although the XML does not. */
+   @Test
+   void aParameterChangeChangesTheDigest() throws Exception {
+      Fixture f = fixture(0);
+      String before = InFlightViewsheetExport.fingerprint(f.rvs);
+      assertNotNull(before);
+      f.box.getVariableTable().put("p81364", "x");
+      assertNotEquals(before, InFlightViewsheetExport.fingerprint(f.rvs));
+   }
+
    /** A finished PNG nobody collects is dropped after the TTL. */
    @Test
    void anUncollectedExportExpires() throws Exception {
