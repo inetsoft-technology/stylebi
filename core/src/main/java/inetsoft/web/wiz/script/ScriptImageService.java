@@ -395,8 +395,9 @@ public class ScriptImageService {
     * that cost synchronously, with no bound of its own — unlike a chart, which has
     * {@code getAssemblyImage}'s own retry-after loop to fall back on. {@link RenderWaitSupport}
     * gives this the same "not ready yet, retry after N seconds" contract instead of blocking the
-    * request thread for however long the query takes; the export keeps running in the background,
-    * so a retry lands on a warm cache rather than starting over.
+    * request thread for however long the query takes. The export keeps running in the background
+    * and {@link InFlightViewsheetExport} keeps its result, so a retry joins it or takes its PNG
+    * instead of starting over (Bug #81364: every export re-runs the root onLoad).
     */
    public ChartImage getViewsheetImage(RuntimeViewsheet rvs, Integer width, Integer height,
                                        Principal principal)
@@ -405,7 +406,8 @@ public class ScriptImageService {
       int w = clamp(width != null && width > 0 ? width : DEFAULT_WIDTH);
       int h = clamp(height != null && height > 0 ? height : DEFAULT_HEIGHT);
 
-      byte[] pngBytes = RenderWaitSupport.awaitOrRetry(() -> exportViewsheetToPng(rvs, principal),
+      byte[] pngBytes = InFlightViewsheetExport.await(rvs, principal,
+         () -> exportViewsheetToPng(rvs, principal),
          RENDER_MAX_ATTEMPTS * RENDER_RETRY_SLEEP_MS,
          (int) Math.max(1, (RENDER_MAX_ATTEMPTS * RENDER_RETRY_SLEEP_MS) / 1000));
       BufferedImage full = decodePng(pngBytes, "the viewsheet");

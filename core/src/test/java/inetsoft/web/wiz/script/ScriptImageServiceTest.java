@@ -1209,13 +1209,13 @@ class ScriptImageServiceTest {
 
    /**
     * Bug #77597: the export {@code getViewsheetImage} stopped waiting for keeps running and keeps
-    * the Bug #77227 export claim. The next render of the same runtime viewsheet must be rejected
-    * as {@link ExportInProgressException}, which the wiz advice reports as a retryable 503, not a
-    * generic error. Uses the real {@link VSExportService#beginExport} rather than mocking the
+    * the Bug #77227 export claim. Since Bug #81364 the next render of the same runtime viewsheet
+    * by the same principal joins that export (a retryable not-ready) rather than starting one the
+    * claim would reject as {@link ExportInProgressException}. Uses the real {@link VSExportService#beginExport} rather than mocking the
     * export wholesale, which is what hid this interaction from the test above.
     */
    @Test
-   void aRenderWhileAnAbandonedExportStillRunsIsRejectedAsExportInProgress() throws Exception {
+   void aRetryWhileAnAbandonedExportStillRunsJoinsItInsteadOfStartingAnother() throws Exception {
       RuntimeViewsheet rvs = claimableViewsheetWithChart("Chart1");
       CountDownLatch release = new CountDownLatch(1);
       CountDownLatch firstEnded = new CountDownLatch(1);
@@ -1253,9 +1253,11 @@ class ScriptImageServiceTest {
       try {
          assertThrows(RenderNotReadyException.class,
                       () -> svc.getViewsheetImage(rvs, null, null, user));
-         // the first export is still blocked and still holds the claim
-         assertThrows(ExportInProgressException.class,
+         // the first export is still blocked. Bug #81364: a retry joins it (and times out
+         // waiting for it) instead of starting a second export that the claim would reject
+         assertThrows(RenderNotReadyException.class,
                       () -> svc.getViewsheetImage(rvs, null, null, user));
+         assertEquals(1, exports.get(), "the retry joined; it did not start another export");
       }
       finally {
          release.countDown();
