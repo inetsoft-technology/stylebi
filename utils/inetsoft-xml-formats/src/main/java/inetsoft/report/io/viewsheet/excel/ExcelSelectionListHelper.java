@@ -370,7 +370,9 @@ public class ExcelSelectionListHelper extends ExporterHelper {
 
    /**
     * Get the grid row after the last row of the box's own grid extent, the box top row when
-    * the height is unknown.
+    * the height is unknown. This is a floor bound: the list never takes a partly covered last
+    * row. The tree (ExcelSelectionTreeHelper.writeTree) uses the touched-row bound instead,
+    * because a title that rounds up to the grid shifts its data start up to one row.
     */
    static int getBoxEndRow(PoiExcelVSExporter exporter, int x, int rawY, int rawHeight) {
       int top = PoiExcelVSUtil.floorY(rawY);

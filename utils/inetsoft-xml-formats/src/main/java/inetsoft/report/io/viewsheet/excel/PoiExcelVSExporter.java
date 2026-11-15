@@ -532,6 +532,19 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
             PoiExcelVSUtil.getExcelTitleHeight(info);
       }
 
+      if(info instanceof SelectionTreeVSAssemblyInfo) {
+         // the tree writer places nodes by cumulative raw pixels (ExcelSelectionListHelper.mapRows),
+         // so the box needs the raw sum, not the sum of per-row rounded heights, which is smaller
+         // for cell heights that round down and would push the last nodes out (#80207)
+         double raw = 0;
+
+         for(Double rowHeight : rowHeights) {
+            raw += rowHeight;
+         }
+
+         return newHeight + PoiExcelVSUtil.ceilY((int) Math.ceil(raw));
+      }
+
       for(int i = 0; i < rowHeights.size(); i++) {
          newHeight += PoiExcelVSUtil.getSelectionCellHeight(rowHeights.get(i).intValue());
       }

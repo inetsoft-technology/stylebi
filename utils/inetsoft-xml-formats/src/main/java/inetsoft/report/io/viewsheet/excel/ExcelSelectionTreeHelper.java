@@ -20,7 +20,6 @@ package inetsoft.report.io.viewsheet.excel;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.Common;
 import inetsoft.report.io.viewsheet.*;
-import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
@@ -157,11 +156,7 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
       SelectionValue sv;
       VSCompositeFormat lastLineFormat = null;
       VSCompositeFormat format = null;
-      int cellHeight = info.getCellHeight();
-      cellHeight = (int) Math.round((double) cellHeight / AssetUtil.defh) * AssetUtil.defh;
       int titleH = PoiExcelVSUtil.getExcelTitleHeight(info);
-      int sizeHeight = PoiExcelVSUtil.floorY(info.getPixelSize().height);
-      int infoRows = (int) Math.round((double) (sizeHeight - titleH) / cellHeight);
       int level;
 
       List<Double> rowHeights = new ArrayList<>();
@@ -214,7 +209,7 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
          cell = PoiExcelVSUtil.getCell(columnStart, row);
          Font font = null;
 
-         if(i < dispList.size()) {
+         {
             StringBuilder sb = new StringBuilder();
             sv = dispList.get(i + 1);
             level = more ? 0 : sv.getLevel();
@@ -274,17 +269,16 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
                   PoiExcelVSUtil.getColorByAlpha(bg));
             }
          }
-         else if(format.getBackground() == null || i == dispList.size()) {
+         else if(format.getBackground() == null) {
             format.getUserDefinedFormat().setBackground(
                info.getFormat().getBackground());
          }
 
          PoiExcelVSUtil.addMergedRegion(sheet, cellRange);
 
-         int celltype = (i == infoRows) ?
-            ExcelVSUtil.CELL_TAIL :
-            ((i < dispList.size() || dispList.size() == 0) ?
-               ExcelVSUtil.CELL_CONTENT : ExcelVSUtil.CELL_HEADER);
+         // the tail border goes on the node that reaches the bottom of the box
+         int celltype = i == nfit - 1 && bounds[nfit] >= endRow ?
+            ExcelVSUtil.CELL_TAIL : ExcelVSUtil.CELL_CONTENT;
 
          PoiExcelVSUtil.setCellStyles(book, sheet, format, parentformat, cellRange,
                                       null, font, format.getFont(), format.getForeground(),

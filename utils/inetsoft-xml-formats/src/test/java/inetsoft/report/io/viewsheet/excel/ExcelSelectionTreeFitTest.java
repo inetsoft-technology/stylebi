@@ -90,21 +90,134 @@ class ExcelSelectionTreeFitTest {
       }
    }
 
-   /** Merged node regions must not overlap each other. */
+   /** Merged node regions must not overlap each other or the label rows of later nodes. */
    @Test
    void nodeRegionsDoNotOverlap() throws Exception {
       Result r = new Case(153, 142, 31, 4).run();
       assertEquals(4, r.labelRows.size());
+      assertNoOverlap(r);
+      // cell 31 gives some node two rows, so a real merged region is recorded and checked
+      assertFalse(r.nodeRegions.isEmpty());
+   }
 
+   /** Expand Selections: the box is sized by the exporter, all nodes must still be written. */
+   @Test
+   void expandSelectionsKeepsEveryNode() throws Exception {
+      Result r = expandCase(160, 25, 6).run();
+      assertEquals(values(6), r.labels);
+      assertNoOverlap(r);
+   }
+
+   @Test
+   void expandSelectionsSweep() throws Exception {
+      for(int y : new int[] { 153, 160 }) {
+         for(int cell : new int[] { 21, 25, 29, 41, 45, 49, 31, 40, 55 }) {
+            for(int n : new int[] { 3, 6, 10 }) {
+               Result r = expandCase(y, cell, n).run();
+               assertEquals(values(n), r.labels, "y=" + y + " cell=" + cell + " n=" + n);
+               assertNoOverlap(r);
+            }
+         }
+      }
+   }
+
+   /** A real two-level tree: parents and children in order, nothing overlapping. */
+   @Test
+   void twoLevelTree() throws Exception {
+      Case c = new Case(160, 18 + 9 * 31, 31, 3);
+      c.childrenPerParent = 2;
+      Result r = c.run();
+      assertEquals(List.of("P0", "V0", "V1", "P1", "V2", "V3", "P2", "V4", "V5"), r.labels);
+      assertNoOverlap(r);
+      // children are indented, parents are not
+      assertFalse(r.rawLabels.get(0).startsWith(" "));
+      assertTrue(r.rawLabels.get(1).startsWith(" "), "[" + r.rawLabels.get(1) + "]");
+   }
+
+   /** A truncated two-level tree gets an un-indented "More..." even after an indented node. */
+   @Test
+   void twoLevelTruncationMoreIsLevelZero() throws Exception {
+      Case c = new Case(160, 18 + 4 * 31, 31, 3);
+      c.childrenPerParent = 2;
+      Result r = c.run();
+      assertEquals("More...", r.rawLabels.get(r.rawLabels.size() - 1));
+      assertTrue(r.labels.size() < 9);
+      assertNoOverlap(r);
+   }
+
+   /** Cells shorter than one grid row still produce one row per node, truncated if needed. */
+   @Test
+   void cellHeightUnderGridRow() throws Exception {
+      Result r = new Case(160, 18 + 6 * 15, 15, 6).run();
+      assertEquals("V0", r.labels.get(0));
+      assertFalse(r.labels.isEmpty());
+      assertNoOverlap(r);
+      Result big = new Case(160, 400, 15, 6).run();
+      assertEquals(values(6), big.labels);
+   }
+
+   @Test
+   void zeroNodes() throws Exception {
+      Result r = new Case(160, 200, 31, 0).run();
+      assertTrue(r.labels.isEmpty());
+   }
+
+   /** Exactly one slot for several nodes: the one node is kept, "More..." never replaces it. */
+   @Test
+   void oneSlotSeveralNodes() throws Exception {
+      Result r = new Case(160, 40, 31, 4).run();
+      assertEquals(List.of("V0"), r.labels);
+      assertNoOverlap(r);
+   }
+
+   @Test
+   void hiddenTitle() throws Exception {
+      Case c = new Case(160, 6 * 31, 31, 6);
+      c.titleVisible = false;
+      Result r = c.run();
+      assertEquals(values(6), r.labels);
+      assertNoOverlap(r);
+   }
+
+   /** A wrapped node is taller than the others and its neighbours are still all written. */
+   @Test
+   void wrappedTextNode() throws Exception {
+      Case c = new Case(160, 400, 25, 4);
+      c.wrapLabel = "V1 wrap " + "long text that wraps ".repeat(12);
+      Result r = c.run();
+      assertEquals(4, r.labels.size(), r.labels.toString());
+      assertEquals("V0", r.labels.get(0));
+      assertTrue(r.labels.get(1).startsWith("V1 wrap"));
+      assertEquals("V2", r.labels.get(2));
+      assertEquals("V3", r.labels.get(3));
+      // the wrapped node needs more than one grid row
+      assertTrue(r.labelRows.get(2) - r.labelRows.get(1) >= 2, r.labelRows.toString());
+      assertNoOverlap(r);
+   }
+
+   private static Case expandCase(int y, int cell, int n) {
+      Case c = new Case(y, 0, cell, n);
+      c.expand = true;
+      return c;
+   }
+
+   private static void assertNoOverlap(Result r) {
       for(int i = 1; i < r.labelRows.size(); i++) {
-         assertTrue(r.labelRows.get(i) > r.labelRows.get(i - 1));
+         assertTrue(r.labelRows.get(i) > r.labelRows.get(i - 1), r.labelRows.toString());
       }
 
-      // a node's merged region ends before the next node starts
-      for(CellRangeAddress region : r.nodeRegions) {
+      // no recorded region covers a label row other than the one it starts on
+      for(CellRangeAddress region : r.allRegions) {
          for(int row : r.labelRows) {
             assertTrue(row == region.getFirstRow() || row < region.getFirstRow() ||
                        row > region.getLastRow(), "region " + region + " covers row " + row);
+         }
+      }
+
+      for(int i = 0; i < r.allRegions.size(); i++) {
+         for(int j = i + 1; j < r.allRegions.size(); j++) {
+            assertFalse(r.allRegions.get(i).intersects(r.allRegions.get(j)),
+                        r.allRegions.get(i) + " intersects " + r.allRegions.get(j));
          }
       }
    }
@@ -160,7 +273,9 @@ class ExcelSelectionTreeFitTest {
 
    private static final class Result {
       List<String> labels = new ArrayList<>();
+      List<String> rawLabels = new ArrayList<>();
       List<CellRangeAddress> nodeRegions = new ArrayList<>();
+      List<CellRangeAddress> allRegions = new ArrayList<>();
       List<Integer> labelRows = new ArrayList<>();
       int lastNodeRow = -1;
    }
@@ -181,14 +296,45 @@ class ExcelSelectionTreeFitTest {
          info.setPixelOffset(new Point(0, y));
          info.setPixelSize(new Dimension(344, h));
          info.setCellHeight(cellHeight);
-         info.setTitleVisible(true);
+         info.setTitleVisible(titleVisible);
          info.setTitleHeight(titleHeight);
          info.setExpandAll(true);
          SelectionList list = new SelectionList();
+         int leafIndex = 0;
 
          for(int i = 0; i < nvalues; i++) {
+            if(childrenPerParent > 0) {
+               // a real two-level tree: parents P0.. each with children V0..
+               CompositeSelectionValue parent = new CompositeSelectionValue("P" + i, "P" + i);
+               parent.setFormat(new VSCompositeFormat());
+               parent.setState(SelectionValue.STATE_SELECTED);
+               parent.setLevel(0);
+               SelectionList kids = new SelectionList();
+
+               for(int k = 0; k < childrenPerParent; k++) {
+                  SelectionValue v = new SelectionValue("V" + leafIndex, "V" + leafIndex);
+                  leafIndex++;
+                  v.setFormat(new VSCompositeFormat());
+                  v.setState(SelectionValue.STATE_SELECTED);
+                  v.setLevel(1);
+                  kids.addSelectionValue(v);
+               }
+
+               parent.setSelectionList(kids);
+               list.addSelectionValue(parent);
+               continue;
+            }
+
             SelectionValue v = new SelectionValue("V" + i, "V" + i);
-            v.setFormat(new VSCompositeFormat());
+            VSCompositeFormat vf = new VSCompositeFormat();
+
+            if(wrapLabel != null && i == wrapIndex) {
+               v = new SelectionValue(wrapLabel, wrapLabel);
+               vf.getUserDefinedFormat().setWrapping(true);
+               vf.getUserDefinedFormat().setFont(new java.awt.Font("Dialog", java.awt.Font.PLAIN, 11));
+            }
+
+            v.setFormat(vf);
             v.setState(SelectionValue.STATE_SELECTED);
             list.addSelectionValue(v);
          }
@@ -211,6 +357,15 @@ class ExcelSelectionTreeFitTest {
          Workbook book = new XSSFWorkbook();
          Mockito.when(ctx.getWorkbook()).thenReturn(book);
          PoiExcelVSExporter ex = new PoiExcelVSExporter(ctx, new ByteArrayOutputStream());
+         ex.setMatchLayout(!expand);
+         ex.setExpandSelections(expand);
+
+         if(expand) {
+            // the box AbstractVSExporter.expandSelectionAssembly gives the tree
+            double eh = ex.getSelectionHeight(info, info.getRowHeights(), false);
+            info.setPixelSize(new Dimension(344, (int) Math.max(h, eh)));
+         }
+
          Sheet sheet = book.createSheet("s");
          ex.sheet = sheet;
          set(ex, "vs", vs);
@@ -254,7 +409,9 @@ class ExcelSelectionTreeFitTest {
          CellRangeAddress neighbor = null;
 
          if(nextRow >= 0) {
-            neighbor = new CellRangeAddress(nextRow, nextRow + 1, 0, 3);
+            // a neighbour that is horizontally apart also has to be apart in the grid
+            neighbor = neighborX == 0 ? new CellRangeAddress(nextRow, nextRow + 1, 0, 3) :
+               new CellRangeAddress(nextRow, nextRow + 1, 6, 7);
             sheet.addMergedRegion(neighbor);
          }
 
@@ -266,10 +423,12 @@ class ExcelSelectionTreeFitTest {
          for(Row row : sheet) {
             for(Cell cl : row) {
                if(cl.getCellType() == CellType.STRING &&
-                  (cl.getStringCellValue().startsWith("V") ||
+                  (cl.getStringCellValue().trim().startsWith("V") ||
+                   cl.getStringCellValue().trim().startsWith("P") ||
                    cl.getStringCellValue().equals("More...")))
                {
-                  res.labels.add(cl.getStringCellValue());
+                  res.labels.add(cl.getStringCellValue().trim());
+                  res.rawLabels.add(cl.getStringCellValue());
                   res.labelRows.add(cl.getRowIndex());
                   res.lastNodeRow = Math.max(res.lastNodeRow, cl.getRowIndex());
                }
@@ -284,6 +443,8 @@ class ExcelSelectionTreeFitTest {
             }
          }
 
+         sheet.validateMergedRegions(); // throws when two merged regions intersect
+         res.allRegions.addAll(sheet.getMergedRegions());
          res.nodeRegions.sort((r1, r2) -> Integer.compare(r1.getFirstRow(), r2.getFirstRow()));
          return res;
       }
@@ -311,6 +472,11 @@ class ExcelSelectionTreeFitTest {
       final int cellHeight;
       final int nvalues;
       int titleHeight = 18;
+      boolean titleVisible = true;
+      boolean expand = false;
+      int childrenPerParent = 0;
+      String wrapLabel;
+      int wrapIndex = 1;
       int neighborY = -1;
       int neighborX = 0;
    }
