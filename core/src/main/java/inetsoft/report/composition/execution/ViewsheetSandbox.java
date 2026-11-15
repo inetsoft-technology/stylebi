@@ -5517,8 +5517,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          List<DynamicValue> dvalues = assembly.getDynamicValues();
          executeDynamicValues(name, dvalues);
 
-         List<DynamicValue> vvalues = assembly.getViewDynamicValues(true);
-         executeDynamicValues(name, vvalues);
+         executeViewDynamicValues(name, assembly);
 
          List<DynamicValue> hvalues = assembly.getHyperlinkDynamicValues();
 
@@ -7015,6 +7014,48 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return result;
+   }
+
+   /**
+    * Execute the view dynamic values of an assembly. The cell format values of a table,
+    * crosstab or freehand table are evaluated here without a cell context, so a valid
+    * reference to a cell (e.g. $total) or a bad expression fails here although the
+    * rendering evaluates it per cell with a fallback (VSFormatTableLens). A failure of
+    * such a value is therefore only logged and does not skip the other values. Any other
+    * value (object/title format, enabled, visible) still fails the call.
+    * @param name assembly name.
+    * @param assembly the assembly.
+    */
+   public void executeViewDynamicValues(String name, VSAssembly assembly) throws Exception {
+      List<DynamicValue> values = assembly.getViewDynamicValues(true);
+      List<DynamicValue> cellValues = assembly.getVSAssemblyInfo().getCellFormatDynamicValues();
+
+      if(cellValues.isEmpty()) {
+         executeDynamicValues(name, values);
+         return;
+      }
+
+      Set<DynamicValue> cells = Collections.newSetFromMap(new IdentityHashMap<>());
+      cells.addAll(cellValues);
+      List<DynamicValue> strict = new ArrayList<>();
+
+      for(DynamicValue value : values) {
+         if(!cells.contains(value)) {
+            strict.add(value);
+         }
+      }
+
+      for(DynamicValue value : cellValues) {
+         try {
+            executeDynamicValues(name, Collections.singletonList(value));
+         }
+         catch(ScriptException ex) {
+            LOG.debug("Ignoring failed cell format expression of {}: {}", name,
+                      ex.getMessage());
+         }
+      }
+
+      executeDynamicValues(name, strict);
    }
 
    /**
