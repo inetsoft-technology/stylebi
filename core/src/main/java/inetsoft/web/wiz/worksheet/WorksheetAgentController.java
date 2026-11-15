@@ -71,6 +71,7 @@ import inetsoft.uql.util.filereader.ExcelFileInfo;
 import inetsoft.uql.util.filereader.ExcelFileReader;
 import inetsoft.uql.util.filereader.ExcelFileSupport;
 import inetsoft.uql.util.filereader.TextUtil;
+import inetsoft.mv.MVManager;
 import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
@@ -2723,6 +2724,25 @@ public class WorksheetAgentController {
    }
 
    /**
+    * Bug #81366: names of the worksheets and viewsheets whose materialized views are built on
+    * {@code entry} (the same lookup the Composer's in-place Save uses), or "" when none.
+    */
+   private static String mvDependentsMessage(AssetEntry entry) {
+      MVManager mvManager = MVManager.getManager();
+      StringBuilder sb = new StringBuilder();
+
+      for(String path : mvManager.findSheets(entry, true)) {
+         sb.append("   Worksheet: ").append(path).append('\n');
+      }
+
+      for(String path : mvManager.findSheets(entry, false)) {
+         sb.append("   Viewsheet: ").append(path).append('\n');
+      }
+
+      return sb.toString();
+   }
+
+   /**
     * Persist the current in-memory worksheet state back to the asset repository.
     *
     * <p>When {@code body.name()} is provided (or the worksheet is still in temporary scope)
@@ -2844,6 +2864,23 @@ public class WorksheetAgentController {
       // user's real write permission before anything is written.
       WizUtil.requireSaveWritePermission(worksheetService.getAssetRepository(), entry, xp,
                                          "worksheet");
+
+      // Bug #81366: the Composer's in-place Save (SaveWorksheetService.checkMVMessage) refuses to
+      // save until the user confirms that materialized views built on this worksheet may need
+      // regenerating; this agent path never asked. Placed after the duplicate-name check so a
+      // single confirmed:true clears both.
+      if(!isSaveAs && !wasTemporary && !Boolean.TRUE.equals(body.confirmed())) {
+         String mvMessage = mvDependentsMessage(entry);
+
+         if(!mvMessage.isEmpty()) {
+            throw new PairingException(
+               "Saving worksheet '" + entry.getPath() + "' may leave materialized views out of " +
+               "date; an administrator may need to generate a new materialized view for the " +
+               "following assets:\n" + mvMessage + "\nShow this warning and the dependent assets to " +
+               "the user, and only if the user agrees to save anyway, call save_worksheet again " +
+               "with confirmed:true.");
+         }
+      }
 
       // Bug #79733: WorksheetInfo is not serialized; the repository keeps alias/description
       // only on the AssetEntry handed to setWorksheet(), so carry the session's values over.
