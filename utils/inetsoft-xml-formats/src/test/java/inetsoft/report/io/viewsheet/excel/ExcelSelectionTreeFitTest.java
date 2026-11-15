@@ -111,13 +111,23 @@ class ExcelSelectionTreeFitTest {
    @Test
    void expandSelectionsSweep() throws Exception {
       for(int y : new int[] { 153, 160 }) {
-         for(int cell : new int[] { 21, 25, 29, 41, 45, 49, 31, 40, 55 }) {
+         for(int cell : new int[] { 12, 15, 19, 21, 25, 29, 41, 45, 49, 31, 40, 55 }) {
             for(int n : new int[] { 3, 6, 10 }) {
                Result r = expandCase(y, cell, n).run();
                assertEquals(values(n), r.labels, "y=" + y + " cell=" + cell + " n=" + n);
                assertNoOverlap(r);
             }
          }
+      }
+   }
+
+   /** Cells under one grid row: each node still needs a grid row under Expand Selections. */
+   @Test
+   void expandSelectionsSmallCells() throws Exception {
+      for(int[] c : new int[][] { { 15, 6 }, { 12, 3 }, { 12, 6 }, { 15, 10 }, { 12, 10 } }) {
+         Result r = expandCase(160, c[0], c[1]).run();
+         assertEquals(values(c[1]), r.labels, "cell=" + c[0] + " n=" + c[1]);
+         assertNoOverlap(r);
       }
    }
 
