@@ -52,11 +52,12 @@ import java.util.concurrent.TimeoutException;
  *       budget (so it no longer hits "export already in progress" either);</li>
  *   <li>a call after it finished takes its PNG, once; the entry is then gone;</li>
  *   <li>a finished PNG is served only if the viewsheet state digest (see {@link #fingerprint}) was
- *       the same when the export started, when it finished, and when it is collected, and for at
- *       most {@link #ttlMs}; otherwise it is discarded and a fresh export starts. A change made
- *       while the export ran therefore makes the collecting retry start over. A dashboard whose
- *       onLoad itself changes the digested state also fails the start/finish comparison once; the
- *       fresh export then starts from the post-onLoad state and converges.</li>
+ *       the same when the export's onLoad scripts had finished (the baseline, taken through
+ *       {@code ViewsheetSandbox.setExportPreparedListener}), when the export finished, and when
+ *       it is collected, and for at most {@link #ttlMs}; otherwise it is discarded and a fresh
+ *       export starts. onLoad's own writes (a clock stamp, a counter) are in the baseline, so
+ *       they do not defeat the reuse; a change by another caller after onLoad and during the
+ *       render makes the collecting retry start over.</li>
  *   <li>if a digest cannot be computed, freshness cannot be proved: the PNG is then served only
  *       within {@link #unverifiedTtlMs} of finishing, with a warning, instead of being discarded
  *       into another long export (which would be the original non-convergence).</li>
@@ -66,7 +67,8 @@ import java.util.concurrent.TimeoutException;
  * are not part of the key. What stays undetectable: a pure joiner (a call that waits on an export
  * that is still running and returns when it finishes) gets that export's PNG unchecked, so a
  * change made while it ran can show up as the old state, exactly as for any single export that
- * races a change; and state that is neither in the viewsheet XML, the variable table nor the
+ * races a change; a change made before onLoad finished, which is inside the baseline; and state
+ * that is neither in the viewsheet XML, the variable table nor the
  * reset/touch stamps is bounded only by the TTL.</p>
  */
 final class InFlightViewsheetExport {
@@ -90,7 +92,6 @@ final class InFlightViewsheetExport {
       }
 
       Entry mine = new Entry();
-      mine.startDigest = DIGEST.apply(rvs);
       Entry raced = REGISTRY.putIfAbsent(key, mine);
 
       if(raced != null) {
@@ -98,7 +99,13 @@ final class InFlightViewsheetExport {
       }
 
       Callable<byte[]> tracked = () -> {
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
          try {
+            if(box != null) {
+               box.setExportPreparedListener(() -> mine.baseDigest = DIGEST.apply(rvs));
+            }
+
             byte[] bytes = export.call();
             mine.finishDigest = DIGEST.apply(rvs);
             mine.finishedAt = System.currentTimeMillis();
@@ -110,6 +117,11 @@ final class InFlightViewsheetExport {
             REGISTRY.remove(key, mine);
             mine.result.completeExceptionally(t);
             throw t;
+         }
+         finally {
+            if(box != null) {
+               box.setExportPreparedListener(null);
+            }
          }
       };
 
@@ -150,7 +162,7 @@ final class InFlightViewsheetExport {
       if(entry.result.isDone() && !entry.result.isCompletedExceptionally()) {
          String current = DIGEST.apply(rvs);
 
-         if(entry.startDigest == null || entry.finishDigest == null || current == null) {
+         if(entry.baseDigest == null || entry.finishDigest == null || current == null) {
             long age = System.currentTimeMillis() - entry.finishedAt;
 
             if(age > unverifiedTtlMs) {
@@ -161,7 +173,7 @@ final class InFlightViewsheetExport {
             LOG.warn("Serving the finished viewsheet export of {} without a state check: the " +
                      "viewsheet state digest could not be computed", key);
          }
-         else if(!entry.startDigest.equals(entry.finishDigest) ||
+         else if(!entry.baseDigest.equals(entry.finishDigest) ||
                  !entry.finishDigest.equals(current))
          {
             LOG.debug("Discarding the finished viewsheet export of {}: state changed", key);
@@ -243,7 +255,7 @@ final class InFlightViewsheetExport {
 
    private static final class Entry {
       final CompletableFuture<byte[]> result = new CompletableFuture<>();
-      volatile String startDigest;
+      volatile String baseDigest;
       volatile String finishDigest;
       volatile long finishedAt;
 

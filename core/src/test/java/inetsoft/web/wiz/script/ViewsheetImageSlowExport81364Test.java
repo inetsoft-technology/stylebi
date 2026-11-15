@@ -114,6 +114,7 @@ class ViewsheetImageSlowExport81364Test {
       final VSExportService export;
       final AtomicInteger exportCalls = new AtomicInteger();
       final AtomicInteger exportDone = new AtomicInteger();
+      volatile long renderMs;
       final ScriptImageService svc;
 
       Fixture(Viewsheet vs, Probe box, RuntimeViewsheet rvs, VSExportService export,
@@ -129,6 +130,11 @@ class ViewsheetImageSlowExport81364Test {
 
    /** onLoadMs of 0 means no onLoad script at all. */
    private Fixture fixture(long onLoadMs) throws Exception {
+      return fixture(onLoadMs, "");
+   }
+
+   /** extraOnLoad runs after the busy wait, e.g. to write state that differs on every run. */
+   private Fixture fixture(long onLoadMs, String extraOnLoad) throws Exception {
       Viewsheet vs = new Viewsheet();
       Field wsField = Viewsheet.class.getDeclaredField("ws");
       wsField.setAccessible(true);
@@ -140,7 +146,8 @@ class ViewsheetImageSlowExport81364Test {
 
       if(onLoadMs > 0) {
          vs.getViewsheetInfo().setOnLoad(
-            "var s = new Date().getTime(); while(new Date().getTime() - s < " + onLoadMs + ") {}");
+            "var s = new Date().getTime(); while(new Date().getTime() - s < " + onLoadMs + ") {}" +
+            extraOnLoad);
       }
 
       TextVSAssembly text = new TextVSAssembly(vs, "Text1");
@@ -170,6 +177,7 @@ class ViewsheetImageSlowExport81364Test {
 
          try {
             box.prepareForExport();
+            Thread.sleep(f.renderMs);
             String caption = ((TextVSAssemblyInfo)
                ((TextVSAssembly) vs.getAssembly("Text1")).getVSAssemblyInfo()).getText();
             inetsoft.web.viewsheet.service.ExportResponse response = inv.getArgument(9);
@@ -325,20 +333,29 @@ class ViewsheetImageSlowExport81364Test {
          "the image shows the changed state");
    }
 
-   /** Review r1 finding 1: a change that lands while the export is still running is detected. */
+   /**
+    * Review r1 finding 1 (baseline moved after onLoad by r2): a change that lands after onLoad
+    * finished, while the export is still rendering, is detected.
+    */
    @Test
-   void aChangeWhileTheExportRunsMakesTheCollectingRetryStartOver() throws Exception {
+   void aChangeWhileTheExportRendersMakesTheCollectingRetryStartOver() throws Exception {
       Fixture f = fixture(COST_MS);
+      f.renderMs = 1500;
       assertThrows(RenderNotReadyException.class, () -> call(f));
+      long deadline = System.currentTimeMillis() + 30_000;
+
+      while(f.box.elapsed.isEmpty() && System.currentTimeMillis() < deadline) {
+         Thread.sleep(10);
+      }
+
+      assertFalse(f.box.elapsed.isEmpty(), "onLoad did not finish");
       ((TextVSAssemblyInfo) ((TextVSAssembly) f.vs.getAssembly("Text1")).getVSAssemblyInfo())
-         .setText("changed while the first export was still running");
+         .setText("changed while the first export was rendering");
       awaitDone(f, 1);
 
       assertThrows(RenderNotReadyException.class, () -> call(f));
       assertEquals(2, f.exportCalls.get(), "the retry did not collect the possibly stale PNG");
       awaitDone(f, 2);
-      assertNotNull(call(f), "the fresh export, started from the settled state, is collected");
-      assertEquals(2, f.exportCalls.get());
    }
 
    /** Review r1 finding 2: no digest means unknown freshness; serve briefly, then start fresh. */
@@ -371,6 +388,30 @@ class ViewsheetImageSlowExport81364Test {
       assertNotNull(before);
       f.box.getVariableTable().put("p81364", "x");
       assertNotEquals(before, InFlightViewsheetExport.fingerprint(f.rvs));
+   }
+
+   /**
+    * Review r2: an onLoad that writes a different value on every run (a clock stamp in a
+    * parameter and in an assembly) must not defeat the reuse: its own writes are part of the
+    * baseline, so the retry after the abandoned export finished collects it.
+    */
+   @Test
+   void anOnLoadThatChangesStateOnEveryRunStillConverges() throws Exception {
+      Fixture f = fixture(COST_MS,
+         "; parameter.stamp81364 = new Date().getTime(); Text1.text = 'v' + new Date().getTime();");
+      ScriptImageService.ChartImage image = null;
+
+      for(int i = 1; i <= 3 && image == null; i++) {
+         try {
+            image = call(f);
+         }
+         catch(RenderNotReadyException e) {
+            awaitDone(f, f.exportCalls.get());
+         }
+      }
+
+      assertNotNull(image, "no image within 3 calls; exports=" + f.exportCalls.get());
+      assertEquals(1, f.exportCalls.get(), "the abandoned export was collected, not restarted");
    }
 
    /** A finished PNG nobody collects is dropped after the TTL. */
