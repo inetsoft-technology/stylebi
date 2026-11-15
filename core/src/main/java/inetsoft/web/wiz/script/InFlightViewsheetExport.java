@@ -68,9 +68,8 @@ import java.util.concurrent.TimeoutException;
  * </ul>
  *
  * <p>The PNG does not depend on the requested width/height (scaling happens afterwards), so they
- * are not part of the key. A call that joins a running export is checked too: it records the
- * original's XML digest (of the object captured at the export's start, since rvs holds the clone while it runs) at the join and is served only if that equals the digest at the start of
- * the export (and the export's own pre/finish digests agree), otherwise a fresh export starts. A
+ * are not part of the key. A call that joins a running export is checked too, after the wait,
+ * by the same pre/finish/current comparison, otherwise a fresh export starts. A
  * null digest is retried briefly before the unverified window applies. What stays
  * undetectable: a change to the variable table or the reset/touch stamps made during the export
  * (not after it); and state that is neither in the viewsheet XML, the variable table nor the
@@ -98,7 +97,6 @@ final class InFlightViewsheetExport {
 
          if(existing == null) {
             mine = new Entry();
-            mine.original = rvs.getViewsheet();
             mine.preXml = digest(XML_DIGEST, rvs);
             existing = REGISTRY.putIfAbsent(key, mine);
          }
@@ -166,19 +164,16 @@ final class InFlightViewsheetExport {
 
    /**
     * Waits for the entry within the budget and serves its PNG only if it is still fresh for this
-    * call. A call that joins a running export records the original's XML digest at that moment
-    * ({@code joinXml}); the PNG is served only if that equals the digest taken when the export
-    * started, i.e. nothing changed between the start of the export and the join. Returns null
-    * (the entry is dropped) if the PNG is stale, so the caller starts a fresh export.
+    * call. After the wait the PNG is served only if the original's XML digest at the start of
+    * the export equals the one at its finish and the full state digest at the finish equals the
+    * current one; this holds for a joiner of a running export as well, because a change made
+    * meanwhile persists to the finish. Returns null (the entry is dropped) if the PNG is stale,
+    * so the caller starts a fresh export.
     */
    private static byte[] join(String key, Entry entry, RuntimeViewsheet rvs, long deadline,
                               int retryAfterSeconds)
       throws Exception
    {
-      boolean running = !entry.result.isDone();
-      // not rvs.getViewsheet(): while the export runs rvs holds the export's clone
-      String joinXml = running && entry.original != null
-         ? digest(r -> xmlDigest(entry.original), rvs) : null;
       byte[] bytes;
 
       try {
@@ -198,20 +193,19 @@ final class InFlightViewsheetExport {
 
       REGISTRY.remove(key, entry);
 
-      if(!fresh(key, entry, rvs, running, joinXml)) {
+      if(!fresh(key, entry, rvs)) {
          return null;
       }
 
       return bytes;
    }
 
-   private static boolean fresh(String key, Entry entry, RuntimeViewsheet rvs, boolean running,
-                                String joinXml)
+   private static boolean fresh(String key, Entry entry, RuntimeViewsheet rvs)
    {
       String current = digest(DIGEST, rvs);
 
       if(entry.preXml == null || entry.finishXml == null || entry.finishDigest == null ||
-         current == null || running && joinXml == null)
+         current == null)
       {
          if(System.currentTimeMillis() - entry.finishedAt > unverifiedTtlMs) {
             return false;
@@ -222,7 +216,7 @@ final class InFlightViewsheetExport {
          return true;
       }
 
-      if(running && !joinXml.equals(entry.preXml) || !entry.preXml.equals(entry.finishXml) ||
+      if(!entry.preXml.equals(entry.finishXml) ||
          !entry.finishDigest.equals(current))
       {
          LOG.debug("Discarding the finished viewsheet export of {}: state changed", key);
@@ -326,7 +320,6 @@ final class InFlightViewsheetExport {
 
    private static final class Entry {
       final CompletableFuture<byte[]> result = new CompletableFuture<>();
-      volatile Viewsheet original;
       volatile String preXml;
       volatile String finishXml;
       volatile String finishDigest;
