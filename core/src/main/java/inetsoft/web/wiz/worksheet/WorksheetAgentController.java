@@ -94,7 +94,6 @@ import inetsoft.web.wiz.service.ExportCellCapScanner;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.TabularProbeCause;
 import inetsoft.web.wiz.service.RenderNotReadyException;
-import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.RuntimeHeartbeatKeepAlive;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.service.TabularQueryContractSupport;
@@ -2102,12 +2101,12 @@ public class WorksheetAgentController {
             WorksheetEditService.applyAssemblyMaxRows(liveAssembly, req.maxRows());
          }
 
-         RenderWaitSupport.awaitOrRetry(() -> {
+         InFlightTableRefresh.awaitOrRetry(rws, tableName, InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, () -> {
             WorksheetEventUtil.refreshColumnSelection(rws, tableName, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
-            RenderNotReadyException.Subject.TABLE);
+            RenderNotReadyException.Subject.TABLE, null);
 
          return null;
       });
@@ -5239,12 +5238,12 @@ public class WorksheetAgentController {
          // table's query for any crosstab-shaped table (set_group_aggregate works on any
          // TableAssembly by name, including a SQL-bound one) -- unbounded here had the same hang
          // shape as refreshData's own single-table branch (3a) above.
-         RenderWaitSupport.awaitOrRetry(() -> {
+         InFlightTableRefresh.awaitOrRetry(rws, table, InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, () -> {
             WorksheetEventUtil.refreshColumnSelection(rws, table, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
-            RenderNotReadyException.Subject.TABLE);
+            RenderNotReadyException.Subject.TABLE, null);
 
          return new SqlQueryResponse(table, detectUndeclaredVariables(rws),
             detectVariablesNeedingSessionValue(rws), sqlWarnings);
@@ -5721,7 +5720,10 @@ public class WorksheetAgentController {
             TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
             try {
-               RenderWaitSupport.awaitOrRetry(() -> {
+               // Bug #81355: an explicit refresh_data wants fresh data, so it cancels a refresh of
+               // this table that is still running instead of joining it.
+               InFlightTableRefresh.awaitOrRetry(rws, req.table(),
+                  InFlightTableRefresh.Policy.SUPERSEDE, () -> {
                   try {
                      // Bug #79595: the reload runs on its own virtual thread and the pending user
                      // messages are thread-local, so they must be read here, on that same thread.
@@ -5768,7 +5770,7 @@ public class WorksheetAgentController {
                   return null;
                }, refreshDataTableWaitMs,
                   (int) Math.max(1, refreshDataTableWaitMs / 1000),
-                  RenderNotReadyException.Subject.TABLE_REFRESH);
+                  RenderNotReadyException.Subject.TABLE_REFRESH, null);
             }
             catch(RenderNotReadyException e) {
                // Timed out waiting, not failed: the reload above is still running in the
@@ -6175,13 +6177,13 @@ public class WorksheetAgentController {
          // single-table branch (3a) above -- an embedded table can be made crosstab-shaped by a
          // prior set_group_aggregate(crosstab=true), which makes refreshColumnSelection execute
          // a real query here.
-         RenderWaitSupport.awaitOrRetry(() -> {
+         InFlightTableRefresh.awaitOrRetry(rws, req.table(), InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, () -> {
             WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
             WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
-            RenderNotReadyException.Subject.TABLE);
+            RenderNotReadyException.Subject.TABLE, null);
          AssetEventUtil.refreshTableLastModified(ws, req.table(), true);
          return null;
       });
@@ -6292,13 +6294,13 @@ public class WorksheetAgentController {
          // single-table branch (3a) above -- a concatenated table can be made crosstab-shaped by
          // a prior set_group_aggregate(crosstab=true), which makes refreshColumnSelection
          // execute a real query here.
-         RenderWaitSupport.awaitOrRetry(() -> {
+         InFlightTableRefresh.awaitOrRetry(rws, req.table(), InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, () -> {
             WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
             WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
             return null;
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000),
-            RenderNotReadyException.Subject.TABLE);
+            RenderNotReadyException.Subject.TABLE, null);
          return null;
       });
    }

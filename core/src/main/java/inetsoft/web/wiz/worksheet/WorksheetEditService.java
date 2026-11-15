@@ -396,7 +396,9 @@ public class WorksheetEditService {
             TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
 
             try {
-               RenderWaitSupport.awaitOrRetry(() -> {
+               // Bug #81355: join/replace a refresh of this table that an earlier edit left running.
+               InFlightTableRefresh.awaitOrRetry(rws, name,
+                  InFlightTableRefresh.Policy.JOIN_SAME_DEFINITION, () -> {
                   try {
                      WorksheetEventUtil.refreshColumnSelection(rws, name, true);
                      // Drop conditions left pointing at columns the refresh just removed. An op that
@@ -420,7 +422,8 @@ public class WorksheetEditService {
                   }
                   return null;
                }, remaining, (int) Math.max(1, remaining / 1000),
-                  RenderNotReadyException.Subject.TABLE);
+                  RenderNotReadyException.Subject.TABLE,
+                  () -> RuntimeHeartbeatKeepAlive.stop(heartbeat));
                WorksheetEventUtil.fixAssemblyInfo(rws, ta);
             }
             catch(RenderNotReadyException ex) {

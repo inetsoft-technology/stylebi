@@ -224,6 +224,56 @@ class WorksheetEditServiceTest {
       verify(box, never()).refreshColumnSelection(eq("Slow2"), anyBoolean());
    }
 
+   /**
+    * Bug #81355: every edit used to start another refresh of a table whose earlier refresh had
+    * timed out and was still running, piling up identical queries. Three edits inside the first
+    * refresh's lifetime must leave exactly one refresh of the slow table running.
+    */
+   @Test
+   void refreshAssembliesDoesNotStartAnotherRefreshOfATableThatIsStillRefreshing()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      TableAssembly slow = TestWorksheets.withGroupSumAndSort(
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "Slow1", "cust", "amount"),
+         "cust", "amount");
+      ws.addAssembly(slow);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      CountDownLatch release = new CountDownLatch(1);
+      doAnswer(invocation -> {
+         release.await(20, TimeUnit.SECONDS);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Slow1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+
+      try {
+         svc.apply("TOK", agent, ed -> {});
+         svc.apply("TOK", agent, ed -> {});
+         svc.apply("TOK", agent, ed -> {});
+
+         verify(box, times(1)).refreshColumnSelection(eq("Slow1"), anyBoolean());
+      }
+      finally {
+         release.countDown();
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // Bug #79074: refreshAssemblies -- called unconditionally after EVERY mutation, looping over
    // every table in the worksheet -- must keep the runtime's heartbeat alive while a table's own
