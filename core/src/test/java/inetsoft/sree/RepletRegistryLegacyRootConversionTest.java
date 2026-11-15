@@ -176,4 +176,47 @@ class RepletRegistryLegacyRootConversionTest {
          first.shutdown();
       }
    }
+
+   /**
+    * The upgrade path (#70861) must keep working: an org that has no org file yet is converted
+    * from the root file, while an org that already has one is left alone in the same pass.
+    */
+   @Test
+   void orgWithoutOrgFileIsConvertedFromRootFile() throws Exception {
+      String fresh = "bug79990e";
+      String existing = "bug79990f";
+      RepletRegistry r1 = save(fresh, "Legacy");
+      RepletRegistry r2 = save(existing, "Legacy");
+      String freshXml = read(fresh + "/" + ROOT);
+      String existingXml = read(existing + "/" + ROOT);
+      // root file holds the entries of both orgs, as a pre-split install did
+      String root = freshXml.replace("</Registry>",
+                                     existingXml.substring(existingXml.indexOf("<Replet")));
+      DataSpace.getDataSpace().withOutputStream(
+         null, ROOT, out -> out.write(root.getBytes(StandardCharsets.UTF_8)));
+      r1.shutdown();
+      r2.shutdown();
+      // org "fresh" has not been converted yet; org "existing" was and then got a newer folder
+      DataSpace.getDataSpace().delete(null, fresh + "/" + ROOT);
+      assertFalse(DataSpace.getDataSpace().exists(null, fresh + "/" + ROOT), "setup");
+      RepletRegistry e = new RepletRegistry(existing);
+      e.addFolder("Newer");
+      e.save();
+      e.shutdown();
+
+      RepletRegistryManager manager = new RepletRegistryManager(DataSpace.getDataSpace());
+      RepletRegistry converted = manager.getRegistry(fresh);
+      RepletRegistry kept = manager.getRegistry(existing);
+
+      try {
+         assertTrue(DataSpace.getDataSpace().exists(null, fresh + "/" + ROOT),
+                    "org file was not created from the root file");
+         assertTrue(converted.isFolder("Legacy"), "folder from the root file not converted");
+         assertTrue(kept.isFolder("Newer"), "existing org file was overwritten");
+      }
+      finally {
+         converted.shutdown();
+         kept.shutdown();
+      }
+   }
 }
