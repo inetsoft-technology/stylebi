@@ -154,8 +154,13 @@ public final class PropertyAliases {
     */
    private static final Map<String, Set<String>> DEAD_FIELDS = withFormOutputDeadFields(Map.of(
       "table", Set.of("shadow", "editable", "shrinkEnabled", "formVisible"),
+      // maxRows (bug #80397): CrosstabPropertyDialogService and CalcTablePropertyDialogService
+      // only call setShowMaxRows(false) and never read getMaxRows back (the Composer dialog hides
+      // the field), so a write was stored on the pane model and discarded.
       "crosstab", Set.of("shadow", "editable", "crosstabInfoNull",
-                         "sortOthersLastEnabled", "dateComparisonSupport"),
+                         "sortOthersLastEnabled", "dateComparisonSupport",
+                         "tableViewGeneralPaneModel.maxRows"),
+      "calctable", Set.of("tableViewGeneralPaneModel.maxRows"),
       // groupcontainer (bug #77028): `enabled` here resolves to
       // groupContainerGeneralPane.generalPropPane.enabled (GeneralPropPaneModel.enabled) -- live
       // for most dataGeneral()/outputGeneral() types, but GroupContainerPropertyDialogService's
@@ -364,7 +369,7 @@ public final class PropertyAliases {
     * no better caption than its own name; this is deliberately not exhaustive across the file's
     * 15+ alias tables -- see the class comment for the scope this covers.
     */
-   private static final Map<String, String> LABELS = Map.of(
+   private static final Map<String, String> LABELS = withChartGridLabels(Map.of(
       // BasicGeneralPaneModel.primary / VSAssemblyInfo.isPrimary()/setPrimary(). StyleBI's own,
       // unlocalized Composer caption for this checkbox --
       // web/projects/portal/src/app/vsobjects/dialog/basic-general-pane.component.html's
@@ -389,7 +394,22 @@ public final class PropertyAliases {
       // textinput-column-option-pane's text-editor caption, shared by Text and Password
       // (bug #80464).
       "textPattern", "Pattern Check",
-      "passwordPattern", "Pattern Check");
+      "passwordPattern", "Pattern Check"));
+
+   /**
+    * Chart Line tab X/Y grid lines (bug #80397). ChartLinePaneModel.updatePlotXYGird writes the
+    * x* values to the plot's Y axis (and vice versa) when the chart is inverted, so the caption
+    * tells the caller which axis each really styles. Added here because {@code Map.of} in
+    * {@link #LABELS} would pass the 10-pair limit.
+    */
+   private static Map<String, String> withChartGridLabels(Map<String, String> base) {
+      Map<String, String> labels = new LinkedHashMap<>(base);
+      labels.put("xGridLineStyle", "X Grid Line Style (the plot's Y axis grid on an inverted chart)");
+      labels.put("xGridLineColor", "X Grid Line Color (the plot's Y axis grid on an inverted chart)");
+      labels.put("yGridLineStyle", "Y Grid Line Style (the plot's X axis grid on an inverted chart)");
+      labels.put("yGridLineColor", "Y Grid Line Color (the plot's X axis grid on an inverted chart)");
+      return Collections.unmodifiableMap(labels);
+   }
 
    /**
     * Where a property's caption is itself model state rather than a fixed string, keyed by the
@@ -1486,6 +1506,15 @@ public final class PropertyAliases {
       aliases.put("diagonalLineColor", "chartLinePaneModel.diagonalLineColor");
       aliases.put("quadrantGridLineStyle", "chartLinePaneModel.quadrantGridLineStyle");
       aliases.put("quadrantGridLineColor", "chartLinePaneModel.quadrantGridLineColor");
+      // Bug #80397: X/Y grid line style and colour. The names follow the Line tab's dialog
+      // labels, not the plot axis: ChartLinePaneModel.updatePlotXYGird swaps them when the chart
+      // is inverted (cinfo.isInvertedGraph()), so on an inverted chart xGridLine* styles the
+      // grid of the plot's Y axis. The style paths are validated by INT_ENUM_DOMAINS; like the
+      // other chart line colours, the colour strings are not validated at alias level.
+      aliases.put("xGridLineStyle", "chartLinePaneModel.xGridLineStyle");
+      aliases.put("xGridLineColor", "chartLinePaneModel.xGridLineColor");
+      aliases.put("yGridLineStyle", "chartLinePaneModel.yGridLineStyle");
+      aliases.put("yGridLineColor", "chartLinePaneModel.yGridLineColor");
       // Readable so a caller can see WHY projectForward reads back as 0: getPlotComsEnable()
       // zeroes it on read whenever the chart cannot project forward. Exposing the setting without
       // its gate left that looking like a dropped write. Refused for write, with the flags below.
@@ -1550,7 +1579,6 @@ public final class PropertyAliases {
       dataGeneral(aliases, "tableViewGeneralPaneModel");
       sizePosition(aliases, "tableViewGeneralPaneModel");
       title(aliases, "tableViewGeneralPaneModel");
-      aliases.put("maxRows", "tableViewGeneralPaneModel.maxRows");
       aliases.put("tableStyle", "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle");
       aliases.put("fillBlankWithZero", "crosstabAdvancedPaneModel.fillBlankWithZero");
       aliases.put("summarySideBySide", "crosstabAdvancedPaneModel.summarySideBySide");
