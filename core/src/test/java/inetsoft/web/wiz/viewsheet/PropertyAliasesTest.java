@@ -728,6 +728,7 @@ class PropertyAliasesTest {
                                           "yGridLineColor"))
       {
          assertEquals("chartLinePaneModel." + name, PropertyAliases.resolveForWrite("chart", name));
+         assertTrue(PropertyAliases.labelFor(name).contains("inverted chart"), name);
       }
    }
 

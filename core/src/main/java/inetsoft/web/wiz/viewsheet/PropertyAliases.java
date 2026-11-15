@@ -369,7 +369,7 @@ public final class PropertyAliases {
     * no better caption than its own name; this is deliberately not exhaustive across the file's
     * 15+ alias tables -- see the class comment for the scope this covers.
     */
-   private static final Map<String, String> LABELS = Map.of(
+   private static final Map<String, String> LABELS = withChartGridLabels(Map.of(
       // BasicGeneralPaneModel.primary / VSAssemblyInfo.isPrimary()/setPrimary(). StyleBI's own,
       // unlocalized Composer caption for this checkbox --
       // web/projects/portal/src/app/vsobjects/dialog/basic-general-pane.component.html's
@@ -394,7 +394,22 @@ public final class PropertyAliases {
       // textinput-column-option-pane's text-editor caption, shared by Text and Password
       // (bug #80464).
       "textPattern", "Pattern Check",
-      "passwordPattern", "Pattern Check");
+      "passwordPattern", "Pattern Check"));
+
+   /**
+    * Chart Line tab X/Y grid lines (bug #80397). ChartLinePaneModel.updatePlotXYGird writes the
+    * x* values to the plot's Y axis (and vice versa) when the chart is inverted, so the caption
+    * tells the caller which axis each really styles. Added here because {@code Map.of} in
+    * {@link #LABELS} would pass the 10-pair limit.
+    */
+   private static Map<String, String> withChartGridLabels(Map<String, String> base) {
+      Map<String, String> labels = new LinkedHashMap<>(base);
+      labels.put("xGridLineStyle", "X Grid Line Style (the plot's Y axis grid on an inverted chart)");
+      labels.put("xGridLineColor", "X Grid Line Color (the plot's Y axis grid on an inverted chart)");
+      labels.put("yGridLineStyle", "Y Grid Line Style (the plot's X axis grid on an inverted chart)");
+      labels.put("yGridLineColor", "Y Grid Line Color (the plot's X axis grid on an inverted chart)");
+      return Collections.unmodifiableMap(labels);
+   }
 
    /**
     * Where a property's caption is itself model state rather than a fixed string, keyed by the
