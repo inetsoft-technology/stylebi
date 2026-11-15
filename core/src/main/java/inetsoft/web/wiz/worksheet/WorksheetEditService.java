@@ -50,6 +50,8 @@ import java.awt.Point;
 import java.text.Format;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
@@ -182,6 +184,7 @@ public class WorksheetEditService {
       // fully-synchronous case, and a mutator with its own background-surviving timeout keeps
       // itself protected via its own inner wrap regardless of what this outer one does.
       TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
+      Set<Assembly> before = snapshotAssemblies(rws);
 
       try {
          mutation.accept(editor);
@@ -203,6 +206,7 @@ public class WorksheetEditService {
       // Checkpoint saved after the mutation so redo restores the post-edit state,
       // matching the @Undoable / makeUndoable pattern used by the standard WS controllers.
       rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
+      initNewAssemblies(rws, before);
       refreshAssemblies(rws);
 
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
@@ -332,6 +336,52 @@ public class WorksheetEditService {
    // -------------------------------------------------------------------------
    // Identity key helpers
    // -------------------------------------------------------------------------
+
+   private static Set<Assembly> snapshotAssemblies(RuntimeWorksheet rws) {
+      Set<Assembly> set = Collections.newSetFromMap(new IdentityHashMap<>());
+      Worksheet ws = rws.getWorksheet();
+
+      if(ws != null) {
+         Collections.addAll(set, ws.getAssemblies());
+      }
+
+      return set;
+   }
+
+   /**
+    * Bug #81354: the editor creates a join/concatenation/mirror with an empty column selection,
+    * and the only thing that fills it is the shared, budgeted {@link #refreshAssemblies} loop,
+    * where a new assembly is always last and so is starved by an earlier slow table. Give each
+    * assembly this edit created (by object identity, so a delete-and-recreate of the same name
+    * counts) its columns up front, as the Composer's join flow does. Only assemblies still
+    * empty are touched, so a selection this edit populated or trimmed, or one cloned by
+    * duplicate/redo, is left alone. Non-plain tables (crosstab/rotate/unpivot) are skipped
+    * because their refresh executes the source query; they stay with the budgeted loop.
+    */
+   private void initNewAssemblies(RuntimeWorksheet rws, Set<Assembly> before) {
+      Worksheet ws = rws.getWorksheet();
+
+      if(ws == null) {
+         return;
+      }
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(!(a instanceof TableAssembly ta) || before.contains(a) || !ta.isPlain()) {
+            continue;
+         }
+
+         try {
+            ColumnSelection cols = ta.getColumnSelection(false);
+
+            if(cols == null || cols.getAttributeCount() == 0) {
+               WorksheetEventUtil.refreshColumnSelection(rws, ta.getName(), false);
+            }
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to initialize columns of new assembly: {}", ta.getName(), ex);
+         }
+      }
+   }
 
    /**
     * Refresh column selections and reload table data for all assemblies in the worksheet.
