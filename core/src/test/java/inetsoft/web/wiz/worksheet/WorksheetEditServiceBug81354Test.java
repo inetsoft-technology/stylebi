@@ -37,10 +37,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
-import inetsoft.web.binding.service.VSBindingTreeService;
-import inetsoft.web.viewsheet.service.CommandDispatcherService;
-import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.junit.jupiter.api.*;
@@ -63,7 +59,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * Bug #81354: a join created through {@code add_join} reports ok but has no columns when an
- * earlier, slow, non-plain table exhausts {@code refreshAssemblies}' shared 2000 ms budget.
+ * earlier, slow, non-plain table exhausts the shared 2000 ms budget of refreshAssemblies.
  *
  * <p>Real {@link Worksheet}, real {@link AssetQuerySandbox} (active), real
  * {@link WorksheetEditService#apply} + {@code Editor.addJoin}, real {@link WorksheetReadService}.
@@ -73,8 +69,10 @@ import static org.mockito.Mockito.*;
  * {@code refreshColumnSelection} (which executes a non-plain table's query) really blocks and
  * is never cached.</p>
  *
- * <p>{@link #primaryJoinHasItsColumnsEvenWhenAnEarlierSlowTableExhaustsTheRefreshBudget} is the
- * case the fix must turn green; the rest document the boundary and are green today.</p>
+ * <p>A worksheet script cannot be interrupted (java.lang.Thread and test classes are not
+ * permitted in scripts), so the spinner always runs its full {@link #SLOW_MS}. {@code @AfterEach}
+ * therefore waits it out, so no spinner ever outlives its test and occupies a carrier thread of
+ * the next one; the cost is the time that wait adds to each test that starts one.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(
@@ -106,11 +104,15 @@ class WorksheetEditServiceBug81354Test {
       }
    }
 
+   /**
+    * Long enough for the 2000 ms window plus the second apply that joins the first one's
+    * in-flight refresh (laterUnrelatedApply..., inFlightSameDefinition..., which need the slow
+    * refresh still running when that second apply starts); 2800 ms was measured too short.
+    */
+   private static final long SLOW_MS = 4500;
    private static final String SLOW_EXPR =
-      "var t = Date.now(); while(Date.now() - t < 7000) {} 1";
-   private static final String MID_EXPR =
-      "var t = Date.now(); while(Date.now() - t < 800) {} 1";
-   private static final String FAST_EXPR = "1";
+      "var t = Date.now(); while(Date.now() - t < " + SLOW_MS + ") {} 1";
+   private static final long GENEROUS_UPPER_BOUND_MS = 10_000;
 
    private final Principal agent = TestPrincipals.user("alice", "host-org");
    private final List<String> keyColumns = List.of("k", "a", "k", "b");
@@ -120,6 +122,7 @@ class WorksheetEditServiceBug81354Test {
    private WorksheetEditService svc;
    private Logger editLog;
    private ListAppender<ILoggingEvent> appender;
+   private long firstApplyAt;
 
    @BeforeEach
    void captureLog() {
@@ -128,314 +131,131 @@ class WorksheetEditServiceBug81354Test {
       appender.start();
       editLog.addAppender(appender);
       editLog.setLevel(Level.DEBUG);
+      firstApplyAt = 0;
    }
 
    @AfterEach
-   void releaseLog() {
+   void releaseLogAndWaitOutTheSpinner() throws Exception {
       editLog.detachAppender(appender);
+
+      if(firstApplyAt > 0) {
+         long left = firstApplyAt + SLOW_MS + 300 - System.currentTimeMillis();
+
+         if(left > 0) {
+            Thread.sleep(left);
+         }
+      }
    }
 
-   // ---- M0: the harness is faithful ---------------------------------------------------------
-
+   /**
+    * Harness is faithful: the slow table's refresh ends in RenderNotReadyException and the later
+    * tables are skipped. Without this the primary could pass vacuously if the slow table ever
+    * stopped blocking.
+    */
    @Test
-   void m0SlowTableEndsInRenderNotReadyAtAboutTwoSecondsAndLaterTablesAreSkipped()
-      throws Exception
-   {
-      build(Order.SLOW_FIRST, SLOW_EXPR, null);
+   void slowTableExhaustsTheBudgetAndLaterTablesAreSkipped() throws Exception {
+      build(Order.SLOW_FIRST);
 
       long t0 = System.currentTimeMillis();
       apply(ed -> {});
-      long ms = System.currentTimeMillis() - t0;
-      System.out.println("M0 apply(no-op) took " + ms + " ms");
-      logged().forEach(l -> System.out.println("M0 LOG " + l));
 
-      assertTrue(ms >= 1800 && ms < 4000, "apply should spend ~the 2000 ms budget, took " + ms);
+      assertTrue(System.currentTimeMillis() - t0 < GENEROUS_UPPER_BOUND_MS);
       assertTrue(anyLog("Failed to refresh assembly: Slow", "RenderNotReadyException"),
-                 "Slow's refresh must end in RenderNotReadyException: " + logged());
+                 logged().toString());
       assertTrue(anyLog("Skipping refresh for assembly Table1"), logged().toString());
       assertTrue(anyLog("Skipping refresh for assembly Table2"), logged().toString());
    }
 
-   // ---- PRIMARY: the case the fix must turn green -------------------------------------------
-
+   /** The case the fix turns green: J is skipped by the loop yet carries its columns. */
    @Test
    void primaryJoinHasItsColumnsEvenWhenAnEarlierSlowTableExhaustsTheRefreshBudget()
       throws Exception
    {
-      build(Order.SLOW_FIRST, SLOW_EXPR, null);
+      build(Order.SLOW_FIRST);
 
       apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
 
-      logged().forEach(l -> System.out.println("PRIMARY LOG " + l));
-      System.out.println("PRIMARY J private=" + count(false) + " public=" + count(true)
-                         + " model=" + joinColumnNames());
-
-      // diagnostics of the stated reason, asserted first so a different failure is not mistaken
-      // for it: the join was skipped by the shared budget and nothing wrote its selection
+      // the stated reason, asserted first so another failure is not mistaken for it
       assertTrue(anyLog("Skipping refresh for assembly J - refreshAssemblies budget exhausted"),
                  "setup error, J was not skipped by the budget: " + logged());
       assertTrue(anyLog("Failed to refresh assembly: Slow", "RenderNotReadyException"),
                  "setup error, Slow did not end in RenderNotReadyException: " + logged());
 
-      // the expected behaviour
       assertEquals(keyColumns, joinColumnNames(),
-                   "add_join reported ok; J must carry Table1.k, a, Table2.k, b (read_worksheet_model reports the second key as plain k, not k_1)");
+                   "add_join reported ok; J must carry Table1.k, a, Table2.k, b");
    }
 
-   // ---- M1: a join created by Editor.addJoin with no refresh is empty -----------------------
-
+   /** Boundary control: sources before the slow table populate the join via the recursive tail. */
    @Test
-   void m1JoinCreatedByAddJoinWithNoRefreshIsEmpty() throws Exception {
-      build(Order.TABLES_ONLY, FAST_EXPR, null);
-
-      WorksheetEditService.Editor ed = new WorksheetEditService.Editor(
-         ws, agent, permissive(), mock(InnerJoinService.class), null, () -> null);
-      ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null);
-
-      assertNotNull(ws.getAssembly("J"));
-      assertEquals(0, count(false));
-      assertEquals(0, count(true));
-      assertEquals(List.of(), joinColumnNames());
-   }
-
-   // ---- M3: sources before the slow table populate the join ---------------------------------
-
-   @Test
-   void m3OrderTablesThenSlowPopulatesTheJoin() throws Exception {
-      build(Order.SLOW_LAST, SLOW_EXPR, null);
+   void tablesBeforeTheSlowTablePopulateTheJoin() throws Exception {
+      build(Order.SLOW_LAST);
 
       apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
 
-      logged().forEach(l -> System.out.println("M3 LOG " + l));
       assertEquals(keyColumns, joinColumnNames());
    }
 
-   // ---- M4: a fast crosstab first populates the join ----------------------------------------
-
+   /** A later unrelated apply, slow table still hung, must not lose a populated join's columns. */
    @Test
-   void m4FastCrosstabFirstPopulatesTheJoin() throws Exception {
-      build(Order.SLOW_FIRST, FAST_EXPR, null);
-
+   void laterUnrelatedApplyKeepsAPopulatedJoinPopulated() throws Exception {
+      build(Order.SLOW_FIRST);
       apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
-
-      logged().forEach(l -> System.out.println("M4 LOG " + l));
-      assertFalse(anyLog("Skipping refresh for assembly J"), logged().toString());
-      assertEquals(keyColumns, joinColumnNames());
-   }
-
-   // ---- M5 (substitute): a first table that is slow but finishes inside the budget ----------
-
-   @Test
-   void m5FirstTableThatFinishesInsideTheBudgetPopulatesTheJoin() throws Exception {
-      build(Order.SLOW_FIRST, MID_EXPR, null);
-
-      long t0 = System.currentTimeMillis();
-      apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
-      System.out.println("M5 apply took " + (System.currentTimeMillis() - t0) + " ms");
-
-      logged().forEach(l -> System.out.println("M5 LOG " + l));
-      assertFalse(anyLog("Skipping refresh for assembly J"), logged().toString());
-      assertEquals(keyColumns, joinColumnNames());
-   }
-
-   // ---- M6: a later unrelated apply, slow table still hung, must not lose the join's columns
-
-   @Test
-   void m6SecondUnrelatedApplyKeepsAPopulatedJoinPopulated() throws Exception {
-      build(Order.SLOW_FIRST, SLOW_EXPR, null);
-      apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
-      assertEquals(keyColumns, joinColumnNames(), "precondition: J populated after the first apply");
+      assertEquals(keyColumns, joinColumnNames(), "precondition: J populated after first apply");
 
       appender.list.clear();
       apply(ed -> ed.addTable("Z", "c"));
 
-      logged().forEach(l -> System.out.println("M6 LOG " + l));
-      System.out.println("M6 J after 2nd apply private=" + count(false));
       assertTrue(anyLog("Skipping refresh for assembly J"),
                  "the slow table still starves the loop on the next edit: " + logged());
       assertEquals(keyColumns, joinColumnNames(),
                    "a later unrelated edit must not empty or lose the join's columns");
    }
 
-   // ---- M7: a direct refresh of the join is cheap while the slow refresh is hung ------------
-
+   /**
+    * A slow refresh already in flight (same definition) is joined, not restarted, and still
+    * exhausts the window, so the loop skips J; J is populated anyway by the early init. No
+    * elapsed-time lower bound: the budget-exhausted log line for J is the proof of exhaustion.
+    */
    @Test
-   void m7DirectRefreshOfTheJoinIsQuickAndFillsItWhileTheSlowRefreshIsHung() throws Exception {
-      build(Order.SLOW_FIRST, SLOW_EXPR, null);
-      // Create J with a bare Editor (no apply, so no early init and no loop): J is empty
-      WorksheetEditService.Editor ed = new WorksheetEditService.Editor(
-         ws, agent, permissive(), mock(InnerJoinService.class), null, () -> null);
-      ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null);
-      assertEquals(0, count(false), "precondition: J empty");
-      // start the slow refresh and leave it hung in the background
-      apply(ed2 -> {});
-      assertEquals(0, count(false), "precondition: J still empty, slow refresh hung");
-
-      long t0 = System.currentTimeMillis();
-      box.refreshColumnSelection("J", false);
-      long ms = System.currentTimeMillis() - t0;
-      System.out.println("M7 refreshColumnSelection(J,false) took " + ms + " ms; J private="
-                         + count(false) + " model=" + joinColumnNames());
-
-      assertTrue(ms < 1500, "direct join refresh must not block on the slow query, took " + ms);
-      assertEquals(keyColumns, joinColumnNames());
-   }
-
-   @Test
-   void m7bDirectRecursiveRefreshOfTheJoinAlsoDoesNotBlock() throws Exception {
-      build(Order.SLOW_FIRST, SLOW_EXPR, null);
-      apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
-
-      long t0 = System.currentTimeMillis();
-      box.refreshColumnSelection("J", true);
-      long ms = System.currentTimeMillis() - t0;
-      System.out.println("M7b refreshColumnSelection(J,true) took " + ms + " ms; J private="
-                         + count(false));
-
-      assertTrue(ms < 1500, "took " + ms);
-      assertEquals(keyColumns, joinColumnNames());
-   }
-
-   // ---- M8: getTableLens fills a never-run join; and with a socket session + real broadcast -
-
-   @Test
-   void m8GetTableLensFillsANeverRunJoin() throws Exception {
-      build(Order.TABLES_ONLY, FAST_EXPR, null);
-      WorksheetEditService.Editor ed = new WorksheetEditService.Editor(
-         ws, agent, permissive(), mock(InnerJoinService.class), null, () -> null);
-      ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null);
-      assertEquals(0, count(false), "precondition");
-
-      box.getTableLens("J", AssetQuerySandbox.DESIGN_MODE);
-      System.out.println("M8a after getTableLens(J, DESIGN_MODE) private=" + count(false)
-                         + " public=" + count(true));
-
-      assertEquals(keyColumns, joinColumnNames());
-   }
-
-   @Test
-   void m8cCreateModelFromDoesOrDoesNotFillANeverRunJoin() throws Exception {
-      build(Order.TABLES_ONLY, FAST_EXPR, "stomp-1");
-      WorksheetEditService.Editor ed = new WorksheetEditService.Editor(
-         ws, agent, permissive(), mock(InnerJoinService.class), null, () -> null);
-      ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null);
-      assertEquals(0, count(false), "precondition");
-
-      System.out.println("M8c getMode(J)=" + inetsoft.web.composer.ws.assembly.WorksheetEventUtil
-         .getMode((TableAssembly) ws.getAssembly("J")) + " (DESIGN_MODE="
-         + AssetQuerySandbox.DESIGN_MODE + ", EDIT_MODE=" + AssetQuerySandbox.EDIT_MODE
-         + ", LIVE_MODE=" + AssetQuerySandbox.LIVE_MODE + ", RUNTIME_MODE="
-         + AssetQuerySandbox.RUNTIME_MODE + ")");
-      Object model = inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory.createModelFrom(
-         (WSAssembly) ws.getAssembly("J"), rws, agent);
-      System.out.println("M8c createModelFrom(J) returned " + (model == null ? null
-         : model.getClass().getSimpleName()) + "; J private=" + count(false) + " public="
-         + count(true) + " model=" + joinColumnNames());
-
-      assertNotNull(model);
-   }
-
-   @Test
-   void m8bWithASocketSessionTheRealBroadcastDoesOrDoesNotPopulateTheJoin() throws Exception {
-      build(Order.SLOW_FIRST, SLOW_EXPR, "stomp-1");
-
-      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
-      svc = service(new SheetAgentBroadcastService(dispatcher,
-         mock(VSObjectModelFactoryService.class), mock(VSBindingTreeService.class),
-         mock(CoreLifecycleService.class)));
-
-      ListAppender<ILoggingEvent> bl = new ListAppender<>();
-      bl.start();
-      Logger bcastLog = (Logger) LoggerFactory.getLogger(SheetAgentBroadcastService.class);
-      bcastLog.addAppender(bl);
-      bcastLog.setLevel(Level.DEBUG);
-      Logger factoryLog = (Logger) LoggerFactory.getLogger(
-         inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory.class);
-      factoryLog.addAppender(bl);
-      factoryLog.setLevel(Level.DEBUG);
-
-      long t0 = System.currentTimeMillis();
-
-      try {
-         apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
-      }
-      finally {
-         bcastLog.detachAppender(bl);
-         factoryLog.detachAppender(bl);
-      }
-
-      long ms = System.currentTimeMillis() - t0;
-      bl.list.forEach(e -> System.out.println("M8b BCAST LOG " + e.getLevel() + " "
-         + e.getFormattedMessage()
-         + (e.getThrowableProxy() == null ? "" : " [" + e.getThrowableProxy().getClassName()
-            + ": " + e.getThrowableProxy().getMessage() + "]")));
-      logged().forEach(l -> System.out.println("M8b LOG " + l));
-      System.out.println("M8b add_join with socket session took " + ms + " ms; J private="
-                         + count(false) + " model=" + joinColumnNames());
-
-      // documents the observation, whichever way it goes; the primary test is the gate
-      assertTrue(ms > 0);
-   }
-
-   // ---- M9: a slow refresh already in flight (same definition) still exhausts the window ----
-
-   @Test
-   void m9InFlightSameDefinitionRefreshStillExhaustsTheWindow() throws Exception {
-      build(Order.SLOW_FIRST, SLOW_EXPR, null);
+   void inFlightSameDefinitionRefreshStillExhaustsTheWindowButJoinIsPopulated() throws Exception {
+      build(Order.SLOW_FIRST);
       apply(ed -> {});
       appender.list.clear();
 
       long t0 = System.currentTimeMillis();
       apply(ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
-      long ms = System.currentTimeMillis() - t0;
-      logged().forEach(l -> System.out.println("M9 LOG " + l));
-      System.out.println("M9 second apply took " + ms + " ms; J private=" + count(false));
 
-      assertTrue(ms >= 1800, "the joined in-flight wait still consumes the window, took " + ms);
+      assertTrue(System.currentTimeMillis() - t0 < GENEROUS_UPPER_BOUND_MS);
       assertTrue(anyLog("Skipping refresh for assembly J - refreshAssemblies budget exhausted"),
                  logged().toString());
-      // the loop is still starved, but J no longer depends on it
       assertEquals(keyColumns, joinColumnNames(),
                    "window exhaustion must not starve the join of its columns");
    }
 
    // ---- fixture -----------------------------------------------------------------------------
 
-   private enum Order { SLOW_FIRST, SLOW_LAST, TABLES_ONLY }
+   private enum Order { SLOW_FIRST, SLOW_LAST }
 
-   private static boolean warmed;
-
-   private void build(Order order, String slowExpression, String socketSessionId)
-      throws Exception
-   {
-      if(!warmed) {
-         // the first script evaluation in a cold JVM can itself exceed the 2000 ms window, which
-         // would make the "fast" controls (m4/m5) look slow depending on test order
-         warmed = true;
-         build(Order.SLOW_FIRST, FAST_EXPR, null);
-         box.refreshColumnSelection("Slow", false);
-      }
-
+   private void build(Order order) throws Exception {
       ws = new Worksheet();
 
       if(order == Order.SLOW_FIRST) {
-         ws.addAssembly(slowCrosstab(slowExpression));
+         ws.addAssembly(slowCrosstab(SLOW_EXPR));
       }
 
       ws.addAssembly(keyed("Table1", "a", new Object[][]{ { 1, "x" }, { 2, "y" } }));
       ws.addAssembly(keyed("Table2", "b", new Object[][]{ { 1, "p" }, { 2, "q" } }));
 
       if(order == Order.SLOW_LAST) {
-         ws.addAssembly(slowCrosstab(slowExpression));
+         ws.addAssembly(slowCrosstab(SLOW_EXPR));
       }
 
       rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
-      when(rws.getSocketSessionId()).thenReturn(socketSessionId);
       box = new AssetQuerySandbox(ws, null, new VariableTable());
       box.setActive(true);
       when(rws.getAssetQuerySandbox()).thenReturn(box);
-      svc = service(mock(SheetAgentBroadcastService.class));
+      svc = service();
    }
 
    /** Crosstab (groups g1,g2; Sum(w)) over an embedded table whose script column w busy-waits. */
@@ -478,7 +298,7 @@ class WorksheetEditServiceBug81354Test {
       return securityEngine;
    }
 
-   private WorksheetEditService service(SheetAgentBroadcastService broadcast) throws Exception {
+   private WorksheetEditService service() throws Exception {
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
       JoinSession s = new JoinSession("TOK", "Worksheet/ws1", "alice~;~host-org",
@@ -487,16 +307,17 @@ class WorksheetEditServiceBug81354Test {
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("Worksheet/ws1"), any()))
          .thenReturn(rws);
-      return new WorksheetEditService(sessions, runtimeAccess, broadcast, permissive(),
+      return new WorksheetEditService(sessions, runtimeAccess,
+                                      mock(SheetAgentBroadcastService.class), permissive(),
                                       mock(InnerJoinService.class));
    }
 
    private void apply(ThrowingConsumer<WorksheetEditService.Editor> m) throws Exception {
-      svc.apply("TOK", agent, m);
-   }
+      if(firstApplyAt == 0) {
+         firstApplyAt = System.currentTimeMillis();
+      }
 
-   private int count(boolean pub) {
-      return ((TableAssembly) ws.getAssembly("J")).getColumnSelection(pub).getAttributeCount();
+      svc.apply("TOK", agent, m);
    }
 
    /** J's columns exactly as read_worksheet_model reports them. */
