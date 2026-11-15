@@ -68,10 +68,11 @@ import java.util.concurrent.TimeoutException;
  * </ul>
  *
  * <p>The PNG does not depend on the requested width/height (scaling happens afterwards), so they
- * are not part of the key. What stays undetectable: a pure joiner (a call that waits on an export
- * that is still running and returns when it finishes) gets that export's PNG unchecked, so a
- * change made while it ran can show up as the old state, exactly as for any single export that
- * races a change; a change to the variable table or the reset/touch stamps made during the export
+ * are not part of the key. A call that joins a running export is checked too: it records the
+ * original's XML digest (of the object captured at the export's start, since rvs holds the clone while it runs) at the join and is served only if that equals the digest at the start of
+ * the export (and the export's own pre/finish digests agree), otherwise a fresh export starts. A
+ * null digest is retried briefly before the unverified window applies. What stays
+ * undetectable: a change to the variable table or the reset/touch stamps made during the export
  * (not after it); and state that is neither in the viewsheet XML, the variable table nor the
  * reset/touch stamps is bounded only by the TTL.</p>
  */
@@ -89,25 +90,43 @@ final class InFlightViewsheetExport {
    {
       String key = rvs.getID() + "|" + (principal == null ? "" : principal.getName());
       long deadline = System.currentTimeMillis() + timeoutMs;
-      Entry joined = take(key, rvs);
 
-      if(joined != null) {
-         return join(key, joined, deadline, retryAfterSeconds);
+      while(true) {
+         sweep();
+         Entry existing = REGISTRY.get(key);
+         Entry mine = null;
+
+         if(existing == null) {
+            mine = new Entry();
+            mine.original = rvs.getViewsheet();
+            mine.preXml = digest(XML_DIGEST, rvs);
+            existing = REGISTRY.putIfAbsent(key, mine);
+         }
+
+         if(existing != null) {
+            byte[] bytes = join(key, existing, rvs, deadline, retryAfterSeconds);
+
+            if(bytes != null) {
+               return bytes;
+            }
+
+            // stale: dropped from the registry, start (or join) a fresh export
+            continue;
+         }
+
+         return run(key, mine, rvs, export, deadline, retryAfterSeconds);
       }
+   }
 
-      Entry mine = new Entry();
-      mine.preXml = XML_DIGEST.apply(rvs);
-      Entry raced = REGISTRY.putIfAbsent(key, mine);
-
-      if(raced != null) {
-         return join(key, raced, deadline, retryAfterSeconds);
-      }
-
+   private static byte[] run(String key, Entry mine, RuntimeViewsheet rvs,
+                             Callable<byte[]> export, long deadline, int retryAfterSeconds)
+      throws Exception
+   {
       Callable<byte[]> tracked = () -> {
          try {
             byte[] bytes = export.call();
-            mine.finishXml = XML_DIGEST.apply(rvs);
-            mine.finishDigest = DIGEST.apply(rvs);
+            mine.finishXml = digest(XML_DIGEST, rvs);
+            mine.finishDigest = digest(DIGEST, rvs);
             mine.finishedAt = System.currentTimeMillis();
             mine.result.complete(bytes);
             sweep();
@@ -145,50 +164,26 @@ final class InFlightViewsheetExport {
       REGISTRY.entrySet().removeIf(e -> e.getValue().expired(now));
    }
 
-   /** The entry to join, or null if there is none usable (a stale or expired one is dropped). */
-   private static Entry take(String key, RuntimeViewsheet rvs) {
-      sweep();
-      Entry entry = REGISTRY.get(key);
-
-      if(entry == null) {
-         return null;
-      }
-
-      if(entry.result.isDone() && !entry.result.isCompletedExceptionally()) {
-         String current = DIGEST.apply(rvs);
-
-         if(entry.preXml == null || entry.finishXml == null || entry.finishDigest == null ||
-            current == null)
-         {
-            long age = System.currentTimeMillis() - entry.finishedAt;
-
-            if(age > unverifiedTtlMs) {
-               REGISTRY.remove(key, entry);
-               return null;
-            }
-
-            LOG.warn("Serving the finished viewsheet export of {} without a state check: the " +
-                     "viewsheet state digest could not be computed", key);
-         }
-         else if(!entry.preXml.equals(entry.finishXml) || !entry.finishDigest.equals(current))
-         {
-            LOG.debug("Discarding the finished viewsheet export of {}: state changed", key);
-            REGISTRY.remove(key, entry);
-            return null;
-         }
-      }
-
-      return entry;
-   }
-
-   private static byte[] join(String key, Entry entry, long deadline, int retryAfterSeconds)
+   /**
+    * Waits for the entry within the budget and serves its PNG only if it is still fresh for this
+    * call. A call that joins a running export records the original's XML digest at that moment
+    * ({@code joinXml}); the PNG is served only if that equals the digest taken when the export
+    * started, i.e. nothing changed between the start of the export and the join. Returns null
+    * (the entry is dropped) if the PNG is stale, so the caller starts a fresh export.
+    */
+   private static byte[] join(String key, Entry entry, RuntimeViewsheet rvs, long deadline,
+                              int retryAfterSeconds)
       throws Exception
    {
+      boolean running = !entry.result.isDone();
+      // not rvs.getViewsheet(): while the export runs rvs holds the export's clone
+      String joinXml = running && entry.original != null
+         ? digest(r -> xmlDigest(entry.original), rvs) : null;
+      byte[] bytes;
+
       try {
-         byte[] bytes = entry.result.get(
+         bytes = entry.result.get(
             Math.max(1, deadline - System.currentTimeMillis()), TimeUnit.MILLISECONDS);
-         REGISTRY.remove(key, entry);
-         return bytes;
       }
       catch(TimeoutException e) {
          throw new RenderNotReadyException(retryAfterSeconds);
@@ -200,6 +195,65 @@ final class InFlightViewsheetExport {
 
          throw e;
       }
+
+      REGISTRY.remove(key, entry);
+
+      if(!fresh(key, entry, rvs, running, joinXml)) {
+         return null;
+      }
+
+      return bytes;
+   }
+
+   private static boolean fresh(String key, Entry entry, RuntimeViewsheet rvs, boolean running,
+                                String joinXml)
+   {
+      String current = digest(DIGEST, rvs);
+
+      if(entry.preXml == null || entry.finishXml == null || entry.finishDigest == null ||
+         current == null || running && joinXml == null)
+      {
+         if(System.currentTimeMillis() - entry.finishedAt > unverifiedTtlMs) {
+            return false;
+         }
+
+         LOG.warn("Serving the finished viewsheet export of {} without a state check: the " +
+                  "viewsheet state digest could not be computed", key);
+         return true;
+      }
+
+      if(running && !joinXml.equals(entry.preXml) || !entry.preXml.equals(entry.finishXml) ||
+         !entry.finishDigest.equals(current))
+      {
+         LOG.debug("Discarding the finished viewsheet export of {}: state changed", key);
+         return false;
+      }
+
+      return true;
+   }
+
+   /**
+    * A digest, retried briefly when it comes back null: a null is typically a concurrent edit
+    * (writeXML on a viewsheet that is being mutated), exactly when freshness matters.
+    */
+   private static String digest(java.util.function.Function<RuntimeViewsheet, String> fn,
+                                RuntimeViewsheet rvs)
+   {
+      String result = fn.apply(rvs);
+
+      for(int i = 0; result == null && i < 2; i++) {
+         try {
+            Thread.sleep(20);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+         }
+
+         result = fn.apply(rvs);
+      }
+
+      return result;
    }
 
    /**
@@ -240,9 +294,11 @@ final class InFlightViewsheetExport {
 
    /** A digest of the viewsheet XML only, null if it cannot be computed. */
    static String xmlDigest(RuntimeViewsheet rvs) {
-      try {
-         Viewsheet vs = rvs.getViewsheet();
+      return xmlDigest(rvs.getViewsheet());
+   }
 
+   private static String xmlDigest(Viewsheet vs) {
+      try {
          if(vs == null) {
             return null;
          }
@@ -270,6 +326,7 @@ final class InFlightViewsheetExport {
 
    private static final class Entry {
       final CompletableFuture<byte[]> result = new CompletableFuture<>();
+      volatile Viewsheet original;
       volatile String preXml;
       volatile String finishXml;
       volatile String finishDigest;

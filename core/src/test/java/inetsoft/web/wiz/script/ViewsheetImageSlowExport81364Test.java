@@ -377,6 +377,72 @@ class ViewsheetImageSlowExport81364Test {
       awaitDone(f, 2);
    }
 
+   /**
+    * Review r4 F1: a state change made after the export started and before a retry JOINS the
+    * still-running export must not be answered with the old state; a fresh export starts.
+    */
+   @Test
+   void aChangeBeforeTheRetryJoinsTheRunningExportStartsAFreshExport() throws Exception {
+      Fixture f = fixture(COST_MS);
+      assertThrows(RenderNotReadyException.class, () -> call(f));
+      ((TextVSAssemblyInfo) ((TextVSAssembly) f.vs.getAssembly("Text1")).getVSAssemblyInfo())
+         .setText("changed while the first export was running");
+      assertEquals(0, f.exportDone.get(), "the first export must still be running at the join");
+
+      ScriptImageService.ChartImage img = null;
+
+      for(int i = 0; i < 8 && img == null; i++) {
+         try {
+            img = call(f);
+         }
+         catch(RenderNotReadyException e) {
+            // the joined export finished stale and was dropped, or the fresh one is running
+         }
+      }
+
+      assertNotNull(img, "a fresh export converged");
+      assertEquals(10 + "changed while the first export was running".length(), img.width(),
+         "never the old caption");
+      assertEquals(2, f.exportCalls.get(), "a fresh export was started");
+      awaitDone(f, 2);
+   }
+
+   /** Review r4 F1: joining a running export with no change in between shares that export. */
+   @Test
+   void joiningTheRunningExportWithNoChangeSharesIt() throws Exception {
+      Fixture f = fixture(COST_MS);
+      assertThrows(RenderNotReadyException.class, () -> call(f));
+      assertEquals(0, f.exportDone.get(), "the first export must still be running at the join");
+      ScriptImageService.ChartImage img = null;
+
+      for(int i = 0; i < 8 && img == null; i++) {
+         try {
+            img = call(f);
+         }
+         catch(RenderNotReadyException e) {
+         }
+      }
+
+      assertNotNull(img);
+      assertEquals(10 + "hello".length(), img.width());
+      assertEquals(1, f.exportCalls.get(), "one export served both calls");
+      awaitDone(f, 1);
+   }
+
+   /** Review r4 F2: a digest that is null once (concurrent edit) is retried, not trusted. */
+   @Test
+   void aDigestThatIsNullOnceIsRetriedBeforeTheUnverifiedWindow() throws Exception {
+      java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+      java.util.function.Function<RuntimeViewsheet, String> real = InFlightViewsheetExport.DIGEST;
+      InFlightViewsheetExport.DIGEST = r -> n.getAndIncrement() == 1 ? null : real.apply(r);
+      Fixture f = fixture(COST_MS);
+      assertThrows(RenderNotReadyException.class, () -> call(f));
+      awaitDone(f, 1);
+      assertNotNull(call(f));
+      assertTrue(n.get() >= 3, "the null digest was recomputed");
+      assertEquals(1, f.exportCalls.get());
+   }
+
    /** Review r1 finding 2: no digest means unknown freshness; serve briefly, then start fresh. */
    @Test
    void anUncomputableDigestServesTheFinishedExportOnlyWithinTheShortWindow() throws Exception {
