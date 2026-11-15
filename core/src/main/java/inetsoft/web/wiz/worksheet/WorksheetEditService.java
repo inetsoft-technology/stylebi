@@ -51,7 +51,6 @@ import java.text.Format;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
@@ -71,6 +70,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -205,8 +205,10 @@ public class WorksheetEditService {
 
       // Checkpoint saved after the mutation so redo restores the post-edit state,
       // matching the @Undoable / makeUndoable pattern used by the standard WS controllers.
-      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
+      // Before the checkpoint, so undo then redo of the creating edit restores the columns too:
+      // redo does not run initNewAssemblies and its refreshAssemblies can be starved again.
       initNewAssemblies(rws, before);
+      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
       refreshAssemblies(rws);
 
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
@@ -349,14 +351,19 @@ public class WorksheetEditService {
    }
 
    /**
-    * Bug #81354: the editor creates a join/concatenation/mirror with an empty column selection,
-    * and the only thing that fills it is the shared, budgeted {@link #refreshAssemblies} loop,
-    * where a new assembly is always last and so is starved by an earlier slow table. Give each
-    * assembly this edit created (by object identity, so a delete-and-recreate of the same name
-    * counts) its columns up front, as the Composer's join flow does. Only assemblies still
-    * empty are touched, so a selection this edit populated or trimmed, or one cloned by
-    * duplicate/redo, is left alone. Non-plain tables (crosstab/rotate/unpivot) are skipped
-    * because their refresh executes the source query; they stay with the budgeted loop.
+    * Bug #81354: the editor creates a join/concatenation with an empty column selection, and the
+    * only thing that fills it is the shared, budgeted {@link #refreshAssemblies} loop, where a new
+    * assembly is always last and so is starved by an earlier slow table. Give each assembly this
+    * edit created (by object identity, so a delete-and-recreate of the same name counts) its
+    * columns up front, as the Composer's join flow does. Only assemblies still empty are touched.
+    * Non-plain tables (crosstab/rotate/unpivot) are skipped because their refresh executes the
+    * source query; they stay with the budgeted loop.
+    *
+    * <p>The refresh of a join walks its sources' column selections, which for a bound source can
+    * reach datasource metadata, so it is bounded like the loop's: its own
+    * {@link #INIT_NEW_ASSEMBLIES_BUDGET_MS} (not drawn from the shared loop budget), a heartbeat,
+    * and {@link RenderWaitSupport}. On timeout the work keeps running in the background and the
+    * assembly stays as empty as before this method existed; the edit never fails or waits longer.</p>
     */
    private void initNewAssemblies(RuntimeWorksheet rws, Set<Assembly> before) {
       Worksheet ws = rws.getWorksheet();
@@ -365,20 +372,49 @@ public class WorksheetEditService {
          return;
       }
 
+      long deadline = System.currentTimeMillis() + INIT_NEW_ASSEMBLIES_BUDGET_MS;
+
       for(Assembly a : ws.getAssemblies()) {
          if(!(a instanceof TableAssembly ta) || before.contains(a) || !ta.isPlain()) {
             continue;
          }
 
-         try {
-            ColumnSelection cols = ta.getColumnSelection(false);
+         ColumnSelection cols = ta.getColumnSelection(false);
 
-            if(cols == null || cols.getAttributeCount() == 0) {
-               WorksheetEventUtil.refreshColumnSelection(rws, ta.getName(), false);
-            }
+         if(cols != null && cols.getAttributeCount() > 0) {
+            continue;
+         }
+
+         long remaining = deadline - System.currentTimeMillis();
+
+         if(remaining <= 0) {
+            LOG.warn("Skipping column initialization of new assembly {} - budget exhausted",
+                     ta.getName());
+            continue;
+         }
+
+         String name = ta.getName();
+         TimedQueue.TimedRunnable heartbeat = RuntimeHeartbeatKeepAlive.start(rws);
+
+         try {
+            RenderWaitSupport.awaitOrRetry(() -> {
+               try {
+                  WorksheetEventUtil.refreshColumnSelection(rws, name, false);
+               }
+               finally {
+                  RuntimeHeartbeatKeepAlive.stop(heartbeat);
+               }
+
+               return null;
+            }, remaining, 1, RenderNotReadyException.Subject.TABLE);
+         }
+         catch(RenderNotReadyException ex) {
+            // still running in the background; it stops its own heartbeat when it finishes
+            LOG.warn("Column initialization of new assembly {} is still running", name);
          }
          catch(Exception ex) {
-            LOG.warn("Failed to initialize columns of new assembly: {}", ta.getName(), ex);
+            RuntimeHeartbeatKeepAlive.stop(heartbeat);
+            LOG.warn("Failed to initialize columns of new assembly: {}", name, ex);
          }
       }
    }
@@ -505,6 +541,7 @@ public class WorksheetEditService {
    // here as one shared budget across the whole refreshAssemblies loop rather than per-table.
    private static final int TABLE_WARM_MAX_ATTEMPTS = 4;
    private static final long TABLE_WARM_RETRY_SLEEP_MS = 500;
+   private static final long INIT_NEW_ASSEMBLIES_BUDGET_MS = 1000;
    private static final long REFRESH_ASSEMBLIES_BUDGET_MS =
       TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS;
 

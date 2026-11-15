@@ -56,6 +56,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -94,8 +96,14 @@ class WorksheetEditServiceNewAssemblyColumnsTest {
       }
    }
 
+   /**
+    * Busy-waits longer than two 2000 ms refresh budgets: the redo test applies twice and the
+    * second apply joins the first one's in-flight refresh. Scripts cannot reach test code or
+    * Thread ("Class not permitted in scripts"), so it cannot be cancelled; a leaked spinner
+    * outlives its test by up to ~2.5 s.
+    */
    private static final String SLOW_EXPR =
-      "var t = Date.now(); while(Date.now() - t < 7000) {} 1";
+      "var t = Date.now(); while(Date.now() - t < 4500) {} 1";
 
    private final Principal agent = TestPrincipals.user("alice", "host-org");
    private Worksheet ws;
@@ -141,14 +149,14 @@ class WorksheetEditServiceNewAssemblyColumnsTest {
    void crossJoin() throws Exception {
       svc.apply("TOK", agent, ed -> ed.addCrossJoin("J", "Table1", "Table2"));
       assertBudgetWasExhausted("J");
-      assertFalse(columns("J").isEmpty());
+      assertEquals(List.of("k", "a", "k", "b"), columns("J"));
    }
 
    @Test
    void mergeJoin() throws Exception {
       svc.apply("TOK", agent, ed -> ed.addMergeJoin("J", new String[]{ "Table1", "Table2" }));
       assertBudgetWasExhausted("J");
-      assertFalse(columns("J").isEmpty());
+      assertEquals(List.of("k", "a", "k", "b"), columns("J"));
    }
 
    @Test
@@ -157,7 +165,7 @@ class WorksheetEditServiceNewAssemblyColumnsTest {
          new WorksheetMutationSupport.JoinPathSpec("Table1", "k", "Table2", "k", "INNER"),
          new WorksheetMutationSupport.JoinPathSpec("Table2", "k", "Table3", "k", "INNER"))));
       assertBudgetWasExhausted("J");
-      assertFalse(columns("J").isEmpty());
+      assertEquals(List.of("k", "a", "k", "b", "k", "c"), columns("J"));
    }
 
    @Test
@@ -165,7 +173,7 @@ class WorksheetEditServiceNewAssemblyColumnsTest {
       svc.apply("TOK", agent,
                 ed -> ed.addConcatenation("J", List.of("Table1", "Table3"), "UNION"));
       assertBudgetWasExhausted("J");
-      assertFalse(columns("J").isEmpty());
+      assertEquals(List.of("k", "a"), columns("J"));
    }
 
    @Test
@@ -211,6 +219,71 @@ class WorksheetEditServiceNewAssemblyColumnsTest {
       });
 
       assertEquals(List.of("k", "b", "k", "c"), columns("J"));
+   }
+
+   /**
+    * The checkpoint stored by the creating edit must carry the columns: redo installs that
+    * snapshot and does not run the early init, and its own refresh is starved by the slow table.
+    */
+   @Test
+   void redoOfTheCreatingEditRestoresTheColumns() throws Exception {
+      List<AbstractSheet> checkpoints = new ArrayList<>();
+      when(rws.addCheckpoint(any())).thenAnswer(inv -> {
+         checkpoints.add(inv.getArgument(0));
+         return checkpoints.size() - 1;
+      });
+
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
+      assertEquals(1, checkpoints.size());
+
+      // what RuntimeWorksheet.redo does: install a clone of the stored checkpoint
+      Worksheet redone = (Worksheet) checkpoints.get(0).clone();
+      when(rws.getWorksheet()).thenReturn(redone);
+      AssetQuerySandbox box2 = new AssetQuerySandbox(redone, null, new VariableTable());
+      box2.setActive(true);
+      when(rws.getAssetQuerySandbox()).thenReturn(box2);
+      ws = redone;
+
+      svc.applyOnRuntimeNoCheckpoint("TOK", agent, r -> null);
+
+      assertEquals(List.of("k", "a", "k", "b"), columns("J"));
+   }
+
+   /**
+    * A join whose column refresh blocks (a source reaching slow metadata) must not hang the edit:
+    * the early init has its own cap, the edit returns and the join is simply still empty.
+    */
+   @Test
+   void blockedColumnRefreshDoesNotHangTheEdit() throws Exception {
+      ws.removeAssembly("Slow");
+      CountDownLatch blocked = new CountDownLatch(1);
+      CountDownLatch entered = new CountDownLatch(1);
+      AssetQuerySandbox spyBox = spy(new AssetQuerySandbox(ws, null, new VariableTable()));
+      spyBox.setActive(true);
+      doAnswer(inv -> {
+         if("J".equals(inv.getArgument(0))) {
+            entered.countDown();
+            blocked.await(30, TimeUnit.SECONDS);
+         }
+
+         return inv.callRealMethod();
+      }).when(spyBox).refreshColumnSelection(eq("J"), anyBoolean(), anyBoolean());
+      when(rws.getAssetQuerySandbox()).thenReturn(spyBox);
+
+      try {
+         long t0 = System.currentTimeMillis();
+         svc.apply("TOK", agent,
+                   ed -> ed.addJoin("J", "Table1", "k", "Table2", "k", "INNER", null, null));
+         long ms = System.currentTimeMillis() - t0;
+
+         assertTrue(entered.await(1, TimeUnit.SECONDS), "the blocking refresh was never reached");
+         assertTrue(ms < 10_000, "edit must return despite a blocked refresh, took " + ms);
+         assertEquals(List.of(), columns("J"));
+      }
+      finally {
+         blocked.countDown();
+      }
    }
 
    /** Rotate is non-plain: its refresh executes the source query, so it stays with the loop. */
