@@ -161,7 +161,9 @@ public class MDXHelper {
          buffer.append(SreeEnv.getProperty("olap.drillthrough.maxrows"));
          buffer.append(" SELECT ");
          buffer.append(getMDXString(drillList.get(i), measures));
-         drills[i] = buffer.toString();
+         // escape the whole statement once, as generateSentence() does; execute() pastes it
+         // verbatim into the SOAP <Statement>
+         drills[i] = XMLAUtil.encodingXML(buffer.toString(), XMLAUtil.encoding1);
       }
 
       return drills;
@@ -414,7 +416,7 @@ public class MDXHelper {
             "CrossJoin(" + dimensionValues + ", " + crossjoin + ")";
       }
 
-      return XMLAUtil.encodingXML(crossjoin, XMLAUtil.encoding1);
+      return crossjoin;
    }
 
    /**
