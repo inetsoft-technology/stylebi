@@ -94,6 +94,13 @@ public class WorksheetTableResponse {
     */
    private boolean sampleRowsTruncated;
 
+   /**
+    * Things the caller should know about the table that was built, one sentence each. Null when
+    * there are none. Today: the columns were found in a leading sample of the rows because there
+    * were more rows than that, so a field that first appears later is not a column.
+    */
+   private List<String> warnings;
+
    private boolean success;
    private String errorMessage;
 
@@ -128,6 +135,9 @@ public class WorksheetTableResponse {
    public void setSampleRowsTruncated(boolean sampleRowsTruncated) {
       this.sampleRowsTruncated = sampleRowsTruncated;
    }
+
+   public List<String> getWarnings() { return warnings; }
+   public void setWarnings(List<String> warnings) { this.warnings = warnings; }
 
    public boolean isSuccess() { return success; }
    public void setSuccess(boolean success) { this.success = success; }

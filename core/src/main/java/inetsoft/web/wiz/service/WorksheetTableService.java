@@ -662,6 +662,7 @@ public class WorksheetTableService {
       response.setColumns(columns);
       applyResponseShape(response, table);
       applyResponseSampleRows(response, table);
+      applyColumnDiscoveryWarning(response, table);
 
       if(request.isAsPrimaryTable()) {
          String dbTableOverride = request.getPhysicalSource() != null
@@ -719,6 +720,39 @@ public class WorksheetTableService {
       if(query.isResponseShapeTruncated()) {
          response.setResponseSchemaTruncated(true);
       }
+   }
+
+   /**
+    * Say so when the columns were found in only the leading rows of a source that has more. A field
+    * that first appears after them is not a column, so its values cannot be reached from the
+    * worksheet, and without this nothing tells the caller. Only a connector that reports having
+    * stopped at the limit (see {@code TabularQuery.getColumnDiscoveryCappedAt}) produces it.
+    */
+   private void applyColumnDiscoveryWarning(WorksheetTableResponse response,
+                                            AbstractTableAssembly table)
+   {
+      if(table.getTableInfo() instanceof TabularTableAssemblyInfo info) {
+         response.setWarnings(columnDiscoveryWarnings(info.getQuery()));
+      }
+   }
+
+   /**
+    * The warnings for {@code query}'s last column discovery, or null when it read every row.
+    */
+   // Package-private for unit testing (WorksheetTableServiceColumnDiscoveryWarningTest).
+   static List<String> columnDiscoveryWarnings(TabularQuery query) {
+      if(query == null || query.getColumnDiscoveryCappedAt() <= 0) {
+         return null;
+      }
+
+      int rows = query.getColumnDiscoveryCappedAt();
+      String widen = rows >= TabularQuery.MAX_DISCOVERY_ROWS ? "" :
+         " Set maxRows to cover more rows (columns are read from up to " +
+         TabularQuery.MAX_DISCOVERY_ROWS + " rows).";
+      return List.of(
+         "The columns were found in the first " + rows + " rows only, and the data source has " +
+         "more rows. A field that first appears after row " + rows +
+         " is not a column of this table." + widen);
    }
 
    /**
@@ -1615,6 +1649,8 @@ public class WorksheetTableService {
       // extended into query.setMaxRows (see above). max(20, sampleRows) because a caller asking for
       // sample rows must actually get that many; the probe otherwise needs only enough rows to
       // resolve column structure, for which 20 is ample.
+      // The hint applies to connectors that return a table lens. A REST table is not bounded by it:
+      // it reads TabularQuery.getDiscoveryRows rows, which follows the maxRows persisted above.
       VariableTable probeVars = new VariableTable();
       probeVars.put(XQuery.HINT_MAX_ROWS,
                     String.valueOf(Math.max(20, src.getSampleRows() == null ? 0 : src.getSampleRows())));

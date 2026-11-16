@@ -112,6 +112,8 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
 
             table.loadStreamed(selectedData);
          }
+
+         reportRowLimit(strategy, table);
       }
       catch(Exception ex) {
          if(!(ex instanceof InterruptedException) || !isCancelled()) {

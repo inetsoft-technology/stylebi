@@ -73,6 +73,7 @@ public class ExpandedJsonTable extends BaseJsonTable {
    @Override
    public void loadStreamed(Object json) {
       if(getMaxRows() > 0 && size() >= getMaxRows()) {
+         setTruncated();
          return;
       }
 
@@ -354,14 +355,20 @@ public class ExpandedJsonTable extends BaseJsonTable {
                           int expandLevels, int level)
    {
       int cnt = 0;
+      Iterator<?> iterator = list.iterator();
 
-      for(Object obj : list) {
+      while(iterator.hasNext()) {
+         Object obj = iterator.next();
          int rc = processJson(ridx, new Object2ObjectLinkedOpenHashMap<>(row), prefix, obj, expandLevels, level + 1);
          ridx += rc;
          cnt += rc;
 
          // short-circuit if max rows is reached in top-level array
          if(getMaxRows() > 0 && ridx >= getMaxRows() && level <= 1) {
+            if(iterator.hasNext()) {
+               setTruncated();
+            }
+
             return cnt;
          }
       }

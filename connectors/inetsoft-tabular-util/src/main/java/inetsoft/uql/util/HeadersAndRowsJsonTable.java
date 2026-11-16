@@ -65,6 +65,7 @@ public class HeadersAndRowsJsonTable extends BaseJsonTable {
    @Override
    public void loadStreamed(Object json) {
       if(getMaxRows() > 0 && data.size() >= getMaxRows()) {
+         setTruncated();
          return;
       }
 
@@ -99,7 +100,9 @@ public class HeadersAndRowsJsonTable extends BaseJsonTable {
          if(rowsObj instanceof List) {
             List<Object> rowsList = (List<Object>) rowsObj;
 
-            for(Object rowObj : rowsList) {
+            for(int r = 0; r < rowsList.size(); r++) {
+               Object rowObj = rowsList.get(r);
+
                if(rowObj instanceof List) {
                   List<Object> row = (List<Object>) rowObj;
                   Object[] newRow = new Object[row.size()];
@@ -126,6 +129,10 @@ public class HeadersAndRowsJsonTable extends BaseJsonTable {
                   data.add(newRow);
 
                   if(getMaxRows() > 0 && data.size() >= getMaxRows()) {
+                     if(r + 1 < rowsList.size()) {
+                        setTruncated();
+                     }
+
                      break;
                   }
                }

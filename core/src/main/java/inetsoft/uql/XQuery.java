@@ -309,6 +309,15 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    }
 
    /**
+    * Get the row limit stored on this query itself, 0 when it has none. Unlike
+    * {@link #getMaxRows()} this does not fold in the server-wide and organization row limits, so
+    * it is the value to read back and restore around a temporary {@link #setMaxRows(int)}.
+    */
+   public int getStoredMaxRows() {
+      return rowlimit;
+   }
+
+   /**
     * Get the row limit (maximum number of rows) of this query.
     */
    public int getMaxRows() {
